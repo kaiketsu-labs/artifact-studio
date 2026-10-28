@@ -1,0 +1,32 @@
+[project]
+name = "slide-studio"
+version = "0.1.0"
+description = "Local slide review workspace with stateless MCP tools."
+requires-python = ">=3.14"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.35,<1", "mcp>=2,<3"]
+
+[dependency-groups]
+dev = ["basedpyright>=1.28", "ruff>=0.11", "pytest>=8.3", "httpx>=0.28"]
+
+[tool.fastapi]
+entrypoint = "studio.app:app"
+
+[tool.basedpyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.14"
+include = ["studio", "tests"]
+venvPath = "."
+venv = ".venv"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+addopts = "-q"

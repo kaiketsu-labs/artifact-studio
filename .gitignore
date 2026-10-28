@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.state/
+qa/
+research/
+.DS_Store
+*.sqlite*
+.env
+.env.*
+node_modules/
+# Corporate packs and user content belong outside the application repository.
+design-*/
+demo-video/
+*.pptx
+*.ppt
+*.woff
+*.woff2
+*.ttf
+*.otf
