@@ -54,6 +54,7 @@ from .models import (
     SlidePatch,
     SlideSeenInput,
     SlideView,
+    SlideVisibilityInput,
 )
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .storage import ConflictError, Store, digest
@@ -532,6 +533,17 @@ async def presentation_changes(deck_id: DeckID, request: Request) -> StreamingRe
 def slide_seen(deck_id: DeckID, slide_id: SlideID, body: SlideSeenInput) -> dict[str, bool]:
     """Clear an update marker only for the exact version the human opened."""
     return {"seen": store.mark_slide_seen(deck_id, slide_id, body.content_hash)}
+
+
+@app.post("/api/decks/{deck_id}/slides/{slide_id}/visibility")
+def slide_visibility(
+    deck_id: DeckID, slide_id: SlideID, body: SlideVisibilityInput
+) -> dict[str, bool]:
+    """Hide or unhide a slide in the slideshow without changing its review state."""
+    store.set_slide_hidden(
+        deck_id, slide_id, hidden=body.hidden, expected_hidden=body.expected_hidden
+    )
+    return {"hidden": body.hidden}
 
 
 @app.post("/api/decks")

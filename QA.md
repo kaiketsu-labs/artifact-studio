@@ -56,6 +56,14 @@ The `slide-studio-learn` skill passed the Skill Creator frontmatter/scaffold val
 
 The existing maintainer heartbeat was updated rather than duplicated: Tuesdays at 10:00 Europe/Berlin. It reads the bundled skill on each run and retains the prior released-feedback cursor file. Scheduled execution at the new time has not yet occurred. Runtime and slide code were unchanged by this documentation/skill addition.
 
+## Hidden slides · 29 October 2026
+
+59 Python tests and 12 Node behavior tests pass, with strict basedpyright, Ruff, formatting and JavaScript syntax checks. Coverage includes persistence, same-origin writes, strict visibility payloads, concurrent content/notes preservation, unchanged approval/unread state, agent metadata, fresh visible covers, reveal boundaries and hidden startup/navigation. The visibility setting is canonical slide metadata; it does not alter audience-visible content hashes.
+
+An isolated fictional browser deck verified thumbnail right-click and options menus, hide/unhide, crossed-out numbering, retained unsent feedback, editor arrow navigation, forward/back slideshow skipping, manual hidden-slide selection, next-slide preview, all-hidden empty shows and direct Escape exit. Always-visible eye controls were checked in both states: open means shown, crossed-out means hidden, and clicking toggles without changing the selected slide or losing drafts. A same-origin standalone fixture verified that ending an all-hidden show restores ordinary preview navigation. Two fresh Terra reviewers checked runtime boundaries and visual/accessibility behavior; confirmed startup, command-label, touch-discoverability and standalone-exit findings were fixed. Earlier native captures cropped the right edge; final captures of all four fictional slides were uncropped at 1280 × 720 and visually reviewed. Physical display placement was not tested.
+
+The four matching managed local runtime bundles were updated with guarded checks and backups. Deck HTML, notes, themes and assets were unchanged. Utility styles ship separately in `slideshow.css` so this runtime update preserves existing approval hashes. The main 8790 service was restarted once and MCP visibility metadata verified. No real slide was hidden during testing; personal decks remain local.
+
 ## Repository release check · 28 October 2026
 
 26 Python behavioral tests and 4 Node frontend/runtime tests passed; strict basedpyright and Ruff passed. JavaScript syntax checks passed. The live stateless MCP endpoint registered an authenticated private GitHub library, discovered the source master and all 158 extracted media files, and uploaded 498 collection files. A second sync returned the same remote commit with zero changed files. The interrupted-source-copy case is now covered by a regression test and leaves a clean checkout.

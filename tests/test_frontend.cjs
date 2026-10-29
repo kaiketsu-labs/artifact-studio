@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {create}=require('../web/drafts.js');
-const {PresentationClock,nextState,nextBuildState,buildCount,duration,keyAction}=require('../runtime/presentation.js');
+const {PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction}=require('../runtime/presentation.js');
 const {forSlide,migrateDraft}=require('../web/conversations.js');
 const {movePosition,moveMessage}=require('../web/slide-edits.js');
 const {needsSource}=require('../web/rules-editor.js');
@@ -85,6 +85,32 @@ test('numbered chart reveals advance independently and restore when navigating b
   for(const [current,revealed] of [[2,1],[2,0],[1,3],[1,2],[1,1],[1,0],[0,0],[0,0]]){
     state=nextBuildState(state.current,state.revealed,-1,counts);assert.deepEqual(state,{current,revealed});
   }
+});
+
+test('slideshow navigation skips hidden runs while retaining visible reveals and original indices',()=>{
+  const counts=[0,2,3,0,1,0],hidden=[true,false,true,true,false,true];
+  assert.deepEqual(shownIndices(hidden.map(hidden=>({hidden}))),[1,4]);
+  assert.deepEqual(shownIndices([{},{hidden:false}]),[0,1]);
+  assert.deepEqual(shownIndices([{hidden:true}]),[]);
+  assert.deepEqual(nextBuildState(1,0,-1,counts,hidden),{current:1,revealed:0});
+  let state={current:1,revealed:0};
+  for(const [current,revealed] of [[1,1],[1,2],[4,0],[4,1],[4,1]]){
+    state=nextBuildState(state.current,state.revealed,1,counts,hidden);assert.deepEqual(state,{current,revealed});
+  }
+  assert.deepEqual(nextBuildState(4,0,-1,counts,hidden),{current:1,revealed:2});
+  assert.deepEqual(nextBuildState(2,3,1,counts,hidden),{current:4,revealed:0});
+  assert.deepEqual(nextBuildState(2,0,-1,counts,hidden),{current:1,revealed:2});
+  assert.deepEqual(nextBuildState(0,0,1,[0,0],[true,true]),{current:0,revealed:0});
+});
+
+test('starting a show skips the selected hidden slide and handles an entirely hidden deck',()=>{
+  const slides=[{hidden:true},{hidden:false},{hidden:true},{hidden:false},{hidden:true}];
+  assert.equal(startIndex(slides),1);
+  assert.equal(startIndex(slides,1),1);
+  assert.equal(startIndex(slides,2),3);
+  assert.equal(startIndex(slides,4),1);
+  assert.equal(startIndex([{hidden:true},{hidden:true}],1),-1);
+  assert.equal(startIndex([{},{}],1),1);
 });
 
 test('slide chats keep legacy requests and replies together without repeating global history',()=>{

@@ -492,6 +492,21 @@ class Store:
             )
         return revised
 
+    def set_slide_hidden(
+        self, deck_id: str, slide_id: str, *, hidden: bool, expected_hidden: bool
+    ) -> None:
+        """Update only slideshow visibility while preserving content, notes and approval."""
+        with self.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            deck = self.read(deck_id)
+            slide = self.locate(deck, slide_id)
+            if slide.hidden == hidden:
+                return
+            if slide.hidden != expected_hidden:
+                raise ConflictError("Slide visibility changed. Refresh and try again.")
+            slide.hidden = hidden
+            self.write(deck_id, deck)
+
     def mark_slide_seen(self, deck_id: str, slide_id: str, content_hash: str) -> bool:
         """Acknowledge only the opened version, without hiding a newer concurrent edit."""
         with self.connect() as db:
@@ -747,11 +762,16 @@ class Store:
             ):
                 _ = shutil.copy2(template / name, target / name)
             _ = shutil.copytree(template / "assets", target / "assets")
+            _ = shutil.copy2(
+                Path(__file__).resolve().parent.parent / "runtime/slideshow.css",
+                target / "slideshow.css",
+            )
             deck = self.read(deck_id)
             deck.id, deck.title = deck_id, title
             deck.design_id = design_id
             deck.slides = deck.slides[:1]
             for slide in deck.slides:
+                slide.hidden = False
                 slide.title = title
                 slide.html = re.sub(
                     r"(<h1\b[^>]*>).*?(</h1>)",

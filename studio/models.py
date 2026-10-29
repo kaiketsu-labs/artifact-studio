@@ -62,6 +62,7 @@ class Slide(StrictModel):
     notes: str = Field(default="", max_length=20_000)
     sources: list[Source] = Field(default_factory=list)
     revision: int = Field(default=1, ge=1)
+    hidden: bool = Field(default=False, strict=True)
     agent: AgentContext = Field(default_factory=AgentContext)
 
 
@@ -162,6 +163,14 @@ class SlidePatch(StrictModel):
     notes: str | None = Field(default=None, max_length=20_000)
     sources: list[Source] | None = None
     agent: AgentContext | None = None
+    hidden: bool | None = Field(default=None, strict=True)
+
+
+class SlideVisibilityInput(StrictModel):
+    """A slideshow visibility change independent of ongoing content and note edits."""
+
+    hidden: bool = Field(strict=True)
+    expected_hidden: bool = Field(strict=True)
 
 
 class CommentInput(StrictModel):

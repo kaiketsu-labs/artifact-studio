@@ -1,0 +1,14 @@
+/* Slideshow utility UI is separate from the audience theme and approval hash. */
+.presenter-filmstrip .is-hidden .film-slide,#all-slides-grid .is-hidden .film-slide{opacity:.4}
+.presenter-filmstrip .is-hidden>span,#all-slides-grid .is-hidden>span{position:relative;display:inline-block;min-width:18px;border:1px solid currentColor;padding:1px 3px}
+.presenter-filmstrip .is-hidden>span::after,#all-slides-grid .is-hidden>span::after{content:'';position:absolute;width:130%;height:1px;left:-15%;top:50%;background:currentColor;transform:rotate(-43deg)}
+.runtime-empty{display:grid;place-items:center;background:#fff;color:#334155;font:24px system-ui}
+#all-slides-dialog{width:min(1000px,94vw);max-width:none;max-height:90dvh;border:1px solid #475569;border-radius:10px;padding:18px;background:#1c2230;color:#e2e8f0}
+#all-slides-dialog::backdrop{background:#0009}
+#all-slides-dialog>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+#all-slides-dialog h2{font:500 16px system-ui;margin:0}
+#close-all-slides{color:inherit;background:transparent;border:0}
+#all-slides-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+#all-slides-grid>button{min-width:0;padding:8px;background:transparent;border:1px solid #526179;border-radius:6px;color:inherit;text-align:center}
+#all-slides-grid>button:hover,#all-slides-grid>button:focus-visible{background:#334155;outline:2px solid #93b2ff}
+#all-slides-grid>button>span{font:12px system-ui;margin-top:6px;display:inline-block}

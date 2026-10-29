@@ -80,6 +80,8 @@ Present starts the slideshow directly. Single-screen default: the full-size slid
 
 Slide clicks and normal keys advance the next reveal or slide. Arrows navigate; Home/End jump to the first/last slide; Esc and End presentation return directly to the workspace editor at the current slide. Notes, dialogs, focused control activation and browser shortcuts retain their normal behavior. Use numbered `data-build` groups for staged reveals; the runtime retains slide DOM between reveal steps.
 
+Slides have optional `hidden` metadata, defaulting to false. Preserve it during content revisions. Use `SlidePatch.hidden` only when the user wants a slide hidden or unhidden. The workspace offers PowerPoint-style thumbnail Hide/Unhide controls. Hiding changes the slideshow route, not approval or audience-visible content. Ordinary navigation and next previews skip hidden slides; the all-slides picker and private filmstrip allow deliberate manual access. Bundle `slideshow.css` alongside `presentation.js` and `icons.js`; utility UI styles stay separate from `theme.css` so control updates do not invalidate slide approvals.
+
 The reusable runtime supplies subtle right-edge slide-progress dots (or a compact count for long decks). Treat progress as part of the presentation’s design language: restyle .deck-dots or build an equivalent when useful. An agent may choose a different clear indicator; this is not a fixed layout. If the deck supplies its own progress, html[data-progress="none"] hides the runtime indicator. The audience should be able to see the current position without distracting chrome.
 
 ## External design packs and references

@@ -22,13 +22,18 @@
     return groups.reduce((count,group)=>Math.max(count,Math.min(50,Math.max(1,Math.floor(Number(group[1]||group[2]||group[3]))||1))),0);
   }
   /** Advance one reveal at a time and restore all reveals when navigating back a slide. */
-  function nextBuildState(current,revealed,delta,counts){
+  function nextBuildState(current,revealed,delta,counts,hidden=[]){
     const limit=counts[current]||0,step=Math.max(0,Math.min(limit,Number(revealed)||0));
     if(delta>0&&step<limit)return {current,revealed:step+1};
     if(delta<0&&step>0)return {current,revealed:step-1};
-    const next=Math.max(0,Math.min(counts.length-1,current+delta));
+    const candidates=counts.map((_,index)=>index).filter(index=>!hidden[index]);
+    const next=(delta>0?candidates.find(index=>index>current):candidates.findLast(index=>index<current))??current;
     return {current:next,revealed:next===current?step:delta<0?counts[next]||0:0};
   }
+  /** Keep original slide numbers while filtering the normal slideshow route. */
+  function shownIndices(slides){return slides.flatMap((slide,index)=>slide.hidden?[]:[index]);}
+  /** Start on the requested visible slide or the next visible slide, with a safe empty result. */
+  function startIndex(slides,requested=0){const shown=shownIndices(slides);return shown.find(index=>index>=requested)??shown[0]??-1;}
   /** Format a duration without wrapping after an hour. */
   function duration(milliseconds){const total=Math.floor(Math.max(0,milliseconds)/1000);const seconds=String(total%60).padStart(2,'0');const minutes=String(Math.floor(total/60)%60).padStart(2,'0');return total>=3600?`${Math.floor(total/3600)}:${minutes}:${seconds}`:`${minutes}:${seconds}`;}
   /** Preserve editing, focused controls and system shortcuts while accepting slide-advance keys. */
@@ -39,8 +44,10 @@
     const actions={ArrowRight:'next',ArrowDown:'next',PageDown:'next',ArrowLeft:'previous',ArrowUp:'previous',PageUp:'previous',Backspace:'previous',Delete:'previous',Home:'first',End:'last'};
     return actions[event.key]||(active&&(event.key==='Enter'||event.key.length===1)?'next':null);
   }
-  if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,duration,keyAction};
+  if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction};
   if(typeof document==='undefined')return;
+
+  const runtimeStyles=document.createElement('link');runtimeStyles.rel='stylesheet';runtimeStyles.href=new URL('slideshow.css',document.currentScript?.src||location.href).href;document.head.append(runtimeStyles);
 
   const deck=JSON.parse(document.getElementById('deck-data').textContent);
   const $=id=>document.getElementById(id);
@@ -56,7 +63,10 @@
   const expectedNotes=new Map(deck.slides.map(slide=>[slide.id,slide.notes]));
   const noteDrafts=new Map(),saving=new Map();
   const noteKey=`slide-studio:presenter-notes:${deck.id}`;
-  let current=Math.max(0,deck.slides.findIndex(slide=>slide.id===decodeURIComponent(location.hash.slice(1))));
+  const requested=deck.slides.findIndex(slide=>slide.id===decodeURIComponent(location.hash.slice(1)));
+  const initial=startIndex(deck.slides,Math.max(0,requested));
+  let current=isAudience&&requested>=0?requested:direct?Math.max(0,initial):Math.max(0,requested);
+  let emptyShow=direct&&initial<0&&!(isAudience&&requested>=0);
   let revealed=0,mode=direct?'single':'preview',active=direct,blackout=false,laser=false;
   let audienceWindow=null,screenDetails=null,selectedScreen=null,noteTimer,lastWheel=0,lastPointer=0;
   let filmSignature='',stageSignature='',notesSlide=null;
@@ -69,14 +79,16 @@
     <div class="presenter-workspace"><section class="presenter-main"><div class="presenter-time"><div class="timer-controls"><time id="elapsed">00:00</time><button id="pause-timer"></button><button id="reset-timer"></button></div><time id="wall-clock"></time></div><div class="stage-slot" id="presenter-current"></div><footer class="presenter-nav"><div><button id="laser-button"></button><button id="blackout-button"></button><button id="audience-view-button"></button></div><div><button id="presenter-previous"></button><span id="presenter-counter"></span><button id="presenter-next-button"></button></div></footer></section>
     <section class="presenter-side"><h2>Next slide</h2><div class="stage-slot" id="presenter-next"></div><div class="presenter-notes-heading"><h2>Notes</h2><span id="presenter-note-status" role="status"></span><button id="save-presenter-notes"></button></div><textarea id="presenter-notes" aria-label="Speaker notes" placeholder="Add context you want to mention…"></textarea><div class="note-size-controls"><button id="notes-smaller"></button><button id="notes-larger"></button></div></section></div>
     <nav id="presenter-filmstrip" class="presenter-filmstrip" aria-label="All slides"></nav>`;
-  const controls=document.createElement('div');controls.className='single-controls';controls.innerHTML='<button id="single-previous"></button><span id="single-counter"></span><button id="single-next"></button><button id="single-blackout"></button><button id="show-presenter"></button><button id="single-fullscreen"></button><button id="exit-slideshow"></button>';document.body.append(controls);
+  const controls=document.createElement('div');controls.className='single-controls';controls.innerHTML='<button id="single-previous"></button><span id="single-counter"></span><button id="single-next"></button><button id="all-slides-button"></button><button id="single-blackout"></button><button id="show-presenter"></button><button id="single-fullscreen"></button><button id="exit-slideshow"></button>';document.body.append(controls);
+  const overview=document.createElement('dialog');overview.id='all-slides-dialog';overview.innerHTML='<header><h2>All slides</h2><button id="close-all-slides"></button></header><div id="all-slides-grid"></div>';document.body.append(overview);
   const pointer=document.createElement('div');pointer.className='laser-pointer';pointer.hidden=true;$('stage').append(pointer);
   for(const [id,icon,label,show] of [
     ['previous','left','Previous slide',false],['next','right','Next slide',false],['notes-button','notes','Notes',false],['sources-button','sources','Sources',false],['present-button','present','Present',true],['audience-fullscreen','fullscreen','Fullscreen',false],
     ['end-presentation','close','End',true],['open-audience','present','Open audience window',true],['swap-displays','swap','Swap displays',false],['presenter-fullscreen','fullscreen','Fullscreen',false],
     ['pause-timer','pause','Pause timer',false],['reset-timer','refresh','Reset timer',false],['laser-button','cursor','Laser pointer',false],['blackout-button','eye','Black screen',false],['audience-view-button','slides','Audience view',false],
     ['presenter-previous','left','Previous slide',false],['presenter-next-button','right','Next slide',false],['save-presenter-notes','save','Save notes',false],['notes-smaller','minus','Smaller notes',false],['notes-larger','plus','Larger notes',false],
-    ['single-previous','left','Previous slide',false],['single-next','right','Next slide',false],['single-blackout','eye','Black screen',false],['show-presenter','present','Presenter view',false],['single-fullscreen','fullscreen','Fullscreen',false],['exit-slideshow','close','End presentation',false]
+    ['single-previous','left','Previous slide',false],['single-next','right','Next slide',false],['single-blackout','eye','Black screen',false],['show-presenter','present','Presenter view',false],['single-fullscreen','fullscreen','Fullscreen',false],['exit-slideshow','close','End presentation',false],
+    ['all-slides-button','grid','See all slides',false],['close-all-slides','close','Close',false]
   ])iconButton($(id),icon,label,show);
   document.querySelectorAll('[data-close]').forEach(button=>iconButton(button,'close','Close',false));
   if(!isAudience){try{const saved=JSON.parse(localStorage.getItem(noteKey)||'{}');for(const [id,value] of Object.entries(saved)){if(value&&typeof value.notes==='string'&&typeof value.expected==='string')noteDrafts.set(id,value);}}catch{}}
@@ -108,11 +120,11 @@
   }
 
   /** Update the audience from the presenter's frozen slide snapshot, excluding private notes. */
-  function broadcast(content=false){if(isAudience)return;channel?.postMessage({kind:'state',current,revealed,blackout,...(content?{slides:deck.slides.map(({id,title,html})=>({id,title,html}))}:{})});}
+  function broadcast(content=false){if(isAudience)return;channel?.postMessage({kind:'state',current,revealed,blackout,emptyShow,...(content?{slides:deck.slides.map(({id,title,html,hidden})=>({id,title,html,hidden}))}:{})});}
   function hasBuild(index=current){return buildCount(deck.slides[index]?.html||'');}
   /** Keep the same slide DOM during builds so previously revealed chart lines stay still. */
   function putSlide(element,index,build=true){
-    const html=deck.slides[index]?.html||'<article class="slide statement"><div class="slide-body"><h1>End.</h1></div></article>';
+    const html=deck.slides[index]?.html||`<article class="slide runtime-empty"><h1>${emptyShow?'No slides to present.':'End.'}</h1></article>`;
     const changed=slideSources.get(element)!==html;
     if(changed){element.innerHTML=html;slideSources.set(element,html);}
     const slide=element.querySelector('.slide');if(!slide)return;
@@ -124,31 +136,35 @@
   }
   /** Preserve note input and thumbnail DOM while changing only slide-dependent content. */
   function render(){
-    const signature=`${current}/${revealed}/${deck.slides[current]?.html}`;
-    if(signature!==stageSignature){putSlide($('stage'),current);putSlide($('presenter-current'),current);putSlide($('presenter-next'),current+1,false);stageSignature=signature;}
+    const hidden=active?deck.slides.map(slide=>slide.hidden):[],counts=deck.slides.map(slide=>buildCount(slide.html));
+    const ahead=nextBuildState(current,counts[current],1,counts,hidden).current;
+    const signature=`${current}/${revealed}/${emptyShow}/${ahead}/${deck.slides[current]?.html}`;
+    if(signature!==stageSignature){putSlide($('stage'),emptyShow?-1:current);putSlide($('presenter-current'),emptyShow?-1:current);putSlide($('presenter-next'),!emptyShow&&ahead!==current?ahead:-1,false);stageSignature=signature;}
     $('stage').classList.toggle('blacked-out',blackout);document.body.classList.toggle('blackout',blackout);
-    const count=`${current+1} / ${deck.slides.length}`;for(const id of ['counter','presenter-counter','single-counter'])$(id).textContent=count;
-    const atStart=current===0&&!revealed,atEnd=current===deck.slides.length-1&&revealed>=hasBuild();
+    const count=emptyShow?`0 / ${shownIndices(deck.slides).length}`:`${current+1} / ${deck.slides.length}`;for(const id of ['counter','presenter-counter','single-counter'])$(id).textContent=count;
+    const before=nextBuildState(current,revealed,-1,counts,hidden),after=nextBuildState(current,revealed,1,counts,hidden);
+    const atStart=emptyShow||before.current===current&&before.revealed===revealed,atEnd=emptyShow||after.current===current&&after.revealed===revealed;
     for(const id of ['previous','presenter-previous','single-previous'])$(id).disabled=atStart;
     for(const id of ['next','presenter-next-button','single-next'])$(id).disabled=atEnd;
     document.body.classList.toggle('single-screen',mode==='single'&&!isAudience);document.body.classList.toggle('presenter-mode',mode==='presenter');
     $('normal-view').hidden=mode==='presenter';$('presenter-view').hidden=mode!=='presenter';
-    if(notesSlide!==deck.slides[current].id){$('presenter-notes').value=noteValue();$('notes-text').value=noteValue();notesSlide=deck.slides[current].id;noteStatus(noteDrafts.has(notesSlide)?'Unsaved':'');}
+    $('presenter-notes').disabled=emptyShow;
+    if(notesSlide!==deck.slides[current].id||emptyShow){$('presenter-notes').value=emptyShow?'':noteValue();$('notes-text').value=emptyShow?'':noteValue();notesSlide=emptyShow?null:deck.slides[current].id;noteStatus(noteDrafts.has(notesSlide)?'Unsaved':'');}
     for(const id of ['blackout-button','single-blackout'])$(id).setAttribute('aria-pressed',String(blackout));
     $('laser-button').setAttribute('aria-pressed',String(laser));
-    const film=JSON.stringify(deck.slides.map(({id,title,html})=>[id,title,html]));
-    if(film!==filmSignature){filmSignature=film;$('presenter-filmstrip').innerHTML=deck.slides.map((slide,index)=>`<button data-index="${index}" aria-label="Slide ${index+1}: ${escape(slide.title)}"><div class="film-slide">${slide.html}</div><span>${index+1}</span></button>`).join('');$('dots').innerHTML=deck.slides.length>24?'<span class="progress-count"></span>':deck.slides.map((slide,index)=>`<button aria-label="Slide ${index+1}: ${escape(slide.title)}" title="${index+1} / ${deck.slides.length}" data-index="${index}"></button>`).join('');}
+    const film=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
+    if(film!==filmSignature){filmSignature=film;const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide">${slide.html}</div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;const shown=shownIndices(deck.slides);$('dots').innerHTML=shown.length>24?'<span class="progress-count"></span>':shown.map(index=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${index+1} / ${deck.slides.length}" data-index="${index}"></button>`).join('');}
     for(const nav of [$('dots'),$('presenter-filmstrip')])nav.querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));
     const counter=$('dots').querySelector('.progress-count');if(counter)counter.textContent=count;
-    history.replaceState(null,'',`${location.pathname}${location.search}#${deck.slides[current].id}`);
+    history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
     iconButton($('present-button'),'present',active?'End':'Present',true);
   }
   /** Route all audience commands to the presenter to keep one navigation authority. */
   function navigate(action,index){
     if(isAudience){channel?.postMessage({kind:'navigate',action,index});return;}
     const previousId=deck.slides[current].id;if(noteDrafts.has(previousId))void saveNotes(previousId);
-    if(action==='next'||action==='previous')({current,revealed}=nextBuildState(current,revealed,action==='next'?1:-1,deck.slides.map(slide=>buildCount(slide.html))));
-    else{current=action==='first'?0:action==='last'?deck.slides.length-1:Math.max(0,Math.min(deck.slides.length-1,Number(index)||0));revealed=0;}
+    if(action==='next'||action==='previous'){if(!emptyShow)({current,revealed}=nextBuildState(current,revealed,action==='next'?1:-1,deck.slides.map(slide=>buildCount(slide.html)),active?deck.slides.map(slide=>slide.hidden):[]));}
+    else{const route=active?shownIndices(deck.slides):deck.slides.map((_,index)=>index);emptyShow=action!=='goto'&&!route.length;if(!emptyShow){current=action==='first'?route[0]:action==='last'?route.at(-1):Math.max(0,Math.min(deck.slides.length-1,Number(index)||0));revealed=0;}}
     render();broadcast();$('presenter-filmstrip').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
   }
   function tick(){$('elapsed').textContent=duration(clock.elapsed());$('wall-clock').textContent=new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit'}).format(new Date());}
@@ -159,6 +175,7 @@
   /** Use CSS presentation immediately; native fullscreen remains subject to browser activation. */
   async function startPresentation(){
     if(active){endPresentation();return;}
+    const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;
     active=true;mode='single';clock.pause();clock.reset();startClock();render();void fullscreen();
     if('getScreenDetails' in window){try{screenDetails=await window.getScreenDetails();if(!active||ending)return;screenDetails.addEventListener('screenschange',updateScreens);updateScreens();const other=screenDetails.screens.find(screen=>screen!==screenDetails.currentScreen);if(other&&channel){selectedScreen=other;openAudience(other,true);}}catch{}}
   }
@@ -169,7 +186,7 @@
     await Promise.all([...noteDrafts.keys()].map(id=>saveNotes(id)));
     await leaveFullscreen();
     if(workspaceDeck){location.replace(`/?deck=${encodeURIComponent(workspaceDeck)}#${encodeURIComponent(deck.slides[current].id)}`);return;}
-    mode='preview';blackout=false;render();ending=false;
+    mode='preview';blackout=false;emptyShow=false;render();ending=false;
   }
   function screenKey(screen){return `${screen.left},${screen.top},${screen.width},${screen.height}`;}
   function updateScreens(){
@@ -191,8 +208,12 @@
     else{try{audienceWindow.focus();}catch{}broadcast(true);}
   }
   function blackScreen(){if(isAudience){channel?.postMessage({kind:'blackout'});return;}blackout=!blackout;render();broadcast();}
-  function showPresenter(){if(isAudience)return;active=true;mode='presenter';void leaveFullscreen();startClock();$('open-audience').hidden=!!audienceWindow;render();}
+  function showPresenter(){if(isAudience)return;if(!active){const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;}active=true;mode='presenter';void leaveFullscreen();startClock();$('open-audience').hidden=!!audienceWindow;render();}
   function selectIndex(event){const button=event.target.closest('[data-index]');if(button)navigate('goto',Number(button.dataset.index));}
+  function showAllSlides(){if(isAudience){channel?.postMessage({kind:'overview'});return;}overview.showModal();overview.querySelector(`[data-index="${current}"]`)?.focus();}
+  $('all-slides-button').addEventListener('click',showAllSlides);$('close-all-slides').addEventListener('click',()=>overview.close());
+  $('all-slides-grid').addEventListener('click',event=>{if(!event.target.closest('[data-index]'))return;selectIndex(event);overview.close();});
+  for(const id of ['stage','presenter-current'])$(id).addEventListener('contextmenu',event=>{if(!active)return;event.preventDefault();showAllSlides();});
   for(const id of ['previous','presenter-previous','single-previous'])$(id).addEventListener('click',()=>navigate('previous'));
   for(const id of ['next','presenter-next-button','single-next'])$(id).addEventListener('click',()=>navigate('next'));
   $('dots').addEventListener('click',selectIndex);$('presenter-filmstrip').addEventListener('click',selectIndex);
@@ -238,7 +259,8 @@
     if(data.kind==='navigate'&&!isAudience)navigate(data.action,data.index);
     if(data.kind==='blackout'&&!isAudience)blackScreen();
     if(data.kind==='end'&&!isAudience)endPresentation();
-    if(data.kind==='state'&&isAudience){if(Array.isArray(data.slides)&&data.slides.length)deck.slides=data.slides;if(Number.isInteger(data.current)&&data.current>=0&&data.current<deck.slides.length){current=data.current;revealed=Math.max(0,Math.min(hasBuild(current),Number(data.revealed)||0));blackout=!!data.blackout;render();}}
+    if(data.kind==='overview'&&!isAudience)showAllSlides();
+    if(data.kind==='state'&&isAudience){if(Array.isArray(data.slides)&&data.slides.length)deck.slides=data.slides;if(Number.isInteger(data.current)&&data.current>=0&&data.current<deck.slides.length){current=data.current;revealed=Math.max(0,Math.min(hasBuild(current),Number(data.revealed)||0));blackout=!!data.blackout;emptyShow=!!data.emptyShow;render();}}
     if(data.kind==='pointer'&&isAudience){let dot=$('stage').querySelector('.laser-pointer');if(!dot){dot=pointer;$('stage').append(dot);}dot.hidden=!data.visible;if(data.visible){dot.style.left=`${Math.max(0,Math.min(1,data.x))*100}%`;dot.style.top=`${Math.max(0,Math.min(1,data.y))*100}%`;}}
   };
   if(isAudience){channel?.postMessage({kind:'ready'});void fullscreen();}

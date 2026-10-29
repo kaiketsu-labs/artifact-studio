@@ -15,7 +15,7 @@ def make_design(folder: Path, design_id: str = "test-brand") -> None:
     (folder / "assets").mkdir()
     for name in (f"{design_id}.svg", "custom.svg"):
         _ = (folder / "assets" / name).write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
-    for name in ("presentation.js", "icons.js"):
+    for name in ("presentation.js", "icons.js", "slideshow.css"):
         _ = shutil.copy2(PROJECT / "runtime" / name, folder / name)
     _ = shutil.copy2(PROJECT / "runtime/viewer.css", folder / "theme.css")
     _ = shutil.copy2(PROJECT / "docs/AGENT-GUIDE.md", folder / "AGENT-GUIDE.md")

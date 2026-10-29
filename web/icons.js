@@ -1,6 +1,7 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    eyeOff:'m3 3 18 18M10.6 5.1A12 12 0 0 1 12 5c6 0 10 7 10 7a21 21 0 0 1-4 4M6.1 6.1C3.5 8.1 2 12 2 12s4 7 10 7a12 12 0 0 0 5.1-1.1M10 10a3 3 0 0 0 4 4',
     rules:'m3 5 2 2 3-4M11 5h10M3 12l2 2 3-4M11 12h10M3 19l2 2 3-4M11 19h10',
     edit:'m16 3 5 5-13 13H3v-5L16 3Zm-3 3 5 5',
     move:'M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4',

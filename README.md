@@ -87,6 +87,8 @@ Revisions appear live. Orange clears when you open the changed slide; approval r
 
 In the slideshow, click the slide or press a normal key to advance. Arrows navigate, Home/End jump to the first/last slide, and **Esc** returns directly to the editor at the current slide. Notes and focused controls keep their normal keyboard behavior.
 
+Right-click a thumbnail for **Hide Slide / Unhide Slide**, or click its eye icon directly. An open eye means shown; a crossed-out eye and slide number mean hidden. Hidden slides stay editable and keep their notes and approval. Normal slideshow navigation and the next-slide preview skip them. Use **See all slides** or the private presenter filmstrip to show one deliberately, following [PowerPoint's interaction](https://support.microsoft.com/en-us/powerpoint/hide-or-show-a-slide).
+
 ## Live or Batch
 
 | Live | Batch |

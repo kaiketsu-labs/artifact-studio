@@ -20,7 +20,7 @@ Prepare a dated folder under the canonical collection with these files:
 | --- | --- |
 | `index.html` | Viewer shell plus editable `deck-data` JSON containing the example slides |
 | `theme.css` | Brand styling plus the reusable viewer's structural styles |
-| `presentation.js`, `icons.js` | Copy from `runtime/`; these implement controls, notes and presenter behavior |
+| `presentation.js`, `icons.js`, `slideshow.css` | Copy from `runtime/`; these implement controls, notes, presenter behavior and utility UI styles |
 | `assets/` | Local fonts, logos, icons and artwork actually used by the design |
 | `README.md` | Source provenance, rights/context, design language, data date and continuation guidance |
 | `AGENT-GUIDE.md` | Copy the app guide and add any pack-specific authoring details |
