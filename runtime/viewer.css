@@ -53,10 +53,10 @@
 .single-controls:hover,.single-controls:focus-within{opacity:1}
 .single-controls::before{content:'';position:absolute;inset:-30px -10px -14px;z-index:-1}
 .single-controls #single-counter{font-size:12px;min-width:58px;text-align:center;font-variant-numeric:tabular-nums}
-.single-screen .deck-dots,.audience-only .deck-dots{display:grid!important;position:fixed;right:6px;top:50%;transform:translateY(-50%);gap:9px;z-index:5;max-height:80dvh;overflow:auto;padding:5px;background:#ffffff18;border-radius:8px}
-.single-screen .deck-dots button,.audience-only .deck-dots button{width:5px;height:5px;background:#8a8a8a66}
+.single-screen .deck-dots,.audience-only .deck-dots{display:grid!important;position:fixed;right:6px;top:50%;transform:translateY(-50%);gap:9px;z-index:5;max-height:80dvh;overflow:auto;padding:5px;background:#ffffffeb;border:1px solid #cbd5e180;border-radius:8px}
+.single-screen .deck-dots button,.audience-only .deck-dots button{width:5px;height:5px;background:#94a3b8}
 .single-screen .deck-dots button[aria-current=true],.audience-only .deck-dots button[aria-current=true]{background:var(--accent);box-shadow:0 0 0 2px #64748b22}
-.progress-count{font:11px system-ui,sans-serif;writing-mode:vertical-rl;color:#9b9b91}
+.progress-count{font:11px system-ui,sans-serif;writing-mode:vertical-rl;color:#475569}
 html[data-progress=none] .deck-dots{display:none!important}
 .blacked-out::after{content:'';position:absolute;inset:0;background:#000;z-index:10}
 #stage{position:relative}

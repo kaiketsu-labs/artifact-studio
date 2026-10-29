@@ -53,6 +53,10 @@ Use a new agent session if the newly added server is not visible in the current 
 
 Ask the connected agent to call `get_working_context` first. It receives the authoring guide, current presentations, design-import instructions, reference libraries and the local runtime path. Each tool call uses explicit presentation/slide IDs; there is no hidden active presentation.
 
+Open the **checklist icon** to edit **Workspace rules** with rich text. These rules apply to every deck and are saved in the collection's `INSTRUCTIONS.md`. Each new presentation keeps its audience, client, content and brief in its own README. Learned guidance lives separately in `LEARNED-PREFERENCES.md`, is collapsed in the editor, and never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Advanced Markdown uses a source editor when needed to avoid losing formatting.
+
+A daily learning schedule belongs to your agent harness; installing Slide Studio does not create one automatically. It should inspect released feedback, preserve explicit rules, record evidence for general preferences and keep presentation-specific feedback with its original deck.
+
 ## Make your first presentation
 
 An empty workspace on first launch is expected.
@@ -71,12 +75,12 @@ Designs define a visual language, not locked layouts or a required slide count. 
 | --- | --- |
 | Top-left selector | Switch presentations. |
 | Archive icon beside the selector | Remove the selected entry from the list. Use **Undo**, or open the restore icon below the selector later. Files, notes and review history remain recoverable. |
-| Slide thumbnail | Open a slide. Red means unreviewed; green means you approved that exact content and its assets. |
-| Hover and click on a slide element | Select it and target your feedback. Clear the selection for a presentation-level request such as adding or reordering slides. |
-| Feedback conversation | Send changes, ask questions or give general instructions. **Enter** sends; **Shift+Enter** adds a new line. The same shortcuts apply to design chat. Agent questions remain visible; explanations and sources are collapsed. |
+| Slide thumbnail | Open a slide. With a thumbnail focused, Up/Down selects the previous/next slide; Home/End selects the first/last. Red means unreviewed; green means you approved that exact content and its assets. An orange outline appears live after a revision and clears when you open that slide. Opening does not approve it. |
+| Slide element | Select it for edit/move icons. Change text and confirm, or drag to send a move suggestion. The agent applies the change; the local preview is provisional. Tab/Enter select elements; arrows on the move icon position them, Enter sends and Esc cancels. |
+| Slide conversation | Each thumbnail opens its own messages and draft. The slide number/title show the context included with every message. Ask for local edits or deck-wide changes here; the agent infers the scope. **Enter** sends; **Shift+Enter** adds a new line. The same shortcuts apply to design chat. Agent questions remain visible; explanations and sources are collapsed. |
 | Live / Batch | Live releases each submitted comment immediately. Batch holds comments until **Send batch**. Loaded review hooks can continue the connected agent automatically. |
 | Notes | Edit concise, private speaking context and click **Save**. Unsent notes and feedback drafts are recovered locally. |
-| Present | Start the full-size slideshow directly. Arrow keys navigate; **Esc** ends it. |
+| Present | Start the full-size slideshow directly. Click the slide or press a normal key to advance. Arrows/Page Up/Page Down navigate; Home/End jump to the first/last slide. **Esc** and End presentation return directly to the editor at the current slide. Typing in notes and activating focused controls keep their normal behavior. |
 
 For automatic feedback in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Then ask it to call `start_live_review` for your deck and keep the review session open. The Live selector shows **Available** while connected; **plug → End review** stops listening and preserves comments. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
 

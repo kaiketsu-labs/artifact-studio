@@ -1,6 +1,9 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    rules:'m3 5 2 2 3-4M11 5h10M3 12l2 2 3-4M11 12h10M3 19l2 2 3-4M11 19h10',
+    edit:'m16 3 5 5-13 13H3v-5L16 3Zm-3 3 5 5',
+    move:'M12 2v20M2 12h20M8 6l4-4 4 4M8 18l4 4 4-4M6 8l-4 4 4 4M18 8l4 4-4 4',
     archive:'M3 4h18v5H3zM5 9v12h14V9M9 13h6',
     restore:'M4 4v6h6M4 10a8 8 0 1 1 0 5',
     folder:'M3 6h7l2 3h9v11H3zM3 6V4h7l2 2h8v3',

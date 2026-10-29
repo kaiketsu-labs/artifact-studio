@@ -11,7 +11,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from html import escape
 from html.parser import HTMLParser
@@ -100,6 +100,16 @@ class SlideMarkup(HTMLParser):
         self.handle_starttag(tag, attrs)
 
 
+def replace_text(path: Path, content: str) -> None:
+    """Atomically replace a UTF-8 document without exposing partially written content."""
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=path.parent, delete=False
+    ) as file:
+        _ = file.write(content)
+        temporary = Path(file.name)
+    temporary.replace(path)
+
+
 def digest(value: str) -> str:
     """Return a stable SHA-256 token for concurrency and approval checks."""
     return hashlib.sha256(value.encode()).hexdigest()
@@ -150,6 +160,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS approvals (
                     deck TEXT, slide TEXT, content_hash TEXT,
                     PRIMARY KEY(deck, slide));
+                CREATE TABLE IF NOT EXISTS slide_views (
+                    deck TEXT NOT NULL, slide TEXT NOT NULL, content_hash TEXT NOT NULL,
+                    PRIMARY KEY(deck, slide));
                 CREATE TABLE IF NOT EXISTS feedback (
                     id INTEGER PRIMARY KEY, deck TEXT NOT NULL, slide TEXT NOT NULL,
                     author TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -184,6 +197,60 @@ class Store:
                 "INSERT OR IGNORE INTO delivery(event_id) SELECT id FROM feedback "
                 "WHERE released=1 AND author='user' ORDER BY id"
             )
+            for file in self.root.glob("*/index.html"):
+                if 'id="deck-data"' not in file.read_text():
+                    continue
+                with suppress(ValueError, FileNotFoundError):
+                    self.seed_slide_views(db, self.read(file.parent.name))
+
+    def seed_slide_views(self, db: sqlite3.Connection, deck: Deck) -> None:
+        """Establish initial visual baselines without acknowledging any later revision."""
+        for slide in deck.slides:
+            _ = db.execute(
+                "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
+                (deck.id, slide.id, self.content_hash(deck.id, slide)),
+            )
+
+    @staticmethod
+    def default_instructions() -> str:
+        """Read the human-maintained default authoring rules shipped with the app."""
+        return (
+            Path(__file__).resolve().parent.parent / "docs/AUTHORING-INSTRUCTIONS.md"
+        ).read_text()
+
+    def authoring_instructions(self) -> str:
+        """Return persistent workspace rules independently of presentation design or chat."""
+        path = self.root / "INSTRUCTIONS.md"
+        if path.exists():
+            return path.read_text()
+        with self.connect() as db:
+            row = db.execute(
+                "SELECT value FROM workspace_settings WHERE key='authoring_instructions'"
+            ).fetchone()
+        return cast(str, row[0]) if row is not None else self.default_instructions()
+
+    def save_instructions(self, markdown: str, expected_hash: str) -> None:
+        """Save explicit human instructions without overwriting a concurrent edit."""
+        if len(markdown) > 20_000:
+            raise ValueError("Keep instructions under 20,000 characters.")
+        with self.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            path = self.root / "INSTRUCTIONS.md"
+            row = db.execute(
+                "SELECT value FROM workspace_settings WHERE key='authoring_instructions'"
+            ).fetchone()
+            fallback = cast(str, row[0]) if row is not None else self.default_instructions()
+            current = path.read_text() if path.exists() else fallback
+            if markdown == current and path.exists():
+                return
+            if digest(current) != expected_hash:
+                raise ConflictError("Instructions changed in another window. Reopen before saving.")
+            replace_text(path, markdown)
+
+    def learned_preferences(self) -> str:
+        """Read secondary learned guidance without changing explicit workspace rules."""
+        path = self.root / "LEARNED-PREFERENCES.md"
+        return path.read_text() if path.exists() else ""
 
     @contextmanager
     def connect(self) -> Generator[sqlite3.Connection]:
@@ -224,10 +291,7 @@ class Store:
         updated, count = DATA.subn(lambda match: match[1] + document + match[3], source)
         if count != 1:
             raise ValueError("Expected one canonical deck document.")
-        with tempfile.NamedTemporaryFile(mode="w", dir=target.parent, delete=False) as file:
-            _ = file.write(updated)
-            temporary = Path(file.name)
-        temporary.replace(target)
+        replace_text(target, updated)
 
     def visual_hash(self, deck_id: str) -> str:
         """Invalidate approvals when shared styling or bundled assets change."""
@@ -287,6 +351,10 @@ class Store:
         """Combine canonical content with approval and discussion state."""
         content_hash = self.content_hash(deck_id, slide)
         with self.connect() as db:
+            seen = db.execute(
+                "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?",
+                (deck_id, slide.id),
+            ).fetchone()
             row = db.execute(
                 "SELECT content_hash FROM approvals WHERE deck=? AND slide=?", (deck_id, slide.id)
             ).fetchone()
@@ -295,6 +363,7 @@ class Store:
             expected_hash=digest(slide.model_dump_json()),
             content_hash=content_hash,
             approved=row is not None and row[0] == content_hash,
+            has_unseen_changes=seen is None or seen[0] != content_hash,
             feedback=[
                 item
                 for item in self.comments(deck_id)
@@ -317,6 +386,8 @@ class Store:
             ],
             context_markdown=context,
             context_hash=digest(context),
+            authoring_instructions=self.authoring_instructions(),
+            learned_preferences=self.learned_preferences(),
             brief_files=self.brief_files(deck_id),
             workflow=self.workflow(deck_id),
             feedback=[
@@ -339,10 +410,7 @@ class Store:
                 return digest(previous)
             if digest(previous) != expected_hash:
                 raise ConflictError("Presentation context changed. Read it again before editing.")
-            with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as file:
-                _ = file.write(markdown)
-                temporary = Path(file.name)
-            temporary.replace(path)
+            replace_text(path, markdown)
         return digest(markdown)
 
     def list_decks(self, *, archived: bool = False) -> list[dict[str, str]]:
@@ -395,6 +463,14 @@ class Store:
             slide = self.locate(deck, slide_id)
             if digest(slide.model_dump_json()) != expected_hash:
                 raise ConflictError("Slide changed. Read it again and merge your revision.")
+            _ = db.execute(
+                "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
+                (
+                    deck_id,
+                    slide_id,
+                    self.content_hash(deck_id, slide) if slide.revision == 1 else "",
+                ),
+            )
             changes = patch.model_dump(exclude_none=True)
             revised = Slide.model_validate(slide.model_dump() | changes)
             SlideMarkup().feed(revised.html)
@@ -416,6 +492,20 @@ class Store:
             )
         return revised
 
+    def mark_slide_seen(self, deck_id: str, slide_id: str, content_hash: str) -> bool:
+        """Acknowledge only the opened version, without hiding a newer concurrent edit."""
+        with self.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            slide = self.locate(self.read(deck_id), slide_id)
+            if self.content_hash(deck_id, slide) != content_hash:
+                return False
+            _ = db.execute(
+                "INSERT INTO slide_views VALUES (?,?,?) ON CONFLICT(deck,slide) "
+                "DO UPDATE SET content_hash=excluded.content_hash",
+                (deck_id, slide_id, content_hash),
+            )
+        return True
+
     def approve(self, deck_id: str, slide_id: str, content_hash: str, approved: bool) -> None:
         """Record only the exact slide version approved through the human UI."""
         with self.connect() as db:
@@ -427,6 +517,11 @@ class Store:
                 "INSERT OR REPLACE INTO approvals VALUES (?,?,?)",
                 (deck_id, slide_id, content_hash if approved else ""),
             )
+            if approved:
+                _ = db.execute(
+                    "INSERT OR REPLACE INTO slide_views VALUES (?,?,?)",
+                    (deck_id, slide_id, content_hash),
+                )
 
     def add_feedback(
         self,
@@ -487,7 +582,7 @@ class Store:
                 released=released,
                 reply_to=reply_to,
                 target_json=target_json,
-                context_slide_id=context_slide_id,
+                context_slide_id=context_slide_id or slide_id,
             )
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
@@ -679,6 +774,7 @@ class Store:
                     ):
                         source.url = f"../{design.folder_id}/{source.url}"
             self.write(deck_id, deck)
+            self.seed_slide_views(db, deck)
             attachments: list[DesignFile] = []
             for file_index, (name, data) in enumerate(decoded):
                 relative = Path("brief-attachments") / f"{file_index}.attachment"
@@ -758,6 +854,7 @@ class Store:
             slide.revision = 1
             deck.slides.append(slide)
             self.write(deck_id, deck)
+            self.seed_slide_views(db, deck)
         return slide
 
     def reorder(self, deck_id: str, slide_ids: list[str]) -> Deck:
@@ -864,6 +961,8 @@ class Store:
             events=events,
             next_cursor=max((item.delivery_id or 0 for item in events), default=after_delivery_id),
             mode=self.workflow(deck_id).mode,
+            authoring_instructions=self.authoring_instructions(),
+            learned_preferences=self.learned_preferences(),
             design_requests=[
                 message
                 for message in self.design_inbox().messages

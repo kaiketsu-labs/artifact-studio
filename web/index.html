@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="/web/style.css">
   <script src="/web/icons.js" defer></script>
   <script src="/web/drafts.js" defer></script>
+  <script src="/web/conversations.js" defer></script>
+  <script src="/web/slide-edits.js" defer></script>
+  <script src="/web/rules-editor.js" defer></script>
   <script src="/web/libraries.js" defer></script>
   <script src="/web/presentations.js" defer></script>
   <script src="/web/app.js" defer></script>
@@ -18,6 +21,7 @@
   <div class="top-actions">
     <button id="new-button" class="quiet" aria-label="New presentation"></button>
     <button id="libraries-button" class="quiet" aria-label="Reference libraries"></button>
+    <button id="instructions-button" class="quiet" aria-label="Instructions" hidden></button>
     <button id="connect-button" class="quiet" aria-label="Connect an agent"></button>
     <a id="present-link" class="primary button" target="_blank" rel="noopener">Present</a>
   </div>
@@ -47,6 +51,13 @@
       <div id="preview-status" class="preview-status" role="status" hidden><span id="preview-message">Loading design…</span><button id="retry-preview" type="button" hidden aria-label="Retry loading design"></button></div>
       <div id="hover-box" class="element-box hover" hidden><span></span></div>
       <div id="selection-box" class="element-box selected" hidden></div>
+      <div id="element-tools" class="element-tools" role="toolbar" aria-label="Selected element" hidden>
+        <button id="edit-element-text" type="button" aria-label="Edit text"></button>
+        <button id="move-element" type="button" aria-label="Move element" aria-pressed="false"></button>
+        <button id="commit-element-text" type="button" aria-label="Send text change" hidden></button>
+        <button id="cancel-element-edit" type="button" aria-label="Cancel edit" hidden></button>
+        <span class="proposal-sent" id="element-proposal-sent" role="status" aria-label="Suggestion sent to the agent" title="Suggestion sent to the agent" hidden></span>
+      </div>
     </div>
     <div id="update-banner" class="update-banner" hidden>New version available.<button id="load-update">Show update</button></div>
     <details id="notes-panel" class="notes-panel">
@@ -57,7 +68,7 @@
     <details class="sources-panel"><summary><span>Sources</span><span id="source-count"></span></summary><div id="sources"></div></details>
   </section>
   <aside class="discussion" aria-label="Agent context and feedback">
-    <header class="discussion-top"><h2>Feedback</h2><span id="feedback-count"></span></header>
+    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="feedback-count"></span></header>
     <section class="delivery-panel" aria-label="Feedback delivery mode">
       <div class="mode-switch"><button id="mode-live" type="button" aria-pressed="true">Live</button><button id="mode-batch" type="button" aria-pressed="false">Batch</button></div>
       <button id="send-batch" type="button" hidden>Send batch</button>
@@ -70,7 +81,7 @@
     <div id="feedback-list" aria-live="polite"></div>
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
-      <div class="compose-context"><div id="target-chip" class="target-chip"><span id="target-label" role="status">Presentation</span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
+      <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <textarea id="feedback-text" placeholder="Ask for a change…" required maxlength="10000"></textarea>
       <div class="compose-actions"><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
@@ -78,6 +89,15 @@
   </aside>
 </main>
 <div id="toast" class="toast" role="status" hidden></div>
+<dialog id="instructions-dialog">
+  <form id="instructions-form">
+    <header><h2>Workspace rules</h2><div><button id="reload-instructions" type="button" aria-label="Reload saved instructions"></button><button id="close-instructions" type="button" aria-label="Close"></button></div></header>
+    <p class="instructions-scope">All presentations · Primary</p>
+    <div id="authoring-instructions"></div>
+    <details id="learned-rules-panel" class="learned-rules-panel" hidden><summary>Learned preferences</summary><p class="instructions-scope">Secondary</p><div id="learned-rules"></div></details>
+    <div class="dialog-actions"><span id="instructions-error" class="inline-error" role="alert"></span><button id="save-instructions" type="submit" class="primary">Save</button></div>
+  </form>
+</dialog>
 <dialog id="removed-dialog">
   <header><h2>Removed presentations</h2><button id="close-removed" type="button" aria-label="Close"></button></header>
   <div id="removed-list"></div><p id="removed-error" class="inline-error" role="alert"></p>

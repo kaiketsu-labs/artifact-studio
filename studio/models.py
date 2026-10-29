@@ -123,6 +123,8 @@ class FeedbackFeed(StrictModel):
     events: list[Feedback]
     next_cursor: int
     mode: Literal["live", "batch"]
+    authoring_instructions: str = ""
+    learned_preferences: str = ""
     design_requests: list[DesignMessage] = Field(default_factory=list)
 
 
@@ -132,6 +134,7 @@ class SlideView(Slide):
     expected_hash: str
     content_hash: str
     approved: bool
+    has_unseen_changes: bool = False
     feedback: list[Feedback]
 
 
@@ -144,6 +147,8 @@ class DeckView(StrictModel):
     slides: list[SlideView]
     context_markdown: str = ""
     context_hash: str = ""
+    authoring_instructions: str = ""
+    learned_preferences: str = ""
     workflow: FeedbackWorkflow = Field(default_factory=FeedbackWorkflow)
     feedback: list[Feedback] = Field(default_factory=list)
     brief_files: list[DesignFile] = Field(default_factory=list)
@@ -181,6 +186,19 @@ class ApprovalInput(StrictModel):
 
     content_hash: str
     approved: bool
+
+
+class SlideSeenInput(StrictModel):
+    """The exact visible version opened by the human reviewer."""
+
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class InstructionsInput(StrictModel):
+    """A human edit to persistent workspace instructions with a concurrency baseline."""
+
+    markdown: str = Field(max_length=20_000)
+    expected_hash: str
 
 
 class NotesInput(StrictModel):

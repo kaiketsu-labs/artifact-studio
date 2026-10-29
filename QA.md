@@ -34,6 +34,22 @@ After publication, an authenticated fresh clone of GitHub commit `8625ae0` insta
 
 A parallel authoring session reported a hook launcher failure in the managed sandbox. Reproduction with the old exact command shape and empty stdin returned exit 2 from the protected shared uv cache; the `uv --no-cache` launcher returned exit 0 with valid empty output. The configurator now migrates its generated handlers without duplicates, preserving unrelated handlers. Native dispatch/continuation is still a separate verification boundary; changed Codex definitions need native trust again. The final local suite contains 48 passing Python tests and four passing Node tests, with strict basedpyright and Ruff passing.
 
+## Live revision markers and slideshow controls · 29 October 2026
+
+53 Python tests and six Node behavior tests pass, together with strict basedpyright, Ruff and JavaScript syntax checks. Revision tests cover agent reads, persistent unread state, stale-open races, first-read styling changes after startup/creation/addition, independent approval, private notes, assets, same-origin writes and file/database push events. Repeated snapshots do not write or create an event loop. The short-lived SSE stream reconnects automatically; polling remains a fallback.
+
+An isolated browser workspace verified orange revision outlines without refresh, opening to clear without approval, and preservation of unsaved notes and original-version element-feedback anchors. Slideshow checks covered direct launch, slide clicks, Enter, letters, Space, arrows after focused button use, notes typing, Esc from notes and fullscreen, and End returning directly to the editor at the current slide. Every slide in the four-slide fictional deck was captured at presentation size. Two fresh Terra reviewers checked revision semantics/draft preservation and presenter behavior/readability; confirmed baseline and progress-contrast issues were fixed and re-reviewed. Physical second-display placement remains unverified.
+
+The four managed local runtime bundles were updated after matching their prior hashes, with backups retained locally. AI Week's numbered chart reveals and retained DOM were merged into the reusable runtime. Its existing 18-slide source/geometry/reveal checks pass. Deck content and notes were not rewritten by this runtime update. Personal presentation files remain outside the application repository.
+
+## Slide conversations and workspace rules · 29 October 2026
+
+The final local checks pass 55 Python tests and 10 Node behavior tests, plus strict basedpyright, Ruff, formatting and JavaScript syntax checks. Isolated browser checks verified per-slide messages and drafts, selected-slide context on submitted feedback, text/move proposals without canonical HTML changes, keyboard element selection/movement and Up/Down thumbnail navigation. Failed or stale edits preserve the original anchor and request identity.
+
+Workspace rules are file-backed Markdown and are included with MCP working context, presentation snapshots and feedback reads. Browser checks verified bold/list rich-text saves, normal-space serialization, and an unrelated edit preserving a Markdown table exactly through the source fallback. The expanded primary/secondary rules dialog was visually inspected with Save visible. Two fresh Terra reviews identified and verified fixes for an in-flight-save race and lossy conversion of unsupported Markdown. The UI bundles its editor dependencies locally; no CDN is required.
+
+An optional daily learning heartbeat was configured in the maintainer's agent harness for 18:00 local time. This is separate from app installation and has not yet completed a scheduled run. Its policy preserves explicit workspace rules, separates inferred preferences and limits presentation-specific learning to the originating deck. Physical second-display placement and native host hook continuation remain outside these checks.
+
 ## Repository release check · 28 October 2026
 
 26 Python behavioral tests and 4 Node frontend/runtime tests passed; strict basedpyright and Ruff passed. JavaScript syntax checks passed. The live stateless MCP endpoint registered an authenticated private GitHub library, discovered the source master and all 158 extracted media files, and uploaded 498 collection files. A second sync returned the same remote commit with zero changed files. The interrupted-source-copy case is now covered by a regression test and leaves a clean checkout.

@@ -28,8 +28,8 @@ Slides are editable HTML, CSS and SVG, saved on your machine. Bring a PPTX, webs
 
 | Compose | Review | Present |
 | --- | --- | --- |
-| Move text, shapes, icons, charts and images freely through the agent. | Click an element and describe the change beside the slide. | Start full-screen slides directly, with optional private presenter controls. |
-| Add reference files to the brief. Reuse your designs. | Red means unreviewed. Green means you approved that version. | Keep notes, sources and agent discussion off the audience screen. |
+| Move text, shapes, icons, charts and images freely through the agent. | Each slide has its own chat. Select an element to edit, move or comment. | Start full-screen slides directly, with optional private presenter controls. |
+| Add reference files to the brief. Reuse your designs. | Red means unreviewed. Green means approved. An orange outline marks a new revision until you open it. | Keep notes, sources and agent discussion off the audience screen. |
 
 ## Quick start
 
@@ -77,9 +77,15 @@ The **plug icon → Copy agent prompt** resumes work on the selected deck. Copyi
 
 ![A selected Review box is highlighted on the slide, with an element-specific comment in the feedback field and Batch mode selected.](docs/assets/element-review.png)
 
-Hover to highlight; click to comment. Clear the selection for a general request such as “add a slide” or “move this section earlier.” Speaker notes are editable below the slide. Agent explanations and sources stay collapsed; questions remain visible.
+Select a thumbnail to switch both the slide and its chat. Matching slide numbers show the context, which accompanies every message. Unsent drafts stay with their slide. You can still ask for a new slide or a different order; the agent infers the scope.
+
+Select an element for edit/move icons. Edit its text and confirm, or drag it to propose a new position. These actions send feedback for the agent to apply. For keyboard movement, focus the move icon, use arrows (Shift for larger steps), then Enter to send or Esc to cancel. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
 
 In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line.
+
+Revisions appear live. Orange clears when you open the changed slide; approval remains a separate action. Incoming changes preserve your drafts and their original element targets.
+
+In the slideshow, click the slide or press a normal key to advance. Arrows navigate, Home/End jump to the first/last slide, and **Esc** returns directly to the editor at the current slide. Notes and focused controls keep their normal keyboard behavior.
 
 ## Live or Batch
 
@@ -101,6 +107,10 @@ Plain MCP cannot wake a closed chat. Keep the review session open, or resume the
 To open presenter controls manually, move the pointer to the bottom toolbar and choose **Presenter view**. Use **Open audience window** to open or retry the audience display.
 
 ## Your files stay local
+
+The **checklist icon** opens workspace rules in a rich text editor. These are the primary instructions for every presentation, saved as `INSTRUCTIONS.md` in your collection. Each deck has its own brief and README context. `LEARNED-PREFERENCES.md` is separate, secondary guidance; it cannot override explicit rules. MCP returns both on working-context, presentation and feedback reads.
+
+Rich editing supports headings, lists, emphasis, links, quotes and code. Documents with advanced Markdown such as tables or images use source editing to preserve their formatting. Daily learning can be scheduled in your agent harness; it is not an app background service. General preferences need explicit cross-presentation intent or repeated evidence, while client, audience and content feedback stays with its deck.
 
 | What | Default location |
 | --- | --- |

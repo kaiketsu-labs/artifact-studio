@@ -5,9 +5,11 @@
   const draftStore=window.SlideDrafts.create({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value),removeItem:key=>localStorage.removeItem(key)});
   const drafts=draftStore.notes;
   const feedbackDrafts=draftStore.feedback;
-  const feedbackDraft=()=>feedbackDrafts.get(deck?.id);
+  const feedbackDraft=()=>feedbackDrafts.get(key());
   const {svg,button:iconButton}=window.SlideIcons;
   for(const [id,icon,label,show] of [
+    ['instructions-button','rules','Instructions',false],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
+    ['edit-element-text','edit','Edit text',false],['move-element','move','Move element',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
     ['retry-preview','refresh','Retry loading design',false],['copy-start','copy','Copy agent prompt',true],['copy-agent-prompt','copy','Copy agent prompt',true],
     ['attach-brief','attach','Attach brief files',false],['toggle-design-chat','plus','Add a design',false],['attach-design','attach','Attach reference files',false],['send-design','send','Send design request',false],
     ['new-button','plus','New presentation',false],['connect-button','plug','Connect an agent',false],
@@ -18,14 +20,25 @@
     ['copy-live-setup','copy','Copy setup prompt',true],['end-review','close','End review',true],
     ['create-button','plus','Create presentation',true],['mode-live','live','Live',true],['mode-batch','batch','Batch',true]
   ])iconButton($(id),icon,label,show);
-  $('hover-hint').innerHTML=svg('cursor')+' Click to comment';
+  $('hover-hint').innerHTML=svg('cursor');$('hover-hint').title='Select an element to edit, move or comment';$('element-proposal-sent').innerHTML=svg('send');
   let deck=null, selectedId=null, pendingDeck=null, selectedElement=null, hoverElement=null, toastTimer;
   let currentTarget=null, noteBaseline='', previewKey='', railSignature='', agentNotesKey='', commentsKey='', commentsSignature='', isLoading=false, feedbackSending=false, draftWarning=false, switchingDeck=false;
+  let deckEvents=null, watchedDeck=null, refreshQueued=false;
   const key=()=>`${deck?.id}/${selectedId}`;
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
-  const needsBrief=()=>starting()&&!deck.feedback?.length;
+  const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;
+  const elementEditor=window.SlideEdits.create({
+    tools:$('element-tools'),editButton:$('edit-element-text'),moveButton:$('move-element'),commitButton:$('commit-element-text'),cancelButton:$('cancel-element-edit'),sentBadge:$('element-proposal-sent'),
+    anchor:()=>({deck_id:deck.id,slide_id:selectedId,content_hash:slide().content_hash,target:structuredClone(currentTarget)}),
+    onSend:async({deck_id,slide_id,content_hash,target,message,request_id})=>{
+      await api(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/feedback`,{message,content_hash,target,request_id});
+      await refresh();toast(deck?.workflow?.mode==='batch'?'Added to batch.':deck?.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
+    },
+    onChange:element=>{placeBox($('selection-box'),element);if(!element)return;const rect=element.getBoundingClientRect(),frame=$('preview').contentDocument.documentElement;$('element-tools').style.left=`${Math.max(6,Math.min(rect.left,frame.clientWidth-140))}px`;$('element-tools').style.top=`${Math.max(6,rect.top-38)}px`;},
+    onError:message=>toast(message,true),blocked:()=>feedbackSending||switchingDeck
+  });
 
   /** Report save and conflict results without interrupting the review flow. */
   function toast(message,error=false,action=null){clearTimeout(toastTimer);$('toast').textContent=message;if(action){const button=document.createElement('button');button.type='button';button.textContent=action.label;button.addEventListener('click',async()=>{button.disabled=true;try{await action.run();}catch(error){toast(error.message,true);}});$('toast').append(button);}$('toast').classList.toggle('error',error);$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,error||action?8000:3500);}
@@ -39,21 +52,53 @@
     const previous=feedbackDraft(),value=$('feedback-text').value;
     const hasContext=previous?.feedback?.trim()||previous?.target;
     const unchanged=previous?.feedback===value&&JSON.stringify(previous?.target)===JSON.stringify(currentTarget);
-    feedbackDrafts.set(deck.id,{feedback:value,target:currentTarget,slide_id:currentTarget?(previous?.slide_id||selectedId):null,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:slide().content_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
+    feedbackDrafts.set(key(),{feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:slide().content_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     if(!draftStore.persist()&&!draftWarning){draftWarning=true;toast('Draft recovery is unavailable in this browser.',true);}
   }
-  function updateComposer(){$('send-feedback').disabled=!deck||feedbackSending||!$('feedback-text').value.trim();presentationActions.update(feedbackSending||switchingDeck);}
+  function updateComposer(){elementEditor.sync();$('clear-target').disabled=feedbackSending;$('select-parent').disabled=feedbackSending;$('send-feedback').disabled=!deck||feedbackSending||!$('feedback-text').value.trim();presentationActions.update(feedbackSending||switchingDeck);}
 
 
   /** Resolve a source relative to the canonical presentation folder. */
   function sourceURL(url){return new URL(url,`${location.origin}/decks/${deck.id}/`).href;}
-  /** Render the stable slide overview and its red/green review markers. */
-  function renderRail(){const approved=deck.slides.filter(item=>item.approved).length;const progress=$('progress-text'),label=`${approved} of ${deck.slides.length} slide${deck.slides.length===1?'':'s'} approved`;progress.innerHTML=svg('check')+`<span>${approved} / ${deck.slides.length}</span>`;progress.title=label;progress.setAttribute('aria-label',label);$('progress-bar').style.width=`${approved/deck.slides.length*100}%`;
-    const signature=JSON.stringify([deck.id,deck.slides.map(item=>[item.id,item.title,item.content_hash,item.approved])]);if(signature===railSignature){$('slides').querySelectorAll('[data-id]').forEach(button=>button.setAttribute('aria-current',String(button.dataset.id===selectedId)));return;}railSignature=signature;
-    $('slides').innerHTML=deck.slides.map((item,index)=>`<button class="slide-thumb" data-id="${escape(item.id)}" aria-current="${item.id===selectedId}" aria-label="Slide ${index+1}: ${escape(item.title)} — ${item.approved?'Approved':'Needs review'}"><div class="thumb-preview"><iframe title="Thumbnail ${index+1}" tabindex="-1" loading="lazy" sandbox="allow-same-origin"></iframe></div><div class="thumb-caption"><span class="thumb-number">${String(index+1).padStart(2,'0')}</span><span class="thumb-title">${escape(item.title)}</span><span class="dot ${item.approved?'green':'red'}" aria-hidden="true"></span></div></button>`).join('');$('slides').querySelectorAll('iframe').forEach((frame,index)=>{loadPreview(frame,deck.slides[index],deck.id);});
+  /** Render approval and unread revisions independently, without reloading stable thumbnails. */
+  function renderRail(snapshot=pendingDeck||deck){
+    const approved=snapshot.slides.filter(item=>item.approved).length;
+    const progress=$('progress-text'),label=`${approved} of ${snapshot.slides.length} slide${snapshot.slides.length===1?'':'s'} approved`;
+    progress.innerHTML=svg('check')+`<span>${approved} / ${snapshot.slides.length}</span>`;progress.title=label;progress.setAttribute('aria-label',label);$('progress-bar').style.width=`${approved/snapshot.slides.length*100}%`;
+    const signature=JSON.stringify([snapshot.id,snapshot.slides.map(item=>[item.id,item.title,item.content_hash,item.approved])]);
+    if(signature!==railSignature){
+      railSignature=signature;
+      $('slides').innerHTML=snapshot.slides.map((item,index)=>`<button class="slide-thumb" data-id="${escape(item.id)}"><div class="thumb-preview"><iframe title="Thumbnail ${index+1}" tabindex="-1" loading="lazy" sandbox="allow-same-origin"></iframe></div><div class="thumb-caption"><span class="thumb-number">${String(index+1).padStart(2,'0')}</span><span class="thumb-title">${escape(item.title)}</span><span class="dot ${item.approved?'green':'red'}" aria-hidden="true"></span></div></button>`).join('');
+      $('slides').querySelectorAll('iframe').forEach((frame,index)=>loadPreview(frame,snapshot.slides[index],snapshot.id));
+    }
+    $('slides').querySelectorAll('[data-id]').forEach((button,index)=>{
+      const item=snapshot.slides[index],label=`Slide ${index+1}: ${item.title} — ${item.approved?'Approved':'Needs review'}${item.has_unseen_changes?' · Updated since last opened':''}`;
+      button.setAttribute('aria-current',String(item.id===selectedId));button.setAttribute('aria-label',label);button.title=label;button.classList.toggle('has-unseen-changes',!!item.has_unseen_changes);
+    });
+  }
+  function renderChangeStatus(){document.querySelector('.preview-wrap').classList.toggle('has-unseen-changes',!!(pendingDeck||deck)?.slides.find(item=>item.id===selectedId)?.has_unseen_changes);}
+  /** Acknowledge only a version explicitly opened, never a background refresh. */
+  async function markOpened(){
+    const item=slide(),deckId=deck?.id;if(!item?.has_unseen_changes)return;
+    const {id,content_hash}=item;
+    try{
+      const result=await api(`/api/decks/${encodeURIComponent(deckId)}/slides/${encodeURIComponent(id)}/seen`,{content_hash});
+      if(!result.seen||deck?.id!==deckId)return;
+      for(const snapshot of [deck,pendingDeck]){const opened=snapshot?.slides.find(item=>item.id===id);if(opened?.content_hash===content_hash)opened.has_unseen_changes=false;}
+      renderRail();renderChangeStatus();
+    }catch(error){toast(error.message,true);}
+  }
+  /** Push file and review changes into the workspace; polling remains a fallback. */
+  function watchDeck(id){
+    if(watchedDeck===id)return;
+    deckEvents?.close();deckEvents=null;watchedDeck=id;
+    if(id&&typeof EventSource==='function'){
+      deckEvents=new EventSource(`/api/decks/${encodeURIComponent(id)}/events`);
+      deckEvents.addEventListener('change',()=>{if(deck?.id===id)void refresh();});
+    }
   }
   /** Reflect the selected element in the comment composer. */
-  function renderTarget(){const targeted=!!currentTarget,context=feedbackDraft();const original=deck.slides.find(item=>item.id===context?.slide_id);const otherSlide=targeted&&context?.slide_id!==selectedId;$('target-label').textContent=targeted?`${otherSlide?'Another slide · ':''}${currentTarget.label}${original&&context.content_hash!==original.content_hash?' · earlier version':''}`:'Presentation';$('target-chip').classList.toggle('has-target',targeted);$('clear-target').hidden=!targeted;$('select-parent').hidden=!selectedElement?.parentElement||selectedElement.parentElement.matches('body,html,.slide');$('feedback-text').placeholder=targeted?'What should change here?':needsBrief()?'Audience, takeaway, key points or links…':'Ask for a change…';}
+  function renderTarget(){const targeted=!!currentTarget,context=feedbackDraft();const original=deck.slides.find(item=>item.id===context?.slide_id);const otherSlide=targeted&&context?.slide_id!==selectedId;$('target-label').textContent=targeted?`${otherSlide?'Another slide · ':''}${currentTarget.label}${original&&context.content_hash!==original.content_hash?' · earlier version':''}`:'';$('target-chip').classList.toggle('has-target',targeted);$('clear-target').hidden=!targeted;$('select-parent').hidden=!selectedElement?.parentElement||selectedElement.parentElement.matches('body,html,.slide');$('feedback-text').placeholder=targeted?'What should change here?':needsBrief()?'Audience, takeaway, key points or links…':'Message your agent…';}
 
   /** Place a highlight in slide-relative coordinates so it survives viewport resizing. */
   function placeBox(box,element){if(!element){box.hidden=true;return;}const rect=element.getBoundingClientRect(),frame=$('preview').contentDocument.documentElement;const width=frame.clientWidth,height=frame.clientHeight;box.hidden=false;box.style.left=`${rect.left/width*100}%`;box.style.top=`${rect.top/height*100}%`;box.style.width=`${rect.width/width*100}%`;box.style.height=`${rect.height/height*100}%`;}
@@ -61,12 +106,19 @@
   function selectorFor(element){if(element.id)return `#${CSS.escape(element.id)}`;if(element.dataset.elementId)return `[data-element-id="${CSS.escape(element.dataset.elementId)}"]`;const parts=[];let node=element;while(node&&node.tagName.toLowerCase()!=='body'){const tag=node.tagName.toLowerCase();const siblings=[...(node.parentElement?.children||[])].filter(sibling=>sibling.tagName===node.tagName);parts.unshift(`${tag}:nth-of-type(${siblings.indexOf(node)+1})`);node=node.parentElement;}return parts.join(' > ');}
   /** Give the highlighted item a short human-readable name. */
   function labelFor(element){const tag=element.tagName.toLowerCase();const types={h1:'Heading',h2:'Heading',h3:'Heading',p:'Text',span:'Text',img:'Image',svg:'Diagram',rect:'Box',circle:'Circle',path:'Shape',line:'Line',text:'Chart label',div:'Group',g:'Group'};const name=element.getAttribute('aria-label')||element.getAttribute('alt')||(element.innerText||element.textContent).trim().replace(/\s+/g,' ');return `${types[tag]||'Element'}${name?` · ${name.slice(0,95)}`:''}`.slice(0,200);}
+  /** Remove editor-only focus attributes from the immutable source snapshot. */
+  function elementSnapshot(element){const clone=element.cloneNode(true);for(const node of [clone,...clone.querySelectorAll('[data-review-focus]')]){if(node.hasAttribute('data-review-focus')){node.removeAttribute('data-review-focus');node.removeAttribute('tabindex');}}return clone.outerHTML.slice(0,15000);}
+  /** Make major slide elements selectable without a pointing device. */
+  function bindKeyboardSelection(doc){
+    for(const element of doc.querySelectorAll('h1,h2,h3,h4,h5,h6,p,img,svg,[data-element-id]')){if(element.hasAttribute('tabindex')||element.closest('svg')!==null&&element.tagName.toLowerCase()!=='svg')continue;element.tabIndex=0;element.dataset.reviewFocus='';}
+    doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false);($('edit-element-text').disabled?$('move-element'):$('edit-element-text')).focus();});
+  }
   /** Capture the element and original geometry, never just an unstable screen pixel. */
-  function selectElement(element,focus=true){selectedElement=element;hoverElement=null;$('hover-box').hidden=true;if(!element||element.matches('body,html,.slide')){currentTarget=null;selectedElement=null;$('selection-box').hidden=true;}else{const rect=element.getBoundingClientRect(),doc=$('preview').contentDocument.documentElement;const clamp=value=>Math.max(0,Math.min(1,value));currentTarget={selector:selectorFor(element),label:labelFor(element),quote:(element.innerText||element.textContent).trim().slice(0,2000),html:element.outerHTML.slice(0,15000),x:clamp(rect.left/doc.clientWidth),y:clamp(rect.top/doc.clientHeight),width:clamp(rect.width/doc.clientWidth),height:clamp(rect.height/doc.clientHeight)};placeBox($('selection-box'),element);}
-    const previous=feedbackDraft()||{};feedbackDrafts.set(deck.id,{...previous,target:currentTarget,slide_id:currentTarget?selectedId:null,context_slide_id:selectedId,content_hash:slide().content_hash});retainDraft();renderTarget();if(focus)$('feedback-text').focus();
+  async function selectElement(element,focus=true){if(elementEditor.isBusy()||!await elementEditor.finish())return;const previousElement=selectedElement;elementEditor.select(null);if(element&&!element.isConnected)element=previousElement?.isConnected?previousElement:null;selectedElement=element;hoverElement=null;$('hover-box').hidden=true;if(!element||element.matches('body,html,.slide')){currentTarget=null;selectedElement=null;$('selection-box').hidden=true;}else{const rect=element.getBoundingClientRect(),doc=$('preview').contentDocument.documentElement;const clamp=value=>Math.max(0,Math.min(1,value));currentTarget={selector:selectorFor(element),label:labelFor(element),quote:(element.innerText||element.textContent).trim().slice(0,2000),html:elementSnapshot(element),x:clamp(rect.left/doc.clientWidth),y:clamp(rect.top/doc.clientHeight),width:clamp(rect.width/doc.clientWidth),height:clamp(rect.height/doc.clientHeight)};placeBox($('selection-box'),element);elementEditor.select(element);}
+    const previous=feedbackDraft()||{};feedbackDrafts.set(key(),{...previous,target:currentTarget,slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash});retainDraft();renderTarget();if(focus)$('feedback-text').focus();
   }
   /** Install immediate hover and click targeting inside the script-free slide preview. */
-  function bindPreview(){const doc=$('preview').contentDocument;if(!doc)return;doc.documentElement.style.cursor='crosshair';doc.addEventListener('pointermove',event=>{let target=event.target;if(!(target instanceof doc.defaultView.Element)||target.matches('html,body,.slide')){hoverElement=null;$('hover-box').hidden=true;return;}if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');if(target===selectedElement){$('hover-box').hidden=true;return;}if(hoverElement===target)return;hoverElement=target;placeBox($('hover-box'),target);$('hover-box').querySelector('span').textContent=labelFor(target);});doc.documentElement.addEventListener('pointerleave',()=>{$('hover-box').hidden=true;hoverElement=null;});doc.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();let target=event.target;if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');selectElement(target);});if(currentTarget&&feedbackDraft()?.slide_id===selectedId&&feedbackDraft()?.content_hash===slide().content_hash){try{selectedElement=doc.querySelector(currentTarget.selector);placeBox($('selection-box'),selectedElement);}catch{selectedElement=null;}renderTarget();}}
+  function bindPreview(){const doc=$('preview').contentDocument;if(!doc)return;elementEditor.bind(doc);bindKeyboardSelection(doc);doc.documentElement.style.cursor='crosshair';doc.addEventListener('pointermove',event=>{if(elementEditor.isEditing()||elementEditor.isBusy())return;let target=event.target;if(!(target instanceof doc.defaultView.Element)||target.matches('html,body,.slide')){hoverElement=null;$('hover-box').hidden=true;return;}if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');if(target===selectedElement){$('hover-box').hidden=true;return;}if(hoverElement===target)return;hoverElement=target;placeBox($('hover-box'),target);$('hover-box').querySelector('span').textContent=labelFor(target);});doc.documentElement.addEventListener('pointerleave',()=>{$('hover-box').hidden=true;hoverElement=null;});doc.addEventListener('click',event=>{if(elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;event.preventDefault();event.stopPropagation();if(elementEditor.consumeClick())return;let target=event.target;if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');selectElement(target,false);});if(currentTarget&&feedbackDraft()?.slide_id===selectedId&&feedbackDraft()?.content_hash===slide().content_hash){try{selectedElement=doc.querySelector(currentTarget.selector);placeBox($('selection-box'),selectedElement);elementEditor.select(selectedElement);}catch{selectedElement=null;}renderTarget();}}
   /** Render discussion as text, including element anchors and original-version labels. */
   function renderWorkflow(){
     const state=deck.workflow||{mode:'live',pending:0},live=state.mode==='live',available=state.agent_waiting;
@@ -81,7 +133,7 @@
   }
 
   /** Keep each preview tied to its exact content snapshot while an agent revises the file. */
-  function previewDocument(item,deckId,attempt=0){const origin=location.origin;return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src '+origin+' \'unsafe-inline\'; img-src '+origin+'; font-src '+origin+'; script-src \'none\'; base-uri '+origin+';"><base href="'+origin+'/decks/'+deckId+'/"><link rel="stylesheet" href="'+origin+'/decks/'+deckId+'/theme.css?v='+item.content_hash+'&retry='+attempt+'"><style>html,body{width:100%;height:100%;overflow:hidden}</style></head><body data-preview-key="'+item.content_hash+'">'+item.html+'</body></html>';}
+  function previewDocument(item,deckId,attempt=0){const origin=location.origin;return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src '+origin+' \'unsafe-inline\'; img-src '+origin+'; font-src '+origin+'; script-src \'none\'; base-uri '+origin+';"><base href="'+origin+'/decks/'+deckId+'/"><link rel="stylesheet" href="'+origin+'/decks/'+deckId+'/theme.css?v='+item.content_hash+'&retry='+attempt+'"><style>html,body{width:100%;height:100%;overflow:hidden}[data-review-focus]:focus-visible{outline:2px solid #386df0;outline-offset:3px}</style></head><body data-preview-key="'+item.content_hash+'">'+item.html+'</body></html>';}
   /** Reveal branded previews only after their design loads; retry transient failures once. */
   function loadPreview(frame,item,deckId,attempt=0){
     const token=crypto.randomUUID(),main=frame.id==='preview',parent=frame.parentElement;
@@ -109,7 +161,7 @@
   /** Offer one concrete handoff when the first draft still needs an agent. */
   function renderStart(){
     const fresh=starting(),noBrief=needsBrief();
-    $('start-help').hidden=!fresh||deck.workflow?.agent_waiting||deck.feedback?.some(item=>item.author==='agent');
+    $('start-help').hidden=!fresh||deck.workflow?.agent_waiting||[...(deck.feedback||[]),...(slide()?.feedback||[])].some(item=>item.author==='agent');
     $('start-help-text').textContent=noBrief?'Add a brief below.':'Ask your agent to draft the slides.';
     if(noBrief){$('agent-summary').hidden=true;$('agent-panel').hidden=!slide().agent.alternatives.length&&!deck.brief_files?.length;}
     else if(fresh&&slide().agent.summary==='Template draft. Replace with your presentation content.')$('agent-summary').textContent='Brief saved.';
@@ -130,28 +182,44 @@
   }
   /** Preserve reading position while new messages arrive. */
   function renderComments(item){
-    const comments=[...item.feedback,...(deck.feedback||[])].sort((a,b)=>a.event_id-b.event_id);
+    const comments=window.SlideConversations.forSlide(deck,item.id);
     $('feedback-count').textContent=comments.length?String(comments.length):'';
     const signature=JSON.stringify(comments),list=$('feedback-list'),changedContext=commentsKey!==key();
     if(!changedContext&&signature===commentsSignature)return;
     const atEnd=list.scrollHeight-list.scrollTop-list.clientHeight<35;
     commentsKey=key();commentsSignature=signature;
-    list.innerHTML=comments.map(comment=>`<article class="comment ${comment.author}"><div class="comment-header"><strong>${comment.author==='user'?'You':'Agent'}${comment.reply_to?' · reply':''}${comment.scope==='presentation'?' · Presentation':''}</strong><time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<p>${escape(comment.message)}</p>${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&comment.content_hash!==item.content_hash?'<span class="old-version">On an earlier version</span>':''}</article>`).join('')||'';
+    list.innerHTML=comments.map(comment=>`<article class="comment ${comment.author}"><div class="comment-header"><strong>${comment.author==='user'?'You':'Agent'}${comment.reply_to?' · reply':''}</strong><time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<p>${escape(comment.message)}</p>${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&comment.content_hash!==item.content_hash?'<span class="old-version">On an earlier version</span>':''}</article>`).join('')||'';
     if(changedContext||atEnd)list.scrollTop=list.scrollHeight;
   }
 
   /** Display one selected slide without losing unsaved per-slide work. */
-  function render(){const item=slide();if(!item)return;document.querySelector('.workspace').classList.remove('is-empty');for(const id of ['mode-live','mode-batch'])$(id).disabled=false;const index=deck.slides.indexOf(item),draft=drafts.get(key()),commentDraft=feedbackDraft();$('slide-eyebrow').textContent=`${String(index+1).padStart(2,'0')} / ${String(deck.slides.length).padStart(2,'0')}`;$('slide-eyebrow').title=`Version ${item.revision}`;$('slide-title').textContent=item.title;iconButton($('approve-button'),'check',item.approved?'Approved':'Approve',true);$('approve-button').classList.toggle('is-approved',item.approved);$('approve-button').setAttribute('aria-pressed',String(item.approved));$('approve-button').title=item.approved?'Click to return this slide to needs review':'Approve this exact slide version';$('prev-slide').disabled=index===0;$('next-slide').disabled=index===deck.slides.length-1;$('present-link').href=`/decks/${deck.id}/index.html?present=1#${item.id}`;$('present-link').removeAttribute('aria-disabled');$('present-link').removeAttribute('tabindex');
-    const nextKey=`${deck.id}/${item.id}/${item.content_hash}`;currentTarget=commentDraft?.target||null;if(previewKey!==nextKey){previewKey=nextKey;if(draft?.notes!==undefined)$('notes-panel').open=true;selectedElement=null;$('selection-box').hidden=true;$('hover-box').hidden=true;loadPreview($('preview'),item,deck.id);}
+  function render(){const item=slide();if(!item)return;$('instructions-button').hidden=deck.authoring_instructions===undefined;if(window.SlideConversations.migrateDraft(feedbackDrafts,deck))draftStore.persist();watchDeck(deck.id);renderChangeStatus();document.querySelector('.workspace').classList.remove('is-empty');for(const id of ['mode-live','mode-batch'])$(id).disabled=false;const index=deck.slides.indexOf(item),draft=drafts.get(key()),commentDraft=feedbackDraft();$('chat-slide-number').textContent=String(index+1).padStart(2,'0');$('chat-slide-title').textContent=item.title;$('chat-slide-title').title=item.title;$('feedback-slide-context').innerHTML=svg('slides')+`<span>${String(index+1).padStart(2,'0')}</span>`;$('feedback-slide-context').title=`Slide ${index+1}: ${item.title} · Included with every message`;$('feedback-slide-context').setAttribute('aria-label',`Context: slide ${index+1}, ${item.title}`);$('slide-eyebrow').textContent=`${String(index+1).padStart(2,'0')} / ${String(deck.slides.length).padStart(2,'0')}`;$('slide-eyebrow').title=`Version ${item.revision}`;$('slide-title').textContent=item.title;iconButton($('approve-button'),'check',item.approved?'Approved':'Approve',true);$('approve-button').classList.toggle('is-approved',item.approved);$('approve-button').setAttribute('aria-pressed',String(item.approved));$('approve-button').title=item.approved?'Click to return this slide to needs review':'Approve this exact slide version';$('prev-slide').disabled=index===0;$('next-slide').disabled=index===deck.slides.length-1;$('present-link').href=`/decks/${deck.id}/index.html?present=1#${item.id}`;$('present-link').removeAttribute('aria-disabled');$('present-link').removeAttribute('tabindex');
+    const nextKey=`${deck.id}/${item.id}/${item.content_hash}`;currentTarget=commentDraft?.target||null;if(previewKey!==nextKey){elementEditor.select(null);previewKey=nextKey;if(draft?.notes!==undefined)$('notes-panel').open=true;selectedElement=null;$('selection-box').hidden=true;$('hover-box').hidden=true;loadPreview($('preview'),item,deck.id);}
     noteBaseline=draft?.expected_notes??item.notes;if($('notes').value!==(draft?.notes??item.notes))$('notes').value=draft?.notes??item.notes;if($('feedback-text').value!==(commentDraft?.feedback||''))$('feedback-text').value=commentDraft?.feedback||'';notesDirty();renderTarget();renderAgentContext(item);$('source-count').textContent=item.sources.length;$('sources').innerHTML=item.sources.map(source=>source.url?`<a href="${escape(sourceURL(source.url))}" target="_blank" rel="noopener">${escape(source.label)} ↗</a>`:`<p>${escape(source.label)}</p>`).join('')||'<p>No sources.</p>';renderComments(item);renderWorkflow();renderStart();updateComposer();document.title=`${deck.title} · Slide Studio`;history.replaceState(null,'',`?deck=${encodeURIComponent(deck.id)}#${encodeURIComponent(selectedId)}`);}
   /** Choose a slide and restore any draft feedback attached to it. */
-  function choose(id){retainDraft();selectedId=id;renderRail();render();$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});}
+  async function choose(id){if(!await elementEditor.finish())return;retainDraft();if(pendingDeck){deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;}selectedId=id;renderRail();render();void markOpened();$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});}
   /** Poll durable state while preserving a user's in-progress review of an older version. */
-  async function refresh(force=false){if(!deck||isLoading||switchingDeck||presentationActions.isBusy())return;isLoading=true;try{const deckId=deck.id,snapshot=await api(`/api/decks/${deckId}`);if(deck?.id!==deckId||switchingDeck||presentationActions.isBusy())return;if(JSON.stringify(snapshot)===JSON.stringify(deck)){renderWorkflow();renderStart();return;}const contentChanged=snapshot.slides.find(item=>item.id===selectedId)?.content_hash!==slide()?.content_hash;const editing=currentTarget||$('notes').value!==noteBaseline;if(contentChanged&&editing&&!force){pendingDeck=snapshot;deck.workflow=snapshot.workflow;renderWorkflow();$('update-banner').hidden=false;return;}retainDraft();deck=snapshot;if(!deck.slides.some(item=>item.id===selectedId))selectedId=deck.slides[0].id;renderRail();render();}catch(error){toast(error.message,true);}finally{isLoading=false;}}
+  async function refresh(force=false){
+    if(!deck||switchingDeck||presentationActions.isBusy())return;
+    if(isLoading){refreshQueued=true;return;}
+    isLoading=true;
+    try{
+      const deckId=deck.id,snapshot=await api(`/api/decks/${deckId}`);
+      if(deck?.id!==deckId||switchingDeck||presentationActions.isBusy())return;
+      if(JSON.stringify(snapshot)===JSON.stringify(deck)){renderWorkflow();renderStart();return;}
+      const contentChanged=snapshot.slides.find(item=>item.id===selectedId)?.content_hash!==slide()?.content_hash;
+      const editing=currentTarget||$('notes').value!==noteBaseline;
+      if(contentChanged&&editing&&!force){pendingDeck=snapshot;deck.workflow=snapshot.workflow;renderWorkflow();renderRail(snapshot);renderChangeStatus();$('update-banner').hidden=false;return;}
+      retainDraft();deck=snapshot;pendingDeck=null;$('update-banner').hidden=true;
+      if(!deck.slides.some(item=>item.id===selectedId))selectedId=deck.slides[0].id;
+      renderRail();render();
+    }catch(error){toast(error.message,true);}
+    finally{isLoading=false;if(refreshQueued){refreshQueued=false;void refresh();}}
+  }
   /** Save notes explicitly, detecting another editor's changes. */
   async function saveNotes(){const value=$('notes').value,deckId=deck.id,id=selectedId;try{await api(`${base()}/notes`,{notes:value,expected_notes:noteBaseline});if(deck.id===deckId&&selectedId===id){noteBaseline=value;slide().notes=value;retainDraft();notesDirty();}toast('Notes saved.');}catch(error){toast(error.message,true);}}
   function notesDirty(){$('save-notes').disabled=$('notes').value===noteBaseline;$('notes-state').textContent=$('notes').value===noteBaseline?'':'Unsaved';}
-  $('retry-preview').addEventListener('click',()=>{loadPreview($('preview'),slide(),deck.id);railSignature='';renderRail();});
+  $('retry-preview').addEventListener('click',async()=>{if(!await elementEditor.finish())return;loadPreview($('preview'),slide(),deck.id);railSignature='';renderRail();});
   async function copyAgentPrompt(){
     const prompt=deck?`Work with presentation "${deck.title}" in Slide Studio (deck ID: ${deck.id}). Read get_working_context, get_presentation and read_feedback. Use the saved brief, preserve my notes, and address my released feedback. Ask about missing context before drafting. Use concise text and useful visuals. For automatic review, follow live_review_guide and call start_live_review with this deck ID after hooks are loaded. Workspace: ${location.origin}/?deck=${deck.id}`:`Help me add a design in Slide Studio at ${location.origin}. Call get_working_context and read_design_requests. Inspect the reference I provide, prepare and register a design pack, then help me create a presentation from a short brief. For automatic review, follow live_review_guide and call start_live_review after hooks are loaded.`;
     try{await navigator.clipboard.writeText(prompt);toast('Prompt copied.');}catch{toast('Copy is unavailable. Ask your agent to open Slide Studio and call get_working_context.',true);}
@@ -164,17 +232,24 @@
   });
   $('end-review').addEventListener('click',async()=>{if(!deck)return;const selected=deck.id;$('end-review').disabled=true;try{const state=await api(`/api/decks/${selected}/review/disconnect`,{});if(deck?.id===selected){deck.workflow=state;renderWorkflow();}toast('Review ended.');}catch(error){toast(error.message,true);}finally{$('end-review').disabled=false;}});
   $('slides').addEventListener('click',event=>{const button=event.target.closest('[data-id]');if(button)choose(button.dataset.id);});
+  $('slides').addEventListener('keydown',async event=>{
+    if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key)||event.ctrlKey||event.metaKey||event.altKey)return;
+    const button=event.target.closest('[data-id]');if(!button)return;event.preventDefault();
+    const slides=(pendingDeck||deck).slides,index=slides.findIndex(item=>item.id===button.dataset.id);
+    const next=event.key==='Home'?0:event.key==='End'?slides.length-1:Math.max(0,Math.min(slides.length-1,index+(event.key==='ArrowDown'?1:-1)));
+    await choose(slides[next].id);if(selectedId===slides[next].id)$('slides').querySelector(`[data-id="${CSS.escape(selectedId)}"]`)?.focus();
+  });
   $('prev-slide').addEventListener('click',()=>choose(deck.slides[Math.max(0,deck.slides.findIndex(item=>item.id===selectedId)-1)].id));$('next-slide').addEventListener('click',()=>choose(deck.slides[Math.min(deck.slides.length-1,deck.slides.findIndex(item=>item.id===selectedId)+1)].id));
   $('clear-target').addEventListener('click',()=>selectElement(null));$('select-parent').addEventListener('click',()=>selectElement(selectedElement?.parentElement));
   $('notes').addEventListener('input',()=>{notesDirty();retainDraft();});$('save-notes').addEventListener('click',saveNotes);$('feedback-text').addEventListener('input',()=>{retainDraft();updateComposer();});
   /** Send chat messages with Enter while preserving multiline and composition input. */
   function bindMessageEnter(inputId,buttonId,send){$(inputId).addEventListener('keydown',event=>{if(event.key!=='Enter'||event.shiftKey||event.altKey||event.isComposing||event.keyCode===229)return;event.preventDefault();if(!event.repeat&&!$(buttonId).disabled)send();});}
   bindMessageEnter('feedback-text','send-feedback',()=>$('feedback-form').requestSubmit());
-  $('feedback-form').addEventListener('submit',async event=>{event.preventDefault();if(!deck||feedbackSending||!$('feedback-text').value.trim())return;retainDraft();const button=$('send-feedback'),sendingDeck=deck.id,context=feedbackDraft(),message=$('feedback-text').value;feedbackSending=true;updateComposer();$('feedback-text').disabled=true;try{const endpoint=context.target?`/api/decks/${sendingDeck}/slides/${context.slide_id}/feedback`:`/api/decks/${sendingDeck}/feedback`;const body=context.target?{message,content_hash:context.content_hash,target:context.target,request_id:context.request_id}:{message,context_slide_id:context.context_slide_id,request_id:context.request_id};await api(endpoint,body);feedbackDrafts.delete(sendingDeck);if(deck.id===sendingDeck){$('feedback-text').value='';selectElement(null,false);}await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');}catch(error){toast(error.message,true);}finally{feedbackSending=false;$('feedback-text').disabled=false;updateComposer();if(deck?.id===sendingDeck&&!document.querySelector('dialog[open]')&&[document.body,button].includes(document.activeElement))$('feedback-text').focus();}});
+  $('feedback-form').addEventListener('submit',async event=>{event.preventDefault();if(!deck||feedbackSending||!$('feedback-text').value.trim())return;if(!await elementEditor.finish()||feedbackSending)return;retainDraft();const button=$('send-feedback'),sendingDeck=deck.id,sendingKey=key(),context=feedbackDraft(),message=$('feedback-text').value;feedbackSending=true;updateComposer();$('feedback-text').disabled=true;try{const endpoint=`/api/decks/${sendingDeck}/slides/${context.slide_id}/feedback`;const body={message,content_hash:context.content_hash,target:context.target,request_id:context.request_id};await api(endpoint,body);feedbackDrafts.delete(sendingKey);draftStore.persist();if(key()===sendingKey){$('feedback-text').value='';selectElement(null,false);}await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');}catch(error){toast(error.message,true);}finally{feedbackSending=false;$('feedback-text').disabled=false;updateComposer();if(key()===sendingKey&&!document.querySelector('dialog[open]')&&[document.body,button].includes(document.activeElement))$('feedback-text').focus();}});
 
   $('approve-button').addEventListener('click',async()=>{try{await api(`${base()}/approve`,{content_hash:slide().content_hash,approved:!slide().approved});await refresh();}catch(error){toast(error.message,true);await refresh();}});
-  $('feedback-list').addEventListener('click',event=>{const button=event.target.closest('[data-event]');if(!button)return;const comment=slide().feedback.find(item=>item.event_id===Number(button.dataset.event));if(comment.content_hash!==slide().content_hash){toast(`This comment targets an earlier version: ${comment.target.quote||comment.target.label}`);return;}const element=$('preview').contentDocument.querySelector(comment.target.selector);if(element)selectElement(element);else toast('The original element is no longer present.');});
-  $('load-update').addEventListener('click',()=>{if(!pendingDeck)return;retainDraft();const draft=feedbackDraft();if(draft&&draft.target){toast('Draft kept on its original version. Select an element again to retarget it.');}deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;if(!slide())selectedId=deck.slides[0].id;renderRail();render();});
+  $('feedback-list').addEventListener('click',event=>{if(feedbackSending)return;const button=event.target.closest('[data-event]');if(!button)return;const comment=window.SlideConversations.forSlide(deck,selectedId).find(item=>item.event_id===Number(button.dataset.event));if(!comment?.target)return;if(comment.content_hash!==slide().content_hash){toast(`This comment targets an earlier version: ${comment.target.quote||comment.target.label}`);return;}const element=$('preview').contentDocument.querySelector(comment.target.selector);if(element)selectElement(element);else toast('The original element is no longer present.');});
+  $('load-update').addEventListener('click',async()=>{if(!pendingDeck||!await elementEditor.finish())return;retainDraft();const draft=feedbackDraft();if(draft&&draft.target){toast('Draft kept on its original version. Select an element again to retarget it.');}deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;if(!slide())selectedId=deck.slides[0].id;renderRail();render();void markOpened();});
   $('deck-picker').addEventListener('change',async event=>{retainDraft();try{await start(event.target.value);}catch(error){if(deck)$('deck-picker').value=deck.id;toast(error.message,true);}});
   for(const mode of ['live','batch'])$('mode-'+mode).addEventListener('click',async()=>{try{deck.workflow=await api('/api/decks/'+deck.id+'/feedback-mode',{mode});renderWorkflow();}catch(error){toast(error.message,true);}});
   $('send-batch').addEventListener('click',async()=>{try{deck.workflow=await api('/api/decks/'+deck.id+'/send-batch',{});renderWorkflow();await refresh();toast('Batch released.');}catch(error){toast(error.message,true);}});
@@ -190,7 +265,7 @@
   function readFiles(files){return Promise.all(files.map(file=>new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,data_base64:String(reader.result).split(',')[1]});reader.onerror=()=>reject(new Error('Could not read '+file.name));reader.readAsDataURL(file);})) );}
   function toggleDesignChat(open){$('design-chat').hidden=!open;$('toggle-design-chat').setAttribute('aria-expanded',String(open));iconButton($('toggle-design-chat'),open?'close':'plus',open?'Close design chat':'Add a design',false);if(open)$('design-message').focus();}
   $('toggle-design-chat').addEventListener('click',()=>toggleDesignChat($('design-chat').hidden));
-  $('new-button').addEventListener('click',async()=>{try{await loadDesigns(true);await loadDesignChat();$('create-error').textContent='';toggleDesignChat(false);$('new-dialog').showModal();$('new-title').focus();clearInterval(designTimer);designTimer=setInterval(()=>{if($('new-dialog').open)loadDesignChat().catch(error=>$('design-error').textContent=error.message);},2000);}catch(error){toast(error.message,true);}});
+  $('new-button').addEventListener('click',async()=>{try{if(!await elementEditor.finish())return;await loadDesigns(true);await loadDesignChat();$('create-error').textContent='';toggleDesignChat(false);$('new-dialog').showModal();$('new-title').focus();clearInterval(designTimer);designTimer=setInterval(()=>{if($('new-dialog').open)loadDesignChat().catch(error=>$('design-error').textContent=error.message);},2000);}catch(error){toast(error.message,true);}});
   $('new-dialog').addEventListener('close',()=>clearInterval(designTimer));
   for(const kind of ['design','brief']){
     $('attach-'+kind).addEventListener('click',()=>$(kind+'-file-input').click());
@@ -205,14 +280,45 @@
   $('new-form').addEventListener('submit',async event=>{event.preventDefault();const button=$('create-button');button.disabled=true;try{const title=$('new-title').value.trim(),brief=$('new-brief').value.trim();if(!brief){$('new-brief').focus();throw new Error('Add a brief.');}const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const slug=title.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'presentation';const created=await api('/api/decks',{deck_id:date+'-'+slug,title,brief,files:await readFiles(attachmentFiles.brief),design_id:new FormData($('new-form')).get('design')||''});retainDraft();const option=new Option(created.title,created.id);$('deck-picker').append(option);$('deck-picker').value=created.id;deck=await api('/api/decks/'+created.id);selectedId=deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();$('new-dialog').close();$('new-form').reset();attachmentFiles.brief=[];renderFiles('brief');$('brief-error').textContent='';toast('Presentation created.');}catch(error){$('create-error').textContent=error.message;}finally{button.disabled=false;}});
   $('connect-button').addEventListener('click',()=>{$('mcp-url').value=`${location.origin}/mcp`;$('connect-dialog').showModal();});$('close-connect').addEventListener('click',()=>$('connect-dialog').close());$('copy-url').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('mcp-url').value);toast('URL copied.');}catch{$('mcp-url').select();}});
   window.addEventListener('resize',()=>{placeBox($('selection-box'),selectedElement);placeBox($('hover-box'),hoverElement);});
-  window.addEventListener('beforeunload',event=>{retainDraft();if($('new-title').value.trim()||$('new-brief').value.trim()||$('design-message').value.trim()||attachmentFiles.design.length||attachmentFiles.brief.length||[...feedbackDrafts.values()].some(draft=>draft.feedback.trim())||[...drafts.values()].some(draft=>draft.notes!==undefined&&draft.notes!==draft.expected_notes)){event.preventDefault();event.returnValue='';}});
-  document.addEventListener('keydown',event=>{if(!deck||event.target.closest('textarea,input,select,dialog'))return;if(event.key==='ArrowLeft')$('prev-slide').click();if(event.key==='ArrowRight')$('next-slide').click();if(event.key==='Escape')selectElement(null,false);});
+  window.addEventListener('beforeunload',event=>{retainDraft();if(instructionsDraft!==null||elementEditor.isEditing()||$('new-title').value.trim()||$('new-brief').value.trim()||$('design-message').value.trim()||attachmentFiles.design.length||attachmentFiles.brief.length||[...feedbackDrafts.values()].some(draft=>draft.feedback.trim())||[...drafts.values()].some(draft=>draft.notes!==undefined&&draft.notes!==draft.expected_notes)){event.preventDefault();event.returnValue='';}});
+  document.addEventListener('keydown',event=>{if(!deck||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.target.closest('textarea,input,select,dialog,#element-tools'))return;if(event.key==='ArrowLeft'){event.preventDefault();$('prev-slide').click();}if(event.key==='ArrowRight'){event.preventDefault();$('next-slide').click();}if(event.key==='Escape'){event.preventDefault();if(elementEditor.isEditing())elementEditor.cancel();else void selectElement(null,false);}});
   /** Clear stale slide content when the last selector entry is removed. */
-  function renderEmpty(){$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;updateComposer();document.title='Slide Studio';history.replaceState(null,'','/');}
+  function renderEmpty(){elementEditor.select(null);watchDeck(null);document.querySelector('.preview-wrap').classList.remove('has-unseen-changes');$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;updateComposer();document.title='Slide Studio';history.replaceState(null,'','/');}
   /** Rebuild the selector while keeping a requested or still-visible presentation selected. */
-  async function start(preferred=null){switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;const snapshot=await api(`/api/decks/${id}`);$('deck-picker').value=id;deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();}finally{switchingDeck=false;updateComposer();}}
+  async function start(preferred=null){if(!await elementEditor.finish())throw new Error('Finish or cancel the text edit.');switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;const snapshot=await api(`/api/decks/${id}`);$('deck-picker').value=id;deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();void markOpened();}finally{switchingDeck=false;updateComposer();}}
   const presentationActions=window.SlidePresentations.init({api,toast,escape,currentDeck:()=>deck,retainDraft,reload:start,forget:id=>{$('deck-picker').querySelector(`option[value="${CSS.escape(id)}"]`)?.remove();if(deck?.id===id)renderEmpty();},recover:item=>{if(![...$('deck-picker').options].some(option=>option.value===item.id))$('deck-picker').add(new Option(item.title,item.id));if(!deck)renderEmpty();}});
   window.SlideLibraries.init({api,toast,escape,currentDeck:()=>deck});
+  let instructionsBaseline='',instructionsDraft=null,instructionsSaving=false,rulesEditor=null,rulesEditorPromise=null,learnedEditor=null;
+  function getRulesEditor(){
+    if(!rulesEditorPromise)rulesEditorPromise=window.SlideRulesEditor.create($('authoring-instructions'),{onChange:()=>{instructionsDraft=rulesEditor.getMarkdown();}}).then(editor=>{rulesEditor=editor;return editor;}).catch(error=>{rulesEditorPromise=null;throw error;});
+    return rulesEditorPromise;
+  }
+  async function showLearnedRules(markdown){
+    $('learned-rules-panel').hidden=!markdown.trim();
+    if(!markdown.trim())return;
+    if(!learnedEditor)learnedEditor=await window.SlideRulesEditor.create($('learned-rules'),{readOnly:true});
+    learnedEditor.setMarkdown(markdown);
+  }
+  $('instructions-button').addEventListener('click',async()=>{
+    if(instructionsSaving)return;
+    $('instructions-button').disabled=true;$('instructions-button').setAttribute('aria-busy','true');
+    try{const [saved,editor]=await Promise.all([api('/api/instructions'),getRulesEditor()]);if(instructionsDraft===null)instructionsBaseline=saved.expected_hash;editor.setMarkdown(instructionsDraft??saved.markdown);await showLearnedRules(saved.learned_preferences||'');$('instructions-error').textContent='';$('instructions-dialog').showModal();}
+    catch(error){toast(error.message,true);}
+    finally{$('instructions-button').disabled=false;$('instructions-button').removeAttribute('aria-busy');}
+  });
+  function setInstructionsBusy(value){instructionsSaving=value;rulesEditor?.enable(!value);for(const id of ['save-instructions','close-instructions','reload-instructions','instructions-button'])$(id).disabled=value;}
+  $('close-instructions').addEventListener('click',()=>$('instructions-dialog').close());
+  $('reload-instructions').addEventListener('click',async()=>{if(instructionsSaving)return;setInstructionsBusy(true);try{const saved=await api('/api/instructions');instructionsBaseline=saved.expected_hash;instructionsDraft=null;(await getRulesEditor()).setMarkdown(saved.markdown);await showLearnedRules(saved.learned_preferences||'');$('instructions-error').textContent='';}catch(error){$('instructions-error').textContent=error.message;}finally{setInstructionsBusy(false);}});
+  $('instructions-form').addEventListener('submit',async event=>{
+    event.preventDefault();if(instructionsSaving)return;
+    const editor=await getRulesEditor();if(instructionsSaving)return;const markdown=editor.getMarkdown();
+    if(markdown.length>20000){$('instructions-error').textContent='Keep rules under 20,000 characters.';return;}
+    setInstructionsBusy(true);
+    try{const saved=await api('/api/instructions',{markdown,expected_hash:instructionsBaseline});instructionsBaseline=saved.expected_hash;instructionsDraft=null;$('instructions-dialog').close();toast('Instructions saved.');await refresh();}
+    catch(error){$('instructions-error').textContent=error.message;}
+    finally{setInstructionsBusy(false);}
+  });
+  api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   start().catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
   setInterval(()=>refresh(),3500);
 })();
