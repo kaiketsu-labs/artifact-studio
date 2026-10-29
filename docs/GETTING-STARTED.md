@@ -73,7 +73,7 @@ Designs define a visual language, not locked layouts or a required slide count. 
 | Archive icon beside the selector | Remove the selected entry from the list. Use **Undo**, or open the restore icon below the selector later. Files, notes and review history remain recoverable. |
 | Slide thumbnail | Open a slide. Red means unreviewed; green means you approved that exact content and its assets. |
 | Hover and click on a slide element | Select it and target your feedback. Clear the selection for a presentation-level request such as adding or reordering slides. |
-| Feedback conversation | Send changes, ask questions or give general instructions. Agent questions remain visible; explanations and sources are collapsed. |
+| Feedback conversation | Send changes, ask questions or give general instructions. **Enter** sends; **Shift+Enter** adds a new line. The same shortcuts apply to design chat. Agent questions remain visible; explanations and sources are collapsed. |
 | Live / Batch | Live releases each submitted comment immediately. Batch holds comments until **Send batch**. Loaded review hooks can continue the connected agent automatically. |
 | Notes | Edit concise, private speaking context and click **Save**. Unsent notes and feedback drafts are recovered locally. |
 | Present | Start the full-size slideshow directly. Arrow keys navigate; **Esc** ends it. |

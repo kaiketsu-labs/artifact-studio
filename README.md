@@ -79,6 +79,8 @@ The **plug icon → Copy agent prompt** resumes work on the selected deck. Copyi
 
 Hover to highlight; click to comment. Clear the selection for a general request such as “add a slide” or “move this section earlier.” Speaker notes are editable below the slide. Agent explanations and sources stay collapsed; questions remain visible.
 
+In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line.
+
 ## Live or Batch
 
 | Live | Batch |
