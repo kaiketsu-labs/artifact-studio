@@ -110,7 +110,7 @@ To open presenter controls manually, move the pointer to the bottom toolbar and 
 
 The **checklist icon** opens workspace rules in a rich text editor. These are the primary instructions for every presentation, saved as `INSTRUCTIONS.md` in your collection. Each deck has its own brief and README context. `LEARNED-PREFERENCES.md` is separate, secondary guidance; it cannot override explicit rules. MCP returns both on working-context, presentation and feedback reads.
 
-Rich editing supports headings, lists, emphasis, links, quotes and code. Documents with advanced Markdown such as tables or images use source editing to preserve their formatting. Daily learning can be scheduled in your agent harness; it is not an app background service. General preferences need explicit cross-presentation intent or repeated evidence, while client, audience and content feedback stays with its deck.
+Rich editing supports headings, lists, emphasis, links, quotes and code. Documents with advanced Markdown such as tables or images use source editing to preserve their formatting. The bundled **[$slide-studio-learn](.agents/skills/slide-studio-learn/SKILL.md)** skill can review presentation transcripts and released feedback weekly through your agent harness. General preferences need explicit cross-presentation intent or repeated evidence, while client, audience and content feedback stays with its deck. [Set up weekly learning](docs/PREFERENCE-LEARNING.md).
 
 | What | Default location |
 | --- | --- |
@@ -129,6 +129,7 @@ The app ships without corporate masters, logos or fonts. Optional private-reposi
 | [Getting started](docs/GETTING-STARTED.md) | Installation, storage options, first deck, controls and troubleshooting. |
 | [Automatic feedback](docs/LIVE-REVIEW.md) | Codex/Claude Code hooks, activation, continuation and limitations. |
 | [Agent guide](docs/AGENT-GUIDE.md) | Free composition, feedback cursors, conflict-safe edits and visual review. |
+| [Preference learning](docs/PREFERENCE-LEARNING.md) | Bundled skill, transcript sources, weekly scheduling and scoped preferences. |
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from the user's reference. |
 | [Reference libraries & sync](docs/REPOSITORY-SYNC.md) | Reuse previous decks and opt into private snapshots. |
 | [Verification](QA.md) | Automated checks, fresh installation and application test scope. |

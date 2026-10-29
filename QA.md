@@ -50,6 +50,12 @@ Workspace rules are file-backed Markdown and are included with MCP working conte
 
 An optional daily learning heartbeat was configured in the maintainer's agent harness for 18:00 local time. This is separate from app installation and has not yet completed a scheduled run. Its policy preserves explicit workspace rules, separates inferred preferences and limits presentation-specific learning to the originating deck. Physical second-display placement and native host hook continuation remain outside these checks.
 
+## Bundled learning skill · 29 October 2026
+
+The `slide-studio-learn` skill passed the Skill Creator frontmatter/scaffold validator, and all local documentation links resolve. An independent fresh-context agent ran it twice against isolated synthetic chat exports and released feedback. It learned one explicit general preference, kept brand treatment design-specific, excluded assistant/quoted/application suggestions, counted mirrored feedback once and recorded a conflict with primary rules. The primary rules and both deck READMEs stayed byte-identical. The second pass reported zero writes with unchanged artifact hashes; the resulting evidence and scope decisions were inspected separately. This validates the fixture workflow, not access to every real harness's transcript history.
+
+The existing maintainer heartbeat was updated rather than duplicated: Tuesdays at 10:00 Europe/Berlin. It reads the bundled skill on each run and retains the prior released-feedback cursor file. Scheduled execution at the new time has not yet occurred. Runtime and slide code were unchanged by this documentation/skill addition.
+
 ## Repository release check · 28 October 2026
 
 26 Python behavioral tests and 4 Node frontend/runtime tests passed; strict basedpyright and Ruff passed. JavaScript syntax checks passed. The live stateless MCP endpoint registered an authenticated private GitHub library, discovered the source master and all 158 extracted media files, and uploaded 498 collection files. A second sync returned the same remote commit with zero changed files. The interrupted-source-copy case is now covered by a regression test and leaves a clean checkout.

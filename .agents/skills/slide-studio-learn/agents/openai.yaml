@@ -1,0 +1,4 @@
+interface:
+  display_name: "Learn presentation preferences"
+  short_description: "Learn scoped preferences from chats and slide feedback"
+  default_prompt: "Use $slide-studio-learn to review recent presentation transcripts and released feedback, then update evidence-backed preferences while preserving explicit workspace rules."

@@ -55,7 +55,7 @@ Ask the connected agent to call `get_working_context` first. It receives the aut
 
 Open the **checklist icon** to edit **Workspace rules** with rich text. These rules apply to every deck and are saved in the collection's `INSTRUCTIONS.md`. Each new presentation keeps its audience, client, content and brief in its own README. Learned guidance lives separately in `LEARNED-PREFERENCES.md`, is collapsed in the editor, and never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Advanced Markdown uses a source editor when needed to avoid losing formatting.
 
-A daily learning schedule belongs to your agent harness; installing Slide Studio does not create one automatically. It should inspect released feedback, preserve explicit rules, record evidence for general preferences and keep presentation-specific feedback with its original deck.
+The bundled `$slide-studio-learn` skill can review relevant human transcripts and released feedback weekly. Scheduling belongs to your agent harness; installing Slide Studio does not create a schedule automatically. Explicit rules stay primary, and each learned preference records its evidence and scope. [Invocation and weekly setup](PREFERENCE-LEARNING.md).
 
 ## Make your first presentation
 
