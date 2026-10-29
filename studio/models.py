@@ -12,6 +12,22 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class FileInput(StrictModel):
+    """A local reference file attached to a brief or design request."""
+
+    name: str = Field(min_length=1, max_length=250)
+    data_base64: str = Field(max_length=35_000_000)
+
+
+class DesignFile(StrictModel):
+    """A durable attachment available to local authoring agents."""
+
+    name: str
+    path: str
+    size: int
+    sha256: str
+
+
 class Source(StrictModel):
     """A source attached to a specific slide."""
 
@@ -97,6 +113,8 @@ class FeedbackWorkflow(StrictModel):
     pending: int = 0
     agent_waiting: bool = False
     last_agent_check: str | None = None
+    review_connected: bool = False
+    review_harness: str | None = None
 
 
 class FeedbackFeed(StrictModel):
@@ -128,6 +146,7 @@ class DeckView(StrictModel):
     context_hash: str = ""
     workflow: FeedbackWorkflow = Field(default_factory=FeedbackWorkflow)
     feedback: list[Feedback] = Field(default_factory=list)
+    brief_files: list[DesignFile] = Field(default_factory=list)
 
 
 class SlidePatch(StrictModel):
@@ -198,13 +217,7 @@ class CreateInput(StrictModel):
     title: str = Field(min_length=1, max_length=160)
     design_id: str = ""
     brief: str = Field(default="", max_length=10_000)
-
-
-class FileInput(StrictModel):
-    """A local reference file attached to a design request."""
-
-    name: str = Field(min_length=1, max_length=250)
-    data_base64: str = Field(max_length=35_000_000)
+    files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
 class DesignRequestInput(StrictModel):
@@ -213,15 +226,6 @@ class DesignRequestInput(StrictModel):
     request_id: str = Field(pattern=r"^[a-zA-Z0-9-]{8,100}$")
     message: str = Field(default="", max_length=10_000)
     files: list[FileInput] = Field(default_factory=list, max_length=5)
-
-
-class DesignFile(StrictModel):
-    """A durable attachment available to local authoring agents."""
-
-    name: str
-    path: str
-    size: int
-    sha256: str
 
 
 class DesignMessage(StrictModel):

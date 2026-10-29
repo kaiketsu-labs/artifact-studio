@@ -4,15 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Slide Studio</title>
+  <link rel="icon" type="image/png" href="/web/brand/mark.png">
   <link rel="stylesheet" href="/web/style.css">
   <script src="/web/icons.js" defer></script>
   <script src="/web/drafts.js" defer></script>
   <script src="/web/libraries.js" defer></script>
+  <script src="/web/presentations.js" defer></script>
   <script src="/web/app.js" defer></script>
 </head>
 <body>
 <header class="topbar">
-  <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"></span>Slide Studio</a>
+  <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.png" alt="" width="30" height="30"></span>Slide Studio</a>
   <div class="top-actions">
     <button id="new-button" class="quiet" aria-label="New presentation"></button>
     <button id="libraries-button" class="quiet" aria-label="Reference libraries"></button>
@@ -23,9 +25,9 @@
 <main class="workspace">
   <aside class="rail" aria-label="Slide overview">
     <div class="rail-heading">
-      <label for="deck-picker" class="sr-only">Presentation</label>
-      <select id="deck-picker" aria-label="Choose presentation"></select>
-      <div class="progress-label"><span id="progress-text"></span><span id="slide-count"></span></div>
+      <label for="deck-picker" class="sr-only">Choose presentation</label>
+      <div class="deck-picker-row"><select id="deck-picker"></select><button id="remove-presentation" type="button" aria-label="Remove presentation from list" disabled></button></div>
+      <div class="progress-label"><span id="progress-text" role="img"></span><button id="removed-presentations" type="button" aria-label="Removed presentations" hidden></button></div>
       <div class="progress-track"><i id="progress-bar"></i></div>
     </div>
     <nav id="slides" aria-label="Slides"></nav>
@@ -37,19 +39,19 @@
       <button id="approve-button" class="approve"></button>
     </header>
     <div class="canvas-tools">
-      <span id="hover-hint" tabindex="0" title="Click an element to comment" aria-label="Click an element to comment"></span>
+      <span id="hover-hint"></span>
       <div><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
     </div>
     <div class="preview-wrap" id="preview-wrap">
       <iframe id="preview" title="Slide preview — click an element to give feedback" sandbox="allow-same-origin"></iframe>
       <div id="preview-status" class="preview-status" role="status" hidden><span id="preview-message">Loading design…</span><button id="retry-preview" type="button" hidden aria-label="Retry loading design"></button></div>
       <div id="hover-box" class="element-box hover" hidden><span></span></div>
-      <div id="selection-box" class="element-box selected" hidden><span>Selected</span></div>
+      <div id="selection-box" class="element-box selected" hidden></div>
     </div>
     <div id="update-banner" class="update-banner" hidden>New version available.<button id="load-update">Show update</button></div>
     <details id="notes-panel" class="notes-panel">
       <summary><span>Notes</span><span id="notes-state"></span></summary>
-      <textarea id="notes" aria-label="Speaker notes" placeholder="Add speaker notes…"></textarea>
+      <textarea id="notes" aria-label="Speaker notes" placeholder="Add notes…"></textarea>
       <div class="notes-footer"><button id="save-notes" class="quiet" disabled aria-label="Save notes"></button></div>
     </details>
     <details class="sources-panel"><summary><span>Sources</span><span id="source-count"></span></summary><div id="sources"></div></details>
@@ -62,37 +64,46 @@
     </section>
     <section id="questions-panel" class="questions-panel" hidden><h3>Questions</h3><div id="questions"></div></section>
     <details id="agent-panel" class="agent-panel" hidden>
-      <summary>Agent notes</summary><p id="agent-summary"></p>
+      <summary>Agent notes</summary><p id="agent-summary"></p><div id="brief-attachments"></div>
       <details id="alternatives-panel" hidden><summary>Alternatives <span id="alternative-count"></span></summary><div id="alternatives"></div></details>
     </details>
     <div id="feedback-list" aria-live="polite"></div>
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
-      <div class="compose-context"><div id="target-chip" class="target-chip"><span id="target-label">Presentation</span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
+      <div class="compose-context"><div id="target-chip" class="target-chip"><span id="target-label" role="status">Presentation</span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <textarea id="feedback-text" placeholder="Ask for a change…" required maxlength="10000"></textarea>
-      <div class="compose-actions"><span>⌘ / Ctrl + Enter</span><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback"></button></div>
+      <div class="compose-actions"><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Meta+Enter Control+Enter"></button></div>
     </form>
   </aside>
 </main>
 <div id="toast" class="toast" role="status" hidden></div>
+<dialog id="removed-dialog">
+  <header><h2>Removed presentations</h2><button id="close-removed" type="button" aria-label="Close"></button></header>
+  <div id="removed-list"></div><p id="removed-error" class="inline-error" role="alert"></p>
+</dialog>
 <dialog id="connect-dialog">
   <header><h2>Connect an agent</h2><button id="close-connect" aria-label="Close"></button></header>
-  <p>Paste this presentation’s prompt into your agent’s chat.</p>
-  <button id="copy-agent-prompt" class="primary">Copy agent prompt</button>
   <details class="connection-details"><summary>MCP setup</summary>
     <label for="mcp-url">Server URL</label><div class="copy-row"><input id="mcp-url" readonly><button id="copy-url" aria-label="Copy server URL"></button></div>
     <p>Use Streamable HTTP. Start with <code>get_working_context</code>. Keep Slide Studio running.</p>
+  </details>
+  <button id="copy-agent-prompt" class="primary">Copy agent prompt</button>
+  <button id="end-review" hidden>End review</button>
+  <details class="connection-details"><summary>Automatic feedback</summary>
+    <button id="copy-live-setup" type="button">Copy setup prompt</button>
   </details>
 </dialog>
 <dialog id="new-dialog">
   <form id="new-form">
     <header><h2>New presentation</h2><button id="close-new" type="button" aria-label="Close"></button></header>
-    <label for="new-title">Title</label><input id="new-title" class="title-input" required maxlength="160" placeholder="Presentation title">
-    <label for="new-brief">Brief</label><textarea id="new-brief" class="brief-input" required maxlength="10000" placeholder="Audience, takeaway, key points or links…"></textarea>
-    <fieldset class="design-fieldset"><legend>Design library</legend><div id="design-options" class="design-options"></div></fieldset>
-    <section class="design-chat" aria-label="Design chat">
-      <header><h3>Add a design</h3><span id="design-availability" class="availability">Unavailable</span></header>
+    <label for="new-title">Title</label><input id="new-title" class="title-input" required maxlength="160">
+    <div class="brief-heading"><label for="new-brief">Brief</label><input id="brief-file-input" type="file" multiple hidden><button type="button" id="attach-brief" aria-label="Attach brief files"></button></div>
+    <textarea id="new-brief" class="brief-input" required maxlength="10000" placeholder="Audience, takeaway, key points or links…"></textarea>
+    <div id="brief-files" class="brief-files"></div><p id="brief-error" class="inline-error" role="alert"></p>
+    <fieldset class="design-fieldset"><legend class="sr-only">Design library</legend><div class="design-heading"><span aria-hidden="true">Design library</span><button type="button" id="toggle-design-chat" aria-label="Add a design" aria-expanded="false" aria-controls="design-chat"></button></div><div id="design-options" class="design-options"></div></fieldset>
+    <section id="design-chat" class="design-chat" aria-label="Design chat" hidden>
+      <header><span id="design-availability" class="availability">Unavailable</span></header>
       <div id="design-messages" class="design-messages" aria-live="polite"></div>
       <label class="sr-only" for="design-message">Message your agent about a design</label>
       <textarea id="design-message" maxlength="10000" placeholder="Send a PowerPoint, reference image or link…"></textarea>
@@ -105,14 +116,14 @@
 </dialog>
 <dialog id="library-dialog">
   <header><h2>Reference libraries</h2><button id="close-libraries" aria-label="Close"></button></header>
-  <p>Give your agent earlier decks, brand masters and assets to work from.</p>
+  <p>Add decks, brand masters or assets for your agent.</p>
   <div id="library-list"></div>
   <form id="library-form">
     <label for="library-location">Add a GitHub repository or local folder</label>
     <div class="copy-row"><input id="library-location" placeholder="https://github.com/you/presentations or /Users/…" required><button id="add-library" type="submit"></button></div>
     <label class="library-checkbox"><input id="library-sync" type="checkbox">Allow presentation sync to this private repo</label>
   </form>
-  <p class="library-help">Local files stay your working copy. Use the upload icon for this presentation or the stack icon for the whole collection.</p>
+  <p class="library-help">Local files remain your working copy.</p>
   <p id="library-status" role="status" aria-live="polite"></p>
   <p id="library-error" class="inline-error" role="alert"></p>
 </dialog>

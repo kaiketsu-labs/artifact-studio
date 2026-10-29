@@ -1,6 +1,8 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    archive:'M3 4h18v5H3zM5 9v12h14V9M9 13h6',
+    restore:'M4 4v6h6M4 10a8 8 0 1 1 0 5',
     folder:'M3 6h7l2 3h9v11H3zM3 6V4h7l2 2h8v3',
     github:'M9 19c-4 1-4-2-6-2m12 5v-4a3 3 0 0 0-1-2c4-.5 6-2 6-6a5 5 0 0 0-1-3 5 5 0 0 0 0-4s-2-.5-4 1a13 13 0 0 0-6 0C7 2.5 5 3 5 3a5 5 0 0 0 0 4 5 5 0 0 0-1 3c0 4 2 5.5 6 6a3 3 0 0 0-1 2v4',
     upload:'M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6',

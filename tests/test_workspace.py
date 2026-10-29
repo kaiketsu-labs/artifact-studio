@@ -1,12 +1,13 @@
 """Behavioral checks for durable review state, free composition and stateless MCP calls."""
 
+import base64
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from studio import app as service
-from studio.models import AgentContext, ElementTarget, Slide, SlidePatch, Source
+from studio.models import AgentContext, ElementTarget, FileInput, Slide, SlidePatch, Source
 from studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
@@ -76,6 +77,54 @@ def test_long_brief_leaves_no_partial_deck(store: Store) -> None:
     assert not store.folder("2026-10-28-long-brief").exists()
 
 
+@pytest.mark.parametrize("filename", ["../context.txt", "a" * 246 + ".txt", "ü" * 246 + ".txt"])
+def test_brief_attachments_reach_agent_context_and_download(
+    store: Store, monkeypatch: pytest.MonkeyPatch, filename: str
+) -> None:
+    """Keep original reference bytes with the deck and expose them to authoring agents."""
+    monkeypatch.setattr(service, "store", store)
+    client = TestClient(service.app)
+    content = b"Audience: technical colleagues.\nKeep the recap short."
+    response = client.post(
+        "/api/decks",
+        json={
+            "deck_id": "2026-10-28-attached-brief",
+            "title": "A recap",
+            "brief": "Use the attached context.",
+            "files": [{"name": filename, "data_base64": base64.b64encode(content).decode()}],
+        },
+    )
+    assert response.status_code == 200
+    snapshot = store.view("2026-10-28-attached-brief")
+    assert snapshot.brief_files[0].name == Path(filename).name
+    path = Path(snapshot.brief_files[0].path)
+    assert path.is_relative_to(store.folder(snapshot.id))
+    assert path.read_bytes() == content
+    assert Path(filename).name in snapshot.context_markdown
+    assert "brief-files/0" in snapshot.context_markdown
+    assert service.get_presentation(snapshot.id).brief_files == snapshot.brief_files
+    download = client.get(f"/api/decks/{snapshot.id}/brief-files/0")
+    assert download.content == content
+    assert download.headers["content-type"] == "application/octet-stream"
+    assert download.headers["content-disposition"].startswith("attachment;")
+    assert client.get(f"/api/decks/{snapshot.id}/brief-files/1").status_code == 404
+
+
+def test_invalid_brief_attachments_leave_no_partial_deck(store: Store) -> None:
+    """Reject invalid data and attachment counts before creating the presentation."""
+    deck_id = "2026-10-28-invalid-attachments"
+    with pytest.raises(ValueError, match="could not be read"):
+        _ = store.create(
+            deck_id, "A recap", files=[FileInput(name="brief.pdf", data_base64="invalid!")]
+        )
+    assert not store.folder(deck_id).exists()
+    with pytest.raises(ValueError, match="up to 5"):
+        _ = store.create(
+            deck_id, "A recap", files=[FileInput(name="brief.txt", data_base64="")] * 6
+        )
+    assert not store.folder(deck_id).exists()
+
+
 def test_design_picker_api(store: Store, monkeypatch: pytest.MonkeyPatch) -> None:
     """Expose design previews and creation through the same store as MCP."""
     monkeypatch.setattr(service, "store", store)
@@ -99,6 +148,47 @@ def test_design_picker_api(store: Store, monkeypatch: pytest.MonkeyPatch) -> Non
     assert store.view("2026-10-28-new-story").feedback[0].message == (
         "Help a new colleague understand the workflow."
     )
+
+
+def test_selector_removal_is_durable_and_preserves_deck_state(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Restore removed presentations with their source, approvals and feedback intact."""
+    monkeypatch.setattr(service, "store", store)
+    client = TestClient(service.app)
+    deck = store.create("2026-10-28-removable", "A removable presentation", brief="Team recap")
+    slide = store.view(deck.id).slides[0]
+    store.approve(deck.id, slide.id, slide.content_hash, True)
+    store.save_notes(deck.id, slide.id, "Private context", slide.notes)
+    before = store.view(deck.id)
+    source = (store.folder(deck.id) / "index.html").read_bytes()
+    assert client.post(f"/api/decks/{deck.id}/archive", json={}).status_code == 200
+    assert client.post(f"/api/decks/{deck.id}/archive", json={}).status_code == 200
+    assert deck.id not in {item["id"] for item in client.get("/api/decks").json()}
+    assert client.get("/api/removed-presentations").json() == [{"id": deck.id, "title": deck.title}]
+    restarted = Store(store.root, store.database)
+    assert restarted.list_decks(archived=True) == [{"id": deck.id, "title": deck.title}]
+    assert client.get(f"/api/decks/{deck.id}").status_code == 200
+    assert client.post(f"/api/decks/{deck.id}/restore", json={}).status_code == 200
+    assert client.post(f"/api/decks/{deck.id}/restore", json={}).status_code == 200
+    assert deck.id in {item["id"] for item in store.list_decks()}
+    assert not store.list_decks(archived=True)
+    assert store.view(deck.id) == before
+    assert (store.folder(deck.id) / "index.html").read_bytes() == source
+
+
+def test_removing_design_example_keeps_design_usable(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Treat selector removal independently from design registration or file deletion."""
+    monkeypatch.setattr(service, "store", store)
+    client = TestClient(service.app)
+    assert client.post(f"/api/decks/{TEMPLATE_ID}/archive", json={}).status_code == 200
+    assert not store.list_decks()
+    assert store.designs()[0].id == "test-brand"
+    assert store.create("2026-10-28-still-usable", "Still usable").design_id == "test-brand"
+    assert client.post("/api/decks/missing/restore", json={}).status_code == 404
+    assert client.post("/api/decks/missing/archive", json={}).status_code == 404
 
 
 def test_approval_tracks_visible_changes_but_not_notes(store: Store) -> None:

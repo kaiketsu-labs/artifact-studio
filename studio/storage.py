@@ -18,6 +18,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal, cast
 
+from pydantic import TypeAdapter
+
 from .models import (
     AgentContext,
     Deck,
@@ -32,6 +34,7 @@ from .models import (
     Feedback,
     FeedbackFeed,
     FeedbackWorkflow,
+    FileInput,
     Slide,
     SlidePatch,
     SlideView,
@@ -102,6 +105,27 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def decode_attachments(files: list[FileInput]) -> list[tuple[str, bytes]]:
+    """Validate shared attachment limits before writing any local files."""
+    if len(files) > 5:
+        raise ValueError("Choose up to 5 attachments.")
+    decoded: list[tuple[str, bytes]] = []
+    for file in files:
+        name = Path(file.name.replace("\\", "/")).name
+        if name in {"", ".", ".."} or any(ord(char) < 32 for char in name):
+            raise ValueError("Choose a file with a valid filename.")
+        try:
+            data = base64.b64decode(file.data_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise ValueError("The attachment could not be read. Attach it again.") from error
+        if len(data) > 25_000_000:
+            raise ValueError("Keep each attachment at or below 25 MB.")
+        decoded.append((name, data))
+    if sum(len(data) for _, data in decoded) > 50_000_000:
+        raise ValueError("Keep the combined attachments at or below 50 MB.")
+    return decoded
+
+
 class Store:
     """Read canonical HTML files and persist review state independently of MCP sessions."""
 
@@ -115,6 +139,14 @@ class Store:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS workspace_settings (
                     key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS archived_decks (
+                    deck TEXT PRIMARY KEY, archived_at TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS review_sessions (
+                    harness TEXT NOT NULL, session_id TEXT NOT NULL, deck TEXT NOT NULL,
+                    feedback_cursor INTEGER NOT NULL DEFAULT 0,
+                    design_cursor INTEGER NOT NULL DEFAULT 0,
+                    expires_at REAL NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
+                    PRIMARY KEY(harness, session_id));
                 CREATE TABLE IF NOT EXISTS approvals (
                     deck TEXT, slide TEXT, content_hash TEXT,
                     PRIMARY KEY(deck, slide));
@@ -285,6 +317,7 @@ class Store:
             ],
             context_markdown=context,
             context_hash=digest(context),
+            brief_files=self.brief_files(deck_id),
             workflow=self.workflow(deck_id),
             feedback=[
                 item
@@ -312,15 +345,34 @@ class Store:
             temporary.replace(path)
         return digest(markdown)
 
-    def list_decks(self) -> list[dict[str, str]]:
-        """List compatible presentations without changing older example decks."""
+    def list_decks(self, *, archived: bool = False) -> list[dict[str, str]]:
+        """List compatible presentations by their recoverable workspace visibility."""
+        with self.connect() as db:
+            removed = {cast(str, row[0]) for row in db.execute("SELECT deck FROM archived_decks")}
         result: list[dict[str, str]] = []
         for file in sorted(self.root.glob("*/index.html")):
+            if (file.parent.name in removed) != archived:
+                continue
             if 'id="deck-data"' not in file.read_text():
                 continue
             deck = self.read(file.parent.name)
             result.append({"id": file.parent.name, "title": deck.title})
         return result
+
+    def set_archived(self, deck_id: str, *, archived: bool) -> None:
+        """Remove or restore a selector entry while preserving its files and review state."""
+        _ = self.read(deck_id)
+        with self.connect() as db:
+            if archived:
+                _ = db.execute(
+                    "INSERT OR IGNORE INTO archived_decks VALUES (?,?)",
+                    (deck_id, datetime.now(UTC).isoformat()),
+                )
+                _ = db.execute(
+                    "UPDATE review_sessions SET enabled=0,expires_at=0 WHERE deck=?", (deck_id,)
+                )
+            else:
+                _ = db.execute("DELETE FROM archived_decks WHERE deck=?", (deck_id,))
 
     def revise(
         self, deck_id: str, slide_id: str, expected_hash: str, request_id: str, patch: SlidePatch
@@ -562,7 +614,14 @@ class Store:
                 )
         return result
 
-    def create(self, deck_id: str, title: str, design_id: str = "", brief: str = "") -> Deck:
+    def create(
+        self,
+        deck_id: str,
+        title: str,
+        design_id: str = "",
+        brief: str = "",
+        files: list[FileInput] | None = None,
+    ) -> Deck:
         """Create a branded starting canvas with a durable brief for the authoring agent."""
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*", deck_id):
             raise ValueError("Use a dated presentation ID: YYYY-MM-DD-short-title.")
@@ -571,6 +630,7 @@ class Store:
         brief = brief.strip()
         if len(brief) > 10_000:
             raise ValueError("Keep the presentation brief under 10,000 characters.")
+        decoded = decode_attachments(files or [])
         design_id = design_id or self.default_design_id()
         if not design_id:
             raise ValueError("Add a design from a PPTX, URL or reference before creating slides.")
@@ -619,10 +679,40 @@ class Store:
                     ):
                         source.url = f"../{design.folder_id}/{source.url}"
             self.write(deck_id, deck)
+            attachments: list[DesignFile] = []
+            for file_index, (name, data) in enumerate(decoded):
+                relative = Path("brief-attachments") / f"{file_index}.attachment"
+                path = target / relative
+                path.parent.mkdir(exist_ok=True)
+                _ = path.write_bytes(data)
+                attachments.append(
+                    DesignFile(
+                        name=name,
+                        path=relative.as_posix(),
+                        size=len(data),
+                        sha256=hashlib.sha256(data).hexdigest(),
+                    )
+                )
+            if attachments:
+                _ = (target / "brief-files.json").write_bytes(
+                    TypeAdapter(list[DesignFile]).dump_json(attachments, indent=2)
+                )
+            attachment_context = ""
+            if attachments:
+                attachment_context = (
+                    "## Brief attachments\n\n"
+                    + "".join(
+                        f"- {item.name}: `{item.path}` "
+                        f"(download: /api/decks/{deck_id}/brief-files/{file_index})\n"
+                        for file_index, item in enumerate(attachments)
+                    )
+                    + "\n"
+                )
             _ = (target / "README.md").write_text(
                 f"# {title}\n\nCreated from the {design.name} design language. "
                 "Canonical file: index.html.\n\n"
                 f"## Purpose and context\n\n{brief or 'Awaiting the human’s brief.'}\n\n"
+                f"{attachment_context}"
                 f"## Sources and data date\n\nCreated {deck_id[:10]}. "
                 "Brand reference: the selected design bundle. Content sources and factual "
                 "data dates still need to be established from the brief.\n\n"
@@ -640,6 +730,20 @@ class Store:
                     f"\n- [{title}]({deck_id}/index.html) · [Context]({deck_id}/README.md)\n"
                 )
         return deck
+
+    def brief_files(self, deck_id: str) -> list[DesignFile]:
+        """Resolve saved brief attachments inside their canonical presentation folder."""
+        folder = self.folder(deck_id)
+        manifest = folder / "brief-files.json"
+        if not manifest.exists():
+            return []
+        attachments = TypeAdapter(list[DesignFile]).validate_json(manifest.read_bytes())
+        for attachment in attachments:
+            path = (folder / attachment.path).resolve()
+            if not path.is_relative_to((folder / "brief-attachments").resolve()):
+                raise ValueError("Brief attachment path is outside its presentation.")
+            attachment.path = str(path)
+        return attachments
 
     def add_slide(self, deck_id: str, slide: Slide) -> Slide:
         """Append any freely composed HTML/SVG slide without imposing a layout catalogue."""
@@ -693,11 +797,18 @@ class Store:
                 "SELECT COUNT(*) FROM feedback WHERE deck=? AND author='user' AND released=0",
                 (deck_id,),
             ).fetchone()[0]
+            connected = db.execute(
+                "SELECT harness FROM review_sessions WHERE deck=? AND enabled=1 AND expires_at>? "
+                "ORDER BY expires_at DESC LIMIT 1",
+                (deck_id, time.time()),
+            ).fetchone()
         return FeedbackWorkflow(
             mode=cast(Literal["live", "batch"], row["mode"]) if row else "live",
             pending=cast(int, pending),
-            agent_waiting=bool(row and row["waiting_until"] > time.time()),
+            agent_waiting=bool(connected or (row and row["waiting_until"] > time.time())),
             last_agent_check=cast("str | None", row["last_check"]) if row else None,
+            review_connected=bool(connected),
+            review_harness=cast(str, connected[0]) if connected else None,
         )
 
     def set_mode(self, deck_id: str, mode: Literal["live", "batch"]) -> FeedbackWorkflow:
@@ -770,12 +881,17 @@ class Store:
             design_wait = db.execute(
                 "SELECT waiting_until FROM design_presence WHERE singleton=1"
             ).fetchone()
+            review_wait = db.execute(
+                "SELECT MAX(expires_at) FROM review_sessions WHERE enabled=1"
+            ).fetchone()[0]
         messages = [DesignMessage.model_validate_json(cast(str, row[0])) for row in rows]
         return DesignInbox(
             messages=messages,
             next_cursor=max((item.event_id for item in messages), default=after_event_id),
             agent_waiting=max(
-                cast(float, deck_wait or 0), cast(float, design_wait[0] if design_wait else 0)
+                cast(float, deck_wait or 0),
+                cast(float, design_wait[0] if design_wait else 0),
+                cast(float, review_wait or 0),
             )
             > time.time(),
         )
@@ -792,20 +908,7 @@ class Store:
         if not body.message.strip() and not body.files:
             raise ValueError("Add a message, link or file for your agent.")
         payload_hash = digest(body.model_dump_json())
-        decoded: list[tuple[str, bytes]] = []
-        for file in body.files:
-            name = Path(file.name.replace("\\", "/")).name
-            if name in {"", ".", ".."}:
-                raise ValueError("Choose a file with a valid filename.")
-            try:
-                data = base64.b64decode(file.data_base64, validate=True)
-            except binascii.Error as error:
-                raise ValueError("The attachment could not be read. Attach it again.") from error
-            if len(data) > 25_000_000:
-                raise ValueError("Keep each attachment under 25 MB.")
-            decoded.append((name, data))
-        if sum(len(data) for _, data in decoded) > 50_000_000:
-            raise ValueError("Keep the combined attachments under 50 MB.")
+        decoded = decode_attachments(body.files)
         with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             existing = db.execute(
@@ -825,7 +928,7 @@ class Store:
             attachments: list[DesignFile] = []
             for index, (name, data) in enumerate(decoded):
                 attachment_folder.mkdir(parents=True, exist_ok=True)
-                path = attachment_folder / f"{index}-{name}"
+                path = attachment_folder / f"{index}.attachment"
                 _ = path.write_bytes(data)
                 attachments.append(
                     DesignFile(

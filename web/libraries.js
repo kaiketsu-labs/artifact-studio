@@ -39,7 +39,7 @@ window.SlideLibraries = {
         await api('/api/libraries', {location, sync_enabled: $('library-sync').checked});
         $('library-form').reset();
         await render();
-        toast('Library connected. Your agent can use its references.');
+        toast('Library connected.');
       } catch (error) { $('library-error').textContent = error.message; }
       finally { working(false); }
     });
@@ -48,13 +48,13 @@ window.SlideLibraries = {
       if (!control || busy) return;
       const {library, action} = control.dataset;
       if (action === 'current' && !currentDeck()) return;
-      working(true, action === 'refresh' ? 'Refreshing references…' : 'Syncing to your private repository…');
+      working(true, action === 'refresh' ? 'Refreshing references…' : 'Syncing to private repository…');
       $('library-error').textContent = '';
       try {
         const result = await api(`/api/libraries/${encodeURIComponent(library)}/${action === 'refresh' ? 'refresh' : 'sync'}`,
           action === 'refresh' ? {} : {deck_id: action === 'current' ? currentDeck().id : null});
         if (action === 'refresh') toast('References updated.');
-        else toast(result.files_changed ? `Synced ${result.files_changed} files.` : 'Everything is already synced.');
+        else toast(result.files_changed ? `Synced ${result.files_changed} file${result.files_changed === 1 ? '' : 's'}.` : 'Already synced.');
       } catch (error) { $('library-error').textContent = error.message; }
       finally { working(false); }
     });
