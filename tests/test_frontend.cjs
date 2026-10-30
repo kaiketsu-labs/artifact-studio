@@ -153,5 +153,5 @@ test('drag proposals use slide coordinates and stay within the canvas at any pre
   const large=movePosition({left:200,top:100,width:400,height:200},160,80,{width:1600,height:900});
   assert.deepEqual(small,large);assert.deepEqual(small,{x:.225,y:.2});
   assert.deepEqual(movePosition({left:100,top:50,width:200,height:100},999,-999,{width:800,height:450}),{x:.75,y:0});
-  assert.match(moveMessage(small),/22.5% from the left and 20.0% from the top/);
+  assert.match(moveMessage(small),/22\.50% from the left and 20\.00% from the top/);
 });

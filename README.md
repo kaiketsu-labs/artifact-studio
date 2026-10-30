@@ -79,7 +79,7 @@ The **plug icon → Copy agent prompt** resumes work on the selected deck. Copyi
 
 Select a thumbnail to switch both the slide and its chat. Matching slide numbers show the context, which accompanies every message. Unsent drafts stay with their slide. You can still ask for a new slide or a different order; the agent infers the scope.
 
-Select an element for edit/move icons. Edit its text and confirm, or drag it to propose a new position. These actions send feedback for the agent to apply. For keyboard movement, focus the move icon, use arrows (Shift for larger steps), then Enter to send or Esc to cancel. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
+Select an element to edit text, drag it or align it to the slide. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
 
 Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.
 
@@ -154,6 +154,7 @@ The app ships without corporate masters, logos or fonts. Optional private-reposi
 | [Getting started](docs/GETTING-STARTED.md) | Installation, storage options, first deck, controls and troubleshooting. |
 | [Automatic feedback](docs/LIVE-REVIEW.md) | Codex/Claude Code hooks, activation, continuation and limitations. |
 | [Agent guide](docs/AGENT-GUIDE.md) | Free composition, feedback cursors, conflict-safe edits and visual review. |
+| [Build animations](docs/BUILD-ANIMATIONS.md) | Growing bars, synchronized counters, delayed results and blurred reveals. |
 | [Preference learning](docs/PREFERENCE-LEARNING.md) | Bundled skill, transcript sources, weekly scheduling and scoped preferences. |
 | [Projects and exports](docs/PROJECTS.md) | Portable project save/open, standalone HTML and PDF output. |
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from the user's reference. |

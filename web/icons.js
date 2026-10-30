@@ -1,6 +1,9 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    align:'M3 4v16M7 7h13v4H7zM7 15h8v3H7z',
+    alignLeft:'M4 3v18M8 6h12v4H8zM8 14h8v4H8z',alignCenter:'M12 2v3m0 5v4m0 4v4M4 5h16v5H4zM7 14h10v4H7z',alignRight:'M20 3v18M4 6h12v4H4zM8 14h8v4H8z',
+    alignTop:'M3 4h18M6 8h4v12H6zM14 8h4v8h-4z',alignMiddle:'M2 12h3m5 0h4m4 0h4M5 4h5v16H5zM14 7h4v10h-4z',alignBottom:'M3 20h18M6 4h4v12H6zM14 8h4v8h-4z',
     slideAdd:'M3 5h18v14H3zM12 8v8M8 12h8',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',
     code:'m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18',pdf:'M5 3h9l5 5v13H5zM14 3v6h5M8 13h8M8 17h6',
     up:'m6 14 6-6 6 6',down:'m6 10 6 6 6-6',first:'M5 4h14M12 20V8m-5 5 5-5 5 5',last:'M5 20h14M12 4v12m-5-5 5 5 5-5',

@@ -1,4 +1,9 @@
 /* Slideshow utility UI is separate from the audience theme and approval hash. */
+/* Blur teasers remain visible even when a theme hides unrevealed builds. */
+.slide [data-build][data-reveal=blur]{transition-property:opacity,filter;transition-duration:.2s}
+.slide.build-mode [data-build][data-reveal=blur].unrevealed{opacity:1!important;visibility:visible!important;filter:blur(var(--build-blur,10px))!important;pointer-events:none;user-select:none}
+@media(prefers-reduced-motion:reduce){.slide [data-build][data-reveal=blur]{transition:none}}
+@media print{.slide [data-build]{transition:none!important}}
 .presenter-filmstrip .is-hidden .film-slide,#all-slides-grid .is-hidden .film-slide{opacity:.4}
 .presenter-filmstrip .is-hidden>span,#all-slides-grid .is-hidden>span{position:relative;display:inline-block;min-width:18px;border:1px solid currentColor;padding:1px 3px}
 .presenter-filmstrip .is-hidden>span::after,#all-slides-grid .is-hidden>span::after{content:'';position:absolute;width:130%;height:1px;left:-15%;top:50%;background:currentColor;transform:rotate(-43deg)}

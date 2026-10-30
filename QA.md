@@ -88,6 +88,16 @@ The main localhost service was restarted and its OpenAPI document confirms the f
 
 A fresh authenticated GitHub clone of `210bde2` created a new virtual environment using the documented `uv sync --locked --python 3.14` command and installed all 41 locked packages. With an empty isolated collection/database, all 79 Python tests and 15 Node tests passed; strict basedpyright and Ruff passed. The clone stayed clean. Python and GitHub authentication were already available on this Mac; this does not verify installation on a new operating-system account.
 
+## Canvas positioning and reusable animations · 30 October 2026
+
+79 Python tests and 34 Node tests pass, with strict basedpyright, Ruff, formatting and JavaScript syntax checks. New regression coverage checks actual slide bounds, rotated/scaled coordinate inversion, synchronized HTML/SVG growth and counters, exact final typography, authored clipping, nested and delayed builds, reverse/replay, reduced motion, keyboard-focus exclusion, accessibility restoration and print-state preservation.
+
+An isolated fictional seven-slide deck was reviewed at presentation size, including deliberate access to its hidden slide. The editor checks verified horizontal alignment inside a rotated/scaled group, repeated drag refinement, explicit Send/Cancel, blocked navigation without accidental submission, and a sent text preview surviving an ordinary click. Request icons distinguish an unsent edit, withheld Batch feedback and released feedback even while Batch remains selected. Provisional edits did not change canonical slide HTML. Fresh Terra reviews identified the accidental submission, misleading status, coordinate, preview, delay and hidden-focus issues; confirmed findings were fixed and affected checks repeated.
+
+Browser checks inspected intermediate HTML and SVG bar/counter states, preserved transforms, delayed results, blurred future content, exact authored tab stops/filters on reveal, reverse navigation and a later child starting without repeating its parent's expired delay. Generated HTML/PDF documents preserve final values and animation attributes, include all seven slides and omit private notes, agent context and provisional edits. Print pause/resume, authored-filter preservation and reduced-motion behavior have deterministic Node coverage; a new native PDF was not produced. Direct offline playback, physical second-display placement and browser access to the main 8790 workspace remain unverified boundaries.
+
+Only the shared `presentation.js` and `slideshow.css` were rolled out to four matching managed local bundles, after exact prior-hash checks and local backups. Deck source and themes stayed byte-identical. The presentation-authoring chat received the documented attribute contract and activation notice. Personal deck data remains local; browser evidence is ignored under `qa/editing-motion/`.
+
 ## Repository release check · 28 October 2026
 
 

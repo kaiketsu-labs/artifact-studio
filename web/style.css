@@ -116,6 +116,10 @@ a{color:inherit}
 .element-tools .icon-only{width:29px;min-height:28px;padding:5px;border:0;background:transparent}
 .element-tools .icon-only:hover,.element-tools [aria-pressed=true]{background:#edf3ff;color:#315fa8}
 .element-tools .ui-icon{width:16px;height:16px}
+.element-align-menu{position:fixed;inset:auto;margin:0;padding:5px;display:grid;grid-template-columns:repeat(3,34px);gap:3px;border:1px solid var(--line);border-radius:7px;background:white;box-shadow:0 7px 24px #17273e24}
+.element-align-menu:not(:popover-open){display:none}
+.element-align-menu button{padding:6px;border:0}
+.element-align-menu button:hover,.element-align-menu button:focus-visible{background:#edf3ff;color:#315fa8}
 .chat-slide-number{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border:1px solid #b8ccef;border-radius:6px;background:#edf3ff;color:#315fa8;font-size:12px;font-variant-numeric:tabular-nums}
 .discussion-top h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px;line-height:1.35;flex:1;min-width:0}
 .feedback-slide-context{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:5px;background:#edf3ff;color:#315fa8;font-size:11px;margin-bottom:0;flex-shrink:0}
@@ -287,4 +291,4 @@ dialog label{font-size:12px;font-weight:600}
 .instructions-scope{color:var(--subtle);font-size:12px;margin:0 0 12px}
 .rules-source{flex:1 1 350px;min-height:140px;width:100%;overflow:auto;font:13px/1.6 ui-monospace,monospace;padding:14px;border:1px solid var(--line);border-radius:6px}
 .rules-source-notice{flex-shrink:0;font-size:12px;color:var(--subtle);margin:0 0 8px}
-.preview-wrap:has(.element-tools.has-suggestion) .selection-box{outline-style:dashed}
+.preview-wrap:has(.element-tools.has-suggestion) #selection-box{outline-style:dashed}

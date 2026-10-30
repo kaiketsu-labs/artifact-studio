@@ -60,9 +60,10 @@
       <div id="element-tools" class="element-tools" role="toolbar" aria-label="Selected element" hidden>
         <button id="edit-element-text" type="button" aria-label="Edit text"></button>
         <button id="move-element" type="button" aria-label="Move element" aria-pressed="false"></button>
+        <button id="align-element" type="button" aria-label="Align to slide" aria-haspopup="menu" aria-expanded="false" aria-controls="element-align-menu"></button>
         <button id="commit-element-text" type="button" aria-label="Send text change" hidden></button>
         <button id="cancel-element-edit" type="button" aria-label="Cancel edit" hidden></button>
-        <span class="proposal-sent" id="element-proposal-sent" role="status" aria-label="Suggestion sent to the agent" title="Suggestion sent to the agent" hidden></span>
+        <span class="proposal-sent" id="element-proposal-sent" role="status" hidden></span>
       </div>
     </div>
     <div id="update-banner" class="update-banner" hidden>New version available.<button id="load-update">Show update</button></div>
@@ -108,6 +109,14 @@
   <button data-slide-move="last" type="button" role="menuitem"></button>
 </div>
 <div id="object-panel" popover></div>
+<div id="element-align-menu" class="element-align-menu" popover role="menu" aria-label="Align to slide">
+  <button data-align="left" type="button" role="menuitem" aria-label="Align left"></button>
+  <button data-align="center" type="button" role="menuitem" aria-label="Center horizontally"></button>
+  <button data-align="right" type="button" role="menuitem" aria-label="Align right"></button>
+  <button data-align="top" type="button" role="menuitem" aria-label="Align top"></button>
+  <button data-align="middle" type="button" role="menuitem" aria-label="Center vertically"></button>
+  <button data-align="bottom" type="button" role="menuitem" aria-label="Align bottom"></button>
+</div>
 <dialog id="deleted-slides-dialog">
   <header><h2>Deleted slides</h2><button id="close-deleted-slides" type="button" aria-label="Close"></button></header>
   <div id="deleted-slides-list"></div><p id="deleted-slides-error" class="inline-error" role="alert"></p>

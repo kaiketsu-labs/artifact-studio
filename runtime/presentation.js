@@ -44,7 +44,161 @@
     const actions={ArrowRight:'next',ArrowDown:'next',PageDown:'next',ArrowLeft:'previous',ArrowUp:'previous',PageUp:'previous',Backspace:'previous',Delete:'previous',Home:'first',End:'last'};
     return actions[event.key]||(active&&(event.key==='Enter'||event.key.length===1)?'next':null);
   }
-  if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction};
+  /** Read a finite, nonnegative animation time, inheriting the nearest explicit value. */
+  function animationTime(element,name,fallback,slide){
+    for(let part=element;part;part=part.parentElement){
+      if(part.hasAttribute(name)){const value=Number(part.getAttribute(name));return Number.isFinite(value)&&value>=0?value:fallback;}
+      if(part===slide)break;
+    }
+    return fallback;
+  }
+  /** Restore the exact authored value, including an originally absent or empty attribute. */
+  function restoreAttribute(element,name,value){if(value===null)element.removeAttribute(name);else element.setAttribute(name,value);}
+  /** Respect every enclosing reveal, including nested builds with later outer steps. */
+  function animationStep(element,slide){
+    let step=0;
+    for(let part=element;part;part=part.parentElement){
+      if(part.hasAttribute('data-build'))step=Math.max(step,Math.min(50,Math.max(1,Math.floor(Number(part.getAttribute('data-build')))||1)));
+      if(part===slide)break;
+    }
+    return step;
+  }
+  /** Infer decimal precision without losing fractional targets written in exponent notation. */
+  function countDecimals(value){
+    const [mantissa,exponent='0']=String(value).toLowerCase().split('e');
+    return Math.max(0,Math.min(20,(mantissa.split('.')[1]?.length||0)-(Number(exponent)||0)));
+  }
+  /** Keep counters text-only and restore the author's exact final typography. */
+  function counterOptions(element,locale='en'){
+    const raw=element.getAttribute('data-count-to'),target=Number(raw);
+    if(raw===null||raw.trim()===''||!Number.isFinite(target)||element.childElementCount)return null;
+    const rawFrom=element.getAttribute('data-count-from'),from=rawFrom===null?0:Number(rawFrom);
+    const rawDecimals=element.getAttribute('data-count-decimals'),decimals=rawDecimals===null?countDecimals(raw):Math.max(0,Math.min(20,Math.floor(Number(rawDecimals))||0));
+    const options={minimumFractionDigits:decimals,maximumFractionDigits:decimals};
+    const prefix=element.getAttribute('data-count-prefix')||'',suffix=element.getAttribute('data-count-suffix')||'';
+    let formatter;try{formatter=new Intl.NumberFormat(locale||'en',options);}catch{formatter=new Intl.NumberFormat('en',options);}
+    return {target,from:Number.isFinite(from)?from:0,final:element.textContent,format:value=>`${prefix}${formatter.format(Object.is(value,-0)?0:value)}${suffix}`};
+  }
+  /** Reveal each bar in its own geometry box without changing author transforms or layout. */
+  function growthClip(progress,svg=false){return `inset(0 ${(1-Math.max(0,Math.min(1,progress)))*100}% 0 0)${svg?' fill-box':''}`;}
+  /** Retain one cancellable animation loop per slide and replay only newly activated builds. */
+  class BuildAnimations {
+    constructor(slide,{now=()=>performance.now(),requestFrame=callback=>requestAnimationFrame(callback),cancelFrame=id=>cancelAnimationFrame(id),reducedMotion=()=>false,computedStyle=element=>element.ownerDocument?.defaultView?.getComputedStyle(element),locale=slide.ownerDocument?.documentElement?.lang||'en'}={}){
+      this.slide=slide;this.now=now;this.requestFrame=requestFrame;this.cancelFrame=cancelFrame;this.reducedMotion=reducedMotion;this.frame=null;this.build=true;this.disposed=false;this.printing=null;
+      this.parts=[...slide.querySelectorAll('[data-build],[data-animate-grow="x"],[data-count-to]')].map(element=>{
+        const clip=element.style.getPropertyValue('clip-path'),priority=element.style.getPropertyPriority('clip-path');
+        const authoredClip=[clip,element.getAttribute('clip-path'),computedStyle(element)?.clipPath].some(value=>value&&value!=='none');
+        const grow=element.getAttribute('data-animate-grow')==='x'&&!authoredClip;
+        const counter=counterOptions(element,locale);
+        return {element,step:animationStep(element,slide),build:element.hasAttribute('data-build'),ariaHidden:element.getAttribute('aria-hidden'),inert:element.getAttribute('inert'),blur:element.getAttribute('data-reveal')==='blur',filter:element.style.getPropertyValue('filter'),filterPriority:element.style.getPropertyPriority('filter'),grow,counter,clip,priority,svg:element.namespaceURI==='http://www.w3.org/2000/svg',delay:animationTime(element,'data-animate-delay',0,slide),duration:grow||counter?animationTime(element,'data-animate-duration',800,slide):0,active:false,started:0,done:false};
+      });
+      this.buildParts=new Map(this.parts.filter(part=>part.build).map(part=>[part.element,part]));
+      this.focusParts=[...slide.querySelectorAll('a,area,button,input,select,textarea,iframe,object,embed,audio[controls],video[controls],summary,[tabindex],[contenteditable],[focusable]')].filter(element=>element.closest('[data-build]')).map(element=>({element,tabindex:element.getAttribute('tabindex'),focusable:element.getAttribute('focusable'),svg:element.namespaceURI==='http://www.w3.org/2000/svg'}));
+      this.focusGuard=event=>{if(this.build&&this.printing===null&&event.target?.closest?.('[data-build].unrevealed'))this.releaseFocus(event.target);};
+      slide.addEventListener('focusin',this.focusGuard,true);
+    }
+    /** Restore author styles instead of leaving an inline clipping override in final views. */
+    restore(part){
+      if(part.grow){if(part.clip)part.element.style.setProperty('clip-path',part.clip,part.priority);else part.element.style.removeProperty('clip-path');}
+      if(part.counter)part.element.textContent=part.counter.final;
+    }
+    /** Keep future content inaccessible and restore each exact authored accessibility value. */
+    accessibility(final=false){
+      const live=!final&&this.build;
+      const focused=this.slide.ownerDocument?.activeElement;
+      if(live&&focused&&this.slide.contains(focused)&&focused.closest('[data-build].unrevealed'))this.releaseFocus(focused);
+      for(const part of this.parts){
+        const hidden=live&&!!part.element.closest('[data-build].unrevealed');
+        if(hidden)part.element.setAttribute('aria-hidden','true');else restoreAttribute(part.element,'aria-hidden',part.ariaHidden);
+        if(part.build){if(hidden)part.element.setAttribute('inert','');else restoreAttribute(part.element,'inert',part.inert);}
+        if(part.blur){
+          if(hidden)part.element.style.setProperty('filter','blur(var(--build-blur,10px))','important');
+          else if(part.filter)part.element.style.setProperty('filter',part.filter,part.filterPriority);
+          else part.element.style.removeProperty('filter');
+        }
+      }
+      for(const part of this.focusParts){
+        const hidden=live&&!!part.element.closest('[data-build].unrevealed');
+        if(hidden){part.element.setAttribute('tabindex','-1');if(part.svg)part.element.setAttribute('focusable','false');}
+        else{restoreAttribute(part.element,'tabindex',part.tabindex);if(part.svg)restoreAttribute(part.element,'focusable',part.focusable);}
+      }
+    }
+    /** Remove existing hidden focus, including SVG focus when an inert implementation is HTML-only. */
+    releaseFocus(element){
+      element.blur?.();
+      if(this.slide.ownerDocument?.activeElement!==element)return;
+      const host=this.slide.parentElement;if(!host)return;
+      const tabindex=host.getAttribute('tabindex');host.setAttribute('tabindex','-1');host.focus?.({preventScroll:true});restoreAttribute(host,'tabindex',tabindex);
+    }
+    /** Draw an intermediate value, keeping layout and author transforms untouched. */
+    paint(part,progress){
+      if(part.grow)part.element.style.setProperty('clip-path',growthClip(progress,part.svg),'important');
+      if(part.counter)part.element.textContent=part.counter.format(part.counter.from*(1-progress)+part.counter.target*progress);
+    }
+    /** Wait only for enclosing builds' remaining delays, measured from their own activation. */
+    deadline(part){
+      let deadline=part.started+part.delay;
+      for(let element=part.element.parentElement;element;element=element.parentElement){
+        const ancestor=this.buildParts.get(element);
+        if(ancestor?.active)deadline=Math.max(deadline,ancestor.started+ancestor.delay);
+        if(element===this.slide)break;
+      }
+      return deadline;
+    }
+    /** Cancel stale work before replacing or leaving a retained slide. */
+    cancel(){if(this.frame!==null){this.cancelFrame(this.frame);this.frame=null;}}
+    /** Dispose to a complete static state suitable for previews and printing. */
+    dispose(){this.cancel();this.disposed=true;this.slide.removeEventListener('focusin',this.focusGuard,true);for(const part of this.parts){this.restore(part);part.element.classList.remove('unrevealed');}this.slide.classList.remove('build-mode');this.accessibility(true);}
+    /** Print final values while preserving the live reveal and elapsed animation state. */
+    beforePrint(){
+      if(this.disposed||this.printing!==null)return;
+      this.printing={started:this.now(),buildMode:this.slide.classList.contains('build-mode'),hidden:[...this.buildParts.values()].map(part=>[part,part.element.classList.contains('unrevealed')])};
+      this.cancel();this.slide.classList.remove('build-mode');
+      for(const part of this.parts){this.restore(part);if(part.build)part.element.classList.remove('unrevealed');}
+      this.accessibility(true);
+    }
+    /** Resume in-flight animation after the print dialog without counting time spent there. */
+    afterPrint(){
+      if(this.disposed||this.printing===null)return;
+      const snapshot=this.printing,now=this.now(),paused=now-snapshot.started;this.printing=null;
+      this.slide.classList.toggle('build-mode',snapshot.buildMode);
+      for(const [part,hidden] of snapshot.hidden)part.element.classList.toggle('unrevealed',hidden);
+      for(const part of this.parts)if(part.active&&!part.done)part.started+=paused;
+      this.draw(now);
+    }
+    /** Advance eligibility without restarting animations that are already running or complete. */
+    update(revealed,{build=true}={}){
+      if(this.disposed)return;
+      const changedMode=this.build!==build;this.build=build;this.slide.classList.toggle('build-mode',build);
+      const now=this.now();
+      for(const part of this.parts){
+        if(changedMode){part.active=false;part.done=false;}
+        const eligible=!build||part.step<=revealed;
+        if(!eligible){part.active=false;part.done=false;this.restore(part);if(part.build)part.element.classList.add('unrevealed');continue;}
+        if(!part.active){part.active=true;part.done=false;part.started=now;}
+      }
+      this.draw(now);
+    }
+    /** Use one timestamp for bar growth, counters and delayed results within a reveal. */
+    draw(now){
+      if(this.disposed||this.printing!==null)return;
+      this.cancel();let pending=false;
+      const immediate=!this.build||this.reducedMotion();
+      for(const part of this.parts){
+        if(!part.active||part.done)continue;
+        const deadline=this.deadline(part),waiting=!immediate&&now<deadline;
+        if(part.build)part.element.classList.toggle('unrevealed',waiting);
+        if(waiting){if(part.element.closest('[data-reveal="blur"].unrevealed'))this.restore(part);else this.paint(part,0);pending=true;continue;}
+        const progress=immediate||part.duration===0?1:Math.max(0,Math.min(1,(now-deadline)/part.duration));
+        if(progress===1){this.restore(part);part.done=true;continue;}
+        this.paint(part,progress);
+        pending=true;
+      }
+      this.accessibility();
+      if(pending)this.frame=this.requestFrame(()=>{this.frame=null;this.draw(this.now());});
+    }
+  }
+  if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
   if(typeof document==='undefined')return;
 
   if(!document.getElementById('slideshow-styles')){const runtimeStyles=document.createElement('link');runtimeStyles.rel='stylesheet';runtimeStyles.href=new URL('slideshow.css',document.currentScript?.src||location.href).href;document.head.append(runtimeStyles);}
@@ -71,6 +225,7 @@
   let audienceWindow=null,screenDetails=null,selectedScreen=null,noteTimer,lastWheel=0,lastPointer=0;
   let filmSignature='',stageSignature='',notesSlide=null;
   const slideSources=new WeakMap();
+  const slideAnimations=new Map(),motionPreference=window.matchMedia?.('(prefers-reduced-motion: reduce)');
   let ending=false,leavingFullscreen=false;
 
   if(direct)document.body.classList.add(isAudience?'audience-only':'single-screen');
@@ -126,14 +281,11 @@
   /** Keep the same slide DOM during builds so previously revealed chart lines stay still. */
   function putSlide(element,index,build=true){
     const html=deck.slides[index]?.html||`<article class="slide runtime-empty"><h1>${emptyShow?'No slides to present.':'End.'}</h1></article>`;
-    const changed=slideSources.get(element)!==html;
-    if(changed){element.innerHTML=html;slideSources.set(element,html);}
+    const source=slideSources.get(element),changed=source?.html!==html||source?.index!==index;
+    if(changed){slideAnimations.get(element)?.dispose();slideAnimations.delete(element);element.innerHTML=html;slideSources.set(element,{html,index});}
     const slide=element.querySelector('.slide');if(!slide)return;
-    slide.classList.toggle('build-mode',build);
-    slide.querySelectorAll('[data-build]').forEach(part=>{
-      const step=Math.min(50,Math.max(1,Math.floor(Number(part.dataset.build))||1));
-      part.classList.toggle('unrevealed',build&&step>revealed);
-    });
+    if(!slideAnimations.has(element))slideAnimations.set(element,new BuildAnimations(slide,{reducedMotion:()=>!!motionPreference?.matches}));
+    slideAnimations.get(element).update(revealed,{build});
   }
   /** Preserve note input and thumbnail DOM while changing only slide-dependent content. */
   function render(){
@@ -269,7 +421,10 @@
   };
   if(isAudience){channel?.postMessage({kind:'ready'});void fullscreen();}
   const timer=setInterval(()=>{tick();if(audienceWindow?.closed){audienceWindow=null;$('open-audience').hidden=false;if(active&&mode==='presenter'){mode='single';render();}}},500);
-  window.addEventListener('beforeunload',()=>{persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
+  motionPreference?.addEventListener('change',()=>{for(const animation of slideAnimations.values())animation.update(revealed,{build:animation.build});});
+  window.addEventListener('beforeprint',()=>{for(const animation of slideAnimations.values())animation.beforePrint();});
+  window.addEventListener('afterprint',()=>{for(const animation of slideAnimations.values())animation.afterPrint();});
+  window.addEventListener('beforeunload',()=>{for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
   render();tick();
   if(query.get('presenter')==='1'&&!isAudience)showPresenter();
   else if(query.get('present')==='1'&&!isAudience){active=false;void startPresentation();}
