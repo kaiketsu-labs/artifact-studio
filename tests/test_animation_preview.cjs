@@ -48,3 +48,16 @@ test('ordinary previews hold final CSS values without losing animations needed f
   const doc={getAnimations:()=>[finite,infinite]};freeze(doc);
   assert.equal(finite.currentTime,150);assert.equal(infinite.currentTime,0);assert.equal(pauses,2);assert.equal(doc.getAnimations().length,2);
 });
+
+test('automatic reveal groups enable playback without click builds or counters',()=>{
+  const slide={querySelector:selector=>selector.includes('[data-auto-reveal]')?{}:null,querySelectorAll:()=>[]};
+  assert.equal(hasAnimations({querySelector:()=>slide,getAnimations:()=>[]}),true);
+});
+
+test('CSS inside automatic reveal cards waits for its delayed group',()=>{
+  let hidden=true,starts=0;
+  const animation={currentTime:400,effect:{target:{closest:selector=>hidden&&selector.includes('[data-auto-reveal].unrevealed')?{}:null},getComputedTiming:()=>({endTime:1000})},pause(){},play(){starts++;}};
+  const css=new CSSPlayback({getAnimations:()=>[animation]});
+  css.sync(0);css.sync(800);assert.equal(starts,0);
+  hidden=false;assert.equal(css.sync(850),2200);assert.equal(starts,1);
+});

@@ -1,16 +1,20 @@
 /* Slideshow utility UI is separate from the audience theme and approval hash. */
-/* Keep a point for every visible slide, with density adapting to the viewport. */
-.single-screen .deck-dots,.audience-only .deck-dots{--progress-size:clamp(2px,calc(60dvh / var(--slide-count,1)),5px);display:flex!important;flex-direction:column;gap:0!important;height:min(72dvh,calc(var(--slide-count,1) * 14px + 12px));padding:6px 0;box-sizing:border-box;border-radius:999px}
+/* Keep a quiet tick for every visible slide, with density adapting to the viewport. */
+.single-screen .deck-dots,.audience-only .deck-dots{--progress-size:clamp(1px,calc(30dvh / var(--slide-count,1)),2px);display:flex!important;flex-direction:column;gap:0!important;height:min(72dvh,calc(var(--slide-count,1) * 14px + 12px));padding:6px 0;box-sizing:border-box;border:0;background:transparent;border-radius:0;scrollbar-width:none}
 .single-screen .deck-dots button,.audience-only .deck-dots button{display:grid;place-items:center;position:relative;flex:1 0 3px;min-height:3px;width:24px!important;height:auto!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
-.single-screen .deck-dots button::before,.audience-only .deck-dots button::before{content:'';width:var(--progress-size);height:var(--progress-size);border-radius:999px;background:var(--deck-progress-idle,#8290a2)}
+.single-screen .deck-dots button::before,.audience-only .deck-dots button::before{content:'';width:8px;height:var(--progress-size);border-radius:0;background:var(--deck-progress-idle,#8290a2);transition:transform .15s ease}
 .single-screen .deck-dots button.is-past::before,.audience-only .deck-dots button.is-past::before{background:var(--deck-progress-past,#43516a)}
-.single-screen .deck-dots button[aria-current=true]::before,.audience-only .deck-dots button[aria-current=true]::before{width:10px;background:var(--deck-progress-active,var(--orange,var(--blue,#4055f5)))}
+.single-screen .deck-dots button[aria-current=true]::before,.audience-only .deck-dots button[aria-current=true]::before{width:12px;background:var(--deck-progress-active,var(--orange,var(--blue,#4055f5)))}
+.single-screen .deck-dots:is(:hover,:focus-within) button::before,.audience-only .deck-dots:is(:hover,:focus-within) button::before{transform:scale(1.25)}
+.single-screen .deck-dots button:is(:hover,:focus-visible)::before,.audience-only .deck-dots button:is(:hover,:focus-visible)::before{transform:scale(1.5)}
 .deck-dots button:focus-visible{outline:2px solid var(--deck-progress-active,var(--orange,var(--blue,#4055f5)));outline-offset:1px}
 /* Blur teasers remain visible even when a theme hides unrevealed builds. */
-.slide [data-build][data-reveal=blur]{transition-property:opacity,filter;transition-duration:.2s}
-.slide.build-mode [data-build][data-reveal=blur].unrevealed{opacity:1!important;visibility:visible!important;filter:blur(var(--build-blur,10px))!important;pointer-events:none;user-select:none}
-@media(prefers-reduced-motion:reduce){.slide [data-build][data-reveal=blur]{transition:none}}
-@media print{.single-screen .deck-dots,.audience-only .deck-dots{display:none!important}.slide [data-build]{transition:none!important}}
+.slide [data-auto-reveal]{transition:opacity .2s}
+.slide.build-mode [data-auto-reveal].unrevealed{opacity:0;pointer-events:none}
+.slide :is([data-build],[data-auto-reveal])[data-reveal=blur]{transition-property:opacity,filter;transition-duration:.2s}
+.slide.build-mode :is([data-build],[data-auto-reveal])[data-reveal=blur].unrevealed{opacity:1!important;visibility:visible!important;filter:blur(var(--build-blur,10px))!important;pointer-events:none;user-select:none}
+@media(prefers-reduced-motion:reduce){.slide :is([data-build],[data-auto-reveal])[data-reveal=blur],.slide [data-auto-reveal],.deck-dots button::before{transition:none}}
+@media print{.single-screen .deck-dots,.audience-only .deck-dots{display:none!important}.slide [data-build],.slide [data-auto-reveal]{transition:none!important}}
 .presenter-filmstrip .is-hidden .film-slide,#all-slides-grid .is-hidden .film-slide{opacity:.4}
 .presenter-filmstrip .is-hidden>span,#all-slides-grid .is-hidden>span{position:relative;display:inline-block;min-width:18px;border:1px solid currentColor;padding:1px 3px}
 .presenter-filmstrip .is-hidden>span::after,#all-slides-grid .is-hidden>span::after{content:'';position:absolute;width:130%;height:1px;left:-15%;top:50%;background:currentColor;transform:rotate(-43deg)}

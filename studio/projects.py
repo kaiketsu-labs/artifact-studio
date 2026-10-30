@@ -18,10 +18,10 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, cast
 from urllib.parse import unquote, urlsplit
 
-from pydantic import Field
+from pydantic import Field, TypeAdapter
 
 from .libraries import LibraryFile, inventory
-from .models import Deck, ElementTarget, Feedback, StrictModel
+from .models import Deck, EditIntent, ElementTarget, Feedback, FeedbackFile, StrictModel
 from .slide_actions import SlideActionRecord, SlideActionResult, recover_pending
 from .storage import ConflictError, SlideMarkup, Store
 
@@ -47,12 +47,15 @@ class FeedbackDraft(StrictModel):
     context_slide_id: str | None = None
     content_hash: str
     request_id: str
+    edit_intent: EditIntent | None = None
 
 
 class ClientState(StrictModel):
     """Browser-only unfinished work scoped to the exported presentation."""
 
     active_slide_id: str = ""
+    view_zoom: int = Field(default=100, ge=10, le=100)
+    editor_zoom: int = Field(default=100, ge=55, le=100)
     notes: dict[str, NoteDraft] = Field(default_factory=dict, max_length=100)
     feedback: dict[str, FeedbackDraft] = Field(default_factory=dict, max_length=100)
     open_panels: list[Literal["notes", "sources", "agent"]] = Field(default_factory=list)
@@ -233,6 +236,21 @@ def save_project(store: Store, deck_id: str, client: ClientState) -> bytes:
         }
         for comment in comments:
             comment.context_slide_id = contexts[comment.event_id]
+            for index, attachment in enumerate(comment.files):
+                path = Path(attachment.path)
+                data = path.read_bytes()
+                if len(data) != attachment.size or _hash(data) != attachment.sha256:
+                    raise ValueError("A review attachment is damaged or incomplete.")
+                name = f"review-attachments/{comment.event_id}/{index}.attachment"
+                if total + len(data) > MAX_EXPANDED or len(files) >= MAX_FILES:
+                    raise ValueError("This project exceeds the 300 MB or 3000-file limit.")
+                total += len(data)
+                files[name] = ProjectFile(
+                    sha256=attachment.sha256, mtime_ns=path.stat().st_mtime_ns
+                )
+                archive.writestr("files/" + name, data)
+                attachment.path = name
+                attachment.download_url = ""
         bundle = ProjectBundle(
             deck=deck,
             files=files,
@@ -309,6 +327,17 @@ def _read_bundle(data: bytes) -> tuple[ProjectBundle, dict[str, bytes]]:
         raise ValueError("Project slide IDs must be unique.")
     if len({item.event_id for item in bundle.feedback}) != len(bundle.feedback):
         raise ValueError("Project message IDs must be unique.")
+    attachment_paths: set[str] = set()
+    for item in bundle.feedback:
+        for index, attachment in enumerate(item.files):
+            name = f"review-attachments/{item.event_id}/{index}.attachment"
+            if attachment.path != name or name not in files:
+                raise ValueError("A project review attachment is missing or outside its message.")
+            if len(files[name]) != attachment.size or _hash(files[name]) != attachment.sha256:
+                raise ValueError("A project review attachment is damaged or incomplete.")
+            attachment_paths.add(name)
+    if attachment_paths != {name for name in files if name.startswith("review-attachments/")}:
+        raise ValueError("The project contains unreferenced private review files.")
     for slide in bundle.deck.slides:
         SlideMarkup().feed(slide.html)
     if len({item.request_id for item in bundle.slide_actions}) != len(bundle.slide_actions):
@@ -348,6 +377,8 @@ def open_project(store: Store, data: bytes) -> tuple[Deck, ClientState]:
             staging = Path(temporary) / "deck"
             staging.mkdir()
             for name, content in files.items():
+                if name.startswith("review-attachments/"):
+                    continue
                 path = staging / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 _ = path.write_bytes(content)
@@ -369,7 +400,7 @@ def open_project(store: Store, data: bytes) -> tuple[Deck, ClientState]:
             (staging / "assets").mkdir(exist_ok=True)
             staging.rename(target)
         try:
-            _restore_review(store, db, deck, bundle)
+            _restore_review(store, db, deck, bundle, files)
         except Exception:
             shutil.rmtree(target)
             raise
@@ -381,14 +412,22 @@ def open_project(store: Store, data: bytes) -> tuple[Deck, ClientState]:
 
 
 def _restore_review(
-    store: Store, db: sqlite3.Connection, deck: Deck, bundle: ProjectBundle
+    store: Store,
+    db: sqlite3.Connection,
+    deck: Deck,
+    bundle: ProjectBundle,
+    files: dict[str, bytes],
 ) -> None:
     """Restore only this deck's messages and review state, excluding active agent leases."""
     event_ids: dict[int, int] = {}
     for item in bundle.feedback:
+        attachments = store.save_feedback_files(
+            deck.id, [(file.name, files[file.path]) for file in item.files]
+        )
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,reply_to,"
-            "target,released,batch_id,context_slide_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "target,released,batch_id,context_slide_id,files,edit_intent) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck.id,
                 item.slide_id or "",
@@ -401,6 +440,8 @@ def _restore_review(
                 item.released,
                 item.batch_id,
                 item.context_slide_id,
+                TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
+                item.edit_intent.model_dump_json() if item.edit_intent else None,
             ),
         )
         event_ids[item.event_id] = cast(int, cursor.lastrowid)

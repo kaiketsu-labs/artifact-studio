@@ -30,7 +30,7 @@
     constructor(doc){this.doc=doc;this.states=new Map();}
     sync(now){
       for(const animation of this.doc.getAnimations()){
-        const hidden=!!animation.effect?.target?.closest?.('[data-build].unrevealed');
+        const hidden=!!animation.effect?.target?.closest?.('[data-build].unrevealed,[data-auto-reveal].unrevealed');
         let state=this.states.get(animation);
         if(!state){
           state={started:false,end:0};this.states.set(animation,state);
@@ -53,7 +53,7 @@
   function hasAnimations(doc){
     const slide=doc?.querySelector('.slide');if(!slide)return false;
     if(doc.getAnimations().length)return true;
-    if(slide.querySelector('[data-build],[data-animate-grow="x"]'))return true;
+    if(slide.querySelector('[data-build],[data-auto-reveal],[data-animate-grow="x"]'))return true;
     if([...slide.querySelectorAll('[data-count-to]')].some(element=>!element.childElementCount&&element.getAttribute('data-count-to').trim()!==''&&Number.isFinite(Number(element.getAttribute('data-count-to')))))return true;
     return [slide,...slide.querySelectorAll('*')].some(element=>doc.defaultView.getComputedStyle(element).animationName.split(',').some(name=>name.trim()!=='none'));
   }

@@ -24,7 +24,7 @@
     await Promise.all([...slide.querySelectorAll('img')].map(async image=>{try{await image.decode();}catch{failed.push(image.getAttribute('alt')||'Image');}}));
     for(const item of document.getAnimations()){
       item.pause();
-      const target=item.effect?.target,build=target?.closest?.('[data-build]');
+      const target=item.effect?.target,build=target?.closest?.('[data-build],[data-auto-reveal]');
       const step=build?animation.parts.find(part=>part.element===build)?.step:0;
       if(config.stage===null||step>0&&step<config.stage){const timing=item.effect?.getComputedTiming();item.currentTime=Number.isFinite(timing?.endTime)?timing.endTime:0;}
       else item.currentTime=step>config.stage?0:step===0?now:config.elapsed_ms;
@@ -32,7 +32,7 @@
     for(const media of slide.querySelectorAll('video,audio'))media.pause();
     const canvas=slide.getBoundingClientRect();
     const overflow=[...slide.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,img,svg,[data-element-id]')].filter(element=>{
-      if(element.closest('[data-build].unrevealed'))return false;
+      if(element.closest('[data-build].unrevealed,[data-auto-reveal].unrevealed'))return false;
       const rect=element.getBoundingClientRect(),style=getComputedStyle(element);
       return style.visibility!=='hidden'&&style.display!=='none'&&rect.width>0&&rect.height>0&&(rect.left<canvas.left-2||rect.top<canvas.top-2||rect.right>canvas.right+2||rect.bottom>canvas.bottom+2);
     }).slice(0,25).map(element=>element.getAttribute('data-element-id')||element.getAttribute('alt')||element.textContent.trim().slice(0,100)||element.tagName);

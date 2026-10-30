@@ -28,6 +28,12 @@ class DesignFile(StrictModel):
     sha256: str
 
 
+class FeedbackFile(DesignFile):
+    """A private review reference with a local path and inert download endpoint."""
+
+    download_url: str = ""
+
+
 class Source(StrictModel):
     """A source attached to a specific slide."""
 
@@ -89,6 +95,13 @@ class ElementTarget(StrictModel):
     height: float = Field(ge=0, le=1)
 
 
+class EditIntent(StrictModel):
+    """A pending element edit whose target and revision live in its feedback envelope."""
+
+    action: Literal["move", "rotate", "transform", "delete", "replace_text"]
+    values: dict[str, float | str] = Field(default_factory=dict, max_length=20)
+
+
 class Feedback(StrictModel):
     """A durable human comment or agent reply with immutable revision context."""
 
@@ -105,6 +118,8 @@ class Feedback(StrictModel):
     batch_id: str | None = None
     scope: Literal["slide", "presentation"] = "slide"
     context_slide_id: str | None = None
+    files: list[FeedbackFile] = Field(default_factory=list)
+    edit_intent: EditIntent | None = None
 
 
 class FeedbackWorkflow(StrictModel):
@@ -207,18 +222,21 @@ class SlidesVisibilityInput(StrictModel):
 class CommentInput(StrictModel):
     """Human feedback bound to the slide version visible when submitted."""
 
-    message: str = Field(min_length=1, max_length=10_000)
+    message: str = Field(default="", max_length=10_000)
     content_hash: str
     request_id: str = Field(min_length=8, max_length=100)
     target: ElementTarget | None = None
+    files: list[FileInput] = Field(default_factory=list, max_length=5)
+    edit_intent: EditIntent | None = None
 
 
 class PresentationCommentInput(StrictModel):
     """A general instruction with the viewed slide retained only as context."""
 
-    message: str = Field(min_length=1, max_length=10_000)
+    message: str = Field(default="", max_length=10_000)
     request_id: str = Field(min_length=8, max_length=100)
     context_slide_id: str | None = None
+    files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
 class ApprovalInput(StrictModel):

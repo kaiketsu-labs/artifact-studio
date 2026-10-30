@@ -18,7 +18,7 @@ from pydantic import Field, TypeAdapter
 from .models import StrictModel
 from .storage import Store
 
-EXCLUDED = {"node_modules", "__pycache__", "research", "qa"}
+EXCLUDED = {"node_modules", "__pycache__", "research", "qa", "feedback-files"}
 EXTENSIONS = {
     ".html",
     ".css",

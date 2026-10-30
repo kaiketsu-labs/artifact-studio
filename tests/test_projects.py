@@ -49,6 +49,8 @@ def test_project_round_trip_preserves_deck_private_history_and_drafts(tmp_path: 
     )
     client = ClientState(
         active_slide_id=first.id,
+        view_zoom=25,
+        editor_zoom=85,
         notes={first.id: NoteDraft(notes="Unfinished note", expected_notes="Human context")},
         feedback={
             first.id: FeedbackDraft(

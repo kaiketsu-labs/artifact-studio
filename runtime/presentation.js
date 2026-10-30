@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  const revealGroups='[data-build],[data-auto-reveal]',hiddenGroups='[data-build].unrevealed,[data-auto-reveal].unrevealed';
   /** Count elapsed presentation time independently of pauses and wall-clock changes. */
   class PresentationClock {
     constructor(now=()=>performance.now()){this.now=now;this.accumulated=0;this.since=null;}
@@ -32,6 +33,14 @@
   }
   /** Keep original slide numbers while filtering the normal slideshow route. */
   function shownIndices(slides){return slides.flatMap((slide,index)=>slide.hidden?[]:[index]);}
+  /** Keep one keyboard entry point and follow navigation only while the rail has focus. */
+  function updateProgressRail(nav,current){
+    const activeElement=nav.ownerDocument.activeElement,focused=nav.contains(activeElement),points=[...nav.querySelectorAll('[data-index]')];
+    const focusPoint=points.find(button=>Number(button.dataset.index)===current)||points.find(button=>Number(button.dataset.index)>current)||points.at(-1);
+    for(const button of points){const index=Number(button.dataset.index);button.setAttribute('aria-current',String(index===current));button.tabIndex=button===focusPoint?0:-1;button.classList.toggle('is-past',index<current);}
+    if(focused&&focusPoint!==activeElement)focusPoint?.focus({preventScroll:true});
+    focusPoint?.scrollIntoView({block:'nearest',inline:'nearest'});
+  }
   /** Start on the requested visible slide or the next visible slide, with a safe empty result. */
   function startIndex(slides,requested=0){const shown=shownIndices(slides);return shown.find(index=>index>=requested)??shown[0]??-1;}
   /** Format a duration without wrapping after an hour. */
@@ -85,16 +94,16 @@
   class BuildAnimations {
     constructor(slide,{now=()=>performance.now(),requestFrame=callback=>requestAnimationFrame(callback),cancelFrame=id=>cancelAnimationFrame(id),reducedMotion=()=>false,computedStyle=element=>element.ownerDocument?.defaultView?.getComputedStyle(element),locale=slide.ownerDocument?.documentElement?.lang||'en'}={}){
       this.slide=slide;this.now=now;this.requestFrame=requestFrame;this.cancelFrame=cancelFrame;this.reducedMotion=reducedMotion;this.frame=null;this.build=true;this.disposed=false;this.printing=null;this.initial=true;
-      this.parts=[...slide.querySelectorAll('[data-build],[data-animate-grow="x"],[data-count-to]')].map(element=>{
+      this.parts=[...slide.querySelectorAll(`${revealGroups},[data-animate-grow="x"],[data-count-to]`)].map(element=>{
         const clip=element.style.getPropertyValue('clip-path'),priority=element.style.getPropertyPriority('clip-path');
         const authoredClip=[clip,element.getAttribute('clip-path'),computedStyle(element)?.clipPath].some(value=>value&&value!=='none');
         const grow=element.getAttribute('data-animate-grow')==='x'&&!authoredClip;
         const counter=counterOptions(element,locale);
-        return {element,step:animationStep(element,slide),build:element.hasAttribute('data-build'),ariaHidden:element.getAttribute('aria-hidden'),inert:element.getAttribute('inert'),blur:element.getAttribute('data-reveal')==='blur',filter:element.style.getPropertyValue('filter'),filterPriority:element.style.getPropertyPriority('filter'),grow,counter,clip,priority,svg:element.namespaceURI==='http://www.w3.org/2000/svg',delay:animationTime(element,'data-animate-delay',0,slide),duration:grow||counter?animationTime(element,'data-animate-duration',800,slide):0,active:false,started:0,done:false};
+        return {element,step:animationStep(element,slide),build:element.hasAttribute('data-build')||element.hasAttribute('data-auto-reveal'),ariaHidden:element.getAttribute('aria-hidden'),inert:element.getAttribute('inert'),blur:element.getAttribute('data-reveal')==='blur',filter:element.style.getPropertyValue('filter'),filterPriority:element.style.getPropertyPriority('filter'),grow,counter,clip,priority,svg:element.namespaceURI==='http://www.w3.org/2000/svg',delay:animationTime(element,'data-animate-delay',0,slide),duration:grow||counter?animationTime(element,'data-animate-duration',800,slide):0,active:false,started:0,done:false};
       });
       this.buildParts=new Map(this.parts.filter(part=>part.build).map(part=>[part.element,part]));
-      this.focusParts=[...slide.querySelectorAll('a,area,button,input,select,textarea,iframe,object,embed,audio[controls],video[controls],summary,[tabindex],[contenteditable],[focusable]')].filter(element=>element.closest('[data-build]')).map(element=>({element,tabindex:element.getAttribute('tabindex'),focusable:element.getAttribute('focusable'),svg:element.namespaceURI==='http://www.w3.org/2000/svg'}));
-      this.focusGuard=event=>{if(this.build&&this.printing===null&&event.target?.closest?.('[data-build].unrevealed'))this.releaseFocus(event.target);};
+      this.focusParts=[...slide.querySelectorAll('a,area,button,input,select,textarea,iframe,object,embed,audio[controls],video[controls],summary,[tabindex],[contenteditable],[focusable]')].filter(element=>element.closest(revealGroups)).map(element=>({element,tabindex:element.getAttribute('tabindex'),focusable:element.getAttribute('focusable'),svg:element.namespaceURI==='http://www.w3.org/2000/svg'}));
+      this.focusGuard=event=>{if(this.build&&this.printing===null&&event.target?.closest?.(hiddenGroups))this.releaseFocus(event.target);};
       slide.addEventListener('focusin',this.focusGuard,true);
     }
     /** Restore author styles instead of leaving an inline clipping override in final views. */
@@ -106,9 +115,9 @@
     accessibility(final=false){
       const live=!final&&this.build;
       const focused=this.slide.ownerDocument?.activeElement;
-      if(live&&focused&&this.slide.contains(focused)&&focused.closest('[data-build].unrevealed'))this.releaseFocus(focused);
+      if(live&&focused&&this.slide.contains(focused)&&focused.closest(hiddenGroups))this.releaseFocus(focused);
       for(const part of this.parts){
-        const hidden=live&&!!part.element.closest('[data-build].unrevealed');
+        const hidden=live&&!!part.element.closest(hiddenGroups);
         if(hidden)part.element.setAttribute('aria-hidden','true');else restoreAttribute(part.element,'aria-hidden',part.ariaHidden);
         if(part.build){if(hidden)part.element.setAttribute('inert','');else restoreAttribute(part.element,'inert',part.inert);}
         if(part.blur){
@@ -118,7 +127,7 @@
         }
       }
       for(const part of this.focusParts){
-        const hidden=live&&!!part.element.closest('[data-build].unrevealed');
+        const hidden=live&&!!part.element.closest(hiddenGroups);
         if(hidden){part.element.setAttribute('tabindex','-1');if(part.svg)part.element.setAttribute('focusable','false');}
         else{restoreAttribute(part.element,'tabindex',part.tabindex);if(part.svg)restoreAttribute(part.element,'focusable',part.focusable);}
       }
@@ -207,7 +216,7 @@
       if(pending)this.frame=this.requestFrame(()=>{this.frame=null;this.draw(this.now());});
     }
   }
-  if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
+  if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,updateProgressRail,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
   if(typeof document==='undefined')return;
   if(document.documentElement.dataset.capture==='slide'||document.currentScript?.hasAttribute('data-builds-only')){
     window.SlideStudioBuilds={BuildAnimations,buildCount};
@@ -321,11 +330,8 @@
     $('laser-button').setAttribute('aria-pressed',String(laser));
     const film=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
     if(film!==filmSignature){filmSignature=film;const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide">${slide.html}</div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;const shown=shownIndices(deck.slides);$('dots').style.setProperty('--slide-count',Math.max(1,shown.length));$('dots').innerHTML=shown.map((index,position)=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${position+1} / ${shown.length} · ${escape(deck.slides[index].title)}" data-index="${index}"></button>`).join('');}
-    for(const nav of [$('dots'),$('presenter-filmstrip')])nav.querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));
-    const railFocused=$('dots').contains(document.activeElement),points=[...$('dots').querySelectorAll('[data-index]')],focusPoint=points.find(button=>Number(button.dataset.index)===current)||points.find(button=>Number(button.dataset.index)>current)||points.at(-1);
-    for(const button of points){button.tabIndex=button===focusPoint?0:-1;button.classList.toggle('is-past',Number(button.dataset.index)<current);}
-    if(railFocused&&focusPoint!==document.activeElement)focusPoint?.focus({preventScroll:true});
-    focusPoint?.scrollIntoView({block:'nearest',inline:'nearest'});
+    $('presenter-filmstrip').querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));
+    updateProgressRail($('dots'),current);
     history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
     iconButton($('present-button'),'present',active?'End':'Present',true);
   }

@@ -1,0 +1,23 @@
+/* Selection affordances preview anchored requests; Send keeps them reviewable. */
+.element-selection-controls{background:transparent!important;touch-action:none}
+.element-selection-controls:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.element-move-edge{position:absolute;pointer-events:auto;cursor:move;touch-action:none}
+.element-move-top,.element-move-bottom{left:-5px;width:calc(100% + 10px);height:10px}
+.element-move-top{top:-5px}.element-move-bottom{bottom:-5px}
+.element-move-left,.element-move-right{top:5px;height:calc(100% - 10px);width:10px}
+.element-move-left{left:-5px}.element-move-right{right:-5px}
+.element-selection-handle{position:absolute;display:block;width:7px;height:7px;border:1px solid var(--blue);background:#fff;box-shadow:0 0 0 1px #ffffff80;pointer-events:none}
+.element-selection-nw{top:-4px;left:-4px}.element-selection-ne{top:-4px;right:-4px}
+.element-selection-se{bottom:-4px;right:-4px}.element-selection-sw{bottom:-4px;left:-4px}
+.element-selection-controls .element-rotation-handle{position:absolute;left:calc(50% - 7px);top:-29px;width:14px;height:14px;min-height:0;padding:0;border:1.5px solid var(--blue);border-radius:50%;background:#fff;pointer-events:auto;cursor:grab;touch-action:none}
+.element-rotation-handle::after{content:'';position:absolute;left:5px;top:12px;height:14px;border-left:1px solid var(--blue);pointer-events:none}
+.element-selection-controls .element-rotation-handle:active{cursor:grabbing}
+.element-selection-controls .element-rotation-handle:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.element-selection-controls.element-manipulation-disabled .element-move-edge,.element-selection-controls.element-manipulation-disabled .element-rotation-handle{pointer-events:none;visibility:hidden}
+.element-selection-controls.deletion-proposal{outline-color:#be4050!important;background:repeating-linear-gradient(135deg,#be40500a 0 7px,#be405020 7px 9px)!important}
+.element-selection-controls.deletion-proposal .element-selection-handle{border-color:#be4050}
+.element-tools .element-rotation-control{display:flex;align-items:center;gap:2px;padding:0 4px;color:var(--subtle);font-size:11px;white-space:nowrap}
+.element-tools .element-rotation-control[hidden]{display:none}
+.element-tools .element-rotation-control input{width:55px;min-height:26px;padding:3px 2px;border:1px solid var(--line);border-radius:4px;font:inherit;color:var(--ink);background:#fff;font-variant-numeric:tabular-nums}
+.element-tools #delete-element:hover{color:#a52c3c;background:#fff0f2}
+.preview-wrap.is-playing .element-rotation-handle,.preview-wrap.is-playing .element-move-edge{visibility:hidden}

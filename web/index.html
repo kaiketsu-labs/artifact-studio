@@ -7,6 +7,8 @@
   <link rel="icon" type="image/png" href="/web/brand/mark.png">
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/objects.css">
+  <link rel="stylesheet" href="/web/chat.css">
+  <link rel="stylesheet" href="/web/element-controls.css">
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
@@ -15,6 +17,7 @@
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
+  <script src="/web/slide-sorter.js" defer></script>
   <script src="/web/slide-actions.js" defer></script>
   <script src="/web/objects.js" defer></script>
   <script src="/web/rules-editor.js" defer></script>
@@ -22,6 +25,7 @@
   <script src="/web/presentations.js" defer></script>
   <script src="/web/deck-picker.js" defer></script>
   <script src="/web/projects.js" defer></script>
+  <script src="/web/chat-composer.js" defer></script>
   <script src="/web/app.js" defer></script>
 </head>
 <body>
@@ -64,6 +68,8 @@
       <div id="element-tools" class="element-tools" role="toolbar" aria-label="Selected element" hidden>
         <button id="edit-element-text" type="button" aria-label="Edit text"></button>
         <button id="move-element" type="button" aria-label="Move element" aria-pressed="false"></button>
+        <button id="delete-element" type="button" aria-label="Remove element"></button>
+        <label class="element-rotation-control" title="Rotate clockwise from original orientation"><span class="sr-only">Rotate by</span><input id="rotate-element" type="number" min="-360" max="360" step="1" value="0" aria-label="Rotate by degrees clockwise"><span aria-hidden="true">°</span></label>
         <button id="align-element" type="button" aria-label="Align to slide" aria-haspopup="menu" aria-expanded="false" aria-controls="element-align-menu"></button>
         <button id="commit-element-text" type="button" aria-label="Send text change" hidden></button>
         <button id="cancel-element-edit" type="button" aria-label="Cancel edit" hidden></button>
@@ -94,11 +100,26 @@
     <form id="feedback-form" class="feedback-compose">
       <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
-      <textarea id="feedback-text" placeholder="Ask for a change…" required maxlength="10000"></textarea>
-      <div class="compose-actions"><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
+      <div id="feedback-files"></div>
+      <textarea id="feedback-text" placeholder="Message your agent…" maxlength="10000"></textarea>
+      <div id="feedback-error" role="alert"></div>
+      <div id="feedback-upload-status" role="status"></div>
+      <input id="feedback-file-input" type="file" multiple hidden>
+      <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
     </form>
   </aside>
 </main>
+<footer id="view-toolbar" class="view-toolbar" aria-label="Slide view and zoom">
+  <span id="view-status"></span>
+  <div class="view-controls">
+    <div class="view-switch" role="group" aria-label="Slide view"><button id="edit-view" type="button" aria-label="Edit view" aria-pressed="true"></button><button id="sorter-view" type="button" aria-label="Slide sorter" aria-pressed="false"></button></div>
+    <button id="zoom-out" type="button" aria-label="Zoom out"></button>
+    <input id="view-zoom" type="range" min="10" max="100" step="5" value="100" aria-label="Slide zoom">
+    <button id="zoom-in" type="button" aria-label="Zoom in"></button>
+    <output id="zoom-value" for="view-zoom">100%</output>
+    <button id="fit-view" type="button" aria-label="Fit slide"></button>
+  </div>
+</footer>
 <div id="slide-menu" class="slide-menu" popover role="menu" aria-label="Slide options">
   <div id="slide-menu-selection" class="slide-menu-selection" hidden></div>
   <button data-slide-action="add" type="button" role="menuitem"></button>

@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {BuildAnimations,counterOptions,countDecimals}=require('../runtime/presentation.js');
+const {BuildAnimations,buildCount,counterOptions,countDecimals}=require('../runtime/presentation.js');
 
 /** Model the DOM surface used by builds without coupling the tests to a browser package. */
 class Element {
@@ -22,7 +22,7 @@ class Element {
     return (!tag||this.localName===tag)&&[...selector.matchAll(/\[([^\]=]+)(?:="([^"]*)")?\]/g)].every(([,name,value])=>value===undefined?this.hasAttribute(name):this.getAttribute(name)===value)&&[...selector.matchAll(/\.([\w-]+)/g)].every(([,name])=>this.classList.contains(name));
   }
   querySelectorAll(selector){return this.children.flatMap(child=>[...(selector.split(',').some(part=>child.matches(part))?[child]:[]),...child.querySelectorAll(selector)]);}
-  closest(selector){for(let part=this;part;part=part.parentElement)if(part.matches(selector))return part;return null;}
+  closest(selector){for(let part=this;part;part=part.parentElement)if(selector.split(',').some(item=>part.matches(item)))return part;return null;}
   contains(element){return element===this||this.children.some(child=>child.contains(element));}
   addEventListener(name,listener){if(!this.listeners.has(name))this.listeners.set(name,new Set());this.listeners.get(name).add(listener);}
   removeEventListener(name,listener){this.listeners.get(name)?.delete(listener);}
@@ -36,6 +36,67 @@ function timeline(slide,options={}){
   const animation=new BuildAnimations(slide,{now:()=>now,requestFrame:callback=>{frames.set(++next,callback);return next;},cancelFrame:id=>frames.delete(id),computedStyle:element=>({clipPath:element.computedClip||'none'}),...options});
   return {animation,frames,advance(milliseconds){now+=milliseconds;const queued=[...frames.values()];frames.clear();for(const callback of queued)callback(now);}};
 }
+
+test('entry cards stagger independently without consuming the logo row click',()=>{
+  const cards=[250,850,1450].map(delay=>new Element({'data-auto-reveal':'','data-animate-delay':String(delay)}));
+  const logos=new Element({'data-build':'1'}),slide=new Element({},'',[...cards,logos]);
+  assert.equal(buildCount('<div data-auto-reveal data-animate-delay="1450"></div><div data-build="1"></div>'),1);
+  let commits=0;
+  Object.defineProperty(slide,'offsetWidth',{get(){commits++;for(const card of cards){assert.equal(card.classList.contains('unrevealed'),true);assert.equal(card.style.getPropertyValue('transition-property'),'none');}return 100;}});
+  const {animation,advance,frames}=timeline(slide);animation.update(0);
+  assert.equal(commits,1);advance(249);assert.deepEqual(cards.map(card=>card.classList.contains('unrevealed')),[true,true,true]);
+  advance(1);assert.deepEqual(cards.map(card=>card.classList.contains('unrevealed')),[false,true,true]);
+  animation.update(0);advance(600);assert.deepEqual(cards.map(card=>card.classList.contains('unrevealed')),[false,false,true]);
+  advance(600);assert.deepEqual(cards.map(card=>card.classList.contains('unrevealed')),[false,false,false]);
+  assert.equal(logos.classList.contains('unrevealed'),true);assert.equal(frames.size,0);
+  animation.update(1);assert.equal(logos.classList.contains('unrevealed'),false);
+  animation.update(0);assert.deepEqual(cards.map(card=>card.classList.contains('unrevealed')),[false,false,false]);
+});
+
+test('entry bars and counters already start at step zero after the shared 300ms delay',()=>{
+  const bar=new Element({'data-animate-grow':'x'}),count=new Element({'data-count-to':'80'},'80 exact');
+  const group=new Element({'data-animate-delay':'300','data-animate-duration':'1000'},'',[bar,count]);
+  const {animation,advance}=timeline(new Element({},'',[group]));animation.update(0);
+  assert.equal(count.textContent,'0');advance(299);assert.equal(count.textContent,'0');
+  advance(1);assert.equal(bar.style.getPropertyValue('clip-path'),'inset(0 100% 0 0)');
+  advance(500);assert.equal(count.textContent,'40');assert.equal(bar.style.getPropertyValue('clip-path'),'inset(0 50% 0 0)');
+  advance(500);assert.equal(count.textContent,'80 exact');
+});
+
+test('automatic groups gate nested motion, accessibility and focus until their entry delay',()=>{
+  const link=new Element({'href':'#detail','tabindex':'2'},'Detail',[],'a');
+  const counter=new Element({'data-count-to':'80','data-animate-delay':'0'},'80 final');
+  const card=new Element({'data-auto-reveal':'','data-animate-delay':'850','aria-hidden':'false'},'',[counter,link]);
+  const {animation,advance}=timeline(new Element({},'',[card]));animation.update(0);
+  assert.equal(card.getAttribute('inert'),'');assert.equal(card.getAttribute('aria-hidden'),'true');assert.equal(link.getAttribute('tabindex'),'-1');
+  link.focus();assert.equal(link.ownerDocument.activeElement,null);
+  advance(849);assert.equal(counter.textContent,'0');assert.equal(card.classList.contains('unrevealed'),true);
+  advance(1);assert.equal(card.classList.contains('unrevealed'),false);assert.equal(card.getAttribute('aria-hidden'),'false');assert.equal(link.getAttribute('tabindex'),'2');assert.equal(card.hasAttribute('inert'),false);
+  advance(400);assert.equal(counter.textContent,'40');
+});
+
+test('automatic groups inside a click build remain gated by that build and restore on disposal',()=>{
+  const card=new Element({'data-auto-reveal':'','data-animate-delay':'250'}),group=new Element({'data-build':'2'},'',[card]);
+  const {animation,advance,frames}=timeline(new Element({},'',[group]));animation.update(0);
+  assert.equal(frames.size,0);animation.update(1);advance(1000);assert.equal(card.classList.contains('unrevealed'),true);
+  animation.update(2);advance(249);assert.equal(card.classList.contains('unrevealed'),true);
+  advance(1);assert.equal(card.classList.contains('unrevealed'),false);
+  animation.update(1);assert.equal(card.classList.contains('unrevealed'),true);
+  animation.dispose();assert.equal(card.classList.contains('unrevealed'),false);assert.equal(card.hasAttribute('aria-hidden'),false);assert.equal(frames.size,0);
+});
+
+test('automatic reveals respect reduced motion, print pause and complete static preview',()=>{
+  const card=new Element({'data-auto-reveal':'','data-animate-delay':'1450'}),slide=new Element({},'',[card]);
+  const {animation,advance,frames}=timeline(slide);animation.update(0);advance(250);
+  animation.beforePrint();assert.equal(card.classList.contains('unrevealed'),false);assert.equal(frames.size,0);
+  advance(10000);animation.afterPrint();assert.equal(card.classList.contains('unrevealed'),true);
+  advance(1199);assert.equal(card.classList.contains('unrevealed'),true);advance(1);assert.equal(card.classList.contains('unrevealed'),false);
+  animation.update(0,{build:false});assert.equal(card.classList.contains('unrevealed'),false);
+  animation.update(0);assert.equal(card.classList.contains('unrevealed'),true);animation.dispose();
+  const finalCard=new Element({'data-auto-reveal':'','data-animate-delay':'1450'}),logos=new Element({'data-build':'1'});
+  const reduced=timeline(new Element({},'',[finalCard,logos]),{reducedMotion:()=>true});reduced.animation.update(0);
+  assert.equal(finalCard.classList.contains('unrevealed'),false);assert.equal(logos.classList.contains('unrevealed'),true);assert.equal(reduced.frames.size,0);
+});
 
 test('initial hidden builds are committed without transitions and authored transitions return for reveals',()=>{
   const hidden=new Element({'data-build':'1'}),teaser=new Element({'data-build':'2','data-reveal':'blur'}),slide=new Element({},'',[hidden,teaser]);

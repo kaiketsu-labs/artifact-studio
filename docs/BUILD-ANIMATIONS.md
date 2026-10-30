@@ -17,6 +17,7 @@ The bar and counter start together when build 1 is revealed. The result appears 
 | Attribute | Behavior |
 | --- | --- |
 | `data-build="N"` | Positive numbered reveal stage; enclosing stages must also be revealed. |
+| `data-auto-reveal` | Reveal a group automatically on slide entry, using its `data-animate-delay`. Does not add a click step. Enclosing numbered builds still gate the group. |
 | `data-animate-grow="x"` | Reveals a bar from left to right using clipping, preserving its size and transforms. Works on HTML and SVG. |
 | `data-count-to="9568"` | Animates a text-only element from zero to the numeric target. Put the exact final display text inside it. |
 | `data-count-from="0"` | Optional starting number. |
@@ -25,6 +26,21 @@ The bar and counter start together when build 1 is revealed. The result appears 
 | `data-animate-duration="1200"` | Nonnegative milliseconds, inherited from the nearest ancestor; default 800. |
 | `data-animate-delay="1200"` | Nonnegative milliseconds from this build's activation, inherited from the nearest ancestor; default zero. An animation also waits for any remaining delay of enclosing build groups. An already visible parent adds no new wait. Delays are not added together. |
 | `data-reveal="blur"` | Keeps an unrevealed build visibly blurred instead of invisible. |
+
+For a brief entry sequence, mark each card with `data-auto-reveal` and use absolute delays from entry. Keep later audience-controlled content in numbered builds:
+
+```html
+<section data-auto-reveal data-animate-delay="250">First headline card</section>
+<section data-auto-reveal data-animate-delay="850">Second headline card</section>
+<section data-auto-reveal data-animate-delay="1450">Third headline card</section>
+<div data-animate-delay="300" data-animate-duration="1000">
+  <div data-animate-grow="x" class="bar"></div>
+  <span data-count-to="80">80</span>
+</div>
+<div data-build="1" class="logo-row">Logos</div>
+```
+
+Bars and counters outside numbered builds already animate on entry; they do not need `data-auto-reveal`. The flag hides an ordinary group until its delay. All three cards run independently of the first click, which still reveals the logo row. Repeated renders or clicks do not restart an entry sequence. Returning to the slide replays it. Automatic groups use the same reduced-motion, static preview, print and accessibility behavior as numbered builds.
 
 Counters accept text-only spans, SVG `text` or `tspan` elements. Intermediate numbers use the document language, falling back to English. Completion restores the authored text exactly, including its minus sign, spacing or notation. Do not nest markup inside a counter.
 

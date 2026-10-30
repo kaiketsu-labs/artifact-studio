@@ -30,9 +30,11 @@ from .models import (
     DesignMessage,
     DesignRequestInput,
     DesignView,
+    EditIntent,
     ElementTarget,
     Feedback,
     FeedbackFeed,
+    FeedbackFile,
     FeedbackWorkflow,
     FileInput,
     Slide,
@@ -197,6 +199,10 @@ class Store:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN batch_id TEXT")
             if "context_slide_id" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN context_slide_id TEXT")
+            if "files" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
+            if "edit_intent" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN edit_intent TEXT")
             _ = db.execute(
                 "INSERT OR IGNORE INTO delivery(event_id) SELECT id FROM feedback "
                 "WHERE released=1 AND author='user' ORDER BY id"
@@ -367,9 +373,47 @@ class Store:
                 target=ElementTarget.model_validate_json(cast(str, row["target"]))
                 if row["target"]
                 else None,
+                files=self.feedback_files(deck_id, cast(int, row["id"]), cast(str, row["files"])),
+                edit_intent=EditIntent.model_validate_json(cast(str, row["edit_intent"]))
+                if row["edit_intent"]
+                else None,
             )
             for row in rows
         ]
+
+    def feedback_files(self, deck_id: str, event_id: int, document: str) -> list[FeedbackFile]:
+        """Resolve private references without allowing saved paths outside review storage."""
+        files = TypeAdapter(list[FeedbackFile]).validate_json(document)
+        boundary = (self.database.parent / "feedback-files" / deck_id).resolve()
+        for index, file in enumerate(files):
+            path = (boundary / file.path).resolve()
+            if not path.is_relative_to(boundary):
+                raise ValueError("Feedback attachment path is outside its private storage.")
+            file.path = str(path)
+            file.download_url = f"/api/decks/{deck_id}/feedback/{event_id}/files/{index}"
+        return files
+
+    def save_feedback_files(
+        self, deck_id: str, files: list[tuple[str, bytes]]
+    ) -> list[FeedbackFile]:
+        """Save references beside the private database, outside presentation sync trees."""
+        folder = self.database.parent / "feedback-files" / deck_id
+        request = uuid.uuid4().hex
+        result: list[FeedbackFile] = []
+        for index, (name, data) in enumerate(files):
+            relative = Path(request) / f"{index}.attachment"
+            path = folder / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _ = path.write_bytes(data)
+            result.append(
+                FeedbackFile(
+                    name=name,
+                    path=relative.as_posix(),
+                    size=len(data),
+                    sha256=hashlib.sha256(data).hexdigest(),
+                )
+            )
+        return result
 
     def view_slide(
         self,
@@ -609,16 +653,28 @@ class Store:
         reply_to: int | None = None,
         target: ElementTarget | None = None,
         context_slide_id: str | None = None,
+        files: list[FileInput] | None = None,
+        edit_intent: EditIntent | None = None,
     ) -> str:
         """Save a comment or reply exactly once, retaining its original slide context."""
-        if not message.strip():
-            raise ValueError("Feedback must not be empty.")
+        decoded = decode_attachments(files or [])
+        if not message.strip() and not decoded:
+            raise ValueError("Add a message or attach a file.")
         author = "agent" if reply_to is not None else "user"
         target_json = target.model_dump_json() if target else None
+        intent_json = edit_intent.model_dump_json() if edit_intent else None
+        if edit_intent is not None and target is None:
+            raise ValueError("Element edit requests need a target.")
         payload_hash = digest(
             json.dumps(
                 [slide_id, message, content_hash, reply_to, target_json]
                 + ([context_slide_id] if context_slide_id is not None else [])
+                + (
+                    [[name, hashlib.sha256(data).hexdigest()] for name, data in decoded]
+                    if decoded
+                    else []
+                )
+                + ([intent_json] if intent_json is not None else [])
             )
         )
         stored_slide_id = slide_id or ""
@@ -646,6 +702,7 @@ class Store:
             ):
                 raise ValueError("Reply must reference feedback in the same presentation context.")
             released = author == "agent" or self.workflow(deck_id).mode == "live"
+            attachments = self.save_feedback_files(deck_id, decoded)
             result = self.append_feedback(
                 db,
                 deck_id,
@@ -657,6 +714,8 @@ class Store:
                 reply_to=reply_to,
                 target_json=target_json,
                 context_slide_id=context_slide_id or slide_id,
+                files_json=TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
+                intent_json=intent_json,
             )
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
@@ -677,11 +736,14 @@ class Store:
         reply_to: int | None = None,
         target_json: str | None = None,
         context_slide_id: str | None = None,
+        files_json: str = "[]",
+        intent_json: str | None = None,
     ) -> str:
         """Append a message and its delivery record within the caller's transaction."""
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,"
-            "reply_to,target,context_slide_id,released) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "reply_to,target,context_slide_id,released,files,edit_intent) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck_id,
                 slide_id,
@@ -693,6 +755,8 @@ class Store:
                 target_json,
                 context_slide_id,
                 released,
+                files_json,
+                intent_json,
             ),
         )
         if released and author == "user":

@@ -145,6 +145,7 @@ def snapshot(
     theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
     markup = embedder.markup(slide.html)
     runtime = (PROJECT / "runtime/presentation.js").read_text()
+    runtime_styles = (PROJECT / "runtime/slideshow.css").read_text()
     adapter = (PROJECT / "runtime/capture.js").read_text()
     nonce = uuid.uuid4().hex
     policy = (
@@ -165,13 +166,15 @@ def snapshot(
         + '">'
         + "<style>"
         + theme
+        + runtime_styles.replace("<", r"\3c ")
         + "</style><style>"
         + f"html,body{{margin:0;width:{WIDTH}px;height:{HEIGHT}px;overflow:hidden}}"
         + f"#capture-stage{{position:relative;width:{WIDTH}px;height:{HEIGHT}px;"
         + "container-type:inline-size;box-shadow:none}"
         + "#capture-stage>.slide{position:relative;width:100%;height:100%;"
         + "box-sizing:border-box;overflow:hidden}"
-        + ".slide [data-build]{transition:none!important}</style></head><body>"
+        + ".slide [data-build],.slide [data-auto-reveal]{transition:none!important}"
+        + "</style></head><body>"
         + '<main id="capture-stage" class="stage-slot">'
         + markup
         + "</main>"
@@ -196,11 +199,19 @@ def snapshot(
             hidden=slide.hidden,
             content_hash=content_hash,
             expected_hash=digest(slide.model_dump_json()),
-            runtime_hash=digest(runtime + adapter),
+            runtime_hash=digest(runtime + runtime_styles + adapter),
             runtime_matches_deck=(folder / "presentation.js").is_file()
-            and (folder / "presentation.js").read_text() == runtime,
+            and (folder / "presentation.js").read_text() == runtime
+            and (folder / "slideshow.css").is_file()
+            and (folder / "slideshow.css").read_text() == runtime_styles,
             render_hash=digest(
-                root + theme + markup + runtime + adapter + options.model_dump_json()
+                root
+                + theme
+                + markup
+                + runtime
+                + runtime_styles
+                + adapter
+                + options.model_dump_json()
             ),
             stage=options.stage,
             elapsed_ms=options.elapsed_ms,

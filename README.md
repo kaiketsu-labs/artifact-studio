@@ -84,19 +84,27 @@ Select a thumbnail to switch both the slide and its chat. Matching slide numbers
 
 The project menu at the top left marks the current project and wraps long names to two lines. **+ New project** is its final option and opens the title, brief and design dialog. Arrow keys navigate the menu; Home/End jump to its ends, and Esc closes it.
 
-Select an element to edit text, drag it or align it to the slide. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
+Select an element to edit text, drag its selection border, align it or rotate it using the round handle or degree field. The trash icon stages a deletion request. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
 
 Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.
 
 The **Play icon** above the slide replays its animation and reveal steps in place. It is disabled on static slides. Click **Stop**, press **Esc** or switch slides to return to editing; unsent edits and drafts stay intact.
 
-In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line.
+In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line. The slide chat accepts files through its paperclip, drag-and-drop or paste, including file-only messages. Remove an attachment with its × before sending; download it from the message afterward. Limits are five files, 25 MB each and 50 MB together. Selected unsent files stay in browser memory; sent files persist locally and travel with saved projects. Batch attachments stay withheld until release.
+
+![Slide conversation with a file attachment and familiar chat composer](docs/assets/slide-chat.png)
 
 Revisions appear live. Orange clears when you open the changed slide; approval remains a separate action. Incoming changes preserve your drafts and their original element targets.
+
+The slideshow’s right-edge position ticks expand slightly on hover. Click a tick to jump directly to that slide; the existing design colors are retained.
 
 In the slideshow, click the slide or press a normal key to advance. Arrows navigate, Home/End jump to the first/last slide, and **Esc** returns directly to the editor at the current slide. Notes and focused controls keep their normal keyboard behavior.
 
 Right-click a thumbnail for **Hide Slide / Unhide Slide**, or click its eye icon directly. An open eye means shown; a crossed-out eye and slide number mean hidden. Hidden slides stay editable and keep their notes and approval. Normal slideshow navigation and the next-slide preview skip them. Use **See all slides** or the private presenter filmstrip to show one deliberately, following [PowerPoint's interaction](https://support.microsoft.com/en-us/powerpoint/hide-or-show-a-slide).
+
+Click the grid icon in the bottom bar, or zoom below 55%, to see the slide sorter. A single click selects; double-click or Enter returns to editing. The fit icon sizes the overview for the deck, and Esc returns to the previous editor zoom. Arrow keys follow the grid.
+
+![Multiple selected slides in the zoomed-out overview](docs/assets/slide-sorter.png)
 
 Drag thumbnails to reorder slides. **Shift-click** selects a range; **Cmd/Ctrl-click** selects individual slides to move together. The insertion line marks the destination, and dragging near the rail's edge scrolls longer decks. Right-click for move commands, or use **Cmd/Ctrl + Up/Down** and add **Shift** for beginning/end, matching [PowerPoint's shortcuts](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations). **Undo** in the confirmation or **Cmd/Ctrl+Z** with a thumbnail focused reverses a move; **Cmd/Ctrl+Shift+Z** redoes it. Notes, conversations, approvals and hidden states stay with their slides.
 

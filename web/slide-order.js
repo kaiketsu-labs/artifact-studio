@@ -20,9 +20,21 @@
   function slideRange(ids,anchor,target){const first=ids.indexOf(anchor),last=ids.indexOf(target);return first<0||last<0?[target]:ids.slice(Math.min(first,last),Math.max(first,last)+1);}
   const equal=(left,right)=>left.length===right.length&&left.every((id,index)=>id===right[index]);
 
+  /** Find a row-aware insertion point without confusing the next row with the next column. */
+  function dropPosition(rectangles,x,y,grid=false){
+    if(!rectangles.length)return 0;
+    if(!grid){const index=rectangles.findIndex(rect=>y<(rect.top+rect.bottom)/2);return index<0?rectangles.length:index;}
+    const rows=[];
+    rectangles.forEach((rect,index)=>{let row=rows.at(-1);if(!row||Math.abs(row.top-rect.top)>2){row={top:rect.top,bottom:rect.bottom,items:[]};rows.push(row);}row.items.push({rect,index});});
+    const distance=row=>Math.max(row.top-y,0,y-row.bottom);
+    const row=rows.reduce((closest,item)=>distance(item)<distance(closest)?item:closest);
+    const next=row.items.find(item=>x<(item.rect.left+item.rect.right)/2);
+    return next?next.index:row.items.at(-1).index+1;
+  }
+
   /** Bind pointer and keyboard movement to an existing thumbnail rail. */
-  function create({rail,read,open,save,contextMenu,notify,command=()=>{},undoAction=async()=>false,blocked=()=>false}){
-    let deckId=null,selected=new Set(),anchor=null,busy=false,gesture=null,suppressClick=false,frame=0,history=[],future=[];
+  function create({rail,read,open,save,contextMenu,notify,command=()=>{},undoAction=async()=>false,blocked=()=>false,layout=()=> 'list',activate=async()=>{},onBusy=()=>{}}){
+    let deckId=null,selected=new Set(),anchor=null,busy=false,gesture=null,suppressClick=false,frame=0,history=[],future=[],selectionEpoch=0;
     const line=document.createElement('div');line.className='slide-drop-line';line.hidden=true;document.body.append(line);
     const ghost=document.createElement('div');ghost.className='slide-drag-count';ghost.hidden=true;ghost.setAttribute('aria-hidden','true');document.body.append(ghost);
     const status=document.createElement('span');status.className='sr-only';status.setAttribute('role','status');rail.after(status);
@@ -36,27 +48,26 @@
     }
     async function select(id,event={}){
       if(busy||blocked())return false;const state=read();if(!state)return false;
-      let next;
+      const request=++selectionEpoch;let next,nextAnchor=anchor;
       if(event.shiftKey)next=new Set(slideRange(state.ids,anchor||state.activeId,id));
-      else if(event.metaKey||event.ctrlKey){next=new Set(selected);if(next.has(id)&&next.size>1)next.delete(id);else next.add(id);anchor=id;}
-      else{next=new Set([id]);anchor=id;}
-      const nextAnchor=anchor;
+      else if(event.metaKey||event.ctrlKey){next=new Set(selected);if(next.has(id)&&next.size>1)next.delete(id);else next.add(id);nextAnchor=id;}
+      else{next=new Set([id]);nextAnchor=id;}
       const active=next.has(id)?id:state.ids.findLast(item=>next.has(item));
-      if(!await open(active))return false;
+      if(!await open(active)||request!==selectionEpoch||read()?.deckId!==state.deckId)return false;
       selected=next;anchor=nextAnchor;sync();buttonFor(active)?.focus({preventScroll:true});
       return true;
     }
     async function commit(next,previous,{record=true,message='Slides moved.'}={}){
       if(busy||blocked()||equal(next,previous))return false;
       const state=read(),selection=[...selected];if(!state)return false;
-      busy=true;rail.setAttribute('aria-busy','true');
+      busy=true;rail.setAttribute('aria-busy','true');onBusy(true);
       try{
         if(!await save(next,previous))return false;
         if(read()?.deckId!==state.deckId)return false;
         if(record){history.push({before:previous,after:next,selection});history=history.slice(-30);future=[];}
         sync();buttonFor(read().activeId)?.focus({preventScroll:true});buttonFor(read().activeId)?.scrollIntoView({block:'nearest'});
         status.textContent=message;notify(message,()=>undo());return true;
-      }finally{busy=false;rail.removeAttribute('aria-busy');}
+      }finally{busy=false;rail.removeAttribute('aria-busy');onBusy(false);}
     }
     async function move(action){const state=read();if(state)await commit(moveSlides(state.ids,selected,action),state.ids);}
     async function undo(redo=false){
@@ -78,11 +89,14 @@
       drag.inside=inside;line.hidden=!inside;
       ghost.style.left=`${drag.x+15}px`;ghost.style.top=`${drag.y+12}px`;
       const entries=[...rail.querySelectorAll('[data-id]')].filter(button=>!drag.selected.includes(button.dataset.id));
-      const index=entries.findIndex(button=>{const rect=button.getBoundingClientRect();return drag.y<rect.top+rect.height/2;});
-      drag.position=index<0?entries.length:index;
+      const grid=layout()==='grid';
+      drag.position=dropPosition(entries.map(button=>button.getBoundingClientRect()),drag.x,drag.y,grid);
       const target=entries[drag.position]||entries.at(-1),rect=target?.getBoundingClientRect();
       const y=rect?(drag.position<entries.length?rect.top-4:rect.bottom+4):bounds.top+8;
-      line.style.left=`${bounds.left+5}px`;line.style.width=`${bounds.width-10}px`;line.style.top=`${Math.max(bounds.top+2,Math.min(bounds.bottom-2,y))}px`;
+      line.classList.toggle('is-grid',grid);
+      line.style.left=`${grid?Math.max(bounds.left+2,Math.min(bounds.right-3,rect?(drag.position<entries.length?rect.left-10:rect.right+10):bounds.left+8)):bounds.left+5}px`;
+      line.style.width=`${grid?3:bounds.width-10}px`;line.style.height=`${grid?(rect?.height||100)+8:3}px`;
+      line.style.top=`${Math.max(bounds.top+2,Math.min(bounds.bottom-2,grid?(rect?.top||bounds.top)-4:y))}px`;
       if(inside){const edge=48,speed=drag.y<bounds.top+edge?-Math.ceil((bounds.top+edge-drag.y)/4):drag.y>bounds.bottom-edge?Math.ceil((drag.y-bounds.bottom+edge)/4):0;rail.scrollTop+=speed;}
       frame=requestAnimationFrame(updateDrag);
     }
@@ -129,14 +143,18 @@
         if(['ArrowUp','ArrowDown'].includes(event.key)){event.preventDefault();if(!event.repeat)void move(event.shiftKey?(event.key==='ArrowUp'?'first':'last'):(event.key==='ArrowUp'?'up':'down'));}return;
       }
       if(['Delete','Backspace'].includes(event.key)){event.preventDefault();if(!event.repeat)void command('delete');return;}
-      if(!['ArrowUp','ArrowDown','Home','End'].includes(event.key))return;event.preventDefault();
-      const state=read(),index=state.ids.indexOf(button.dataset.id),next=event.key==='Home'?0:event.key==='End'?state.ids.length-1:Math.max(0,Math.min(state.ids.length-1,index+(event.key==='ArrowDown'?1:-1)));
+      const grid=layout()==='grid';
+      if(grid&&event.key==='Enter'){event.preventDefault();if(!event.repeat)void activate(button.dataset.id);return;}
+      if(!['ArrowUp','ArrowDown','Home','End',...(grid?['ArrowLeft','ArrowRight']:[])].includes(event.key))return;event.preventDefault();
+      const buttons=[...rail.querySelectorAll('[data-id]')],top=buttons[0].getBoundingClientRect().top;
+      const columns=grid?buttons.filter(item=>Math.abs(item.getBoundingClientRect().top-top)<2).length:1;
+      const state=read(),index=state.ids.indexOf(button.dataset.id),offset={ArrowUp:-columns,ArrowDown:columns,ArrowLeft:-1,ArrowRight:1}[event.key]||0,next=event.key==='Home'?0:event.key==='End'?state.ids.length-1:Math.max(0,Math.min(state.ids.length-1,index+offset));
       await select(state.ids[next],event);buttonFor(state.ids[next])?.scrollIntoView({block:'nearest'});
     });
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&gesture){event.preventDefault();event.stopPropagation();cancel();suppressClick=false;}},true);
     return {sync,move,canMove,undo,selection:()=>[...selected],setSelection:ids=>{selected=new Set(ids);anchor=ids[0];sync();},resetHistory:()=>{history=[];future=[];},isBusy:()=>busy,isDragging:()=>!!gesture?.dragging};
   }
-  const api={insertSlides,moveSlides,slideRange,create};
+  const api={insertSlides,moveSlides,slideRange,dropPosition,create};
   if(typeof module!=='undefined')module.exports=api;
   if(typeof window!=='undefined')window.SlideOrder=api;
 })();

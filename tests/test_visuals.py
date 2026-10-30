@@ -82,6 +82,32 @@ def test_capture_validation(store: Store, tmp_path: Path) -> None:
         capture(store, DECK, tmp_path / "captures", slide_id="missing")
 
 
+def test_automatic_reveal_markup_and_runtime_styles_reach_capture(store: Store) -> None:
+    """Accept declarative entry groups and fingerprint their shared rendering styles."""
+    slide = store.read(DECK).slides[0]
+    markup = (
+        '<article class="slide"><section data-auto-reveal data-animate-delay="250">'
+        'First card</section><section data-auto-reveal data-animate-delay="850">'
+        'Second card</section><section data-auto-reveal data-animate-delay="1450">'
+        'Third card</section><div data-build="1">Logos</div></article>'
+    )
+    store.revise(
+        DECK,
+        slide.id,
+        digest(slide.model_dump_json()),
+        "automatic-reveal-fixture",
+        SlidePatch(html=markup),
+    )
+    prepared = snapshot(store, DECK, store.read(DECK).slides[0], 1, CaptureOptions(stage=0))
+    assert markup in prepared.document
+    assert ".slide.build-mode [data-auto-reveal].unrevealed{opacity:0" in prepared.document
+    assert prepared.frame.runtime_matches_deck
+    styles = store.folder(DECK) / "slideshow.css"
+    _ = styles.write_text(styles.read_text() + "\n/* Older deck runtime */\n")
+    stale = snapshot(store, DECK, store.read(DECK).slides[0], 1, CaptureOptions(stage=0))
+    assert not stale.frame.runtime_matches_deck
+
+
 def pixel(path: str, x: int, y: int) -> tuple[int, ...] | float | None:
     """Read a deterministic color sample from a full-size captured frame."""
     with Image.open(path) as image:

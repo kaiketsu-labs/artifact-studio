@@ -790,6 +790,22 @@ def workspace_preferences() -> dict[str, str]:
     return {"default_design_id": store.default_design_id()}
 
 
+@app.get("/api/decks/{deck_id}/feedback/{event_id}/files/{file_index}")
+def feedback_attachment(deck_id: DeckID, event_id: int, file_index: int) -> FileResponse:
+    """Download a private review file with its original name and inert content type."""
+    _ = store.read(deck_id)
+    comment = next((item for item in store.comments(deck_id) if item.event_id == event_id), None)
+    if comment is None or not 0 <= file_index < len(comment.files):
+        raise FileNotFoundError("Attachment not found.")
+    file = comment.files[file_index]
+    return FileResponse(
+        file.path,
+        filename=file.name,
+        media_type="application/octet-stream",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"},
+    )
+
+
 @app.get("/api/instructions")
 def workspace_instructions() -> dict[str, str]:
     """Show the same persistent rules supplied through agent context and feedback reads."""
@@ -945,7 +961,14 @@ def approve(deck_id: DeckID, slide_id: SlideID, body: ApprovalInput) -> dict[str
 def feedback(deck_id: DeckID, slide_id: SlideID, body: CommentInput) -> dict[str, str]:
     """Save a human comment with the revision they were viewing."""
     event_id = store.add_feedback(
-        deck_id, slide_id, body.message, body.content_hash, body.request_id, target=body.target
+        deck_id,
+        slide_id,
+        body.message,
+        body.content_hash,
+        body.request_id,
+        target=body.target,
+        files=body.files,
+        edit_intent=body.edit_intent,
     )
     return {"event_id": event_id}
 
@@ -954,7 +977,13 @@ def feedback(deck_id: DeckID, slide_id: SlideID, body: CommentInput) -> dict[str
 def presentation_feedback(deck_id: DeckID, body: PresentationCommentInput) -> dict[str, str]:
     """Save a general presentation instruction through the shared feedback composer."""
     event_id = store.add_feedback(
-        deck_id, None, body.message, "", body.request_id, context_slide_id=body.context_slide_id
+        deck_id,
+        None,
+        body.message,
+        "",
+        body.request_id,
+        context_slide_id=body.context_slide_id,
+        files=body.files,
     )
     return {"event_id": event_id}
 

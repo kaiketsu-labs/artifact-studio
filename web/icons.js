@@ -1,6 +1,7 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
     align:'M3 4v16M7 7h13v4H7zM7 15h8v3H7z',
     alignLeft:'M4 3v18M8 6h12v4H8zM8 14h8v4H8z',alignCenter:'M12 2v3m0 5v4m0 4v4M4 5h16v5H4zM7 14h10v4H7z',alignRight:'M20 3v18M4 6h12v4H4zM8 14h8v4H8z',
     alignTop:'M3 4h18M6 8h4v12H6zM14 8h4v8h-4z',alignMiddle:'M2 12h3m5 0h4m4 0h4M5 4h5v16H5zM14 7h4v10h-4z',alignBottom:'M3 20h18M6 4h4v12H6zM14 8h4v8h-4z',
