@@ -9,7 +9,7 @@ Maintain concise, evidence-backed preferences without treating every correction 
 
 ## Read the right sources
 
-Start with Slide Studio's `get_working_context`. Read the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`, design preferences only for relevant designs, and the application's `.state/learning-cursors.json` if present. Explicit workspace rules are primary. This learning pass may update secondary preferences; it must not edit `INSTRUCTIONS.md` or weaken its rules.
+Start with Slide Studio's `get_working_context`. Read the collection's `INSTRUCTIONS.md`, `LEARNED-PREFERENCES.md` and existing `LEARNED-PREFERENCES-EVIDENCE.md`, design preferences only for relevant designs, and the application's `.state/learning-cursors.json` if present. Explicit workspace rules are primary. This learning pass may update secondary preferences; it must not edit `INSTRUCTIONS.md` or weaken its rules.
 
 Review new human messages from presentation-related transcripts as well as released slide feedback. On the first run, use the preceding seven days; later runs continue from saved checkpoints, with a small overlap to catch late availability. Record a fixed run cutoff so activity arriving during the run stays eligible next time.
 
@@ -33,7 +33,9 @@ For each candidate, check the actual human wording, source identity, intended sc
 
 ## Save and checkpoint
 
-Each new or revised preference needs a concise evidence reference: harness, chat/thread ID, human message/turn ID and date; or deck ID and feedback event ID. Use minimal excerpts only when they disambiguate meaning. Do not copy complete transcripts or private source content into preferences. Keep all learned files and learning state local; no uploads, commits or pushes of user material.
+Keep agent-facing preferences short, actionable and deduplicated: one compact bullet per decision, with a stable ID such as P1. Preserve meaningful conditions; never truncate away exceptions or weaken a rule. Omit rationale, history, transcript IDs and repeated workspace rules from these bullets.
+
+Save provenance separately in the collection's `LEARNED-PREFERENCES-EVIDENCE.md`, keyed by preference ID: harness, chat/thread ID, human message/turn ID and date, or deck ID and feedback event ID. Keep design evidence in that design's `PREFERENCES-EVIDENCE.md`. Preserve existing evidence when merging; use minimal excerpts only when needed. Evidence files are reference material for learning/provenance checks, not ordinary authoring context. Do not copy complete transcripts or private source content into preferences. Keep all learned files and learning state local; no uploads, commits or pushes of user material.
 
 Read each destination immediately before editing and merge with its current content. Preserve human wording and unrelated sections. Save atomically and verify the saved result. For deck README updates, obtain current context/hash from MCP `get_presentation` (which filters withheld feedback) and use `update_presentation_context` with optimistic concurrency. Avoid browser review endpoints that include pending comments. If safe access is unavailable, keep a pending scoped item instead. Never change slides, speaker notes, approvals or deck order during a learning run.
 

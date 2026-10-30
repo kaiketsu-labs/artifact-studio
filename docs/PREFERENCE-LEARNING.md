@@ -6,11 +6,14 @@ The bundled [`slide-studio-learn`](../.agents/skills/slide-studio-learn/SKILL.md
 | --- | --- |
 | Explicit rules for every presentation, maintained by the human | Collection `INSTRUCTIONS.md` |
 | Learned general preferences, secondary to explicit rules | Collection `LEARNED-PREFERENCES.md` |
+| Preference provenance and history, loaded only for learning/review | Collection `LEARNED-PREFERENCES-EVIDENCE.md` |
 | Reusable treatment for one design | That design's `PREFERENCES.md` |
 | Content, client, audience and one-off choices | That deck's `README.md` |
 | Reviewed source IDs, pending decisions and checkpoints | Application `.state/learning-cursors.json` |
 
 “For future presentations, use shorter headlines” can become a general preference. “Use this client's terminology” stays scoped. A repeated request in one deck is still one-deck evidence. Application UI requests do not become rules for audience slides.
+
+Keep agent-facing guidance short and actionable, with stable preference IDs. Store rationale and source IDs in the separate evidence file; MCP does not include that file in ordinary authoring reads. Preserve conditions and exceptions rather than truncating rules. Merge duplicates instead of accumulating explanations after every review.
 
 ## Invoke the skill
 

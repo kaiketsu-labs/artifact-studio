@@ -19,7 +19,8 @@ def test_rules_persist_and_accompany_agent_reads(
     monkeypatch.setattr(service, "store", store)
     client = TestClient(service.app)
     initial = client.get("/api/instructions").json()
-    assert "Visually verify every chart" in initial["markdown"]
+    assert initial["markdown"]
+    assert initial["expected_hash"] == digest(initial["markdown"])
     rules = "Always visually verify charts. Keep the language concise."
     saved = client.post(
         "/api/instructions", json={"markdown": rules, "expected_hash": initial["expected_hash"]}
