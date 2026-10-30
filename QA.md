@@ -86,6 +86,8 @@ PDF continues to include all slides by explicit user preference. Native PDF outp
 
 The main localhost service was restarted and its OpenAPI document confirms the four new slide-management routes. The four managed local runtime bundles received only `presentation.js` and `slideshow.css` after matching exact prior hashes; original bytes are backed up under the ignored state directory. Existing deck source, notes, themes and assets were preserved.
 
+A fresh authenticated GitHub clone of `210bde2` created a new virtual environment using the documented `uv sync --locked --python 3.14` command and installed all 41 locked packages. With an empty isolated collection/database, all 79 Python tests and 15 Node tests passed; strict basedpyright and Ruff passed. The clone stayed clean. Python and GitHub authentication were already available on this Mac; this does not verify installation on a new operating-system account.
+
 ## Repository release check · 28 October 2026
 
 
