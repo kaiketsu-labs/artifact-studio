@@ -13,10 +13,13 @@ git clone https://github.com/kaiketsu-labs/slide-studio.git
 cd slide-studio
 uv python install 3.14
 uv sync --locked --python 3.14
+uv run playwright install chromium --only-shell
 uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
 ```
 
 Already have a checkout? Start at `cd slide-studio` and run the remaining commands. Keep that terminal running, then open [Slide Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
+
+Chromium enables the local [visual-review tools](VISUAL-REVIEW.md). It follows [Playwright's browser installation](https://playwright.dev/python/docs/browsers). If you skip that step, the editor still works and capture tools explain how to install it. Captures return images directly through MCP; they do not require the agent to operate a browser tab.
 
 By default, presentations go in `~/Documents/Presentations` and review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
 

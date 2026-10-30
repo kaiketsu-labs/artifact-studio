@@ -348,7 +348,14 @@ def test_http_and_stateless_mcp(store: Store, monkeypatch: pytest.MonkeyPatch) -
         )
         assert listed.status_code == 200, listed.text
         names = {item["name"] for item in listed.json()["result"]["tools"]}
-        assert {"get_working_context", "revise_slide", "add_slide", "read_feedback"} <= names
+        assert {
+            "get_working_context",
+            "revise_slide",
+            "add_slide",
+            "read_feedback",
+            "capture_slide",
+            "capture_contact_sheet",
+        } <= names
         assert not any("approv" in name for name in names)
         context = client.post(
             "/mcp",

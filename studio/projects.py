@@ -166,7 +166,7 @@ class RootSettings(HTMLParser):
             ]
 
 
-def _root_tag(original: str) -> str:
+def root_tag(original: str) -> str:
     """Preserve inert root settings shared by interactive and printed audience exports."""
     settings = RootSettings()
     settings.feed(original)
@@ -181,7 +181,7 @@ def _shell(original: str) -> str:
     return (
         (PROJECT / "runtime/viewer.html")
         .read_text()
-        .replace('<html lang="en">', _root_tag(original))
+        .replace('<html lang="en">', root_tag(original))
     )
 
 
@@ -570,6 +570,7 @@ class EmbeddedMarkup(HTMLParser):
         self.directory = directory
         self.parts: list[str] = []
         self.in_style = False
+        self.open_tags: list[tuple[str, str]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Preserve links while embedding images, responsive sources and inline backgrounds."""
@@ -595,6 +596,24 @@ class EmbeddedMarkup(HTMLParser):
             return match[1] + match[2] + match[3] + quote + escape(result, quote=True) + quote
 
         raw = self.get_starttag_text() or ""
+        name = re.match(r"<\s*([^\s/>]+)", raw)
+        if name and tag not in {
+            "area",
+            "base",
+            "br",
+            "col",
+            "embed",
+            "hr",
+            "img",
+            "input",
+            "link",
+            "meta",
+            "param",
+            "source",
+            "track",
+            "wbr",
+        }:
+            self.open_tags.append((tag, name[1]))
         self.parts.append(
             re.sub(
                 r"(\s+)([^\s=/>]+)(\s*=\s*)(?:\"([^\"]*)\"|'([^']*)'|([^\s>]+))",
@@ -608,11 +627,19 @@ class EmbeddedMarkup(HTMLParser):
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Preserve self-closing SVG elements and their original token syntax."""
         self.handle_starttag(tag, attrs)
+        if self.open_tags and self.open_tags[-1][0] == tag:
+            _ = self.open_tags.pop()
         self.in_style = False
 
     def handle_endtag(self, tag: str) -> None:
         """End a preserved markup element or inline CSS block."""
-        self.parts.append(f"</{tag}>")
+        name = tag
+        for index in range(len(self.open_tags) - 1, -1, -1):
+            if self.open_tags[index][0] == tag:
+                name = self.open_tags[index][1]
+                del self.open_tags[index:]
+                break
+        self.parts.append(f"</{name}>")
         self.in_style = False
 
     def handle_data(self, data: str) -> None:
@@ -680,7 +707,7 @@ def _print_document(deck: Deck, theme: str, original: str) -> str:
     script = (PROJECT / "runtime/print.js").read_text()
     return (
         "<!doctype html>"
-        + _root_tag(original)
+        + root_tag(original)
         + '<head><meta charset="utf-8"><title>'
         + escape(deck.title)
         + "</title><style>"

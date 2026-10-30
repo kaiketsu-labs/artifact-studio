@@ -104,6 +104,16 @@ The numeric fallback above 24 slides was removed. An isolated fictional 42-slide
 
 The four managed runtime bundles were updated using exact prior hashes and local backups; presentation content and themes were preserved. Visual checks used only the fictional 8793 workspace. Main-origin browser access and physical display placement remain unverified.
 
+## MCP visual review · 30 October 2026
+
+A disposable source copy with no virtual environment, state or personal presentations installed all 45 locked packages using `uv sync --locked --python 3.14`. Its full suite passed 90 Python tests, with the local Chromium integration enabled against generated fictional slides. The official Playwright headless browser was installed separately on this Mac; this is a fresh source environment, not a new operating-system account. All 34 Node tests, strict basedpyright, Ruff, formatting and JavaScript syntax checks passed.
+
+The real stateless HTTP MCP endpoint returned actual PNG image blocks and structured manifests for an isolated fictional deck. Checks cover full-size output, contact-sheet pagination including hidden slides, initial/intermediate/delayed/completed reveals, reduced motion, private-context exclusion, unchanged canonical files, invalid-stage errors, renderer setup errors, dependency changes during capture, serialized preparation and asset expansion limits. Four fictional slides were visually inspected at 1600 × 900, along with the contact sheet and three animation states. Fresh Terra reviewers checked capture fidelity and the tool contract; confirmed stale-dependency and resource-limit findings were fixed and rechecked. The illustrated bar/counter fixture has a source-layout overlap, correctly treated as a source issue rather than automatic layout validation.
+
+The shared asset embedder now preserves case-sensitive SVG closing tags, including prefixed `clipPath` and `linearGradient` elements; regression tests decode and parse the embedded SVG. The presentation-authoring chat owns its deck-specific asset repairs. The new README contact-sheet image contains fictional content only. Capture evidence and manifests remain in ignored local directories.
+
+The main 8790 service was restarted; metadata-only MCP calls confirmed both capture tools and the visual-review guide. Four managed runtime copies received the small capture-engine entry point after exact prior-byte checks and local backups; deck HTML and themes remained byte-identical. No real deck was rendered in these checks. These tools do not clear the existing main-origin access restriction and do not verify presenter interactions, physical display placement, native PowerPoint or native PDF output.
+
 ## Repository release check · 28 October 2026
 
 

@@ -200,6 +200,10 @@
   }
   if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
   if(typeof document==='undefined')return;
+  if(document.documentElement.dataset.capture==='slide'){
+    window.SlideStudioBuilds={BuildAnimations,buildCount};
+    return;
+  }
 
   if(!document.getElementById('slideshow-styles')){const runtimeStyles=document.createElement('link');runtimeStyles.rel='stylesheet';runtimeStyles.href=new URL('slideshow.css',document.currentScript?.src||location.href).href;document.head.append(runtimeStyles);}
 

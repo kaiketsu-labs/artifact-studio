@@ -262,3 +262,28 @@ def test_project_copy_restores_deleted_slides_and_private_history(tmp_path: Path
     exported_again = save_project(store, copy.id, ClientState())
     second_copy, _ = open_project(store, exported_again)
     assert actions.deleted(second_copy.id) == []
+
+
+@pytest.mark.parametrize("prefix", ["", "ns0:"])
+def test_embedded_svg_preserves_case_sensitive_tag_names(tmp_path: Path, prefix: str) -> None:
+    """Keep SVG clipping, gradients and namespace tags valid when embedding dependencies."""
+    import base64
+    import xml.etree.ElementTree as ET
+
+    ns = (
+        'xmlns:ns0="http://www.w3.org/2000/svg"' if prefix else 'xmlns="http://www.w3.org/2000/svg"'
+    )
+    svg = f"""<{prefix}svg {ns} viewBox="0 0 20 20"><{prefix}defs>
+<{prefix}clipPath id="clip"><{prefix}rect width="20" height="20"/></{prefix}clipPath>
+<{prefix}linearGradient id="fill">
+<{prefix}stop offset="0" stop-color="red"/></{prefix}linearGradient>
+</{prefix}defs>
+<{prefix}rect clip-path="url(#clip)" fill="url(#fill)" width="20" height="20"/></{prefix}svg>"""
+    (tmp_path / "asset.svg").write_text(svg)
+    embedded = AssetEmbedder(tmp_path).asset("asset.svg")
+    data = base64.b64decode(embedded.split(",", 1)[1])
+    root = ET.fromstring(data)
+    assert root.find(".//{http://www.w3.org/2000/svg}clipPath") is not None
+    assert root.find(".//{http://www.w3.org/2000/svg}linearGradient") is not None
+    assert f"</{prefix}clipPath>" in data.decode()
+    assert f"</{prefix}linearGradient>" in data.decode()

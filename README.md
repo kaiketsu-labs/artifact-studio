@@ -40,10 +40,13 @@ git clone https://github.com/kaiketsu-labs/slide-studio.git
 cd slide-studio
 uv python install 3.14
 uv sync --locked --python 3.14
+uv run playwright install chromium --only-shell
 uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
 ```
 
 Open **[127.0.0.1:8790](http://127.0.0.1:8790/)** and keep the server running. Stop it with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup.
+
+The Chromium step enables local agent visual review. Browsing and editing still work without it; capture tools report the setup command if it was skipped.
 
 ## Connect your agent
 
@@ -112,6 +115,10 @@ Plain MCP cannot wake a closed chat. Keep the review session open, or resume the
 
 ## Present with context
 
+Agents can inspect slides directly through MCP, including completed slides, reveal steps, animation timing and reduced motion. [Visual-review tools](docs/VISUAL-REVIEW.md) return actual images, version/dependency hashes and diagnostics. A contact sheet provides the overview; full-size captures provide the detail. Host access restrictions still apply.
+
+![A local MCP contact sheet of four fictional slides, with slide titles and the hidden-slide marker.](docs/assets/visual-review.png)
+
 ![Private presenter view showing the current slide, next slide, editable notes, elapsed timer, clock, navigation and slide filmstrip.](docs/assets/presenter.png)
 
 **Present** starts the full-size slide immediately. Arrow keys navigate; **Esc** ends the slideshow. Presenter view adds current/next slides, editable notes, a pause/reset timer, clock, filmstrip and display controls. When browser capabilities, permissions and a second display allow it, audience slides go on the other screen. On one screen, the default is the full-size audience slide.
@@ -157,6 +164,7 @@ The app ships without corporate masters, logos or fonts. Optional private-reposi
 | [Automatic feedback](docs/LIVE-REVIEW.md) | Codex/Claude Code hooks, activation, continuation and limitations. |
 | [Agent guide](docs/AGENT-GUIDE.md) | Free composition, feedback cursors, conflict-safe edits and visual review. |
 | [Build animations](docs/BUILD-ANIMATIONS.md) | Growing bars, synchronized counters, delayed results and blurred reveals. |
+| [Agent visual review](docs/VISUAL-REVIEW.md) | MCP image captures, contact sheets, reveal timing, setup and verification scope. |
 | [Preference learning](docs/PREFERENCE-LEARNING.md) | Bundled skill, transcript sources, weekly scheduling and scoped preferences. |
 | [Projects and exports](docs/PROJECTS.md) | Portable project save/open, standalone HTML and PDF output. |
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from the user's reference. |

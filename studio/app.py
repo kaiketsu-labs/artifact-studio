@@ -14,9 +14,10 @@ from fastapi import FastAPI, Request
 from fastapi import Path as APIPath
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from mcp.server.mcpserver import Image as MCPImage
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -65,6 +66,7 @@ from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, sav
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .slide_actions import SlideActionResult, SlideActions
 from .storage import ConflictError, Store, digest
+from .visuals import CaptureOptions, VisualResult, capture
 
 PROJECT = Path(__file__).resolve().parent.parent
 COLLECTION = Path(
@@ -115,6 +117,7 @@ def get_working_context(design_id: str = "") -> dict[str, object]:
     return {
         "guide": (PROJECT / "docs/AGENT-GUIDE.md").read_text(),
         "live_review_guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
+        "visual_review_guide": (PROJECT / "docs/VISUAL-REVIEW.md").read_text(),
         "app_path": str(PROJECT),
         "design_guide": (folder / "AGENT-GUIDE.md").read_text() if folder else "",
         "preferences": (folder / "PREFERENCES.md").read_text() if folder else "",
@@ -248,6 +251,66 @@ def get_slide(deck_id: str, slide_id: str) -> SlideView:
     """Read one slide and the expected_hash required for a safe revision."""
     return store.view_slide(
         deck_id, store.locate(store.read(deck_id), slide_id), include_pending=False
+    )
+
+
+def visual_result(result: VisualResult) -> CallToolResult:
+    """Return actual image pixels alongside a versioned, machine-readable manifest."""
+    return CallToolResult(
+        content=[
+            TextContent(type="text", text=result.model_dump_json()),
+            MCPImage(path=result.path, format="png").to_image_content(),
+        ],
+        structured_content=result.model_dump(mode="json"),
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def capture_slide(
+    deck_id: str,
+    slide_id: str,
+    stage: int | None = None,
+    elapsed_ms: int = 0,
+    reduced_motion: bool = False,
+) -> CallToolResult:
+    """Inspect a full-size slide image with exact version metadata, locally through MCP.
+
+    Default: completed slide. For reveals, stage=0 is initial, stage=N is the Nth
+    build, elapsed_ms samples that build's animation. Earlier builds are complete.
+    Read visual_review_guide first. Host access restrictions still apply; this tool
+    is not permission to inspect a deck through an alternative blocked surface.
+    """
+    return visual_result(
+        capture(
+            store,
+            deck_id,
+            DATABASE.parent / "visual-reviews",
+            slide_id=slide_id,
+            options=CaptureOptions(
+                stage=stage, elapsed_ms=elapsed_ms, reduced_motion=reduced_motion
+            ),
+        )
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def capture_contact_sheet(deck_id: str, offset: int = 0, limit: int = 12) -> CallToolResult:
+    """Inspect a paginated overview of completed slides, including hidden slides.
+
+    Returns image pixels, full-size local frame paths, version hashes and next_offset.
+    Use capture_slide for chart detail and reveal steps; a contact sheet alone is
+    not a full-size review. Respect the host's access restrictions for the deck.
+    """
+    return visual_result(
+        capture(
+            store,
+            deck_id,
+            DATABASE.parent / "visual-reviews",
+            offset=offset,
+            limit=limit,
+        )
     )
 
 
