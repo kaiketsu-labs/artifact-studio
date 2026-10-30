@@ -114,6 +114,14 @@ The shared asset embedder now preserves case-sensitive SVG closing tags, includi
 
 The main 8790 service was restarted; metadata-only MCP calls confirmed both capture tools and the visual-review guide. Four managed runtime copies received the small capture-engine entry point after exact prior-byte checks and local backups; deck HTML and themes remained byte-identical. No real deck was rendered in these checks. These tools do not clear the existing main-origin access restriction and do not verify presenter interactions, physical display placement, native PowerPoint or native PDF output.
 
+## Editor animation preview · 30 October 2026
+
+The editor's compact Play control was checked in an isolated fictional three-slide workspace. It is disabled for a static slide and enabled for numbered chart builds and CSS-only motion. Browser checks verified chart playback, blur teasers, automatic return to editing, Stop, Escape, slide switching during playback and a still ordinary CSS preview. A provisional text edit, selected element, unsaved notes and unsent feedback survived playback without submission or changes to the canonical slide.
+
+Two fresh Terra reviewers checked lifecycle behavior and visual/accessibility states. Confirmed findings were fixed: omitted blur styling, later CSS entrances finishing before their reveal, short entrances disappearing while fonts load, and changing action labels combined with toggle semantics. The preview uses the trusted shared engine and utility stylesheet over a disposable script-free copy. Ordinary previews hold completed CSS values; playback starts each eligible CSS entrance once. Infinite CSS animations have a bounded preview window.
+
+All 39 Node tests pass, including progression, delayed motion, cancellation, future CSS entrance timing, static availability and still-preview coverage. The Python suite passes 87 tests with three optional Chromium captures skipped in this UI pass; strict basedpyright, Ruff, formatting and JavaScript syntax checks pass. Existing MCP capture integration results are recorded above. Visual checks used only the fictional 8793 workspace; no real deck content was inspected or edited.
+
 ## Repository release check · 28 October 2026
 
 

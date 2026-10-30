@@ -86,6 +86,8 @@ Select an element to edit text, drag it or align it to the slide. Use the check 
 
 Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.
 
+The **Play icon** above the slide replays its animation and reveal steps in place. It is disabled on static slides. Click **Stop**, press **Esc** or switch slides to return to editing; unsent edits and drafts stay intact.
+
 In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line.
 
 Revisions appear live. Orange clears when you open the changed slide; approval remains a separate action. Incoming changes preserve your drafts and their original element targets.

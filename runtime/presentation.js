@@ -200,7 +200,7 @@
   }
   if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
   if(typeof document==='undefined')return;
-  if(document.documentElement.dataset.capture==='slide'){
+  if(document.documentElement.dataset.capture==='slide'||document.currentScript?.hasAttribute('data-builds-only')){
     window.SlideStudioBuilds={BuildAnimations,buildCount};
     return;
   }

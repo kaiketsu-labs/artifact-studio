@@ -18,7 +18,7 @@
     upload:'M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6',
     external:'M14 3h7v7m0-7L10 14M10 3H3v18h18v-7',
     swap:'M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4',
-    pause:'M8 4v16M16 4v16',play:'m7 4 13 8-13 8V4Z',
+    pause:'M8 4v16M16 4v16',play:'m7 4 13 8-13 8V4Z',stop:'M6 6h12v12H6z',
     eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Zm7 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0',
     minus:'M5 12h14',
     plus:'M12 5v14M5 12h14',

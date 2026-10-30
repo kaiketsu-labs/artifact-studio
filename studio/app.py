@@ -931,6 +931,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
     )
 
 
+app.mount("/runtime", StaticFiles(directory=PROJECT / "runtime"), name="runtime")
 app.mount("/web", StaticFiles(directory=PROJECT / "web"), name="web")
 app.mount("/decks", StaticFiles(directory=COLLECTION, html=True), name="decks")
 app.mount("/", mcp_app)

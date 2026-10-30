@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/objects.css">
   <script src="/web/icons.js" defer></script>
+  <script src="/runtime/presentation.js" data-builds-only defer></script>
+  <script src="/web/animation-preview.js" defer></script>
   <script src="/web/drafts.js" defer></script>
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
@@ -50,7 +52,7 @@
     </header>
     <div class="canvas-tools">
       <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" disabled></button><span id="hover-hint"></span></div>
-      <div><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
+      <div class="preview-controls"><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
     </div>
     <div class="preview-wrap" id="preview-wrap">
       <iframe id="preview" title="Slide preview — click an element to give feedback" sandbox="allow-same-origin"></iframe>
