@@ -1,6 +1,7 @@
 """Behavioral checks for durable review state, free composition and stateless MCP calls."""
 
 import base64
+import json
 from pathlib import Path
 
 import pytest
@@ -103,6 +104,9 @@ def test_brief_attachments_reach_agent_context_and_download(
     assert Path(filename).name in snapshot.context_markdown
     assert "brief-files/0" in snapshot.context_markdown
     assert service.get_presentation(snapshot.id).brief_files == snapshot.brief_files
+    outline = service.get_presentation_outline(snapshot.id, include_context=True)
+    assert outline["brief_files"] == [item.model_dump() for item in snapshot.brief_files]
+    assert outline["context_markdown"] == snapshot.context_markdown
     download = client.get(f"/api/decks/{snapshot.id}/brief-files/0")
     assert download.content == content
     assert download.headers["content-type"] == "application/octet-stream"
@@ -369,6 +373,38 @@ def test_http_and_stateless_mcp(store: Store, monkeypatch: pytest.MonkeyPatch) -
         )
         assert context.status_code == 200, context.text
         assert "Compose freely" in context.text
+        before = service.get_slide(TEMPLATE_ID, "cover")
+        arguments: dict[str, object] = {
+            "deck_id": TEMPLATE_ID,
+            "slide_id": before.id,
+            "expected_hash": before.expected_hash,
+            "request_id": "transport-receipt-test",
+            "patch": {"title": "Transport checked"},
+        }
+        for include_content in (False, True):
+            response = client.post(
+                "/mcp",
+                headers=headers,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "revise_slide",
+                        "arguments": {**arguments, "include_content": include_content},
+                    },
+                },
+            )
+            assert response.status_code == 200
+            result = response.json()["result"]
+            assert not result.get("isError"), result
+            text = json.loads(result["content"][0]["text"])
+            assert text["title"] == "Transport checked"
+            assert ("html" in text) is include_content
+            assert ("feedback" in text) is include_content
+            structured = result["structuredContent"]
+            assert structured.get("result", structured) == text
+
         blocked = client.post(
             f"/api/decks/{TEMPLATE_ID}/slides/cover/notes",
             headers={"Origin": "https://unrelated.example"},

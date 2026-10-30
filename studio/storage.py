@@ -10,7 +10,7 @@ import sqlite3
 import tempfile
 import time
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from html import escape
@@ -505,6 +505,21 @@ class Store:
             replace_text(path, markdown)
         return digest(markdown)
 
+    def append_context(self, deck_id: str, markdown: str, expected_hash: str) -> str:
+        """Append context with optimistic concurrency and exact retry recognition."""
+        if not markdown.strip():
+            raise ValueError("Add a nonempty continuation note.")
+        path = self.folder(deck_id) / "README.md"
+        previous = path.read_text() if path.exists() else ""
+        addition = "\n\n" + markdown.strip() + "\n"
+        if digest(previous) == expected_hash:
+            updated = previous + addition
+        elif previous.endswith(addition) and digest(previous[: -len(addition)]) == expected_hash:
+            updated = previous
+        else:
+            raise ConflictError("Presentation context changed. Read it again before editing.")
+        return self.update_context(deck_id, updated, expected_hash)
+
     def list_decks(self, *, archived: bool = False) -> list[dict[str, str]]:
         """List compatible presentations by their recoverable workspace visibility."""
         with self.connect() as db:
@@ -535,12 +550,22 @@ class Store:
                 _ = db.execute("DELETE FROM archived_decks WHERE deck=?", (deck_id,))
 
     def revise(
-        self, deck_id: str, slide_id: str, expected_hash: str, request_id: str, patch: SlidePatch
+        self,
+        deck_id: str,
+        slide_id: str,
+        expected_hash: str,
+        request_id: str,
+        patch: SlidePatch,
+        *,
+        prepare_interactive: Callable[[str], str] | None = None,
     ) -> Slide:
         """Apply an idempotent revision with optimistic concurrency protection."""
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
-        payload_hash = digest(slide_id + expected_hash + patch.model_dump_json())
+        payload = slide_id + expected_hash + patch.model_dump_json()
+        if prepare_interactive is not None:
+            payload += ":embed-interactive-assets"
+        payload_hash = digest(payload)
         with self.editing(deck_id) as db:
             prior = db.execute(
                 "SELECT payload_hash,result FROM operations WHERE deck=? AND request_id=?",
@@ -554,6 +579,10 @@ class Store:
             slide = self.locate(deck, slide_id)
             if digest(slide.model_dump_json()) != expected_hash:
                 raise ConflictError("Slide changed. Read it again and merge your revision.")
+            if prepare_interactive is not None and patch.interactive_html:
+                patch = patch.model_copy(
+                    update={"interactive_html": prepare_interactive(patch.interactive_html)}
+                )
             _ = db.execute(
                 "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
                 (

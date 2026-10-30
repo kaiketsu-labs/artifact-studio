@@ -174,6 +174,7 @@ The app ships without corporate masters, logos or fonts. Repository connections 
 | --- | --- |
 | [Getting started](docs/GETTING-STARTED.md) | Installation, storage options, first deck, controls and troubleshooting. |
 | [Automatic feedback](docs/LIVE-REVIEW.md) | Codex/Claude Code hooks, activation, continuation and limitations. |
+| [Agent token efficiency](docs/TOKEN-EFFICIENCY.md) | Compact context, targeted reads, revision receipts and local asset embedding. |
 | [Agent guide](docs/AGENT-GUIDE.md) | Free composition, feedback cursors, conflict-safe edits and visual review. |
 | [Build animations](docs/BUILD-ANIMATIONS.md) | Growing bars, synchronized counters, delayed results and blurred reveals. |
 | [Agent visual review](docs/VISUAL-REVIEW.md) | MCP image captures, contact sheets, reveal timing, setup and verification scope. |

@@ -150,6 +150,8 @@ class FeedbackFeed(StrictModel):
     authoring_instructions: str = ""
     learned_preferences: str = ""
     design_requests: list[DesignMessage] = Field(default_factory=list)
+    rules_hash: str = ""
+    rules_included: bool = True
 
 
 class SlideView(Slide):
@@ -160,6 +162,20 @@ class SlideView(Slide):
     approved: bool
     has_unseen_changes: bool = False
     feedback: list[Feedback]
+
+
+class SlideReceipt(StrictModel):
+    """A small mutation acknowledgement retaining concurrency and human review state."""
+
+    deck_id: str
+    id: str
+    title: str
+    revision: int
+    expected_hash: str
+    content_hash: str
+    approved: bool
+    hidden: bool
+    has_unseen_changes: bool
 
 
 class DeckView(StrictModel):

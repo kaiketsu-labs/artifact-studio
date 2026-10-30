@@ -1,5 +1,11 @@
 # Verification
 
+## Compact agent communication · 30 October 2026
+
+The current backend changes pass **113 Python tests** (seven optional browser tests skipped), **81 Node tests**, strict basedpyright and Ruff checks/formatting. The new cases exercise complete rules in compact startup, on-demand guides, source-free outlines with brief attachments, compact/full mutation responses over stateless MCP, exact rule-version retention, withheld Batch comments, append concurrency/idempotence and server-side asset embedding. An identical embedded revision retry also succeeds after its original local dependency is deleted; reusing its request ID with another embedding mode is rejected.
+
+A fresh reviewer found the dependency retry issue and missing attachment guidance in the compact workflow; both were fixed and regression-checked. Local token measurements use `o200k_base` as a proxy, preserve only aggregate counts, and do not establish actual harness billing, cache behavior or image-token costs. Source/history and expanded guides remain explicitly available. The compact mutation default changes the previous response contract; see [compatibility and efficient calls](docs/TOKEN-EFFICIENCY.md). These changes affect backend communication and documentation; they make no new rendered-slide or physical-display verification claim.
+
 The automated suite covers slide creation with a brief, free composition, concurrency, idempotency, exact-content approvals, notes, durable comments, live/batch delivery, design imports and stateless MCP calls.
 
 Library checks use real disposable Git repositories to exercise initial upload, repeat sync without duplicate commits, one-deck updates, remote conflicts, private-only destinations, reference-only permissions, original asset discovery, download boundaries and concurrent-operation locking. Test transport substitutes local repositories for GitHub; a separate real private-repository smoke test is recorded after publication.
