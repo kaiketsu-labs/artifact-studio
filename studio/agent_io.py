@@ -12,14 +12,25 @@ def rules_hash(instructions: str, preferences: str) -> str:
     return hashlib.sha256(document.encode()).hexdigest()
 
 
-def feedback_response(feed: FeedbackFeed, known_rules_hash: str = "") -> FeedbackFeed:
-    """Omit unchanged rules only when a caller explicitly retains that exact version."""
-    token = rules_hash(feed.authoring_instructions, feed.learned_preferences)
+def rule_fields(
+    instructions: str, preferences: str, known_rules_hash: str = ""
+) -> dict[str, object]:
+    """Return complete guidance unless the caller explicitly retains its exact version."""
+    token = rules_hash(instructions, preferences)
     retained = bool(known_rules_hash) and known_rules_hash == token
-    updates: dict[str, object] = {"rules_hash": token, "rules_included": not retained}
-    if retained:
-        updates |= {"authoring_instructions": "", "learned_preferences": ""}
-    return feed.model_copy(update=updates)
+    return {
+        "authoring_instructions": "" if retained else instructions,
+        "learned_preferences": "" if retained else preferences,
+        "rules_hash": token,
+        "rules_included": not retained,
+    }
+
+
+def feedback_response(feed: FeedbackFeed, known_rules_hash: str = "") -> FeedbackFeed:
+    """Apply shared exact-version guidance handling to released feedback."""
+    return feed.model_copy(
+        update=rule_fields(feed.authoring_instructions, feed.learned_preferences, known_rules_hash)
+    )
 
 
 def slide_receipt(deck_id: str, slide: SlideView) -> SlideReceipt:

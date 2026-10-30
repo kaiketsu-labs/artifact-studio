@@ -373,6 +373,35 @@ def test_http_and_stateless_mcp(store: Store, monkeypatch: pytest.MonkeyPatch) -
         )
         assert context.status_code == 200, context.text
         assert "Compose freely" in context.text
+        startup = json.loads(context.json()["result"]["content"][0]["text"])
+        assert startup["rules_included"] is True
+        for tool_name, retained_arguments in (
+            ("get_working_context", {}),
+            ("get_presentation", {"deck_id": TEMPLATE_ID}),
+            ("get_presentation_outline", {"deck_id": TEMPLATE_ID}),
+        ):
+            retained_response = client.post(
+                "/mcp",
+                headers=headers,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {
+                        "name": tool_name,
+                        "arguments": {
+                            **retained_arguments,
+                            "known_rules_hash": startup["rules_hash"],
+                        },
+                    },
+                },
+            )
+            assert retained_response.status_code == 200
+            retained_result = retained_response.json()["result"]
+            assert not retained_result.get("isError"), retained_result
+            retained = json.loads(retained_result["content"][0]["text"])
+            assert retained["rules_included"] is False
+            assert retained["authoring_instructions"] == retained["learned_preferences"] == ""
         before = service.get_slide(TEMPLATE_ID, "cover")
         arguments: dict[str, object] = {
             "deck_id": TEMPLATE_ID,

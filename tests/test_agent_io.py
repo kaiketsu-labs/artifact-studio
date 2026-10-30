@@ -151,6 +151,46 @@ def test_cached_rules_are_omitted_only_when_the_exact_version_is_retained(store:
     assert learned.rules_included and learned.learned_preferences == "A new secondary preference"
 
 
+@pytest.mark.parametrize("reader", ["working", "expanded", "outline", "brief", "presentation"])
+def test_rules_retention_applies_to_every_agent_context_read(store: Store, reader: str) -> None:
+    """Reuse guidance across read tools without hiding changes or losing the deck context."""
+    (store.root / "LEARNED-PREFERENCES.md").write_text("Prefer a clear visual hierarchy.")
+
+    def read(known_rules_hash: str = "") -> dict[str, object]:
+        """Exercise the same public hash contract on each context surface."""
+        if reader == "working":
+            return service.get_working_context(known_rules_hash=known_rules_hash)
+        if reader == "expanded":
+            return service.get_working_context(detail="full", known_rules_hash=known_rules_hash)
+        if reader in {"outline", "brief"}:
+            return service.get_presentation_outline(
+                TEMPLATE_ID, include_context=reader == "brief", known_rules_hash=known_rules_hash
+            )
+        return service.get_presentation(TEMPLATE_ID, known_rules_hash=known_rules_hash).model_dump()
+
+    initial = read()
+    token = str(initial["rules_hash"])
+    assert initial["rules_included"] and initial["authoring_instructions"]
+    retained = read(token)
+    assert retained["rules_hash"] == token and retained["rules_included"] is False
+    assert retained["authoring_instructions"] == retained["learned_preferences"] == ""
+    if reader in {"brief", "presentation"}:
+        assert retained["context_markdown"] == initial["context_markdown"]
+    assert read()["authoring_instructions"] == initial["authoring_instructions"]
+    assert read("unknown-version")["rules_included"] is True
+    store.save_instructions(
+        "Always inspect rendered charts.", digest(store.authoring_instructions())
+    )
+    changed = read(token)
+    assert changed["rules_included"] is True and changed["rules_hash"] != token
+    assert changed["authoring_instructions"] == "Always inspect rendered charts."
+    assert changed["learned_preferences"] == "Prefer a clear visual hierarchy."
+    (store.root / "LEARNED-PREFERENCES.md").write_text("Keep diagrams legible.")
+    changed_again = read(str(changed["rules_hash"]))
+    assert changed_again["rules_included"] is True
+    assert changed_again["learned_preferences"] == "Keep diagrams legible."
+
+
 def test_context_append_retries_do_not_duplicate_or_overwrite(store: Store) -> None:
     """Reuse full-update concurrency protection without retransmitting prior context."""
     original = store.view(TEMPLATE_ID)

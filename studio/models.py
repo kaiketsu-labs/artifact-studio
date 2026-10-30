@@ -195,6 +195,13 @@ class DeckView(StrictModel):
     brief_files: list[DesignFile] = Field(default_factory=list)
 
 
+class AgentDeckView(DeckView):
+    """An agent snapshot with explicit retention metadata for workspace guidance."""
+
+    rules_hash: str
+    rules_included: bool
+
+
 class SlidePatch(StrictModel):
     """Fields an agent may revise without granting approval."""
 
