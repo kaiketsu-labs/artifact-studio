@@ -98,6 +98,12 @@ Browser checks inspected intermediate HTML and SVG bar/counter states, preserved
 
 Only the shared `presentation.js` and `slideshow.css` were rolled out to four matching managed local bundles, after exact prior-hash checks and local backups. Deck source and themes stayed byte-identical. The presentation-authoring chat received the documented attribute contract and activation notice. Personal deck data remains local; browser evidence is ignored under `qa/editing-motion/`.
 
+## Long-deck progress rail · 30 October 2026
+
+The numeric fallback above 24 slides was removed. An isolated fictional 42-slide deck with one hidden slide verified 41 progress points, no count replacement, viewport-fitting density, distinct past/current/future states, visible-slide progress in hover titles and click navigation. A keyboard check verified that Right from slide 20 skips hidden slide 21, moves both current state and focus to slide 22, and Enter remains on that point. The rail has a single tab stop. Fresh Terra reviewers checked visual readability and navigation; confirmed focus, contrast and destination-count findings were fixed and rechecked. All 34 Node tests and JavaScript syntax checks pass. Shared progress styles explicitly hide the rail in print.
+
+The four managed runtime bundles were updated using exact prior hashes and local backups; presentation content and themes were preserved. Visual checks used only the fictional 8793 workspace. Main-origin browser access and physical display placement remain unverified.
+
 ## Repository release check · 28 October 2026
 
 

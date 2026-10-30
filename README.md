@@ -116,6 +116,8 @@ Plain MCP cannot wake a closed chat. Keep the review session open, or resume the
 
 **Present** starts the full-size slide immediately. Arrow keys navigate; **Esc** ends the slideshow. Presenter view adds current/next slides, editable notes, a pause/reset timer, clock, filmstrip and display controls. When browser capabilities, permissions and a second display allow it, audience slides go on the other screen. On one screen, the default is the full-size audience slide.
 
+A slim right-edge rail shows one point per visible slide, including long decks. Darker points mark earlier slides; the wider coloured marker shows your current position. Hover for the slide title or click a point to jump there. Hidden slides stay out of the rail.
+
 To open presenter controls manually, move the pointer to the bottom toolbar and choose **Presenter view**. Use **Open audience window** to open or retry the audience display.
 
 ## Your files stay local

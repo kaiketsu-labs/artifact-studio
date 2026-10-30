@@ -307,9 +307,12 @@
     for(const id of ['blackout-button','single-blackout'])$(id).setAttribute('aria-pressed',String(blackout));
     $('laser-button').setAttribute('aria-pressed',String(laser));
     const film=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
-    if(film!==filmSignature){filmSignature=film;const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide">${slide.html}</div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;const shown=shownIndices(deck.slides);$('dots').innerHTML=shown.length>24?'<span class="progress-count"></span>':shown.map(index=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${index+1} / ${deck.slides.length}" data-index="${index}"></button>`).join('');}
+    if(film!==filmSignature){filmSignature=film;const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide">${slide.html}</div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;const shown=shownIndices(deck.slides);$('dots').style.setProperty('--slide-count',Math.max(1,shown.length));$('dots').innerHTML=shown.map((index,position)=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${position+1} / ${shown.length} · ${escape(deck.slides[index].title)}" data-index="${index}"></button>`).join('');}
     for(const nav of [$('dots'),$('presenter-filmstrip')])nav.querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));
-    const counter=$('dots').querySelector('.progress-count');if(counter)counter.textContent=count;
+    const railFocused=$('dots').contains(document.activeElement),points=[...$('dots').querySelectorAll('[data-index]')],focusPoint=points.find(button=>Number(button.dataset.index)===current)||points.find(button=>Number(button.dataset.index)>current)||points.at(-1);
+    for(const button of points){button.tabIndex=button===focusPoint?0:-1;button.classList.toggle('is-past',Number(button.dataset.index)<current);}
+    if(railFocused&&focusPoint!==document.activeElement)focusPoint?.focus({preventScroll:true});
+    focusPoint?.scrollIntoView({block:'nearest',inline:'nearest'});
     history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
     iconButton($('present-button'),'present',active?'End':'Present',true);
   }

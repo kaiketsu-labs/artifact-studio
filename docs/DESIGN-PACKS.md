@@ -35,7 +35,7 @@ Create enough compositions to demonstrate the design language; they are optional
 
 Call `register_design(folder_id, design={id, name, description})`. It validates the pack and creates `design.json`; a new `design_id` must be unique. Call `set_default_design(design_id)` when requested. Verify `get_design_assets` lists the master and custom assets, then create a presentation with the selected design to confirm its fonts, assets and review flow. Original masters stay in the pack rather than being duplicated into every new deck.
 
-Visually review every slide at presentation size with fresh reviewers for readability, factual/story consistency and presenter behavior. Verify reported issues before editing. Check second-screen placement separately when hardware is available. The runtime provides subtle progress dots, or a compact count for long decks; restyle them to the brand. Use `html[data-progress="none"]` only when the deck supplies its own clear progress indicator.
+Visually review every slide at presentation size with fresh reviewers for readability, factual/story consistency and presenter behavior. Verify reported issues before editing. Check second-screen placement separately when hardware is available. The runtime provides a subtle progress rail with one point per visible slide, even in long decks; restyle it to the brand. Use `html[data-progress="none"]` only when the deck supplies its own clear progress indicator.
 
 ## Separate repositories
 
