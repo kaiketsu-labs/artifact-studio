@@ -82,6 +82,8 @@ The **plug icon → Copy agent prompt** resumes work on the selected deck. Copyi
 
 Select a thumbnail to switch both the slide and its chat. Matching slide numbers show the context, which accompanies every message. Unsent drafts stay with their slide. You can still ask for a new slide or a different order; the agent infers the scope.
 
+The project menu at the top left marks the current project and wraps long names to two lines. **+ New project** is its final option and opens the title, brief and design dialog. Arrow keys navigate the menu; Home/End jump to its ends, and Esc closes it.
+
 Select an element to edit text, drag it or align it to the slide. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
 
 Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.

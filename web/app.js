@@ -27,6 +27,7 @@
   let orderEpoch=0;
   let currentTarget=null, noteBaseline='', previewKey='', railSignature='', agentNotesKey='', commentsKey='', commentsSignature='', isLoading=false, feedbackSending=false, draftWarning=false, switchingDeck=false;
   let deckEvents=null, watchedDeck=null, refreshQueued=false;
+  let deckPicker=null;
   const key=()=>`${deck?.id}/${selectedId}`;
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
@@ -68,7 +69,7 @@
     feedbackDrafts.set(key(),{feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:slide().content_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     if(!draftStore.persist()&&!draftWarning){draftWarning=true;toast('Draft recovery is unavailable in this browser.',true);}
   }
-  function updateComposer(){const mutating=visibilityBusy||slideActions.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||!$('feedback-text').value.trim();for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);}
+  function updateComposer(){const mutating=visibilityBusy||slideActions.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||!$('feedback-text').value.trim();for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();}
 
 
   /** Resolve a source relative to the canonical presentation folder. */
@@ -343,7 +344,7 @@
   $('approve-button').addEventListener('click',async()=>{try{await api(`${base()}/approve`,{content_hash:slide().content_hash,approved:!slide().approved});await refresh();}catch(error){toast(error.message,true);await refresh();}});
   $('feedback-list').addEventListener('click',event=>{if(feedbackSending)return;const button=event.target.closest('[data-event]');if(!button)return;const comment=window.SlideConversations.forSlide(deck,selectedId).find(item=>item.event_id===Number(button.dataset.event));if(!comment?.target)return;if(comment.content_hash!==slide().content_hash){toast(`This comment targets an earlier version: ${comment.target.quote||comment.target.label}`);return;}const element=$('preview').contentDocument.querySelector(comment.target.selector);if(element)selectElement(element);else toast('The original element is no longer present.');});
   $('load-update').addEventListener('click',async()=>{if(!pendingDeck||!await elementEditor.finish())return;retainDraft();const draft=feedbackDraft();if(draft&&draft.target){toast('Draft kept on its original version. Select an element again to retarget it.');}deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;if(!slide())selectedId=deck.slides[0].id;renderRail();render();void markOpened();});
-  $('deck-picker').addEventListener('change',async event=>{retainDraft();try{await start(event.target.value);}catch(error){if(deck)$('deck-picker').value=deck.id;toast(error.message,true);}});
+  $('deck-picker').addEventListener('change',async event=>{retainDraft();try{await start(event.target.value);}catch(error){if(deck)$('deck-picker').value=deck.id;toast(error.message,true);}finally{deckPicker?.sync();if(!$('deck-switcher').disabled&&[document.body,$('deck-switcher')].includes(document.activeElement))$('deck-switcher').focus({preventScroll:true});}});
   for(const mode of ['live','batch'])$('mode-'+mode).addEventListener('click',async()=>{try{deck.workflow=await api('/api/decks/'+deck.id+'/feedback-mode',{mode});renderWorkflow();}catch(error){toast(error.message,true);}});
   $('send-batch').addEventListener('click',async()=>{try{deck.workflow=await api('/api/decks/'+deck.id+'/send-batch',{});renderWorkflow();await refresh();toast('Batch released.');}catch(error){toast(error.message,true);}});
   const attachmentFiles={design:[],brief:[]};
@@ -380,6 +381,7 @@
   /** Rebuild the selector while keeping a requested or still-visible presentation selected. */
   async function start(preferred=null){if(slideActions.isBusy())throw new Error('Wait for the slide action to finish.');if(!await elementEditor.finish())throw new Error('Finish or cancel the text edit.');switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;const snapshot=await api(`/api/decks/${id}`);$('deck-picker').value=id;deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();void markOpened();}finally{switchingDeck=false;updateComposer();}}
   const presentationActions=window.SlidePresentations.init({api,toast,escape,currentDeck:()=>deck,retainDraft,reload:start,forget:id=>{$('deck-picker').querySelector(`option[value="${CSS.escape(id)}"]`)?.remove();if(deck?.id===id)renderEmpty();},recover:item=>{if(![...$('deck-picker').options].some(option=>option.value===item.id))$('deck-picker').add(new Option(item.title,item.id));if(!deck)renderEmpty();}});
+  deckPicker=window.SlideDeckPicker.create({select:$('deck-picker'),button:$('deck-switcher'),panel:$('deck-menu'),list:$('deck-menu-options'),createButton:$('new-project-option'),onCreate:()=>$('new-button').click(),onOpen:()=>animationPreview.stop(),blocked:()=>feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   window.SlideLibraries.init({api,toast,escape,currentDeck:()=>deck});
   let instructionsBaseline='',instructionsDraft=null,instructionsSaving=false,rulesEditor=null,rulesEditorPromise=null,learnedEditor=null;
   function getRulesEditor(){

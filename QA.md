@@ -122,6 +122,12 @@ Two fresh Terra reviewers checked lifecycle behavior and visual/accessibility st
 
 All 39 Node tests pass, including progression, delayed motion, cancellation, future CSS entrance timing, static availability and still-preview coverage. The Python suite passes 87 tests with three optional Chromium captures skipped in this UI pass; strict basedpyright, Ruff, formatting and JavaScript syntax checks pass. Existing MCP capture integration results are recorded above. Visual checks used only the fictional 8793 workspace; no real deck content was inspected or edited.
 
+## Project dropdown · 30 October 2026
+
+The native selector was replaced visually with a local popover that preserves the existing project state and creation flow. Fictional browser checks verified two-line project titles, the current-project highlight/checkmark, the final New project action opening the existing creation dialog, cancellation, keyboard Home/End/arrow selection, Escape and Tab dismissal, and an unsent message surviving a switch away and back. A disposable long-title project was removed and restored through the UI; removal and async switching return keyboard focus to the enabled launcher.
+
+Fresh Terra reviewers checked lifecycle/accessibility and the final screenshot separately. A confirmed removal-focus timing issue was fixed and visually rechecked. The menu remains available for creating a project when there are no existing options, and its final action is separate from canonical project IDs. All 39 Node tests and JavaScript syntax checks pass; the Python suite passes 87 tests with three optional renderer tests skipped. No Python implementation changed. Evidence contains fictional content only under ignored `qa/project-menu/`; real presentation files were not modified.
+
 ## Repository release check · 28 October 2026
 
 

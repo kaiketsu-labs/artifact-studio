@@ -48,7 +48,7 @@ window.SlidePresentations = {
         let issue = '';
         try { await reload(); } catch (error) { issue = error.message; }
         toast(issue ? `Removed. ${issue}` : 'Removed from list.', !!issue, {label:'Undo', run:() => restore(item.id)});
-        (currentDeck() ? $('deck-picker') : $('new-button')).focus();
+        requestAnimationFrame(() => (currentDeck() ? $('deck-switcher') : $('new-button')).focus());
       } catch (error) { toast(error.message, true); }
       finally { busy = false; update(); }
     });
