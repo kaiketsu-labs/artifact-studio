@@ -844,6 +844,14 @@ async def presentation_changes(deck_id: DeckID, request: Request) -> StreamingRe
     )
 
 
+@app.get("/api/decks/{deck_id}/workflow")
+def presentation_workflow(deck_id: DeckID) -> FeedbackWorkflow:
+    """Read expiring review availability without loading slides or feedback history."""
+    if not (store.folder(deck_id) / "index.html").is_file():
+        raise FileNotFoundError("Presentation not found.")
+    return store.workflow(deck_id)
+
+
 @app.post("/api/decks/{deck_id}/slides/{slide_id}/seen")
 def slide_seen(deck_id: DeckID, slide_id: SlideID, body: SlideSeenInput) -> dict[str, bool]:
     """Clear an update marker only for the exact version the human opened."""

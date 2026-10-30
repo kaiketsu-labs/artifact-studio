@@ -27,7 +27,7 @@
   let visibilityBusy=false,menuSlide=null;
   let orderEpoch=0, selectionEpoch=0;
   let currentTarget=null, noteBaseline='', previewKey='', railSignature='', agentNotesKey='', commentsKey='', commentsSignature='', isLoading=false, feedbackSending=false, draftWarning=false, switchingDeck=false;
-  let deckEvents=null, watchedDeck=null, refreshQueued=false;
+  let refreshQueued=false;
   let deckPicker=null, previewStatusTimer=null;
   const boundPreviewDocuments=new WeakSet();
   const key=()=>`${deck?.id}/${selectedId}`;
@@ -115,14 +115,15 @@
       renderRail();renderChangeStatus();
     }catch(error){toast(error.message,true);}
   }
-  /** Push file and review changes into the workspace; polling remains a fallback. */
-  function watchDeck(id){
-    if(watchedDeck===id)return;
-    deckEvents?.close();deckEvents=null;watchedDeck=id;
-    if(id&&typeof EventSource==='function'){
-      deckEvents=new EventSource(`/api/decks/${encodeURIComponent(id)}/events`);
-      deckEvents.addEventListener('change',()=>{if(deck?.id===id)void refresh();});
-    }
+  const updates=window.SlideUpdates.create({refresh,workflow:refreshWorkflow,onError:error=>toast(error.message,true)});
+  function watchDeck(id){updates.watch(id);}
+  /** Refresh time-limited agent availability without reloading slides or discussion history. */
+  async function refreshWorkflow(id){
+    if(deck?.id!==id||switchingDeck||isLoading||presentationActions.isBusy())return;
+    const snapshot=deck,baseline=deck.workflow,state=await api(`/api/decks/${encodeURIComponent(id)}/workflow`);
+    if(deck!==snapshot||deck.workflow!==baseline)return;
+    deck.workflow=state;if(pendingDeck?.id===id)pendingDeck.workflow=state;
+    renderWorkflow();renderStart();
   }
   /** Reflect the selected element in the comment composer. */
   function renderTarget(){const targeted=!!currentTarget,context=feedbackDraft();const original=deck.slides.find(item=>item.id===context?.slide_id);const otherSlide=targeted&&context?.slide_id!==selectedId;$('target-label').textContent=targeted?`${otherSlide?'Another slide · ':''}${currentTarget.label}${original&&context.content_hash!==original.content_hash?' · earlier version':''}`:'';$('target-chip').classList.toggle('has-target',targeted);$('clear-target').hidden=!targeted;$('select-parent').hidden=!selectedElement?.parentElement||selectedElement.parentElement.matches('body,html,.slide');$('feedback-text').placeholder=targeted?'What should change here?':needsBrief()?'Audience, takeaway, key points or links…':'Message your agent…';}
@@ -441,5 +442,4 @@
   });
   api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   start().catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
-  setInterval(()=>refresh(),3500);
 })();

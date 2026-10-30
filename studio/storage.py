@@ -10,6 +10,7 @@ import sqlite3
 import tempfile
 import time
 import uuid
+from collections import defaultdict
 from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
@@ -54,6 +55,7 @@ DESIGN_FILES = (
     "README.md",
     "assets",
 )
+FEEDBACK_FILES = TypeAdapter(list[FeedbackFile])
 
 
 class ConflictError(ValueError):
@@ -411,7 +413,9 @@ class Store:
 
     def feedback_files(self, deck_id: str, event_id: int, document: str) -> list[FeedbackFile]:
         """Resolve private references without allowing saved paths outside review storage."""
-        files = TypeAdapter(list[FeedbackFile]).validate_json(document)
+        files = FEEDBACK_FILES.validate_json(document)
+        if not files:
+            return files
         boundary = (self.database.parent / "feedback-files" / deck_id).resolve()
         for index, file in enumerate(files):
             path = (boundary / file.path).resolve()
@@ -443,6 +447,24 @@ class Store:
             )
         return result
 
+    def review_hashes(
+        self, deck_id: str, slide_id: str | None = None
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """Read review hashes once per snapshot or only for a requested standalone slide."""
+        selected = " AND slide=?" if slide_id is not None else ""
+        parameters = (deck_id, slide_id) if slide_id is not None else (deck_id,)
+        with self.connect() as db:
+            approved = db.execute(
+                "SELECT slide,content_hash FROM approvals WHERE deck=?" + selected, parameters
+            ).fetchall()
+            seen = db.execute(
+                "SELECT slide,content_hash FROM slide_views WHERE deck=?" + selected, parameters
+            ).fetchall()
+        return (
+            {cast(str, row[0]): cast(str, row[1]) for row in approved},
+            {cast(str, row[0]): cast(str, row[1]) for row in seen},
+        )
+
     def view_slide(
         self,
         deck_id: str,
@@ -451,23 +473,19 @@ class Store:
         include_pending: bool = True,
         design_hash: str | None = None,
         feedback: list[Feedback] | None = None,
+        review_hashes: tuple[dict[str, str], dict[str, str]] | None = None,
     ) -> SlideView:
         """Combine canonical content with approval and discussion state."""
         content_hash = self.content_hash(deck_id, slide, design_hash=design_hash)
-        with self.connect() as db:
-            seen = db.execute(
-                "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?",
-                (deck_id, slide.id),
-            ).fetchone()
-            row = db.execute(
-                "SELECT content_hash FROM approvals WHERE deck=? AND slide=?", (deck_id, slide.id)
-            ).fetchone()
+        approved, seen = (
+            self.review_hashes(deck_id, slide.id) if review_hashes is None else review_hashes
+        )
         return SlideView(
             **slide.model_dump(),
             expected_hash=digest(slide.model_dump_json()),
             content_hash=content_hash,
-            approved=row is not None and row[0] == content_hash,
-            has_unseen_changes=seen is None or seen[0] != content_hash,
+            approved=approved.get(slide.id) == content_hash,
+            has_unseen_changes=seen.get(slide.id) != content_hash,
             feedback=[
                 item
                 for item in (self.comments(deck_id) if feedback is None else feedback)
@@ -482,6 +500,10 @@ class Store:
         context = context_file.read_text() if context_file.exists() else ""
         design_hash = self.visual_hash(deck_id)
         feedback = self.comments(deck_id)
+        by_slide: defaultdict[str | None, list[Feedback]] = defaultdict(list)
+        for comment in feedback:
+            by_slide[comment.slide_id].append(comment)
+        review_hashes = self.review_hashes(deck_id)
         return DeckView(
             id=deck_id,
             title=deck.title,
@@ -493,7 +515,8 @@ class Store:
                     slide,
                     include_pending=include_pending,
                     design_hash=design_hash,
-                    feedback=feedback,
+                    feedback=by_slide[slide.id],
+                    review_hashes=review_hashes,
                 )
                 for slide in deck.slides
             ],
