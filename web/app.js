@@ -32,6 +32,7 @@
   const boundPreviewDocuments=new WeakSet();
   const key=()=>`${deck?.id}/${selectedId}`;
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
+  window.SlidePresentationLauncher.create({button:$('present-link'),onReturn:id=>{if(deck?.slides.some(item=>item.id===id))void choose(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Slide Studio in Chrome or Firefox.',true)});
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;

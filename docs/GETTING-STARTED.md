@@ -93,6 +93,8 @@ Designs define a visual language, not locked layouts or a required slide count. 
 
 For automatic feedback in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Then ask it to call `start_live_review` for your deck and keep the review session open. The Live selector shows **Available** while connected; **plug → End review** stops listening and preserves comments. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
 
+Present requests browser fullscreen directly from your click, without opening an intermediate page. Esc or End returns to the editor at the current slide, keeping unsent drafts. If the browser blocks or does not support fullscreen, the slideshow still fills its available viewport.
+
 On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check. [Verification scope](../QA.md).
 
 ## Files, persistence and backups

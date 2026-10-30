@@ -313,6 +313,8 @@
   const {button:iconButton}=window.SlideIcons;
   const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const query=new URLSearchParams(location.search),isAudience=query.get('audience')==='1';
+  const embedded=query.get('workspace')==='1'&&window.parent!==window&&!isAudience;
+  const hostMessage=(action,extra={})=>{if(embedded)window.parent.postMessage({type:'slide-studio:presentation',action,slide_id:deck.slides[current]?.id,...extra},location.origin);};
   const direct=query.get('present')==='1'||isAudience||document.documentElement.dataset.export==='audience';
   const channelName=query.get('channel')||`slides-${crypto.randomUUID()}`;
   const channel=typeof BroadcastChannel==='function'?new BroadcastChannel(channelName):null;
@@ -425,6 +427,7 @@
     updateProgressRail($('dots'),current);
     history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
     iconButton($('present-button'),'present',active?'End':'Present',true);
+    hostMessage('state');
   }
   /** Route all audience commands to the presenter to keep one navigation authority. */
   function navigate(action,index){
@@ -436,14 +439,15 @@
   }
   function tick(){$('elapsed').textContent=duration(clock.elapsed());$('wall-clock').textContent=new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit'}).format(new Date());}
   /** A deliberate display change leaves native fullscreen without ending the slideshow. */
-  async function leaveFullscreen(){if(!document.fullscreenElement)return;leavingFullscreen=true;try{await document.exitFullscreen();}catch{leavingFullscreen=false;}}
-  async function fullscreen(){try{if(document.fullscreenElement)await leaveFullscreen();else await (mode==='presenter'?document.documentElement:$('stage')).requestFullscreen();displayStatus();}catch{displayStatus('Fullscreen unavailable. Try Fullscreen again.');}}
+  const fullscreenElement=()=>document.fullscreenElement||document.webkitFullscreenElement;
+  async function leaveFullscreen(){if(embedded){hostMessage('fullscreen',{mode:'leave'});return;}if(!fullscreenElement())return;leavingFullscreen=true;try{await (document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch{leavingFullscreen=false;}}
+  async function fullscreen(){if(embedded){hostMessage('fullscreen',{mode:'toggle'});return;}try{if(fullscreenElement())await leaveFullscreen();else await (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement);displayStatus();}catch{displayStatus('Fullscreen unavailable in this browser.');}}
   function startClock(){clock.start();iconButton($('pause-timer'),'pause','Pause timer',false);tick();}
   /** Use CSS presentation immediately; native fullscreen remains subject to browser activation. */
   async function startPresentation(){
     if(active){endPresentation();return;}
     const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;
-    active=true;mode='single';clock.pause();clock.reset();startClock();render();void fullscreen();
+    active=true;mode='single';clock.pause();clock.reset();startClock();render();if(!embedded)void fullscreen();
     if('getScreenDetails' in window){try{screenDetails=await window.getScreenDetails();if(!active||ending)return;screenDetails.addEventListener('screenschange',updateScreens);updateScreens();const other=screenDetails.screens.find(screen=>screen!==screenDetails.currentScreen);if(other&&channel){selectedScreen=other;openAudience(other,true);}}catch{displayStatus('Automatic display selection unavailable.');}}
   }
   async function endPresentation(){
@@ -451,6 +455,7 @@
     if(ending)return;ending=true;
     active=false;clock.pause();audienceWindow?.close();audienceWindow=null;
     await Promise.all([...noteDrafts.keys()].map(id=>saveNotes(id)));
+    if(embedded){hostMessage('end');return;}
     await leaveFullscreen();
     if(workspaceDeck){location.replace(`/?deck=${encodeURIComponent(workspaceDeck)}#${encodeURIComponent(deck.slides[current].id)}`);return;}
     mode='preview';blackout=false;emptyShow=false;render();ending=false;
@@ -519,7 +524,9 @@
     if(!isAudience&&event.key.toLowerCase()==='s')$('sources-button').click();
     if(event.key.toLowerCase()==='f')void fullscreen();
   });
-  document.addEventListener('fullscreenchange',()=>{if(document.fullscreenElement)return;if(leavingFullscreen){leavingFullscreen=false;return;}if(active&&!ending&&!isAudience)void endPresentation();});
+  function fullscreenChanged(){if(embedded||fullscreenElement())return;if(leavingFullscreen){leavingFullscreen=false;return;}if(active&&!ending&&!isAudience)void endPresentation();}
+  document.addEventListener('fullscreenchange',fullscreenChanged);document.addEventListener('webkitfullscreenchange',fullscreenChanged);
+  if(embedded)window.addEventListener('message',event=>{if(event.source!==window.parent||event.origin!==location.origin||event.data?.type!=='slide-studio:host')return;if(event.data.action==='end')void endPresentation();if(event.data.action==='fullscreen-state')for(const id of ['single-fullscreen','presenter-fullscreen']){$(id).disabled=!event.data.available;$(id).title=event.data.available?'Fullscreen':'Fullscreen unavailable in this browser';}});
   $('normal-view').addEventListener('wheel',event=>{if(Math.abs(event.deltaY)<18||performance.now()-lastWheel<650)return;event.preventDefault();lastWheel=performance.now();navigate(event.deltaY>0?'next':'previous');},{passive:false});
   if(!workspaceDeck&&!isAudience){try{const saved=JSON.parse(localStorage.getItem(`slide-notes-${deck.id}`)||'{}');for(const slide of deck.slides)if(typeof saved[slide.id]==='string')slide.notes=saved[slide.id];}catch{}}
   if(channel)channel.onmessage=event=>{
@@ -540,6 +547,7 @@
   window.addEventListener('afterprint',()=>{for(const animation of slideAnimations.values())animation.afterPrint();});
   window.addEventListener('beforeunload',()=>{for(const mounted of interactiveInstances.values())mounted.dispose();for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
   render();tick();
+  hostMessage('ready');
   if(query.get('presenter')==='1'&&!isAudience)showPresenter();
   else if(query.get('present')==='1'&&!isAudience){active=false;void startPresentation();}
 })();
