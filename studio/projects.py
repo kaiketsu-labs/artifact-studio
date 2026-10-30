@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import io
+import json
 import mimetypes
 import os
 import re
@@ -746,6 +747,8 @@ def _print_document(deck: Deck, theme: str, original: str) -> str:
     )
     styles = (PROJECT / "runtime/print.css").read_text()
     script = (PROJECT / "runtime/print.js").read_text()
+    interactive = [slide.interactive_html for slide in deck.slides]
+    runtime = (PROJECT / "runtime/presentation.js").read_text().replace("</script", r"<\/script")
     return (
         "<!doctype html>"
         + root_tag(original)
@@ -758,7 +761,11 @@ def _print_document(deck: Deck, theme: str, original: str) -> str:
         + '</style></head><body><div class="print-actions">'
         + '<button id="print">Save as PDF</button></div>'
         + slides
-        + "<script>"
+        + '<script id="interactive-data" type="application/json">'
+        + json.dumps(interactive).replace("<", r"\u003c")
+        + "</script><script data-builds-only>"
+        + runtime
+        + "</script><script>"
         + script
         + "</script></body></html>"
     )

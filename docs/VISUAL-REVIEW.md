@@ -42,3 +42,7 @@ Captures do not approve slides, clear revision markers or mutate canonical deck 
 Images and `manifest.json` are saved below the local state directory's `visual-reviews/` folder. They can contain private slide content; do not upload or commit them. Inline MCP images work for clients without local filesystem access. Keep ordinary audience/export and presentation data restrictions in force.
 
 This verifies slide content in Chromium. It does not verify presenter controls, live interaction, keyboard behavior, browser-specific layout, physical screen placement, native PowerPoint or native PDF output. Those require their own permitted application checks. Never describe a capture as a physical-display or end-to-end presentation-mode test.
+
+## Custom interactive documents
+
+Slides with `interactive_html` are captured from their actual isolated custom document, not their static fallback. Provide `window.slideStudioCapture` for reproducible time/final states and `window.slideStudioReady` when local preparation is asynchronous. The diagnostics explicitly indicate that sandbox DOM inspection is unavailable. Inspect the image itself. See [custom HTML and interaction hooks](INTERACTIVE-HTML.md).

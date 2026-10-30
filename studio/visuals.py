@@ -1,6 +1,7 @@
 """Local, version-anchored slide images and paginated visual review sheets."""
 
 import io
+import json
 import math
 import threading
 import uuid
@@ -89,6 +90,8 @@ class Diagnostics(StrictModel):
     failed_fonts: list[str]
     possible_overflow: list[str]
     media_count: int
+    interactive: bool = False
+    diagnostics_scope: str = "Static slide DOM"
 
 
 class Frame(StrictModel):
@@ -138,20 +141,27 @@ def snapshot(
     store: Store, deck_id: str, slide: Slide, number: int, options: CaptureOptions
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
+    if slide.interactive_html and options.stage not in {None, 0}:
+        raise ValueError(
+            "Custom interactive slides use stage 0 plus elapsed_ms, or null for final."
+        )
     content_hash = store.content_hash(deck_id, slide)
     SlideMarkup().feed(slide.html)
     folder = store.folder(deck_id)
     embedder = ReviewEmbedder(folder)
     theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
     markup = embedder.markup(slide.html)
+    interactive = slide.interactive_html
     runtime = (PROJECT / "runtime/presentation.js").read_text()
     runtime_styles = (PROJECT / "runtime/slideshow.css").read_text()
     adapter = (PROJECT / "runtime/capture.js").read_text()
     nonce = uuid.uuid4().hex
+    scripts = "'unsafe-inline' 'unsafe-eval'" if interactive else f"'nonce-{nonce}'"
+    frames = "about:" if interactive else "'none'"
     policy = (
         "default-src 'none'; img-src data: blob:; font-src data:; media-src data: blob:; "
-        f"style-src 'unsafe-inline'; script-src 'nonce-{nonce}'; "
-        "connect-src 'none'; object-src 'none'; frame-src 'none'; "
+        f"style-src 'unsafe-inline'; script-src {scripts}; "
+        f"connect-src 'none'; object-src 'none'; frame-src {frames}; "
         "base-uri 'none'; form-action 'none'"
     )
     root = root_tag((folder / "index.html").read_text()).replace(
@@ -181,6 +191,9 @@ def snapshot(
         + '<script id="capture-config" type="application/json">'
         + options.model_dump_json()
         + "</script>"
+        + '<script id="interactive-data" type="application/json">'
+        + json.dumps(interactive).replace("<", r"\u003c")
+        + "</script>"
         + f'<script nonce="{nonce}">'
         + runtime.replace("</script", r"<\/script")
         + "</script>"
@@ -208,6 +221,7 @@ def snapshot(
                 root
                 + theme
                 + markup
+                + interactive
                 + runtime
                 + runtime_styles
                 + adapter

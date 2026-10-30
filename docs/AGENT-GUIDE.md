@@ -4,9 +4,11 @@ Start with `get_working_context`. Read the presentation, its notes, recent feedb
 
 ## Compose freely
 
+Current `authoring_capabilities` and `interactive_content_guide` describe the supported technical contract. Older design-pack guides may predate custom JavaScript; treat their compositions as visual-language examples, not capability limits. Explicit user instructions and workspace rules remain authoritative.
+
 Treat the slide as a free canvas, as you would in PowerPoint. Add, remove, move, resize, align, overlap and group text boxes, shapes, images, icons, arrows and charts. Invent compositions that suit the story. Use arbitrary HTML, inline CSS, and inline SVG through `add_slide` and `revise_slide`; there is no layout enum. Examples are optional starting points. Keep the brand's typography, colours, spacing and restraint, not its example geometry.
 
-Wrap each slide in `<article class="slide">`. Use the shared `theme.css` for fonts and tokens. Inside, use flex/grid or positioned elements with percentages and `cqw` units so the 16:9 canvas scales. A positioned box can use `style="position:absolute;left:8%;top:25%;width:40%;font-size:3cqw"`. `.slide-body`, `.orange`, `.icon` and other helper classes are optional. Inline SVG is appropriate for diagrams and editable charts. Put local files under `assets/`; executable HTML and remote image loads are not accepted in slide markup. Local file access can add assets; remote MCP clients can use inline SVG or existing bundled assets.
+Wrap each slide in `<article class="slide">`. Use the shared `theme.css` for fonts and tokens. Inside, use flex/grid or positioned elements with percentages and `cqw` units so the 16:9 canvas scales. A positioned box can use `style="position:absolute;left:8%;top:25%;width:40%;font-size:3cqw"`. `.slide-body`, `.orange`, `.icon` and other helper classes are optional. Inline SVG is appropriate for diagrams and editable charts. Put local files under `assets/`. The static `html` field remains selectable and script-free. For unrestricted HTML, CSS, custom JavaScript and interactions, use `interactive_html` alongside a meaningful static fallback. `prepare_interactive_html` embeds local scripts/styles/images/fonts into the isolated document. See [free custom HTML](INTERACTIVE-HTML.md); the working context advertises these capabilities. Custom code runs offline in an opaque-origin sandbox, with no workspace API or private-note access. Layouts and helpers are hints, not limits.
 
 ## Review loop
 
@@ -24,7 +26,7 @@ The canonical file is `index.html` in `<collection>/YYYY-MM-DD-short-title/`. It
 
 Preview the whole slide at 16:9 and at thumbnail size. Check wrapping, overlap, contrast and clipped objects. Use staged reveals only where they help the explanation (`data-build` marks the reveal group). Notes and sources stay outside the audience view. In supported browsers, Present uses a second screen after display permission; otherwise it shows the full slide on the current screen. Some browsers require a click in the audience window to enter fullscreen.
 
-For growing HTML/SVG bars, synchronized counters and blurred reveals, use the shared [build-animation attributes](BUILD-ANIMATIONS.md). Keep the exact final text in the markup and use declarative attributes rather than slide scripts. Review the intermediate steps as well as the final chart; static previews and PDF reveal the final values.
+For growing HTML/SVG bars, synchronized counters and blurred reveals, use the shared [build-animation attributes](BUILD-ANIMATIONS.md). Keep the exact final text in the markup and declarative attributes are convenient optional helpers. Custom `interactive_html` scripts are also supported when they suit the content. Review the intermediate steps as well as the final chart. Built-in builds show final values in static previews and PDF. Custom documents use the authored static fallback for previews and the optional capture hook for reproducible PDF/final states.
 
 ## Element-specific feedback
 

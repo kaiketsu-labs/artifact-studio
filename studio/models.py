@@ -65,6 +65,14 @@ class Slide(StrictModel):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
     title: str = Field(min_length=1, max_length=160)
     html: str = Field(min_length=1, max_length=150_000)
+    interactive_html: str = Field(
+        default="",
+        max_length=2_000_000,
+        description=(
+            "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; "
+            "keep html as a meaningful static fallback."
+        ),
+    )
     notes: str = Field(default="", max_length=20_000)
     sources: list[Source] = Field(default_factory=list)
     revision: int = Field(default=1, ge=1)
@@ -176,6 +184,14 @@ class SlidePatch(StrictModel):
 
     title: str | None = Field(default=None, max_length=160)
     html: str | None = Field(default=None, max_length=150_000)
+    interactive_html: str | None = Field(
+        default=None,
+        max_length=2_000_000,
+        description=(
+            "Revise custom HTML/CSS/JavaScript freely; set an empty string to disable. "
+            "Keep the static html fallback aligned."
+        ),
+    )
     notes: str | None = Field(default=None, max_length=20_000)
     sources: list[Source] | None = None
     agent: AgentContext | None = None

@@ -60,15 +60,17 @@
   /** Keep ordinary previews complete and still; authored CSS remains unchanged. */
   function freeze(doc){for(const animation of doc.getAnimations()){animation.pause();const end=animation.effect?.getComputedTiming().endTime;animation.currentTime=Number.isFinite(end)?end:0;}}
   /** Keep playback, selection and unsent edits isolated from each other. */
-  function create({button,frame,wrap,documentFor,onState=()=>{},onError=()=>{}}){
+  function create({button,frame,wrap,documentFor,interactiveContent=()=>'',onState=()=>{},onError=()=>{}}){
     let layer=null,playback=null,epoch=0,timeout=null,available=false;
-    function render(){root.SlideIcons.button(button,layer?'stop':'play',layer?'Stop animation preview':available?'Play animations':'No animations on this slide');button.disabled=!available;button.dataset.playing=String(!!layer);onState(!!layer);}
-    function stop(){epoch++;clearTimeout(timeout);playback?.stop();playback=null;layer?.remove();layer=null;wrap.classList.remove('is-playing');render();}
+    function render(){root.SlideIcons.button(button,layer?'stop':'play',layer?'Stop preview':interactiveContent()?'Play interactive slide':available?'Play animations':'No animations on this slide');button.disabled=!available;button.dataset.playing=String(!!layer);onState(!!layer);}
+    function stop(){frame.inert=false;frame.removeAttribute('aria-hidden');epoch++;clearTimeout(timeout);playback?.stop();playback=null;layer?.remove();layer=null;wrap.classList.remove('is-playing');render();}
     function reset(){stop();available=false;render();}
-    function bind(){available=hasAnimations(frame.contentDocument);render();}
+    function bind(){available=!!interactiveContent()||hasAnimations(frame.contentDocument);render();}
     function play(){
       if(layer){stop();return;}
       if(!available)return;
+      const content=interactiveContent();
+      if(content){frame.inert=true;frame.setAttribute('aria-hidden','true');const overlay=document.createElement('div');overlay.className='animation-preview is-interactive';layer=overlay;wrap.append(overlay);wrap.classList.add('is-playing');const mounted=root.SlideStudioInteractive.mount(overlay,content,{mode:'preview',onKey:event=>{if(event.key==='Escape')stop();}});playback={stop:mounted.dispose};mounted.ready.catch(error=>{if(layer===overlay){stop();onError(error.message);}});render();return;}
       const slide=frame.contentDocument?.querySelector('.slide');if(!slide)return;
       const token=++epoch,overlay=document.createElement('div'),copy=document.createElement('iframe');
       overlay.className='animation-preview';overlay.inert=true;overlay.setAttribute('aria-hidden','true');overlay.hidden=true;

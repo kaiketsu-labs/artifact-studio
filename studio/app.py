@@ -25,6 +25,7 @@ from starlette.responses import Response
 
 from .autosync import AutoSync, SyncStatus
 from .events import deck_events
+from .interactive import prepare_document
 from .libraries import (
     Libraries,
     Library,
@@ -79,7 +80,8 @@ store = Store(COLLECTION, DATABASE)
 mcp = MCPServer[None](
     "Slide Studio",
     instructions=(
-        "Call get_working_context before editing. Compose freely with HTML/CSS/SVG; "
+        "Call get_working_context before editing. Compose freely with HTML/CSS/SVG. "
+        "Custom JavaScript/interactions are supported via isolated interactive_html; "
         "examples are optional, not fixed layouts. Read feedback and current hashes before "
         "changes. Preserve human notes. Human approval is available only in the UI. "
         "Local files are canonical. Upload only via explicitly enabled private repository sync. "
@@ -130,12 +132,25 @@ def get_working_context(design_id: str = "") -> dict[str, object]:
         "instruction_policy": (
             "Explicit workspace rules are primary. Learned preferences are secondary and apply "
             "only when compatible with workspace rules and the presentation's requirements. "
-            "Deck context stays specific to that presentation."
+            "Deck context stays specific to that presentation. Design guides describe brand "
+            "language and optional examples. Current authoring_capabilities "
+            "and the primary interactive_content_guide define the technical contract; older design "
+            "guides may predate custom JavaScript support. Preserve explicit user instructions."
         ),
         "design": (folder / "README.md").read_text()
         if folder
         else "No design installed. See design_import_guide.",
         "design_import_guide": (PROJECT / "docs/DESIGN-PACKS.md").read_text(),
+        "interactive_content_guide": (PROJECT / "docs/INTERACTIVE-HTML.md").read_text(),
+        "authoring_capabilities": {
+            "free_composition": True,
+            "custom_html_css_javascript": True,
+            "interactive_field": "interactive_html",
+            "static_fallback_field": "html",
+            "asset_helper": "prepare_interactive_html",
+            "execution": "Opaque-origin sandbox; offline, no workspace APIs or private notes.",
+            "examples_are_optional": True,
+        },
         "runtime_path": str(PROJECT / "runtime"),
         "default_design_id": store.default_design_id(),
         "presentations": store.list_decks(),
@@ -413,10 +428,20 @@ def update_presentation_context(deck_id: str, markdown: str, expected_hash: str)
     return store.update_context(deck_id, markdown, expected_hash)
 
 
+@mcp.tool(annotations=READ)
+@tool_errors
+def prepare_interactive_html(deck_id: str, html: str, include_theme: bool = True) -> str:
+    """Embed local images/fonts/CSS/JS into isolated interactive_html; no code is executed.
+    The returned document may be assigned to Slide.interactive_html or SlidePatch.interactive_html.
+    Keep a meaningful static html fallback for selection, thumbnails and next-slide previews.
+    """
+    return prepare_document(store, deck_id, html, include_theme=include_theme)
+
+
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def add_slide(deck_id: str, slide: Slide) -> Slide:
-    """Add freely composed HTML/CSS/SVG with a new stable ID. No fixed layout is required."""
+    """Add free HTML/CSS/SVG or isolated interactive_html with custom JavaScript."""
     return store.add_slide(deck_id, slide)
 
 
@@ -425,7 +450,7 @@ def add_slide(deck_id: str, slide: Slide) -> Slide:
 def revise_slide(
     deck_id: str, slide_id: str, expected_hash: str, request_id: str, patch: SlidePatch
 ) -> SlideView:
-    """Move, add or reshape any elements by editing HTML. Unique request IDs make retries safe."""
+    """Edit free HTML or interactive_html with custom JavaScript and idempotent request IDs."""
     slide = store.revise(deck_id, slide_id, expected_hash, request_id, patch)
     return store.view_slide(deck_id, slide, include_pending=False)
 

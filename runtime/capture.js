@@ -4,6 +4,8 @@
   window.SlideStudioCaptureReady=(async()=>{
     const config=JSON.parse(document.getElementById('capture-config').textContent);
     const slide=document.querySelector('#capture-stage > .slide');
+    const interactive=JSON.parse(document.getElementById('interactive-data')?.textContent||'""');
+    if(interactive){const mounted=window.SlideStudioInteractive.mount(document.getElementById('capture-stage'),interactive,{mode:'capture',elapsed_ms:config.elapsed_ms,final:config.stage===null,reduced_motion:config.reduced_motion});await mounted.ready;return {reveal_steps:0,failed_fonts:[],failed_images:[],possible_overflow:[],media_count:0,interactive:true,diagnostics_scope:'Isolated custom document; inspect the rendered image and authored capture hook. DOM overflow/resource diagnostics are unavailable across the sandbox.'};}
     const {BuildAnimations,buildCount}=window.SlideStudioBuilds;
     const steps=buildCount(slide.outerHTML);
     if(config.stage!==null&&config.stage>steps)throw new Error(`This slide has ${steps} reveal steps.`);

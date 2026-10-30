@@ -85,11 +85,15 @@ class SlideMarkup(HTMLParser):
             "audio",
             "video",
         }:
-            raise ValueError(f"Use presentation markup, not <{tag}>.")
+            raise ValueError(
+                f"Keep <{tag}> in interactive_html; html is its script-free static fallback."
+            )
         for name, value in attrs:
             text = (value or "").strip()
             if name.lower().startswith("on") or name.lower() in {"srcdoc", "srcset"}:
-                raise ValueError("Executable or alternate-source attributes are not allowed.")
+                raise ValueError(
+                    "Use interactive_html for executable or alternate-source attributes."
+                )
             if name.lower() in {"src", "href", "xlink:href"} and (
                 not (text.startswith("assets/") or text.startswith("#")) or ".." in text
             ):
@@ -335,7 +339,10 @@ class Store:
     def content_hash(self, deck_id: str, slide: Slide, *, design_hash: str | None = None) -> str:
         """Hash audience-visible content independently of private notes and discussion."""
         return digest(
-            slide.model_dump_json(include={"title", "html", "sources"})
+            slide.model_dump_json(
+                include={"title", "html", "sources"}
+                | ({"interactive_html"} if slide.interactive_html else set())
+            )
             + (self.visual_hash(deck_id) if design_hash is None else design_hash)
         )
 
@@ -560,6 +567,7 @@ class Store:
             SlideMarkup().feed(revised.html)
             if (
                 revised.html != slide.html
+                or revised.interactive_html != slide.interactive_html
                 or revised.title != slide.title
                 or revised.sources != slide.sources
             ):

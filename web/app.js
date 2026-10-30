@@ -52,6 +52,7 @@
   const animationPreview=window.SlideAnimationPreview.create({
     button:$('play-animations'),frame:$('preview'),wrap:$('preview-wrap'),
     documentFor:html=>previewDocument({...slide(),html},deck.id),
+    interactiveContent:()=>slide()?.interactive_html||'',
     onState:playing=>{$('objects-button').disabled=playing||!$('preview').dataset.loadToken?.endsWith('-ready');$('element-tools').inert=playing;if(playing&&$('object-panel').matches(':popover-open'))$('object-panel').hidePopover();},
     onError:message=>toast(message,true)
   });

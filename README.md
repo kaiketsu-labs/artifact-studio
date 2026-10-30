@@ -198,3 +198,9 @@ node --test tests/*.cjs
 Node.js is needed only for frontend behavior tests. Test fixtures and README screenshots use original fictional designs; no personal decks or corporate assets are bundled.
 
 </details>
+
+### Free composition and custom interactions
+
+Agents can compose freely with HTML, CSS and SVG; design examples and helpers are optional. Custom JavaScript, canvas, media and interactions are supported through isolated `interactive_html`, with selectable static fallbacks and portable HTML/PDF output. [Authoring contract, assets and review hooks](docs/INTERACTIVE-HTML.md).
+
+![Custom JavaScript changes a fictional chart in the slide preview](docs/assets/interactive-slide.png)
