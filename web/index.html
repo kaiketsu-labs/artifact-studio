@@ -10,9 +10,11 @@
   <script src="/web/drafts.js" defer></script>
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
+  <script src="/web/slide-order.js" defer></script>
   <script src="/web/rules-editor.js" defer></script>
   <script src="/web/libraries.js" defer></script>
   <script src="/web/presentations.js" defer></script>
+  <script src="/web/projects.js" defer></script>
   <script src="/web/app.js" defer></script>
 </head>
 <body>
@@ -20,6 +22,7 @@
   <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.png" alt="" width="30" height="30"></span>Slide Studio</a>
   <div class="top-actions">
     <button id="new-button" class="quiet" aria-label="New presentation"></button>
+    <button id="project-button" class="quiet" aria-label="Project files"></button>
     <button id="libraries-button" class="quiet" aria-label="Reference libraries"></button>
     <button id="instructions-button" class="quiet" aria-label="Instructions" hidden></button>
     <button id="connect-button" class="quiet" aria-label="Connect an agent"></button>
@@ -88,8 +91,22 @@
     </form>
   </aside>
 </main>
-<div id="slide-menu" class="slide-menu" popover role="menu" aria-label="Slide options"><button id="toggle-slide-hidden" type="button" role="menuitem"></button></div>
+<div id="slide-menu" class="slide-menu" popover role="menu" aria-label="Slide options">
+  <div id="slide-menu-selection" class="slide-menu-selection" hidden></div>
+  <button id="toggle-slide-hidden" type="button" role="menuitem"></button>
+  <hr>
+  <button data-slide-move="up" type="button" role="menuitem"></button>
+  <button data-slide-move="down" type="button" role="menuitem"></button>
+  <button data-slide-move="first" type="button" role="menuitem"></button>
+  <button data-slide-move="last" type="button" role="menuitem"></button>
+</div>
 <div id="toast" class="toast" role="status" hidden></div>
+<dialog id="project-dialog">
+  <header><h2>Project</h2><button id="close-project" type="button" aria-label="Close"></button></header>
+  <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button><hr><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
+  <input id="project-file" type="file" accept=".slide-studio.zip,.zip" hidden>
+  <p id="project-error" class="error" role="alert"></p>
+</dialog>
 <dialog id="instructions-dialog">
   <form id="instructions-form">
     <header><h2>Workspace rules</h2><div><button id="reload-instructions" type="button" aria-label="Reload saved instructions"></button><button id="close-instructions" type="button" aria-label="Close"></button></div></header>

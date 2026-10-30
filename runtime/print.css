@@ -1,0 +1,10 @@
+@page{size:13.333333in 7.5in;margin:0}
+html,body{margin:0!important;padding:0!important;background:#fff!important}
+.print-page{width:13.333333in;height:7.5in;break-after:page;overflow:hidden;position:relative}
+.print-page:last-child{break-after:auto}
+.print-page>.slide{width:100%!important;height:100%!important;aspect-ratio:16/9;container-type:inline-size;break-after:auto!important;page-break-after:auto!important}
+.print-page [data-build],.print-page .unrevealed{opacity:1!important;visibility:visible!important}
+.print-page *{print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important;transition:none!important;animation-delay:-10000s!important;animation-duration:1ms!important;animation-iteration-count:1!important;animation-fill-mode:both!important;animation-play-state:paused!important}
+.print-actions{position:fixed;right:16px;top:16px;z-index:100;font:14px system-ui;display:flex;gap:8px}
+@media screen{body{background:#e6eaf0!important}.print-page{margin:20px auto;box-shadow:0 2px 15px #0002}}
+@media print{.print-actions{display:none!important}.print-page{margin:0!important;box-shadow:none!important}}

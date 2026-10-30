@@ -77,6 +77,7 @@ Designs define a visual language, not locked layouts or a required slide count. 
 | Archive icon beside the selector | Remove the selected entry from the list. Use **Undo**, or open the restore icon below the selector later. Files, notes and review history remain recoverable. |
 | Slide thumbnail | Open a slide. With a thumbnail focused, Up/Down selects the previous/next slide; Home/End selects the first/last. Red means unreviewed; green means you approved that exact content and its assets. An orange outline appears live after a revision and clears when you open that slide. Opening does not approve it. |
 | Hide / Unhide Slide | Right-click a thumbnail or click its eye icon. Open eye means shown; crossed-out eye means hidden. Hidden thumbnails also dim and show a crossed-out number. Content, notes and approval are retained. |
+| Move slides | Drag thumbnails to the insertion line. Shift-click selects a range; Cmd/Ctrl-click selects individual slides. Right-click for movement commands, or press Cmd/Ctrl + Up/Down; add Shift for beginning/end. With a thumbnail focused, Cmd/Ctrl+Z undoes and Cmd/Ctrl+Shift+Z redoes a move. |
 | Slide element | Select it for edit/move icons. Change text and confirm, or drag to send a move suggestion. The agent applies the change; the local preview is provisional. Tab/Enter select elements; arrows on the move icon position them, Enter sends and Esc cancels. |
 | Slide conversation | Each thumbnail opens its own messages and draft. The slide number/title show the context included with every message. Ask for local edits or deck-wide changes here; the agent infers the scope. **Enter** sends; **Shift+Enter** adds a new line. The same shortcuts apply to design chat. Agent questions remain visible; explanations and sources are collapsed. |
 | Live / Batch | Live releases each submitted comment immediately. Batch holds comments until **Send batch**. Loaded review hooks can continue the connected agent automatically. |
@@ -89,6 +90,8 @@ For automatic feedback in **Codex or Claude Code**, open **plug → Automatic fe
 On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check. [Verification scope](../QA.md).
 
 ## Files, persistence and backups
+
+Use the **save icon** for **Save project**, **Open project**, **Export HTML** and **Export PDF**. Project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
 
 | Location | Contents |
 | --- | --- |

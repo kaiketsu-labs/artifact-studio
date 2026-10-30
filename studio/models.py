@@ -173,6 +173,13 @@ class SlideVisibilityInput(StrictModel):
     expected_hidden: bool = Field(strict=True)
 
 
+class SlideOrderInput(StrictModel):
+    """A complete slide order guarded against concurrent structural changes."""
+
+    slide_ids: list[str] = Field(min_length=1, max_length=100)
+    expected_slide_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class CommentInput(StrictModel):
     """Human feedback bound to the slide version visible when submitted."""
 

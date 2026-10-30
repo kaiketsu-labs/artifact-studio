@@ -64,7 +64,18 @@ An isolated fictional browser deck verified thumbnail right-click and options me
 
 The four matching managed local runtime bundles were updated with guarded checks and backups. Deck HTML, notes, themes and assets were unchanged. Utility styles ship separately in `slideshow.css` so this runtime update preserves existing approval hashes. The main 8790 service was restarted once and MCP visibility metadata verified. No real slide was hidden during testing; personal decks remain local.
 
+## Slide movement and portable projects · 30 October 2026
+
+The full local suite passes 69 Python tests and 13 Node behavior tests. Strict basedpyright, Ruff and JavaScript syntax checks pass. Reorder tests preserve notes, chats, content hashes, approvals, hidden flags and unread state, reject stale structural writes and keep legacy presentation messages on their original slide. Project tests cover restoration into a separate collection, reply-ID remapping, withheld Batch comments, browser/presenter drafts, attachments, approval hashes including hidden asset files, non-overwriting copies, archive boundaries and audience privacy. Targeted export checks were repeated after fixes for metadata attributes, mixed responsive image sources and root design settings.
+
+The isolated fictional browser workspace verified grouped dragging, Cmd/Ctrl keyboard movement and Undo, Shift/range selection, Cmd/individual selection, selected-slide context and preservation of an unsent comment. A real downloaded project ZIP was reopened through the browser file picker as a new copy; the selected hidden slide, conversation and unsent draft were restored. HTML download succeeded. Two Terra reviewers checked integrity and visual UX; confirmed findings were fixed, including a failed-selection menu race, ambiguous selection styling, excluded asset folders and incomplete dependency embedding.
+
+All four fictional slides in the PDF HTML print-layout preview were visually reviewed at presentation size, including the hidden slide. The native print dialog was launched, then dismissed. A saved native PDF was not produced or inspected. Direct offline HTML visual playback remains unverified because the in-app browser denied the file URL protocol; no alternate browser or serving route was used to bypass that denial. The export's embedded assets, fonts, animation/reveal markup and absence of private notes were checked in the generated file and tests. The 8790 browser-origin restriction remains a separate unresolved boundary; browser checks used only the isolated fictional 8793 fixture. Physical second-display placement was not tested.
+
+Personal presentation content was not changed or published. The app documentation's new Project screenshot contains only fictional slides and messages.
+
 ## Repository release check · 28 October 2026
+
 
 26 Python behavioral tests and 4 Node frontend/runtime tests passed; strict basedpyright and Ruff passed. JavaScript syntax checks passed. The live stateless MCP endpoint registered an authenticated private GitHub library, discovered the source master and all 158 extracted media files, and uploaded 498 collection files. A second sync returned the same remote commit with zero changed files. The interrupted-source-copy case is now covered by a regression test and leaves a clean checkout.
 

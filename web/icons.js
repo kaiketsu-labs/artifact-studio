@@ -1,6 +1,8 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    code:'m8 7-5 5 5 5m8-10 5 5-5 5m-3-14-2 18',pdf:'M5 3h9l5 5v13H5zM14 3v6h5M8 13h8M8 17h6',
+    up:'m6 14 6-6 6 6',down:'m6 10 6 6 6-6',first:'M5 4h14M12 20V8m-5 5 5-5 5 5',last:'M5 20h14M12 4v12m-5-5 5 5 5-5',
     eyeOff:'m3 3 18 18M10.6 5.1A12 12 0 0 1 12 5c6 0 10 7 10 7a21 21 0 0 1-4 4M6.1 6.1C3.5 8.1 2 12 2 12s4 7 10 7a12 12 0 0 0 5.1-1.1M10 10a3 3 0 0 0 4 4',
     rules:'m3 5 2 2 3-4M11 5h10M3 12l2 2 3-4M11 12h10M3 19l2 2 3-4M11 19h10',
     edit:'m16 3 5 5-13 13H3v-5L16 3Zm-3 3 5 5',

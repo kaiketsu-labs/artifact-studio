@@ -128,16 +128,26 @@ def git(folder: Path, *args: str) -> str:
     )
 
 
-def allowed(relative: Path) -> bool:
+def allowed(
+    relative: Path,
+    *,
+    all_extensions: bool = False,
+    excluded: frozenset[str] = frozenset(EXCLUDED),
+) -> bool:
     """Keep caches, credentials, hidden state and unsupported files out of snapshots."""
     return (
-        relative.suffix.lower() in EXTENSIONS
-        and not any(part.startswith(".") or part in EXCLUDED for part in relative.parts)
+        (all_extensions or relative.suffix.lower() in EXTENSIONS)
+        and not any(part.startswith(".") or part in excluded for part in relative.parts)
         and relative.name.lower() not in {"credentials.json", "secrets.json", "secrets.txt"}
     )
 
 
-def inventory(root: Path) -> list[LibraryFile]:
+def inventory(
+    root: Path,
+    *,
+    all_extensions: bool = False,
+    excluded: frozenset[str] = frozenset(EXCLUDED),
+) -> list[LibraryFile]:
     """List reusable documents and assets without following symbolic links."""
     result: list[LibraryFile] = []
     for folder, directories, names in root.walk(follow_symlinks=False):
@@ -145,13 +155,17 @@ def inventory(root: Path) -> list[LibraryFile]:
             name
             for name in directories
             if not name.startswith(".")
-            and name not in EXCLUDED
+            and name not in excluded
             and not (folder / name).is_symlink()
         ]
         for name in sorted(names):
             path = folder / name
             relative = path.relative_to(root)
-            if allowed(relative) and path.is_file() and not path.is_symlink():
+            if (
+                allowed(relative, all_extensions=all_extensions, excluded=excluded)
+                and path.is_file()
+                and not path.is_symlink()
+            ):
                 result.append(
                     LibraryFile(
                         path=relative.as_posix(),

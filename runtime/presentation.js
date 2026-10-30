@@ -47,7 +47,7 @@
   if(typeof module!=='undefined')module.exports={PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction};
   if(typeof document==='undefined')return;
 
-  const runtimeStyles=document.createElement('link');runtimeStyles.rel='stylesheet';runtimeStyles.href=new URL('slideshow.css',document.currentScript?.src||location.href).href;document.head.append(runtimeStyles);
+  if(!document.getElementById('slideshow-styles')){const runtimeStyles=document.createElement('link');runtimeStyles.rel='stylesheet';runtimeStyles.href=new URL('slideshow.css',document.currentScript?.src||location.href).href;document.head.append(runtimeStyles);}
 
   const deck=JSON.parse(document.getElementById('deck-data').textContent);
   const $=id=>document.getElementById(id);
@@ -55,7 +55,7 @@
   const {button:iconButton}=window.SlideIcons;
   const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const query=new URLSearchParams(location.search),isAudience=query.get('audience')==='1';
-  const direct=query.get('present')==='1'||isAudience;
+  const direct=query.get('present')==='1'||isAudience||document.documentElement.dataset.export==='audience';
   const channelName=query.get('channel')||`slides-${crypto.randomUUID()}`;
   const channel=typeof BroadcastChannel==='function'?new BroadcastChannel(channelName):null;
   const workspaceDeck=location.pathname.match(/^\/decks\/([^/]+)\//)?.[1];

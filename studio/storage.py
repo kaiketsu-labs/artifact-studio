@@ -877,7 +877,9 @@ class Store:
             self.seed_slide_views(db, deck)
         return slide
 
-    def reorder(self, deck_id: str, slide_ids: list[str]) -> Deck:
+    def reorder(
+        self, deck_id: str, slide_ids: list[str], *, expected_slide_ids: list[str] | None = None
+    ) -> Deck:
         """Reorder exactly the current slides while preserving their stable IDs."""
         with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
@@ -885,6 +887,16 @@ class Store:
             lookup = {slide.id: slide for slide in deck.slides}
             if len(slide_ids) != len(lookup) or set(slide_ids) != set(lookup):
                 raise ConflictError("Provide every current slide ID exactly once.")
+            current_ids = [slide.id for slide in deck.slides]
+            if current_ids == slide_ids:
+                return deck
+            if expected_slide_ids is not None and current_ids != expected_slide_ids:
+                raise ConflictError("Slide order changed. Try moving the slides again.")
+            _ = db.execute(
+                "UPDATE feedback SET context_slide_id=? WHERE deck=? "
+                "AND COALESCE(slide,'')='' AND context_slide_id IS NULL AND reply_to IS NULL",
+                (current_ids[0], deck_id),
+            )
             deck.slides = [lookup[slide_id] for slide_id in slide_ids]
             self.write(deck_id, deck)
         return deck

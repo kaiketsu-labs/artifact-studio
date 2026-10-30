@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
@@ -51,11 +52,13 @@ from .models import (
     NotesInput,
     PresentationCommentInput,
     Slide,
+    SlideOrderInput,
     SlidePatch,
     SlideSeenInput,
     SlideView,
     SlideVisibilityInput,
 )
+from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .storage import ConflictError, Store, digest
 
@@ -419,9 +422,11 @@ def reply_to_presentation_feedback(
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
-def reorder_slides(deck_id: str, slide_ids: list[str]) -> Deck:
-    """Set deck order by supplying every current stable slide ID exactly once."""
-    return store.reorder(deck_id, slide_ids)
+def reorder_slides(
+    deck_id: str, slide_ids: list[str], expected_slide_ids: list[str] | None = None
+) -> Deck:
+    """Set all stable slide IDs in order; pass their previous order to detect concurrent moves."""
+    return store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True))
@@ -544,6 +549,60 @@ def slide_visibility(
         deck_id, slide_id, hidden=body.hidden, expected_hidden=body.expected_hidden
     )
     return {"hidden": body.hidden}
+
+
+@app.post("/api/decks/{deck_id}/slide-order")
+def slide_order(deck_id: DeckID, body: SlideOrderInput) -> dict[str, list[str]]:
+    """Move slides without replacing concurrent content, notes or review state."""
+    updated = store.reorder(deck_id, body.slide_ids, expected_slide_ids=body.expected_slide_ids)
+    return {"slide_ids": [slide.id for slide in updated.slides]}
+
+
+@app.post("/api/decks/{deck_id}/project")
+def project_save(deck_id: DeckID, body: ClientState) -> Response:
+    """Download a complete local project including private review state and drafts."""
+    return Response(
+        save_project(store, deck_id, body),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{deck_id}.slide-studio.zip"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/api/projects/open")
+async def project_open(request: Request) -> dict[str, object]:
+    """Open a bounded project upload without blocking the application event loop."""
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_ARCHIVE:
+            raise ValueError("Choose a project file below 100 MB.")
+        chunks.append(chunk)
+    deck, client = await run_in_threadpool(open_project, store, b"".join(chunks))
+    return {"deck_id": deck.id, "client": client.model_dump()}
+
+
+@app.get("/api/decks/{deck_id}/exports/html")
+def export_html(deck_id: DeckID) -> HTMLResponse:
+    """Download an offline HTML slideshow with local images, fonts and animations embedded."""
+    return HTMLResponse(
+        audience_html(store, deck_id),
+        headers={
+            "Content-Disposition": f'attachment; filename="{deck_id}.html"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.get("/api/decks/{deck_id}/exports/pdf")
+def export_pdf(deck_id: DeckID) -> HTMLResponse:
+    """Open the browser's PDF print layout, including hidden slides and all builds."""
+    return HTMLResponse(
+        audience_html(store, deck_id, printing=True), headers={"Cache-Control": "no-store"}
+    )
 
 
 @app.post("/api/decks")

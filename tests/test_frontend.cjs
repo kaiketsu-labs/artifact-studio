@@ -4,8 +4,25 @@ const {create}=require('../web/drafts.js');
 const {PresentationClock,nextState,nextBuildState,buildCount,shownIndices,startIndex,duration,keyAction}=require('../runtime/presentation.js');
 const {forSlide,migrateDraft}=require('../web/conversations.js');
 const {movePosition,moveMessage}=require('../web/slide-edits.js');
+const {insertSlides,moveSlides,slideRange}=require('../web/slide-order.js');
 const {needsSource}=require('../web/rules-editor.js');
 const {lexer}=require('../web/vendor/marked-18.1.2.js');
+
+test('moving slides retains relative order for contiguous and separate selections',()=>{
+  const ids=['a','b','c','d','e'];
+  assert.deepEqual(insertSlides(ids,['d','b'],0),['b','d','a','c','e']);
+  assert.deepEqual(insertSlides(ids,['b','c'],3),['a','d','e','b','c']);
+  assert.deepEqual(insertSlides(ids,ids,0),ids);
+  assert.deepEqual(moveSlides(ids,['b','c'],'up'),['b','c','a','d','e']);
+  assert.deepEqual(moveSlides(ids,['b','d'],'down'),['a','c','b','e','d']);
+  assert.deepEqual(moveSlides(ids,['a','c'],'up'),['a','c','b','d','e']);
+  assert.deepEqual(moveSlides(ids,['b','d'],'first'),['b','d','a','c','e']);
+  assert.deepEqual(moveSlides(ids,['b','d'],'last'),['a','c','e','b','d']);
+  assert.deepEqual(moveSlides(ids,ids,'down'),ids);
+  assert.deepEqual(slideRange(ids,'d','b'),['b','c','d']);
+  assert.deepEqual(slideRange(ids,'missing','b'),['b']);
+  assert.deepEqual(ids,['a','b','c','d','e']);
+});
 
 test('rules with unsupported Markdown retain source editing instead of lossy rich conversion',()=>{
   assert.equal(needsSource(lexer('# Rules\n\n- **Verify** every chart.\n- [Source](https://example.com)\n\n### Notes\n\n> Keep it brief.')),false);

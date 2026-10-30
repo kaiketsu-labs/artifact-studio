@@ -89,6 +89,8 @@ In the slideshow, click the slide or press a normal key to advance. Arrows navig
 
 Right-click a thumbnail for **Hide Slide / Unhide Slide**, or click its eye icon directly. An open eye means shown; a crossed-out eye and slide number mean hidden. Hidden slides stay editable and keep their notes and approval. Normal slideshow navigation and the next-slide preview skip them. Use **See all slides** or the private presenter filmstrip to show one deliberately, following [PowerPoint's interaction](https://support.microsoft.com/en-us/powerpoint/hide-or-show-a-slide).
 
+Drag thumbnails to reorder slides. **Shift-click** selects a range; **Cmd/Ctrl-click** selects individual slides to move together. The insertion line marks the destination, and dragging near the rail's edge scrolls longer decks. Right-click for move commands, or use **Cmd/Ctrl + Up/Down** and add **Shift** for beginning/end, matching [PowerPoint's shortcuts](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations). **Undo** in the confirmation or **Cmd/Ctrl+Z** with a thumbnail focused reverses a move; **Cmd/Ctrl+Shift+Z** redoes it. Notes, conversations, approvals and hidden states stay with their slides.
+
 ## Live or Batch
 
 | Live | Batch |
@@ -109,6 +111,19 @@ Plain MCP cannot wake a closed chat. Keep the review session open, or resume the
 To open presenter controls manually, move the pointer to the bottom toolbar and choose **Presenter view**. Use **Open audience window** to open or retry the audience display.
 
 ## Your files stay local
+
+The **save icon** opens project files:
+
+| Action | Result |
+| --- | --- |
+| Save project | One `.slide-studio.zip` containing the slides, design assets, context, brief attachments, notes, chats, review states and unfinished browser drafts. |
+| Open project | Restore the workspace and selected slide. Existing projects stay intact; a restored copy gets its own name. |
+| Export HTML | One audience file with local images, fonts, CSS animations and reveal controls embedded. Private notes and conversations are excluded. |
+| Export PDF | Open the browser's **Save as PDF** dialog. All slides, including hidden slides, are included with every reveal visible; notes and chats stay private. |
+
+Projects are local downloads. Workspace rules travel as reference snapshots and never replace the destination workspace's primary rules. Reconnect your agent after opening a project in a new workspace. [Project format and limits](docs/PROJECTS.md).
+
+![Project controls for saving, reopening and exporting HTML or PDF. The example is fictional.](docs/assets/projects.png)
 
 The **checklist icon** opens workspace rules in a rich text editor. These are the primary instructions for every presentation, saved as `INSTRUCTIONS.md` in your collection. Each deck has its own brief and README context. `LEARNED-PREFERENCES.md` is separate, secondary guidance; it cannot override explicit rules. MCP returns both on working-context, presentation and feedback reads.
 
@@ -132,6 +147,7 @@ The app ships without corporate masters, logos or fonts. Optional private-reposi
 | [Automatic feedback](docs/LIVE-REVIEW.md) | Codex/Claude Code hooks, activation, continuation and limitations. |
 | [Agent guide](docs/AGENT-GUIDE.md) | Free composition, feedback cursors, conflict-safe edits and visual review. |
 | [Preference learning](docs/PREFERENCE-LEARNING.md) | Bundled skill, transcript sources, weekly scheduling and scoped preferences. |
+| [Projects and exports](docs/PROJECTS.md) | Portable project save/open, standalone HTML and PDF output. |
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from the user's reference. |
 | [Reference libraries & sync](docs/REPOSITORY-SYNC.md) | Reuse previous decks and opt into private snapshots. |
 | [Verification](QA.md) | Automated checks, fresh installation and application test scope. |
