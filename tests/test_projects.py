@@ -22,7 +22,10 @@ from studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
-def test_project_round_trip_preserves_deck_private_history_and_drafts(tmp_path: Path) -> None:
+@pytest.mark.parametrize(("view_zoom", "editor_zoom"), [(25, 85), (225, 225), (400, 400)])
+def test_project_round_trip_preserves_deck_private_history_and_drafts(
+    tmp_path: Path, view_zoom: int, editor_zoom: int
+) -> None:
     """Restore into a different collection with exact review hashes and withheld feedback."""
     source = tmp_path / "source"
     make_design(source / TEMPLATE_ID)
@@ -49,8 +52,8 @@ def test_project_round_trip_preserves_deck_private_history_and_drafts(tmp_path: 
     )
     client = ClientState(
         active_slide_id=first.id,
-        view_zoom=25,
-        editor_zoom=85,
+        view_zoom=view_zoom,
+        editor_zoom=editor_zoom,
         notes={first.id: NoteDraft(notes="Unfinished note", expected_notes="Human context")},
         feedback={
             first.id: FeedbackDraft(

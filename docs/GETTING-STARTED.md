@@ -90,6 +90,7 @@ Designs define a visual language, not locked layouts or a required slide count. 
 | Notes | Edit concise, private speaking context and click **Save**. Unsent notes and feedback drafts are recovered locally. |
 | Present | Start the full-size slideshow directly. Click the slide or press a normal key to advance. Arrows/Page Up/Page Down navigate; Home/End jump to the first/last slide. **Esc** and End presentation return directly to the editor at the current slide. Typing in notes and activating focused controls keep their normal behavior. |
 | Fullscreen (bottom right) | Present the selected slide in native fullscreen. The separate Fit slide button resets the editor zoom. |
+| Zoom | Drag the slider or use +/− for 10–400%. Scroll across enlarged slides. Fit slide returns to 100%; zoom out to 50% or below for the slide overview. Project save/open keeps the zoom level. |
 | Appearance | Use the sun/moon menu in the top bar to choose Light, Dark or System. Your choice is saved in this browser; slide designs keep their authored colours. |
 | Hidden slides during a show | Normal navigation, progress dots and the next-slide preview skip hidden slides. **See all slides** in the bottom toolbar, a slide right-click, or the private presenter filmstrip lets you select one manually. Starting on a hidden slide skips to a visible slide; an entirely hidden deck starts empty. |
 

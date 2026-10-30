@@ -55,8 +55,8 @@ class ClientState(StrictModel):
     """Browser-only unfinished work scoped to the exported presentation."""
 
     active_slide_id: str = ""
-    view_zoom: int = Field(default=100, ge=10, le=100)
-    editor_zoom: int = Field(default=100, ge=55, le=100)
+    view_zoom: int = Field(default=100, ge=10, le=400)
+    editor_zoom: int = Field(default=100, ge=55, le=400)
     notes: dict[str, NoteDraft] = Field(default_factory=dict, max_length=100)
     feedback: dict[str, FeedbackDraft] = Field(default_factory=dict, max_length=100)
     open_panels: list[Literal["notes", "sources", "agent"]] = Field(default_factory=list)
