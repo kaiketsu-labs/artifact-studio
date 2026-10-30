@@ -44,6 +44,7 @@ def test_repeated_feedback_after_agent_response(
     stop = post.model_copy(update={"event": "Stop", "start_review": False})
     assert reviews.bind(post).listening
     assert store.workflow(DECK).review_harness == harness
+    assert store.workflow(DECK).review_session == "s"
 
     async def wait_and_deliver() -> None:
         waiting = asyncio.create_task(reviews.handle(stop, timeout=2))

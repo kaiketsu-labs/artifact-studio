@@ -36,6 +36,20 @@ def test_configure_merge_and_quote(
     assert "StopFailure" not in data["hooks"]
 
 
+@pytest.mark.parametrize(
+    ("harness", "path"), [("codex", ".codex/hooks.json"), ("claude-code", ".claude/settings.json")]
+)
+def test_configure_global(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harness: str, path: str
+) -> None:
+    """Write user-level hooks so a session in any folder can join live review."""
+    monkeypatch.setattr(client.shutil, "which", lambda _: "/tmp/uv")  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+    monkeypatch.setattr(client.Path, "home", lambda: tmp_path)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+    target = client.configure(harness, None, "http://127.0.0.1:8790", "slide-studio", False)
+    assert target == tmp_path / path
+    assert set(json.loads(target.read_text())["hooks"]) >= {"PostToolUse", "Stop", "SessionEnd"}
+
+
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_migrate_cache_dependent_hooks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harness: str

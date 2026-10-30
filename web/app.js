@@ -6,7 +6,7 @@
   const drafts=draftStore.notes;
   const feedbackDrafts=draftStore.feedback;
   const feedbackDraft=()=>feedbackDrafts.get(key());
-  const {svg,button:iconButton}=window.SlideIcons;
+  const {svg,brand,button:iconButton}=window.SlideIcons;
   for(const [id,icon,label,show] of [
     ['instructions-button','rules','Instructions',false],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
     ['hide-slide','eye','Hide slide',false],['objects-button','group','Slide objects',false],
@@ -151,9 +151,10 @@
   function renderWorkflow(){
     const state=deck.workflow||{mode:'live',pending:0},live=state.mode==='live',available=state.agent_waiting;
     const harness=({'codex':'Codex','claude-code':'Claude Code'})[state.review_harness];
+    const session=state.review_session?' · session '+state.review_session.slice(0,8):'';
     $('mode-live').setAttribute('aria-pressed',String(live));$('mode-batch').setAttribute('aria-pressed',String(!live));
-    $('mode-live').innerHTML=svg('live')+'<span>Live <small class="live-availability '+(available?'available':'')+'">'+(available?'Available':'Unavailable')+'</small></span>';
-    $('mode-live').title='Live feedback · '+(available?(harness||'agent')+' available':'agent unavailable');
+    $('mode-live').innerHTML=(brand(state.review_harness)||svg('live'))+'<span>Live <small class="live-availability '+(available?'available':'')+'">'+(available?(harness||'Available'):'Unavailable')+'</small></span>';
+    $('mode-live').title='Live feedback · '+(available?(harness||'agent')+session+' available':'agent unavailable');
     $('mode-live').setAttribute('aria-label','Live feedback: '+(available?(harness||'agent')+' available':'agent unavailable'));
     $('end-review').hidden=!state.review_connected;
     $('send-batch').hidden=!state.pending;iconButton($('send-batch'),'send',(live?'Send queued comments':'Send batch')+' ('+state.pending+')',true);

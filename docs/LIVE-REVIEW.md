@@ -19,7 +19,7 @@ uv --no-cache run --no-sync python -m studio.hook_client configure \
   --dry-run
 ```
 
-Use `--harness claude-code` for Claude Code. Inspect the output, then repeat without `--dry-run` to save it. If the MCP connection has a different name, pass that exact name. Only local HTTP URLs are accepted. The generated commands use the checkout's absolute path and uv executable; regenerate them if either moves.
+Use `--harness claude-code` for Claude Code. Inspect the output, then repeat without `--dry-run` to save it. Replace `--project …` with `--global` to install user-level hooks instead (`~/.claude/settings.json` or `~/.codex/hooks.json`), so a session started in any folder can join live review. The hooks stay inert until that session calls `start_live_review`. Claude Code runs an identical hook defined at both levels once; Codex runs both, so remove a project copy after installing globally. If the MCP connection has a different name, pass that exact name. Only local HTTP URLs are accepted. The generated commands use the checkout's absolute path and uv executable; regenerate them if either moves.
 
 The configurator merges existing settings atomically and rejects malformed settings instead of replacing them. Repeating the same configuration does not duplicate it. It replaces this adapter's older generated handlers while preserving unrelated hooks. The launcher uses `uv --no-cache` and `--no-sync` so it does not need a protected shared uv cache. Rerun configuration after an app update changes the launcher; changed Codex hook definitions require native review/trust again. It writes only:
 

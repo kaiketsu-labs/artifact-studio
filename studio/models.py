@@ -139,6 +139,7 @@ class FeedbackWorkflow(StrictModel):
     last_agent_check: str | None = None
     review_connected: bool = False
     review_harness: str | None = None
+    review_session: str | None = None
 
 
 class FeedbackFeed(StrictModel):
