@@ -157,7 +157,18 @@ def configure(harness: str, project: Path, url: str, server_name: str, dry_run: 
 
 
 def _result(value: object) -> dict[str, object]:
-    """Decode structured or text-wrapped MCP responses."""
+    """Decode structured or text-wrapped MCP responses.
+
+    Claude Code passes MCP results as a JSON string or a bare content-block list.
+    """
+    if isinstance(value, str):
+        try:
+            return _result(json.loads(value))
+        except json.JSONDecodeError:
+            return {}
+    if isinstance(value, list):
+        blocks: list[object] = [*value]
+        return _result({"content": blocks})
     result = _object(value)
     if result.get("isError") is True or result.get("is_error") is True:
         return {}

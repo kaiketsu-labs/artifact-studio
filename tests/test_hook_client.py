@@ -84,6 +84,16 @@ def test_normalize_cursors_and_failures() -> None:
     payload["tool_name"] = "mcp__slide-studio__read_feedback"
     payload["tool_response"] = {"content": [{"type": "text", "text": '{"next_cursor": 7}'}]}
     assert client.normalize("codex", "PostToolUse", "slide-studio", payload)["seen_cursor"] == 7
+    for harness in ("codex", "claude-code"):
+        for shape in ('{"next_cursor": 7}', [{"type": "text", "text": '{"next_cursor": 7}'}]):
+            payload["tool_response"] = shape
+            assert (
+                client.normalize(harness, "PostToolUse", "slide-studio", payload)["seen_cursor"]
+                == 7
+            )
+        payload["tool_response"] = "not json"
+        assert client.normalize(harness, "PostToolUse", "slide-studio", payload) == {}
+    payload["tool_response"] = {"content": [{"type": "text", "text": '{"next_cursor": 7}'}]}
     payload["tool_name"] = "mcp__slide_studio__read_design_requests"
     payload["tool_input"] = {}
     assert (
