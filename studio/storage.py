@@ -178,6 +178,10 @@ class Store:
                 CREATE TABLE IF NOT EXISTS revisions (
                     deck TEXT, slide TEXT, hash TEXT, document TEXT,
                     PRIMARY KEY(deck, slide, hash));
+                CREATE TABLE IF NOT EXISTS slide_actions (
+                    deck TEXT NOT NULL, request_id TEXT NOT NULL, payload_hash TEXT NOT NULL,
+                    before_json TEXT NOT NULL, after_json TEXT NOT NULL, result_json TEXT NOT NULL,
+                    completed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(deck, request_id));
                 CREATE TABLE IF NOT EXISTS design_chat (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT UNIQUE NOT NULL,
                     payload_hash TEXT NOT NULL, document TEXT NOT NULL);
@@ -197,6 +201,11 @@ class Store:
                 "INSERT OR IGNORE INTO delivery(event_id) SELECT id FROM feedback "
                 "WHERE released=1 AND author='user' ORDER BY id"
             )
+            for row in db.execute(
+                "SELECT DISTINCT deck FROM slide_actions WHERE completed=0"
+            ).fetchall():
+                with suppress(ConflictError, ValueError, FileNotFoundError):
+                    self.recover_slides(db, cast(str, row[0]))
             for file in self.root.glob("*/index.html"):
                 if 'id="deck-data"' not in file.read_text():
                     continue
@@ -262,6 +271,20 @@ class Store:
                 yield db
         finally:
             db.close()
+
+    def recover_slides(self, db: sqlite3.Connection, deck_id: str) -> None:
+        """Finish durable structural intents while the caller holds the write transaction."""
+        from .slide_actions import recover_pending
+
+        recover_pending(self, db, deck_id)
+
+    @contextmanager
+    def editing(self, deck_id: str) -> Generator[sqlite3.Connection]:
+        """Serialize content changes after recovering earlier structural operations."""
+        with self.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            self.recover_slides(db, deck_id)
+            yield db
 
     def folder(self, deck_id: str) -> Path:
         """Resolve a presentation ID without permitting directory traversal."""
@@ -449,8 +472,7 @@ class Store:
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
         payload_hash = digest(slide_id + expected_hash + patch.model_dump_json())
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id) as db:
             prior = db.execute(
                 "SELECT payload_hash,result FROM operations WHERE deck=? AND request_id=?",
                 (deck_id, request_id),
@@ -496,21 +518,42 @@ class Store:
         self, deck_id: str, slide_id: str, *, hidden: bool, expected_hidden: bool
     ) -> None:
         """Update only slideshow visibility while preserving content, notes and approval."""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        self.set_slides_hidden(
+            deck_id, [slide_id], hidden=hidden, expected_hidden={slide_id: expected_hidden}
+        )
+
+    def set_slides_hidden(
+        self,
+        deck_id: str,
+        slide_ids: list[str],
+        *,
+        hidden: bool,
+        expected_hidden: dict[str, bool],
+    ) -> None:
+        """Change visibility for a selection atomically while preserving independent edits."""
+        if (
+            not slide_ids
+            or len(set(slide_ids)) != len(slide_ids)
+            or set(slide_ids) != set(expected_hidden)
+        ):
+            raise ValueError("Provide each selected slide and its visibility exactly once.")
+        with self.editing(deck_id):
             deck = self.read(deck_id)
-            slide = self.locate(deck, slide_id)
-            if slide.hidden == hidden:
-                return
-            if slide.hidden != expected_hidden:
+            selected = [self.locate(deck, slide_id) for slide_id in slide_ids]
+            if any(
+                slide.hidden != hidden and slide.hidden != expected_hidden[slide.id]
+                for slide in selected
+            ):
                 raise ConflictError("Slide visibility changed. Refresh and try again.")
-            slide.hidden = hidden
+            if all(slide.hidden == hidden for slide in selected):
+                return
+            for slide in selected:
+                slide.hidden = hidden
             self.write(deck_id, deck)
 
     def mark_slide_seen(self, deck_id: str, slide_id: str, content_hash: str) -> bool:
         """Acknowledge only the opened version, without hiding a newer concurrent edit."""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id) as db:
             slide = self.locate(self.read(deck_id), slide_id)
             if self.content_hash(deck_id, slide) != content_hash:
                 return False
@@ -523,8 +566,7 @@ class Store:
 
     def approve(self, deck_id: str, slide_id: str, content_hash: str, approved: bool) -> None:
         """Record only the exact slide version approved through the human UI."""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id) as db:
             slide = self.locate(self.read(deck_id), slide_id)
             if self.content_hash(deck_id, slide) != content_hash:
                 raise ConflictError("The slide changed before approval. Review the new version.")
@@ -562,8 +604,7 @@ class Store:
             )
         )
         stored_slide_id = slide_id or ""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id) as db:
             prior = db.execute(
                 "SELECT payload_hash,result FROM operations WHERE deck=? AND request_id=?",
                 (deck_id, request_id),
@@ -642,8 +683,7 @@ class Store:
 
     def save_notes(self, deck_id: str, slide_id: str, notes: str, expected_notes: str) -> None:
         """Preserve simultaneous content edits while saving human speaker notes."""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id):
             deck = self.read(deck_id)
             slide = self.locate(deck, slide_id)
             if slide.notes != expected_notes:
@@ -864,8 +904,7 @@ class Store:
     def add_slide(self, deck_id: str, slide: Slide) -> Slide:
         """Append any freely composed HTML/SVG slide without imposing a layout catalogue."""
         SlideMarkup().feed(slide.html)
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id) as db:
             deck = self.read(deck_id)
             if any(existing.id == slide.id for existing in deck.slides):
                 raise ConflictError("Slide ID already exists. Read it rather than adding it twice.")
@@ -881,8 +920,7 @@ class Store:
         self, deck_id: str, slide_ids: list[str], *, expected_slide_ids: list[str] | None = None
     ) -> Deck:
         """Reorder exactly the current slides while preserving their stable IDs."""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
+        with self.editing(deck_id) as db:
             deck = self.read(deck_id)
             lookup = {slide.id: slide for slide in deck.slides}
             if len(slide_ids) != len(lookup) or set(slide_ids) != set(lookup):
@@ -903,20 +941,16 @@ class Store:
 
     def remove_slide(self, deck_id: str, slide_id: str, expected_hash: str) -> None:
         """Remove a requested slide while retaining its source in revision history."""
-        with self.connect() as db:
-            _ = db.execute("BEGIN IMMEDIATE")
-            deck = self.read(deck_id)
-            slide = self.locate(deck, slide_id)
-            if len(deck.slides) == 1:
-                raise ValueError("Keep at least one slide in the presentation.")
-            if digest(slide.model_dump_json()) != expected_hash:
-                raise ConflictError("Slide changed. Read it before removing it.")
-            _ = db.execute(
-                "INSERT OR IGNORE INTO revisions VALUES (?,?,?,?)",
-                (deck_id, slide_id, expected_hash, slide.model_dump_json()),
-            )
-            deck.slides.remove(slide)
-            self.write(deck_id, deck)
+        from .slide_actions import SlideActions
+
+        deck = self.read(deck_id)
+        _ = SlideActions(self).delete(
+            deck_id,
+            [slide_id],
+            [slide.id for slide in deck.slides],
+            {slide_id: expected_hash},
+            "agent-delete-" + uuid.uuid4().hex,
+        )
 
     def workflow(self, deck_id: str) -> FeedbackWorkflow:
         """Read delivery mode and bounded listening leases; never claim an idle agent is active."""

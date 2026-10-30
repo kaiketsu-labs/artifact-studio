@@ -74,6 +74,18 @@ All four fictional slides in the PDF HTML print-layout preview were visually rev
 
 Personal presentation content was not changed or published. The app documentation's new Project screenshot contains only fictional slides and messages.
 
+## PowerPoint comparison and slide controls · 30 October 2026
+
+Fresh Terra research passes compared slide management, canvas editing and presenting/files against Microsoft documentation. This led to insertion after the active slide, selection duplication, recoverable deletion, selection-wide visibility and an object picker. The comparison records remaining gaps rather than claiming complete PowerPoint parity. Independent Terra reviews checked persistence, UI lifecycle flows and selection accessibility. Confirmed findings were fixed: missing accessible selection state, a visibility-to-structural-write token race, and a presenter status overlay obstructing the next-slide preview.
+
+The current suite passes 79 Python tests and 15 Node tests, plus strict basedpyright, Ruff and JavaScript syntax checks. Tests cover stale structural snapshots, exact selected-content hashes, idempotent delivery, interrupted writes before and after file replacement, content writes recovering prepared structure, noncontiguous recovery, reversed anchor conflicts and project-copy deletion/recovery with withheld Batch comments. Duplicate slides start unapproved without cloned conversations; recovery retains the original notes and history.
+
+Isolated fictional browser copies verified New after active, context-menu and keyboard duplication, saved hidden flags, unsaved note-draft copying, Shift selection, grouped Hide, Delete/Backspace, immediate Undo, and recovery after reopening. The final object picker was visually checked with current-object selection announced in the accessibility tree; keyboard focus and Escape work. All four fictional slides were inspected at presentation size, including manual access to the hidden slide. Private presenter status now sits inside the toolbar; the next preview remains unobstructed. Evidence is local under ignored `qa/parity/`; the README screenshot contains only fictional content.
+
+PDF continues to include all slides by explicit user preference. Native PDF output, offline HTML playback, physical second-display placement and visual access to the main 8790 workspace remain separate unverified boundaries described above. No personal slide content, notes, themes or approvals were changed in these UI checks.
+
+The main localhost service was restarted and its OpenAPI document confirms the four new slide-management routes. The four managed local runtime bundles received only `presentation.js` and `slideshow.css` after matching exact prior hashes; original bytes are backed up under the ignored state directory. Existing deck source, notes, themes and assets were preserved.
+
 ## Repository release check · 28 October 2026
 
 

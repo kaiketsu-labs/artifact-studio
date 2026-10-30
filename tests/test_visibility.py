@@ -102,3 +102,23 @@ def test_new_deck_starts_visible_and_has_standalone_slideshow_styles(tmp_path: P
     created = store.create("2026-10-29-new-visible-deck", "New deck")
     assert not created.slides[0].hidden
     assert (store.folder(created.id) / "slideshow.css").is_file()
+
+
+def test_selection_visibility_is_atomic_and_strict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject an entire selection on stale state and retain strict boolean validation."""
+    make_design(tmp_path / TEMPLATE_ID)
+    store = Store(tmp_path, tmp_path / "state/review.sqlite3")
+    monkeypatch.setattr(service, "store", store)
+    client = TestClient(service.app)
+    ids = [slide.id for slide in store.read(TEMPLATE_ID).slides]
+    endpoint = f"/api/decks/{TEMPLATE_ID}/slides-visibility"
+    payload = {"slide_ids": ids, "hidden": True, "expected_hidden": dict.fromkeys(ids, False)}
+    stale = {**payload, "expected_hidden": {ids[0]: False, ids[1]: True}}
+    assert client.post(endpoint, json=stale).status_code == 409
+    assert not any(slide.hidden for slide in store.read(TEMPLATE_ID).slides)
+    invalid = {**payload, "expected_hidden": dict.fromkeys(ids, "false")}
+    assert client.post(endpoint, json=invalid).status_code == 422
+    assert client.post(endpoint, json=payload).status_code == 200
+    assert all(slide.hidden for slide in store.read(TEMPLATE_ID).slides)

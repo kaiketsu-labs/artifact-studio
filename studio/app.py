@@ -52,14 +52,18 @@ from .models import (
     NotesInput,
     PresentationCommentInput,
     Slide,
+    SlideActionInput,
     SlideOrderInput,
     SlidePatch,
+    SlideRestoreInput,
     SlideSeenInput,
+    SlidesVisibilityInput,
     SlideView,
     SlideVisibilityInput,
 )
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .review import ReviewHookInput, ReviewHookReply, Reviews
+from .slide_actions import SlideActionResult, SlideActions
 from .storage import ConflictError, Store, digest
 
 PROJECT = Path(__file__).resolve().parent.parent
@@ -556,6 +560,64 @@ def slide_order(deck_id: DeckID, body: SlideOrderInput) -> dict[str, list[str]]:
     """Move slides without replacing concurrent content, notes or review state."""
     updated = store.reorder(deck_id, body.slide_ids, expected_slide_ids=body.expected_slide_ids)
     return {"slide_ids": [slide.id for slide in updated.slides]}
+
+
+@app.post("/api/decks/{deck_id}/slide-actions")
+def slide_action(deck_id: DeckID, body: SlideActionInput) -> SlideActionResult:
+    """Add, copy or recoverably delete the selected slides from the human workspace."""
+    actions = SlideActions(store)
+    if body.action == "add":
+        if len(body.slide_ids) != 1:
+            raise ValueError("Choose one slide to insert after.")
+        return actions.add(deck_id, body.slide_ids[0], body.expected_slide_ids, body.request_id)
+    operation = actions.duplicate if body.action == "duplicate" else actions.delete
+    return operation(
+        deck_id, body.slide_ids, body.expected_slide_ids, body.expected_hashes, body.request_id
+    )
+
+
+@app.get("/api/decks/{deck_id}/deleted-slides")
+def deleted_slides(deck_id: DeckID) -> list[dict[str, object]]:
+    """List recoverable deletions with titles for the private human restore picker."""
+    actions = SlideActions(store)
+    deleted = {item.operation_id: item for item in actions.deleted(deck_id)}
+    _ = store.read(deck_id)
+    with store.connect() as db:
+        rows = db.execute(
+            "SELECT request_id,before_json FROM slide_actions WHERE deck=? ORDER BY rowid DESC",
+            (deck_id,),
+        ).fetchall()
+    result: list[dict[str, object]] = []
+    for row in rows:
+        item = deleted.get(str(row["request_id"]))
+        if item is not None:
+            before = Deck.model_validate_json(str(row["before_json"]))
+            result.append(
+                {
+                    "operation_id": item.operation_id,
+                    "slides": [
+                        {"id": slide.id, "title": slide.title}
+                        for slide in before.slides
+                        if slide.id in item.deleted_ids
+                    ],
+                }
+            )
+    return result
+
+
+@app.post("/api/decks/{deck_id}/restore-slides")
+def restore_slides(deck_id: DeckID, body: SlideRestoreInput) -> SlideActionResult:
+    """Restore a deleted group at its surviving neighbors, keeping its original history."""
+    return SlideActions(store).restore(deck_id, body.deletion_id, body.request_id)
+
+
+@app.post("/api/decks/{deck_id}/slides-visibility")
+def slides_visibility(deck_id: DeckID, body: SlidesVisibilityInput) -> dict[str, bool]:
+    """Hide or show the complete human selection as one conflict-checked write."""
+    store.set_slides_hidden(
+        deck_id, body.slide_ids, hidden=body.hidden, expected_hidden=body.expected_hidden
+    )
+    return {"hidden": body.hidden}
 
 
 @app.post("/api/decks/{deck_id}/project")

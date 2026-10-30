@@ -1,0 +1,31 @@
+# PowerPoint comparison
+
+Reviewed on 30 October 2026. Three fresh Terra research passes covered slide management, canvas editing, and presenting/files. Separate Terra reviews checked the resulting data handling, everyday UI flows and accessibility. This comparison guides improvements; it is not a claim of full PowerPoint compatibility.
+
+| Area | Slide Studio now | Remaining gap |
+| --- | --- | --- |
+| Slide management | Add after active slide, duplicate a selection, delete with Undo and durable recovery. Shift range and Cmd/Ctrl individual selection; grouped dragging and movement commands. | Sections, outline and a large slide-sorter view. |
+| Visibility | Eye controls and selection-wide Hide/Unhide. Hidden slides remain editable and manually accessible during a show. | No per-show custom slide routes. |
+| Canvas selection | Immediate hover/click, keyboard targeting and an object picker for text, images, diagrams and named groups. | No full layer-order, grouping or object-visibility editor. Objects follow document order, which can differ from visual stacking. |
+| Canvas changes | Provisional text and move suggestions sent with exact element and revision context. | Resize, align/distribute, rich text and a withdrawable proposal queue. Suggestions still require an agent to change canonical slide HTML. |
+| Discussion | Per-slide chat, retained drafts, original-version targets, questions visible and explanations collapsed. | Earlier-version comments have text context but no historical visual preview. |
+| Presentation | Direct slideshow, reveal steps, progress, manual hidden-slide jumps, private current/next/notes, clock/timer and display controls. Display failures produce private recovery messages. | Physical display placement depends on browser permissions and hardware; not verified in this review. |
+| Recovery | Local persistence, portable project archives, review/chat/draft state and recoverable deletions across import. | Save project downloads a snapshot; it does not establish a continuously updated external project file. |
+| Audience exports | Self-contained HTML with local assets and animations; static PDF print layout with builds revealed. Private notes and chats omitted. | Native PPTX output. Native PDF output and direct offline HTML playback still need separate application checks. |
+
+New slides are deliberately blank in the selected design language. The agent can compose freely rather than being constrained to a layout catalogue. Duplication copies saved content, sources, notes and visibility, plus browser note drafts when present; it starts with its own unapproved review state and empty conversation.
+
+Deletion keeps slide IDs, source, notes and review history. Recovery places slides relative to their surviving original neighbours and refuses ambiguous reversed anchors rather than overwriting newer work. Structural commands retain request IDs for safe delivery retries and recover interrupted prepared file writes before subsequent content changes.
+
+## Explicit workspace choices
+
+- PDF includes **all slides**, including hidden ones.
+- Printable keys and slide clicks advance the slideshow; editing fields and focused controls retain normal input.
+- The agent applies canvas suggestions. The preview is not a complete native drawing editor.
+- Workspace rules remain primary. Imported instruction snapshots and inferred preferences do not replace them.
+
+## Reference behaviour
+
+Microsoft documents inserting after the active slide, contextual duplicate/delete and grouped rearranging in [slide management](https://support.microsoft.com/en-gb/powerpoint/training/add-rearrange-duplicate-and-delete-slides-in-powerpoint?nochrome=true). Its [Selection pane](https://support.microsoft.com/en-gb/powerpoint/use-the-selection-pane-to-manage-objects-in-documents) also controls stacking, grouping and visibility; Slide Studio's current object picker only helps select objects.
+
+See [QA evidence](../QA.md), [usage](GETTING-STARTED.md) and [project format](PROJECTS.md) for tested behaviour and verification boundaries.

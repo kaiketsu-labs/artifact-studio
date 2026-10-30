@@ -81,6 +81,8 @@ Select a thumbnail to switch both the slide and its chat. Matching slide numbers
 
 Select an element for edit/move icons. Edit its text and confirm, or drag it to propose a new position. These actions send feedback for the agent to apply. For keyboard movement, focus the move icon, use arrows (Shift for larger steps), then Enter to send or Esc to cancel. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
 
+Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.
+
 In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line.
 
 Revisions appear live. Orange clears when you open the changed slide; approval remains a separate action. Incoming changes preserve your drafts and their original element targets.
@@ -90,6 +92,12 @@ In the slideshow, click the slide or press a normal key to advance. Arrows navig
 Right-click a thumbnail for **Hide Slide / Unhide Slide**, or click its eye icon directly. An open eye means shown; a crossed-out eye and slide number mean hidden. Hidden slides stay editable and keep their notes and approval. Normal slideshow navigation and the next-slide preview skip them. Use **See all slides** or the private presenter filmstrip to show one deliberately, following [PowerPoint's interaction](https://support.microsoft.com/en-us/powerpoint/hide-or-show-a-slide).
 
 Drag thumbnails to reorder slides. **Shift-click** selects a range; **Cmd/Ctrl-click** selects individual slides to move together. The insertion line marks the destination, and dragging near the rail's edge scrolls longer decks. Right-click for move commands, or use **Cmd/Ctrl + Up/Down** and add **Shift** for beginning/end, matching [PowerPoint's shortcuts](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations). **Undo** in the confirmation or **Cmd/Ctrl+Z** with a thumbnail focused reverses a move; **Cmd/Ctrl+Shift+Z** redoes it. Notes, conversations, approvals and hidden states stay with their slides.
+
+The **slide +** below the presentation selector inserts a blank slide after the active one. Right-click thumbnails to duplicate or delete the selection; Cmd/Ctrl+D and Delete/Backspace work while a thumbnail has focus. Deleted slides keep their notes and history: use **Undo**, Cmd/Ctrl+Z immediately after deletion, or the **trash icon** to recover them later. Project files carry this recovery history too. Hide/Unhide in the menu applies to the whole selection.
+
+See the [PowerPoint comparison](docs/POWERPOINT-COMPARISON.md) for current capabilities and remaining gaps.
+
+![Slide selection and contextual controls](docs/assets/slide-management.png)
 
 ## Live or Batch
 

@@ -6,11 +6,14 @@
   <title>Slide Studio</title>
   <link rel="icon" type="image/png" href="/web/brand/mark.png">
   <link rel="stylesheet" href="/web/style.css">
+  <link rel="stylesheet" href="/web/objects.css">
   <script src="/web/icons.js" defer></script>
   <script src="/web/drafts.js" defer></script>
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
+  <script src="/web/slide-actions.js" defer></script>
+  <script src="/web/objects.js" defer></script>
   <script src="/web/rules-editor.js" defer></script>
   <script src="/web/libraries.js" defer></script>
   <script src="/web/presentations.js" defer></script>
@@ -34,7 +37,7 @@
     <div class="rail-heading">
       <label for="deck-picker" class="sr-only">Choose presentation</label>
       <div class="deck-picker-row"><select id="deck-picker"></select><button id="remove-presentation" type="button" aria-label="Remove presentation from list" disabled></button></div>
-      <div class="progress-label"><span id="progress-text" role="img"></span><button id="removed-presentations" type="button" aria-label="Removed presentations" hidden></button></div>
+      <div class="progress-label"><span id="progress-text" role="img"></span><div class="rail-actions"><button id="deleted-slides" type="button" aria-label="Deleted slides" disabled></button><button id="removed-presentations" type="button" aria-label="Removed presentations" hidden></button><button id="add-slide" type="button" aria-label="New slide" disabled></button></div></div>
       <div class="progress-track"><i id="progress-bar"></i></div>
     </div>
     <nav id="slides" aria-label="Slides"></nav>
@@ -46,7 +49,7 @@
       <div class="slide-heading-actions"><button id="hide-slide" type="button" aria-label="Hide slide"></button><button id="approve-button" class="approve"></button></div>
     </header>
     <div class="canvas-tools">
-      <span id="hover-hint"></span>
+      <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" disabled></button><span id="hover-hint"></span></div>
       <div><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
     </div>
     <div class="preview-wrap" id="preview-wrap">
@@ -93,6 +96,10 @@
 </main>
 <div id="slide-menu" class="slide-menu" popover role="menu" aria-label="Slide options">
   <div id="slide-menu-selection" class="slide-menu-selection" hidden></div>
+  <button data-slide-action="add" type="button" role="menuitem"></button>
+  <button data-slide-action="duplicate" type="button" role="menuitem"></button>
+  <button data-slide-action="delete" type="button" role="menuitem"></button>
+  <hr>
   <button id="toggle-slide-hidden" type="button" role="menuitem"></button>
   <hr>
   <button data-slide-move="up" type="button" role="menuitem"></button>
@@ -100,6 +107,11 @@
   <button data-slide-move="first" type="button" role="menuitem"></button>
   <button data-slide-move="last" type="button" role="menuitem"></button>
 </div>
+<div id="object-panel" popover></div>
+<dialog id="deleted-slides-dialog">
+  <header><h2>Deleted slides</h2><button id="close-deleted-slides" type="button" aria-label="Close"></button></header>
+  <div id="deleted-slides-list"></div><p id="deleted-slides-error" class="inline-error" role="alert"></p>
+</dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <dialog id="project-dialog">
   <header><h2>Project</h2><button id="close-project" type="button" aria-label="Close"></button></header>

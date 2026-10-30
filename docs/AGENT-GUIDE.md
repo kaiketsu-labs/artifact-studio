@@ -54,6 +54,8 @@ Each slide has its own conversation and unsent draft. Every message from the wor
 
 The light canvas editor submits ordinary element-targeted feedback. A text replacement includes the requested text; a move includes the requested normalized top-left position. The target retains the original selector, HTML, geometry and version hash. These are suggestions for you to implement, not direct changes to the canonical HTML. Read the current slide, merge the requested edits with any intervening changes, preserve the intended formatting, then revise and visually verify. Respect Live/Batch release; never read withheld requests through another path.
 
+Humans can also add blank slides, duplicate selections, change visibility or recoverably delete slides in the thumbnail rail. Re-read the current deck before structural work; use stable slide IDs rather than positions. A duplicate starts unapproved with a separate conversation. Deleted-slide history is available in the human workspace and portable projects. The object picker is a selection aid, not a layer editor; it resolves current DOM elements and closes when the preview changes.
+
 ## Starting with context
 
 `create_presentation` accepts an optional `brief` alongside the title and design. The frontend asks for this brief before creation. It is stored in the presentation README and sent as presentation-level feedback. Read it before drafting the full story; one cover is only the starting canvas. If a title-only deck already exists, collect audience, intended takeaway and key material through the slide conversation. Keep questions short and avoid a configuration questionnaire. The copyable Codex prompt in the workspace lets the human resume an idle agent; it does not start one automatically.

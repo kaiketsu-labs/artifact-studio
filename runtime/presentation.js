@@ -75,7 +75,7 @@
 
   if(direct)document.body.classList.add(isAudience?'audience-only':'single-screen');
   $('presenter-view').innerHTML=`
-    <header class="presenter-top"><button id="end-presentation">End</button><div class="display-tools"><select id="screen-choice" aria-label="Audience display" hidden></select><button id="open-audience">Open audience window</button><button id="swap-displays" hidden></button></div><button id="presenter-fullscreen"></button></header>
+    <header class="presenter-top"><button id="end-presentation">End</button><span id="display-status" role="status" hidden></span><div class="display-tools"><select id="screen-choice" aria-label="Audience display" hidden></select><button id="open-audience">Open audience window</button><button id="swap-displays" hidden></button></div><button id="presenter-fullscreen"></button></header><div id="slide-announcement" class="presenter-announcement" aria-live="polite" aria-atomic="true"></div>
     <div class="presenter-workspace"><section class="presenter-main"><div class="presenter-time"><div class="timer-controls"><time id="elapsed">00:00</time><button id="pause-timer"></button><button id="reset-timer"></button></div><time id="wall-clock"></time></div><div class="stage-slot" id="presenter-current"></div><footer class="presenter-nav"><div><button id="laser-button"></button><button id="blackout-button"></button><button id="audience-view-button"></button></div><div><button id="presenter-previous"></button><span id="presenter-counter"></span><button id="presenter-next-button"></button></div></footer></section>
     <section class="presenter-side"><h2>Next slide</h2><div class="stage-slot" id="presenter-next"></div><div class="presenter-notes-heading"><h2>Notes</h2><span id="presenter-note-status" role="status"></span><button id="save-presenter-notes"></button></div><textarea id="presenter-notes" aria-label="Speaker notes" placeholder="Add context you want to mention…"></textarea><div class="note-size-controls"><button id="notes-smaller"></button><button id="notes-larger"></button></div></section></div>
     <nav id="presenter-filmstrip" class="presenter-filmstrip" aria-label="All slides"></nav>`;
@@ -98,6 +98,7 @@
   function persistNotes(){try{if(noteDrafts.size)localStorage.setItem(noteKey,JSON.stringify(Object.fromEntries(noteDrafts)));else localStorage.removeItem(noteKey);}catch{}}
   function noteValue(index=current){const slide=deck.slides[index];return noteDrafts.get(slide?.id)?.notes??slide?.notes??'';}
   function noteStatus(message=''){$('presenter-note-status').textContent=message;$('message').textContent=message;}
+  function displayStatus(message=''){if(isAudience)return;const status=$('display-status');status.textContent=message;status.hidden=!message;}
   function editNotes(value){if(isAudience)return;const slide=deck.slides[current];noteDrafts.set(slide.id,{notes:value,expected:noteDrafts.get(slide.id)?.expected??expectedNotes.get(slide.id)});persistNotes();noteStatus('Unsaved');clearTimeout(noteTimer);noteTimer=setTimeout(()=>saveNotes(slide.id),700);}
   /** Save a captured slide ID, retaining failed or concurrently edited drafts. */
   function saveNotes(id=deck.slides[current].id){
@@ -142,6 +143,7 @@
     if(signature!==stageSignature){putSlide($('stage'),emptyShow?-1:current);putSlide($('presenter-current'),emptyShow?-1:current);putSlide($('presenter-next'),!emptyShow&&ahead!==current?ahead:-1,false);stageSignature=signature;}
     $('stage').classList.toggle('blacked-out',blackout);document.body.classList.toggle('blackout',blackout);
     const count=emptyShow?`0 / ${shownIndices(deck.slides).length}`:`${current+1} / ${deck.slides.length}`;for(const id of ['counter','presenter-counter','single-counter'])$(id).textContent=count;
+    if(!isAudience){const announcement=emptyShow?'No slides to present.':`Slide ${current+1} of ${deck.slides.length}: ${deck.slides[current].title}`;if($('slide-announcement').textContent!==announcement)$('slide-announcement').textContent=announcement;}
     const before=nextBuildState(current,revealed,-1,counts,hidden),after=nextBuildState(current,revealed,1,counts,hidden);
     const atStart=emptyShow||before.current===current&&before.revealed===revealed,atEnd=emptyShow||after.current===current&&after.revealed===revealed;
     for(const id of ['previous','presenter-previous','single-previous'])$(id).disabled=atStart;
@@ -170,14 +172,14 @@
   function tick(){$('elapsed').textContent=duration(clock.elapsed());$('wall-clock').textContent=new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit'}).format(new Date());}
   /** A deliberate display change leaves native fullscreen without ending the slideshow. */
   async function leaveFullscreen(){if(!document.fullscreenElement)return;leavingFullscreen=true;try{await document.exitFullscreen();}catch{leavingFullscreen=false;}}
-  async function fullscreen(){try{if(document.fullscreenElement)await leaveFullscreen();else await (mode==='presenter'?document.documentElement:$('stage')).requestFullscreen();}catch{}}
+  async function fullscreen(){try{if(document.fullscreenElement)await leaveFullscreen();else await (mode==='presenter'?document.documentElement:$('stage')).requestFullscreen();displayStatus();}catch{displayStatus('Fullscreen unavailable. Try Fullscreen again.');}}
   function startClock(){clock.start();iconButton($('pause-timer'),'pause','Pause timer',false);tick();}
   /** Use CSS presentation immediately; native fullscreen remains subject to browser activation. */
   async function startPresentation(){
     if(active){endPresentation();return;}
     const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;
     active=true;mode='single';clock.pause();clock.reset();startClock();render();void fullscreen();
-    if('getScreenDetails' in window){try{screenDetails=await window.getScreenDetails();if(!active||ending)return;screenDetails.addEventListener('screenschange',updateScreens);updateScreens();const other=screenDetails.screens.find(screen=>screen!==screenDetails.currentScreen);if(other&&channel){selectedScreen=other;openAudience(other,true);}}catch{}}
+    if('getScreenDetails' in window){try{screenDetails=await window.getScreenDetails();if(!active||ending)return;screenDetails.addEventListener('screenschange',updateScreens);updateScreens();const other=screenDetails.screens.find(screen=>screen!==screenDetails.currentScreen);if(other&&channel){selectedScreen=other;openAudience(other,true);}}catch{displayStatus('Automatic display selection unavailable.');}}
   }
   async function endPresentation(){
     if(isAudience){channel?.postMessage({kind:'end'});return;}
@@ -196,21 +198,23 @@
   }
   /** Open the audience window when allowed and expose an explicit retry when popups are blocked. */
   function openAudience(screen=selectedScreen,automatic=false){
-    if(!channel)return;
+    if(!channel){displayStatus('Audience windows unavailable. Continue on this screen.');return;}
     selectedScreen=screen;
     const url=new URL(location.href);url.searchParams.set('audience','1');url.searchParams.set('channel',channelName);url.searchParams.delete('presenter');
     const geometry=screen?`,left=${screen.availLeft},top=${screen.availTop},width=${screen.availWidth},height=${screen.availHeight}`:'';
     audienceWindow=window.open(url.href,`slide-audience-${channelName}`,`popup${geometry}`);
-    if(!audienceWindow&&automatic){$('show-presenter').title='Presenter view · audience window blocked';return;}
+    if(!audienceWindow&&automatic){$('show-presenter').title='Presenter view · pop-up blocked';displayStatus('Pop-up blocked. Open Presenter view to retry.');return;}
     mode='presenter';void leaveFullscreen();active=true;startClock();render();updateScreens();
     $('open-audience').hidden=!!audienceWindow;
-    if(!audienceWindow)noteStatus('Allow the audience window, then try again.');
-    else{try{audienceWindow.focus();}catch{}broadcast(true);}
+    if(!audienceWindow)displayStatus('Pop-up blocked. Allow pop-ups, then retry.');
+    else{displayStatus('Audience window open. Check its display.');try{audienceWindow.focus();}catch{}broadcast(true);}
   }
   function blackScreen(){if(isAudience){channel?.postMessage({kind:'blackout'});return;}blackout=!blackout;render();broadcast();}
   function showPresenter(){if(isAudience)return;if(!active){const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;}active=true;mode='presenter';void leaveFullscreen();startClock();$('open-audience').hidden=!!audienceWindow;render();}
   function selectIndex(event){const button=event.target.closest('[data-index]');if(button)navigate('goto',Number(button.dataset.index));}
-  function showAllSlides(){if(isAudience){channel?.postMessage({kind:'overview'});return;}overview.showModal();overview.querySelector(`[data-index="${current}"]`)?.focus();}
+  let overviewReturnFocus=null;
+  function showAllSlides(){if(isAudience){channel?.postMessage({kind:'overview'});return;}overviewReturnFocus=document.activeElement;overview.showModal();overview.querySelector(`[data-index="${current}"]`)?.focus();}
+  overview.addEventListener('close',()=>{if(overviewReturnFocus?.isConnected&&overviewReturnFocus.getClientRects().length)overviewReturnFocus.focus();overviewReturnFocus=null;});
   $('all-slides-button').addEventListener('click',showAllSlides);$('close-all-slides').addEventListener('click',()=>overview.close());
   $('all-slides-grid').addEventListener('click',event=>{if(!event.target.closest('[data-index]'))return;selectIndex(event);overview.close();});
   for(const id of ['stage','presenter-current'])$(id).addEventListener('contextmenu',event=>{if(!active)return;event.preventDefault();showAllSlides();});
@@ -222,8 +226,8 @@
   $('show-presenter').addEventListener('click',showPresenter);$('show-presenter').hidden=isAudience;
   $('audience-view-button').addEventListener('click',()=>{mode='single';render();});
   $('open-audience').addEventListener('click',()=>openAudience());
-  $('screen-choice').addEventListener('change',event=>{const screen=screenDetails?.screens[Number(event.target.value)];if(screen){selectedScreen=screen;if(audienceWindow){try{audienceWindow.moveTo(screen.availLeft,screen.availTop);audienceWindow.resizeTo(screen.availWidth,screen.availHeight);}catch{}}else openAudience(screen);}});
-  $('swap-displays').addEventListener('click',()=>{if(!audienceWindow||!screenDetails||!selectedScreen)return;const original=screenDetails.currentScreen;try{window.moveTo(selectedScreen.availLeft,selectedScreen.availTop);window.resizeTo(selectedScreen.availWidth,selectedScreen.availHeight);audienceWindow.moveTo(original.availLeft,original.availTop);audienceWindow.resizeTo(original.availWidth,original.availHeight);selectedScreen=original;updateScreens();}catch{}});
+  $('screen-choice').addEventListener('change',event=>{const screen=screenDetails?.screens[Number(event.target.value)];if(screen){selectedScreen=screen;if(audienceWindow){try{audienceWindow.moveTo(screen.availLeft,screen.availTop);audienceWindow.resizeTo(screen.availWidth,screen.availHeight);displayStatus('Audience window open. Check its display.');}catch{displayStatus('Could not change displays. Move the audience window manually.');}}else openAudience(screen);}});
+  $('swap-displays').addEventListener('click',()=>{if(!audienceWindow||!screenDetails||!selectedScreen)return;const original=screenDetails.currentScreen;try{window.moveTo(selectedScreen.availLeft,selectedScreen.availTop);window.resizeTo(selectedScreen.availWidth,selectedScreen.availHeight);audienceWindow.moveTo(original.availLeft,original.availTop);audienceWindow.resizeTo(original.availWidth,original.availHeight);selectedScreen=original;updateScreens();displayStatus('Displays changed. Check both windows.');}catch{displayStatus('Could not swap displays. Move the windows manually.');}});
   for(const id of ['single-fullscreen','presenter-fullscreen'])$(id).addEventListener('click',fullscreen);
   for(const id of ['blackout-button','single-blackout'])$(id).addEventListener('click',blackScreen);
   $('pause-timer').addEventListener('click',()=>{if(clock.running)clock.pause();else clock.start();iconButton($('pause-timer'),clock.running?'pause':'play',clock.running?'Pause timer':'Resume timer',false);tick();});

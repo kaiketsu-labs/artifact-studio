@@ -1,6 +1,6 @@
 """Validated presentation documents and review messages."""
 
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -178,6 +178,29 @@ class SlideOrderInput(StrictModel):
 
     slide_ids: list[str] = Field(min_length=1, max_length=100)
     expected_slide_ids: list[str] = Field(min_length=1, max_length=100)
+
+
+class SlideActionInput(SlideOrderInput):
+    """A human slide lifecycle action anchored to the selection the user reviewed."""
+
+    action: Literal["add", "duplicate", "delete"]
+    expected_hashes: dict[str, str] = Field(default_factory=dict)
+    request_id: str = Field(min_length=8, max_length=100)
+
+
+class SlideRestoreInput(StrictModel):
+    """Restore a durable deletion without overwriting later slide content."""
+
+    deletion_id: str = Field(min_length=8, max_length=100)
+    request_id: str = Field(min_length=8, max_length=100)
+
+
+class SlidesVisibilityInput(StrictModel):
+    """A visibility command for a whole selection with per-slide expected states."""
+
+    slide_ids: list[str] = Field(min_length=1, max_length=100)
+    hidden: bool = Field(strict=True)
+    expected_hidden: dict[str, Annotated[bool, Field(strict=True)]]
 
 
 class CommentInput(StrictModel):

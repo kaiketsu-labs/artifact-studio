@@ -22,6 +22,7 @@ from pydantic import Field
 
 from .libraries import LibraryFile, inventory
 from .models import Deck, ElementTarget, Feedback, StrictModel
+from .slide_actions import SlideActionRecord, SlideActionResult, recover_pending
 from .storage import ConflictError, SlideMarkup, Store
 
 PROJECT = Path(__file__).resolve().parent.parent
@@ -93,6 +94,7 @@ class ProjectBundle(StrictModel):
     seen: dict[str, str] = Field(default_factory=dict)
     revisions: list[RevisionRecord] = Field(default_factory=list)
     operations: list[OperationRecord] = Field(default_factory=list)
+    slide_actions: list[SlideActionRecord] = Field(default_factory=list)
     mode: Literal["live", "batch"] = "live"
     client: ClientState = Field(default_factory=ClientState)
     workspace_rules: str = ""
@@ -198,6 +200,7 @@ def save_project(store: Store, deck_id: str, client: ClientState) -> bytes:
     output = io.BytesIO()
     with store.connect() as db, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
         _ = db.execute("BEGIN IMMEDIATE")
+        recover_pending(store, db, deck_id)
         deck = store.read(deck_id)
         files: dict[str, ProjectFile] = {}
         total = 0
@@ -221,10 +224,19 @@ def save_project(store: Store, deck_id: str, client: ClientState) -> bytes:
             for item in current
         ):
             raise ConflictError("Project assets changed while saving. Save again.")
+        comments = store.comments(deck_id)
+        contexts = {
+            cast(int, row[0]): cast(str | None, row[1])
+            for row in db.execute(
+                "SELECT id,context_slide_id FROM feedback WHERE deck=?", (deck_id,)
+            )
+        }
+        for comment in comments:
+            comment.context_slide_id = contexts[comment.event_id]
         bundle = ProjectBundle(
             deck=deck,
             files=files,
-            feedback=store.comments(deck_id),
+            feedback=comments,
             approvals=_review_tokens(db, "approvals", deck_id),
             seen=_review_tokens(db, "slide_views", deck_id),
             revisions=[
@@ -237,6 +249,14 @@ def save_project(store: Store, deck_id: str, client: ClientState) -> bytes:
                 OperationRecord.model_validate(dict(row))
                 for row in db.execute(
                     "SELECT request_id,payload_hash,result FROM operations WHERE deck=?", (deck_id,)
+                )
+            ],
+            slide_actions=[
+                SlideActionRecord.model_validate(dict(row))
+                for row in db.execute(
+                    "SELECT request_id,payload_hash,before_json,after_json,result_json,completed "
+                    "FROM slide_actions WHERE deck=? AND completed=1 ORDER BY rowid",
+                    (deck_id,),
                 )
             ],
             mode=store.workflow(deck_id).mode,
@@ -291,6 +311,24 @@ def _read_bundle(data: bytes) -> tuple[ProjectBundle, dict[str, bytes]]:
         raise ValueError("Project message IDs must be unique.")
     for slide in bundle.deck.slides:
         SlideMarkup().feed(slide.html)
+    if len({item.request_id for item in bundle.slide_actions}) != len(bundle.slide_actions):
+        raise ValueError("Project slide action request IDs must be unique.")
+    for item in bundle.slide_actions:
+        result = SlideActionResult.model_validate_json(item.result_json)
+        if (
+            item.completed != 1
+            or result.operation_id != item.request_id
+            or not 8 <= len(item.request_id) <= 100
+        ):
+            raise ValueError("Project slide action records are inconsistent.")
+        for document in (item.before_json, item.after_json):
+            historical = Deck.model_validate_json(document)
+            if historical.id != bundle.deck.id:
+                raise ValueError("Project slide action belongs to another presentation.")
+            if len({slide.id for slide in historical.slides}) != len(historical.slides):
+                raise ValueError("Project slide IDs must be unique.")
+            for slide in historical.slides:
+                SlideMarkup().feed(slide.html)
     return bundle, files
 
 
@@ -399,6 +437,25 @@ def _restore_review(
             for item in bundle.operations
         ],
     )
+    for item in bundle.slide_actions:
+        before = Deck.model_validate_json(item.before_json)
+        after = Deck.model_validate_json(item.after_json)
+        before.id = deck.id
+        after.id = deck.id
+        _ = db.execute(
+            "INSERT INTO slide_actions "
+            "(deck,request_id,payload_hash,before_json,after_json,result_json,completed) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                deck.id,
+                item.request_id,
+                item.payload_hash,
+                before.model_dump_json(),
+                after.model_dump_json(),
+                item.result_json,
+                item.completed,
+            ),
+        )
     _ = db.execute("INSERT INTO workflow(deck,mode) VALUES (?,?)", (deck.id, bundle.mode))
     store.seed_slide_views(db, deck)
 

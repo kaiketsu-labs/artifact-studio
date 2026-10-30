@@ -36,6 +36,12 @@ a{color:inherit}
 .deck-picker-row .ui-icon,.progress-label button .ui-icon{width:15px;height:15px}
 .progress-label{display:flex;justify-content:space-between;font-size:10px;color:var(--subtle);gap:6px}
 .progress-label>span{display:inline-flex;align-items:center;gap:5px}
+.rail-actions{display:flex;gap:2px}
+.object-tools{display:flex;align-items:center;gap:7px}
+.object-tools button{border:0;background:transparent;color:var(--subtle);padding:4px}
+.deleted-slide-row{display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
+.deleted-slide-row>span{min-width:0;flex:1;overflow-wrap:anywhere}
+.deleted-slide-row>button{flex-shrink:0}
 .progress-label .ui-icon{width:13px;height:13px}
 .progress-track{margin-top:8px;height:2px;background:#edf0f5;overflow:hidden}
 .progress-track i{height:100%;display:block;background:var(--green);transition:width .2s}

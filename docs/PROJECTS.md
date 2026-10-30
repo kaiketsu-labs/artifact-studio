@@ -14,6 +14,8 @@ Choose **Save project** to download the selected deck. **Open project** accepts 
 
 If a deck with the same ID exists, opening the file creates a separate **(copy)**. Existing work is never overwritten. Chats keep their original timestamps, slide context, reply relationships and release state. Approvals and unread markers retain their original content checks, including asset timestamps. The application rebuilds executable viewer code from the installed runtime while preserving inert design settings and the slide data.
 
+Recoverable slide deletions and completed structural actions travel with the project. The trash icon in the restored workspace can recover deleted groups with their original IDs, notes, visibility and conversation history. A restored copy has its own history; recovering a slide there does not change the original presentation. Interrupted prepared actions are recovered before saving. If the canonical file diverged independently, saving refuses the conflict rather than replacing that work.
+
 The bundle stores copies of workspace instructions and learned preferences under `project-context/` in the restored folder. These are reference snapshots. The destination workspace's `INSTRUCTIONS.md` remains primary and is not replaced by imported files. A shared design pack is not registered or replaced when a presentation is opened; its own copied styling and assets are sufficient to edit and present it.
 
 Live agent leases and external harness chats are not portable. Connect your agent normally, copy the selected project's agent prompt, and have it read `get_working_context`, `get_presentation` and `read_feedback`. Saved Batch comments remain withheld until you release them.

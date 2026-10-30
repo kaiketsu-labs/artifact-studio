@@ -226,3 +226,39 @@ def test_project_and_export_http_routes_and_cross_origin_guard(
         ).status_code
         == 403
     )
+
+
+def test_project_copy_restores_deleted_slides_and_private_history(tmp_path: Path) -> None:
+    """Carry deleted slides and withheld batch comments into an independent project copy."""
+    from studio.slide_actions import SlideActions
+    from studio.storage import digest
+
+    make_design(tmp_path / "collection" / TEMPLATE_ID)
+    store = Store(tmp_path / "collection", tmp_path / "state/review.sqlite3")
+    view = store.view(TEMPLATE_ID).slides[0]
+    store.save_notes(TEMPLATE_ID, view.id, "Original notes", view.notes)
+    _ = store.set_mode(TEMPLATE_ID, "batch")
+    _ = store.add_feedback(TEMPLATE_ID, view.id, "Withheld", view.content_hash, "withheld-id")
+    slides = store.read(TEMPLATE_ID).slides
+    ids = [slide.id for slide in slides]
+    actions = SlideActions(store)
+    deletion = actions.delete(
+        TEMPLATE_ID, [ids[0]], ids, {ids[0]: digest(slides[0].model_dump_json())}, "delete-original"
+    )
+    archive = save_project(store, TEMPLATE_ID, ClientState())
+    copy, _ = open_project(store, archive)
+    assert copy.id != TEMPLATE_ID
+    assert [item.operation_id for item in actions.deleted(copy.id)] == [deletion.operation_id]
+    _ = actions.restore(copy.id, deletion.operation_id, "restore-in-copy")
+    copied = store.view(copy.id)
+    assert copied.slides[0].id == ids[0] and copied.slides[0].notes == "Original notes"
+    assert copied.slides[0].feedback[0].message == "Withheld"
+    assert not copied.slides[0].feedback[0].released
+    assert not store.feedback_feed(copy.id).events
+    assert store.workflow(copy.id).pending == 1
+    assert [slide.id for slide in store.read(TEMPLATE_ID).slides] == [ids[1]]
+    assert actions.deleted(copy.id) == []
+    assert len(actions.deleted(TEMPLATE_ID)) == 1
+    exported_again = save_project(store, copy.id, ClientState())
+    second_copy, _ = open_project(store, exported_again)
+    assert actions.deleted(second_copy.id) == []
