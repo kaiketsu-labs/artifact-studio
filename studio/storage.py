@@ -1101,8 +1101,8 @@ class Store:
                 (deck_id,),
             ).fetchone()[0]
             connected = db.execute(
-                "SELECT harness FROM review_sessions WHERE deck=? AND enabled=1 AND expires_at>? "
-                "ORDER BY expires_at DESC LIMIT 1",
+                "SELECT harness,session_id FROM review_sessions "
+                "WHERE deck=? AND enabled=1 AND expires_at>? ORDER BY expires_at DESC LIMIT 1",
                 (deck_id, time.time()),
             ).fetchone()
         return FeedbackWorkflow(
@@ -1112,6 +1112,7 @@ class Store:
             last_agent_check=cast("str | None", row["last_check"]) if row else None,
             review_connected=bool(connected),
             review_harness=cast(str, connected[0]) if connected else None,
+            review_session=cast(str, connected[1]) if connected else None,
         )
 
     def set_mode(self, deck_id: str, mode: Literal["live", "batch"]) -> FeedbackWorkflow:
