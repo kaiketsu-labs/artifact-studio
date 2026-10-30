@@ -1,6 +1,8 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',
+    moon:'M20.5 13a8.5 8.5 0 0 1-9.5-9.5A8.5 8.5 0 1 0 20.5 13Z',monitor:'M3 4h18v13H3zM12 17v4m-4 0h8',
     grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
     align:'M3 4v16M7 7h13v4H7zM7 15h8v3H7z',
     alignLeft:'M4 3v18M8 6h12v4H8zM8 14h8v4H8z',alignCenter:'M12 2v3m0 5v4m0 4v4M4 5h16v5H4zM7 14h10v4H7z',alignRight:'M20 3v18M4 6h12v4H4zM8 14h8v4H8z',
@@ -40,6 +42,7 @@
     group:'M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5M8 8h8v8H8z',
     refresh:'M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1',
     fullscreen:'M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5',
+    fit:'M3 5h18v14H3zM7 9h10v6H7z',
     cursor:'m4 3 15 9-7 2-3 7-5-18Z',
     spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z',
     slides:'M3 5h18v14H3zM8 5v14M3 10h5M3 14h5'

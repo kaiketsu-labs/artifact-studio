@@ -15,7 +15,7 @@
     ['retry-preview','refresh','Retry loading design',false],['copy-start','copy','Copy agent prompt',true],['copy-agent-prompt','copy','Copy agent prompt',true],
     ['attach-brief','attach','Attach brief files',false],['toggle-design-chat','plus','Add a design',false],['attach-design','attach','Attach reference files',false],['send-design','send','Send design request',false],
     ['new-button','plus','New presentation',false],['connect-button','plug','Connect an agent',false],
-    ['present-link','present','Present',true],['prev-slide','left','Previous slide',false],['next-slide','right','Next slide',false],
+    ['present-link','present','Present',true],['fullscreen-button','fullscreen','Present fullscreen',false],['prev-slide','left','Previous slide',false],['next-slide','right','Next slide',false],
     ['save-notes','save','Save',true],['clear-target','close','Clear element selection',false],
     ['select-parent','group','Select surrounding group',false],['load-update','refresh','Show update',true],
     ['close-connect','close','Close',false],['copy-url','copy','Copy server URL',false],['close-new','close','Close',false],
@@ -32,7 +32,7 @@
   const boundPreviewDocuments=new WeakSet();
   const key=()=>`${deck?.id}/${selectedId}`;
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
-  window.SlidePresentationLauncher.create({button:$('present-link'),onReturn:id=>{if(deck?.slides.some(item=>item.id===id))void choose(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Slide Studio in Chrome or Firefox.',true)});
+  window.SlidePresentationLauncher.create({button:$('present-link'),additionalButtons:[$('fullscreen-button')],onReturn:id=>{if(deck?.slides.some(item=>item.id===id))void choose(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Slide Studio in Chrome or Firefox.',true)});
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;
@@ -78,7 +78,7 @@
     feedbackDrafts.set(key(),{feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:slide().content_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     if(!draftStore.persist()&&!draftWarning){draftWarning=true;toast('Draft recovery is unavailable in this browser.',true);}
   }
-  function updateComposer(){const mutating=visibilityBusy||slideActions.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles());chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+  function updateComposer(){$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles());chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
 
 
   /** Resolve a source relative to the canonical presentation folder. */

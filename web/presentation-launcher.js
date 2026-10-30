@@ -2,7 +2,7 @@
 ((root)=>{
   'use strict';
   /** Own native fullscreen and return to the unchanged editor after the show. */
-  function create({button,onReturn=()=>{},onUnavailable=()=>{},doc=document,view=window}){
+  function create({button,additionalButtons=[],onReturn=()=>{},onUnavailable=()=>{},doc=document,view=window}){
     let session=null;
     const currentFullscreen=()=>doc.fullscreenElement||doc.webkitFullscreenElement;
     const supported=()=>!!(doc.documentElement.requestFullscreen||doc.documentElement.webkitRequestFullscreen);
@@ -27,7 +27,7 @@
       if(currentFullscreen()===current.layer){try{await (doc.exitFullscreen||doc.webkitExitFullscreen).call(doc);}catch{}}
       current.layer.remove();doc.body.classList.remove('is-presenting');
       for(const [element,inert] of current.siblings)element.inert=inert;
-      button.focus();onReturn(current.slideId);
+      current.trigger.focus();onReturn(current.slideId);
     }
     function end(){if(!session)return;if(session.ready)session.frame.contentWindow?.postMessage({type:'slide-studio:host',action:'end'},view.location.origin);else void close();}
     function changed(){
@@ -38,7 +38,7 @@
       notify();
     }
     /** Request fullscreen before navigation or awaiting any asynchronous preparation. */
-    function open(event){
+    function open(event,trigger){
       if(event.button>0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       const href=button.getAttribute('href');if(!href)return;
       event.preventDefault();if(session)return;
@@ -48,7 +48,7 @@
       const siblings=[...doc.body.children].map(element=>[element,element.inert]);
       for(const [element] of siblings)element.inert=true;
       layer.append(frame);doc.body.append(layer);doc.body.classList.add('is-presenting');
-      session={layer,frame,siblings,slideId:decodeURIComponent(url.hash.slice(1)),native:false,deliberate:false,ready:false};
+      session={layer,frame,trigger,siblings,slideId:decodeURIComponent(url.hash.slice(1)),native:false,deliberate:false,ready:false};
       void fullscreen();
       url.searchParams.set('workspace','1');frame.src=url.href;
       frame.addEventListener('load',()=>{if(session?.frame!==frame)return;try{if(frame.contentWindow.location.pathname==='/'&&new URL(frame.contentWindow.location.href).searchParams.has('deck')){void close();return;}}catch{}frame.focus();notify();});
@@ -62,7 +62,7 @@
       else if(data.action==='fullscreen'&&['enter','leave','toggle'].includes(data.mode))void fullscreen(data.mode);
     });
     doc.addEventListener('fullscreenchange',changed);doc.addEventListener('webkitfullscreenchange',changed);
-    button.addEventListener('click',open);
+    for(const trigger of [button,...additionalButtons])trigger.addEventListener('click',event=>open(event,trigger));
     return {isOpen:()=>!!session};
   }
   const api={create};if(typeof module!=='undefined')module.exports=api;else root.SlidePresentationLauncher=api;

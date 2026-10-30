@@ -28,7 +28,7 @@
       workspace.classList.toggle('is-dense-sorter',overview&&reference*zoom/100<140);
       editButton.title=overview?'Return to editing':'Edit view';editButton.setAttribute('aria-pressed',String(!overview));gridButton.setAttribute('aria-pressed',String(overview));
       range.value=String(zoom);range.setAttribute('aria-valuetext',`${zoom}% · ${overview?'Slide sorter':'Edit view'}`);value.textContent=`${zoom}%`;
-      root.SlideIcons.button(fit,'fullscreen',overview?'Fit all slides':'Fit slide');
+      root.SlideIcons.button(fit,'fit',overview?'Fit all slides':'Fit slide');
       for(const control of [editButton,gridButton,minus,plus,range,fit])control.disabled=!state||blocked();
       minus.disabled||=zoom===10;plus.disabled||=zoom===100;
       status.textContent=state?(overview?`${state.count} slides`:`${state.index+1} / ${state.count}`):'';

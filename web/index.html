@@ -4,11 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Slide Studio</title>
+  <script src="/web/appearance.js"></script>
   <link rel="icon" type="image/png" href="/web/brand/mark.png">
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/objects.css">
   <link rel="stylesheet" href="/web/chat.css">
   <link rel="stylesheet" href="/web/element-controls.css">
+  <link rel="stylesheet" href="/web/appearance.css">
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
@@ -33,6 +35,8 @@
 <header class="topbar">
   <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.png" alt="" width="30" height="30"></span>Slide Studio</a>
   <div class="top-actions">
+    <button id="appearance-button" class="quiet" type="button" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
+    <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
     <button id="new-button" class="quiet" aria-label="New presentation"></button>
     <button id="project-button" class="quiet" aria-label="Project files"></button>
     <button id="libraries-button" class="quiet" aria-label="Reference libraries"></button>
@@ -119,6 +123,7 @@
     <button id="zoom-in" type="button" aria-label="Zoom in"></button>
     <output id="zoom-value" for="view-zoom">100%</output>
     <button id="fit-view" type="button" aria-label="Fit slide"></button>
+    <button id="fullscreen-button" type="button" aria-label="Present fullscreen" disabled></button>
   </div>
 </footer>
 <div id="slide-menu" class="slide-menu" popover role="menu" aria-label="Slide options">
