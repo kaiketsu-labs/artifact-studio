@@ -46,6 +46,8 @@ uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
 
 Open **[127.0.0.1:8790](http://127.0.0.1:8790/)** and keep the server running. Stop it with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup.
 
+Prefer a menu-bar icon and automatic startup? Install the [Mac controller](docs/MACOS.md) with `uv run --no-sync python scripts/install_macos.py --launch-at-login`. It shows server status and provides Open, Start, Stop and Restart without a Terminal window.
+
 The Chromium step enables local agent visual review. Browsing and editing still work without it; capture tools report the setup command if it was skipped.
 
 ## Connect your agent
@@ -81,6 +83,8 @@ The **plug icon → Copy agent prompt** resumes work on the selected deck. Copyi
 ![A selected Review box is highlighted on the slide, with an element-specific comment in the feedback field and Batch mode selected.](docs/assets/element-review.png)
 
 Select a thumbnail to switch both the slide and its chat. Matching slide numbers show the context, which accompanies every message. Unsent drafts stay with their slide. You can still ask for a new slide or a different order; the agent infers the scope.
+
+Several decks can share one instance. Use a separate tab and agent chat for each; workspace rules and design libraries are shared. [Parallel-deck behavior](docs/MACOS.md#parallel-decks).
 
 The project menu at the top left marks the current project and wraps long names to two lines. **+ New project** is its final option and opens the title, brief and design dialog. Arrow keys navigate the menu; Home/End jump to its ends, and Esc closes it.
 

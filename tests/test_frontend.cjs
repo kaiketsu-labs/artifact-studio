@@ -29,7 +29,7 @@ test('rules with unsupported Markdown retain source editing instead of lossy ric
   for(const markdown of ['| A | B |\n| --- | --- |\n| 1 | 2 |','![Chart](chart.png)','---','~~Removed~~','<div>Custom content</div>','- [x] Reviewed','```python\nprint(1)\n```','- Rule\n  - ![Nested image](chart.png)'])assert.equal(needsSource(lexer(markdown)),true,markdown);
 });
 
-const storage=()=>{const values=new Map();return {getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
+const storage=()=>{const values=new Map();return {keys:()=>[...values.keys()],getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};};
 
 test('a reload restores targeted feedback with the original slide and revision',()=>{
   const local=storage(),first=create(local);
@@ -53,6 +53,43 @@ test('corrupt or unavailable storage cannot prevent the workspace from opening',
   assert.equal(create(local).notes.size,0);assert.equal(create(local).feedback.size,0);
   const unavailable=create({getItem(){throw new Error('Denied');},setItem(){throw new Error('Denied');},removeItem(){throw new Error('Denied');}});
   assert.equal(unavailable.persist(),false);
+});
+
+test('parallel tabs persist only their changed drafts without erasing another deck',()=>{
+  const local=storage(),a=create(local),b=create(local);
+  a.feedback.set('deck-a/cover',{feedback:'First deck draft'});a.persist();
+  b.feedback.set('deck-b/cover',{feedback:'Second deck draft'});b.persist();
+  a.notes.set('deck-a/cover',{notes:'Private context',expected_notes:''});a.persist();
+  let restored=create(local);
+  assert.equal(restored.feedback.get('deck-a/cover').feedback,'First deck draft');
+  assert.equal(restored.feedback.get('deck-b/cover').feedback,'Second deck draft');
+  assert.equal(restored.notes.get('deck-a/cover').notes,'Private context');
+  b.feedback.delete('deck-b/cover');b.persist();a.persist();
+  restored=create(local);
+  assert.equal(restored.feedback.has('deck-b/cover'),false);
+  assert.equal(restored.feedback.get('deck-a/cover').feedback,'First deck draft');
+});
+
+test('stale tabs never restore another tabs deleted drafts',()=>{
+  const local=storage(),first=create(local);
+  first.feedback.set('deck-a/cover',{feedback:'Will be sent'});first.persist();
+  const stale=create(local);
+  first.feedback.delete('deck-a/cover');first.persist();
+  stale.feedback.set('deck-b/cover',{feedback:'Independent work'});stale.persist();
+  const restored=create(local);
+  assert.equal(restored.feedback.has('deck-a/cover'),false);
+  assert.equal(restored.feedback.get('deck-b/cover').feedback,'Independent work');
+});
+
+test('existing drafts migrate once and retain revision and element context',()=>{
+  const local=storage(),value={feedback:'Keep me',content_hash:'version-1',target:{selector:'h1',label:'Heading'}};
+  local.setItem('slide-studio:drafts:v1',JSON.stringify({version:1,feedback:[['deck/cover',value]],notes:[]}));
+  const migrated=create(local);
+  assert.deepEqual(migrated.feedback.get('deck/cover'),value);
+  assert.equal(local.getItem('slide-studio:drafts:v1'),null);
+  assert.deepEqual(create(local).feedback.get('deck/cover'),value);
+  migrated.feedback.delete('deck/cover');migrated.persist();
+  assert.equal(create(local).feedback.size,0);
 });
 
 test('presentation time pauses, resumes, resets and passes an hour correctly',()=>{

@@ -2,7 +2,7 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  const draftStore=window.SlideDrafts.create({getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value),removeItem:key=>localStorage.removeItem(key)});
+  const draftStore=window.SlideDrafts.create({keys:()=>Object.keys(localStorage),getItem:key=>localStorage.getItem(key),setItem:(key,value)=>localStorage.setItem(key,value),removeItem:key=>localStorage.removeItem(key)});
   const drafts=draftStore.notes;
   const feedbackDrafts=draftStore.feedback;
   const feedbackDraft=()=>feedbackDrafts.get(key());

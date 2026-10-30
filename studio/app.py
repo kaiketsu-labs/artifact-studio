@@ -795,6 +795,12 @@ def workspace() -> FileResponse:
     return FileResponse(PROJECT / "web/index.html")
 
 
+@app.get("/api/health")
+def health() -> dict[str, str]:
+    """Identify a ready local server without loading presentations or exposing private context."""
+    return {"service": "slide-studio", "status": "ready", "version": "0.1.0"}
+
+
 @app.get("/api/decks")
 def decks() -> list[dict[str, str]]:
     """List presentations supported by the review workspace."""
