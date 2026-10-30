@@ -184,7 +184,7 @@ uv run pytest
 uv run basedpyright
 uv run ruff check studio tests
 uv run ruff format --check studio tests
-node --test tests/test_frontend.cjs
+node --test tests/*.cjs
 ```
 
 Node.js is needed only for frontend behavior tests. Test fixtures and README screenshots use original fictional designs; no personal decks or corporate assets are bundled.

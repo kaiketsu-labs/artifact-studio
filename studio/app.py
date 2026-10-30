@@ -565,7 +565,25 @@ async def local_writes(request: Request, call_next: RequestResponseEndpoint) -> 
             {"detail": "Only local same-origin writes are accepted."}, status_code=403
         )
     response = await call_next(request)
-    response.headers["Cache-Control"] = "no-store"
+    static_asset = request.url.path.startswith(("/web/", "/runtime/", "/decks/")) and Path(
+        request.url.path
+    ).suffix.lower() in {
+        ".css",
+        ".js",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".otf",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+        ".gif",
+        ".svg",
+        ".mp4",
+        ".webm",
+    }
+    response.headers["Cache-Control"] = "private, no-cache" if static_asset else "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 

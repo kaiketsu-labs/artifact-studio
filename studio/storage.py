@@ -326,10 +326,11 @@ class Store:
         ]
         return digest((folder / "theme.css").read_text() + json.dumps(assets))
 
-    def content_hash(self, deck_id: str, slide: Slide) -> str:
+    def content_hash(self, deck_id: str, slide: Slide, *, design_hash: str | None = None) -> str:
         """Hash audience-visible content independently of private notes and discussion."""
         return digest(
-            slide.model_dump_json(include={"title", "html", "sources"}) + self.visual_hash(deck_id)
+            slide.model_dump_json(include={"title", "html", "sources"})
+            + (self.visual_hash(deck_id) if design_hash is None else design_hash)
         )
 
     @staticmethod
@@ -370,9 +371,17 @@ class Store:
             for row in rows
         ]
 
-    def view_slide(self, deck_id: str, slide: Slide, *, include_pending: bool = True) -> SlideView:
+    def view_slide(
+        self,
+        deck_id: str,
+        slide: Slide,
+        *,
+        include_pending: bool = True,
+        design_hash: str | None = None,
+        feedback: list[Feedback] | None = None,
+    ) -> SlideView:
         """Combine canonical content with approval and discussion state."""
-        content_hash = self.content_hash(deck_id, slide)
+        content_hash = self.content_hash(deck_id, slide, design_hash=design_hash)
         with self.connect() as db:
             seen = db.execute(
                 "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?",
@@ -389,7 +398,7 @@ class Store:
             has_unseen_changes=seen is None or seen[0] != content_hash,
             feedback=[
                 item
-                for item in self.comments(deck_id)
+                for item in (self.comments(deck_id) if feedback is None else feedback)
                 if item.slide_id == slide.id and (include_pending or item.released)
             ],
         )
@@ -399,12 +408,21 @@ class Store:
         deck = self.read(deck_id)
         context_file = self.folder(deck_id) / "README.md"
         context = context_file.read_text() if context_file.exists() else ""
+        design_hash = self.visual_hash(deck_id)
+        feedback = self.comments(deck_id)
         return DeckView(
             id=deck_id,
             title=deck.title,
             design_id=deck.design_id,
+            design_hash=design_hash,
             slides=[
-                self.view_slide(deck_id, slide, include_pending=include_pending)
+                self.view_slide(
+                    deck_id,
+                    slide,
+                    include_pending=include_pending,
+                    design_hash=design_hash,
+                    feedback=feedback,
+                )
                 for slide in deck.slides
             ],
             context_markdown=context,
@@ -415,7 +433,7 @@ class Store:
             workflow=self.workflow(deck_id),
             feedback=[
                 item
-                for item in self.comments(deck_id)
+                for item in feedback
                 if item.scope == "presentation" and (include_pending or item.released)
             ],
         )

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from studio import app as service
 from studio.events import change_token, deck_events
-from studio.models import Slide, SlidePatch
+from studio.models import Feedback, Slide, SlidePatch
 from studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
@@ -71,6 +71,59 @@ def test_private_context_does_not_look_like_a_visual_revision(store: Store) -> N
     assert store.mark_slide_seen(TEMPLATE_ID, first.id, changed.content_hash)
     _ = (store.folder(TEMPLATE_ID) / "assets/new.svg").write_text("<svg/>")
     assert store.view(TEMPLATE_ID).slides[0].has_unseen_changes
+
+
+def test_shared_design_is_read_once_per_snapshot(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reuse shared design and feedback reads while preserving exact slide approval hashes."""
+    visual_hash, comments = store.visual_hash, store.comments
+    reads: list[str] = []
+
+    def design(deck_id: str) -> str:
+        """Count full design scans across all slides in one response."""
+        reads.append("design")
+        return visual_hash(deck_id)
+
+    def feedback(deck_id: str, after_event_id: int = 0) -> list[Feedback]:
+        """Count decoding of the shared feedback history."""
+        reads.append("feedback")
+        return comments(deck_id, after_event_id)
+
+    monkeypatch.setattr(store, "visual_hash", design)
+    monkeypatch.setattr(store, "comments", feedback)
+    snapshot = store.view(TEMPLATE_ID)
+    assert reads == ["design", "feedback"]
+    assert snapshot.design_hash == visual_hash(TEMPLATE_ID)
+    assert all(
+        item.content_hash == store.content_hash(TEMPLATE_ID, item) for item in snapshot.slides
+    )
+
+
+def test_design_version_stays_stable_between_slides_and_changes_with_assets(store: Store) -> None:
+    """Keep reusable design caching independent from slide and private-context revisions."""
+    before = store.view(TEMPLATE_ID)
+    revise(store, "Only this slide changed")
+    changed = store.view(TEMPLATE_ID)
+    assert changed.design_hash == before.design_hash
+    assert changed.slides[0].content_hash != before.slides[0].content_hash
+    asset = store.folder(TEMPLATE_ID) / "assets/new.svg"
+    _ = asset.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    assert store.view(TEMPLATE_ID).design_hash != changed.design_hash
+
+
+def test_static_assets_revalidate_while_workspace_data_is_not_cached(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Allow private conditional asset requests without caching private workspace responses."""
+    monkeypatch.setattr(service, "store", store)
+    client = TestClient(service.app)
+    first = client.get("/web/icons.js")
+    assert first.headers["cache-control"] == "private, no-cache"
+    same = client.get("/web/icons.js", headers={"If-None-Match": first.headers["etag"]})
+    assert same.status_code == 304
+    assert client.get("/").headers["cache-control"] == "no-store"
+    assert client.get(f"/api/decks/{TEMPLATE_ID}").headers["cache-control"] == "no-store"
 
 
 def test_initial_baselines_precede_first_agent_read(store: Store) -> None:

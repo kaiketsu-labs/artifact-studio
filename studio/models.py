@@ -145,6 +145,7 @@ class DeckView(StrictModel):
     id: str
     title: str
     design_id: str = ""
+    design_hash: str = ""
     slides: list[SlideView]
     context_markdown: str = ""
     context_hash: str = ""
