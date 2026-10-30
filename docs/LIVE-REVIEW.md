@@ -1,6 +1,6 @@
 # Automatic feedback with an existing agent
 
-Slide Studio uses the same stateless MCP server for Codex, Claude Code and other MCP clients. Automatic continuation additionally needs a lifecycle adapter in the agent harness. This app includes project-local command hooks for **Codex** and **Claude Code**. Other clients can still read and revise slides through MCP; they need their own lifecycle adapter for automatic continuation.
+Slide Studio uses the same stateless MCP server for Codex, Claude Code and other MCP clients. Automatic continuation additionally needs a lifecycle adapter in the agent harness. This app includes project-local or optional user-level command hooks for **Codex** and **Claude Code**. Other clients can still read and revise slides through MCP; they need their own lifecycle adapter for automatic continuation.
 
 The hooks keep an explicitly started review open at the end of an agent response. New Live feedback, a released batch or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
 
@@ -23,12 +23,12 @@ Use `--harness claude-code` for Claude Code. Inspect the output, then repeat wit
 
 The configurator merges existing settings atomically and rejects malformed settings instead of replacing them. Repeating the same configuration does not duplicate it. It replaces this adapter's older generated handlers while preserving unrelated hooks. The launcher uses `uv --no-cache` and `--no-sync` so it does not need a protected shared uv cache. Rerun configuration after an app update changes the launcher; changed Codex hook definitions require native review/trust again. It writes only:
 
-| Harness | Project file | Host action |
-| --- | --- | --- |
-| Codex | `.codex/hooks.json` | Review and trust the exact hook definitions through `/hooks`. Reload/restart the project session if necessary. |
-| Claude Code | `.claude/settings.local.json` | Reload the project session and review the hooks through `/hooks`; follow the host's settings/trust prompts. |
+| Harness | Project file | User-level file (`--global`) | Host action |
+| --- | --- | --- | --- |
+| Codex | `.codex/hooks.json` | `~/.codex/hooks.json` | Review and trust the exact hook definitions through `/hooks`. Reload/restart the session if necessary. |
+| Claude Code | `.claude/settings.local.json` | `~/.claude/settings.json` | Reload the session and review the hooks through `/hooks`; follow the host's settings/trust prompts. |
 
-Hooks run local commands with your host's permissions. The agent must not bypass native trust or managed policy. No global hooks, model credentials or extra worker are installed. Configuration alone does not prove that a running host has loaded or trusted the hooks.
+Hooks run local commands with your host's permissions. The agent must not bypass native trust or managed policy. Project setup writes project settings only; `--global` explicitly selects the user-level file above. Neither installs model credentials or an extra worker. Configuration alone does not prove that a running host has loaded or trusted the hooks.
 
 ## Start and end a review
 
@@ -36,7 +36,7 @@ In the connected agent chat, ask:
 
 > Read get_working_context, then get_authoring_guide(topic="live_review"). Start live review for my presentation with start_live_review(deck_id=...), read the presentation and read_feedback, then address my released feedback. Keep the review open while I use Slide Studio.
 
-Use `start_live_review()` with no deck for the design inbox. This successful MCP call explicitly opts that host session into review. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows **Available**, including between revision passes. The tooltip identifies the harness. Merely having MCP configured is not availability.
+Use `start_live_review()` with no deck for the design inbox. This successful MCP call explicitly opts that host session into review. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
 
 Use **plug → End review** for the selected presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` again to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
 

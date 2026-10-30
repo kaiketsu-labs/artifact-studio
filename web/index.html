@@ -178,13 +178,18 @@
 </dialog>
 <dialog id="connect-dialog">
   <header><h2>Connect an agent</h2><button id="close-connect" aria-label="Close"></button></header>
+  <details class="connection-details"><summary>Guided setup</summary>
+    <p>Open the Slide Studio checkout in your agent.</p>
+    <p><strong>Claude Code</strong> <code>/setup</code> · <strong>Codex</strong> <code>$setup</code></p>
+  </details>
   <details class="connection-details"><summary>MCP setup</summary>
     <label for="mcp-url">Server URL</label><div class="copy-row"><input id="mcp-url" readonly><button id="copy-url" aria-label="Copy server URL"></button></div>
-    <p>Use Streamable HTTP. Start with <code>get_working_context</code>. Keep Slide Studio running.</p>
+    <p>Add this URL to your agent using Streamable HTTP, then reload its session.</p>
   </details>
-  <button id="copy-agent-prompt" class="primary">Copy agent prompt</button>
+  <button id="copy-agent-prompt" class="primary" title="Paste into your connected agent to work on the selected presentation">Copy agent prompt</button>
   <button id="end-review" hidden>End review</button>
   <details class="connection-details"><summary>Automatic feedback</summary>
+    <p>Set up once in your agent. Keep that chat open while reviewing.</p>
     <button id="copy-live-setup" type="button">Copy setup prompt</button>
   </details>
 </dialog>

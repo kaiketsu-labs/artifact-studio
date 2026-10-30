@@ -4,7 +4,20 @@ Create and review presentations together with an existing AI agent. Slides stay 
 
 The app includes a neutral viewer runtime. **Design packs and example presentations are not bundled.** You or your agent add a design from a PPTX, website, PDF or reference images. PowerPoint files are design/reference inputs; the current app creates HTML presentations and does not export PPTX.
 
-## Install and start
+## Guided setup
+
+Clone the repository using Git, then open its folder as your agent's working project. Run:
+
+| Agent | Command in the agent chat |
+| --- | --- |
+| Claude Code | `/setup` — bundled project command |
+| Codex | `$setup` — bundled repository skill |
+
+These use the same [setup workflow](../.agents/skills/setup/SKILL.md). It checks what is already installed, guides the missing setup, connects MCP and helps you start a deck. You can provide preferences with the command, such as “use the Mac menu-bar app and start at login”. It preserves existing workspaces and settings. If the command is not listed, reload the agent session; from another working folder, ask it to read this checkout's `.agents/skills/setup/SKILL.md` by absolute path.
+
+The syntax follows [Codex skill invocation](https://learn.chatgpt.com/docs/build-skills) and [Claude Code project commands](https://code.claude.com/docs/en/slash-commands). `/setup` is a Claude Code command, not a browser-chat command or a universal MCP feature. Native trust/reload steps may need your interaction. Manual setup follows below.
+
+## Install
 
 You need [Git](https://git-scm.com/) and [uv](https://docs.astral.sh/uv/getting-started/installation/). The repository is private, so your GitHub account needs access. Node.js, GitHub CLI and an AI API key are **not required to run the app**. Your existing agent supplies the AI connection.
 
@@ -14,12 +27,39 @@ cd slide-studio
 uv python install 3.14
 uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
+```
+
+Already have a checkout? Open its folder in Terminal and run the dependency commands above. This is a source installation: no npm or PyPI release or standalone Mac download is published by this project yet.
+
+Chromium enables the local [visual-review tools](VISUAL-REVIEW.md). It follows [Playwright's browser installation](https://playwright.dev/python/docs/browsers). If you skip that step, the editor still works and capture tools explain how to install it. Captures return images directly through MCP; they do not require the agent to operate a browser tab.
+
+## Choose how to start
+
+Use one startup method for this workspace. Both serve the same browser app and MCP endpoint.
+
+### Mac menu-bar app
+
+Requires macOS 13+ and Apple's Command Line Tools. If needed, install the tools with `xcode-select --install` and wait for that installation to finish. From the Slide Studio checkout, run:
+
+```sh
+uv run --no-sync python scripts/install_macos.py --launch-at-login
+```
+
+If you already started the server in Terminal, stop it with **Ctrl+C** first. Open `~/Applications/Slide Studio.app` in Finder, then choose **Open Slide Studio** from the slide-stack icon beside the clock. The app starts the server and registers login startup; approve it in System Settings if macOS asks.
+
+A green status dot means the server is responding. Start, Stop and Restart control the server owned by this app. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
+
+### Terminal
+
+From the Slide Studio checkout:
+
+```sh
 uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
 ```
 
-Already have a checkout? Start at `cd slide-studio` and run the remaining commands. Keep that terminal running, then open [Slide Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
+Keep that Terminal running, then open [Slide Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
 
-Chromium enables the local [visual-review tools](VISUAL-REVIEW.md). It follows [Playwright's browser installation](https://playwright.dev/python/docs/browsers). If you skip that step, the editor still works and capture tools explain how to install it. Captures return images directly through MCP; they do not require the agent to operate a browser tab.
+### Storage locations
 
 By default, presentations go in `~/Documents/Presentations` and review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
 
@@ -56,7 +96,7 @@ Use a new agent session if the newly added server is not visible in the current 
 
 Ask the connected agent to call `get_working_context` first. It receives the authoring guide, current presentations, design-import instructions, reference libraries and the local runtime path. Each tool call uses explicit presentation/slide IDs; there is no hidden active presentation.
 
-Open the **checklist icon** to edit **Workspace rules** with rich text. These rules apply to every deck and are saved in the collection's `INSTRUCTIONS.md`. Each new presentation keeps its audience, client, content and brief in its own README. Learned guidance lives separately in `LEARNED-PREFERENCES.md`, is collapsed in the editor, and never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Advanced Markdown uses a source editor when needed to avoid losing formatting.
+Open the **checklist icon** to edit **Workspace rules** with rich text. Expand **Learned preferences** for secondary guidance. Click **Save** to write the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`; conflicts with another editor are reported without replacing either document. These rules apply to every deck, and learned guidance never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Enabled GitHub auto-sync includes the saved files; reference-only connections do not upload them. Each presentation keeps its audience, client, content and brief in its own README. Advanced Markdown uses a source editor when needed to preserve formatting.
 
 The bundled `$slide-studio-learn` skill can review relevant human transcripts and released feedback weekly. Scheduling belongs to your agent harness; installing Slide Studio does not create a schedule automatically. Explicit rules stay primary, and each learned preference records its evidence and scope. [Invocation and weekly setup](PREFERENCE-LEARNING.md).
 
@@ -94,11 +134,15 @@ Designs define a visual language, not locked layouts or a required slide count. 
 | Appearance | Use the sun/moon menu in the top bar to choose Light, Dark or System. Your choice is saved in this browser; slide designs keep their authored colours. |
 | Hidden slides during a show | Normal navigation, progress dots and the next-slide preview skip hidden slides. **See all slides** in the bottom toolbar, a slide right-click, or the private presenter filmstrip lets you select one manually. Starting on a hidden slide skips to a visible slide; an entirely hidden deck starts empty. |
 
-For automatic feedback in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Then ask it to call `start_live_review` for your deck and keep the review session open. The Live selector shows **Available** while connected; **plug → End review** stops listening and preserves comments. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
+For automatic feedback in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Optional user-level hooks are covered in the same guide. Then ask it to call `start_live_review` for your deck and keep the review session open. The Live selector shows **Codex**, **Claude Code** or **Unavailable**; its tooltip identifies the connected review session. **Plug → End review** stops listening and preserves comments. A green Mac menu-bar dot only reports server health. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
 
 Present requests browser fullscreen directly from your click, without opening an intermediate page. Esc or End returns to the editor at the current slide, keeping unsent drafts. If the browser blocks or does not support fullscreen, the slideshow still fills its available viewport.
 
 On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check. [Verification scope](../QA.md).
+
+## Work on several decks
+
+Open each deck in its own browser tab and use a separate agent chat with that deck's copied prompt. They share one server and MCP URL. Slides, feedback, notes and approvals stay with their deck; workspace rules, learned preferences, design libraries and the design inbox are shared. Agents use explicit deck IDs, and one live reviewer owns each deck at a time. [Parallel work and conflict handling](MACOS.md#parallel-decks).
 
 ## Files, persistence and backups
 
@@ -120,6 +164,18 @@ The **folder icon** opens **Reference libraries**. Add a local folder or GitHub 
 
 GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login` and `gh auth setup-git`. New connections are **reference only**: agents can use earlier presentations for tone, design and context. Enable **Auto-sync all presentations** beside the repository, or **Automatic sync** when connecting it, to upload saved workspace files to a **private** repository. Changes are grouped after eight quiet seconds while Slide Studio is running; delivery resumes on the next launch. Status and a retry icon appear beside the destination. Existing manual destinations retain their current-deck and collection upload buttons until you change the setting. Local files remain the working copy. This is one-way versioned storage; private review state is excluded. See [reference and sync behavior](REPOSITORY-SYNC.md) for conflicts, exclusions and recovery.
 
+## Update an existing installation
+
+Save your work and back up the collection and state folder. From a checkout without uncommitted changes:
+
+```sh
+git pull --ff-only
+uv sync --locked --python 3.14
+uv run playwright install chromium --only-shell
+```
+
+Restart the server from the Mac menu, or stop the Terminal server with Ctrl+C and start it again. Refresh the browser and resume live review in your agent. Keep the same collection and database paths. Do not delete `.state` or replace it with a new checkout's empty state. Native menu-bar code changes also require [reinstalling the controller](MACOS.md#existing-workspaces-and-updates).
+
 ## Troubleshooting
 
 | Symptom | Check |
@@ -127,9 +183,11 @@ GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login
 | `uv: command not found` | Install uv, open a new terminal and check `uv --version`. |
 | Clone fails | Confirm your GitHub account has access to this private repository and Git authentication is configured. |
 | Port 8790 is already in use | Open the running workspace, or start on a different local port and use that port in the browser and MCP URL. |
+| Mac app says “Running · started elsewhere” | Stop the original Terminal server with Ctrl+C, then choose Start in the Mac menu. The controller cannot stop a server it does not own. |
+| Mac app fails to start | Choose Show Logs. Confirm the checkout and `.venv` still exist and dependencies are installed. [Mac setup](MACOS.md). |
 | Empty design library | Add a reference through the design `+` and have your connected agent build/register the pack. No corporate assets ship with the app. |
 | Only one cover appears | Resume the agent with the copyable prompt and ask it to draft the slides from the saved brief. |
-| Live is unavailable / a request stays queued | Keep the server and agent session open. Check that project hooks are loaded/trusted, then ask the agent to call `start_live_review` and read saved feedback. Plain MCP connection alone cannot start an idle chat. |
+| Live is unavailable / a request stays queued | Keep the server and agent session open. Check that the configured hooks are loaded/trusted, then ask the agent to call `start_live_review` and read saved feedback. Plain MCP connection alone cannot start an idle chat. |
 | Design could not load | Use the retry icon; ask the agent to check local `theme.css`, font and image paths in the design pack. |
 | A removed presentation is missing | Use the restore icon below the top-left selector. Keep the same state database across launches. |
 | Slides or comments seem to have disappeared | Check the collection and database environment variables before creating new data; saved content may be in your previous locations. |

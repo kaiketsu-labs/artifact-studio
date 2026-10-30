@@ -1,0 +1,4 @@
+interface:
+  display_name: "Set up Slide Studio"
+  short_description: "Connect your agent and start a slide workspace"
+  default_prompt: "Use $setup to check my Slide Studio installation and guide any missing setup."

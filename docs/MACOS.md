@@ -4,13 +4,13 @@ Slide Studio can live in the menu bar, start at login and run without a Terminal
 
 ## Install from this checkout
 
-Set up the server using the README first. Building the controller requires macOS 13 or later and Apple's Command Line Tools (`xcode-select --install`). Then run:
+Install the source dependencies using the [quick start](../README.md#quick-start) first. Building the controller requires macOS 13 or later and Apple's Command Line Tools (`xcode-select --install`). Wait for the tools installation to finish, then run from the Slide Studio checkout:
 
 ```sh
 uv run --no-sync python scripts/install_macos.py --launch-at-login
 ```
 
-Open `~/Applications/Slide Studio.app` in Finder. A stack-of-slides icon appears beside the clock. Launch at Login is enabled on the first run when requested by the installer; its checkmark reports the macOS registration. If macOS requires approval, **Allow in System Settings…** opens Login Items. You can turn automatic launch off from the same menu.
+If a Terminal server is running, stop it with **Ctrl+C** before opening the app. Open `~/Applications/Slide Studio.app` in Finder. A stack-of-slides icon appears beside the clock. Launch at Login is enabled on the first run when requested by the installer; its checkmark reports the macOS registration. If macOS requires approval, **Allow in System Settings…** opens Login Items. You can turn automatic launch off from the same menu.
 
 | Control | Behavior |
 | --- | --- |

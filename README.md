@@ -33,6 +33,8 @@ Slides are editable HTML, CSS and SVG, saved on your machine. Bring a PPTX, webs
 
 ## Quick start
 
+**Prefer guided setup?** Open this checkout in your agent and run **`/setup` in Claude Code** or **`$setup` in Codex**. The bundled [setup skill](.agents/skills/setup/SKILL.md) checks existing settings, guides installation and connects the agent. [Invocation and first-run details](docs/GETTING-STARTED.md#guided-setup).
+
 Requires [Git](https://git-scm.com/), [uv](https://docs.astral.sh/uv/getting-started/installation/) and access to this private repository. Your existing agent supplies the AI connection; the app needs no separate AI API key.
 
 ```sh
@@ -41,14 +43,27 @@ cd slide-studio
 uv python install 3.14
 uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
-uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
 ```
 
-Open **[127.0.0.1:8790](http://127.0.0.1:8790/)** and keep the server running. Stop it with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup.
+Then choose **one** way to run it:
 
-Prefer a menu-bar icon and automatic startup? Install the [Mac controller](docs/MACOS.md) with `uv run --no-sync python scripts/install_macos.py --launch-at-login`. It shows server status and provides Open, Start, Stop and Restart without a Terminal window.
+| Mac menu-bar app | Terminal · any supported platform |
+| --- | --- |
+| Requires macOS 13+ and Apple's Command Line Tools. Run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Slide Studio.app`. | Run `uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
+| Status, Open, Start/Stop/Restart and launch at login. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
+
+Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Switching from Terminal to the Mac app? Stop the Terminal server first so the app can control it.
 
 The Chromium step enables local agent visual review. Browsing and editing still work without it; capture tools report the setup command if it was skipped.
+
+<details>
+<summary><strong>What can I install today?</strong></summary>
+
+The supported installation is this source checkout. The Mac app controls its Python server and needs the checkout and `.venv` to remain in place; it is not a standalone, notarized download. No npm or PyPI release is published by this project yet.
+
+For future distribution, the recommended foundation is an installable Python server, with a standalone Mac app for desktop users. An npm launcher could be added for convenience. Those are proposed packaging options, not installation commands for the current release.
+
+</details>
 
 ## Connect your agent
 
@@ -125,7 +140,7 @@ See the [PowerPoint comparison](docs/POWERPOINT-COMPARISON.md) for current capab
 | Each submitted comment is released immediately. | Comments stay queued until **Send batch**. |
 | A connected review session can continue between responses through host hooks. | The agent receives the released batch together. |
 
-For automatic continuation in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt**. Follow the one-time [project-local hook setup](docs/LIVE-REVIEW.md), including native host loading/trust, then call `start_live_review` in the connected agent. **Available** indicates an active connection; **End review** stops listening and preserves comments.
+For automatic continuation in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt**. Follow the one-time [hook setup](docs/LIVE-REVIEW.md), including native host loading/trust, then call `start_live_review` in the connected agent. The setup prompt uses project-local hooks; the guide also covers optional user-level hooks. The Live selector shows the connected harness or **Unavailable**; **End review** stops listening and preserves comments. A green Mac menu-bar dot means the server is running, independently of agent availability.
 
 Plain MCP cannot wake a closed chat. Keep the review session open, or resume the agent to read saved feedback. Native host activation and physical display placement have separate [verification limits](QA.md).
 
@@ -177,6 +192,7 @@ The app ships without corporate masters, logos or fonts. Repository connections 
 | Guide | Covers |
 | --- | --- |
 | [Getting started](docs/GETTING-STARTED.md) | Installation, storage options, first deck, controls and troubleshooting. |
+| [Mac menu-bar app](docs/MACOS.md) | Server controls, login startup, updates and parallel decks. |
 | [Automatic feedback](docs/LIVE-REVIEW.md) | Codex/Claude Code hooks, activation, continuation and limitations. |
 | [Agent token efficiency](docs/TOKEN-EFFICIENCY.md) | Compact context, targeted reads, revision receipts and local asset embedding. |
 | [Reviewed file client](docs/FILE-CLIENT.md) | Send local patch files through MCP and verify batches without copying HTML through the model. |
