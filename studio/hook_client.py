@@ -14,8 +14,10 @@ import time
 from pathlib import Path
 from typing import cast
 from urllib.error import URLError
-from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import Request, build_opener
+
+from .local_http import NoRedirect as _NoRedirect
+from .local_http import validate_local_url as _validate_url
 
 APP_DIR = Path(__file__).resolve().parent.parent
 INBOX_TOOLS = {
@@ -29,35 +31,6 @@ INBOX_TOOLS = {
 def _object(value: object) -> dict[str, object]:
     """Return a JSON object or an empty object."""
     return cast("dict[str, object]", value) if isinstance(value, dict) else {}
-
-
-def _validate_url(url: str) -> None:
-    """Allow only a local HTTP server without credentials or query parameters."""
-    parsed = urlsplit(url)
-    try:
-        port = parsed.port
-    except ValueError as exc:
-        raise ValueError("invalid local server URL") from exc
-    if (
-        parsed.scheme != "http"
-        or parsed.hostname not in {"127.0.0.1", "localhost"}
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.query
-        or parsed.fragment
-        or port == 0
-    ):
-        raise ValueError("server URL must use local HTTP")
-
-
-class _NoRedirect(HTTPRedirectHandler):
-    """Prevent local server redirects from exposing event metadata."""
-
-    def redirect_request(
-        self, req: object, fp: object, code: int, msg: str, headers: object, newurl: str
-    ) -> None:
-        """Reject all HTTP redirects."""
-        return None
 
 
 def _generated_handler(value: object, harness: str, event: str, server_name: str) -> bool:

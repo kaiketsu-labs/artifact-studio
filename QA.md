@@ -1,5 +1,11 @@
 # Verification
 
+## Reviewed file client · 30 October 2026
+
+The file-input client uses the existing MCP mutation surface, preserves caller-supplied concurrency/retry tokens, and can verify a batch with one outline read per deck. Tests cover file changes after review, local-only destinations, partial conflicts, duplicate targets, source/design drift, changed rules, stateless protocol serialization and repeat execution without duplicate revisions. The current suite passes **126 Python tests** (seven optional browser tests skipped), strict basedpyright and Ruff checks/formatting. The run uses an isolated default collection/database.
+
+A separate real HTTP check launched a disposable localhost server with two fictional slides and ran the client as a subprocess twice against it. A **56,568-byte** reviewed call file produced **960 bytes** of receipts/verification output; submitted HTML was absent from stdout, both readbacks matched, and retrying did not increase revisions. These are transport/output byte counts, not billed token savings. No personal deck was changed, no app-server restart was needed, and no new visual-review claim is made.
+
 ## Compact agent communication · 30 October 2026
 
 The current backend changes pass **118 Python tests** (seven optional browser tests skipped), **81 Node tests**, strict basedpyright and Ruff checks/formatting. The new cases exercise complete rules in compact startup, on-demand guides, source-free outlines with brief attachments, compact/full mutation responses over stateless MCP, exact rule-version retention, withheld Batch comments, append concurrency/idempotence and server-side asset embedding. The same retained rules hash works across compact/full working context, full presentation, outline and feedback reads; changed rules are returned in full and missing/unknown hashes force a complete delivery. Transport tests verify cross-tool reuse without a persistent session. An identical embedded revision retry also succeeds after its original local dependency is deleted; reusing its request ID with another embedding mode is rejected.

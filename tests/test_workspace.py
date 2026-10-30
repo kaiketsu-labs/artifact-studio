@@ -1,12 +1,16 @@
 """Behavioral checks for durable review state, free composition and stateless MCP calls."""
 
 import base64
+import hashlib
 import json
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
+from studio import agent_client
 from studio import app as service
 from studio.models import AgentContext, ElementTarget, FileInput, Slide, SlidePatch, Source
 from studio.storage import ConflictError, Store, digest
@@ -433,6 +437,77 @@ def test_http_and_stateless_mcp(store: Store, monkeypatch: pytest.MonkeyPatch) -
             assert ("feedback" in text) is include_content
             structured = result["structuredContent"]
             assert structured.get("result", structured) == text
+
+        def post_json(
+            url: str, payload: dict[str, object], protocol: str, timeout: int
+        ) -> dict[str, object]:
+            """Exercise the file client against the same real MCP transport instance."""
+            response = client.post(
+                "/mcp",
+                headers=headers | ({"MCP-Protocol-Version": protocol} if protocol else {}),
+                json=payload,
+            )
+            assert response.status_code in {200, 202}
+            return agent_client.object_value(response.json()) if response.content else {}
+
+        monkeypatch.setattr(agent_client, "post_json", post_json)
+        calls: list[dict[str, object]] = []
+        for slide_id in ("cover", "message"):
+            current = service.get_slide(TEMPLATE_ID, slide_id)
+            calls.append(
+                {
+                    "tool": "revise_slide",
+                    "arguments": {
+                        "deck_id": TEMPLATE_ID,
+                        "slide_id": slide_id,
+                        "expected_hash": current.expected_hash,
+                        "request_id": "file-client-" + slide_id,
+                        "patch": {
+                            "html": '<article class="slide">'
+                            + "Reviewed content. " * 2000
+                            + "</article>"
+                        },
+                    },
+                }
+            )
+        call_file = store.root / "reviewed-calls.json"
+        call_file.write_text(json.dumps(calls))
+        token = hashlib.sha256(call_file.read_bytes()).hexdigest()
+        output = StringIO()
+        with redirect_stdout(output):
+            code = agent_client.main(
+                [
+                    "--calls-file",
+                    str(call_file),
+                    "--sha256",
+                    token,
+                    "--verify",
+                    "--known-rules-hash",
+                    startup["rules_hash"],
+                ]
+            )
+        report = json.loads(output.getvalue())
+        assert code == 0 and report["ok"]
+        assert report["verification"]["matched"] == 2
+        assert report["verification"]["changed_since_write"] == []
+        assert "Reviewed content." not in output.getvalue()
+        assert len(output.getvalue()) < call_file.stat().st_size / 10
+        with redirect_stdout(StringIO()):
+            assert (
+                agent_client.main(
+                    [
+                        "--calls-file",
+                        str(call_file),
+                        "--sha256",
+                        token,
+                        "--verify",
+                        "--known-rules-hash",
+                        startup["rules_hash"],
+                    ]
+                )
+                == 0
+            )
+        assert service.get_slide(TEMPLATE_ID, "message").revision == 2
 
         blocked = client.post(
             f"/api/decks/{TEMPLATE_ID}/slides/cover/notes",

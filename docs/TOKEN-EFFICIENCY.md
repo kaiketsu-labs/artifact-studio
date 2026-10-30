@@ -37,6 +37,10 @@ For custom content, send local image/font/script/style references in `interactiv
 
 Revision idempotency uses the original request and embedding mode. Identical retries return the saved revision without rereading dependencies; changing the payload or embedding mode with the same request ID is a conflict.
 
+## Already-reviewed local drafts
+
+Use the [file-input client](FILE-CLIENT.md) when patches are already on disk. It binds execution to a file hash, passes the JSON through existing MCP tools, and optionally checks a batch with one outline read per deck. This avoids a large draft print followed by the same HTML in tool arguments. Initial authoring, visual review and necessary source inspection still cost context; the saving is in duplicate transfer. The client stops on conflicts and reports partial completion without automatic rebasing or restoration.
+
 ## What this does and does not measure
 
 Tokenization depends on the model. Use a named tokenizer as an estimate and compare like-for-like payloads; do not equate estimates with billed usage. Host prompt formatting, tool schemas, cache hits, image tokens and reasoning affect actual cost. MCP may expose both text and structured content; whether a host passes both copies to the model depends on that host.
