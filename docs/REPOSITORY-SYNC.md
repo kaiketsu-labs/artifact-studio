@@ -16,6 +16,8 @@ Automatic sync also removes files previously managed by Slide Studio when they a
 
 Snapshots include existing HTML decks, supplied PPTX masters, design packs, documents and asset folders. The extension allowlist is in `studio/libraries.py`. Files at or above 100 MB require smaller media; Git LFS is not managed here. Symbolic links, dotfiles, review databases, dependency/reference caches and known credential files are excluded. Slides’ embedded notes and source/context documents are included. Review chats, approval state and private delivery cursors are not uploaded.
 
+Saving rules or learned preferences in the frontend writes the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`. Automatic whole-workspace sync includes both files after the quiet interval. Without auto-sync, the edits stay on the filesystem until an explicit manual whole-workspace sync; a single-deck sync does not include workspace rules. External edits to these Markdown files appear when you reopen or reload the editor.
+
 A `.slide-studio-manifest.json` in the destination records hashes of managed files. Content hashes detect replacements even if their size and modification time stay unchanged. Every delivery verifies that the repository is still private and checks for independent remote changes before writing. No force push is used.
 
 ## Manual sync and recovery

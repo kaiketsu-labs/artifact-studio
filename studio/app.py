@@ -53,7 +53,6 @@ from .models import (
     FeedbackFeed,
     FeedbackWorkflow,
     FileInput,
-    InstructionsInput,
     ModeInput,
     NotesInput,
     PresentationCommentInput,
@@ -67,6 +66,7 @@ from .models import (
     SlidesVisibilityInput,
     SlideView,
     SlideVisibilityInput,
+    WorkspaceInstructionsInput,
 )
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .review import ReviewHookInput, ReviewHookReply, Reviews
@@ -1011,17 +1011,24 @@ def feedback_attachment(deck_id: DeckID, event_id: int, file_index: int) -> File
 def workspace_instructions() -> dict[str, str]:
     """Show the same persistent rules supplied through agent context and feedback reads."""
     markdown = store.authoring_instructions()
+    learned = store.learned_preferences()
     return {
         "markdown": markdown,
         "expected_hash": digest(markdown),
-        "learned_preferences": store.learned_preferences(),
+        "learned_preferences": learned,
+        "learned_preferences_hash": digest(learned),
     }
 
 
 @app.post("/api/instructions")
-def save_workspace_instructions(body: InstructionsInput) -> dict[str, str]:
+def save_workspace_instructions(body: WorkspaceInstructionsInput) -> dict[str, str]:
     """Save human authoring rules independently of any slide conversation."""
-    store.save_instructions(body.markdown, body.expected_hash)
+    learned = body.learned_preferences
+    store.save_instructions(
+        body.markdown,
+        body.expected_hash,
+        learned_preferences=(learned.markdown, learned.expected_hash) if learned else None,
+    )
     return workspace_instructions()
 
 

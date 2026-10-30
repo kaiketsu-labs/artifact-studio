@@ -14,16 +14,16 @@
     ]).catch(error=>{dependencies=null;throw error;});
     return dependencies;
   }
-  async function create(container,{onChange=()=>{},readOnly=false}={}){
+  async function create(container,{onChange=()=>{},readOnly=false,label='Workspace rules'}={}){
     await load();
     const editor=new Quill(container,{theme:'snow',readOnly,formats:['header','bold','italic','list','blockquote','code','code-block','link'],modules:{toolbar:readOnly?false:[[{header:[1,2,false]}],['bold','italic'],[{list:'bullet'},{list:'ordered'}],['blockquote','code-block','link','clean']],history:{userOnly:true}}});
     const converter=new TurndownService({headingStyle:'atx',bulletListMarker:'-',codeBlockStyle:'fenced'});
     converter.addRule('quill-code-block',{filter:'pre',replacement:(_content,node)=>'\n\n```\n'+node.textContent.replace(/\n$/,'')+'\n```\n\n'});
     let source='',dirty=false,sourceMode=false;
-    const sourceField=document.createElement('textarea');sourceField.className='rules-source';sourceField.hidden=true;sourceField.readOnly=readOnly;sourceField.setAttribute('aria-label',readOnly?'Learned preferences Markdown':'Workspace rules Markdown');container.after(sourceField);
+    const sourceField=document.createElement('textarea');sourceField.className='rules-source';sourceField.hidden=true;sourceField.readOnly=readOnly;sourceField.setAttribute('aria-label',`${label} Markdown`);container.after(sourceField);
     const sourceNotice=document.createElement('p');sourceNotice.className='rules-source-notice';sourceNotice.hidden=true;sourceNotice.textContent='Markdown preserves the formatting in this document.';sourceField.before(sourceNotice);
     sourceField.addEventListener('input',()=>{dirty=true;onChange();});
-    editor.root.setAttribute('aria-label',readOnly?'Learned preferences':'Workspace rules');editor.root.setAttribute('role','textbox');editor.root.setAttribute('aria-multiline','true');
+    editor.root.setAttribute('aria-label',label);editor.root.setAttribute('role','textbox');editor.root.setAttribute('aria-multiline','true');
     if(readOnly)editor.root.setAttribute('aria-readonly','true');
     const toolbar=editor.getModule('toolbar')?.container;
     if(toolbar){

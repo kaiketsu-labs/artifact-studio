@@ -394,7 +394,7 @@
   $('new-form').addEventListener('submit',async event=>{event.preventDefault();const button=$('create-button');button.disabled=true;try{const title=$('new-title').value.trim(),brief=$('new-brief').value.trim();if(!brief){$('new-brief').focus();throw new Error('Add a brief.');}const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const slug=title.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'presentation';const created=await api('/api/decks',{deck_id:date+'-'+slug,title,brief,files:await readFiles(attachmentFiles.brief),design_id:new FormData($('new-form')).get('design')||''});retainDraft();const option=new Option(created.title,created.id);$('deck-picker').append(option);$('deck-picker').value=created.id;deck=await api('/api/decks/'+created.id);selectedId=deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();$('new-dialog').close();$('new-form').reset();attachmentFiles.brief=[];renderFiles('brief');$('brief-error').textContent='';toast('Presentation created.');}catch(error){$('create-error').textContent=error.message;}finally{button.disabled=false;}});
   $('connect-button').addEventListener('click',()=>{$('mcp-url').value=`${location.origin}/mcp`;$('connect-dialog').showModal();});$('close-connect').addEventListener('click',()=>$('connect-dialog').close());$('copy-url').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('mcp-url').value);toast('URL copied.');}catch{$('mcp-url').select();}});
   new ResizeObserver(()=>{if(sorter.isOpen())return;if(selectedElement){elementEditor.reflow();elementEditor.sync();}if(hoverElement)placeBox($('hover-box'),hoverElement);}).observe($('preview'));
-  window.addEventListener('beforeunload',event=>{retainDraft();if(instructionsDraft!==null||chatComposer.hasDrafts()||elementEditor.isEditing()||$('new-title').value.trim()||$('new-brief').value.trim()||$('design-message').value.trim()||attachmentFiles.design.length||attachmentFiles.brief.length||[...feedbackDrafts.values()].some(draft=>draft.feedback.trim())||[...drafts.values()].some(draft=>draft.notes!==undefined&&draft.notes!==draft.expected_notes)){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{retainDraft();if(instructionsDraft!==null||learnedDraft!==null||chatComposer.hasDrafts()||elementEditor.isEditing()||$('new-title').value.trim()||$('new-brief').value.trim()||$('design-message').value.trim()||attachmentFiles.design.length||attachmentFiles.brief.length||[...feedbackDrafts.values()].some(draft=>draft.feedback.trim())||[...drafts.values()].some(draft=>draft.notes!==undefined&&draft.notes!==draft.expected_notes)){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if(!deck||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.target.closest('textarea,input,select,dialog,#element-tools,#slide-menu,#object-panel,#element-align-menu'))return;if(event.key==='ArrowLeft'){event.preventDefault();$('prev-slide').click();}if(event.key==='ArrowRight'){event.preventDefault();$('next-slide').click();}if(event.key==='Escape'){event.preventDefault();if(elementEditor.isEditing())elementEditor.cancel();else void selectElement(null,false);}});
   /** Clear stale slide content when the last selector entry is removed. */
   function renderEmpty(){sorter.reset();previewLoader.cancel($('preview'));clearTimeout(previewStatusTimer);$('preview-status').hidden=true;animationPreview.reset();elementEditor.select(null);watchDeck(null);document.querySelector('.preview-wrap').classList.remove('has-unseen-changes');$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;slideActions.update();updateComposer();document.title='Slide Studio';history.replaceState(null,'','/');}
@@ -403,33 +403,38 @@
   const presentationActions=window.SlidePresentations.init({api,toast,escape,currentDeck:()=>deck,retainDraft,reload:start,forget:id=>{$('deck-picker').querySelector(`option[value="${CSS.escape(id)}"]`)?.remove();if(deck?.id===id)renderEmpty();},recover:item=>{if(![...$('deck-picker').options].some(option=>option.value===item.id))$('deck-picker').add(new Option(item.title,item.id));if(!deck)renderEmpty();}});
   deckPicker=window.SlideDeckPicker.create({select:$('deck-picker'),button:$('deck-switcher'),panel:$('deck-menu'),list:$('deck-menu-options'),createButton:$('new-project-option'),onCreate:()=>$('new-button').click(),onOpen:()=>animationPreview.stop(),blocked:()=>feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   window.SlideLibraries.init({api,toast,escape,currentDeck:()=>deck});
-  let instructionsBaseline='',instructionsDraft=null,instructionsSaving=false,rulesEditor=null,rulesEditorPromise=null,learnedEditor=null;
+  let instructionsBaseline='',instructionsDraft=null,learnedBaseline='',learnedDraft=null,instructionsSaving=false,rulesEditor=null,rulesEditorPromise=null,learnedEditor=null,learnedEditorPromise=null;
   function getRulesEditor(){
     if(!rulesEditorPromise)rulesEditorPromise=window.SlideRulesEditor.create($('authoring-instructions'),{onChange:()=>{instructionsDraft=rulesEditor.getMarkdown();}}).then(editor=>{rulesEditor=editor;return editor;}).catch(error=>{rulesEditorPromise=null;throw error;});
     return rulesEditorPromise;
   }
-  async function showLearnedRules(markdown){
-    $('learned-rules-panel').hidden=!markdown.trim();
-    if(!markdown.trim())return;
-    if(!learnedEditor)learnedEditor=await window.SlideRulesEditor.create($('learned-rules'),{readOnly:true});
-    learnedEditor.setMarkdown(markdown);
+  function getLearnedEditor(){
+    if(!learnedEditorPromise)learnedEditorPromise=window.SlideRulesEditor.create($('learned-rules'),{label:'Learned preferences',onChange:()=>{learnedDraft=learnedEditor.getMarkdown();}}).then(editor=>{learnedEditor=editor;return editor;}).catch(error=>{learnedEditorPromise=null;throw error;});
+    return learnedEditorPromise;
+  }
+  async function loadInstructionEditors(saved){
+    const [editor,learned]=await Promise.all([getRulesEditor(),getLearnedEditor()]);
+    if(instructionsDraft===null)instructionsBaseline=saved.expected_hash;
+    if(learnedDraft===null)learnedBaseline=saved.learned_preferences_hash;
+    editor.setMarkdown(instructionsDraft??saved.markdown);
+    learned.setMarkdown(learnedDraft??saved.learned_preferences);
   }
   $('instructions-button').addEventListener('click',async()=>{
     if(instructionsSaving)return;
     $('instructions-button').disabled=true;$('instructions-button').setAttribute('aria-busy','true');
-    try{const [saved,editor]=await Promise.all([api('/api/instructions'),getRulesEditor()]);if(instructionsDraft===null)instructionsBaseline=saved.expected_hash;editor.setMarkdown(instructionsDraft??saved.markdown);await showLearnedRules(saved.learned_preferences||'');$('instructions-error').textContent='';$('instructions-dialog').showModal();}
+    try{await loadInstructionEditors(await api('/api/instructions'));$('instructions-error').textContent='';$('instructions-dialog').showModal();}
     catch(error){toast(error.message,true);}
     finally{$('instructions-button').disabled=false;$('instructions-button').removeAttribute('aria-busy');}
   });
-  function setInstructionsBusy(value){instructionsSaving=value;rulesEditor?.enable(!value);for(const id of ['save-instructions','close-instructions','reload-instructions','instructions-button'])$(id).disabled=value;}
+  function setInstructionsBusy(value){instructionsSaving=value;rulesEditor?.enable(!value);learnedEditor?.enable(!value);for(const id of ['save-instructions','close-instructions','reload-instructions','instructions-button'])$(id).disabled=value;}
   $('close-instructions').addEventListener('click',()=>$('instructions-dialog').close());
-  $('reload-instructions').addEventListener('click',async()=>{if(instructionsSaving)return;setInstructionsBusy(true);try{const saved=await api('/api/instructions');instructionsBaseline=saved.expected_hash;instructionsDraft=null;(await getRulesEditor()).setMarkdown(saved.markdown);await showLearnedRules(saved.learned_preferences||'');$('instructions-error').textContent='';}catch(error){$('instructions-error').textContent=error.message;}finally{setInstructionsBusy(false);}});
+  $('reload-instructions').addEventListener('click',async()=>{if(instructionsSaving)return;setInstructionsBusy(true);try{const saved=await api('/api/instructions');instructionsDraft=null;learnedDraft=null;await loadInstructionEditors(saved);$('instructions-error').textContent='';}catch(error){$('instructions-error').textContent=error.message;}finally{setInstructionsBusy(false);}});
   $('instructions-form').addEventListener('submit',async event=>{
     event.preventDefault();if(instructionsSaving)return;
-    const editor=await getRulesEditor();if(instructionsSaving)return;const markdown=editor.getMarkdown();
-    if(markdown.length>20000){$('instructions-error').textContent='Keep rules under 20,000 characters.';return;}
+    const [editor,learned]=await Promise.all([getRulesEditor(),getLearnedEditor()]);if(instructionsSaving)return;const markdown=editor.getMarkdown(),preferences=learned.getMarkdown();
+    if(markdown.length>20000||preferences.length>20000){$('instructions-error').textContent='Keep each document under 20,000 characters.';return;}
     setInstructionsBusy(true);
-    try{const saved=await api('/api/instructions',{markdown,expected_hash:instructionsBaseline});instructionsBaseline=saved.expected_hash;instructionsDraft=null;$('instructions-dialog').close();toast('Instructions saved.');await refresh();}
+    try{const saved=await api('/api/instructions',{markdown,expected_hash:instructionsBaseline,learned_preferences:{markdown:preferences,expected_hash:learnedBaseline}});instructionsBaseline=saved.expected_hash;learnedBaseline=saved.learned_preferences_hash;instructionsDraft=null;learnedDraft=null;$('instructions-dialog').close();toast('Instructions saved.');await refresh();}
     catch(error){$('instructions-error').textContent=error.message;}
     finally{setInstructionsBusy(false);}
   });

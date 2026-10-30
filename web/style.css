@@ -337,8 +337,8 @@ dialog label{font-size:12px;font-weight:600}
 #instructions-dialog .ql-editor:focus{outline:0}
 .learned-rules-panel{border-top:1px solid var(--line);margin-top:14px;padding-top:10px;flex-shrink:1;min-height:30px;max-height:28dvh;overflow:auto}
 .learned-rules-panel summary{color:#536173;font-size:12px;cursor:pointer}
-#learned-rules{border:0;max-height:210px;overflow:auto}
-#learned-rules .ql-editor{min-height:0;padding:6px 0;font-size:12px}
+#learned-rules{border-color:var(--line);border-radius:0 0 6px 6px;max-height:210px;overflow:auto}
+#learned-rules .ql-editor{min-height:90px;padding:12px 16px;font-size:14px}
 .instructions-scope{color:var(--subtle);font-size:12px;margin:0 0 12px}
 .rules-source{flex:1 1 350px;min-height:140px;width:100%;overflow:auto;font:13px/1.6 ui-monospace,monospace;padding:14px;border:1px solid var(--line);border-radius:6px}
 .rules-source-notice{flex-shrink:0;font-size:12px;color:var(--subtle);margin:0 0 8px}

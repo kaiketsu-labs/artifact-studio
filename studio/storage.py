@@ -248,10 +248,18 @@ class Store:
             ).fetchone()
         return cast(str, row[0]) if row is not None else self.default_instructions()
 
-    def save_instructions(self, markdown: str, expected_hash: str) -> None:
-        """Save explicit human instructions without overwriting a concurrent edit."""
+    def save_instructions(
+        self,
+        markdown: str,
+        expected_hash: str,
+        *,
+        learned_preferences: tuple[str, str] | None = None,
+    ) -> None:
+        """Check both document baselines before saving human edits to workspace files."""
         if len(markdown) > 20_000:
             raise ValueError("Keep instructions under 20,000 characters.")
+        if learned_preferences is not None and len(learned_preferences[0]) > 20_000:
+            raise ValueError("Keep learned preferences under 20,000 characters.")
         with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             path = self.root / "INSTRUCTIONS.md"
@@ -260,11 +268,24 @@ class Store:
             ).fetchone()
             fallback = cast(str, row[0]) if row is not None else self.default_instructions()
             current = path.read_text() if path.exists() else fallback
-            if markdown == current and path.exists():
-                return
-            if digest(current) != expected_hash:
+            if markdown != current and digest(current) != expected_hash:
                 raise ConflictError("Instructions changed in another window. Reopen before saving.")
-            replace_text(path, markdown)
+            preferences_path = self.root / "LEARNED-PREFERENCES.md"
+            preferences_current = self.learned_preferences()
+            preferences = preferences_current
+            if learned_preferences is not None:
+                preferences, preferences_hash = learned_preferences
+                if (
+                    preferences != preferences_current
+                    and digest(preferences_current) != preferences_hash
+                ):
+                    raise ConflictError(
+                        "Learned preferences changed in another window. Reload before saving."
+                    )
+            if markdown != current or not path.exists():
+                replace_text(path, markdown)
+            if learned_preferences is not None and preferences != preferences_current:
+                replace_text(preferences_path, preferences)
 
     def learned_preferences(self) -> str:
         """Read secondary learned guidance without changing explicit workspace rules."""

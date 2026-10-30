@@ -292,10 +292,16 @@ class SlideSeenInput(StrictModel):
 
 
 class InstructionsInput(StrictModel):
-    """A human edit to persistent workspace instructions with a concurrency baseline."""
+    """A human Markdown edit with a concurrency baseline."""
 
     markdown: str = Field(max_length=20_000)
     expected_hash: str
+
+
+class WorkspaceInstructionsInput(InstructionsInput):
+    """Save workspace rules and optional secondary guidance with separate baselines."""
+
+    learned_preferences: InstructionsInput | None = None
 
 
 class NotesInput(StrictModel):

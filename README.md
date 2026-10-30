@@ -154,7 +154,7 @@ Projects are local downloads. Workspace rules travel as reference snapshots and 
 
 ![Project controls for saving, reopening and exporting HTML or PDF. The example is fictional.](docs/assets/projects.png)
 
-The **checklist icon** opens workspace rules in a rich text editor. These are the primary instructions for every presentation, saved as `INSTRUCTIONS.md` in your collection. Each deck has its own brief and README context. `LEARNED-PREFERENCES.md` is separate, secondary guidance; it cannot override explicit rules. MCP returns both on working-context, presentation and feedback reads.
+The **checklist icon** opens workspace rules in a rich text editor. Expand **Learned preferences** to edit secondary guidance. **Save** writes both to `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md` in your collection; conflicts with another editor are reported without replacing either document. Enabled GitHub auto-sync includes these saved files. Reference-only connections do not upload them. Explicit rules remain primary; learned preferences cannot override them. Each deck has its own brief and README context. MCP returns both on working-context, presentation and feedback reads.
 
 Rich editing supports headings, lists, emphasis, links, quotes and code. Documents with advanced Markdown such as tables or images use source editing to preserve their formatting. The bundled **[$slide-studio-learn](.agents/skills/slide-studio-learn/SKILL.md)** skill can review presentation transcripts and released feedback weekly through your agent harness. General preferences need explicit cross-presentation intent or repeated evidence, while client, audience and content feedback stays with its deck. [Set up weekly learning](docs/PREFERENCE-LEARNING.md).
 

@@ -239,6 +239,60 @@ def test_auto_sync_debounces_all_projects_and_respects_disable(
         _ = libraries.sync(library.id)
 
 
+def test_frontend_rules_join_opted_in_auto_sync(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Deliver saved rules through the existing worker to a disposable local Git remote."""
+    libraries, remote = library_setup
+    library = libraries.register(LibraryInput(location="test/slides"))
+    monkeypatch.setattr(service, "store", libraries.store)
+    client = TestClient(service.app)
+    initial = client.get("/api/instructions").json()
+    rules, preferences = "- Visually check charts.\n", "- Use concise labels.\n"
+    saved = client.post(
+        "/api/instructions",
+        json={
+            "markdown": rules,
+            "expected_hash": initial["expected_hash"],
+            "learned_preferences": {
+                "markdown": preferences,
+                "expected_hash": initial["learned_preferences_hash"],
+            },
+        },
+    )
+    assert saved.status_code == 200
+    worker = AutoSync(libraries.store)
+    worker.tick(100)
+    assert not (Path(library.path) / ".slide-studio-manifest.json").exists()
+    _ = libraries.configure_sync(library.id, LibrarySyncSettings(auto_sync_enabled=True))
+    worker.tick(200)
+    worker.tick(200 + QUIET_SECONDS)
+    assert worker.state(library.id).phase == "synced"
+    for name, expected in (("INSTRUCTIONS.md", rules), ("LEARNED-PREFERENCES.md", preferences)):
+        assert command("git", "--git-dir", str(remote), "show", f"main:{name}") == expected.strip()
+    baseline = saved.json()
+    assert (
+        client.post(
+            "/api/instructions",
+            json={
+                "markdown": rules,
+                "expected_hash": baseline["expected_hash"],
+                "learned_preferences": {
+                    "markdown": "- Prefer clear arrows.\n",
+                    "expected_hash": baseline["learned_preferences_hash"],
+                },
+            },
+        ).status_code
+        == 200
+    )
+    worker.tick(300)
+    assert worker.state(library.id).phase == "pending"
+    worker.tick(300 + QUIET_SECONDS)
+    assert command("git", "--git-dir", str(remote), "show", "main:LEARNED-PREFERENCES.md") == (
+        "- Prefer clear arrows."
+    )
+
+
 def test_auto_sync_reports_failures_and_retries_only_when_requested(
     library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
