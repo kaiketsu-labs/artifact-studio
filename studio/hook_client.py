@@ -77,17 +77,24 @@ def _replace_generated(
     return migrated
 
 
-def configure(harness: str, project: Path, url: str, server_name: str, dry_run: bool) -> Path:
-    """Merge project hooks without changing other settings."""
+def configure(
+    harness: str, project: Path | None, url: str, server_name: str, dry_run: bool
+) -> Path:
+    """Merge project hooks, or user-level hooks when project is None, keeping other settings."""
     _validate_url(url)
-    if not project.is_absolute() or not project.is_dir():
+    if project is not None and (not project.is_absolute() or not project.is_dir()):
         raise ValueError("project must be an existing absolute directory")
     uv = shutil.which("uv")
     if uv is None:
         raise ValueError("uv executable not found")
-    target = project / (
-        ".codex/hooks.json" if harness == "codex" else ".claude/settings.local.json"
-    )
+    if project is None:
+        target = Path.home() / (
+            ".codex/hooks.json" if harness == "codex" else ".claude/settings.json"
+        )
+    else:
+        target = project / (
+            ".codex/hooks.json" if harness == "codex" else ".claude/settings.local.json"
+        )
     raw: object = json.loads(target.read_text()) if target.exists() else {}
     if not isinstance(raw, dict):
         raise ValueError("settings must be an object")
@@ -282,7 +289,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
     config = subparsers.add_parser("configure")
-    config.add_argument("--project", type=Path, required=True)
+    scope = config.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--project", type=Path)
+    scope.add_argument("--global", dest="project", action="store_const", const=None)
     config.add_argument("--dry-run", action="store_true")
     event_parser = subparsers.add_parser("event")
     event_parser.add_argument(
