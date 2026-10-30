@@ -56,6 +56,7 @@ class LibraryInput(StrictModel):
 
     location: str = Field(min_length=1, max_length=2048)
     sync_enabled: bool = False
+    auto_sync_enabled: bool = False
 
 
 class Library(StrictModel):
@@ -66,6 +67,13 @@ class Library(StrictModel):
     location: str
     path: str
     sync_enabled: bool = False
+    auto_sync_enabled: bool = False
+
+
+class LibrarySyncSettings(StrictModel):
+    """Explicitly opt a private repository into automatic workspace snapshots."""
+
+    auto_sync_enabled: bool = False
 
 
 class LibraryFile(StrictModel):
@@ -126,6 +134,21 @@ def git(folder: Path, *args: str) -> str:
         *args,
         cwd=folder,
     )
+
+
+def snapshot_target(destination: Path, relative: str) -> Path:
+    """Validate managed paths before writing or removing a repository snapshot file."""
+    path = Path(relative)
+    target = destination / path
+    if (
+        path.is_absolute()
+        or ".." in path.parts
+        or not allowed(path)
+        or any(part.is_symlink() for part in (target, *target.parents) if part != destination)
+        or not target.resolve().is_relative_to(destination.resolve())
+    ):
+        raise ValueError(f"Remote path escapes the repository: {relative}")
+    return target
 
 
 def allowed(
@@ -255,12 +278,13 @@ class Libraries:
         location = body.location.strip().removesuffix("/").removesuffix(".git")
         match = REPOSITORY.fullmatch(location)
         kind: Literal["local", "github"] = "github" if match else "local"
+        sync_enabled = body.sync_enabled or body.auto_sync_enabled
         if match:
             location = match[1]
             if any(part.startswith(".") for part in location.split("/")):
                 raise ValueError("Use a GitHub owner/repository or an absolute folder path.")
-            self.verify_repository(location, body.sync_enabled)
-        elif not location.startswith(("/", "~/")) or body.sync_enabled:
+            self.verify_repository(location, sync_enabled)
+        elif not location.startswith(("/", "~/")) or sync_enabled:
             raise ValueError("Use a GitHub URL or absolute local folder. Sync requires GitHub.")
         else:
             location = str(Path(location).expanduser().resolve())
@@ -276,7 +300,8 @@ class Libraries:
                 kind=kind,
                 location=location,
                 path=str(path),
-                sync_enabled=body.sync_enabled,
+                sync_enabled=sync_enabled,
+                auto_sync_enabled=body.auto_sync_enabled,
             )
             with self.store.connect() as db:
                 _ = db.execute(
@@ -284,6 +309,27 @@ class Libraries:
                     (identifier, library.model_dump_json()),
                 )
         return library
+
+    def configure_sync(self, identifier: str, body: LibrarySyncSettings) -> Library:
+        """Change opt-in permission without implicitly enabling any existing repository."""
+        with self.locked():
+            library = self.get(identifier)
+            if library.kind != "github":
+                raise ValueError("Automatic sync requires a private GitHub repository.")
+            if body.auto_sync_enabled:
+                self.verify_repository(library.location, True)
+            library = library.model_copy(
+                update={
+                    "sync_enabled": body.auto_sync_enabled,
+                    "auto_sync_enabled": body.auto_sync_enabled,
+                }
+            )
+            with self.store.connect() as db:
+                _ = db.execute(
+                    "UPDATE libraries SET document=? WHERE id=?",
+                    (library.model_dump_json(), identifier),
+                )
+            return library
 
     def refresh_checkout(self, library: Library) -> None:
         """Fast-forward a clean cache while retaining any local or remote divergence."""
@@ -313,24 +359,35 @@ class Libraries:
         """Expose original masters, custom artwork and earlier decks to agents."""
         return inventory(Path(self.get(identifier).path))
 
-    def sync(self, identifier: str, deck_id: str | None = None) -> SyncResult:
-        """Commit a local snapshot and push without deleting or overwriting remote edits."""
+    def snapshot_files(self, deck_id: str | None = None) -> list[LibraryFile]:
+        """Select canonical files without recursively including a configured reference cache."""
+        source = self.store.folder(deck_id) if deck_id else self.store.root
+        if not source.is_dir():
+            raise ValueError("The presentation folder does not exist.")
+        return [
+            item
+            for item in inventory(source)
+            if not Path(item.local_path).is_relative_to(self.cache)
+        ]
+
+    def sync(
+        self, identifier: str, deck_id: str | None = None, *, automatic: bool = False
+    ) -> SyncResult:
+        """Publish saved files while protecting independent remote changes."""
         library = self.get(identifier)
         if library.kind != "github" or not library.sync_enabled:
             raise ValueError("Enable sync on a private GitHub library first.")
-        self.verify_repository(library.location, True)
         root = self.store.root
-        source = self.store.folder(deck_id) if deck_id else root
-        if not source.is_dir():
-            raise ValueError("The presentation folder does not exist.")
-        files = inventory(source)
-        if not files:
-            raise ValueError("No presentation files were found to sync.")
+        files = self.snapshot_files(deck_id)
         if any(item.size >= 100_000_000 for item in files):
             raise ValueError(
                 "A file exceeds the 100 MB sync limit; use smaller media before syncing."
             )
         with self.locked():
+            library = self.get(identifier)
+            if not library.sync_enabled or automatic and not library.auto_sync_enabled:
+                raise ValueError("Repository sync is disabled.")
+            self.verify_repository(library.location, True)
             self.refresh_checkout(library)
             destination = Path(library.path)
             manifest = destination / ".slide-studio-manifest.json"
@@ -341,15 +398,27 @@ class Libraries:
                 previous = TypeAdapter(dict[str, str]).validate_json(
                     manifest.read_text(), strict=True
                 )
+            if not files and not previous:
+                raise ValueError("No presentation files were found to sync.")
+            current_paths = {Path(item.local_path).relative_to(root).as_posix() for item in files}
+            removals: list[tuple[Path, str]] = []
+            if automatic:
+                for relative in previous.keys() - current_paths:
+                    target = snapshot_target(destination, relative)
+                    if target.exists():
+                        if not target.is_file() or file_hash(target) != previous[relative]:
+                            raise ValueError(
+                                f"Remote changes need review before syncing: {relative}"
+                            )
+                        removals.append((target, relative))
+                previous = {
+                    path: value for path, value in previous.items() if path in current_paths
+                }
             updates: list[tuple[Path, Path, str, str]] = []
             for item in files:
                 original = Path(item.local_path)
                 relative = original.relative_to(root).as_posix()
-                target = destination / relative
-                if any(
-                    part.is_symlink() for part in (target, *target.parents) if part != destination
-                ) or not target.resolve().is_relative_to(destination.resolve()):
-                    raise ValueError(f"Remote path escapes the repository: {relative}")
+                target = snapshot_target(destination, relative)
                 current_hash = file_hash(original)
                 remote_hash = file_hash(target) if target.is_file() else None
                 if remote_hash != current_hash:
@@ -378,8 +447,10 @@ class Libraries:
                 for snapshot, target in staged:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     _ = shutil.copy2(snapshot, target)
+                for target, _ in removals:
+                    target.unlink()
             manifest.write_text(json.dumps(previous, indent=2, sort_keys=True) + "\n")
-            paths = [relative for _, _, relative, _ in updates]
+            paths = [relative for _, _, relative, _ in updates] + [path for _, path in removals]
             git(destination, "add", "--", *paths, manifest.name)
             if git(destination, "diff", "--cached", "--name-only"):
                 git(
@@ -395,5 +466,5 @@ class Libraries:
                 repository=library.location,
                 commit=commit,
                 url=f"https://github.com/{library.location}/commit/{commit}",
-                files_changed=len(updates),
+                files_changed=len(updates) + len(removals),
             )

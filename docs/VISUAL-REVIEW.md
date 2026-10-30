@@ -20,6 +20,15 @@ Use `capture_slide(deck_id, slide_id)` for a 1600 × 900 completed-slide image. 
 
 For staged content, call `capture_slide` with `stage=0` for the initial view, then each numbered stage. `elapsed_ms` samples time within that stage. Earlier stages are completed before the requested stage starts. For example, sample a 1200 ms bar at `stage=1, elapsed_ms=600`, then at `elapsed_ms=1300`; inspect later delayed results too. `diagnostics.reveal_steps` reports the highest supported stage. Stage values outside this slide's range fail rather than returning a misleading frame.
 
+Review animation behavior against an explicit expectation, not merely a list of screenshots:
+
+- Read the slide markup and source data. Identify what should appear or change at each advance and which elements should stay hidden, stable or deliberately blurred.
+- Capture the initial view, every reveal at time zero, an intermediate point during motion, just before/after a material delay, and the settled result. Inspect the actual returned images at full size. Confirm reveal order, hidden content, bar/counter synchronization, target emphasis, legibility and lack of clipping or accidental flashes in sampled frames.
+- Compare the settled frame with the completed capture and verify exact final values. Capture the reduced-motion variant too. Fix confirmed defects and repeat affected frames.
+- Use permitted live playback for transition continuity, slide entry, replay/back navigation and interaction. Deterministic sampled frames cannot prove the absence of a transient flash between samples. The editor's Play button is a quick human preview; it is disabled when the slide has no supported animation.
+
+Use multiple fresh-context reviewers with distinct aspects when reviewing a deck, and parallelize independent requests with clear ownership. Keep private notes outside review images. If a renderer/runtime mismatch, unsupported media or an application-access limitation prevents a check, report that specific gap rather than declaring the animation verified.
+
 A completed capture reveals every build and preserves authored final counter text. Reveal captures use the same shared build implementation as the slideshow, with a deterministic clock. Use `reduced_motion=true` to inspect the reduced-motion variant. CSS animations belonging to earlier builds are completed, the current build is sampled at the requested time, and slide-wide animations use the accumulated slide time; infinite animations use their initial frame in completed captures. Video/audio are paused and reported as media requiring separate playback checks.
 
 `possible_overflow` is a geometry hint, not proof of a layout defect: intentional bleed and decorative artwork can extend past the canvas. It does not detect element-to-element overlap or all internal clipping. `failed_images` or `failed_fonts` needs investigation before calling the capture complete. Check charts against their source data as well as the rendered pixels. Review findings with multiple fresh-context agents, verify them, fix confirmed issues and recapture affected slides.

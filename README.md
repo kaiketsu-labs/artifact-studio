@@ -158,7 +158,7 @@ Rich editing supports headings, lists, emphasis, links, quotes and code. Documen
 
 Back up **both the presentation collection and state folder**. Set `SLIDE_STUDIO_COLLECTION` and `SLIDE_STUDIO_DATABASE` to choose other locations. Removing a presentation from the selector preserves its files and history; use **Undo** or the restore icon to bring it back.
 
-The app ships without corporate masters, logos or fonts. Optional private-repository snapshots require an explicitly enabled destination; there are no automatic uploads. See [reference libraries and sync](docs/REPOSITORY-SYNC.md).
+The app ships without corporate masters, logos or fonts. Repository connections default to reference only. Enable **Auto-sync all presentations** for an explicitly selected private repository to save workspace changes to GitHub while Slide Studio runs. See [reference libraries and sync](docs/REPOSITORY-SYNC.md).
 
 ## Documentation
 

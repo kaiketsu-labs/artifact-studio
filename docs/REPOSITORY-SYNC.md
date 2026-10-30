@@ -1,15 +1,29 @@
-# Private presentation repository sync
+# Reference libraries and private GitHub sync
 
-A reference library is either an existing local folder or a GitHub repository. Local folders are read-only references. GitHub repositories use a cached checkout under `.state/libraries/`; registration does not upload files. Public repositories may be reference sources, but only private repositories can be sync destinations.
+Connect a GitHub repository or an existing local folder through the folder icon in Slide Studio. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local folders remain read-only references.
 
-Enable sync by registering the chosen repository with `sync_enabled=true`, or checking the corresponding box in Reference libraries. This is a deliberate permission for snapshots; a reference README cannot grant it. The repository must already exist. An agent may create one with the authenticated GitHub CLI when the user requests that action.
+## Automatic sync
 
-`sync_presentations(library_id, deck_id)` snapshots one dated folder. Omitting `deck_id` snapshots the collection, including existing HTML decks, supplied PPTX masters, documents, design packs and asset folders. The extension allowlist is in `studio/libraries.py`. Files at or above 100 MB require smaller media before sync; Git LFS is not managed by this implementation. Symbolic links, dotfiles, review databases, dependency caches and known credential files are excluded. Slides' embedded notes and source/context documents are included.
+Check **Automatic sync** when connecting a GitHub repository, or **Auto-sync all presentations** beside an existing connection. This explicitly includes **all presentations in this workspace**, including the initial saved collection. Existing connections are never opted in automatically. The repository must already exist, and GitHub CLI must be authenticated with `gh auth login` and `gh auth setup-git`.
 
-A `.slide-studio-manifest.json` in the destination records hashes of the files managed by sync. The operation compares the latest remote state, previous hashes and current local content before writing. Changes made independently in the repository cause a conflict instead of being overwritten. Unrelated remote files are preserved. Files removed locally remain in the repository until deliberately removed there.
+While the local server runs, it checks saved files and groups changes after eight quiet seconds. Closing a browser tab does not stop delivery; stopping Slide Studio does. The next launch resumes from durable local checkpoints. Unsaved editor text is not a file change. Turning the setting off returns the repository to reference only. If a library operation is already running, wait for it to finish before changing the setting; orderly shutdown waits for that operation too.
 
-After a network error, retry. A committed but unpushed snapshot can be pushed again without creating a duplicate commit. If the cached checkout has uncommitted changes from an interrupted copy or failed commit, inspect those changes and resolve them before retrying; the tool refuses to discard them automatically. If the remote and cache diverge, review and reconcile them deliberately. Never use a force push as routine recovery.
+The destination shows pending, syncing, synced or an actionable error. A failure pauses that destination until you use its upload/retry icon. Further edits do not silently dismiss the error. There is no browser-tab or active-agent requirement.
 
-Refresh only fast-forwards a clean reference checkout. To adopt remote content into the local working collection, inspect the files and apply the intended changes explicitly, preserving local notes and review concurrency. A GitHub repository is a versioned source and snapshot destination, not a second live editor.
+Automatic sync also removes files previously managed by Slide Studio when they are removed locally, but only if their remote hash still matches the last delivered version. Git history retains the earlier versions. Independently changed remote files cause a conflict; unrelated repository files are preserved. This is one-way sync, never a remote overwrite of local working files.
 
-Keep the application repository separate from the content repository. Do not add user masters, photos, fonts or presentations to the application Git tree. Neither sync nor repository creation enables GitHub Pages or any external website hosting.
+## Included files
+
+Snapshots include existing HTML decks, supplied PPTX masters, design packs, documents and asset folders. The extension allowlist is in `studio/libraries.py`. Files at or above 100 MB require smaller media; Git LFS is not managed here. Symbolic links, dotfiles, review databases, dependency/reference caches and known credential files are excluded. Slides’ embedded notes and source/context documents are included. Review chats, approval state and private delivery cursors are not uploaded.
+
+A `.slide-studio-manifest.json` in the destination records hashes of managed files. Content hashes detect replacements even if their size and modification time stay unchanged. Every delivery verifies that the repository is still private and checks for independent remote changes before writing. No force push is used.
+
+## Manual sync and recovery
+
+Existing manual destinations retain their upload controls. Agents can explicitly register `sync_enabled=true`, then call `sync_presentations(library_id, deck_id)` for one dated folder, or omit `deck_id` for the collection. Manual snapshots preserve files removed locally. `auto_sync_enabled=true` is separate permission for the continuous whole-workspace behavior above.
+
+After a network error, use retry. A committed but unpushed snapshot can be pushed again without a duplicate commit. If the cached checkout has uncommitted changes after an interrupted copy or failed commit, inspect and resolve them before retrying; the tool refuses to discard them. Reconcile remote divergence deliberately rather than force-pushing.
+
+Refresh only fast-forwards a clean cached reference checkout under `.state/libraries/`. To adopt remote content into the working collection, inspect and apply the intended changes explicitly, preserving local notes and concurrency checks. Imported README files never grant upload permission.
+
+Keep the application repository separate from the content repository. Neither sync nor repository creation enables GitHub Pages or external website hosting. Testing this feature uses fictional decks and a disposable local Git remote; it does not opt any real repository in.

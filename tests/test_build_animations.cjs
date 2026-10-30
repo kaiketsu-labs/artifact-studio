@@ -37,6 +37,30 @@ function timeline(slide,options={}){
   return {animation,frames,advance(milliseconds){now+=milliseconds;const queued=[...frames.values()];frames.clear();for(const callback of queued)callback(now);}};
 }
 
+test('initial hidden builds are committed without transitions and authored transitions return for reveals',()=>{
+  const hidden=new Element({'data-build':'1'}),teaser=new Element({'data-build':'2','data-reveal':'blur'}),slide=new Element({},'',[hidden,teaser]);
+  hidden.style.setProperty('transition-property','opacity','important');hidden.style.setProperty('transition-duration','1s');
+  let commits=0;
+  Object.defineProperty(slide,'offsetWidth',{get(){
+    commits++;
+    for(const element of [hidden,teaser]){assert.equal(element.style.getPropertyValue('transition-property'),'none');assert.equal(element.style.getPropertyPriority('transition-property'),'important');assert.equal(element.classList.contains('unrevealed'),true);}
+    assert.equal(teaser.style.getPropertyValue('filter'),'blur(var(--build-blur,10px))');
+    return 100;
+  }});
+  const {animation}=timeline(slide);animation.update(0);
+  assert.equal(commits,1);assert.equal(hidden.style.getPropertyValue('transition-property'),'opacity');assert.equal(hidden.style.getPropertyPriority('transition-property'),'important');assert.equal(hidden.style.getPropertyValue('transition-duration'),'1s');assert.equal(teaser.style.getPropertyValue('transition-property'),'');
+  animation.update(1);assert.equal(commits,1);assert.equal(hidden.classList.contains('unrevealed'),false);assert.equal(teaser.classList.contains('unrevealed'),true);
+});
+
+test('entering live builds from a static preview commits hidden state without transitions',()=>{
+  const future=new Element({'data-build':'1'}),slide=new Element({},'',[future]);let commits=0;
+  Object.defineProperty(slide,'offsetWidth',{get(){commits++;assert.equal(future.classList.contains('unrevealed'),true);assert.equal(future.style.getPropertyValue('transition-property'),'none');return 100;}});
+  const {animation}=timeline(slide);animation.update(0,{build:false});
+  assert.equal(commits,0);assert.equal(future.classList.contains('unrevealed'),false);
+  animation.update(0);assert.equal(commits,1);assert.equal(future.style.getPropertyValue('transition-property'),'');
+  animation.update(1);assert.equal(commits,1);assert.equal(future.classList.contains('unrevealed'),false);
+});
+
 test('counters group intermediate values, support signed fractions and preserve final copy',()=>{
   const amount=new Element({'data-count-to':'-9568.25','data-count-from':'-100','data-count-prefix':'€','data-count-suffix':' net'},'−€9,568.25 final');
   const counter=counterOptions(amount);

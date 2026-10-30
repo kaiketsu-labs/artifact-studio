@@ -23,12 +23,14 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
+from .autosync import AutoSync, SyncStatus
 from .events import deck_events
 from .libraries import (
     Libraries,
     Library,
     LibraryFile,
     LibraryInput,
+    LibrarySyncSettings,
     SyncInput,
     SyncResult,
     inventory,
@@ -168,11 +170,21 @@ def list_libraries() -> list[Library]:
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
-def register_library(location: str, sync_enabled: bool = False) -> Library:
+def register_library(
+    location: str, sync_enabled: bool = False, auto_sync_enabled: bool = False
+) -> Library:
     """Register a user-selected folder or GitHub URL. Only enable sync when requested.
-    Registration never uploads. Private repositories use the local gh authentication.
+    Defaults to reference only. Explicit auto_sync_enabled schedules all workspace files.
+    Private repositories use the local gh authentication.
     """
-    return Libraries(store).register(LibraryInput(location=location, sync_enabled=sync_enabled))
+    library = Libraries(store).register(
+        LibraryInput(
+            location=location, sync_enabled=sync_enabled, auto_sync_enabled=auto_sync_enabled
+        )
+    )
+    if auto_sync_enabled:
+        _ = AutoSync(store).queue(library.id)
+    return library
 
 
 @mcp.tool(annotations=WRITE)
@@ -509,9 +521,15 @@ mcp_app = mcp.streamable_http_app(stateless_http=True, json_response=True, host=
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-    """Run the MCP transport for the lifetime of the local web server."""
+    """Run MCP and explicitly opted-in repository sync while the local server is open."""
     async with mcp.session_manager.run():
-        yield
+        stop = asyncio.Event()
+        task = asyncio.create_task(AutoSync(store).run(stop))
+        try:
+            yield
+        finally:
+            stop.set()
+            await task
 
 
 app = FastAPI(title="Slide Studio", lifespan=lifespan)
@@ -800,8 +818,29 @@ def libraries() -> list[Library]:
 
 @app.post("/api/libraries")
 def add_library(body: LibraryInput) -> Library:
-    """Connect a reference from the human workspace without uploading content."""
-    return Libraries(store).register(body)
+    """Connect a reference, optionally enabling automatic snapshots through explicit opt-in."""
+    return register_library(body.location, body.sync_enabled, body.auto_sync_enabled)
+
+
+@app.post("/api/libraries/{library_id}/settings")
+def configure_library_sync(library_id: str, body: LibrarySyncSettings) -> Library:
+    """Enable workspace-wide automatic sync or return a repository to reference-only use."""
+    library = Libraries(store).configure_sync(library_id, body)
+    if body.auto_sync_enabled:
+        _ = AutoSync(store).queue(library.id)
+    return library
+
+
+@app.get("/api/library-sync")
+def library_sync_status() -> list[SyncStatus]:
+    """Expose durable local sync outcomes without treating connection as successful delivery."""
+    return AutoSync(store).statuses()
+
+
+@app.post("/api/libraries/{library_id}/retry")
+def retry_library_sync(library_id: str) -> SyncStatus:
+    """Queue an explicitly enabled destination after a reported sync failure."""
+    return AutoSync(store).queue(library_id)
 
 
 @app.post("/api/libraries/{library_id}/refresh")

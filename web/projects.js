@@ -2,14 +2,22 @@
 window.SlideProjects={
   init({toast,read,capture,restore}){
     const $=id=>document.getElementById(id),dialog=$('project-dialog');
-    const {button}=window.SlideIcons;
+    const {button,svg}=window.SlideIcons;
     for(const [id,icon,label,show] of [
-      ['project-button','save','Project files',false],['close-project','close','Close',false],
-      ['save-project','save','Save project',true],['open-project','folder','Open project',true],
-      ['export-html','code','Export HTML',true],['export-pdf','pdf','Export PDF',true]
+      ['project-button','save','Project files',false],['close-project','close','Close',false]
     ])button($(id),icon,label,show);
+    for(const [id,icon,label,detail,format] of [
+      ['save-project','save','Save project','Slides, notes & feedback','project'],
+      ['open-project','folder','Open project','.slide-studio.zip','open'],
+      ['export-html','code','HTML','Images & animations','html'],
+      ['export-pdf','pdf','PDF','Print or save as PDF','pdf']
+    ]){
+      const control=$(id);control.className='file-choice';control.dataset.format=format;
+      control.innerHTML=`<span class="file-choice-icon" aria-hidden="true">${svg(icon)}</span><span class="file-choice-copy"><strong>${label}</strong><span id="${id}-detail">${detail}</span></span>`;
+      control.setAttribute('aria-label',id.startsWith('export-')?`Export ${label}`:label);control.setAttribute('aria-describedby',`${id}-detail`);
+    }
     let busy=false;
-    function update(){const empty=!read();for(const id of ['save-project','export-html','export-pdf'])$(id).disabled=busy||empty;$('open-project').disabled=busy;$('project-file').disabled=busy;}
+    function update(){const deck=read(),empty=!deck,context=$('project-context');context.textContent=deck?.title||'';context.title=context.textContent;context.hidden=empty;for(const id of ['save-project','export-html','export-pdf'])$(id).disabled=busy||empty;$('open-project').disabled=busy;$('project-file').disabled=busy;}
     function download(blob,name){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
     async function responseData(response){if(response.ok)return response;const error=await response.json();throw new Error(typeof error.detail==='string'?error.detail:'Could not open the project.');}
     $('project-button').addEventListener('click',()=>{update();$('project-error').textContent='';dialog.showModal();});

@@ -12,7 +12,7 @@ The shared runtime animates ordinary HTML and inline SVG without slide scripts. 
 <p data-build="2" data-reveal="blur">The next figure</p>
 ```
 
-The bar and counter start together when build 1 is revealed. The result appears after 1,200 ms. The last paragraph is a blurred, noninteractive teaser until build 2. Choose timing that serves the explanation; animation is optional.
+The bar and counter start together when build 1 is revealed. The result appears after 1,200 ms. The last paragraph is a blurred, noninteractive teaser until build 2. Choose timing that serves the explanation. On a dense slide, reveal meaningful groups in the order of the explanation. Animate one notable chart element or result when it helps direct attention, keeping the rest stable. Avoid decorative motion, excessive clicks and animation on every slide.
 
 | Attribute | Behavior |
 | --- | --- |
@@ -34,4 +34,4 @@ Backward navigation resets later builds; returning to a slide replays its animat
 
 Unrevealed or delayed builds are hidden from assistive technology and keyboard focus, including blurred teasers. Authored accessibility attributes and filters are restored when revealed. Private notes and feedback never form part of this animation markup.
 
-Visually review each reveal, the counter/bar synchronization and the completed slide at presentation size. Check the final chart against its sources. A correct target number alone does not verify the rendered chart.
+Visually review the initial view, each reveal at its start, intermediate motion, delayed boundaries, counter/bar synchronization and the completed slide at presentation size. Use the stage/time captures described in [visual review](VISUAL-REVIEW.md), plus permitted live playback for entry, continuity and replay. Check the final chart against its sources. A correct target number alone does not verify the rendered chart.

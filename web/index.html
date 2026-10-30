@@ -125,11 +125,14 @@
   <div id="deleted-slides-list"></div><p id="deleted-slides-error" class="inline-error" role="alert"></p>
 </dialog>
 <div id="toast" class="toast" role="status" hidden></div>
-<dialog id="project-dialog">
-  <header><h2>Project</h2><button id="close-project" type="button" aria-label="Close"></button></header>
-  <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button><hr><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
+<dialog id="project-dialog" aria-labelledby="project-dialog-title">
+  <header><h2 id="project-dialog-title">Project files</h2><button id="close-project" type="button" aria-label="Close"></button></header>
+  <p id="project-context" class="project-context" hidden></p>
+  <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button></div>
+  <h3 class="project-group-label">Export</h3>
+  <div class="project-actions"><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
   <input id="project-file" type="file" accept=".slide-studio.zip,.zip" hidden>
-  <p id="project-error" class="error" role="alert"></p>
+  <p id="project-error" class="inline-error" role="alert"></p>
 </dialog>
 <dialog id="instructions-dialog">
   <form id="instructions-form">
@@ -183,9 +186,8 @@
   <form id="library-form">
     <label for="library-location">Add a GitHub repository or local folder</label>
     <div class="copy-row"><input id="library-location" placeholder="https://github.com/you/presentations or /Users/…" required><button id="add-library" type="submit"></button></div>
-    <label class="library-checkbox"><input id="library-sync" type="checkbox">Allow presentation sync to this private repo</label>
+    <label id="library-sync-setting" class="library-checkbox" hidden><input id="library-sync" type="checkbox"><span>Automatic sync<small>All presentations · private repository</small></span></label>
   </form>
-  <p class="library-help">Local files remain your working copy.</p>
   <p id="library-status" role="status" aria-live="polite"></p>
   <p id="library-error" class="inline-error" role="alert"></p>
 </dialog>

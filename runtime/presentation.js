@@ -84,7 +84,7 @@
   /** Retain one cancellable animation loop per slide and replay only newly activated builds. */
   class BuildAnimations {
     constructor(slide,{now=()=>performance.now(),requestFrame=callback=>requestAnimationFrame(callback),cancelFrame=id=>cancelAnimationFrame(id),reducedMotion=()=>false,computedStyle=element=>element.ownerDocument?.defaultView?.getComputedStyle(element),locale=slide.ownerDocument?.documentElement?.lang||'en'}={}){
-      this.slide=slide;this.now=now;this.requestFrame=requestFrame;this.cancelFrame=cancelFrame;this.reducedMotion=reducedMotion;this.frame=null;this.build=true;this.disposed=false;this.printing=null;
+      this.slide=slide;this.now=now;this.requestFrame=requestFrame;this.cancelFrame=cancelFrame;this.reducedMotion=reducedMotion;this.frame=null;this.build=true;this.disposed=false;this.printing=null;this.initial=true;
       this.parts=[...slide.querySelectorAll('[data-build],[data-animate-grow="x"],[data-count-to]')].map(element=>{
         const clip=element.style.getPropertyValue('clip-path'),priority=element.style.getPropertyPriority('clip-path');
         const authoredClip=[clip,element.getAttribute('clip-path'),computedStyle(element)?.clipPath].some(value=>value&&value!=='none');
@@ -169,7 +169,11 @@
     /** Advance eligibility without restarting animations that are already running or complete. */
     update(revealed,{build=true}={}){
       if(this.disposed)return;
-      const changedMode=this.build!==build;this.build=build;this.slide.classList.toggle('build-mode',build);
+      // Commit hidden state without animating when entering build mode.
+      const changedMode=this.build!==build;
+      const transitions=build&&(this.initial||changedMode)?[...this.buildParts.values()].map(({element})=>({element,value:element.style.getPropertyValue('transition-property'),priority:element.style.getPropertyPriority('transition-property')})):[];
+      for(const {element} of transitions)element.style.setProperty('transition-property','none','important');
+      this.build=build;this.slide.classList.toggle('build-mode',build);
       const now=this.now();
       for(const part of this.parts){
         if(changedMode){part.active=false;part.done=false;}
@@ -178,6 +182,11 @@
         if(!part.active){part.active=true;part.done=false;part.started=now;}
       }
       this.draw(now);
+      if(transitions.length){
+        void this.slide.offsetWidth;
+        for(const {element,value,priority} of transitions){if(value)element.style.setProperty('transition-property',value,priority);else element.style.removeProperty('transition-property');}
+      }
+      this.initial=false;
     }
     /** Use one timestamp for bar growth, counters and delayed results within a reveal. */
     draw(now){
