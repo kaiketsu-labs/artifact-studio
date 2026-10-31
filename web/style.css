@@ -26,6 +26,18 @@ a{color:inherit}
 .studio-icon{display:flex;color:#516b91}
 .studio-icon img{display:block;width:30px;height:30px;object-fit:contain}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:9px}
+.workspace-menu{position:fixed;inset:auto;margin:0;width:min(292px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);color:inherit;box-shadow:0 16px 48px #152c4926,0 3px 10px #152c490d}
+.workspace-menu::backdrop{background:transparent}
+.workspace-menu [role=separator]{height:1px;background:var(--line);margin:6px 5px}
+.workspace-menu button[role=menuitem]{display:flex;justify-content:flex-start;gap:11px;width:100%;min-height:39px;padding:9px 11px;border:0;border-radius:7px;background:transparent;color:inherit;font-size:13px;text-align:left}
+.workspace-menu button[hidden]{display:none}
+.workspace-menu button[role=menuitem]>span{flex:1}
+.workspace-menu button[role=menuitem]>.ui-icon{width:18px;height:18px;color:var(--subtle)}
+.workspace-menu button[role=menuitem]:hover:not(:disabled),.workspace-menu button[role=menuitem]:focus-visible{background:var(--hover,#f1f5fb)}
+.workspace-menu button[role=menuitem]:focus-visible{outline:0;box-shadow:inset 0 0 0 2px var(--blue)}
+.workspace-menu [data-shortcut]::after{content:attr(data-shortcut);margin-left:auto;padding:2px 5px;border:1px solid var(--line);border-radius:4px;background:var(--raised,#f8fafc);font:11px ui-monospace,monospace;color:var(--subtle);white-space:nowrap}
+.workspace-menu #appearance-button::after{content:'';width:6px;height:6px;margin-right:5px;border-top:1.5px solid var(--subtle);border-right:1.5px solid var(--subtle);transform:rotate(45deg)}
+#workspace-menu-button[aria-expanded=true]{background:var(--selected,#edf3fd);border-color:var(--blue);color:var(--blue)}
 .workspace{display:grid;grid-template-columns:195px minmax(380px,1fr) 330px;height:calc(100dvh - 58px)}
 .workspace.is-empty .canvas-area{grid-column:2/-1}
 .workspace.is-empty .discussion,.workspace.is-empty .preview-wrap,.workspace.is-empty .canvas-tools,.workspace.is-empty .notes-panel,.workspace.is-empty .sources-panel,.workspace.is-empty .approve{display:none}

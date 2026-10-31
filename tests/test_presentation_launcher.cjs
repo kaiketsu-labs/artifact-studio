@@ -76,3 +76,11 @@ test('the bottom-right fullscreen trigger shares the launch path and receives re
   check.message({action:'end'});await settle();
   assert.equal(check.fullscreenButton.focused,true);assert.equal(check.button.focused,undefined);
 });
+test('keyboard starts preserve fullscreen activation and choose beginning or current slide',()=>{
+  for(const fromBeginning of [false,true]){
+    const check=fixture();check.launcher.start({fromBeginning});
+    assert.deepEqual(check.order,['fullscreen','navigate']);
+    assert.equal(new URL(check.frame().url).hash,fromBeginning?'':'#cover');
+    assert.equal(check.launcher.isOpen(),true);
+  }
+});

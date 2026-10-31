@@ -85,7 +85,7 @@ Other MCP clients can use the slide tools too. Reload the agent session if the n
 
 > Call `get_working_context` in Slide Studio and help me create a presentation. I'll provide the design reference, audience and key points.
 
-The **plug icon → Copy agent prompt** resumes work on the selected deck. Copying a prompt does not configure MCP or start an idle agent.
+The **Menu → Connect an agent → Copy agent prompt** resumes work on the selected deck. Copying a prompt does not configure MCP or start an idle agent.
 
 ### Your first deck
 
@@ -94,6 +94,8 @@ The **plug icon → Copy agent prompt** resumes work on the selected deck. Copyi
 3. **Draft together.** Create the presentation, then use the copyable agent prompt to ask for a draft. Creation starts with one branded cover; the agent builds the rest from your brief.
 
 ## Point to the change
+
+Top actions live in one **Menu**, with icons and Mac/Windows shortcut hints; **Present** stays visible. Use ⌘/Ctrl+S to save a project, ⌘/Ctrl+O to open one, and ⇧⌘S / Ctrl+Shift+S for file formats. [Menu navigation and presentation shortcuts](docs/GETTING-STARTED.md#review-and-present).
 
 ![A selected Review box is highlighted on the slide, with an element-specific comment in the feedback field and Batch mode selected.](docs/assets/element-review.png)
 
@@ -140,7 +142,7 @@ See the [PowerPoint comparison](docs/POWERPOINT-COMPARISON.md) for current capab
 | Each submitted comment is released immediately. | Comments stay queued until **Send batch**. |
 | A connected review session can continue between responses through host hooks. | The agent receives the released batch together. |
 
-For automatic continuation in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt**. Follow the one-time [hook setup](docs/LIVE-REVIEW.md), including native host loading/trust, then call `start_live_review` in the connected agent. The setup prompt uses project-local hooks; the guide also covers optional user-level hooks. The Live selector shows the connected harness or **Unavailable**; **End review** stops listening and preserves comments. A green Mac menu-bar dot means the server is running, independently of agent availability.
+For automatic continuation in **Codex or Claude Code**, open **Menu → Connect an agent → Automatic feedback → Copy setup prompt**. Follow the one-time [hook setup](docs/LIVE-REVIEW.md), including native host loading/trust, then call `start_live_review` in the connected agent. The setup prompt uses project-local hooks; the guide also covers optional user-level hooks. The Live selector shows the connected harness or **Unavailable**; **End review** stops listening and preserves comments. A green Mac menu-bar dot means the server is running, independently of agent availability.
 
 Plain MCP cannot wake a closed chat. Keep the review session open, or resume the agent to read saved feedback. Native host activation and physical display placement have separate [verification limits](QA.md).
 
@@ -160,7 +162,7 @@ To open presenter controls manually, move the pointer to the bottom toolbar and 
 
 ## Your files stay local
 
-The **save icon** opens project files:
+Open **Menu → Project files**:
 
 | Action | Result |
 | --- | --- |
@@ -173,7 +175,7 @@ Projects are local downloads. Workspace rules travel as reference snapshots and 
 
 ![Project controls for saving, reopening and exporting HTML or PDF. The example is fictional.](docs/assets/projects.png)
 
-The **checklist icon** opens workspace rules in a rich text editor. Expand **Learned preferences** to edit secondary guidance. **Save** writes both to `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md` in your collection; conflicts with another editor are reported without replacing either document. Enabled GitHub auto-sync includes these saved files. Reference-only connections do not upload them. Explicit rules remain primary; learned preferences cannot override them. Each deck has its own brief and README context. MCP returns both on working-context, presentation and feedback reads.
+**Menu → Instructions** opens workspace rules in a rich text editor. Expand **Learned preferences** to edit secondary guidance. **Save** writes both to `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md` in your collection; conflicts with another editor are reported without replacing either document. Enabled GitHub auto-sync includes these saved files. Reference-only connections do not upload them. Explicit rules remain primary; learned preferences cannot override them. Each deck has its own brief and README context. MCP returns both on working-context, presentation and feedback reads.
 
 Rich editing supports headings, lists, emphasis, links, quotes and code. Documents with advanced Markdown such as tables or images use source editing to preserve their formatting. The bundled **[$slide-studio-learn](.agents/skills/slide-studio-learn/SKILL.md)** skill can review presentation transcripts and released feedback weekly through your agent harness. General preferences need explicit cross-presentation intent or repeated evidence, while client, audience and content feedback stays with its deck. [Set up weekly learning](docs/PREFERENCE-LEARNING.md).
 

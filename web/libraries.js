@@ -3,7 +3,7 @@ window.SlideLibraries = {
   init({api, toast, escape, currentDeck}) {
     const $ = id => document.getElementById(id);
     const {svg, button} = window.SlideIcons;
-    button($('libraries-button'), 'folder', 'Reference libraries');
+    button($('libraries-button'), 'folder', 'Reference libraries', true);
     button($('close-libraries'), 'close', 'Close');
     button($('add-library'), 'plus', 'Connect library', true);
     let busy = false, timer = null, rendered = '', revision = 0;

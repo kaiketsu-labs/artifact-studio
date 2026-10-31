@@ -38,7 +38,7 @@ In the connected agent chat, ask:
 
 Use `start_live_review()` with no deck for the design inbox. This successful MCP call explicitly opts that host session into review. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
 
-Use **plug → End review** for the selected presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` again to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
+Use **Menu → Connect an agent → End review** for the selected presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` again to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
 
 Live submits each comment immediately. Batch remains private until **Send batch**. Neither switches nor hooks silently release a queued batch. A closed or unavailable agent can read saved feedback when resumed.
 

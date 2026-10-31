@@ -1,6 +1,6 @@
 # Reference libraries and private GitHub sync
 
-Connect a GitHub repository or an existing local folder through the folder icon in Slide Studio. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local folders remain read-only references.
+Connect a GitHub repository or an existing local folder through **Menu → Reference libraries** in Slide Studio. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local folders remain read-only references.
 
 ## Automatic sync
 

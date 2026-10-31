@@ -38,9 +38,9 @@
       notify();
     }
     /** Request fullscreen before navigation or awaiting any asynchronous preparation. */
-    function open(event,trigger){
+    function open(event,trigger,href=button.getAttribute('href')){
       if(event.button>0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
-      const href=button.getAttribute('href');if(!href)return;
+      if(!href)return;
       event.preventDefault();if(session)return;
       const url=new URL(href,view.location.href);if(url.origin!==view.location.origin)return;
       const layer=doc.createElement('div'),frame=doc.createElement('iframe');
@@ -63,7 +63,7 @@
     });
     doc.addEventListener('fullscreenchange',changed);doc.addEventListener('webkitfullscreenchange',changed);
     for(const trigger of [button,...additionalButtons])trigger.addEventListener('click',event=>open(event,trigger));
-    return {isOpen:()=>!!session};
+    return {isOpen:()=>!!session,start({fromBeginning=false}={}){const href=button.getAttribute('href');if(!href)return;const url=new URL(href,view.location.href);if(fromBeginning)url.hash='';open({button:0,preventDefault(){}},button,url.href);}};
   }
   const api={create};if(typeof module!=='undefined')module.exports=api;else root.SlidePresentationLauncher=api;
 })(typeof window==='undefined'?{}:window);

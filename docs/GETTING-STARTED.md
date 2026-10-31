@@ -92,11 +92,11 @@ For [Claude Code](https://code.claude.com/docs/en/mcp), run from the project whe
 claude mcp add --transport http slide-studio http://127.0.0.1:8790/mcp
 ```
 
-Use a new agent session if the newly added server is not visible in the current one. The **plug icon** in Slide Studio provides a copyable prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
+Use a new agent session if the newly added server is not visible in the current one. **Menu → Connect an agent** in Slide Studio provides a copyable prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
 
 Ask the connected agent to call `get_working_context` first. It receives the authoring guide, current presentations, design-import instructions, reference libraries and the local runtime path. Each tool call uses explicit presentation/slide IDs; there is no hidden active presentation.
 
-Open the **checklist icon** to edit **Workspace rules** with rich text. Expand **Learned preferences** for secondary guidance. Click **Save** to write the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`; conflicts with another editor are reported without replacing either document. These rules apply to every deck, and learned guidance never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Enabled GitHub auto-sync includes the saved files; reference-only connections do not upload them. Each presentation keeps its audience, client, content and brief in its own README. Advanced Markdown uses a source editor when needed to preserve formatting.
+Open **Menu → Instructions** to edit **Workspace rules** with rich text. Expand **Learned preferences** for secondary guidance. Click **Save** to write the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`; conflicts with another editor are reported without replacing either document. These rules apply to every deck, and learned guidance never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Enabled GitHub auto-sync includes the saved files; reference-only connections do not upload them. Each presentation keeps its audience, client, content and brief in its own README. Advanced Markdown uses a source editor when needed to preserve formatting.
 
 The bundled `$slide-studio-learn` skill can review relevant human transcripts and released feedback weekly. Scheduling belongs to your agent harness; installing Slide Studio does not create a schedule automatically. Explicit rules stay primary, and each learned preference records its evidence and scope. [Invocation and weekly setup](PREFERENCE-LEARNING.md).
 
@@ -104,15 +104,28 @@ The bundled `$slide-studio-learn` skill can review relevant human transcripts an
 
 An empty workspace on first launch is expected.
 
-1. Click **+** in the top bar to open **New presentation**.
+1. Open **Menu → New presentation**, or choose **+ New project** at the bottom of the project selector.
 2. Click **+** beside **Design library**. Send a PPTX, URL or reference files through the design chat. Then tell your connected agent: **“Read my pending design request in Slide Studio, inspect the reference, and build and register the design.”** If the request stays **Queued**, resume the agent with that prompt; connecting an agent alone does not keep it listening. You can also provide the reference directly in the agent's chat. [Design import details](DESIGN-PACKS.md).
 3. Once the design appears, select it. Enter a title and a brief: audience, intended takeaway and key material. The **paperclip beside Brief** attaches reference files, up to five files, 25 MB each and 50 MB total.
 4. Click **Create presentation**. This creates one branded draft cover and saves the brief and files for the agent; it does not generate the rest of the presentation automatically.
-5. Use the **plug icon → Copy agent prompt**, paste it into your connected agent's chat, and ask it to draft the presentation. Review the slides as the agent updates them.
+5. Use the **Menu → Connect an agent → Copy agent prompt**, paste it into your connected agent's chat, and ask it to draft the presentation. Review the slides as the agent updates them.
 
 Designs define a visual language, not locked layouts or a required slide count. Ask the agent to set a default design if you want it selected for future presentations. New installations have no brand-specific default.
 
 ## Review and present
+
+The top-right **Menu** groups file actions, workspace settings and the agent connection; **Present** stays beside it. Open the menu with **F10** or focus it and press Up/Down. Use arrows, Home/End, Enter or type an action's name; Escape returns focus to the menu button. Appearance opens a submenu with Right; Left returns.
+
+| Action | Mac | Windows/Linux |
+| --- | --- | --- |
+| New presentation | ⌘N | Ctrl+N |
+| Open project | ⌘O | Ctrl+O |
+| Save project | ⌘S | Ctrl+S |
+| Project files / choose format | ⇧⌘S | Ctrl+Shift+S |
+| Present from current slide | ⌘Return | Shift+F5 |
+| Present from beginning | ⇧⌘Return or F5 | F5 |
+
+File and presentation bindings follow [PowerPoint's editing](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations) and [slideshow shortcuts](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-deliver-powerpoint-presentations). Save downloads a portable project, including recovered drafts; slides already persist locally. Shortcuts leave modal editors and text entry alone, except Save can capture a text draft. Some browsers reserve New/Open or function keys before the page receives them; use the menu in that case.
 
 | Control | What it does |
 | --- | --- |
@@ -131,10 +144,10 @@ Designs define a visual language, not locked layouts or a required slide count. 
 | Present | Start the full-size slideshow directly. Click the slide or press a normal key to advance. Arrows/Page Up/Page Down navigate; Home/End jump to the first/last slide. **Esc** and End presentation return directly to the editor at the current slide. Typing in notes and activating focused controls keep their normal behavior. |
 | Fullscreen (bottom right) | Present the selected slide in native fullscreen. The separate Fit slide button resets the editor zoom. |
 | Zoom | Drag the slider or use +/− for 10–400%. Scroll across enlarged slides. Fit slide returns to 100%; zoom out to 50% or below for the slide overview. Project save/open keeps the zoom level. |
-| Appearance | Use the sun/moon menu in the top bar to choose Light, Dark or System. Your choice is saved in this browser; slide designs keep their authored colours. |
+| Appearance | Use **Menu → Appearance** to choose Light, Dark or System. Your choice is saved in this browser; slide designs keep their authored colours. |
 | Hidden slides during a show | Normal navigation, progress dots and the next-slide preview skip hidden slides. **See all slides** in the bottom toolbar, a slide right-click, or the private presenter filmstrip lets you select one manually. Starting on a hidden slide skips to a visible slide; an entirely hidden deck starts empty. |
 
-For automatic feedback in **Codex or Claude Code**, open **plug → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Optional user-level hooks are covered in the same guide. Then ask it to call `start_live_review` for your deck and keep the review session open. The Live selector shows **Codex**, **Claude Code** or **Unavailable**; its tooltip identifies the connected review session. **Plug → End review** stops listening and preserves comments. A green Mac menu-bar dot only reports server health. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
+For automatic feedback in **Codex or Claude Code**, open **Menu → Connect an agent → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Optional user-level hooks are covered in the same guide. Then ask it to call `start_live_review` for your deck and keep the review session open. The Live selector shows **Codex**, **Claude Code** or **Unavailable**; its tooltip identifies the connected review session. **Menu → Connect an agent → End review** stops listening and preserves comments. A green Mac menu-bar dot only reports server health. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
 
 Present requests browser fullscreen directly from your click, without opening an intermediate page. Esc or End returns to the editor at the current slide, keeping unsent drafts. If the browser blocks or does not support fullscreen, the slideshow still fills its available viewport.
 
@@ -146,7 +159,7 @@ Open each deck in its own browser tab and use a separate agent chat with that de
 
 ## Files, persistence and backups
 
-Use the **save icon** for **Save project**, **Open project**, **Export HTML** and **Export PDF**. Project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
+Use **Menu → Project files** for **Save project**, **Open project**, **Export HTML** and **Export PDF**. Project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
 
 | Location | Contents |
 | --- | --- |
@@ -160,7 +173,7 @@ Back up **both the collection and the state folder**. If you override `SLIDE_STU
 
 ## Optional reference libraries and private sync
 
-The **folder icon** opens **Reference libraries**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
+Open **Menu → Reference libraries**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
 
 GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login` and `gh auth setup-git`. New connections are **reference only**: agents can use earlier presentations for tone, design and context. Enable **Auto-sync all presentations** beside the repository, or **Automatic sync** when connecting it, to upload saved workspace files to a **private** repository. Changes are grouped after eight quiet seconds while Slide Studio is running; delivery resumes on the next launch. Status and a retry icon appear beside the destination. Existing manual destinations retain their current-deck and collection upload buttons until you change the setting. Local files remain the working copy. This is one-way versioned storage; private review state is excluded. See [reference and sync behavior](REPOSITORY-SYNC.md) for conflicts, exclusions and recovery.
 

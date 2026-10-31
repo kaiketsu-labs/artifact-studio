@@ -8,13 +8,13 @@
   const feedbackDraft=()=>feedbackDrafts.get(key());
   const {svg,brand,button:iconButton}=window.SlideIcons;
   for(const [id,icon,label,show] of [
-    ['instructions-button','rules','Instructions',false],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
+    ['instructions-button','rules','Instructions',true],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
     ['hide-slide','eye','Hide slide',false],['objects-button','group','Slide objects',false],
     ['delete-element','trash','Remove element',false],['attach-feedback','attach','Attach files',false],
     ['edit-element-text','edit','Edit text',false],['move-element','move','Move element',false],['align-element','align','Align to slide',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
     ['retry-preview','refresh','Retry loading design',false],['copy-start','copy','Copy agent prompt',true],['copy-agent-prompt','copy','Copy agent prompt',true],
     ['attach-brief','attach','Attach brief files',false],['toggle-design-chat','plus','Add a design',false],['attach-design','attach','Attach reference files',false],['send-design','send','Send design request',false],
-    ['new-button','plus','New presentation',false],['connect-button','plug','Connect an agent',false],
+    ['new-button','plus','New presentation',true],['connect-button','plug','Connect an agent',true],
     ['present-link','present','Present',true],['fullscreen-button','fullscreen','Present fullscreen',false],['prev-slide','left','Previous slide',false],['next-slide','right','Next slide',false],
     ['save-notes','save','Save',true],['clear-target','close','Clear element selection',false],
     ['select-parent','group','Select surrounding group',false],['load-update','refresh','Show update',true],
@@ -28,11 +28,11 @@
   let orderEpoch=0, selectionEpoch=0;
   let currentTarget=null, noteBaseline='', previewKey='', railSignature='', agentNotesKey='', commentsKey='', commentsSignature='', isLoading=false, feedbackSending=false, draftWarning=false, switchingDeck=false;
   let refreshQueued=false;
-  let deckPicker=null, previewStatusTimer=null;
+  let deckPicker=null, workspaceMenu=null, previewStatusTimer=null;
   const boundPreviewDocuments=new WeakSet();
   const key=()=>`${deck?.id}/${selectedId}`;
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
-  window.SlidePresentationLauncher.create({button:$('present-link'),additionalButtons:[$('fullscreen-button')],onReturn:id=>{if(deck?.slides.some(item=>item.id===id))void choose(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Slide Studio in Chrome or Firefox.',true)});
+  const presentationLauncher=window.SlidePresentationLauncher.create({button:$('present-link'),additionalButtons:[$('fullscreen-button')],onReturn:id=>{if(deck?.slides.some(item=>item.id===id))void choose(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Slide Studio in Chrome or Firefox.',true)});
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;
@@ -140,7 +140,8 @@
   function bindKeyboardSelection(doc,bindEvents=true){
     for(const element of doc.querySelectorAll('h1,h2,h3,h4,h5,h6,p,img,svg,[data-element-id]')){if(element.hasAttribute('tabindex')||element.closest('svg')!==null&&element.tagName.toLowerCase()!=='svg')continue;element.tabIndex=0;element.dataset.reviewFocus='';}
     if(!bindEvents)return;
-    doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false);($('edit-element-text').disabled?$('move-element'):$('edit-element-text')).focus();});
+    workspaceMenu?.bindDocument(doc);
+    doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false);($('edit-element-text').disabled?$('move-element'):$('edit-element-text')).focus();});
   }
   /** Capture the element and original geometry, never just an unstable screen pixel. */
   async function selectElement(element,focus=true){if(elementEditor.isBusy()||!await elementEditor.finish())return false;if(element&&element===selectedElement&&element.isConnected){if(focus)$('feedback-text').focus();return true;}const previousElement=selectedElement;elementEditor.select(null);if(element&&!element.isConnected)element=previousElement?.isConnected?previousElement:null;selectedElement=element;hoverElement=null;$('hover-box').hidden=true;if(!element||element.matches('body,html,.slide')){currentTarget=null;selectedElement=null;$('selection-box').hidden=true;}else{const rect=element.getBoundingClientRect(),canvas=$('preview').contentDocument.querySelector('.slide').getBoundingClientRect();const clamp=value=>Math.max(0,Math.min(1,value));currentTarget={selector:selectorFor(element),label:labelFor(element),quote:(element.innerText||element.textContent).trim().slice(0,2000),html:elementSnapshot(element),x:clamp((rect.left-canvas.left)/canvas.width),y:clamp((rect.top-canvas.top)/canvas.height),width:clamp(rect.width/canvas.width),height:clamp(rect.height/canvas.height)};placeBox($('selection-box'),element);elementEditor.select(element);}
@@ -301,7 +302,7 @@
       return true;
     }
   });
-  window.SlideProjects.init({
+  const projectFiles=window.SlideProjects.init({
     toast,read:()=>deck,
     capture:()=>{
       if(elementEditor.isEditing())throw new Error('Finish or cancel the element edit before saving or opening a project.');
@@ -440,6 +441,7 @@
     catch(error){$('instructions-error').textContent=error.message;}
     finally{setInstructionsBusy(false);}
   });
+  workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   start().catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
 })();

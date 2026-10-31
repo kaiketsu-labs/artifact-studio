@@ -4,7 +4,7 @@ window.SlideProjects={
     const $=id=>document.getElementById(id),dialog=$('project-dialog');
     const {button,svg}=window.SlideIcons;
     for(const [id,icon,label,show] of [
-      ['project-button','save','Project files',false],['close-project','close','Close',false]
+      ['project-button','external','Project files',true],['close-project','close','Close',false]
     ])button($(id),icon,label,show);
     for(const [id,icon,label,detail,format] of [
       ['save-project','save','Save project','Slides, notes & feedback','project'],
@@ -44,6 +44,7 @@ window.SlideProjects={
       finally{busy=false;update();}
     });
     $('export-pdf').addEventListener('click',()=>{const deck=read();if(!deck)return;window.open(`/api/decks/${encodeURIComponent(deck.id)}/exports/pdf`,'_blank','noopener');dialog.close();});
-    return {update};
+    function run(id){update();$('project-error').textContent='';if($(id).disabled)return;dialog.showModal();$(id).click();}
+    return {update,save:()=>run('save-project'),open:()=>run('open-project')};
   }
 };

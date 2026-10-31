@@ -30,19 +30,31 @@
   <script src="/web/chat-composer.js" defer></script>
   <script src="/web/presentation-launcher.js" defer></script>
   <script src="/web/updates.js" defer></script>
+  <script src="/web/workspace-menu.js" defer></script>
   <script src="/web/app.js" defer></script>
 </head>
 <body>
 <header class="topbar">
   <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.png" alt="" width="30" height="30"></span>Slide Studio</a>
   <div class="top-actions">
-    <button id="appearance-button" class="quiet" type="button" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
-    <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
-    <button id="new-button" class="quiet" aria-label="New presentation"></button>
-    <button id="project-button" class="quiet" aria-label="Project files"></button>
-    <button id="libraries-button" class="quiet" aria-label="Reference libraries"></button>
-    <button id="instructions-button" class="quiet" aria-label="Instructions" hidden></button>
-    <button id="connect-button" class="quiet" aria-label="Connect an agent"></button>
+    <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
+    <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Slide Studio">
+      <div role="group" aria-label="Files">
+        <button id="new-button" type="button" role="menuitem" tabindex="-1" aria-label="New presentation"></button>
+        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Open project"></button>
+        <button id="menu-save-project" type="button" role="menuitem" tabindex="-1" aria-label="Save project" disabled></button>
+        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Project files"></button>
+      </div>
+      <div role="separator"></div>
+      <div role="group" aria-label="Workspace">
+        <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Reference libraries"></button>
+        <button id="instructions-button" type="button" role="menuitem" tabindex="-1" aria-label="Instructions" hidden></button>
+        <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Connect an agent"></button>
+      </div>
+      <div role="separator"></div>
+      <button id="appearance-button" type="button" role="menuitem" tabindex="-1" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
+      <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
+    </div>
     <a id="present-link" class="primary button" target="_blank" rel="noopener">Present</a>
   </div>
 </header>

@@ -6,7 +6,7 @@ Slide Studio contains no corporate identity, PowerPoint masters, brand fonts, lo
 
 Open **+** and send your agent a PowerPoint, URL, PDF or reference images through the design-library chat. You can also supply them in your agent's own chat. Say which design you want as the default. The agent inspects the reference, builds the pack, checks the slides and registers it. When ready, it appears in the design picker. You do not need to edit a manifest or choose from fixed layouts.
 
-For a pack already in a GitHub repo, connect that repo using the folder icon or ask the agent to register it as a reference library. The agent refreshes the repo, inspects its files and copies the chosen pack into your local collection before registering it. Registering a library alone does not install its designs or upload your files.
+For a pack already in a GitHub repo, connect that repo using **Menu → Reference libraries**, or ask the agent to register it as a reference library. The agent refreshes the repo, inspects its files and copies the chosen pack into your local collection before registering it. Registering a library alone does not install its designs or upload your files.
 
 ## Agent contract
 

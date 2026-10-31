@@ -1,6 +1,7 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    menu:'M4 6h16M4 12h16M4 18h16',
     sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',
     moon:'M20.5 13a8.5 8.5 0 0 1-9.5-9.5A8.5 8.5 0 1 0 20.5 13Z',monitor:'M3 4h18v13H3zM12 17v4m-4 0h8',
     grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',

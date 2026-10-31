@@ -1,6 +1,6 @@
 # Projects and exports
 
-Open the **save icon** in the top toolbar. Your existing presentations already persist locally between agent sessions; project files provide a portable copy you can reopen in another Slide Studio workspace.
+Open **Menu → Project files**. Your existing presentations already persist locally between agent sessions; project files provide a portable copy you can reopen in another Slide Studio workspace.
 
 | Format | Purpose | Included |
 | --- | --- | --- |
