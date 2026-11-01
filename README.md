@@ -210,6 +210,8 @@ The app ships without corporate masters, logos or fonts. Repository connections 
 <details>
 <summary><strong>Development checks</strong></summary>
 
+[CI coverage, browser tests and Codex/Claude compatibility](docs/CI.md).
+
 ```sh
 uv sync --locked --python 3.14
 uv run pytest

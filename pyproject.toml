@@ -35,4 +35,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 testpaths = ["tests"]
 pythonpath = ["."]
 
-addopts = "-q"
+addopts = "-q --strict-markers"
+markers = [
+    "browser: opt-in Playwright user journeys against a real server",
+    "agents: opt-in MCP transport and Codex/Claude hook subprocess checks",
+    "native_clients: opt-in installed Codex/Claude CLI configuration checks",
+]
