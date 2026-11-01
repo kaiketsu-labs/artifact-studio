@@ -784,6 +784,18 @@ def prepare_interactive_html(deck_id: str, html: str, include_theme: bool = True
     return prepare_document(store, deck_id, html, include_theme=include_theme)
 
 
+def slide_write_response(
+    deck_id: str, view: SlideView, include_content: bool
+) -> SlideView | SlideReceipt:
+    """Keep the write baseline intact; resolve optional released discussion in this workspace."""
+    if not include_content:
+        return slide_receipt(deck_id, view)
+    feedback = [
+        item for item in store.comments(deck_id) if item.slide_id == view.id and item.released
+    ]
+    return view.model_copy(update={"feedback": feedback})
+
+
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def add_slide(
@@ -807,14 +819,14 @@ def add_slide(
             if embed_assets
             else None,
         )
-        return result if include_content else slide_receipt(deck_id, result)
+        return slide_write_response(deck_id, result, include_content)
     if embed_assets and slide.interactive_html:
         slide = slide.model_copy(
             update={"interactive_html": prepare_document(store, deck_id, slide.interactive_html)}
         )
     added = store.add_slide(deck_id, slide)
-    result = store.view_slide(deck_id, added, include_pending=False)
-    return result if include_content else slide_receipt(deck_id, result)
+    result = store.view_slide(deck_id, added, feedback=[])
+    return slide_write_response(deck_id, result, include_content)
 
 
 @mcp.tool(annotations=WRITE)
@@ -828,11 +840,12 @@ def revise_slide(
     include_content: bool = False,
     embed_assets: bool = False,
 ) -> SlideView | SlideReceipt:
-    """Edit a slide and return hashes/status without echoing source or feedback history.
-    Use include_content=True for the full response. embed_assets=True embeds local
-    interactive dependencies server-side; send source references, not base64 binaries.
+    """Edit a slide; compact receipts retain original hashes/status on exact retries.
+    include_content=True adds original source and current released discussion. Legacy revisions
+    lacking visual receipts require a fresh read and reconciliation. embed_assets=True embeds
+    local interactive dependencies; send references, not base64 binaries.
     """
-    slide = store.revise(
+    result = store.revise_view(
         deck_id,
         slide_id,
         expected_hash,
@@ -842,8 +855,7 @@ def revise_slide(
         if embed_assets
         else None,
     )
-    result = store.view_slide(deck_id, slide, include_pending=False)
-    return result if include_content else slide_receipt(deck_id, result)
+    return slide_write_response(deck_id, result, include_content)
 
 
 @mcp.tool(annotations=READ)
