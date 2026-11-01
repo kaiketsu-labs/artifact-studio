@@ -83,9 +83,12 @@ def test_active_presentation_design_references(page: Page, live_app: RunningApp)
     page.get_by_role("menuitem", name="Design references").click()
     expect(page.locator("#design-references-name")).to_have_text("test-brand")
     page.locator("#design-reference-input").set_input_files(
-        {"name": "wrong.txt", "mimeType": "text/plain", "buffer": b"not PowerPoint"}
+        [
+            {"name": f"notes-{index}.txt", "mimeType": "text/plain", "buffer": b"reference"}
+            for index in range(6)
+        ]
     )
-    expect(page.locator("#design-reference-error")).to_contain_text("PPTX or POTX")
+    expect(page.locator("#design-reference-error")).to_contain_text("up to 5 files")
     expect(page.get_by_role("button", name="Save references")).to_be_disabled()
     data = powerpoint_source("Another fictional master")
     upload_master(page, "Team master.pptx", data)
@@ -123,7 +126,7 @@ def test_close_pending_load_retry_and_preserve_selection(
         page.get_by_role("button", name="Menu", exact=True).click()
         page.get_by_role("menuitem", name="Design references").click()
         expect(page.locator("#design-reference-status")).to_have_text("Loading…")
-        expect(page.locator("#design-reference-list")).not_to_contain_text("No PowerPoint")
+        expect(page.locator("#design-reference-list")).not_to_contain_text("No reference files")
         page.keyboard.press("Escape")
         expect(page.locator("#design-references-dialog")).not_to_be_visible()
         page.get_by_role("button", name="Menu", exact=True).click()
@@ -148,7 +151,7 @@ def test_close_pending_load_retry_and_preserve_selection(
         page.get_by_role("button", name="Menu", exact=True).click()
         page.get_by_role("menuitem", name="Design references").click()
         expect(page.locator("#design-reference-error")).to_have_text("Try again")
-        expect(page.locator("#design-reference-list")).not_to_contain_text("No PowerPoint")
+        expect(page.locator("#design-reference-list")).not_to_contain_text("No reference files")
         expect(page.locator("#design-reference-pending")).to_contain_text("Pending.pptx")
         page.get_by_role("button", name="Clear selection").click()
         expect(page.locator("#design-reference-pending")).to_be_empty()
@@ -205,3 +208,54 @@ def test_close_during_save_keeps_result_with_design(page: Page, live_app: Runnin
     page.evaluate("() => window.finishReferenceSave()")
     expect(page.locator("#design-reference-status")).to_have_text("References saved.")
     expect(page.locator("#design-reference-list")).to_contain_text("In flight.pptx")
+
+
+def test_attach_other_files_and_remove_from_agent_context(
+    page: Page, live_app: RunningApp, artifacts: Path
+) -> None:
+    """Attach documents and revoke one without losing unrelated sources or saved drafts."""
+    open_editor(page, live_app)
+    page.get_by_role("button", name="Menu", exact=True).click()
+    page.get_by_role("menuitem", name="Design references").click()
+    page.locator("#design-reference-input").set_input_files(
+        [
+            {
+                "name": "Brand guide.pdf",
+                "mimeType": "application/pdf",
+                "buffer": b"%PDF-1.7 Fictional guide",
+            },
+            {
+                "name": "Audience notes.md",
+                "mimeType": "text/markdown",
+                "buffer": b"For technical colleagues.",
+            },
+        ]
+    )
+    page.get_by_role("button", name="Save references").click()
+    expect(page.locator("#design-reference-status")).to_have_text("References saved.")
+    expect(page.get_by_role("link", name="Brand guide.pdf", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name="Audience notes.md", exact=True)).to_be_visible()
+    assert "Brand guide.pdf" in str(
+        live_app.call("get_working_context", deck_id=DECK_ID)["design_references"]
+    )
+    page.set_viewport_size({"width": 1280, "height": 800})
+    remove = page.get_by_role(
+        "button", name="Remove Brand guide.pdf from design context", exact=True
+    )
+    expect(remove).to_be_in_viewport()
+    _ = page.screenshot(path=str(artifacts / "reference-files.png"), full_page=True)
+    remove.click()
+    expect(page.locator("#design-reference-status")).to_have_text(
+        "Reference removed from future agent context."
+    )
+    expect(page.get_by_role("link", name="Brand guide.pdf", exact=True)).to_have_count(0)
+    expect(page.get_by_role("link", name="Audience notes.md", exact=True)).to_be_visible()
+    context = live_app.call("get_working_context", deck_id=DECK_ID, detail="full")
+    assert "Brand guide.pdf" not in str(context)
+    assert "Audience notes.md" in str(context["design_references"])
+    _ = page.screenshot(path=str(artifacts / "reference-removed.png"), full_page=True)
+    page.get_by_role("dialog", name="Design references").get_by_role("button", name="Close").click()
+    page.get_by_role("button", name="Menu", exact=True).click()
+    page.get_by_role("menuitem", name="Design references").click()
+    expect(page.get_by_role("link", name="Brand guide.pdf", exact=True)).to_have_count(0)
+    expect(page.get_by_role("link", name="Audience notes.md", exact=True)).to_be_visible()
