@@ -20,7 +20,7 @@
 
 **Local HTML slides · Stateless MCP · Human approval · Private presenter notes**
 
-Slides are editable HTML, CSS and SVG, saved on your machine. Bring a PPTX, website or image as a design reference; the agent turns it into a reusable design language. Layouts stay flexible. PPTX files are reference inputs; PowerPoint export is not currently available.
+Slides are editable HTML, CSS and SVG, saved on your machine. Bring a PPTX, POTX, website or image as a design reference; the agent turns it into a reusable design language. Layouts stay flexible. PowerPoint files are reference inputs; PowerPoint export is not currently available. Export HTML or PDF, or save an editable project.
 
 ## From brief to presentation
 
@@ -92,6 +92,8 @@ The **Menu → Connect an agent → Copy agent prompt** resumes work on the sele
 1. **Add a design.** Open **New presentation → + beside Design library**, then send a PPTX, image or link. Ask the connected agent to read the pending design request and build/register the design. An empty design library on first launch is expected.
 2. **Give it context.** Choose the design, enter a title and brief, and attach reference files with the paperclip. Up to five files, 25 MB each and 50 MB total.
 3. **Draft together.** Create the presentation, then use the copyable agent prompt to ask for a draft. Creation starts with one branded cover; the agent builds the rest from your brief.
+
+To add a PowerPoint master to an existing design, choose **New presentation → Manage selected design references** or **Menu → Design references**. Attach up to five PPTX or POTX files per batch, 25 MB each and 50 MB total. References are shared by presentations using the design. Ask your agent to inspect them; attaching a file does not automatically apply its template or slides. Original design references are excluded from newly created deck exports and project files, but an explicitly enabled workspace-wide private sync includes them.
 
 ## Point to the change
 

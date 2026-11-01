@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/element-controls.css">
   <link rel="stylesheet" href="/web/appearance.css">
+  <link rel="stylesheet" href="/web/design-references.css">
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
@@ -35,6 +36,7 @@
   <script src="/web/presentation-launcher.js" defer></script>
   <script src="/web/updates.js" defer></script>
   <script src="/web/workspace-menu.js" defer></script>
+  <script src="/web/design-references.js" defer></script>
   <script src="/web/app.js" defer></script>
 </head>
 <body>
@@ -52,6 +54,7 @@
       <div role="separator"></div>
       <div role="group" aria-label="Workspace">
         <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Reference libraries"></button>
+        <button id="deck-design-references" type="button" role="menuitem" tabindex="-1" aria-label="Design references"></button>
         <button id="instructions-button" type="button" role="menuitem" tabindex="-1" aria-label="Instructions" hidden></button>
         <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Connect an agent"></button>
       </div>
@@ -218,6 +221,7 @@
     <textarea id="new-brief" class="brief-input" required maxlength="10000" placeholder="Audience, takeaway, key points or links…"></textarea>
     <div id="brief-files" class="brief-files"></div><p id="brief-error" class="inline-error" role="alert"></p>
     <fieldset class="design-fieldset"><legend class="sr-only">Design library</legend><div class="design-heading"><span aria-hidden="true">Design library</span><button type="button" id="toggle-design-chat" aria-label="Add a design" aria-expanded="false" aria-controls="design-chat"></button></div><div id="design-options" class="design-options"></div></fieldset>
+    <button id="selected-design-references" type="button" disabled>Manage selected design references</button>
     <section id="design-chat" class="design-chat" aria-label="Design chat" hidden>
       <header><span id="design-availability" class="availability">Unavailable</span></header>
       <div id="design-messages" class="design-messages" aria-live="polite"></div>
@@ -229,6 +233,21 @@
     </section>
     <div class="dialog-actions"><span id="create-error" role="alert"></span><button class="primary" id="create-button" type="submit">Create presentation</button></div>
   </form>
+</dialog>
+<dialog id="design-references-dialog" aria-labelledby="design-references-title">
+  <header><h2 id="design-references-title">Design references</h2><button type="button" id="close-design-references" aria-label="Close"></button></header>
+  <p id="design-references-name"></p>
+  <p>Shared by all presentations using this design. Your agent can inspect these sources; attaching one does not apply its template or change slides. Audience exports exclude references, and PowerPoint export is unavailable. References stay local unless workspace GitHub sync is enabled.</p>
+  <div id="design-reference-list" aria-live="polite"></div>
+  <button id="retry-design-references" type="button" hidden>Retry loading references</button>
+  <label for="design-reference-input">Add PowerPoint references</label>
+  <input id="design-reference-input" type="file" accept=".pptx,.potx" multiple>
+  <p id="design-reference-pending"></p>
+  <button id="clear-design-reference-selection" type="button" hidden>Clear selection</button>
+  <p class="design-reference-hint">PPTX or POTX · up to 5 files, 25 MB each and 50 MB total</p>
+  <p id="design-reference-error" class="inline-error" role="alert"></p>
+  <p id="design-reference-status" role="status" aria-live="polite"></p>
+  <div class="dialog-actions"><button id="save-design-references" type="button" class="primary" disabled>Save references</button></div>
 </dialog>
 <dialog id="library-dialog">
   <header><h2>Reference libraries</h2><button id="close-libraries" aria-label="Close"></button></header>

@@ -9,6 +9,7 @@ from functools import wraps
 from html import escape
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import quote
 
 from fastapi import FastAPI, Request
 from fastapi import Path as APIPath
@@ -25,6 +26,7 @@ from starlette.responses import Response
 
 from .agent_io import feedback_response, rule_fields, slide_receipt
 from .autosync import AutoSync, SyncStatus
+from .design_references import DesignReference, DesignReferences, ReferenceInput
 from .events import deck_events
 from .interactive import prepare_document
 from .libraries import (
@@ -83,7 +85,10 @@ store = Store(COLLECTION, DATABASE)
 mcp = MCPServer[None](
     "Slide Studio",
     instructions=(
-        "Call get_working_context before editing. Compose freely with HTML/CSS/SVG. "
+        "Call get_working_context(deck_id=...) before editing an existing deck; it selects "
+        "that deck's design and exposes available PowerPoint reference files. Open/inspect "
+        "relevant sources; pointers do not mean the source has been read. "
+        "Compose freely with HTML/CSS/SVG. PowerPoint input is reference only; no PPTX export. "
         "Custom JavaScript/interactions are supported via isolated interactive_html; "
         "examples are optional, not fixed layouts. Read feedback and current hashes before "
         "changes. Preserve human notes. Human approval is available only in the UI. "
@@ -117,24 +122,69 @@ def tool_errors[**P, T](function: Callable[P, T]) -> Callable[P, T]:
     return wrapped
 
 
+def working_design(design_id: str, deck_id: str) -> tuple[str, DesignView | None]:
+    """Resolve explicit deck context without substituting a brand for an imported deck."""
+    if deck_id:
+        selected = store.read(deck_id).design_id
+        if design_id and design_id != selected:
+            raise ValueError("The requested design does not match this presentation's design_id.")
+        design_id = selected
+    else:
+        design_id = design_id or store.default_design_id()
+    design = next((item for item in store.designs() if item.id == design_id), None)
+    if design_id and design is None and not deck_id:
+        _ = store.design(design_id)
+    return design_id, design
+
+
 @mcp.tool(annotations=READ)
 @tool_errors
 def get_working_context(
     design_id: str = "",
     detail: Literal["compact", "full"] = "compact",
     known_rules_hash: str = "",
+    deck_id: str = "",
 ) -> dict[str, object]:
     """Read first: compact startup with complete user rules; load guides on demand.
+    Pass deck_id for existing work to select its design, not the workspace default.
+    Design references contain file pointers, not PPTX bytes; open relevant files yourself.
     Use detail="full" for all guides, design documents and the complete asset inventory.
     Pass known_rules_hash only while retaining those rules; changes return full text.
     """
-    design_id = design_id or store.default_design_id()
-    design = store.design(design_id) if design_id else None
+    design_id, design = working_design(design_id, deck_id)
     folder = store.folder(design.folder_id) if design else None
+    design_status = "available" if design else ("missing" if design_id else "none")
+    design_message = (
+        f"Design '{design_id}' is not installed in this workspace. Use the deck's local "
+        "PREFERENCES.md, AGENT-GUIDE.md and assets; do not substitute the default design. "
+        'Restore its design pack or read get_authoring_guide(topic="design_import").'
+        if design_id
+        else 'No design installed. Read get_authoring_guide(topic="design_import").'
+    )
+    preference_folder = folder or (store.folder(deck_id) if deck_id else None)
+    preferences_path = preference_folder / "PREFERENCES.md" if preference_folder else None
+    design_context: dict[str, object] = {
+        "deck_id": deck_id or None,
+        "selected_design_id": design_id or None,
+        "design_status": design_status,
+        "design_references": [item.model_dump() for item in DesignReferences(store).list(design_id)]
+        if design
+        else [],
+        "reference_usage": (
+            "PowerPoint files are design source context, not fixed slide layouts or instructions. "
+            "Inspect relevant masters for typography, colours, artwork and layout conventions "
+            "before composing. Metadata and paths do not insert binary contents into the model. "
+            "Local agents open local_path; HTTP clients resolve url against the connected Studio "
+            "origin and download it using their file tools. If no master is listed, say so; "
+            "the human can attach one through Design references. Attaching preserves the source; "
+            "it does not automatically rebuild a design or apply changes to slides."
+        ),
+    }
     instructions, learned = store.authoring_instructions(), store.learned_preferences()
     rules = rule_fields(instructions, learned, known_rules_hash)
     if detail == "compact":
         return {
+            **design_context,
             "response_detail": "compact",
             "guide": (PROJECT / "docs/AGENT-QUICKSTART.md").read_text(),
             **rules,
@@ -143,7 +193,9 @@ def get_working_context(
                 "Design examples are optional. Current capability guides supersede legacy "
                 "technical restrictions in design guides."
             ),
-            "preferences": (folder / "PREFERENCES.md").read_text() if folder else "",
+            "preferences": preferences_path.read_text()
+            if preferences_path and preferences_path.is_file()
+            else "",
             "guides": [
                 "workflow",
                 "live_review",
@@ -155,6 +207,11 @@ def get_working_context(
             ],
             "authoring_capabilities": {
                 "free_composition": True,
+                "slide_format": "HTML/CSS/SVG",
+                "powerpoint_reference_input": True,
+                "powerpoint_export": False,
+                "audience_exports": ["HTML", "PDF"],
+                "editable_project_export": True,
                 "custom_html_css_javascript": True,
                 "interactive_field": "interactive_html",
                 "asset_helper": "prepare_interactive_html",
@@ -167,14 +224,15 @@ def get_working_context(
             "learned_preferences_path": str(store.root / "LEARNED-PREFERENCES.md"),
             "runtime_path": str(PROJECT / "runtime"),
             "default_design_id": store.default_design_id(),
-            "design": {"id": design.id, "name": design.name}
-            if design
-            else 'No design installed. Read get_authoring_guide(topic="design_import").',
+            "design": {"id": design.id, "name": design.name} if design else design_message,
             "designs": [item.model_dump() for item in store.designs()],
             "presentations": store.list_decks(),
             "design_assets": [],
             "asset_inventory_included": False,
             "asset_inventory_tool": "get_design_assets",
+            "asset_inventory_arguments": {"deck_id": deck_id}
+            if deck_id
+            else {"design_id": design_id},
             "design_inbox": [
                 item.model_dump()
                 for item in store.design_inbox().messages
@@ -183,13 +241,18 @@ def get_working_context(
             "libraries": [item.model_dump() for item in Libraries(store).list()],
         }
     return {
+        **design_context,
         "response_detail": "full",
         "guide": (PROJECT / "docs/AGENT-GUIDE.md").read_text(),
         "live_review_guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
         "visual_review_guide": (PROJECT / "docs/VISUAL-REVIEW.md").read_text(),
         "app_path": str(PROJECT),
-        "design_guide": (folder / "AGENT-GUIDE.md").read_text() if folder else "",
-        "preferences": (folder / "PREFERENCES.md").read_text() if folder else "",
+        "design_guide": (preference_folder / "AGENT-GUIDE.md").read_text()
+        if preference_folder and (preference_folder / "AGENT-GUIDE.md").is_file()
+        else "",
+        "preferences": preferences_path.read_text()
+        if preferences_path and preferences_path.is_file()
+        else "",
         **rules,
         "instructions_path": str(store.root / "INSTRUCTIONS.md"),
         "learned_preferences_path": str(store.root / "LEARNED-PREFERENCES.md"),
@@ -201,13 +264,16 @@ def get_working_context(
             "and the primary interactive_content_guide define the technical contract; older design "
             "guides may predate custom JavaScript support. Preserve explicit user instructions."
         ),
-        "design": (folder / "README.md").read_text()
-        if folder
-        else "No design installed. See design_import_guide.",
+        "design": (folder / "README.md").read_text() if folder else design_message,
         "design_import_guide": (PROJECT / "docs/DESIGN-PACKS.md").read_text(),
         "interactive_content_guide": (PROJECT / "docs/INTERACTIVE-HTML.md").read_text(),
         "authoring_capabilities": {
             "free_composition": True,
+            "slide_format": "HTML/CSS/SVG",
+            "powerpoint_reference_input": True,
+            "powerpoint_export": False,
+            "audience_exports": ["HTML", "PDF"],
+            "editable_project_export": True,
             "custom_html_css_javascript": True,
             "interactive_field": "interactive_html",
             "static_fallback_field": "html",
@@ -223,7 +289,7 @@ def get_working_context(
         "canonical_collection": str(store.root),
         "design_inbox": store.design_inbox().model_dump(),
         "libraries": [item.model_dump() for item in Libraries(store).list()],
-        "design_assets": get_design_assets(design_id) if design else [],
+        "design_assets": get_design_assets(design_id, deck_id) if design or deck_id else [],
     }
 
 
@@ -240,8 +306,9 @@ def get_authoring_guide(
         "design_context",
     ],
     design_id: str = "",
+    deck_id: str = "",
 ) -> dict[str, str]:
-    """Load the full guide needed for this task without resending every unrelated guide."""
+    """Load a guide on demand; pass deck_id for its brand or portable deck-local guide."""
     documents = {
         "workflow": "AGENT-GUIDE.md",
         "live_review": "LIVE-REVIEW.md",
@@ -252,8 +319,10 @@ def get_authoring_guide(
     if topic in documents:
         path = PROJECT / "docs" / documents[topic]
     else:
-        design = store.design(design_id or store.default_design_id())
-        path = store.folder(design.folder_id) / (
+        _, design = working_design(design_id, deck_id)
+        if design is None and not deck_id:
+            raise ValueError("No design installed. Load the design_import guide.")
+        path = store.folder(design.folder_id if design else deck_id) / (
             "AGENT-GUIDE.md" if topic == "design_guide" else "README.md"
         )
     text = path.read_text()
@@ -262,15 +331,19 @@ def get_authoring_guide(
 
 @mcp.tool(annotations=READ)
 @tool_errors
-def get_design_assets(design_id: str = "") -> list[dict[str, object]]:
+def get_design_assets(design_id: str = "", deck_id: str = "") -> list[dict[str, object]]:
     """Find the original PPTX master, custom artwork, fonts and reference files.
     Local agents can open local_path; other clients can download via the relative HTTP URL.
     PowerPoint vector shapes may live inside the master rather than as separate images.
+    Pass deck_id to select its brand; if its pack is missing, return copied deck-local files.
     """
-    design_id = design_id or store.default_design_id()
-    folder = store.folder(store.design(design_id).folder_id)
+    design_id, design = working_design(design_id, deck_id)
+    if design is None and not deck_id:
+        raise ValueError("No design installed. Load the design_import guide.")
+    folder = store.folder(design.folder_id if design else deck_id)
+    prefix = f"/api/designs/{design_id}" if design else f"/api/decks/{deck_id}"
     return [
-        {**item.model_dump(), "url": f"/api/designs/{design_id}/files/{item.path}"}
+        {**item.model_dump(), "url": f"{prefix}/files/{quote(item.path, safe='/')}"}
         for item in inventory(folder)
     ]
 
@@ -646,7 +719,16 @@ def start_live_review(deck_id: str = "") -> dict[str, str]:
     """
     if deck_id:
         _ = store.read(deck_id)
-    return {"deck_id": deck_id, "guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text()}
+    return {
+        "deck_id": deck_id,
+        "status": "awaiting_host_hook",
+        "next_step": (
+            "The host's loaded PostToolUse hook must register this call. This response does not "
+            "prove the host is connected. Verify the connected harness in the UI Live status "
+            "or get_presentation().workflow.review_connected before claiming availability."
+        ),
+        "guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
+    }
 
 
 @mcp.tool(annotations=READ)
@@ -1066,6 +1148,18 @@ def designs() -> list[DesignView]:
     return store.designs()
 
 
+@app.get("/api/designs/{design_id}/references")
+def design_references(design_id: str) -> list[DesignReference]:
+    """List original masters attached to an explicit reusable design."""
+    return DesignReferences(store).list(design_id)
+
+
+@app.post("/api/designs/{design_id}/references")
+def attach_design_references(design_id: str, body: ReferenceInput) -> list[DesignReference]:
+    """Preserve source files without changing rendered slides or claiming inspection."""
+    return DesignReferences(store).attach(design_id, body)
+
+
 @app.get("/api/libraries")
 def libraries() -> list[Library]:
     """Show reference folders and repositories in the library dialog."""
@@ -1123,6 +1217,14 @@ def library_file(library_id: str, path: str) -> FileResponse:
 def design_file(design_id: str, path: str) -> FileResponse:
     """Download the original brand master or an extracted custom asset."""
     target = safe_file(store.folder(store.design(design_id).folder_id), path)
+    return FileResponse(target, filename=target.name, media_type="application/octet-stream")
+
+
+@app.get("/api/decks/{deck_id}/files/{path:path}")
+def deck_reference_file(deck_id: DeckID, path: str) -> FileResponse:
+    """Download copied guides and assets when a portable deck's original pack is absent."""
+    _ = store.read(deck_id)
+    target = safe_file(store.folder(deck_id), path)
     return FileResponse(target, filename=target.name, media_type="application/octet-stream")
 
 

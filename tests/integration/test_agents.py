@@ -108,6 +108,8 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
         return json.dumps([{"type": "text", "text": json.dumps(value)}])
 
     start = live_app.call("start_live_review", deck_id=DECK_ID)
+    assert start["status"] == "awaiting_host_hook"
+    assert not live_app.store.workflow(DECK_ID).review_connected
     assert (
         dispatch(
             "PostToolUse",
