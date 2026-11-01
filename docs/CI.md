@@ -11,7 +11,7 @@ corporate packs and model credentials are not required.
 | Check | What it verifies |
 | --- | --- |
 | Ruff, types and unit tests | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests and JavaScript syntax. |
-| Playwright user journeys and rendering | Readable slides and thumbnails at two laptop sizes; feedback from UI to MCP; saved notes; approval invalidation after agent edits; keyboard navigation and draft recovery; sorter; presentation entry/navigation/exit; private notes hidden from the audience. Existing opt-in sandboxed renderer, interactive-content and DOM tests also run. |
+| Playwright user journeys and rendering | Readable slides and thumbnails at two laptop sizes; feedback from UI to MCP; saved notes; approval invalidation after agent edits; keyboard navigation and draft recovery; resizable/persistent chat; Markdown agent replies in both themes with inert HTML; sorter; presentation entry/navigation/exit; private notes hidden from the audience. Existing opt-in sandboxed renderer, interactive-content and DOM tests also run. |
 | Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
 
 The native Codex CLI must accept the HTTP MCP configuration using its invocation
@@ -53,7 +53,7 @@ Enable the browser and agent suites explicitly:
 
 ```sh
 uv run playwright install chromium --only-shell
-SLIDE_STUDIO_BROWSER_TESTS=1 uv run pytest tests/integration/test_browser.py
+SLIDE_STUDIO_BROWSER_TESTS=1 uv run pytest tests/integration -m browser
 SLIDE_STUDIO_AGENT_TESTS=1 uv run pytest tests/integration/test_agents.py
 SLIDE_STUDIO_RENDER_TESTS=1 uv run pytest tests/test_visuals.py tests/test_interactive.py tests/test_element_rotation_dom.py
 ```

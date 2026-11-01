@@ -113,6 +113,10 @@ The **Play icon** above the slide replays its animation and reveal steps in plac
 
 In feedback and design chat, **Enter** sends and **Shift+Enter** adds a new line. The slide chat accepts files through its paperclip, drag-and-drop or paste, including file-only messages. Remove an attachment with its × before sending; download it from the message afterward. Limits are five files, 25 MB each and 50 MB together. Selected unsent files stay in browser memory; sent files persist locally and travel with saved projects. Batch attachments stay withheld until release.
 
+On desktop, drag the divider beside the chat to make it wider. Its width is remembered in this browser. Focus the divider and use **Left/Right** to resize, **Home/End** for the limits, or **Enter** to reset; double-click also resets. On small screens, chat stays below the slide.
+
+Chat messages render Markdown headings, lists, emphasis, quotes, code blocks, tables and links. Raw HTML appears as text. Markdown images show their alt text; use attachments to share images.
+
 ![Slide conversation with a file attachment and familiar chat composer](docs/assets/slide-chat.png)
 
 Revisions appear live. Orange clears when you open the changed slide; approval remains a separate action. Incoming changes preserve your drafts and their original element targets.

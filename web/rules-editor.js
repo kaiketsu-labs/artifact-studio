@@ -10,7 +10,7 @@
   function load(){
     if(!dependencies)dependencies=Promise.all([
       asset('script',{src:'/web/vendor/quill-2.0.3.js'}),asset('link',{rel:'stylesheet',href:'/web/vendor/quill-2.0.3.css'}),
-      asset('script',{src:'/web/vendor/marked-18.1.2.js'}),asset('script',{src:'/web/vendor/turndown-7.2.4.js'})
+      root.marked?Promise.resolve():asset('script',{src:'/web/vendor/marked-18.1.2.js'}),asset('script',{src:'/web/vendor/turndown-7.2.4.js'})
     ]).catch(error=>{dependencies=null;throw error;});
     return dependencies;
   }
