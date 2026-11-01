@@ -1072,6 +1072,18 @@ class Store:
                         "The presentation's creation identity is unavailable or changed. "
                         "Read and reconcile ownership before continuing."
                     )
+                try:
+                    current = self.read(deck_id)
+                except (OSError, ValueError) as error:
+                    raise ConflictError(
+                        "The recorded presentation is missing or unreadable. "
+                        "Inspect and reconcile it before continuing; it was not recreated."
+                    ) from error
+                if current.id != deck_id:
+                    raise ConflictError(
+                        "The recorded presentation has a different identity. "
+                        "Inspect and reconcile it before continuing."
+                    )
                 return Deck.model_validate_json(cast(str, prior[2]))
             if target.exists():
                 raise ConflictError(

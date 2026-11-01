@@ -97,3 +97,24 @@ def test_unrecorded_folder_after_database_failure_requires_reconciliation(store:
     assert store.folder(deck_id).exists()
     with pytest.raises(ConflictError, match="ownership"):
         store.create(deck_id, "Interrupted", request_id="creation-failure-001")
+
+
+@pytest.mark.parametrize("damage", ["missing", "corrupt", "wrong_id"])
+def test_replay_requires_readable_canonical_deck_with_matching_id(
+    store: Store, damage: str
+) -> None:
+    """The marker alone cannot turn a lost or unrelated document into a successful replay."""
+    deck_id = "2026-11-01-damaged"
+    deck = store.create(deck_id, "Original", request_id="creation-damaged-001")
+    index = store.folder(deck_id) / "index.html"
+    if damage == "missing":
+        index.unlink()
+    elif damage == "corrupt":
+        _ = index.write_text("<html>not a presentation</html>")
+    else:
+        deck.id = "2026-11-01-unrelated"
+        store.write(deck_id, deck)
+    original = index.read_bytes() if index.exists() else None
+    with pytest.raises(ConflictError, match="reconcile"):
+        store.create(deck_id, "Original", request_id="creation-damaged-001")
+    assert (index.read_bytes() if index.exists() else None) == original
