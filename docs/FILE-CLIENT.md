@@ -31,6 +31,8 @@ Inspect the call identities/fields and obtain the file hash without sending anyt
 uv run python -m studio.agent_client --calls-file /absolute/path/reviewed-calls.json --describe
 ```
 
+The description includes `slide.id` for additions, the explicit `request_id`, and the names of supplied `slide_fields` or `patch_fields`; it never prints HTML, notes or other source values. Every `add_slide` in a verified batch must carry a unique `request_id` of 8–100 characters at the top level of its `arguments`, alongside `deck_id` and `slide`. Preserve it across retries just as for revisions.
+
 Then supply that exact SHA-256:
 
 ```sh
@@ -47,6 +49,10 @@ uv run python -m studio.agent_client \
 `--verify` accepts one `add_slide` or `revise_slide` write per slide. After the writes, it makes one compact outline read per deck and compares both canonical-source and visual-content hashes with the receipts. It forwards changed workspace rules; pass `--known-rules-hash` only while retaining that exact guidance. This readback does not replace rendered slide/animation review or establish long-term durability.
 
 Calls run sequentially and stop on the first error. **A batch is not an atomic transaction:** completed changes remain saved if a later call conflicts. The report retains completed results and the next call index. Reusing the unchanged file preserves request IDs and the server's existing idempotency checks. The client never invents new retry IDs, refreshes write hashes, retries conflicts, or reapplies content after a failed readback. A concurrent human edit or asset change can make verification fail; read and reconcile before proceeding.
+
+For `add_slide` with a request ID, a recorded identical retry returns the original write-time acknowledgement without recreating a deleted slide, overwriting human changes or re-embedding changed assets. Changed payloads or embedding modes under the same ID conflict. The original visual hash is retained, so verified readback can detect later theme/asset changes. Additions without an ID retain their one-shot behavior and reject duplicate slide IDs; `--verify` rejects them before any writes.
+
+A filesystem write and its operation record are not one atomic transaction. If storage fails after the canonical addition but before its record commits, an unchanged retry safely reports an existing-ID conflict; it does not guess ownership. Read and reconcile that case manually. Ordinary lost HTTP responses after a recorded write and batches interrupted after an acknowledged prefix are safe to retry with the original file. Do not replace request IDs or hashes merely to force completion.
 
 Without `--verify`, a file can contain other explicitly authorized text-result tools, including `append_presentation_context` or `get_presentation_outline`. Large read results still consume model context if printed; prefer the ordinary compact reads.
 

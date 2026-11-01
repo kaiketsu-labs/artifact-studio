@@ -54,6 +54,25 @@ def test_compact_bootstrap_preserves_complete_rules_and_loadable_guides(store: S
     assert assets and all("/api/designs//" not in str(item["url"]) for item in assets)
 
 
+def test_retained_workflow_hash_deduplicates_only_identical_brand_guidance(store: Store) -> None:
+    """Share retained text across topics without hiding distinct brand-specific requirements."""
+    workflow = service.get_authoring_guide("workflow")
+    duplicate = service.get_authoring_guide(
+        "design_guide", deck_id=TEMPLATE_ID, known_hash=workflow["hash"]
+    )
+    assert duplicate["topic"] == "design_guide" and duplicate["markdown"] == ""
+    assert duplicate["hash"] == workflow["hash"] and duplicate["content_status"] == "unchanged"
+    guide_path = store.folder(TEMPLATE_ID) / "AGENT-GUIDE.md"
+    _ = guide_path.write_text(workflow["markdown"] + "\nBrand-only rule: keep blue accents.\n")
+    distinct = service.get_authoring_guide(
+        "design_guide", deck_id=TEMPLATE_ID, known_hash=workflow["hash"]
+    )
+    assert (
+        distinct["markdown"] == guide_path.read_text() and distinct["content_status"] == "included"
+    )
+    assert "Brand-only rule" in distinct["markdown"]
+
+
 @pytest.mark.parametrize("detail", ["compact", "full"])
 def test_resume_uses_deck_design_instead_of_workspace_default(
     store: Store, detail: Literal["compact", "full"]
@@ -279,6 +298,131 @@ def test_revision_receipt_does_not_echo_html_or_history(store: Store) -> None:
         include_content=True,
     )
     assert isinstance(expanded, SlideView) and expanded.html == before.html
+
+
+def test_add_retry_retains_original_receipt_and_never_rewrites_newer_content(store: Store) -> None:
+    """A recorded add survives lost responses, visual drift, later edits and deletion."""
+    slide = Slide(
+        id="retry-add", title="Retry add", html='<article class="slide">Initial</article>'
+    )
+    first = service.add_slide(TEMPLATE_ID, slide, request_id="add-retry-operation")
+    assert isinstance(first, SlideReceipt)
+    assert service.add_slide(TEMPLATE_ID, slide, request_id="add-retry-operation") == first
+    with pytest.raises(ToolError, match="another payload"):
+        _ = service.add_slide(
+            TEMPLATE_ID,
+            slide.model_copy(update={"title": "Different"}),
+            request_id="add-retry-operation",
+        )
+    with pytest.raises(ToolError, match="another payload"):
+        _ = service.add_slide(
+            TEMPLATE_ID, slide, embed_assets=True, request_id="add-retry-operation"
+        )
+    (store.folder(TEMPLATE_ID) / "theme.css").write_text(".slide {background: white;}")
+    assert service.add_slide(TEMPLATE_ID, slide, request_id="add-retry-operation") == first
+    current = service.get_slide(TEMPLATE_ID, slide.id)
+    assert current.content_hash != first.content_hash
+    _ = service.revise_slide(
+        TEMPLATE_ID,
+        slide.id,
+        current.expected_hash,
+        "human-change-after-add",
+        SlidePatch(title="Human revision", notes="Human notes"),
+    )
+    assert service.add_slide(TEMPLATE_ID, slide, request_id="add-retry-operation") == first
+    assert store.locate(store.read(TEMPLATE_ID), slide.id).notes == "Human notes"
+    changed = service.get_slide(TEMPLATE_ID, slide.id)
+    store.remove_slide(TEMPLATE_ID, slide.id, changed.expected_hash)
+    assert service.add_slide(TEMPLATE_ID, slide, request_id="add-retry-operation") == first
+    assert slide.id not in [item.id for item in store.read(TEMPLATE_ID).slides]
+    with pytest.raises(ToolError, match="already exists"):
+        _ = service.add_slide(
+            TEMPLATE_ID, store.read(TEMPLATE_ID).slides[0], request_id="unrecorded-add"
+        )
+
+
+def test_embedded_add_retry_does_not_reread_assets(store: Store) -> None:
+    """Hash caller source before embedding and return the saved view on retry."""
+    slide = Slide(
+        id="embedded-add",
+        title="Embedded",
+        html='<article class="slide">Fallback</article>',
+        interactive_html='<img src="assets/custom.svg">',
+    )
+    first = service.add_slide(
+        TEMPLATE_ID,
+        slide,
+        embed_assets=True,
+        include_content=True,
+        request_id="embedded-add-operation",
+    )
+    assert isinstance(first, SlideView) and "base64" in first.interactive_html
+    (store.folder(TEMPLATE_ID) / "assets/custom.svg").unlink()
+    retry = service.add_slide(
+        TEMPLATE_ID,
+        slide,
+        embed_assets=True,
+        include_content=True,
+        request_id="embedded-add-operation",
+    )
+    assert retry == first
+
+
+def test_full_add_acknowledgement_keeps_released_history_but_never_pending_comments(
+    store: Store,
+) -> None:
+    """Reusing a deleted ID preserves the full-response discussion contract at write time."""
+    before = service.get_slide(TEMPLATE_ID, "cover")
+    _ = store.add_feedback(
+        TEMPLATE_ID,
+        before.id,
+        "Released older discussion",
+        before.content_hash,
+        "older-add-discussion",
+    )
+    _ = store.set_mode(TEMPLATE_ID, "batch")
+    _ = store.add_feedback(
+        TEMPLATE_ID,
+        before.id,
+        "WITHHELD_ADD_HISTORY",
+        before.content_hash,
+        "older-withheld-discussion",
+    )
+    store.remove_slide(TEMPLATE_ID, before.id, before.expected_hash)
+    slide = Slide(
+        id=before.id, title="Reused ID", html='<article class="slide">New content</article>'
+    )
+    added = service.add_slide(
+        TEMPLATE_ID, slide, include_content=True, request_id="reused-slide-add"
+    )
+    assert isinstance(added, SlideView)
+    assert [item.message for item in added.feedback] == ["Released older discussion"]
+    assert "WITHHELD_ADD_HISTORY" not in added.model_dump_json()
+    assert (
+        service.add_slide(TEMPLATE_ID, slide, include_content=True, request_id="reused-slide-add")
+        == added
+    )
+
+
+def test_unrecorded_storage_interruption_never_guesses_add_ownership(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A canonical write without its committed operation record needs explicit reconciliation."""
+    original = store.seed_slide_views
+
+    def interrupted(*_: object) -> None:
+        raise OSError("Interrupted after file write")
+
+    monkeypatch.setattr(store, "seed_slide_views", interrupted)
+    slide = Slide(
+        id="interrupted-add", title="Interrupted", html='<article class="slide">Saved</article>'
+    )
+    with pytest.raises(OSError, match="Interrupted"):
+        _ = service.add_slide(TEMPLATE_ID, slide, request_id="interrupted-operation")
+    monkeypatch.setattr(store, "seed_slide_views", original)
+    assert store.locate(store.read(TEMPLATE_ID), slide.id).html == slide.html
+    with pytest.raises(ToolError, match="already exists"):
+        _ = service.add_slide(TEMPLATE_ID, slide, request_id="interrupted-operation")
 
 
 def test_assets_embed_and_store_without_binary_roundtrip(store: Store) -> None:

@@ -99,6 +99,13 @@ class DeckReceipt(StrictModel):
     slide_ids: list[str]
 
 
+class CreatedDeckReceipt(DeckReceipt):
+    """Give a newly created deck explicit review and sanitized audience destinations."""
+
+    workspace_url: str
+    audience_url: str
+
+
 class ElementTarget(StrictModel):
     """An element snapshot anchored to the slide version the human reviewed."""
 

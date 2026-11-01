@@ -1066,18 +1066,85 @@ class Store:
 
     def add_slide(self, deck_id: str, slide: Slide) -> Slide:
         """Append any freely composed HTML/SVG slide without imposing a layout catalogue."""
-        SlideMarkup().feed(slide.html)
         with self.editing(deck_id) as db:
-            deck = self.read(deck_id)
-            if any(existing.id == slide.id for existing in deck.slides):
-                raise ConflictError("Slide ID already exists. Read it rather than adding it twice.")
-            if len(deck.slides) >= 100:
-                raise ValueError("A presentation supports at most 100 slides.")
-            slide.revision = 1
-            deck.slides.append(slide)
-            self.write(deck_id, deck)
-            self.seed_slide_views(db, deck)
+            return self._append_slide(db, deck_id, slide)
+
+    def _append_slide(
+        self,
+        db: sqlite3.Connection,
+        deck_id: str,
+        slide: Slide,
+        prepare_interactive: Callable[[str], str] | None = None,
+    ) -> Slide:
+        """Append under the caller's write transaction without accepting an existing ID."""
+        deck = self.read(deck_id)
+        if any(existing.id == slide.id for existing in deck.slides):
+            raise ConflictError("Slide ID already exists. Read it rather than adding it twice.")
+        if len(deck.slides) >= 100:
+            raise ValueError("A presentation supports at most 100 slides.")
+        slide = slide.model_copy(update={"revision": 1})
+        if prepare_interactive is not None and slide.interactive_html:
+            slide = slide.model_copy(
+                update={"interactive_html": prepare_interactive(slide.interactive_html)}
+            )
+        SlideMarkup().feed(slide.html)
+        deck.slides.append(slide)
+        self.write(deck_id, deck)
+        self.seed_slide_views(db, deck)
         return slide
+
+    def add_slide_once(
+        self,
+        deck_id: str,
+        slide: Slide,
+        request_id: str,
+        *,
+        prepare_interactive: Callable[[str], str] | None = None,
+    ) -> SlideView:
+        """Record the original write-time acknowledgement for exact-payload add retries.
+
+        An unrecorded existing ID always conflicts; it is never inferred to belong to this request.
+        """
+        if not 8 <= len(request_id) <= 100:
+            raise ValueError("Use a unique request_id of 8–100 characters.")
+        payload_hash = digest(
+            json.dumps(
+                ["add_slide", slide.model_dump(mode="json"), prepare_interactive is not None],
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
+        with self.editing(deck_id) as db:
+            prior = db.execute(
+                "SELECT payload_hash,result FROM operations WHERE deck=? AND request_id=?",
+                (deck_id, request_id),
+            ).fetchone()
+            if prior is not None:
+                if prior["payload_hash"] != payload_hash:
+                    raise ConflictError("This request_id was already used with another payload.")
+                return SlideView.model_validate_json(cast(str, prior["result"]))
+            added = self._append_slide(db, deck_id, slide, prepare_interactive)
+            approved = db.execute(
+                "SELECT content_hash FROM approvals WHERE deck=? AND slide=?", (deck_id, added.id)
+            ).fetchone()
+            seen = db.execute(
+                "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?", (deck_id, added.id)
+            ).fetchone()
+            result = self.view_slide(
+                deck_id,
+                added,
+                include_pending=False,
+                feedback=self.comments(deck_id),
+                review_hashes=(
+                    {added.id: cast(str, approved[0])} if approved else {},
+                    {added.id: cast(str, seen[0])} if seen else {},
+                ),
+            )
+            _ = db.execute(
+                "INSERT INTO operations VALUES (?,?,?,?)",
+                (deck_id, request_id, payload_hash, result.model_dump_json()),
+            )
+            return result
 
     def reorder(
         self, deck_id: str, slide_ids: list[str], *, expected_slide_ids: list[str] | None = None
