@@ -1263,17 +1263,17 @@ class Store:
             raise ValueError("The insertion anchor does not exist in this presentation.")
         destination = None
         if deck.sections:
-            destination = (
-                next((group for group in deck.sections if group.id == section_id), None)
-                if section_id
-                else next(
-                    (group for group in deck.sections if after_slide_id in group.slide_ids), None
+            if section_id:
+                destination = next(
+                    (group for group in deck.sections if group.id == section_id), None
                 )
-                if after_slide_id
-                else deck.sections[0]
-                if after_slide_id == ""
-                else deck.sections[-1]
-            )
+            elif after_slide_id == "":
+                destination = deck.sections[0]
+            else:
+                anchor = after_slide_id or ids[-1]
+                destination = next(
+                    (group for group in deck.sections if anchor in group.slide_ids), None
+                )
             if destination is None:
                 raise ValueError("The destination section does not exist.")
             if after_slide_id and after_slide_id not in destination.slide_ids:

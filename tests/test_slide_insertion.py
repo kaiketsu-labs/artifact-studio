@@ -207,3 +207,26 @@ def test_prepending_keeps_presentation_messages_on_the_original_slide(store: Sto
         ).context_slide_id
         == "cover"
     )
+
+
+def test_legacy_append_keeps_the_last_slides_group_with_a_trailing_empty_section(
+    store: Store,
+) -> None:
+    """Optional insertion must not change old append membership at an empty trailing group."""
+    deck = store.read(TEMPLATE_ID)
+    deck.sections.append(DeckSection(id="tail", title="Empty tail", slide_ids=[]))
+    store.write(TEMPLATE_ID, deck)
+    _ = service.add_slide(
+        TEMPLATE_ID, Slide(id="legacy", title="Legacy append", html="<article>Legacy</article>")
+    )
+    current = store.read(TEMPLATE_ID)
+    assert current.sections[-1].slide_ids == []
+    assert current.sections[-2].slide_ids == ["message", "legacy"]
+    _ = service.add_slide(
+        TEMPLATE_ID,
+        Slide(id="explicit", title="Explicit insertion", html="<article>Explicit</article>"),
+        section_id="tail",
+        request_id="trailing-empty-target",
+        **guards(store),
+    )
+    assert store.read(TEMPLATE_ID).sections[-1].slide_ids == ["explicit"]
