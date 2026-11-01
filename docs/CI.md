@@ -17,7 +17,15 @@ corporate packs and model credentials are not required.
 The native Codex CLI must accept the HTTP MCP configuration using its invocation
 override. The native Claude Code CLI must register its project-local connection
 in an isolated configuration directory and report a successful server health
-check. Hook tests exercise each adapter's result envelope and generated command;
+check. Model API tokens are removed from native CLI subprocess environments.
+The Codex check inspects invocation-local MCP overrides while retaining the
+caller's normal configuration location; it does not provide a hermetic user
+profile or perform an authentication operation. Claude's configuration uses a
+temporary directory. Unknown `SLIDE_STUDIO_NATIVE_CLIENT` values fail rather than
+skipping every native check.
+
+Hook tests exercise each adapter's result envelope and generated command,
+including the durable acknowledged feedback cursor;
 they do not simulate host trust or claim an authenticated model session has run.
 
 Model-driven changes, host hook approval/loading, automatic continuation inside a

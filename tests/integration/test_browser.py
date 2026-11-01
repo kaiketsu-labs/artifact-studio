@@ -114,6 +114,9 @@ def test_sorter_and_presentation_keep_notes_private(
     expect(audience.locator("#stage h1")).to_have_text("Review together")
     assert PRIVATE_NOTE not in audience.locator("body").inner_text()
     expect(audience.locator("textarea:visible")).to_have_count(0)
+    exported = page.request.get(live_app.url + f"/api/decks/{DECK_ID}/exports/html")
+    assert exported.ok
+    assert PRIVATE_NOTE not in exported.text()
     _ = page.screenshot(path=str(artifacts / "presentation.png"), full_page=True)
     audience.locator("body").press("ArrowRight")
     expect(audience.locator("#stage h1")).to_have_text("Present with confidence")

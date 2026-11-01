@@ -143,6 +143,13 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
         )
         == {}
     )
+    with live_app.store.connect() as database:
+        acknowledged = database.execute(
+            "SELECT feedback_cursor FROM review_sessions WHERE harness=? AND session_id=?",
+            (harness, "ci-session"),
+        ).fetchone()
+    assert acknowledged is not None
+    assert acknowledged["feedback_cursor"] == feed["next_cursor"]
     assert dispatch("SessionEnd") == {}
     assert not live_app.store.workflow(DECK_ID).review_connected
     assert dispatch("Stop") == {}

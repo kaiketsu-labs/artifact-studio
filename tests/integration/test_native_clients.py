@@ -23,13 +23,24 @@ pytestmark = [
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_native_mcp_configuration(live_app: RunningApp, artifacts: Path, harness: str) -> None:
     """Use official CLI commands with isolated or invocation-local configuration."""
-    selected = os.environ.get("SLIDE_STUDIO_NATIVE_CLIENT", harness)
-    if selected != harness:
+    selected = os.environ.get("SLIDE_STUDIO_NATIVE_CLIENT", "")
+    assert selected in {"", "codex", "claude-code"}, (
+        "SLIDE_STUDIO_NATIVE_CLIENT must be codex or claude-code, or unset for both"
+    )
+    if selected and selected != harness:
         pytest.skip("Other native client runs in its own matrix job")
     executable = shutil.which("codex" if harness == "codex" else "claude")
     assert executable, f"Install the pinned {harness} CLI before enabling this test"
+    model_credentials = {
+        "OPENAI_API_KEY",
+        "OPENAI_ACCESS_TOKEN",
+        "CODEX_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+    }
     environment = {
-        **os.environ,
+        **{name: value for name, value in os.environ.items() if name not in model_credentials},
         "CLAUDE_CONFIG_DIR": str(live_app.project / "claude-config"),
         "DISABLE_AUTOUPDATER": "1",
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
