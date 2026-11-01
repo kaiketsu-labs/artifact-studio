@@ -27,9 +27,9 @@ def live_app(tmp_path: Path, artifacts: Path) -> Iterator[RunningApp]:
         yield app
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def browser() -> Iterator[Browser]:
-    """Use the installed Playwright Chromium without a desktop browser profile."""
+    """Close Playwright's event loop per test so renderer tests can start their own."""
     with sync_playwright() as renderer:
         browser = renderer.chromium.launch()
         try:
@@ -39,11 +39,12 @@ def browser() -> Iterator[Browser]:
 
 
 @pytest.fixture
-def page(browser: Browser, artifacts: Path) -> Iterator[Page]:
-    """Record actionable traces and fail on JavaScript or HTTP response errors."""
+def page(browser: Browser, artifacts: Path, live_app: RunningApp) -> Iterator[Page]:
+    """Keep the server alive through diagnostics; reject browser/network errors."""
     context = browser.new_context(viewport={"width": 1600, "height": 1000})
     context.tracing.start(screenshots=True, snapshots=True, sources=True)
     page = context.new_page()
+    page.set_default_timeout(10_000)
     errors: list[str] = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     page.on(
@@ -51,6 +52,14 @@ def page(browser: Browser, artifacts: Path) -> Iterator[Page]:
         lambda response: (
             errors.append(f"HTTP {response.status}: {response.url}")
             if response.status >= 400
+            else None
+        ),
+    )
+    page.on(
+        "requestfailed",
+        lambda request: (
+            errors.append(f"Request failed: {request.failure}: {request.url}")
+            if request.failure != "net::ERR_ABORTED"
             else None
         ),
     )
