@@ -1,9 +1,9 @@
 """Validated presentation documents and review messages."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrictModel(BaseModel):
@@ -55,7 +55,10 @@ class AgentContext(StrictModel):
     """Audience-independent context shown beside the slide."""
 
     summary: str = ""
-    questions: list[str] = Field(default_factory=list)
+    questions: list[str] = Field(
+        default_factory=list,
+        description="Legacy notes; use ask_slide_question for answerable slide questions.",
+    )
     alternatives: list[str] = Field(default_factory=list)
 
 
@@ -126,6 +129,47 @@ class EditIntent(StrictModel):
     values: dict[str, float | str] = Field(default_factory=dict, max_length=20)
 
 
+class QuestionPrompt(StrictModel):
+    """An immutable set of suggested answers; a written answer is always available."""
+
+    options: list[Annotated[str, Field(min_length=1, max_length=160)]] = Field(
+        default_factory=list, max_length=6
+    )
+    cancelled: bool = Field(default=False, strict=True)
+    key: str = Field(default="", pattern=r"^(?:[a-f0-9]{32})?$")
+
+    @field_validator("options")
+    @classmethod
+    def distinct_options(cls, values: list[str]) -> list[str]:
+        """Keep options readable and unambiguous without changing their meaning."""
+        values = [value.strip() for value in values]
+        if any(not value for value in values) or len({value.casefold() for value in values}) != len(
+            values
+        ):
+            raise ValueError("Use nonempty, distinct answer options.")
+        return values
+
+
+class QuestionAnswerInput(StrictModel):
+    """Submit one selected or written answer exactly once."""
+
+    answer: str = Field(min_length=1, max_length=10_000)
+    request_id: str = Field(min_length=8, max_length=100)
+
+
+class SlideQuestionView(StrictModel):
+    """A compact question lifecycle with only answers visible to this reader."""
+
+    event_id: int
+    slide_id: str
+    question: str
+    options: list[str]
+    content_hash: str
+    status: Literal["open", "answered", "cancelled"]
+    answer: str = ""
+    answer_event_id: int | None = None
+
+
 class Feedback(StrictModel):
     """A durable human comment or agent reply with immutable revision context."""
 
@@ -144,6 +188,16 @@ class Feedback(StrictModel):
     context_slide_id: str | None = None
     files: list[FeedbackFile] = Field(default_factory=list)
     edit_intent: EditIntent | None = None
+    question: QuestionPrompt | None = None
+
+    @model_validator(mode="after")
+    def question_context(self) -> Self:
+        """Imported question metadata must retain a valid agent-owned slide thread."""
+        if self.question and (
+            self.author != "agent" or not self.slide_id or self.reply_to is not None
+        ):
+            raise ValueError("A question must be an agent message on its own slide thread.")
+        return self
 
 
 class FeedbackWorkflow(StrictModel):

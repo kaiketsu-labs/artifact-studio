@@ -38,6 +38,7 @@ from .models import (
     FeedbackFile,
     FeedbackWorkflow,
     FileInput,
+    QuestionPrompt,
     Slide,
     SlidePatch,
     SlideView,
@@ -209,6 +210,11 @@ class Store:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
             if "edit_intent" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN edit_intent TEXT")
+            if "question" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN question TEXT")
+            _ = db.execute(
+                "CREATE INDEX IF NOT EXISTS feedback_replies ON feedback(reply_to,author)"
+            )
             _ = db.execute(
                 "INSERT OR IGNORE INTO delivery(event_id) SELECT id FROM feedback "
                 "WHERE released=1 AND author='user' ORDER BY id"
@@ -406,6 +412,9 @@ class Store:
                 files=self.feedback_files(deck_id, cast(int, row["id"]), cast(str, row["files"])),
                 edit_intent=EditIntent.model_validate_json(cast(str, row["edit_intent"]))
                 if row["edit_intent"]
+                else None,
+                question=QuestionPrompt.model_validate_json(cast(str, row["question"]))
+                if row["question"]
                 else None,
             )
             for row in rows
@@ -819,12 +828,13 @@ class Store:
         context_slide_id: str | None = None,
         files_json: str = "[]",
         intent_json: str | None = None,
+        question_json: str | None = None,
     ) -> str:
         """Append a message and its delivery record within the caller's transaction."""
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,"
-            "reply_to,target,context_slide_id,released,files,edit_intent) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "reply_to,target,context_slide_id,released,files,edit_intent,question) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck_id,
                 slide_id,
@@ -838,6 +848,7 @@ class Store:
                 released,
                 files_json,
                 intent_json,
+                question_json,
             ),
         )
         if released and author == "user":

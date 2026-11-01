@@ -10,3 +10,8 @@
 #design-reference-input{display:block;max-width:100%;margin-top:8px;font-size:12px}
 #design-references-dialog .design-reference-hint{margin:6px 0;color:var(--subtle)}
 #design-reference-status{min-height:1.5em}
+.reference-header-actions{display:flex;gap:5px}
+#reference-help{padding:0 10px;border-left:2px solid var(--line);color:var(--subtle)}
+#design-reference-list .icon-control{width:30px;min-height:30px;padding:5px}
+#save-design-references{width:36px;min-height:36px;padding:8px}
+#design-reference-pending{overflow-wrap:anywhere}

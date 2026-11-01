@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/web/objects.css">
   <link rel="stylesheet" href="/web/chat.css">
   <link rel="stylesheet" href="/web/chat-layout.css">
+  <link rel="stylesheet" href="/web/slide-questions.css">
   <link rel="stylesheet" href="/web/element-controls.css">
   <link rel="stylesheet" href="/web/appearance.css">
   <link rel="stylesheet" href="/web/design-references.css">
@@ -19,6 +20,7 @@
   <script src="/web/preview-loader.js" defer></script>
   <script src="/web/drafts.js" defer></script>
   <script src="/web/conversations.js" defer></script>
+  <script src="/web/slide-questions.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
   <script src="/web/slide-sorter.js" defer></script>
@@ -111,14 +113,14 @@
   </section>
   <div id="chat-resizer" class="chat-resizer" role="separator" tabindex="0" aria-label="Resize chat panel" aria-orientation="vertical" aria-controls="chat-panel" title="Drag to resize chat · Arrow keys to resize · Enter or double-click to reset"></div>
   <aside id="chat-panel" class="discussion" aria-label="Agent context and feedback">
-    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="feedback-count"></span></header>
+    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="feedback-count"></span><button id="chat-question-status" type="button" hidden aria-label="Jump to unanswered question"></button></header>
     <section class="delivery-panel" aria-label="Feedback delivery mode">
       <div class="mode-switch"><button id="mode-live" type="button" aria-pressed="true">Live</button><button id="mode-batch" type="button" aria-pressed="false">Batch</button></div>
       <button id="send-batch" type="button" hidden>Send batch</button>
     </section>
-    <section id="questions-panel" class="questions-panel" hidden><h3>Questions</h3><div id="questions"></div></section>
     <details id="agent-panel" class="agent-panel" hidden>
       <summary>Agent notes</summary><p id="agent-summary"></p><div id="brief-attachments"></div>
+      <div id="questions" hidden></div>
       <details id="alternatives-panel" hidden><summary>Alternatives <span id="alternative-count"></span></summary><div id="alternatives"></div></details>
     </details>
     <div id="feedback-list" aria-live="polite"></div>
@@ -222,7 +224,7 @@
     <textarea id="new-brief" class="brief-input" required maxlength="10000" placeholder="Audience, takeaway, key points or links…"></textarea>
     <div id="brief-files" class="brief-files"></div><p id="brief-error" class="inline-error" role="alert"></p>
     <fieldset class="design-fieldset"><legend class="sr-only">Design library</legend><div class="design-heading"><span aria-hidden="true">Design library</span><button type="button" id="toggle-design-chat" aria-label="Add a design" aria-expanded="false" aria-controls="design-chat"></button></div><div id="design-options" class="design-options"></div></fieldset>
-    <button id="selected-design-references" type="button" disabled>Manage selected design references</button>
+    <button id="selected-design-references" type="button" aria-label="Manage selected design references" disabled>Manage references</button>
     <section id="design-chat" class="design-chat" aria-label="Design chat" hidden>
       <header><span id="design-availability" class="availability">Unavailable</span></header>
       <div id="design-messages" class="design-messages" aria-live="polite"></div>
@@ -236,17 +238,18 @@
   </form>
 </dialog>
 <dialog id="design-references-dialog" aria-labelledby="design-references-title">
-  <header><h2 id="design-references-title">Design references</h2><button type="button" id="close-design-references" aria-label="Close"></button></header>
+  <header><h2 id="design-references-title">Design references</h2><div class="reference-header-actions"><button id="reference-help-button" type="button" aria-label="About reference files" aria-expanded="false" aria-controls="reference-help"></button><button type="button" id="close-design-references" aria-label="Close"></button></div></header>
   <p id="design-references-name"></p>
-  <p>Shared by all presentations using this design. Your agent can inspect these sources; attaching one does not apply its template or change slides. Audience exports exclude references, and PowerPoint export is unavailable. References stay local unless workspace GitHub sync is enabled.</p>
-  <p class="design-reference-hint">Remove deletes the stored source file and excludes it from future context. An agent may already have read it; use a new agent chat without that conversation’s history. Existing slides, exports and old chats are unchanged.</p>
+  <p>Shared by presentations using this design. References do not change slides automatically. Removing deletes the stored file; earlier conversations are unchanged.</p>
+  <div id="reference-help" hidden><p>Your agent can inspect these sources; attaching one does not apply a template or change slides. References stay local unless workspace GitHub sync is enabled. Audience exports exclude them; PowerPoint export is unavailable.</p><p>Removal excludes the source from future reference context. An agent may already have read it; use a new agent chat without that conversation’s history. Existing slides, exports and old chats are unchanged.</p></div>
   <div id="design-reference-list" aria-live="polite"></div>
   <button id="retry-design-references" type="button" hidden>Retry loading references</button>
-  <label for="design-reference-input">Add reference files</label>
-  <input id="design-reference-input" type="file" multiple>
+  <label class="sr-only" for="design-reference-input">Add reference files</label>
+  <input id="design-reference-input" type="file" multiple hidden>
+  <button id="attach-design-references" type="button" aria-label="Attach reference files"></button>
   <p id="design-reference-pending"></p>
   <button id="clear-design-reference-selection" type="button" hidden>Clear selection</button>
-  <p class="design-reference-hint">Any file type, including PowerPoint, PDF, images, documents and data · up to 5 files, 25 MB each and 50 MB total</p>
+  <p class="design-reference-hint">Any file type · up to 5 files · 25 MB each / 50 MB total</p>
   <p id="design-reference-error" class="inline-error" role="alert"></p>
   <p id="design-reference-status" role="status" aria-live="polite"></p>
   <div class="dialog-actions"><button id="save-design-references" type="button" class="primary" disabled>Save references</button></div>

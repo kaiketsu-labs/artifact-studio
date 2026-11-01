@@ -7,6 +7,9 @@
     const state=id=>{if(!states.has(id))states.set(id,{files:[],references:null,loading:false,saving:false,removing:false,error:'',loadError:'',status:'',version:0});return states.get(id);};
     const visible=id=>dialog.open&&designId===id;
     button(close,'close','Close',false);
+    button(save,'save','Save references',false);button(clear,'close','Clear selection',false);button(retry,'refresh','Retry loading references',false);
+    const attach=$('attach-design-references'),help=$('reference-help-button');button(attach,'attach','Attach reference files',false);button(help,'info','About reference files',false);
+    attach.addEventListener('click',()=>input.click());help.addEventListener('click',()=>{const content=$('reference-help');content.hidden=!content.hidden;help.setAttribute('aria-expanded',String(!content.hidden));});
     function validation(files){
       if(files.length>5)return 'Choose up to 5 files.';
       if(files.some(file=>file.size>25_000_000)||files.reduce((sum,file)=>sum+file.size,0)>50_000_000)return 'Keep each file at or below 25 MB and the total at or below 50 MB.';
@@ -20,7 +23,7 @@
         else{const ul=document.createElement('ul');for(const file of current.references){
           const li=document.createElement('li'),link=document.createElement('a'),remove=document.createElement('button');
           link.href=file.url;link.textContent=file.name;link.setAttribute('download','');
-          remove.type='button';remove.textContent='Remove';remove.setAttribute('aria-label','Remove '+file.name+' from design context');
+          remove.type='button';button(remove,'trash','Remove '+file.name+' from design context',false);
           remove.disabled=current.saving||current.removing;remove.addEventListener('click',()=>void removeReference(id,file));
           li.append(link,remove);ul.append(li);
         }list.append(ul);}
@@ -30,7 +33,7 @@
       $('design-reference-error').textContent=current.error||current.loadError;
       $('design-reference-status').textContent=current.removing?'Removing…':current.saving?'Saving…':current.loading?'Loading…':current.status;
       retry.hidden=current.loading||!current.loadError;
-      input.disabled=current.saving||current.removing;
+      input.disabled=current.saving||current.removing;attach.disabled=input.disabled;
       save.disabled=current.saving||current.removing||current.loading||current.references===null||!current.files.length||!!validation(current.files);
     }
     async function load(id){
@@ -67,7 +70,7 @@
     }
     function open(id,name){
       if(!id)return;
-      designId=id;input.value='';$('design-references-name').textContent=name||id;dialog.showModal();
+      designId=id;input.value='';$('reference-help').hidden=true;help.setAttribute('aria-expanded','false');$('design-references-name').textContent=name||id;dialog.showModal();
       if(state(id).saving||state(id).removing)render(id);else void load(id);
     }
     return {open,hasDrafts:()=>[...states.values()].some(item=>item.files.length)};

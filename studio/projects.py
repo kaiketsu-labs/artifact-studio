@@ -51,6 +51,14 @@ class FeedbackDraft(StrictModel):
     edit_intent: EditIntent | None = None
 
 
+class QuestionDraft(StrictModel):
+    """An unsent answer kept with its original slide and private project."""
+
+    slide_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
+    text: str = Field(default="", max_length=10_000)
+    choice: int | None = Field(default=None, ge=0, le=5)
+
+
 class ClientState(StrictModel):
     """Browser-only unfinished work scoped to the exported presentation."""
 
@@ -61,6 +69,7 @@ class ClientState(StrictModel):
     feedback: dict[str, FeedbackDraft] = Field(default_factory=dict, max_length=100)
     open_panels: list[Literal["notes", "sources", "agent"]] = Field(default_factory=list)
     presenter_notes: dict[str, dict[str, str]] = Field(default_factory=dict, max_length=100)
+    question_answers: dict[str, QuestionDraft] = Field(default_factory=dict, max_length=500)
 
 
 class ProjectFile(StrictModel):
@@ -421,14 +430,19 @@ def _restore_review(
 ) -> None:
     """Restore only this deck's messages and review state, excluding active agent leases."""
     event_ids: dict[int, int] = {}
+    question_keys = [
+        item.question.key for item in bundle.feedback if item.question and item.question.key
+    ]
+    if len(question_keys) != len(set(question_keys)):
+        raise ValueError("Project questions must have distinct identities.")
     for item in bundle.feedback:
         attachments = store.save_feedback_files(
             deck.id, [(file.name, files[file.path]) for file in item.files]
         )
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,reply_to,"
-            "target,released,batch_id,context_slide_id,files,edit_intent) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "target,released,batch_id,context_slide_id,files,edit_intent,question) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck.id,
                 item.slide_id or "",
@@ -443,6 +457,7 @@ def _restore_review(
                 item.context_slide_id,
                 TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
                 item.edit_intent.model_dump_json() if item.edit_intent else None,
+                item.question.model_dump_json() if item.question else None,
             ),
         )
         event_ids[item.event_id] = cast(int, cursor.lastrowid)
@@ -456,6 +471,22 @@ def _restore_review(
             )
         if item.released and item.author == "user":
             _ = db.execute("INSERT INTO delivery(event_id) VALUES (?)", (event_ids[item.event_id],))
+    question_ids = {
+        item.event_id: item
+        for item in bundle.feedback
+        if item.question is not None and item.author == "agent"
+    }
+    restored_drafts: dict[str, QuestionDraft] = {}
+    for old_id, draft in bundle.client.question_answers.items():
+        question = question_ids.get(int(old_id)) if old_id.isdecimal() else None
+        if question is None or question.slide_id != draft.slide_id:
+            raise ValueError("An answer draft does not belong to a question on its slide.")
+        if draft.choice is not None and (
+            question.question is None or draft.choice >= len(question.question.options)
+        ):
+            raise ValueError("An answer draft selects an unavailable option.")
+        restored_drafts[str(event_ids[int(old_id)])] = draft
+    bundle.client.question_answers = restored_drafts
     for table, tokens in (("approvals", bundle.approvals), ("slide_views", bundle.seen)):
         _ = db.executemany(
             f"INSERT INTO {table} VALUES (?,?,?)",

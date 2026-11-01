@@ -45,7 +45,7 @@
 :root[data-theme=dark] :is(.discussion .feedback-slide-context,.target-chip.has-target,.discussion .comment-target,.chat-file-chip,.file-chip,.design-message,.design-message.agent){background:var(--raised);color:#bdcee5;border-color:#47556a}
 :root[data-theme=dark] :is(.chat-sent-file:hover,.chat-file-chip button:hover,.discussion #attach-feedback:hover){background:var(--hover);color:var(--ink)}
 :root[data-theme=dark] :is(.comment-pending,.discussion .comment-pending,.update-banner){background:#483b28;color:#edcb91}
-:root[data-theme=dark] :is(.questions-panel h3,#notes-state){color:#e0bc87}
+:root[data-theme=dark] #notes-state{color:#e0bc87}
 :root[data-theme=dark] .notes-panel textarea{background:var(--surface);color:var(--ink);border-color:var(--line)}
 :root[data-theme=dark] :is(#sources a,.old-version,.library-description a){color:var(--link)}
 :root[data-theme=dark] :is(.file-choice-copy strong,.library-description strong){color:var(--ink)}
