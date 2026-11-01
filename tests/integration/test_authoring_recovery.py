@@ -15,16 +15,17 @@ pytestmark = [
 ]
 
 
-class LostAddResponse(Client):
+class LostWriteResponse(Client):
     """Lose one client acknowledgement after the real server has committed the write."""
 
     lost: bool = False
+    tool_to_lose: str = "add_slide"
 
     def call(self, invocation: Invocation) -> object:
         result = super().call(invocation)
-        if invocation.tool == "add_slide" and not self.lost:
+        if invocation.tool == self.tool_to_lose and not self.lost:
             self.lost = True
-            raise OSError("Response lost after completed add")
+            raise OSError(f"Response lost after completed {invocation.tool}")
         return result
 
 
@@ -59,7 +60,7 @@ def test_lost_response_and_partial_batch_replay_over_actual_mcp(live_app: Runnin
         },
     )
     calls = [add, revise]
-    lost = execute(LostAddResponse(live_app.url + "/mcp"), calls, verify=True)
+    lost = execute(LostWriteResponse(live_app.url + "/mcp"), calls, verify=True)
     assert lost["ok"] is False and lost["next_call_index"] == 0
     assert "Response lost" in str(lost["error"])
     assert live_app.store.read(DECK_ID).slides[-1].id == "lost-add"
@@ -88,7 +89,7 @@ def test_lost_response_and_partial_batch_replay_over_actual_mcp(live_app: Runnin
 def test_replayed_add_verification_detects_post_write_visual_changes(live_app: RunningApp) -> None:
     """Do not recompute an original acknowledgement against newer theme/assets."""
     calls = [add_call("visual-drift-add")]
-    lost = execute(LostAddResponse(live_app.url + "/mcp"), calls, verify=True)
+    lost = execute(LostWriteResponse(live_app.url + "/mcp"), calls, verify=True)
     assert lost["ok"] is False
     theme = live_app.store.folder(DECK_ID) / "theme.css"
     _ = theme.write_text(theme.read_text() + "\n.slide{background:#fff;}\n")
@@ -96,6 +97,58 @@ def test_replayed_add_verification_detects_post_write_visual_changes(live_app: R
     assert result["ok"] is False
     assert object_value(result["verification"])["matched"] == 0
     assert "visual-drift-add" in str(object_value(result["verification"])["changed_since_write"])
+
+
+@pytest.mark.parametrize("drift", ["none", "theme", "asset", "notes", "deleted"])
+def test_lost_revision_response_replays_original_receipt_over_actual_mcp(
+    live_app: RunningApp, drift: str
+) -> None:
+    """Recover transport failures without blessing later changes or restoring a deleted slide."""
+    before = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    calls = [
+        Invocation(
+            tool="revise_slide",
+            arguments={
+                "deck_id": DECK_ID,
+                "slide_id": "cover",
+                "expected_hash": before["expected_hash"],
+                "request_id": "lost-revision-response",
+                "patch": {"title": "Recorded revision"},
+            },
+        )
+    ]
+    client = LostWriteResponse(live_app.url + "/mcp")
+    client.tool_to_lose = "revise_slide"
+    lost = execute(client, calls, verify=True)
+    assert lost["ok"] is False and lost["next_call_index"] == 0
+    assert "Response lost" in str(lost["error"])
+    written = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    assert written["revision"] == int(str(before["revision"])) + 1
+    folder = live_app.store.folder(DECK_ID)
+    if drift == "theme":
+        theme = folder / "theme.css"
+        _ = theme.write_text(theme.read_text() + "\n.slide{background:#fff;}\n")
+    elif drift == "asset":
+        _ = (folder / "assets/new-reference.svg").write_text("<svg>New artwork</svg>")
+    elif drift == "notes":
+        live_app.store.save_notes(DECK_ID, "cover", "Human changed notes", str(written["notes"]))
+    elif drift == "deleted":
+        live_app.store.remove_slide(DECK_ID, "cover", str(written["expected_hash"]))
+    result = execute(Client(live_app.url + "/mcp"), calls, verify=True)
+    verification = object_value(result["verification"])
+    assert result["ok"] is (drift == "none")
+    assert verification["matched"] == (1 if drift == "none" else 0)
+    if drift != "none":
+        assert "cover" in str(verification["changed_since_write"])
+    if drift == "deleted":
+        assert "cover" not in [slide.id for slide in live_app.store.read(DECK_ID).slides]
+    else:
+        current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+        assert current["revision"] == written["revision"]
+        if drift == "notes":
+            assert current["notes"] == "Human changed notes"
+        else:
+            assert current["notes"] == before["notes"]
 
 
 def test_create_schema_explains_id_and_returns_explicit_destinations(live_app: RunningApp) -> None:

@@ -460,7 +460,7 @@ def test_assets_embed_and_store_without_binary_roundtrip(store: Store) -> None:
         SlidePatch(interactive_html=source),
         embed_assets=True,
     )
-    assert retry.revision == result.revision
+    assert retry == result
     assert service.get_slide(TEMPLATE_ID, before.id).interactive_html == saved.interactive_html
     with pytest.raises(ToolError, match="another payload"):
         service.revise_slide(

@@ -613,6 +613,53 @@ class Store:
         prepare_interactive: Callable[[str], str] | None = None,
     ) -> Slide:
         """Apply an idempotent revision with optimistic concurrency protection."""
+        result = self._revise(
+            deck_id,
+            slide_id,
+            expected_hash,
+            request_id,
+            patch,
+            prepare_interactive=prepare_interactive,
+        )
+        return Slide.model_validate(result.model_dump(include=set(Slide.model_fields)))
+
+    def revise_view(
+        self,
+        deck_id: str,
+        slide_id: str,
+        expected_hash: str,
+        request_id: str,
+        patch: SlidePatch,
+        *,
+        prepare_interactive: Callable[[str], str] | None = None,
+    ) -> SlideView:
+        """Return the revision's recorded write-time hashes, never infer a legacy baseline."""
+        result = self._revise(
+            deck_id,
+            slide_id,
+            expected_hash,
+            request_id,
+            patch,
+            prepare_interactive=prepare_interactive,
+        )
+        if not isinstance(result, SlideView):
+            raise ConflictError(
+                "This earlier revision has no recorded visual receipt. "
+                "Read the current slide and reconcile before proceeding."
+            )
+        return result
+
+    def _revise(
+        self,
+        deck_id: str,
+        slide_id: str,
+        expected_hash: str,
+        request_id: str,
+        patch: SlidePatch,
+        *,
+        prepare_interactive: Callable[[str], str] | None = None,
+    ) -> Slide:
+        """Share the locked write/replay path with source-only and receipt-aware callers."""
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
         payload = slide_id + expected_hash + patch.model_dump_json()
@@ -627,7 +674,10 @@ class Store:
             if prior is not None:
                 if prior[0] != payload_hash:
                     raise ConflictError("This request_id was already used with another payload.")
-                return Slide.model_validate_json(cast(str, prior[1]))
+                document = json.loads(cast(str, prior[1]))
+                if "content_hash" in document:
+                    return SlideView.model_validate(document)
+                return Slide.model_validate(document)
             deck = self.read(deck_id)
             slide = self.locate(deck, slide_id)
             if digest(slide.model_dump_json()) != expected_hash:
@@ -660,11 +710,30 @@ class Store:
             )
             deck.slides[deck.slides.index(slide)] = revised
             self.write(deck_id, deck)
+            result = self._write_view(db, deck_id, revised)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
-                (deck_id, request_id, payload_hash, revised.model_dump_json()),
+                (deck_id, request_id, payload_hash, result.model_dump_json()),
             )
-        return revised
+        return result
+
+    def _write_view(self, db: sqlite3.Connection, deck_id: str, slide: Slide) -> SlideView:
+        """Freeze source, visual hashes and review state without caching private discussion."""
+        approved = db.execute(
+            "SELECT content_hash FROM approvals WHERE deck=? AND slide=?", (deck_id, slide.id)
+        ).fetchone()
+        seen = db.execute(
+            "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?", (deck_id, slide.id)
+        ).fetchone()
+        return self.view_slide(
+            deck_id,
+            slide,
+            feedback=[],
+            review_hashes=(
+                {slide.id: cast(str, approved[0])} if approved else {},
+                {slide.id: cast(str, seen[0])} if seen else {},
+            ),
+        )
 
     def set_slide_hidden(
         self, deck_id: str, slide_id: str, *, hidden: bool, expected_hidden: bool
@@ -1135,22 +1204,7 @@ class Store:
                     raise ConflictError("This request_id was already used with another payload.")
                 return SlideView.model_validate_json(cast(str, prior["result"]))
             added = self._append_slide(db, deck_id, slide, prepare_interactive)
-            approved = db.execute(
-                "SELECT content_hash FROM approvals WHERE deck=? AND slide=?", (deck_id, added.id)
-            ).fetchone()
-            seen = db.execute(
-                "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?", (deck_id, added.id)
-            ).fetchone()
-            result = self.view_slide(
-                deck_id,
-                added,
-                include_pending=False,
-                feedback=self.comments(deck_id),
-                review_hashes=(
-                    {added.id: cast(str, approved[0])} if approved else {},
-                    {added.id: cast(str, seen[0])} if seen else {},
-                ),
-            )
+            result = self._write_view(db, deck_id, added)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
                 (deck_id, request_id, payload_hash, result.model_dump_json()),
