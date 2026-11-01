@@ -15,6 +15,8 @@
 .discussion .comment.agent{padding-left:12px;border-left:1px solid #e5eaf2}
 .discussion .comment-header{gap:18px;margin-bottom:6px;font-size:9px;color:#7a899e}
 .discussion .comment.user .comment-header{flex-direction:row-reverse}
+.chat-sender{display:inline-flex;align-items:center;gap:6px}
+.chat-reply{font-size:10px;color:var(--subtle,#718096)}
 .chat-avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:28px;height:28px;border:1px solid #d4e0f3;border-radius:50%;background:#e5edfc;color:#365f96;vertical-align:middle}
 .chat-avatar.agent{background:#e7f1ec;border-color:#d2e5dc;color:#386b56}
 .chat-avatar .ui-icon{width:17px;height:17px}

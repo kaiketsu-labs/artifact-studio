@@ -214,7 +214,7 @@
   /** Identify chat senders visually and retain their names for assistive technology. */
   function chatAvatar(author,isReply=false){
     const user=author==='user',label=(user?'You':'Agent')+(isReply?' reply':'');
-    return `<span class="chat-avatar ${user?'user':'agent'}" role="img" aria-label="${label}" title="${label}">${svg(user?'user':'robot')}</span>`;
+    return `<span class="chat-sender"><span class="chat-avatar ${user?'user':'agent'}" role="img" aria-label="${label}" title="${label}">${svg(user?'user':'robot')}</span>${isReply?'<span class="chat-reply" aria-hidden="true">Reply</span>':''}</span>`;
   }
   /** Preserve reading position while new messages arrive. */
   function renderComments(item){
