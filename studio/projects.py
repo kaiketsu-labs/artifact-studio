@@ -70,6 +70,7 @@ class ClientState(StrictModel):
     open_panels: list[Literal["notes", "sources", "agent"]] = Field(default_factory=list)
     presenter_notes: dict[str, dict[str, str]] = Field(default_factory=dict, max_length=100)
     question_answers: dict[str, QuestionDraft] = Field(default_factory=dict, max_length=500)
+    collapsed_sections: list[str] = Field(default_factory=list, max_length=100)
 
 
 class ProjectFile(StrictModel):
@@ -739,6 +740,7 @@ class EmbeddedMarkup(HTMLParser):
 def audience_html(store: Store, deck_id: str, *, printing: bool = False) -> str:
     """Build one offline audience document, excluding private notes and conversations."""
     deck = store.read(deck_id).model_copy(deep=True)
+    deck.sections = []
     folder = store.folder(deck_id)
     embedder = AssetEmbedder(folder)
     theme = embedder.css((folder / "theme.css").read_text()).replace("<", r"\3c ")

@@ -83,6 +83,22 @@ class Slide(StrictModel):
     agent: AgentContext = Field(default_factory=AgentContext)
 
 
+class DeckSection(StrictModel):
+    """A named, contiguous group of slides in the editing overview."""
+
+    id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
+    title: str = Field(min_length=1, max_length=100)
+    slide_ids: list[str] = Field(default_factory=list, max_length=100)
+
+    @field_validator("title")
+    @classmethod
+    def nonblank_title(cls, value: str) -> str:
+        """Keep section names useful without changing user capitalization."""
+        if not value.strip():
+            raise ValueError("Give the section a name.")
+        return value.strip()
+
+
 class Deck(StrictModel):
     """A presentation whose authoritative source is index.html."""
 
@@ -91,6 +107,18 @@ class Deck(StrictModel):
     title: str
     design_id: str = ""
     slides: list[Slide] = Field(min_length=1, max_length=100)
+    sections: list[DeckSection] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def section_order(self) -> Self:
+        """Section membership partitions the canonical slide order exactly once."""
+        if len({section.id for section in self.sections}) != len(self.sections):
+            raise ValueError("Section IDs must be unique.")
+        if self.sections and [item for group in self.sections for item in group.slide_ids] != [
+            slide.id for slide in self.slides
+        ]:
+            raise ValueError("Sections must contain every slide once in presentation order.")
+        return self
 
 
 class DeckReceipt(StrictModel):
@@ -265,6 +293,8 @@ class DeckView(StrictModel):
     design_id: str = ""
     design_hash: str = ""
     slides: list[SlideView]
+    sections: list[DeckSection] = Field(default_factory=list)
+    sections_hash: str = ""
     context_markdown: str = ""
     context_hash: str = ""
     authoring_instructions: str = ""
@@ -320,6 +350,20 @@ class SlideActionInput(SlideOrderInput):
     action: Literal["add", "duplicate", "delete"]
     expected_hashes: dict[str, str] = Field(default_factory=dict)
     request_id: str = Field(min_length=8, max_length=100)
+
+
+class SlideOrderUpdateInput(SlideOrderInput):
+    """An optional explicit section layout for moves between named groups."""
+
+    sections: list[DeckSection] | None = Field(default=None, max_length=100)
+    expected_sections_hash: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
+
+
+class SectionLayoutInput(SlideOrderInput):
+    """Replace named groups with guards against concurrent structure changes."""
+
+    sections: list[DeckSection] = Field(max_length=100)
+    expected_sections_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class SlideRestoreInput(StrictModel):

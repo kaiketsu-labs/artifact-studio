@@ -56,6 +56,7 @@ from .models import (
     CreateInput,
     Deck,
     DeckReceipt,
+    DeckSection,
     DeckView,
     DesignInbox,
     DesignManifest,
@@ -70,9 +71,10 @@ from .models import (
     NotesInput,
     PresentationCommentInput,
     QuestionAnswerInput,
+    SectionLayoutInput,
     Slide,
     SlideActionInput,
-    SlideOrderInput,
+    SlideOrderUpdateInput,
     SlidePatch,
     SlideQuestionView,
     SlideReceipt,
@@ -86,6 +88,7 @@ from .models import (
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
 from .review import ReviewHookInput, ReviewHookReply, Reviews
+from .sections import Sections, sections_hash
 from .slide_actions import SlideActionResult, SlideActions
 from .storage import ConflictError, Store, digest
 from .visuals import CaptureOptions, VisualResult, capture
@@ -527,6 +530,8 @@ def get_presentation_outline(
         "title": view.title,
         "design_id": view.design_id,
         "slides": [slide_receipt(deck_id, item).model_dump() for item in view.slides],
+        "sections": [section.model_dump() for section in view.sections],
+        "sections_hash": view.sections_hash,
         "open_questions": [
             {"event_id": question.event_id, "slide_id": question.slide_id}
             for item in view.slides
@@ -1001,12 +1006,55 @@ def reorder_slides(
     slide_ids: list[str],
     expected_slide_ids: list[str] | None = None,
     include_content: bool = False,
+    sections: list[DeckSection] | None = None,
+    expected_sections_hash: str = "",
 ) -> DeckReceipt | Deck:
     """Set stable slide IDs in order; pass their previous order to detect concurrent moves.
+    Moving across sections requires sections and expected_sections_hash from the outline.
     Returns deck identity and resulting slide IDs; include_content=True returns all slide source.
     """
-    deck = store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
+    deck = (
+        Sections(store).replace(
+            deck_id, slide_ids, sections, expected_slide_ids or [], expected_sections_hash
+        )
+        if sections is not None
+        else store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
+    )
     return deck if include_content else deck_receipt(deck)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def set_presentation_sections(
+    deck_id: str,
+    sections: list[DeckSection],
+    expected_slide_ids: list[str],
+    expected_sections_hash: str,
+) -> dict[str, object]:
+    """Name and order slide groups without changing slide content or approval.
+    Read sections_hash and slide IDs from get_presentation_outline first. Groups must
+    contain every slide exactly once; their flattened membership sets presentation order.
+    Empty sections are allowed. An empty list removes grouping and keeps slide order.
+    """
+    deck = Sections(store).replace(
+        deck_id,
+        [slide_id for section in sections for slide_id in section.slide_ids]
+        if sections
+        else expected_slide_ids,
+        sections,
+        expected_slide_ids,
+        expected_sections_hash,
+    )
+    return section_layout(deck)
+
+
+def section_layout(deck: Deck) -> dict[str, object]:
+    """A compact acknowledgement shared by browser and agent layout writers."""
+    return {
+        "slide_ids": [slide.id for slide in deck.slides],
+        "sections": [section.model_dump() for section in deck.sections],
+        "sections_hash": sections_hash(deck.sections),
+    }
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True))
@@ -1190,10 +1238,36 @@ def slide_visibility(
 
 
 @app.post("/api/decks/{deck_id}/slide-order")
-def slide_order(deck_id: DeckID, body: SlideOrderInput) -> dict[str, list[str]]:
+def slide_order(deck_id: DeckID, body: SlideOrderUpdateInput) -> dict[str, object]:
     """Move slides without replacing concurrent content, notes or review state."""
-    updated = store.reorder(deck_id, body.slide_ids, expected_slide_ids=body.expected_slide_ids)
-    return {"slide_ids": [slide.id for slide in updated.slides]}
+    updated = (
+        Sections(store).replace(
+            deck_id,
+            body.slide_ids,
+            body.sections,
+            body.expected_slide_ids,
+            body.expected_sections_hash,
+        )
+        if body.sections is not None
+        else store.reorder(deck_id, body.slide_ids, expected_slide_ids=body.expected_slide_ids)
+    )
+    if body.sections is None and not updated.sections:
+        return {"slide_ids": [slide.id for slide in updated.slides]}
+    return section_layout(updated)
+
+
+@app.post("/api/decks/{deck_id}/sections")
+def presentation_sections(deck_id: DeckID, body: SectionLayoutInput) -> dict[str, object]:
+    """Save names and grouping using the structure the human actually reviewed."""
+    return section_layout(
+        Sections(store).replace(
+            deck_id,
+            body.slide_ids,
+            body.sections,
+            body.expected_slide_ids,
+            body.expected_sections_hash,
+        )
+    )
 
 
 @app.post("/api/decks/{deck_id}/slide-actions")

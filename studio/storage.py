@@ -347,6 +347,9 @@ class Store:
 
     def write(self, deck_id: str, deck: Deck) -> None:
         """Replace the embedded source atomically while retaining the HTML shell."""
+        from .sections import reconcile
+
+        deck.sections = reconcile(deck.sections, [slide.id for slide in deck.slides])
         target = self.folder(deck_id) / "index.html"
         source = target.read_text()
         document = deck.model_dump_json(indent=2).replace("<", r"\u003c")
@@ -504,6 +507,8 @@ class Store:
 
     def view(self, deck_id: str, *, include_pending: bool = True) -> DeckView:
         """Return a review-ready snapshot of a presentation."""
+        from .sections import sections_hash
+
         deck = self.read(deck_id)
         context_file = self.folder(deck_id) / "README.md"
         context = context_file.read_text() if context_file.exists() else ""
@@ -529,6 +534,8 @@ class Store:
                 )
                 for slide in deck.slides
             ],
+            sections=deck.sections,
+            sections_hash=sections_hash(deck.sections),
             context_markdown=context,
             context_hash=digest(context),
             authoring_instructions=self.authoring_instructions(),
@@ -1053,6 +1060,7 @@ class Store:
             deck.id, deck.title = deck_id, title
             deck.design_id = design_id
             deck.slides = deck.slides[:1]
+            deck.sections = []
             for slide in deck.slides:
                 slide.hidden = False
                 slide.title = title

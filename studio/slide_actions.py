@@ -119,6 +119,9 @@ class SlideActions:
                 return SlideActionResult.model_validate_json(cast(str, prior["result_json"]))
             before = self.store.read(deck_id)
             after, result = self._prepare(db, before, request_id, payload)
+            from .sections import reconcile
+
+            after.sections = reconcile(after.sections, [slide.id for slide in after.slides])
             _ = db.execute(
                 "INSERT INTO slide_actions VALUES (?,?,?,?,?,?,0)",
                 (
@@ -207,6 +210,14 @@ class SlideActions:
                 after.slides.insert(position, slide.model_copy(deep=True))
             result.added_ids = deleted.deleted_ids
             result.insertion_anchor = deleted.insertion_anchor
+            for section in after.sections:
+                section.slide_ids.extend(
+                    slide_id
+                    for group in original.sections
+                    if group.id == section.id
+                    for slide_id in group.slide_ids
+                    if slide_id in deleted.deleted_ids
+                )
             return after, result
         expected = cast(list[str], payload["expected_slide_ids"])
         if ids != expected:
