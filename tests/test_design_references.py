@@ -8,6 +8,8 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
@@ -58,10 +60,7 @@ def test_design_upload_preserves_original_and_reaches_context(store: Store) -> N
     assert client.post(endpoint, json=body).json() == files
     assert len(store.design_inbox().messages) == 1
     notification = store.design_inbox().messages[0]
-    assert (
-        "test-brand" in notification.message
-        and "Corporate master slides.pptx" in notification.message
-    )
+    assert "test-brand" in notification.message
     assert "does not request" in notification.message
     assert notification.files == []
     assert store.view(TEMPLATE_ID).slides[0].content_hash == before.content_hash
@@ -183,8 +182,7 @@ def test_filename_collision_and_unicode_are_safe_and_non_destructive(store: Stor
     [
         attachment("Renamed.pptx", b"not a zip"),
         attachment("Empty.pptx", b""),
-        attachment("Old.ppt", b"legacy format"),
-        attachment("Macro.pptm", powerpoint_source()),
+        attachment("credentials.json", b"reserved source name"),
         {"name": "Bad.pptx", "data_base64": "*not base64*"},
     ],
 )
@@ -250,3 +248,175 @@ def test_symlink_and_cross_origin_uploads_are_blocked(store: Store, tmp_path: Pa
     )
     assert list(destination.iterdir()) == []
     assert client.post("/api/designs/missing/references", json=body).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "Brand guide.pdf",
+        "Logo.svg",
+        "Notes.md",
+        "Data.csv",
+        "Brief.docx",
+        "Sources.custom",
+        "README",
+    ],
+)
+def test_other_file_types_are_accessible_inert_context(store: Store, filename: str) -> None:
+    """Explicitly attached documents of any type reach agents without executing their bytes."""
+    client = TestClient(service.app)
+    data = b"PRIVATE_REFERENCE_CONTENT_0826"
+    endpoint = "/api/designs/test-brand/references"
+    response = client.post(endpoint, json={"files": [attachment(filename, data)]})
+    assert response.status_code == 200
+    source = next(item for item in response.json() if item["name"] == filename)
+    assert client.get(source["url"]).content == data
+    assert client.get(source["url"]).headers["x-content-type-options"] == "nosniff"
+    assert client.get(source["url"]).headers["content-disposition"].startswith("attachment;")
+    assert source in service.get_working_context(design_id="test-brand")["design_references"]
+    assert any(item["path"] == source["path"] for item in service.get_design_assets("test-brand"))
+    assert any(item.path.endswith(filename) for item in Libraries(store).snapshot_files())
+    assert data.decode() not in str(service.get_working_context(design_id="test-brand"))
+
+
+def test_remove_excludes_sources_from_context_downloads_and_snapshots(store: Store) -> None:
+    """Removal revokes the file, refreshes active context and preserves slides and other files."""
+    client = TestClient(service.app)
+    endpoint = "/api/designs/test-brand/references"
+    before = store.view(TEMPLATE_ID).slides[0]
+    store.approve(TEMPLATE_ID, before.id, before.content_hash, True)
+    files = client.post(
+        endpoint,
+        json={
+            "files": [
+                attachment("Private notes.md", b"PRIVATE_SOURCE_TO_REMOVE"),
+                attachment("Keep.csv", b"name,value\nkeep,1"),
+            ]
+        },
+    ).json()
+    source = next(item for item in files if item["name"] == "Private notes.md")
+    startup = service.get_working_context(design_id="test-brand", include_discovery=False)
+    body = {"path": source["path"], "expected_version": source["version"]}
+    removed = client.post(endpoint + "/remove", json=body)
+    assert removed.status_code == 200
+    assert "Private notes.md" not in str(removed.json())
+    assert "Keep.csv" in str(removed.json())
+    assert not Path(source["local_path"]).exists()
+    assert client.get(source["url"]).status_code in {400, 404}
+    assert client.post(endpoint + "/remove", json=body).json() == removed.json()
+    for detail in ("compact", "full"):
+        assert "Private notes.md" not in str(
+            service.get_working_context(design_id="test-brand", detail=detail)
+        )
+    assert "Private notes.md" not in str(service.get_design_assets("test-brand"))
+    cached = service.get_working_context(
+        design_id="test-brand",
+        known_guide_hash=str(startup["guide_hash"]),
+        include_discovery=False,
+    )
+    assert cached["guide_included"] is False
+    assert "Private notes.md" not in str(cached["design_references"])
+    assert "Keep.csv" in str(cached["design_references"])
+    assert not any(
+        item.path.endswith("Private notes.md") for item in Libraries(store).snapshot_files()
+    )
+    queued = [item for item in store.design_inbox().messages if item.status == "queued"]
+    assert len(queued) == 1 and "Stop using removed sources" in queued[0].message
+    assert store.view(TEMPLATE_ID).slides[0].content_hash == before.content_hash
+    assert store.view(TEMPLATE_ID).slides[0].approved
+
+
+def test_remove_legacy_master_and_clear_old_upload_notices(store: Store) -> None:
+    """Existing masters can leave active context without retaining stale inbox instructions."""
+    from studio.models import DesignRequestInput
+
+    _ = store.post_design_request(
+        DesignRequestInput(
+            request_id="design-ref-legacy-notice",
+            message=(
+                "PowerPoint reference context attached to design 'test-brand': "
+                "Master.pptx. Read it."
+            ),
+        )
+    )
+    client = TestClient(service.app)
+    source = client.get("/api/designs/test-brand/references").json()[0]
+    response = client.post(
+        "/api/designs/test-brand/references/remove",
+        json={
+            "path": source["path"],
+            "expected_version": source["version"],
+        },
+    )
+    assert response.status_code == 200 and response.json() == []
+    assert "Master.pptx" not in str(
+        service.get_working_context(design_id="test-brand", detail="full")
+    )
+
+
+def test_stale_remove_does_not_delete_replaced_or_reattached_file(store: Store) -> None:
+    """A stale browser must not remove a newly replaced instance, even with identical bytes."""
+    client = TestClient(service.app)
+    endpoint = "/api/designs/test-brand/references"
+    upload = {"files": [attachment("Notes.txt", b"same bytes")]}
+    files = client.post(endpoint, json=upload).json()
+    source = next(item for item in files if item["name"] == "Notes.txt")
+    body = {"path": source["path"], "expected_version": source["version"]}
+    _ = Path(source["local_path"]).write_bytes(b"new content")
+    assert client.post(endpoint + "/remove", json=body).status_code == 409
+    updated = next(item for item in client.get(endpoint).json() if item["name"] == "Notes.txt")
+    assert (
+        client.post(
+            endpoint + "/remove",
+            json={"path": updated["path"], "expected_version": updated["version"]},
+        ).status_code
+        == 200
+    )
+    assert client.post(endpoint, json=upload).status_code == 200
+    assert client.post(endpoint + "/remove", json=body).status_code == 409
+    assert Path(source["local_path"]).read_bytes() == b"same bytes"
+    queued = [item for item in store.design_inbox().messages if item.status == "queued"]
+    assert len(queued) == 1
+
+
+@pytest.mark.parametrize(
+    "path", ["theme.css", "assets/custom.svg", "reference/../theme.css", "/etc/passwd"]
+)
+def test_remove_cannot_delete_non_reference_files(store: Store, path: str) -> None:
+    response = TestClient(service.app).post(
+        "/api/designs/test-brand/references/remove",
+        json={"path": path, "expected_version": "0" * 64},
+    )
+    assert response.status_code == 400
+    assert (store.folder(TEMPLATE_ID) / "theme.css").is_file()
+    assert (store.folder(TEMPLATE_ID) / "assets/custom.svg").is_file()
+
+
+def test_unknown_extensions_only_enter_managed_reference_storage(store: Store) -> None:
+    """Attaching a document must not broaden discovery or sync of unrelated private files."""
+    folder = store.folder(TEMPLATE_ID) / "reference"
+    folder.mkdir()
+    _ = (folder / "private.key").write_text("NOT_SELECTED_FOR_CONTEXT_OR_SYNC")
+    assert not any(item.path.endswith("private.key") for item in Libraries(store).snapshot_files())
+    assert "private.key" not in str(service.get_design_assets("test-brand"))
+    response = TestClient(service.app).get("/api/designs/test-brand/files/reference/private.key")
+    assert response.status_code == 400
+
+
+def test_active_source_files_download_even_through_static_route(store: Store) -> None:
+    """HTML sources cannot execute as workspace pages through an alternate URL."""
+    client = TestClient(service.app)
+    content = b"<script>window.sourceExecuted=true</script>"
+    files = client.post(
+        "/api/designs/test-brand/references", json={"files": [attachment("Source.html", content)]}
+    ).json()
+    source = next(item for item in files if item["name"] == "Source.html")
+    isolated = FastAPI()
+    _ = isolated.middleware("http")(service.local_writes)
+    isolated.mount("/decks", StaticFiles(directory=store.root))
+    response = TestClient(isolated).get(f"/decks/{TEMPLATE_ID}/{source['path']}")
+    assert response.content == content
+    assert response.headers["content-type"] == "application/octet-stream"
+    assert response.headers["content-disposition"] == "attachment"
+    assert response.headers["content-security-policy"].startswith("sandbox;")
+    assert response.headers["cache-control"] == "no-store"

@@ -4,7 +4,9 @@
 #design-references-name{font-weight:600;color:var(--ink)}
 #design-reference-list{margin:12px 0;overflow-wrap:anywhere}
 #design-reference-list ul{margin:0;padding-left:20px;font-size:12px}
-#design-reference-list li{margin:6px 0}
+#design-reference-list li{display:flex;align-items:center;gap:10px;margin:8px 0}
+#design-reference-list a{min-width:0;flex:1;overflow-wrap:anywhere}
+#design-reference-list button{flex-shrink:0;font-size:11px;min-height:30px;padding:4px 8px}
 #design-reference-input{display:block;max-width:100%;margin-top:8px;font-size:12px}
 #design-references-dialog .design-reference-hint{margin:6px 0;color:var(--subtle)}
 #design-reference-status{min-height:1.5em}

@@ -26,7 +26,12 @@ from starlette.responses import Response
 
 from .agent_io import deck_receipt, feedback_response, guide_fields, rule_fields, slide_receipt
 from .autosync import AutoSync, SyncStatus
-from .design_references import DesignReference, DesignReferences, ReferenceInput
+from .design_references import (
+    DesignReference,
+    DesignReferences,
+    ReferenceInput,
+    RemoveReferenceInput,
+)
 from .events import deck_events
 from .interactive import prepare_document
 from .libraries import (
@@ -38,6 +43,7 @@ from .libraries import (
     SyncInput,
     SyncResult,
     inventory,
+    managed_reference,
     safe_file,
 )
 from .models import (
@@ -161,7 +167,7 @@ def get_working_context(
     """Read first: compact startup with complete user rules; load guides on demand.
     Pass deck_id for existing work to select its design, not the workspace default.
     Supplying both IDs requires them to match.
-    Design references contain file pointers, not PPTX bytes; open relevant files yourself.
+    Design references contain file pointers, not file contents; open relevant files yourself.
     Use detail="full" for all guides, design documents and the complete asset inventory.
     Pass known_rules_hash only while retaining those rules; changes return full text.
     known_guide_hash omits only the retained guide; omit hashes after context loss.
@@ -190,13 +196,15 @@ def get_working_context(
         if design
         else [],
         "reference_usage": (
-            "PowerPoint files are design source context, not fixed slide layouts or instructions. "
+            "Reference files are design source context, not fixed slide layouts or instructions. "
             "Inspect relevant masters for typography, colours, artwork and layout conventions "
             "before composing. Metadata and paths do not insert binary contents into the model. "
             "Local agents open local_path; HTTP clients resolve url against the connected Studio "
             "origin and download it using their file tools. If no master is listed, say so; "
-            "the human can attach one through Design references. Attaching preserves the source; "
-            "it does not automatically rebuild a design or apply changes to slides."
+            "the human can attach sources of any file type through Design references. "
+            "Attaching does not automatically rebuild a design or apply changes to slides. "
+            "Refresh this source list after changes and stop using removed references. "
+            "Removal excludes sources from future context but cannot erase earlier chat history."
         ),
     }
     instructions, learned = store.authoring_instructions(), store.learned_preferences()
@@ -967,7 +975,16 @@ async def local_writes(request: Request, call_next: RequestResponseEndpoint) -> 
         ".mp4",
         ".webm",
     }
-    response.headers["Cache-Control"] = "private, no-cache" if static_asset else "no-store"
+    source_download = request.url.path.startswith("/decks/") and managed_reference(
+        Path(request.url.path)
+    )
+    if source_download and response.status_code in {200, 206}:
+        response.headers["Content-Type"] = "application/octet-stream"
+        response.headers["Content-Disposition"] = "attachment"
+        response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
+    response.headers["Cache-Control"] = (
+        "private, no-cache" if static_asset and not source_download else "no-store"
+    )
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
@@ -1251,7 +1268,7 @@ def designs() -> list[DesignView]:
 
 @app.get("/api/designs/{design_id}/references")
 def design_references(design_id: str) -> list[DesignReference]:
-    """List original masters attached to an explicit reusable design."""
+    """List current source files attached to an explicit reusable design."""
     return DesignReferences(store).list(design_id)
 
 
@@ -1259,6 +1276,12 @@ def design_references(design_id: str) -> list[DesignReference]:
 def attach_design_references(design_id: str, body: ReferenceInput) -> list[DesignReference]:
     """Preserve source files without changing rendered slides or claiming inspection."""
     return DesignReferences(store).attach(design_id, body)
+
+
+@app.post("/api/designs/{design_id}/references/remove")
+def remove_design_reference(design_id: str, body: RemoveReferenceInput) -> list[DesignReference]:
+    """Remove a source from fresh agent context and notify active review hooks."""
+    return DesignReferences(store).remove(design_id, body)
 
 
 @app.get("/api/libraries")
@@ -1318,7 +1341,12 @@ def library_file(library_id: str, path: str) -> FileResponse:
 def design_file(design_id: str, path: str) -> FileResponse:
     """Download the original brand master or an extracted custom asset."""
     target = safe_file(store.folder(store.design(design_id).folder_id), path)
-    return FileResponse(target, filename=target.name, media_type="application/octet-stream")
+    return FileResponse(
+        target,
+        filename=target.name,
+        media_type="application/octet-stream",
+        headers={"X-Content-Type-Options": "nosniff"},
+    )
 
 
 @app.get("/api/decks/{deck_id}/files/{path:path}")

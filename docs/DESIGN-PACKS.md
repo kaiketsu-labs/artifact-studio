@@ -8,7 +8,7 @@ Open **+** and send your agent a PowerPoint, URL, PDF or reference images throug
 
 For a pack already in a GitHub repo, connect that repo using **Menu → Reference libraries**, or ask the agent to register it as a reference library. The agent refreshes the repo, inspects its files and copies the chosen pack into your local collection before registering it. Registering a library alone does not install its designs or upload your files.
 
-To add a PowerPoint source to an existing design, use **New presentation → Manage selected design references** or **Menu → Design references**. Attach PPTX or POTX files: up to five per batch, 25 MB each and 50 MB total. They are shared by presentations using that design and give the agent reference material; attaching a file does not automatically apply its template or slides. An upload also queues a design inbox notice for an active agent with trusted, loaded review hooks. Ask the agent to inspect the source and preserve the branding while composing appropriate layouts. If the design pack is missing, restore or register it before attaching a reference.
+To add a PowerPoint source to an existing design, use **New presentation → Manage selected design references** or **Menu → Design references**. Attach any file type, such as PowerPoint, PDF, images, documents or data: up to five per batch, 25 MB each and 50 MB total. Downloads are inert; attaching a file does not prove the agent can inspect its format. They are shared by presentations using that design and give the agent reference material; attaching a file does not automatically apply its template or slides. An upload also queues a design inbox notice for an active agent with trusted, loaded review hooks. Ask the agent to inspect the source and preserve the branding while composing appropriate layouts. If the design pack is missing, restore or register it before attaching a reference.
 
 ## Agent contract
 
@@ -39,7 +39,9 @@ Create enough compositions to demonstrate the design language; they are optional
 
 Call `register_design(folder_id, design={id, name, description})`. It validates the pack and creates `design.json`; a new `design_id` must be unique. Call `set_default_design(design_id)` when requested. Verify `get_design_assets` lists the master and custom assets, then create a presentation with the selected design to confirm its fonts, assets and review flow. Original masters stay in the pack rather than being duplicated into every new deck.
 
-Attached design references are stored under the design's `reference/` directory and shared by decks using that design. They are excluded from newly created deck audience exports and project files. Explicit workspace-wide private sync includes the design originals.
+Use **Remove** beside a saved source to delete the file stored with this design and exclude it from future context and downloads. Active review hooks receive an update asking the agent to refresh the current source list and stop using removed references. Earlier chat history, existing slides and already saved exports are unchanged; use a new agent conversation to avoid the old conversation’s history.
+
+New attachments are stored under the design's `reference/uploads/<content hash>/` directory (existing masters remain discoverable) and shared by decks using that design. They are excluded from newly created deck audience exports and project files. Explicit workspace-wide private sync includes the design originals.
 
 Visually review every slide at presentation size with fresh reviewers for readability, factual/story consistency and presenter behavior. Verify reported issues before editing. Check second-screen placement separately when hardware is available. The runtime provides a subtle progress rail with one point per visible slide, even in long decks; restyle it to the brand. Use `html[data-progress="none"]` only when the deck supplies its own clear progress indicator.
 

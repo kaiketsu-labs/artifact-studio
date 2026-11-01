@@ -68,9 +68,18 @@ def test_drag_chat_persists_and_clamps_without_losing_the_canvas(
     _ = page.screenshot(path=str(artifacts / "wider-chat.png"), full_page=True)
     _ = page.reload(wait_until="networkidle")
     expect(divider).to_have_attribute("aria-valuenow", str(resized))
+    previous_maximum = int(str(divider.get_attribute("aria-valuemax")))
     page.set_viewport_size({"width": 950, "height": 800})
-    assert int(str(divider.get_attribute("aria-valuenow"))) <= int(
-        str(divider.get_attribute("aria-valuemax"))
+    # The resize event can run between two protocol reads. Wait for the new range
+    # and check both attributes in one browser evaluation.
+    page.wait_for_function(
+        """previousMaximum => {
+          const divider = document.getElementById('chat-resizer');
+          const maximum = Number(divider.getAttribute('aria-valuemax'));
+          return maximum < previousMaximum &&
+            Number(divider.getAttribute('aria-valuenow')) <= maximum;
+        }""",
+        arg=previous_maximum,
     )
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.set_viewport_size({"width": 800, "height": 900})

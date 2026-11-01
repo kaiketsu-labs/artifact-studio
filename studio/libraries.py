@@ -152,6 +152,15 @@ def snapshot_target(destination: Path, relative: str) -> Path:
     return target
 
 
+def managed_reference(relative: Path) -> bool:
+    """Recognize only the reserved, content-addressed upload tree."""
+    return (
+        len(relative.parts) >= 4
+        and relative.parts[-4:-2] == ("reference", "uploads")
+        and re.fullmatch(r"[a-f0-9]{64}", relative.parts[-2]) is not None
+    )
+
+
 def allowed(
     relative: Path,
     *,
@@ -160,7 +169,7 @@ def allowed(
 ) -> bool:
     """Keep caches, credentials, hidden state and unsupported files out of snapshots."""
     return (
-        (all_extensions or relative.suffix.lower() in EXTENSIONS)
+        (all_extensions or relative.suffix.lower() in EXTENSIONS or managed_reference(relative))
         and not any(part.startswith(".") or part in excluded for part in relative.parts)
         and relative.name.lower() not in {"credentials.json", "secrets.json", "secrets.txt"}
     )

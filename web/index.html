@@ -238,13 +238,14 @@
   <header><h2 id="design-references-title">Design references</h2><button type="button" id="close-design-references" aria-label="Close"></button></header>
   <p id="design-references-name"></p>
   <p>Shared by all presentations using this design. Your agent can inspect these sources; attaching one does not apply its template or change slides. Audience exports exclude references, and PowerPoint export is unavailable. References stay local unless workspace GitHub sync is enabled.</p>
+  <p class="design-reference-hint">Remove deletes the stored source file and excludes it from future context. An agent may already have read it; use a new agent chat without that conversation’s history. Existing slides, exports and old chats are unchanged.</p>
   <div id="design-reference-list" aria-live="polite"></div>
   <button id="retry-design-references" type="button" hidden>Retry loading references</button>
-  <label for="design-reference-input">Add PowerPoint references</label>
-  <input id="design-reference-input" type="file" accept=".pptx,.potx" multiple>
+  <label for="design-reference-input">Add reference files</label>
+  <input id="design-reference-input" type="file" multiple>
   <p id="design-reference-pending"></p>
   <button id="clear-design-reference-selection" type="button" hidden>Clear selection</button>
-  <p class="design-reference-hint">PPTX or POTX · up to 5 files, 25 MB each and 50 MB total</p>
+  <p class="design-reference-hint">Any file type, including PowerPoint, PDF, images, documents and data · up to 5 files, 25 MB each and 50 MB total</p>
   <p id="design-reference-error" class="inline-error" role="alert"></p>
   <p id="design-reference-status" role="status" aria-live="polite"></p>
   <div class="dialog-actions"><button id="save-design-references" type="button" class="primary" disabled>Save references</button></div>
