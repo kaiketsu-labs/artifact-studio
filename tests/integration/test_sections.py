@@ -46,10 +46,10 @@ def test_create_fold_rename_move_remove_and_save_sections(
     page.get_by_role("button", name="Approve", exact=True).click()
     original = live_app.store.view(DECK_ID).slides[0]
     add_section(page, "Overview")
-    expect(page.get_by_role("button", name="Add section", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="Rename section: Overview", exact=True)).to_be_enabled()
     page.locator('.slide-thumb[data-id="next"]').click()
     add_section(page, "Results")
-    expect(page.get_by_role("button", name="Add section", exact=True)).to_be_disabled()
+    expect(page.get_by_role("button", name="Rename section: Results", exact=True)).to_be_enabled()
     expect(section(page, "Overview").locator(".section-count")).to_have_text("1")
     expect(section(page, "Results").locator(".section-count")).to_have_text("2")
     _ = page.screenshot(path=str(artifacts / "sections-expanded.png"), full_page=True)
@@ -139,6 +139,7 @@ def test_drag_into_a_collapsed_section_and_keyboard_undo(page: Page, live_app: R
     expect(section(page, "Closing").locator(".slide-thumb")).to_have_count(2)
     page.keyboard.press("Control+z")
     expect(section(page, "Introduction").locator(".slide-thumb")).to_have_count(2)
+
     section(page, "Closing").locator(".section-toggle").click()
     source = page.locator('.slide-thumb[data-id="next"]').bounding_box()
     target = section(page, "Closing").locator(".section-header").bounding_box()
@@ -273,3 +274,71 @@ def test_delete_then_rename_undoes_in_order(page: Page, live_app: RunningApp) ->
     page.keyboard.press("Control+z")
     expect(page.locator(".slide-thumb")).to_have_count(3)
     expect(page.locator('.slide-thumb[data-id="next"]')).to_be_visible()
+
+
+def test_section_boundary_and_new_slide_in_collapsed_group(
+    page: Page, live_app: RunningApp, artifacts: Path
+) -> None:
+    """The contextual action is keyboard accessible and new slides are revealed."""
+    open_editor(page, live_app)
+    add_section(page, "Opening")
+    rename = page.get_by_role("button", name="Rename section: Opening", exact=True)
+    rename.focus()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("dialog", name="Rename section")).to_be_visible()
+    page.get_by_role("textbox", name="Section name").fill("Introduction")
+    page.get_by_role("button", name="Save", exact=True).click()
+    expect(section(page, "Introduction")).to_be_visible()
+    section(page, "Introduction").locator(".section-toggle").click()
+    page.get_by_role("button", name="New slide", exact=True).click()
+    expect(section(page, "Introduction").locator(".section-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    expect(page.locator('.slide-thumb[aria-current="true"]')).to_be_visible()
+    _ = page.screenshot(path=str(artifacts / "revealed-slide.png"))
+    page.locator('.slide-thumb[aria-current="true"]').press("Delete")
+    expect(page.locator(".slide-thumb")).to_have_count(2)
+    section(page, "Introduction").locator(".section-toggle").click()
+    page.get_by_role("button", name="Deleted slides", exact=True).click()
+    page.get_by_role("button", name="Restore", exact=True).click()
+    expect(section(page, "Introduction").locator(".section-toggle")).to_have_attribute(
+        "aria-expanded", "true"
+    )
+    expect(page.locator('.slide-thumb[aria-current="true"]')).to_be_visible()
+
+
+def test_sorter_arrows_follow_visible_rows(
+    page: Page, live_app: RunningApp, artifacts: Path
+) -> None:
+    """Vertical keys cross uneven section rows at the nearest column."""
+    for index in range(4):
+        _ = live_app.store.add_slide(
+            DECK_ID, Slide(id=f"extra-{index}", title=f"Extra {index}", html=markup("Extra"))
+        )
+    snapshot = live_app.get(f"/api/decks/{DECK_ID}")
+    ids = ["cover", "next", "extra-0", "extra-1", "extra-2", "extra-3"]
+    _ = live_app.post(
+        f"/api/decks/{DECK_ID}/sections",
+        {
+            "slide_ids": ids,
+            "expected_slide_ids": ids,
+            "expected_sections_hash": snapshot["sections_hash"],
+            "sections": [
+                {"id": "one", "title": "First", "slide_ids": ids[:1]},
+                {"id": "empty", "title": "Empty", "slide_ids": []},
+                {"id": "two", "title": "Second", "slide_ids": ids[1:]},
+            ],
+        },
+    )
+    open_editor(page, live_app)
+    page.get_by_role("button", name="Slide sorter", exact=True).click()
+    first = page.locator('.slide-thumb[data-id="cover"]')
+    second = page.locator('.slide-thumb[data-id="next"]')
+    first.focus()
+    page.keyboard.press("ArrowDown")
+    expect(second).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    expect(page.locator('.slide-thumb[data-id="extra-0"]')).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(first).to_be_focused()
+    _ = page.screenshot(path=str(artifacts / "sorter-rows.png"))

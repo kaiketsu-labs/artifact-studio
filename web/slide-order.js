@@ -32,6 +32,14 @@
     return next?next.index:row.items.at(-1).index+1;
   }
 
+  /** Find the nearest column in the adjacent visible row, including uneven section rows. */
+  function verticalNeighbour(rectangles,index,direction){
+    const current=rectangles[index];if(!current)return index;
+    const rows=[];rectangles.forEach((rect,i)=>{let row=rows.find(item=>Math.abs(item.top-rect.top)<2);if(!row){row={top:rect.top,items:[]};rows.push(row);}row.items.push({rect,index:i});});
+    rows.sort((a,b)=>a.top-b.top);const rowIndex=rows.findIndex(row=>row.items.some(item=>item.index===index)),target=rows[rowIndex+direction];if(!target)return index;
+    const x=(current.left+current.right)/2;return target.items.reduce((best,item)=>Math.abs((item.rect.left+item.rect.right)/2-x)<Math.abs((best.rect.left+best.rect.right)/2-x)?item:best).index;
+  }
+
   /** Bind pointer and keyboard movement to an existing thumbnail rail. */
   function create({rail,read,open,save,contextMenu,notify,command=()=>{},undoAction=async()=>false,blocked=()=>false,layout=()=> 'list',activate=async()=>{},onBusy=()=>{},drop=()=>null}){
     let deckId=null,selected=new Set(),anchor=null,busy=false,gesture=null,suppressClick=false,frame=0,history=[],future=[],selectionEpoch=0;
@@ -157,15 +165,14 @@
       const grid=layout()==='grid';
       if(grid&&event.key==='Enter'){event.preventDefault();if(!event.repeat)void activate(button.dataset.id);return;}
       if(!['ArrowUp','ArrowDown','Home','End',...(grid?['ArrowLeft','ArrowRight']:[])].includes(event.key))return;event.preventDefault();
-      const buttons=[...rail.querySelectorAll('[data-id]')].filter(item=>item.getClientRects().length),top=buttons[0].getBoundingClientRect().top;
-      const columns=grid?buttons.filter(item=>Math.abs(item.getBoundingClientRect().top-top)<2).length:1;
-      const ids=buttons.map(item=>item.dataset.id),index=ids.indexOf(button.dataset.id),offset={ArrowUp:-columns,ArrowDown:columns,ArrowLeft:-1,ArrowRight:1}[event.key]||0,next=event.key==='Home'?0:event.key==='End'?ids.length-1:Math.max(0,Math.min(ids.length-1,index+offset));
+      const buttons=[...rail.querySelectorAll('[data-id]')].filter(item=>item.getClientRects().length);
+      const ids=buttons.map(item=>item.dataset.id),index=ids.indexOf(button.dataset.id),vertical=grid&&['ArrowUp','ArrowDown'].includes(event.key),offset={ArrowUp:-1,ArrowDown:1,ArrowLeft:-1,ArrowRight:1}[event.key]||0,next=event.key==='Home'?0:event.key==='End'?ids.length-1:vertical?verticalNeighbour(buttons.map(item=>item.getBoundingClientRect()),index,offset):Math.max(0,Math.min(ids.length-1,index+offset));
       await select(ids[next],event);buttonFor(ids[next])?.scrollIntoView({block:'nearest'});
     });
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&gesture){event.preventDefault();event.stopPropagation();cancel();suppressClick=false;}},true);
     return {sync,move,canMove,undo,recordLayout,selection:()=>[...selected],setSelection:ids=>{selected=new Set(ids);anchor=ids[0];sync();},resetHistory:()=>{history=[];future=[];},isBusy:()=>busy,isDragging:()=>!!gesture?.dragging};
   }
-  const api={insertSlides,moveSlides,slideRange,dropPosition,create};
+  const api={insertSlides,moveSlides,slideRange,dropPosition,verticalNeighbour,create};
   if(typeof module!=='undefined')module.exports=api;
   if(typeof window!=='undefined')window.SlideOrder=api;
 })();
