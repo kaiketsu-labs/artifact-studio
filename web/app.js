@@ -314,6 +314,7 @@
       const neighbour=previous.slides.slice(priorIndex+1).find(item=>survivors.has(item.id))||previous.slides.slice(0,priorIndex).findLast(item=>survivors.has(item.id));
       deck=snapshot;pendingDeck=null;$('update-banner').hidden=true;
       selectedId=added[0]||(survivors.has(selectedId)?selectedId:neighbour?.id||snapshot.slides[0].id);
+      slideSections.reveal(selectedId);
       draftStore.persist();slideOrder.resetHistory();renderRail();render();slideOrder.setSelection(added.length?added:[selectedId]);
       $('slides').querySelector(`[data-id="${CSS.escape(selectedId)}"]`)?.focus({preventScroll:true});$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});
       return true;

@@ -486,3 +486,28 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     assert not live_app.store.workflow(DECK_ID).review_connected
     assert live_app.call("get_live_review_status", deck_id=DECK_ID)["status"] == "unavailable"
     assert dispatch("Stop") == {}
+
+
+def test_official_sdk_replays_creation(live_app: RunningApp) -> None:
+    """The SDK exposes creation retry identity and returns the original receipt."""
+
+    async def run() -> None:
+        async with (
+            streamable_http_client(live_app.url + "/mcp") as (read, write),
+            ClientSession(read, write, read_timeout_seconds=10) as session,
+        ):
+            _ = await session.initialize()
+            args = {
+                "deck_id": "2026-11-01-sdk-creation",
+                "title": "SDK creation",
+                "brief": "Fictional brief",
+                "request_id": "sdk-creation-retry-001",
+            }
+            first = await session.call_tool("create_presentation", args)
+            second = await session.call_tool("create_presentation", args)
+            assert not first.is_error and not second.is_error
+            assert first.structured_content == second.structured_content
+            assert first.structured_content is not None
+            assert "sdk-creation" in str(first.structured_content)
+
+    asyncio.run(run())
