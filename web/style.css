@@ -148,7 +148,7 @@ a{color:inherit}
 .dot.green{background:var(--green)}
 .rail-foot{display:flex;align-items:center;justify-content:center;gap:5px;border-top:1px solid var(--line);padding:13px 5px;font-size:9px;color:var(--subtle)}
 .rail-foot .dot:nth-of-type(2){margin-left:6px}
-.canvas-area{padding:21px 27px 36px;overflow:auto;min-width:0}
+.canvas-area{padding:21px 27px 36px;overflow:auto;overflow-anchor:none;min-width:0}
 .slide-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:12px}
 .slide-label{display:flex;align-items:baseline;gap:12px;min-width:0}
 #slide-eyebrow{font-size:11px;color:var(--subtle);white-space:nowrap;font-variant-numeric:tabular-nums}
