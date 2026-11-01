@@ -813,11 +813,20 @@ def add_slide(
     include_content: bool = False,
     embed_assets: bool = False,
     request_id: str = "",
+    after_slide_id: str | None = None,
+    section_id: str = "",
+    expected_slide_ids: list[str] | None = None,
+    expected_sections_hash: str = "",
 ) -> SlideView | SlideReceipt:
     """Add a slide and return a compact receipt; include_content returns the full slide.
     embed_assets prepares local interactive CSS/JS/images/fonts server-side, avoiding base64 echoes.
     Supply a unique request_id (8–100 chars) for safe retries: the same payload returns its original
     acknowledgement without recreating or overwriting a slide. Changed payloads conflict.
+    To insert, provide after_slide_id or section_id plus request_id, expected_slide_ids and
+    expected_sections_hash from a fresh outline. Empty after_slide_id inserts at the beginning
+    of the selected section/deck; section_id alone appends within that group. An anchor infers
+    its section, or must belong to the explicitly selected group. Order and membership change
+    together; retry preserves the original receipt without moving the slide again.
     """
     if request_id:
         result = store.add_slide_once(
@@ -827,8 +836,19 @@ def add_slide(
             prepare_interactive=(lambda source: prepare_document(store, deck_id, source))
             if embed_assets
             else None,
+            after_slide_id=after_slide_id,
+            section_id=section_id,
+            expected_slide_ids=expected_slide_ids,
+            expected_sections_hash=expected_sections_hash,
         )
         return slide_write_response(deck_id, result, include_content)
+    if (
+        after_slide_id is not None
+        or section_id
+        or expected_slide_ids is not None
+        or expected_sections_hash
+    ):
+        raise ValueError("Targeted additions need a unique request_id for safe retries.")
     if embed_assets and slide.interactive_html:
         slide = slide.model_copy(
             update={"interactive_html": prepare_document(store, deck_id, slide.interactive_html)}
