@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
@@ -32,6 +32,7 @@ def test_compact_bootstrap_preserves_complete_rules_and_loadable_guides(store: S
     assert compact["rules_hash"] == full["rules_hash"]
     assert "interactive_html" in str(compact["authoring_capabilities"])
     assert compact["asset_inventory_included"] is False
+    assert "live_review_guide" not in compact and "visual_review_guide" not in compact
     assert "Read get_slide" in str(compact["guide"])
     assert len(json.dumps(compact)) < len(json.dumps(full)) / 2
     guide = service.get_authoring_guide("interactive_html")
@@ -41,6 +42,52 @@ def test_compact_bootstrap_preserves_complete_rules_and_loadable_guides(store: S
     assert design["markdown"] == (store.folder(TEMPLATE_ID) / "README.md").read_text()
     assets = service.get_design_assets()
     assert assets and all("/api/designs//" not in str(item["url"]) for item in assets)
+
+
+@pytest.mark.parametrize("detail", ["compact", "full"])
+def test_resume_uses_deck_design_instead_of_workspace_default(
+    store: Store, detail: Literal["compact", "full"]
+) -> None:
+    """Resolve brand preferences and full assets from the deck even after a default change."""
+    orange = store.root / "2026-11-01-orange"
+    make_design(orange, "orange")
+    _ = (orange / "PREFERENCES.md").write_text("Use orange accents.")
+    _ = (store.folder(TEMPLATE_ID) / "PREFERENCES.md").write_text("Use blue accents.")
+    deck = store.create("2026-11-01-blue-story", "Blue story", "test-brand", "Blue brief")
+    _ = store.set_default_design("orange")
+    assert service.get_working_context()["preferences"] == "Use orange accents."
+    selected = service.get_working_context(deck_id=deck.id, detail=detail)
+    assert selected["deck_id"] == deck.id and selected["selected_design_id"] == "test-brand"
+    assert selected["default_design_id"] == "orange"
+    assert selected["preferences"] == "Use blue accents."
+    assert selected["workspace_url"] == f"/?deck={deck.id}"
+    assert selected["mcp_url"] == "/mcp"
+    retained = service.get_working_context(
+        deck_id=deck.id, detail=detail, known_rules_hash=str(selected["rules_hash"])
+    )
+    assert retained["rules_included"] is False
+    assert retained["preferences"] == selected["preferences"]
+    assert service.get_working_context(design_id="test-brand")["preferences"] == "Use blue accents."
+    assert service.get_working_context(deck_id=deck.id, design_id="test-brand")[
+        "selected_design_id"
+    ] == ("test-brand")
+    if detail == "full":
+        assert selected["design_assets"] == service.get_design_assets("test-brand")
+    with pytest.raises(ToolError, match="does not match"):
+        _ = service.get_working_context(deck_id=deck.id, design_id="orange", detail=detail)
+    with pytest.raises(ToolError):
+        _ = service.get_working_context(deck_id="missing-deck", detail=detail)
+    deck.design_id = "uninstalled"
+    store.write(deck.id, deck)
+    portable = service.get_working_context(deck_id=deck.id, detail=detail)
+    assert portable["design_status"] == "missing"
+    assert portable["preferences"] == "Use blue accents."
+    deck.design_id = ""
+    store.write(deck.id, deck)
+    (store.folder(deck.id) / "PREFERENCES.md").unlink()
+    unbranded = service.get_working_context(deck_id=deck.id, detail=detail)
+    assert unbranded["selected_design_id"] is None and unbranded["preferences"] == ""
+    assert "This deck has no design selected" in str(unbranded["design"])
 
 
 def test_outline_keeps_order_and_tokens_without_source_or_history(store: Store) -> None:

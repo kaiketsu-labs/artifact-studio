@@ -7,6 +7,7 @@ from typing import Literal
 
 import pytest
 from fastapi.testclient import TestClient
+from mcp.server.mcpserver.exceptions import ToolError
 
 from studio import app as service
 from studio.models import DesignRequestInput
@@ -30,6 +31,52 @@ def comment(store: Store, message: str, released: bool = True) -> None:
     """Save a human message through the existing transactional delivery writer."""
     with store.connect() as db:
         _ = store.append_feedback(db, DECK, "", "user", message, "", released=released)
+
+
+@pytest.mark.parametrize("target", [DECK, ""])
+def test_review_request_is_not_a_hook_connection(
+    store: Store, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    """A status read sees only this target's current hook lease and never renews it."""
+    monkeypatch.setattr(service, "store", store)
+    store.mark_agent_check(DECK, 30)
+    assert store.workflow(DECK).agent_waiting
+    assert service.get_live_review_status(target)["status"] == "unavailable"
+    requested = service.start_live_review(target)
+    assert requested["status"] == "awaiting_host_hook" and requested["review_connected"] is False
+    assert requested["review_harness"] is None and requested["review_session"] is None
+    assert "guide" in requested and "PostToolUse" in str(requested["next_step"])
+    assert service.get_live_review_status(target)["status"] == "unavailable"
+    hooks = Reviews(store)
+    other_target = "" if target else DECK
+    body = ReviewHookInput(
+        harness="codex",
+        session_id="status-session",
+        event="PostToolUse",
+        start_review=True,
+        deck_id=other_target,
+    )
+    assert hooks.bind(body).listening
+    assert service.get_live_review_status(target)["review_connected"] is False
+    assert hooks.bind(body.model_copy(update={"deck_id": target})).listening
+    with store.connect() as db:
+        expiry = db.execute("SELECT expires_at FROM review_sessions").fetchone()[0]
+    connected = service.get_live_review_status(target)
+    assert connected["status"] == "connected" and connected["review_connected"] is True
+    assert connected["review_harness"] == "codex"
+    assert connected["review_session"] == "status-session"
+    assert service.start_live_review(target)["status"] == "awaiting_host_hook"
+    with store.connect() as db:
+        assert db.execute("SELECT expires_at FROM review_sessions").fetchone()[0] == expiry
+        _ = db.execute("UPDATE review_sessions SET expires_at=?", (time.time() - 1,))
+    assert service.get_live_review_status(target)["status"] == "unavailable"
+    assert hooks.bind(body.model_copy(update={"deck_id": target})).listening
+    hooks.disconnect(target)
+    assert service.get_live_review_status(target)["status"] == "unavailable"
+    with pytest.raises(ToolError):
+        _ = service.start_live_review("unknown-deck")
+    with pytest.raises(ToolError):
+        _ = service.get_live_review_status("unknown-deck")
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])

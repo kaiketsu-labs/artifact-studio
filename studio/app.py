@@ -9,14 +9,14 @@ from functools import wraps
 from html import escape
 from pathlib import Path
 from typing import Annotated, Literal
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Request
 from fastapi import Path as APIPath
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver import Image as MCPImage
-from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from starlette.concurrency import run_in_threadpool
@@ -122,6 +122,14 @@ def tool_errors[**P, T](function: Callable[P, T]) -> Callable[P, T]:
     return wrapped
 
 
+def workspace_links(deck_id: str, ctx: Context[None, Request] | None) -> dict[str, str]:
+    """Use the actual MCP request origin; direct Python calls receive relative URLs."""
+    request = ctx.request_context.request if ctx else None
+    origin = str(request.base_url).rstrip("/") if request else ""
+    query = "?" + urlencode({"deck": deck_id}) if deck_id else ""
+    return {"workspace_url": f"{origin}/{query}", "mcp_url": f"{origin}/mcp"}
+
+
 def working_design(design_id: str, deck_id: str) -> tuple[str, DesignView | None]:
     """Resolve explicit deck context without substituting a brand for an imported deck."""
     if deck_id:
@@ -144,9 +152,11 @@ def get_working_context(
     detail: Literal["compact", "full"] = "compact",
     known_rules_hash: str = "",
     deck_id: str = "",
+    ctx: Context[None, Request] | None = None,
 ) -> dict[str, object]:
     """Read first: compact startup with complete user rules; load guides on demand.
     Pass deck_id for existing work to select its design, not the workspace default.
+    Supplying both IDs requires them to match.
     Design references contain file pointers, not PPTX bytes; open relevant files yourself.
     Use detail="full" for all guides, design documents and the complete asset inventory.
     Pass known_rules_hash only while retaining those rules; changes return full text.
@@ -159,12 +169,15 @@ def get_working_context(
         "PREFERENCES.md, AGENT-GUIDE.md and assets; do not substitute the default design. "
         'Restore its design pack or read get_authoring_guide(topic="design_import").'
         if design_id
+        else "This deck has no design selected; use its copied guidance when available."
+        if deck_id
         else 'No design installed. Read get_authoring_guide(topic="design_import").'
     )
     preference_folder = folder or (store.folder(deck_id) if deck_id else None)
     preferences_path = preference_folder / "PREFERENCES.md" if preference_folder else None
     design_context: dict[str, object] = {
         "deck_id": deck_id or None,
+        **workspace_links(deck_id, ctx),
         "selected_design_id": design_id or None,
         "design_status": design_status,
         "design_references": [item.model_dump() for item in DesignReferences(store).list(design_id)]
@@ -711,23 +724,46 @@ def read_feedback(
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
-def start_live_review(deck_id: str = "") -> dict[str, str]:
-    """Arm installed Codex/Claude Code review hooks for this deck or the design inbox.
+def start_live_review(
+    deck_id: str = "", ctx: Context[None, Request] | None = None
+) -> dict[str, object]:
+    """Request installed Codex/Claude Code review hooks for this deck or the design inbox.
 
     Read get_authoring_guide(topic="live_review") for one-time hook setup and host trust.
     This call alone cannot wake an idle client or install its hooks.
+    The host's PostToolUse hook connects after this response; check get_live_review_status next.
+    """
+    result = get_live_review_status(deck_id, ctx)
+    result["status"] = "awaiting_host_hook"
+    return {
+        **result,
+        "guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
+        "next_step": (
+            "Call get_live_review_status after the host's PostToolUse hook runs. "
+            "Connection status describes the active reviewer for this target, not necessarily "
+            "this caller; compare review_session with your host session. If unavailable, "
+            'read get_authoring_guide(topic="live_review") and load/trust the host hooks.'
+        ),
+    }
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_live_review_status(
+    deck_id: str = "", ctx: Context[None, Request] | None = None
+) -> dict[str, object]:
+    """Check a target's active host hook lease without starting or renewing review.
+
+    Omit deck_id for the design inbox. A connected reviewer can belong to another host session.
     """
     if deck_id:
         _ = store.read(deck_id)
+    connection = Reviews(store).connection(deck_id)
     return {
         "deck_id": deck_id,
-        "status": "awaiting_host_hook",
-        "next_step": (
-            "The host's loaded PostToolUse hook must register this call. This response does not "
-            "prove the host is connected. Verify the connected harness in the UI Live status "
-            "or get_presentation().workflow.review_connected before claiming availability."
-        ),
-        "guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
+        "status": "connected" if connection["review_connected"] else "unavailable",
+        **connection,
+        **workspace_links(deck_id, ctx),
     }
 
 

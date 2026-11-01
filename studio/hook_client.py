@@ -215,6 +215,8 @@ def normalize(
     if not normalized_name.startswith(prefix):
         return {}
     tool = normalized_name[len(prefix) :]
+    if tool == "get_live_review_status":
+        return {}
     response = _result(payload.get("tool_response"))
     if not response:
         return {}

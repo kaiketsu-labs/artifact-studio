@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Route, expect
 
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 
@@ -22,6 +22,77 @@ def open_editor(page: Page, live_app: RunningApp) -> None:
     expect(page.frame_locator("#preview").get_by_role("heading", level=1)).to_have_text(
         "Review together"
     )
+
+
+@pytest.mark.parametrize("selected", [True, False])
+def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
+    page: Page, live_app: RunningApp, selected: bool
+) -> None:
+    """Exercise the actual copy buttons with a fresh deck and an empty workspace."""
+    page.add_init_script(
+        "Object.defineProperty(navigator,'clipboard',{value:{"
+        "writeText:async text=>{window.copiedAgentPrompt=text;}}});"
+    )
+    deck_id = "2026-11-01-prompt-check"
+    if selected:
+        _ = live_app.post(
+            "/api/decks",
+            {
+                "deck_id": deck_id,
+                "title": "Prompt check",
+                "brief": "Brief for the board",
+                "design_id": "test-brand",
+            },
+        )
+    else:
+
+        def empty_decks(route: Route) -> None:
+            """Represent a workspace with no decks while keeping its design library."""
+            route.fulfill(json=[])
+
+        page.route("**/api/decks", empty_decks)
+    _ = page.goto(
+        live_app.url + (f"/?deck={deck_id}" if selected else "/"), wait_until="networkidle"
+    )
+
+    def check_prompt(setup: bool = False) -> str:
+        """Check the copied handoff rather than merely searching the frontend source."""
+        prompt = str(page.evaluate("window.copiedAgentPrompt"))
+        assert 'get_authoring_guide(topic="live_review")' in prompt
+        assert "live_review_guide" not in prompt
+        assert f"MCP: {live_app.url}/mcp" in prompt
+        target = f'deck_id="{deck_id}"' if selected else ""
+        assert f"get_working_context({target})" in prompt
+        assert f"start_live_review({target})" in prompt
+        assert f"get_live_review_status({target})" in prompt
+        if selected:
+            assert f"get_presentation_outline({target}, include_context=True)" in prompt
+            assert "brief_files" in prompt
+            assert f"Workspace: {live_app.url}/?deck={deck_id}" in prompt
+            assert "get_presentation(" not in prompt
+        else:
+            assert "read_design_requests()" in prompt
+            assert f"Workspace: {live_app.url}/ MCP:" in prompt
+            if not setup:
+                assert "create_presentation" in prompt and "design_id" in prompt
+        return prompt
+
+    start_prompt = ""
+    if selected:
+        page.locator("#copy-start").click()
+        expect(page.locator("#toast")).to_contain_text("Prompt copied")
+        start_prompt = check_prompt()
+    page.get_by_role("button", name="Menu", exact=True).click()
+    page.get_by_role("menuitem", name="Connect an agent", exact=True).click()
+    page.locator("#copy-agent-prompt").click()
+    expect(page.locator("#toast")).to_contain_text("Prompt copied")
+    prompt = check_prompt()
+    if selected:
+        assert start_prompt == prompt
+    page.locator("#connect-dialog").get_by_text("Automatic feedback", exact=True).click()
+    page.locator("#copy-live-setup").click()
+    expect(page.locator("#toast")).to_contain_text("Setup prompt copied")
+    assert "review_session" in check_prompt(setup=True)
 
 
 @pytest.mark.parametrize("width,height", [(1280, 800), (1600, 1000)])
