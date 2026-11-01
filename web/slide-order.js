@@ -76,11 +76,12 @@
     }
     async function move(action){const state=read();if(state)await commit(moveSlides(state.ids,selected,action),state.ids);}
     async function undo(redo=false){
-      const from=redo?future:history,to=redo?history:future,item=from.at(-1),state=read();if(!item||!state||busy)return;
+      const from=redo?future:history,to=redo?history:future,item=from.at(-1),state=read();if(!item||!state)return false;if(busy)return true;
       const expected=redo?item.before:item.after,next=redo?item.after:item.before;
       const expectedSections=redo?item.beforeSections:item.afterSections;
-      if(!equal(state.ids,expected)||JSON.stringify(state.sections||[])!==JSON.stringify(expectedSections)){history=[];future=[];notify('Slide order or sections changed. Undo is no longer available.');return;}
+      if(!equal(state.ids,expected)||JSON.stringify(state.sections||[])!==JSON.stringify(expectedSections)){history=[];future=[];notify('Slide order or sections changed. Undo is no longer available.');return true;}
       if(await commit(next,expected,{record:false,sections:redo?item.afterSections:item.beforeSections,message:redo?'Move restored.':'Move undone.'})){from.pop();to.push(item);}
+      return true;
     }
     function canMove(action){const state=read();return !!state&&!busy&&!equal(state.ids,moveSlides(state.ids,selected,action));}
     function cancel(){
@@ -141,7 +142,7 @@
     rail.addEventListener('keydown',async event=>{
       const button=event.target.closest('[data-id]'),header=event.target.closest('.section-header');if((!button&&!header)||busy||blocked())return;
       if((event.metaKey||event.ctrlKey)&&!event.altKey&&!event.isComposing&&['z','y'].includes(event.key.toLowerCase())){
-        event.preventDefault();if(!event.repeat){const redo=event.key.toLowerCase()==='y'||event.shiftKey;if(redo||!await undoAction())void undo(redo);}return;
+        event.preventDefault();if(!event.repeat){const redo=event.key.toLowerCase()==='y'||event.shiftKey;if(!await undo(redo)&&!redo)await undoAction();}return;
       }
       if(!button)return;
       if(event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey){event.preventDefault();const id=button.dataset.id;if(!selected.has(id)){if(!await select(id))return;}else if(!await open(id))return;contextMenu(id);return;}

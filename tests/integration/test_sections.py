@@ -246,3 +246,30 @@ def test_slide_delete_undo_still_works(page: Page, live_app: RunningApp) -> None
     expect(page.locator('.slide-thumb[data-id="cover"]')).to_be_focused()
     page.keyboard.press("Control+z")
     expect(page.locator(".slide-thumb")).to_have_count(2)
+
+
+def test_delete_then_rename_undoes_in_order(page: Page, live_app: RunningApp) -> None:
+    """Undo layout changes first and then restore the earlier deleted slide."""
+    _ = live_app.store.add_slide(
+        DECK_ID, Slide(id="closing", title="Closing", html=markup("Closing"))
+    )
+    open_editor(page, live_app)
+    add_section(page, "Overview")
+    page.locator('.slide-thumb[data-id="next"]').click()
+    page.keyboard.press("Delete")
+    expect(page.locator(".slide-thumb")).to_have_count(2)
+    page.get_by_role("button", name="Section options: Overview").click()
+    page.get_by_role("menuitem", name="Rename").click()
+    page.locator("#section-name").fill("Renamed")
+    page.locator("#section-submit").click()
+    expect(section(page, "Renamed").locator(".section-toggle")).to_be_focused()
+    page.keyboard.press("Control+z")
+    expect(section(page, "Overview")).to_be_visible()
+    expect(page.locator(".slide-thumb")).to_have_count(2)
+    page.keyboard.press("Control+y")
+    expect(section(page, "Renamed")).to_be_visible()
+    page.keyboard.press("Control+z")
+    expect(section(page, "Overview")).to_be_visible()
+    page.keyboard.press("Control+z")
+    expect(page.locator(".slide-thumb")).to_have_count(3)
+    expect(page.locator('.slide-thumb[data-id="next"]')).to_be_visible()
