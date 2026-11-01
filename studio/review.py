@@ -37,6 +37,20 @@ class Reviews:
         """Use the workspace's transactional state and canonical source files."""
         self.store = store
 
+    def connection(self, deck_id: str) -> dict[str, str | bool | None]:
+        """Report only a live hook lease for this exact target, excluding ordinary MCP waits."""
+        with self.store.connect() as db:
+            row = db.execute(
+                "SELECT harness,session_id FROM review_sessions "
+                "WHERE deck=? AND enabled=1 AND expires_at>? ORDER BY expires_at DESC LIMIT 1",
+                (deck_id, time.time()),
+            ).fetchone()
+        return {
+            "review_connected": bool(row),
+            "review_harness": cast(str, row["harness"]) if row else None,
+            "review_session": cast(str, row["session_id"]) if row else None,
+        }
+
     def disconnect(self, deck_id: str) -> None:
         """Release review waits and prevent automatic rebinding until explicitly resumed."""
         with self.store.connect() as db:

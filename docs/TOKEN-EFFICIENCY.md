@@ -6,10 +6,11 @@ MCP is stateless at the transport level. Agents can still retain context between
 
 | Need | Call |
 | --- | --- |
-| Start working | `get_working_context()` — complete user rules and preferences, short workflow, available designs and presentations. |
+| Resume a deck | `get_working_context(deck_id=...)` — complete user rules, that deck's design preferences, short workflow, available designs and presentations. |
+| Create a deck | `get_working_context(design_id=...)`, then `create_presentation` with the selected design and brief. Omit design_id to use the default. |
 | Detailed instructions | `get_authoring_guide(topic=...)` — workflow, live_review, visual_review, interactive_html, design_import, design_guide or design_context. |
 | Asset inventory | `get_design_assets(design_id=...)`. |
-| Start a deck | `get_presentation_outline(deck_id=..., include_context=True)` — slide order, hashes/status and the full brief. |
+| Read a deck's brief | `get_presentation_outline(deck_id=..., include_context=True)` — slide order, hashes/status and the full brief. |
 | Check order/status later | `get_presentation_outline(deck_id=...)` — no slide HTML or conversation history. |
 | Edit one slide | `get_slide`, then `revise_slide` with only changed fields. |
 | Continue reviewing | `read_feedback`/`wait_for_feedback` with `after_delivery_id=next_cursor`. |
