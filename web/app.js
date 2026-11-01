@@ -278,7 +278,7 @@
         const sections=options.sections??window.SlideSections.moveMembers(options.expectedSections,expected,ids,options.moving,options.targetSection);const saved=await api(`/api/decks/${deckId}/slide-order`,{slide_ids:ids,expected_slide_ids:expected,sections,expected_sections_hash:options.expectedHash});
         if(deck?.id!==deckId)return false;
         applyLayout(saved);slideSections.reveal(selectedId);
-        slideActions.clearUndo();renderRail();render();return true;
+        renderRail();render();return true;
       }catch(error){toast(error.message,true);return false;}
       finally{orderEpoch++;setTimeout(()=>void refresh(),0);}
     }
@@ -325,7 +325,7 @@
     blocked:()=>visibilityBusy||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()||feedbackSending||switchingDeck,
     prepare:async()=>{if(!await elementEditor.finish())return false;retainDraft();return true;},
     onBusy:()=>{orderEpoch++;updateComposer();sorter.sync();},
-    save:async(ids,sections,baseline)=>{orderEpoch++;try{const saved=await api(`/api/decks/${baseline.id}/sections`,{slide_ids:ids,sections,expected_slide_ids:baseline.slides.map(item=>item.id),expected_sections_hash:baseline.sections_hash});if(deck?.id!==baseline.id)throw new Error('The presentation changed.');applyLayout(saved);slideOrder.resetHistory();slideActions.clearUndo();renderRail();render();}finally{orderEpoch++;setTimeout(()=>void refresh(),0);}}
+    save:async(ids,sections,baseline)=>{const before={ids:baseline.slides.map(item=>item.id),sections:structuredClone(baseline.sections||[])};orderEpoch++;try{const saved=await api(`/api/decks/${baseline.id}/sections`,{slide_ids:ids,sections,expected_slide_ids:baseline.slides.map(item=>item.id),expected_sections_hash:baseline.sections_hash});if(deck?.id!==baseline.id)throw new Error('The presentation changed.');applyLayout(saved);slideOrder.recordLayout(before,{ids:saved.slide_ids,sections:saved.sections});renderRail();render();}finally{orderEpoch++;setTimeout(()=>void refresh(),0);}}
   });
   iconButton($('add-section'),'sectionAdd','Add section');
   const projectFiles=window.SlideProjects.init({
