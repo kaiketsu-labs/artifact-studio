@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/objects.css">
   <link rel="stylesheet" href="/web/chat.css">
+  <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/element-controls.css">
   <link rel="stylesheet" href="/web/appearance.css">
   <script src="/web/icons.js" defer></script>
@@ -28,6 +29,9 @@
   <script src="/web/deck-picker.js" defer></script>
   <script src="/web/projects.js" defer></script>
   <script src="/web/chat-composer.js" defer></script>
+  <script src="/web/vendor/marked-18.1.2.js" defer></script>
+  <script src="/web/chat-markdown.js" defer></script>
+  <script src="/web/chat-resize.js" defer></script>
   <script src="/web/presentation-launcher.js" defer></script>
   <script src="/web/updates.js" defer></script>
   <script src="/web/workspace-menu.js" defer></script>
@@ -102,7 +106,8 @@
     </details>
     <details class="sources-panel"><summary><span>Sources</span><span id="source-count"></span></summary><div id="sources"></div></details>
   </section>
-  <aside class="discussion" aria-label="Agent context and feedback">
+  <div id="chat-resizer" class="chat-resizer" role="separator" tabindex="0" aria-label="Resize chat panel" aria-orientation="vertical" aria-controls="chat-panel" title="Drag to resize chat · Arrow keys to resize · Enter or double-click to reset"></div>
+  <aside id="chat-panel" class="discussion" aria-label="Agent context and feedback">
     <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="feedback-count"></span></header>
     <section class="delivery-panel" aria-label="Feedback delivery mode">
       <div class="mode-switch"><button id="mode-live" type="button" aria-pressed="true">Live</button><button id="mode-batch" type="button" aria-pressed="false">Batch</button></div>

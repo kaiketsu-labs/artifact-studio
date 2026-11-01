@@ -17,6 +17,27 @@
 .discussion .comment-header strong{font-size:10px;color:#4b607d}
 .discussion .comment p{font-size:12px;line-height:1.6;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .discussion .comment p:empty{display:none}
+.discussion .comment{min-width:0;overflow-wrap:anywhere}
+.chat-markdown{font-size:12px;line-height:1.6;min-width:0;overflow-wrap:anywhere}
+.discussion .comment .chat-markdown p{font-size:inherit;line-height:inherit;white-space:normal;margin:0 0 .7em}
+.chat-markdown>:first-child{margin-top:0}
+.chat-markdown>:last-child{margin-bottom:0!important}
+.chat-markdown :is(h1,h2,h3,h4,h5,h6){font-size:1.08em;line-height:1.4;margin:1em 0 .45em;font-weight:650}
+.chat-markdown h1{font-size:1.3em}.chat-markdown h2{font-size:1.16em}
+.chat-markdown :is(ul,ol){padding-left:1.6em;margin:.5em 0 .8em}
+.chat-markdown li{margin:.25em 0}
+.chat-markdown li>p{margin:.25em 0}
+.chat-markdown blockquote{border-left:3px solid var(--line);color:var(--subtle);margin:.7em 0;padding:0 .8em}
+.chat-markdown a{color:var(--link,#315fa8);text-decoration:underline;text-underline-offset:2px}
+.chat-markdown code{font: .92em ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--raised,#eff3f8);border-radius:4px;padding:.12em .3em}
+.chat-markdown pre{max-width:100%;overflow:auto;background:var(--raised,#eff3f8);border:1px solid var(--line);border-radius:7px;padding:10px;line-height:1.5;white-space:pre;margin:.7em 0}
+.chat-markdown pre code{background:transparent;padding:0;border-radius:0;white-space:pre;overflow-wrap:normal}
+.chat-markdown table{display:block;max-width:100%;overflow:auto;border-collapse:collapse;margin:.7em 0;font-size:.94em}
+.chat-markdown :is(th,td){border:1px solid var(--line);padding:.4em .6em;text-align:left;min-width:70px}
+.chat-markdown th{background:var(--raised,#eff3f8);font-weight:650}
+.chat-markdown hr{border:0;border-top:1px solid var(--line);margin:1em 0}
+.chat-markdown input[type=checkbox]{margin-right:.4em}
+.chat-image-alt{color:var(--subtle)}
 .discussion .comment-target{display:block;margin:0 0 7px;border-color:#d6e0f0;background:#ffffffa8;font-size:10px;border-radius:5px}
 .discussion .comment-pending,.discussion .old-version{display:inline-block;margin-top:7px;font-size:9px}
 .discussion .comment-pending{padding:2px 5px;border-radius:4px;background:#fff6e4;color:#946c33}
@@ -54,6 +75,6 @@
 #feedback-error{color:#b0463c}
 #feedback-upload-status{color:#6f829d}
 #feedback-error:empty,#feedback-upload-status:empty{display:none}
-@media(min-width:1600px){.discussion{padding:23px 18px 16px}.discussion .comment p{font-size:13px}}
+@media(min-width:1600px){.discussion{padding:23px 18px 16px}.discussion .comment p,.chat-markdown{font-size:13px}}
 @media(max-width:900px){.discussion{overflow:visible;padding:18px;min-height:350px}.discussion>#feedback-list{max-height:340px;min-height:80px;flex:1 1 auto}.discussion .agent-panel,.discussion .questions-panel{max-height:180px}.discussion .feedback-compose{margin-top:8px}.discussion .comment{max-width:88%}}
 @media(max-width:600px){.discussion{padding:15px 12px}.chat-file-name{max-width:135px}.discussion .comment{max-width:96%}}

@@ -8,4 +8,4 @@ Pinned distributions from the official npm registry, bundled so the app works wi
 | Marked | 18.1.2 | https://marked.js.org/ | MIT; see marked-LICENSE |
 | Turndown | 7.2.4 | https://github.com/mixmark-io/turndown | MIT; see turndown-LICENSE |
 
-Only the browser distributions, editor stylesheet and license notices are included. No package installation scripts run when preparing these assets. The editor loads them locally when needed.
+Only the browser distributions, editor stylesheet and license notices are included. No package installation scripts run when preparing these assets. Chat loads Marked locally; the rules editor loads the remaining assets when needed and reuses the same parser distribution.
