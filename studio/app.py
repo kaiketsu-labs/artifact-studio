@@ -19,6 +19,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver import Image as MCPImage
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -51,6 +52,7 @@ from .models import (
     AgentSlideView,
     ApprovalInput,
     CommentInput,
+    CreatedDeckReceipt,
     CreateInput,
     Deck,
     DeckReceipt,
@@ -114,6 +116,7 @@ READ = ToolAnnotations(read_only_hint=True, destructive_hint=False)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 DeckID = Annotated[str, APIPath(pattern=r"^[a-z0-9][a-z0-9-]{0,99}$")]
 SlideID = Annotated[str, APIPath(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")]
+NewDeckID = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$", max_length=100)]
 
 
 def tool_errors[**P, T](function: Callable[P, T]) -> Callable[P, T]:
@@ -135,7 +138,10 @@ def workspace_links(deck_id: str, ctx: Context[None, Request] | None) -> dict[st
     request = ctx.request_context.request if ctx else None
     origin = str(request.base_url).rstrip("/") if request else ""
     query = "?" + urlencode({"deck": deck_id}) if deck_id else ""
-    return {"workspace_url": f"{origin}/{query}", "mcp_url": f"{origin}/mcp"}
+    links = {"workspace_url": f"{origin}/{query}", "mcp_url": f"{origin}/mcp"}
+    if deck_id:
+        links["audience_url"] = f"{origin}/api/decks/{deck_id}/audience"
+    return links
 
 
 def working_design(design_id: str, deck_id: str) -> tuple[str, DesignView | None]:
@@ -343,7 +349,8 @@ def get_authoring_guide(
     known_hash: str = "",
 ) -> dict[str, str]:
     """Load a guide on demand; pass deck_id for its brand or portable deck-local guide.
-    known_hash omits markdown only when you retain that exact guide; omit it after context loss.
+    known_hash can be any retained guide hash, even from another topic; identical text is omitted.
+    Changed or distinct text always returns in full. Omit the hash after context loss.
     """
     documents = {
         "workflow": "AGENT-GUIDE.md",
@@ -596,19 +603,29 @@ def capture_contact_sheet(deck_id: str, offset: int = 0, limit: int = 12) -> Cal
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def create_presentation(
-    deck_id: str,
+    deck_id: NewDeckID,
     title: str,
     design_id: str = "",
     brief: str = "",
     files: list[FileInput] | None = None,
     include_content: bool = False,
-) -> DeckReceipt | Deck:
+    ctx: Context[None, Request] | None = None,
+) -> CreatedDeckReceipt | Deck:
     """Create a branded cover and save the human's brief as context and presentation feedback.
     Read that brief before drafting the full story; choose the slide count to fit the content.
     Returns deck identity and slide IDs; include_content=True returns the full cover source.
+    deck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).
+    The compact receipt includes workspace_url and private-field-free audience_url for review.
     """
     deck = store.create(deck_id, title, design_id, brief, files)
-    return deck if include_content else deck_receipt(deck)
+    if include_content:
+        return deck
+    links = workspace_links(deck_id, ctx)
+    return CreatedDeckReceipt(
+        **deck_receipt(deck).model_dump(),
+        workspace_url=links["workspace_url"],
+        audience_url=links["audience_url"],
+    )
 
 
 @mcp.tool(annotations=READ)
@@ -706,11 +723,27 @@ def prepare_interactive_html(deck_id: str, html: str, include_theme: bool = True
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def add_slide(
-    deck_id: str, slide: Slide, include_content: bool = False, embed_assets: bool = False
+    deck_id: str,
+    slide: Slide,
+    include_content: bool = False,
+    embed_assets: bool = False,
+    request_id: str = "",
 ) -> SlideView | SlideReceipt:
     """Add a slide and return a compact receipt; include_content returns the full slide.
     embed_assets prepares local interactive CSS/JS/images/fonts server-side, avoiding base64 echoes.
+    Supply a unique request_id (8–100 chars) for safe retries: the same payload returns its original
+    acknowledgement without recreating or overwriting a slide. Changed payloads conflict.
     """
+    if request_id:
+        result = store.add_slide_once(
+            deck_id,
+            slide,
+            request_id,
+            prepare_interactive=(lambda source: prepare_document(store, deck_id, source))
+            if embed_assets
+            else None,
+        )
+        return result if include_content else slide_receipt(deck_id, result)
     if embed_assets and slide.interactive_html:
         slide = slide.model_copy(
             update={"interactive_html": prepare_document(store, deck_id, slide.interactive_html)}
@@ -1171,6 +1204,12 @@ def export_html(deck_id: DeckID) -> HTMLResponse:
             "Cache-Control": "no-store",
         },
     )
+
+
+@app.get("/api/decks/{deck_id}/audience")
+def audience_preview(deck_id: DeckID) -> HTMLResponse:
+    """View the sanitized offline audience document inline, without notes or review state."""
+    return HTMLResponse(audience_html(store, deck_id), headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/decks/{deck_id}/exports/pdf")

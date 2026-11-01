@@ -64,7 +64,7 @@ The test suite checks compact/full responses, transport serialization, exact rul
 
 ## Measured authoring exchange
 
-The November 2026 audit compared main commit `dc4dbbf` with these changes using disposable data: two extra designs, 30 reference decks, a 14-slide target, 18 released discussion messages and one queued design request. This is a synthetic stress fixture, not a claim about typical decks or billed tokens. Counts below are UTF-8 bytes of serialized MCP result JSON, including the compatible text and structured copies. Equal-length checkout paths avoid path-length bias. Each before/after pair uses the same operation and state; the retained-feedback pair uses the same delivery cursor and retained rules in both versions.
+The November 2026 audit compared main commit `dc4dbbf` with token-efficiency commit `e17043e` using disposable data: two extra designs, 30 reference decks, a 14-slide target, 18 released discussion messages and one queued design request. This is a synthetic stress fixture, not a claim about typical decks or billed tokens. Counts below are UTF-8 bytes of serialized MCP result JSON, including the compatible text and structured copies. Equal-length checkout paths avoid path-length bias. Each before/after pair uses the same operation and state; the retained-feedback pair uses the same delivery cursor and retained rules in both versions.
 
 | Exchange | Before | After | Reduction | Change |
 | --- | ---: | ---: | ---: | --- |

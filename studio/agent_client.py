@@ -186,6 +186,12 @@ def execute(
         keys = [write_identity(item) for item in calls]
         if len(keys) != len(set(keys)):
             raise ValueError("--verify requires one write per slide.")
+        for item in calls:
+            request_id = item.arguments.get("request_id")
+            if item.tool == "add_slide" and (
+                not isinstance(request_id, str) or not 8 <= len(request_id) <= 100
+            ):
+                raise ValueError("--verify add_slide calls need a request_id of 8–100 characters.")
     completed: list[dict[str, object]] = []
     receipts: list[SlideReceipt] = []
     try:
@@ -228,6 +234,19 @@ def write_identity(invocation: Invocation) -> tuple[str, str]:
     return deck_id, slide_id
 
 
+def describe_call(item: Invocation) -> dict[str, object]:
+    """Show add/revision targets and supplied field names without printing source or notes."""
+    slide = object_value(item.arguments.get("slide", {})) if item.tool == "add_slide" else {}
+    return {
+        "tool": item.tool,
+        "deck_id": item.arguments.get("deck_id"),
+        "slide_id": slide.get("id") if item.tool == "add_slide" else item.arguments.get("slide_id"),
+        "request_id": item.arguments.get("request_id"),
+        "patch_fields": list(object_value(item.arguments.get("patch", {}))),
+        "slide_fields": list(slide),
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Describe reviewed call files or execute them through the existing MCP surface."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -245,15 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.describe:
             result = {
                 "sha256": token,
-                "calls": [
-                    {
-                        "tool": item.tool,
-                        "deck_id": item.arguments.get("deck_id"),
-                        "slide_id": item.arguments.get("slide_id"),
-                        "patch_fields": list(object_value(item.arguments.get("patch", {}))),
-                    }
-                    for item in calls
-                ],
+                "calls": [describe_call(item) for item in calls],
             }
         else:
             result = execute(Client(args.url), calls, args.verify, args.known_rules_hash)
