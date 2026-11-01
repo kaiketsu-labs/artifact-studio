@@ -46,6 +46,7 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
                 "ask_slide_question",
                 "get_slide_questions",
                 "cancel_slide_question",
+                "set_presentation_sections",
                 "get_slide",
                 "revise_slide",
                 "read_feedback",
@@ -77,6 +78,25 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
             questions = await session.call_tool("get_slide_questions", {"deck_id": DECK_ID})
             assert not questions.is_error and questions.structured_content is not None
             assert "SDK audience question?" in json.dumps(questions.structured_content)
+            outline = await session.call_tool("get_presentation_outline", {"deck_id": DECK_ID})
+            assert outline.structured_content is not None
+            structure = object_value(outline.structured_content)
+            layout = await session.call_tool(
+                "set_presentation_sections",
+                {
+                    "deck_id": DECK_ID,
+                    "sections": [
+                        {
+                            "id": "sdk-section",
+                            "title": "SDK section",
+                            "slide_ids": ["cover", "next"],
+                        }
+                    ],
+                    "expected_slide_ids": ["cover", "next"],
+                    "expected_sections_hash": structure["sections_hash"],
+                },
+            )
+            assert not layout.is_error
 
     asyncio.run(connect())
 

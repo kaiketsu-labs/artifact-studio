@@ -1,6 +1,8 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    sectionAdd:'M3 5h18M3 10h11M3 15h8M17 13v8M13 17h8',
+    more:'M5 12h.01M12 12h.01M19 12h.01',
     menu:'M4 6h16M4 12h16M4 18h16',
     question:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM9.1 8a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4M12 17h.01',
     clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2',
