@@ -161,3 +161,43 @@ def test_create_schema_explains_id_and_returns_explicit_destinations(live_app: R
     created = live_app.call("create_presentation", deck_id="2026-11-01-url-receipt", title="URLs")
     assert created["workspace_url"] == live_app.url + "/?deck=2026-11-01-url-receipt"
     assert created["audience_url"] == live_app.url + "/api/decks/2026-11-01-url-receipt/audience"
+
+
+def test_lost_creation_response_replays_without_replacing_later_edits(live_app: RunningApp) -> None:
+    """A real MCP retry returns the original receipt and leaves later edits intact."""
+    create = Invocation(
+        tool="create_presentation",
+        arguments={
+            "deck_id": "2026-11-01-retry-create",
+            "title": "Fictional customer briefing",
+            "design_id": "test-brand",
+            "brief": "Compare the fictional services.",
+            "request_id": "retry-create-001",
+        },
+    )
+    lost = LostWriteResponse(live_app.url + "/mcp")
+    lost.tool_to_lose = "create_presentation"
+    lost.initialize()
+    with pytest.raises(OSError, match="Response lost"):
+        _ = lost.call(create)
+    before = live_app.call("get_slide", deck_id=create.arguments["deck_id"], slide_id="cover")
+    _ = live_app.call(
+        "revise_slide",
+        deck_id=create.arguments["deck_id"],
+        slide_id="cover",
+        expected_hash=before["expected_hash"],
+        request_id="after-create-edit",
+        patch={"title": "Edited after creation"},
+    )
+    client = live_app.client()
+    receipt = object_value(client.call(create))
+    assert receipt["title"] == "Fictional customer briefing"
+    assert receipt["workspace_url"] == live_app.url + "/?deck=2026-11-01-retry-create"
+    assert (
+        live_app.call("get_slide", deck_id=create.arguments["deck_id"], slide_id="cover")["title"]
+        == "Edited after creation"
+    )
+    with pytest.raises(ValueError, match="different content"):
+        _ = client.call(
+            create.model_copy(update={"arguments": {**create.arguments, "brief": "Changed"}})
+        )
