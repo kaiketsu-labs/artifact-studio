@@ -90,6 +90,15 @@ class Deck(StrictModel):
     slides: list[Slide] = Field(min_length=1, max_length=100)
 
 
+class DeckReceipt(StrictModel):
+    """Confirm creation or ordering without echoing every slide's source."""
+
+    id: str
+    title: str
+    design_id: str
+    slide_ids: list[str]
+
+
 class ElementTarget(StrictModel):
     """An element snapshot anchored to the slide version the human reviewed."""
 
@@ -153,6 +162,8 @@ class FeedbackFeed(StrictModel):
     design_requests: list[DesignMessage] = Field(default_factory=list)
     rules_hash: str = ""
     rules_included: bool = True
+    design_requests_hash: str = ""
+    design_requests_included: bool = True
 
 
 class SlideView(Slide):
@@ -163,6 +174,12 @@ class SlideView(Slide):
     approved: bool
     has_unseen_changes: bool = False
     feedback: list[Feedback]
+
+
+class AgentSlideView(SlideView):
+    """Complete editable source with an explicit discussion-history inclusion marker."""
+
+    feedback_included: bool
 
 
 class SlideReceipt(StrictModel):

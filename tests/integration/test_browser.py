@@ -62,7 +62,8 @@ def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
         assert "live_review_guide" not in prompt
         assert f"MCP: {live_app.url}/mcp" in prompt
         target = f'deck_id="{deck_id}"' if selected else ""
-        assert f"get_working_context({target})" in prompt
+        context_args = f"{target}, include_discovery=False" if selected else ""
+        assert f"get_working_context({context_args})" in prompt
         assert f"start_live_review({target})" in prompt
         assert f"get_live_review_status({target})" in prompt
         if selected:

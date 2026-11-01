@@ -24,7 +24,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
-from .agent_io import feedback_response, rule_fields, slide_receipt
+from .agent_io import deck_receipt, feedback_response, guide_fields, rule_fields, slide_receipt
 from .autosync import AutoSync, SyncStatus
 from .design_references import DesignReference, DesignReferences, ReferenceInput
 from .events import deck_events
@@ -42,10 +42,12 @@ from .libraries import (
 )
 from .models import (
     AgentDeckView,
+    AgentSlideView,
     ApprovalInput,
     CommentInput,
     CreateInput,
     Deck,
+    DeckReceipt,
     DeckView,
     DesignInbox,
     DesignManifest,
@@ -153,6 +155,8 @@ def get_working_context(
     known_rules_hash: str = "",
     deck_id: str = "",
     ctx: Context[None, Request] | None = None,
+    known_guide_hash: str = "",
+    include_discovery: bool = True,
 ) -> dict[str, object]:
     """Read first: compact startup with complete user rules; load guides on demand.
     Pass deck_id for existing work to select its design, not the workspace default.
@@ -160,6 +164,8 @@ def get_working_context(
     Design references contain file pointers, not PPTX bytes; open relevant files yourself.
     Use detail="full" for all guides, design documents and the complete asset inventory.
     Pass known_rules_hash only while retaining those rules; changes return full text.
+    known_guide_hash omits only the retained guide; omit hashes after context loss.
+    include_discovery=False skips unrelated lists; selected brand and queued requests remain.
     """
     design_id, design = working_design(design_id, deck_id)
     folder = store.folder(design.folder_id) if design else None
@@ -199,7 +205,7 @@ def get_working_context(
         return {
             **design_context,
             "response_detail": "compact",
-            "guide": (PROJECT / "docs/AGENT-QUICKSTART.md").read_text(),
+            **guide_fields((PROJECT / "docs/AGENT-QUICKSTART.md").read_text(), known_guide_hash),
             **rules,
             "instruction_policy": (
                 "Explicit workspace rules are primary; learned preferences are secondary. "
@@ -238,8 +244,9 @@ def get_working_context(
             "runtime_path": str(PROJECT / "runtime"),
             "default_design_id": store.default_design_id(),
             "design": {"id": design.id, "name": design.name} if design else design_message,
-            "designs": [item.model_dump() for item in store.designs()],
-            "presentations": store.list_decks(),
+            "discovery_included": include_discovery,
+            "designs": [item.model_dump() for item in store.designs()] if include_discovery else [],
+            "presentations": store.list_decks() if include_discovery else [],
             "design_assets": [],
             "asset_inventory_included": False,
             "asset_inventory_tool": "get_design_assets",
@@ -251,12 +258,14 @@ def get_working_context(
                 for item in store.design_inbox().messages
                 if item.author == "user" and item.status == "queued"
             ],
-            "libraries": [item.model_dump() for item in Libraries(store).list()],
+            "libraries": [item.model_dump() for item in Libraries(store).list()]
+            if include_discovery
+            else [],
         }
     return {
         **design_context,
         "response_detail": "full",
-        "guide": (PROJECT / "docs/AGENT-GUIDE.md").read_text(),
+        **guide_fields((PROJECT / "docs/AGENT-GUIDE.md").read_text(), known_guide_hash),
         "live_review_guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
         "visual_review_guide": (PROJECT / "docs/VISUAL-REVIEW.md").read_text(),
         "app_path": str(PROJECT),
@@ -296,12 +305,15 @@ def get_working_context(
         },
         "runtime_path": str(PROJECT / "runtime"),
         "default_design_id": store.default_design_id(),
-        "presentations": store.list_decks(),
+        "discovery_included": include_discovery,
+        "presentations": store.list_decks() if include_discovery else [],
         "example_presentation_id": design.folder_id if design else None,
-        "designs": [item.model_dump() for item in store.designs()],
+        "designs": [item.model_dump() for item in store.designs()] if include_discovery else [],
         "canonical_collection": str(store.root),
         "design_inbox": store.design_inbox().model_dump(),
-        "libraries": [item.model_dump() for item in Libraries(store).list()],
+        "libraries": [item.model_dump() for item in Libraries(store).list()]
+        if include_discovery
+        else [],
         "design_assets": get_design_assets(design_id, deck_id) if design or deck_id else [],
     }
 
@@ -320,8 +332,11 @@ def get_authoring_guide(
     ],
     design_id: str = "",
     deck_id: str = "",
+    known_hash: str = "",
 ) -> dict[str, str]:
-    """Load a guide on demand; pass deck_id for its brand or portable deck-local guide."""
+    """Load a guide on demand; pass deck_id for its brand or portable deck-local guide.
+    known_hash omits markdown only when you retain that exact guide; omit it after context loss.
+    """
     documents = {
         "workflow": "AGENT-GUIDE.md",
         "live_review": "LIVE-REVIEW.md",
@@ -339,7 +354,15 @@ def get_authoring_guide(
             "AGENT-GUIDE.md" if topic == "design_guide" else "README.md"
         )
     text = path.read_text()
-    return {"topic": topic, "path": str(path), "hash": digest(text), "markdown": text}
+    token = digest(text)
+    retained = bool(known_hash) and known_hash == token
+    return {
+        "topic": topic,
+        "path": str(path),
+        "hash": token,
+        "markdown": "" if retained else text,
+        "content_status": "unchanged" if retained else "included",
+    }
 
 
 @mcp.tool(annotations=READ)
@@ -489,11 +512,17 @@ def get_presentation_outline(
 
 @mcp.tool(annotations=READ)
 @tool_errors
-def get_slide(deck_id: str, slide_id: str) -> SlideView:
-    """Read one slide and the expected_hash required for a safe revision."""
-    return store.view_slide(
-        deck_id, store.locate(store.read(deck_id), slide_id), include_pending=False
+def get_slide(deck_id: str, slide_id: str, include_feedback: bool = False) -> AgentSlideView:
+    """Read complete slide source, notes and expected_hash for a safe revision.
+    Read released comments via read_feedback; include_feedback=True adds slide discussion history.
+    """
+    view = store.view_slide(
+        deck_id,
+        store.locate(store.read(deck_id), slide_id),
+        include_pending=False,
+        feedback=None if include_feedback else [],
     )
+    return AgentSlideView(**view.model_dump(), feedback_included=include_feedback)
 
 
 def visual_result(result: VisualResult) -> CallToolResult:
@@ -564,11 +593,14 @@ def create_presentation(
     design_id: str = "",
     brief: str = "",
     files: list[FileInput] | None = None,
-) -> Deck:
+    include_content: bool = False,
+) -> DeckReceipt | Deck:
     """Create a branded cover and save the human's brief as context and presentation feedback.
     Read that brief before drafting the full story; choose the slide count to fit the content.
+    Returns deck identity and slide IDs; include_content=True returns the full cover source.
     """
-    return store.create(deck_id, title, design_id, brief, files)
+    deck = store.create(deck_id, title, design_id, brief, files)
+    return deck if include_content else deck_receipt(deck)
 
 
 @mcp.tool(annotations=READ)
@@ -712,32 +744,45 @@ def revise_slide(
 @mcp.tool(annotations=READ)
 @tool_errors
 def read_feedback(
-    deck_id: str, after_delivery_id: int = 0, known_rules_hash: str = ""
+    deck_id: str,
+    after_delivery_id: int = 0,
+    known_rules_hash: str = "",
+    known_design_requests_hash: str = "",
 ) -> FeedbackFeed:
     """Read released feedback; carry next_cursor forward. Batch privacy is unchanged.
     Pass known_rules_hash only while retaining those rules: unchanged text is omitted,
     but changed rules are always returned in full with a new rules_hash.
+    known_design_requests_hash omits only retained queued requests; it does not acknowledge work.
     """
     store.mark_agent_check(deck_id)
-    return feedback_response(store.feedback_feed(deck_id, after_delivery_id), known_rules_hash)
+    return feedback_response(
+        store.feedback_feed(deck_id, after_delivery_id),
+        known_rules_hash,
+        known_design_requests_hash,
+    )
 
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def start_live_review(
-    deck_id: str = "", ctx: Context[None, Request] | None = None
+    deck_id: str = "",
+    ctx: Context[None, Request] | None = None,
+    include_guide: bool = False,
 ) -> dict[str, object]:
     """Request installed Codex/Claude Code review hooks for this deck or the design inbox.
 
     Read get_authoring_guide(topic="live_review") for one-time hook setup and host trust.
     This call alone cannot wake an idle client or install its hooks.
     The host's PostToolUse hook connects after this response; check get_live_review_status next.
+    include_guide=True adds the full setup guide; normally load its topic on demand.
     """
     result = get_live_review_status(deck_id, ctx)
     result["status"] = "awaiting_host_hook"
     return {
         **result,
-        "guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
+        "guide_topic": "live_review",
+        "guide_included": include_guide,
+        **({"guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text()} if include_guide else {}),
         "next_step": (
             "Call get_live_review_status after the host's PostToolUse hook runs. "
             "Connection status describes the active reviewer for this target, not necessarily "
@@ -773,16 +818,30 @@ async def wait_for_feedback(
     after_delivery_id: int = 0,
     timeout_seconds: int = 25,
     known_rules_hash: str = "",
+    known_design_requests_hash: str = "",
 ) -> FeedbackFeed:
-    """Wait up to 25 seconds for live feedback or a released batch, without a persistent session."""
+    """Wait up to 25 seconds for released feedback or changed queued design requests.
+    known_design_requests_hash skips an unchanged retained queue, not new or removed requests.
+    Omit retention hashes after context loss. No request or feedback is acknowledged by a hash.
+    """
     timeout = min(25, max(1, timeout_seconds))
     try:
         await asyncio.to_thread(store.mark_agent_check, deck_id, timeout + 2)
         deadline = time.monotonic() + timeout
         while True:
             result = await asyncio.to_thread(store.feedback_feed, deck_id, after_delivery_id)
-            if result.events or result.design_requests or time.monotonic() >= deadline:
-                return feedback_response(result, known_rules_hash)
+            response = feedback_response(result, known_rules_hash, known_design_requests_hash)
+            requests_changed = bool(
+                known_design_requests_hash
+                and response.design_requests_hash != known_design_requests_hash
+            )
+            if (
+                response.events
+                or response.design_requests
+                or requests_changed
+                or time.monotonic() >= deadline
+            ):
+                return response
             await asyncio.sleep(0.25)
     except (ValueError, FileNotFoundError) as error:
         raise ToolError(str(error)) from error
@@ -821,10 +880,16 @@ def reply_to_presentation_feedback(
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def reorder_slides(
-    deck_id: str, slide_ids: list[str], expected_slide_ids: list[str] | None = None
-) -> Deck:
-    """Set all stable slide IDs in order; pass their previous order to detect concurrent moves."""
-    return store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
+    deck_id: str,
+    slide_ids: list[str],
+    expected_slide_ids: list[str] | None = None,
+    include_content: bool = False,
+) -> DeckReceipt | Deck:
+    """Set stable slide IDs in order; pass their previous order to detect concurrent moves.
+    Returns deck identity and resulting slide IDs; include_content=True returns all slide source.
+    """
+    deck = store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
+    return deck if include_content else deck_receipt(deck)
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True))
