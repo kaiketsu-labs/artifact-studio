@@ -1163,9 +1163,77 @@ class Store:
         deck_id: str,
         slide: Slide,
         prepare_interactive: Callable[[str], str] | None = None,
+        *,
+        after_slide_id: str | None = None,
+        section_id: str = "",
+        expected_slide_ids: list[str] | None = None,
+        expected_sections_hash: str = "",
     ) -> Slide:
         """Append under the caller's write transaction without accepting an existing ID."""
         deck = self.read(deck_id)
+        ids = [item.id for item in deck.slides]
+        guarded = (
+            after_slide_id is not None
+            or bool(section_id)
+            or expected_slide_ids is not None
+            or bool(expected_sections_hash)
+        )
+        if guarded:
+            from .sections import sections_hash
+
+            if expected_slide_ids is None or not expected_sections_hash:
+                raise ValueError(
+                    "Targeted additions need expected_slide_ids and expected_sections_hash "
+                    "from a fresh outline."
+                )
+            if ids != expected_slide_ids or sections_hash(deck.sections) != expected_sections_hash:
+                raise ConflictError(
+                    "Slide order or sections changed. Read the outline before inserting."
+                )
+        if after_slide_id and after_slide_id not in ids:
+            raise ValueError("The insertion anchor does not exist in this presentation.")
+        destination = None
+        if deck.sections:
+            destination = (
+                next((group for group in deck.sections if group.id == section_id), None)
+                if section_id
+                else next(
+                    (group for group in deck.sections if after_slide_id in group.slide_ids), None
+                )
+                if after_slide_id
+                else deck.sections[0]
+                if after_slide_id == ""
+                else deck.sections[-1]
+            )
+            if destination is None:
+                raise ValueError("The destination section does not exist.")
+            if after_slide_id and after_slide_id not in destination.slide_ids:
+                raise ValueError("The insertion anchor belongs to a different section.")
+            local = (
+                destination.slide_ids.index(after_slide_id) + 1
+                if after_slide_id
+                else 0
+                if after_slide_id == ""
+                else len(destination.slide_ids)
+            )
+            position = (
+                sum(
+                    len(group.slide_ids)
+                    for group in deck.sections[: deck.sections.index(destination)]
+                )
+                + local
+            )
+        else:
+            if section_id:
+                raise ValueError("The destination section does not exist.")
+            local = None
+            position = (
+                ids.index(after_slide_id) + 1
+                if after_slide_id
+                else 0
+                if after_slide_id == ""
+                else len(ids)
+            )
         if any(existing.id == slide.id for existing in deck.slides):
             raise ConflictError("Slide ID already exists. Read it rather than adding it twice.")
         if len(deck.slides) >= 100:
@@ -1176,7 +1244,15 @@ class Store:
                 update={"interactive_html": prepare_interactive(slide.interactive_html)}
             )
         SlideMarkup().feed(slide.html)
-        deck.slides.append(slide)
+        if position == 0:
+            _ = db.execute(
+                "UPDATE feedback SET context_slide_id=? WHERE deck=? "
+                "AND COALESCE(slide,'')='' AND context_slide_id IS NULL AND reply_to IS NULL",
+                (ids[0], deck_id),
+            )
+        if destination is not None and local is not None:
+            destination.slide_ids.insert(local, slide.id)
+        deck.slides.insert(position, slide)
         self.write(deck_id, deck)
         self.seed_slide_views(db, deck)
         return slide
@@ -1188,6 +1264,10 @@ class Store:
         request_id: str,
         *,
         prepare_interactive: Callable[[str], str] | None = None,
+        after_slide_id: str | None = None,
+        section_id: str = "",
+        expected_slide_ids: list[str] | None = None,
+        expected_sections_hash: str = "",
     ) -> SlideView:
         """Record the original write-time acknowledgement for exact-payload add retries.
 
@@ -1195,9 +1275,21 @@ class Store:
         """
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
+        payload: list[object] = [
+            "add_slide",
+            slide.model_dump(mode="json"),
+            prepare_interactive is not None,
+        ]
+        if (
+            after_slide_id is not None
+            or section_id
+            or expected_slide_ids is not None
+            or expected_sections_hash
+        ):
+            payload.append([after_slide_id, section_id, expected_slide_ids, expected_sections_hash])
         payload_hash = digest(
             json.dumps(
-                ["add_slide", slide.model_dump(mode="json"), prepare_interactive is not None],
+                payload,
                 sort_keys=True,
                 separators=(",", ":"),
             )
@@ -1211,7 +1303,16 @@ class Store:
                 if prior["payload_hash"] != payload_hash:
                     raise ConflictError("This request_id was already used with another payload.")
                 return SlideView.model_validate_json(cast(str, prior["result"]))
-            added = self._append_slide(db, deck_id, slide, prepare_interactive)
+            added = self._append_slide(
+                db,
+                deck_id,
+                slide,
+                prepare_interactive,
+                after_slide_id=after_slide_id,
+                section_id=section_id,
+                expected_slide_ids=expected_slide_ids,
+                expected_sections_hash=expected_sections_hash,
+            )
             result = self._write_view(db, deck_id, added)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",

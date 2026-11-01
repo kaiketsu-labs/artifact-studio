@@ -120,7 +120,7 @@ jobs:
       - name: MCP protocol, guarded edits, native configuration and real hook launchers
         run: >-
           uv run --no-sync pytest tests/integration/test_agents.py tests/integration/test_authoring_recovery.py
-          tests/integration/test_native_clients.py
+          tests/integration/test_native_clients.py tests/integration/test_slide_insertion.py
           --junitxml=test-results/agents.xml
       - name: Upload client versions, hook output and server logs
         if: always()

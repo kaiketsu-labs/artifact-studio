@@ -58,6 +58,8 @@ A filesystem write and its operation record are not one atomic transaction. If s
 
 Without `--verify`, a file can contain other explicitly authorized text-result tools, including `append_presentation_context` or `get_presentation_outline`. Large read results still consume model context if printed; prefer the ordinary compact reads.
 
+For a positioned `add_slide`, keep `after_slide_id` and/or `section_id` at the top level of its arguments, together with `request_id`, `expected_slide_ids` and `expected_sections_hash` from the reviewed outline. A named section alone appends within that group; an empty `after_slide_id` inserts at the start of the group or deck. Order and section membership change in the same canonical file write. Missing or stale structural guards fail before preparing embedded assets. Exact retries retain the original acknowledgement and never reposition a later move. `--verify` compares source and visual hashes; inspect a fresh outline separately to verify current order and section membership.
+
 ## When connected tools are missing
 
 Refreshing server code does not prove an existing chat has rediscovered the tool catalogue. Check the callable tools in the **agent host**, not just the server response. Current Slide Studio includes `get_presentation_outline`, `append_presentation_context`, `get_authoring_guide` and retained-rule hash arguments. If they are absent, use the host's supported MCP connection refresh controls and recheck; do not add duplicate implementations.
