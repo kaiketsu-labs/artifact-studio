@@ -1,6 +1,8 @@
 """Efficient MCP communication preserves source access, rule updates and privacy."""
 
+import asyncio
 import json
+import time
 from pathlib import Path
 from typing import Literal, cast
 
@@ -8,7 +10,15 @@ import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from studio import app as service
-from studio.models import SlidePatch, SlideReceipt, SlideView
+from studio.models import (
+    Deck,
+    DeckReceipt,
+    DesignRequestInput,
+    Slide,
+    SlidePatch,
+    SlideReceipt,
+    SlideView,
+)
 from studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
@@ -103,6 +113,147 @@ def test_outline_keeps_order_and_tokens_without_source_or_history(store: Store) 
     expanded = service.get_presentation_outline(TEMPLATE_ID, include_context=True)
     assert expanded["context_markdown"] == original.context_markdown
     assert service.get_slide(TEMPLATE_ID, "cover").html == original.slides[0].html
+
+
+def test_guides_and_discovery_can_be_retained_independently_of_rules(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skip only explicitly retained guides and optional discovery; user guidance stays complete."""
+    docs = tmp_path / "app/docs"
+    docs.mkdir(parents=True)
+    quickstart = docs / "AGENT-QUICKSTART.md"
+    _ = quickstart.write_text("Complete test quickstart")
+    _ = (docs / "LIVE-REVIEW.md").write_text("Complete test live guide")
+    monkeypatch.setattr(service, "PROJECT", docs.parent)
+    queued = store.post_design_request(
+        DesignRequestInput(message="A user design request", request_id="retain-guide-request")
+    )
+    first = service.get_working_context(deck_id=TEMPLATE_ID)
+    assert first["guide_included"] and first["discovery_included"]
+    retained = service.get_working_context(
+        deck_id=TEMPLATE_ID, known_guide_hash=str(first["guide_hash"]), include_discovery=False
+    )
+    assert retained["guide"] == "" and retained["guide_included"] is False
+    assert retained["rules_included"] is True
+    assert retained["authoring_instructions"] == first["authoring_instructions"]
+    assert retained["preferences"] == first["preferences"]
+    assert retained["design_references"] == first["design_references"]
+    assert retained["discovery_included"] is False
+    assert retained["designs"] == retained["presentations"] == retained["libraries"] == []
+    assert str(queued.event_id) in json.dumps(retained["design_inbox"])
+    _ = (store.folder(TEMPLATE_ID) / "PREFERENCES.md").write_text("Updated brand guidance")
+    store.save_instructions("New complete user rule", digest(store.authoring_instructions()))
+    changed_rules = service.get_working_context(
+        deck_id=TEMPLATE_ID,
+        known_guide_hash=str(first["guide_hash"]),
+        known_rules_hash=str(first["rules_hash"]),
+    )
+    assert changed_rules["guide_included"] is False
+    assert changed_rules["rules_included"] is True
+    assert changed_rules["authoring_instructions"] == "New complete user rule"
+    assert changed_rules["preferences"] == "Updated brand guidance"
+    _ = quickstart.write_text("Changed complete quickstart")
+    changed_guide = service.get_working_context(known_guide_hash=str(first["guide_hash"]))
+    assert (
+        changed_guide["guide_included"] is True and changed_guide["guide"] == quickstart.read_text()
+    )
+    assert service.get_working_context()["guide"] == quickstart.read_text()
+    guide = service.get_authoring_guide("live_review")
+    cached = service.get_authoring_guide("live_review", known_hash=guide["hash"])
+    assert cached["markdown"] == "" and cached["content_status"] == "unchanged"
+    _ = (docs / "LIVE-REVIEW.md").write_text("Changed complete live guide")
+    assert service.get_authoring_guide("live_review", known_hash=guide["hash"])["markdown"] == (
+        "Changed complete live guide"
+    )
+
+
+def test_deck_mutations_return_order_without_echoing_source(store: Store) -> None:
+    """Large source, notes and binaries stay canonical through compact creation and ordering."""
+    created = service.create_presentation("2026-11-01-receipt", "Receipt", brief="Complete brief")
+    assert isinstance(created, DeckReceipt) and created.slide_ids == ["cover"]
+    assert "slides" not in created.model_dump()
+    full_created = service.create_presentation("2026-11-01-full", "Full", include_content=True)
+    assert isinstance(full_created, Deck) and full_created.slides[0].html
+    _ = store.add_slide(
+        created.id,
+        Slide(
+            id="large",
+            title="Large",
+            html="<article>" + "Source " * 5000 + "</article>",
+            interactive_html="<script>" + "/* embedded asset */" * 2000 + "</script>",
+            notes="Human notes",
+        ),
+    )
+    original = store.read(created.id)
+    before = [slide.id for slide in original.slides]
+    after = list(reversed(before))
+    receipt = service.reorder_slides(created.id, after, before)
+    assert isinstance(receipt, DeckReceipt) and receipt.slide_ids == after
+    assert len(receipt.model_dump_json()) < 250
+    assert service.reorder_slides(created.id, after, before) == receipt
+    full = service.reorder_slides(created.id, after, include_content=True)
+    assert isinstance(full, Deck) and full.slides == list(reversed(original.slides))
+    with pytest.raises(ToolError, match="changed"):
+        _ = service.reorder_slides(created.id, before, before)
+
+
+def test_slide_edit_read_does_not_repeat_discussion_or_expose_withheld_feedback(
+    store: Store,
+) -> None:
+    """Source and note hashes stay identical while history is an explicit opt-in."""
+    before = service.get_slide(TEMPLATE_ID, "cover")
+    _ = store.add_feedback(
+        TEMPLATE_ID, before.id, "Released discussion", before.content_hash, "read-slide-history"
+    )
+    _ = store.set_mode(TEMPLATE_ID, "batch")
+    with store.connect() as db:
+        _ = store.append_feedback(
+            db, TEMPLATE_ID, before.id, "user", "Withheld", "", released=False
+        )
+    compact = service.get_slide(TEMPLATE_ID, before.id)
+    full = service.get_slide(TEMPLATE_ID, before.id, include_feedback=True)
+    assert compact.feedback == [] and compact.feedback_included is False
+    assert full.feedback_included is True and [item.message for item in full.feedback] == [
+        "Released discussion"
+    ]
+    assert compact.html == full.html and compact.notes == full.notes
+    assert compact.expected_hash == full.expected_hash == before.expected_hash
+    assert compact.content_hash == full.content_hash == before.content_hash
+
+
+def test_retained_design_requests_do_not_force_a_polling_loop_or_acknowledge_work(
+    store: Store,
+) -> None:
+    """Wait on a retained queue; deliver changes and rules without acknowledging work."""
+    request = store.post_design_request(
+        DesignRequestInput(message="Queued request", request_id="cached-design-request")
+    )
+    initial = service.read_feedback(TEMPLATE_ID)
+    token = initial.design_requests_hash
+    cached = service.read_feedback(TEMPLATE_ID, known_design_requests_hash=token)
+    assert cached.design_requests == [] and cached.design_requests_included is False
+    assert cached.rules_included and cached.authoring_instructions == initial.authoring_instructions
+    assert store.design_inbox().messages[0].status == "queued"
+    start = time.monotonic()
+    waited = asyncio.run(
+        service.wait_for_feedback(TEMPLATE_ID, timeout_seconds=1, known_design_requests_hash=token)
+    )
+    assert time.monotonic() - start >= 0.8
+    assert not waited.design_requests_included and waited.design_requests == []
+    _ = store.reply_design(request.event_id, "Working", "cached-design-working", "working")
+    removed = asyncio.run(
+        service.wait_for_feedback(TEMPLATE_ID, timeout_seconds=1, known_design_requests_hash=token)
+    )
+    assert removed.design_requests_included and removed.design_requests == []
+    assert removed.design_requests_hash != token
+    _ = store.post_design_request(
+        DesignRequestInput(message="New request", request_id="cached-design-new")
+    )
+    added = service.read_feedback(
+        TEMPLATE_ID, known_design_requests_hash=removed.design_requests_hash
+    )
+    assert added.design_requests_included and added.design_requests[0].message == "New request"
+    assert service.read_feedback(TEMPLATE_ID).design_requests == added.design_requests
 
 
 def test_revision_receipt_does_not_echo_html_or_history(store: Store) -> None:

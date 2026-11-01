@@ -13,9 +13,11 @@ from typing import Literal
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.types import CallToolResult, TextContent
 
 from studio.agent_client import object_value
 from studio.hook_client import configure
+from studio.models import DesignRequestInput, Slide
 from tests.design_factory import make_design
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 
@@ -166,6 +168,145 @@ def test_stateless_edit_retry_and_conflict(live_app: RunningApp) -> None:
     with pytest.raises(ValueError, match="changed|conflict|hash"):
         _ = live_app.call("revise_slide", **{**arguments, "request_id": "stale-second-write"})
     assert live_app.store.read(DECK_ID).slides[0].notes == PRIVATE_NOTE
+
+
+def test_compact_authoring_and_retention_over_mcp(live_app: RunningApp, artifacts: Path) -> None:
+    """Measure actual text/structured envelopes while checking complete opt-in source access."""
+    client = live_app.client()
+    sizes: dict[str, int] = {}
+
+    def call(label: str, tool: str, **arguments: object) -> dict[str, object]:
+        """Read the real MCP result and require compatible text and structured copies."""
+        raw = client.rpc("tools/call", {"name": tool, "arguments": arguments})
+        result = CallToolResult.model_validate(raw)
+        assert not result.is_error and result.structured_content is not None
+        text = result.content[0]
+        assert isinstance(text, TextContent)
+        value = object_value(json.loads(text.text))
+        structured = result.structured_content
+        if set(structured) == {"result"}:
+            structured = object_value(structured["result"])
+        assert value == structured
+        sizes[label] = len(json.dumps(raw, ensure_ascii=False, separators=(",", ":")).encode())
+        return value
+
+    initial = call("startup", "get_working_context", deck_id=DECK_ID)
+    retained = call(
+        "startup_retained",
+        "get_working_context",
+        deck_id=DECK_ID,
+        known_rules_hash=initial["rules_hash"],
+        known_guide_hash=initial["guide_hash"],
+        include_discovery=False,
+    )
+    assert retained["guide_included"] is False and retained["guide"] == ""
+    assert retained["rules_included"] is False
+    assert retained["design_references"] == initial["design_references"]
+    assert retained["preferences"] == initial["preferences"]
+    guide = call("guide", "get_authoring_guide", topic="live_review")
+    cached = call(
+        "guide_retained", "get_authoring_guide", topic="live_review", known_hash=guide["hash"]
+    )
+    assert cached["markdown"] == "" and cached["content_status"] == "unchanged"
+    compact = call("review_start", "start_live_review", deck_id=DECK_ID)
+    full = call("review_start_full", "start_live_review", deck_id=DECK_ID, include_guide=True)
+    assert compact["status"] == full["status"] == "awaiting_host_hook"
+    assert "guide" not in compact and full["guide"] == guide["markdown"]
+    assert sizes["review_start"] < sizes["review_start_full"] / 5
+    assert sizes["guide_retained"] < sizes["guide"] / 10
+    created = call(
+        "create",
+        "create_presentation",
+        deck_id="2026-11-01-compact-created",
+        title="Compact created",
+        brief="Full brief for the board",
+    )
+    assert created["slide_ids"] == ["cover"] and "slides" not in created
+    full_created = call(
+        "create_full",
+        "create_presentation",
+        deck_id="2026-11-01-full-created",
+        title="Full created",
+        include_content=True,
+    )
+    assert "slides" in full_created and "html" in str(full_created["slides"])
+    _ = live_app.store.add_slide(
+        DECK_ID,
+        Slide(
+            id="large",
+            title="Large",
+            html='<article class="slide">' + "Source evidence " * 6000 + "</article>",
+        ),
+    )
+    previous = [slide.id for slide in live_app.store.read(DECK_ID).slides]
+    order = list(reversed(previous))
+    receipt = call(
+        "reorder", "reorder_slides", deck_id=DECK_ID, slide_ids=order, expected_slide_ids=previous
+    )
+    expanded = call(
+        "reorder_full", "reorder_slides", deck_id=DECK_ID, slide_ids=order, include_content=True
+    )
+    assert receipt["slide_ids"] == order and "slides" not in receipt
+    assert "Source evidence" in str(expanded["slides"])
+    assert sizes["reorder"] < sizes["reorder_full"] / 100
+    slide = live_app.store.read(DECK_ID).slides[-1]
+    for number in range(12):
+        _ = live_app.store.add_feedback(
+            DECK_ID,
+            slide.id,
+            "Discussion " * 100,
+            live_app.store.content_hash(DECK_ID, slide),
+            f"compact-history-{number}",
+        )
+    source = call("edit_source", "get_slide", deck_id=DECK_ID, slide_id=slide.id)
+    history = call(
+        "edit_source_full", "get_slide", deck_id=DECK_ID, slide_id=slide.id, include_feedback=True
+    )
+    assert source["notes"] == history["notes"] == PRIVATE_NOTE
+    assert source["html"] == history["html"] and source["expected_hash"] == history["expected_hash"]
+    assert source["feedback_included"] is False and history["feedback_included"] is True
+    assert sizes["edit_source"] < sizes["edit_source_full"] / 5
+    request = live_app.store.post_design_request(
+        DesignRequestInput(
+            message="Inspect a design reference " * 100, request_id="compact-design-request"
+        )
+    )
+    feed = call(
+        "feedback", "read_feedback", deck_id=DECK_ID, known_rules_hash=initial["rules_hash"]
+    )
+    feed_uncached = call(
+        "feedback_uncached",
+        "read_feedback",
+        deck_id=DECK_ID,
+        after_delivery_id=feed["next_cursor"],
+        known_rules_hash=initial["rules_hash"],
+    )
+    feed_retained = call(
+        "feedback_retained",
+        "read_feedback",
+        deck_id=DECK_ID,
+        after_delivery_id=feed["next_cursor"],
+        known_rules_hash=initial["rules_hash"],
+        known_design_requests_hash=feed["design_requests_hash"],
+    )
+    assert feed_retained["design_requests_included"] is False
+    assert feed_retained["events"] == feed_retained["design_requests"] == []
+    assert feed_uncached["events"] == [] and feed_uncached["design_requests"]
+    assert sizes["feedback_retained"] < sizes["feedback_uncached"] / 5
+    assert live_app.store.design_inbox().messages[-1].event_id == request.event_id
+    assert live_app.store.design_inbox().messages[-1].status == "queued"
+    _ = (artifacts / "token-efficiency.json").write_text(
+        json.dumps(
+            {
+                "measurement": (
+                    "UTF-8 bytes of MCP result JSON, including text and structured copies"
+                ),
+                "not_billed_tokens": True,
+                "sizes": sizes,
+            },
+            indent=2,
+        )
+    )
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
