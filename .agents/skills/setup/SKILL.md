@@ -7,7 +7,7 @@ description: Set up or repair a local Slide Studio installation, MCP connection 
 
 Guide the user to a working local workspace and connected agent. Reuse existing configuration; rerunning setup must not reset data or create duplicate apps, connections, hooks or decks.
 
-Resolve the checkout from this file (`../../..`). Read its [getting-started guide](../../../docs/GETTING-STARTED.md) for maintained commands. If MCP is available, start with `get_working_context` and reuse its paths and URL. Otherwise inspect only relevant local configuration and check the chosen loopback server's `/api/health`; do not infer ownership from an occupied port. Preserve collection and database paths, workspace rules, notes and review history.
+Resolve the checkout from this file (`../../..`). Read its [getting-started guide](../../../docs/GETTING-STARTED.md) for maintained commands. If MCP is available, start with `get_working_context` and reuse its returned paths and this connection’s verified URL. Otherwise inspect only relevant local configuration and check the chosen loopback server's `/api/health`; do not infer ownership from an occupied port. Preserve collection and database paths, workspace rules, notes and review history.
 
 Ask only for missing choices, together: startup method, non-default storage, and whether automatic agent review is wanted. On a new Mac, offer the menu-bar app with optional login startup; otherwise use Terminal. Honour existing choices. Check Git, uv, the locked Python environment and the review browser; install only missing prerequisites through the guide. Do not invent npm/PyPI installation commands.
 

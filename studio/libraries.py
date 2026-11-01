@@ -30,6 +30,7 @@ EXTENSIONS = {
     ".wmf",
     ".wdp",
     ".pptx",
+    ".potx",
     ".ppt",
     ".pdf",
     ".png",

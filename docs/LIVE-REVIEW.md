@@ -34,9 +34,9 @@ Hooks run local commands with your host's permissions. The agent must not bypass
 
 In the connected agent chat, ask:
 
-> Read get_working_context, then get_authoring_guide(topic="live_review"). Start live review for my presentation with start_live_review(deck_id=...), read the presentation and read_feedback, then address my released feedback. Keep the review open while I use Slide Studio.
+> Read get_working_context(deck_id=...), then get_authoring_guide(topic="live_review"). Start live review for my presentation with start_live_review(deck_id=...), read the presentation and read_feedback, then address my released feedback. Keep the review open while I use Slide Studio.
 
-Use `start_live_review()` with no deck for the design inbox. This successful MCP call explicitly opts that host session into review. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
+Use `start_live_review()` with no deck for the design inbox. The response reports `awaiting_host_hook`: the loaded host hook must register this successful call to opt that session into review. The tool response alone does not prove availability. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
 
 Use **Menu → Connect an agent → End review** for the selected presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` again to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
 

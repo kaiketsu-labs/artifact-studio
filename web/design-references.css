@@ -1,0 +1,10 @@
+#selected-design-references{justify-self:start;font-size:12px}
+#design-references-dialog{width:min(540px,calc(100vw - 32px))}
+#design-references-dialog p{font-size:12px;line-height:1.5}
+#design-references-name{font-weight:600;color:var(--ink)}
+#design-reference-list{margin:12px 0;overflow-wrap:anywhere}
+#design-reference-list ul{margin:0;padding-left:20px;font-size:12px}
+#design-reference-list li{margin:6px 0}
+#design-reference-input{display:block;max-width:100%;margin-top:8px;font-size:12px}
+#design-references-dialog .design-reference-hint{margin:6px 0;color:var(--subtle)}
+#design-reference-status{min-height:1.5em}
