@@ -171,7 +171,7 @@ def test_batch_answer_has_a_visible_queued_state_until_release(
     page.locator("#mode-batch").click()
     card = page.locator(f'[data-question-id="{event_id}"]')
     card.get_by_role("textbox", name="Write your own answer").fill("PRIVATE_BATCH_BROWSER_ANSWER")
-    card.get_by_role("button", name="Send answer", exact=True).click()
+    card.get_by_role("button", name="Add answer to batch", exact=True).click()
     expect(card).to_have_attribute("data-question-state", "queued")
     expect(card.get_by_role("img", name="Answer queued — not sent to the agent")).to_be_visible()
     expect(page.locator(".comment.user .comment-pending")).to_have_text("Not sent")

@@ -64,7 +64,9 @@
 .discussion #attach-feedback:hover{background:#eff3f8;color:#3b5f8d}
 .discussion #attach-feedback .ui-icon{width:17px;height:17px}
 .discussion #send-feedback{display:grid;place-items:center;width:31px;min-height:31px;margin-left:auto;border-radius:9px;padding:6px;box-shadow:none}
+.discussion #send-feedback.is-batch{display:inline-flex;width:auto;padding:6px 10px;font-size:11px;white-space:nowrap}
 .discussion #send-feedback .ui-icon{width:16px;height:16px}
+.compose-delivery-help{margin:8px 3px 1px;color:var(--subtle);font-size:11px;line-height:1.45}
 #feedback-files{display:flex;flex-wrap:wrap;gap:5px;max-height:128px;overflow:auto}
 #feedback-files:empty{display:none}
 .chat-file-chip{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%;padding:6px 7px;margin:0;border:1px solid #dce4ef;background:#f7f9fc;border-radius:8px;color:#526783;font-size:11px;line-height:1.3;text-decoration:none}

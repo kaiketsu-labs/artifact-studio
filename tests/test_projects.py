@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from studio import app as service
-from studio.models import FileInput
+from studio.models import AgentContext, FileInput, SlidePatch
 from studio.projects import (
     AssetEmbedder,
     ClientState,
@@ -20,6 +20,50 @@ from studio.projects import (
 )
 from studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
+
+
+def test_inline_audience_route_excludes_private_values_from_entire_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Return the sanitized audience document inline, never canonical private deck JSON."""
+    make_design(tmp_path / TEMPLATE_ID)
+    store = Store(tmp_path, tmp_path / "state/review.sqlite3")
+    monkeypatch.setattr(service, "store", store)
+    first = store.view(TEMPLATE_ID).slides[0]
+    _ = store.revise(
+        TEMPLATE_ID,
+        first.id,
+        first.expected_hash,
+        "private-audience-fixture",
+        SlidePatch(
+            notes="PRIVATE_NOTE_SENTINEL",
+            agent=AgentContext(
+                summary="PRIVATE_AGENT_SENTINEL",
+                questions=["PRIVATE_QUESTION_SENTINEL"],
+                alternatives=["PRIVATE_ALTERNATIVE_SENTINEL"],
+            ),
+        ),
+    )
+    _ = store.set_mode(TEMPLATE_ID, "batch")
+    _ = store.add_feedback(
+        TEMPLATE_ID,
+        first.id,
+        "PRIVATE_WITHHELD_SENTINEL",
+        first.content_hash,
+        "private-audience-feedback",
+    )
+    client = TestClient(service.app)
+    response = client.get(f"/api/decks/{TEMPLATE_ID}/audience")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert response.headers["cache-control"] == "no-store"
+    assert "content-disposition" not in response.headers
+    assert "PRIVATE_" not in response.text
+    assert 'data-export="audience"' in response.text
+    assert "Test</h1>" in response.text or r"Test\u003c/h1>" in response.text
+    assert service.get_working_context(deck_id=TEMPLATE_ID)["audience_url"] == (
+        f"/api/decks/{TEMPLATE_ID}/audience"
+    )
 
 
 @pytest.mark.parametrize(("view_zoom", "editor_zoom"), [(25, 85), (225, 225), (400, 400)])

@@ -5,7 +5,7 @@
   function answerFor(question,events){return events.find(item=>item.author==='user'&&item.reply_to===question.event_id&&item.slide_id===question.slide_id);}
   function status(question,events){const answer=answerFor(question,events);return answer?(answer.released?'answered':'queued'):question.question?.cancelled?'cancelled':'open';}
   function pending(events){return events.filter(item=>item.author==='agent'&&item.question&&status(item,events)==='open');}
-  function create({api,escape,svg,avatar,onRefresh}){
+  function create({api,escape,svg,avatar,onRefresh,deliveryMode=()=>'live'}){
     const drafts=new Map(),busy=new Set(),errors=new Map(),handlers=new Map();let storage;
     try{storage=root.localStorage;const saved=JSON.parse(storage.getItem(storageKey)||'{}');for(const [key,value] of Object.entries(saved)){if(value&&typeof value.text==='string'&&value.text.length<=10000&&(value.choice===null||(Number.isInteger(value.choice)&&value.choice>=0&&value.choice<6)))drafts.set(key,{text:value.text,choice:value.choice,request_id:typeof value.request_id==='string'&&/^[a-zA-Z0-9-]{8,100}$/.test(value.request_id)?value.request_id:crypto.randomUUID()});}}catch{}
     const key=(deckId,slideId,id)=>`${deckId}/${slideId}/${id}`;
@@ -15,7 +15,7 @@
     function render(question,events,deckId,slideId,contentHash){
       const id=key(deckId,slideId,question.event_id),state=status(question,events),open=state==='open';
       let value=draft(id);const answer=answerFor(question,events),pending=value.choice===null?value.text.trim():question.question.options[value.choice];if(answer&&pending&&answer.message===pending){drafts.delete(id);persist();value=draft(id);}
-      const hasDraft=!!value.text||value.choice!==null,description=({open:'Awaiting your answer',queued:'Answer queued — not sent to the agent',answered:'Answered',cancelled:'Cancelled'})[state];
+      const batch=deliveryMode()==='batch',hasDraft=!!value.text||value.choice!==null,description=({open:'Awaiting your answer',queued:'Answer queued — not sent to the agent',answered:'Answered',cancelled:'Cancelled'})[state];
       const stateIcon=state==='open'?'question':state==='queued'?'clock':state==='answered'?'check':'close';
       const choices=(question.question.options||[]).map((option,index)=>`<label class="question-option"><input type="radio" name="question-${question.event_id}" value="${index}" ${value.choice===index?'checked':''}><span>${escape(option)}</span></label>`).join('');
       const input=open||hasDraft?`<div class="question-custom">${open&&question.question.options.length?`<input type="radio" name="question-${question.event_id}" value="custom" aria-label="Write your own answer" ${value.choice===null?'checked':''}>`:''}<textarea class="question-answer" maxlength="10000" rows="2" aria-label="${open?'Write your own answer':'Unsent answer'}" placeholder="Your answer…" ${open?'':'readonly'}>${escape(open?value.text:value.text||(question.question.options[value.choice]||''))}</textarea></div>`:'';
@@ -25,9 +25,10 @@
           ${open?`<div class="question-options">${choices}</div>`:''}${input}
           <div class="question-actions" ${!open&&!hasDraft&&!errors.get(id)?'hidden':''}><span class="question-error" role="alert">${escape(errors.get(id)||'')}</span>
             ${open||hasDraft?`<button type="reset" class="question-clear" aria-label="Discard unsent answer" title="Discard unsent answer" ${hasDraft?'':'hidden'}>${svg('close')}</button>`:''}
-            ${open?`<button class="primary question-send" type="submit" aria-label="Send answer" title="Send answer">${svg('send')}</button>`:''}
+            ${open?`<button class="primary question-send" type="submit" aria-label="${batch?'Add answer to batch':'Send answer'}" title="${batch?'Add answer to batch':'Send answer'}" data-delivery-mode="${batch?'batch':'live'}">${svg(batch?'batch':'send')}</button>`:''}
           </div></fieldset></form></article>`;
     }
+    function updateDelivery(list){const mode=deliveryMode();for(const button of list.querySelectorAll('.question-send')){if(button.dataset.deliveryMode===mode)continue;const batch=mode==='batch',label=batch?'Add answer to batch':'Send answer';button.dataset.deliveryMode=mode;button.setAttribute('aria-label',label);button.title=label;button.innerHTML=svg(batch?'batch':'send');}}
     function mount(list,events,deckId,slideId){
       handlers.clear();
       for(const card of list.querySelectorAll('[data-question-id]')){
@@ -56,7 +57,7 @@
     function jump(list){const card=list.querySelector('[data-question-state="open"]');if(card){card.scrollIntoView({block:'nearest'});card.querySelector('.question-prompt').focus({preventScroll:true});}}
     function exportDrafts(deckId){return Object.fromEntries([...drafts].filter(([name,value])=>name.startsWith(deckId+'/')&&(value.text||value.choice!==null)).map(([name,value])=>[name.split('/')[2],{slide_id:name.split('/')[1],text:value.text,choice:value.choice}]));}
     function importDrafts(deckId,values){for(const [id,value] of Object.entries(values||{}))drafts.set(key(deckId,value.slide_id,id),{text:value.text,choice:value.choice,request_id:crypto.randomUUID()});persist();}
-    return {render,mount,captureFocus,restoreFocus,jump,exportDrafts,importDrafts,hasDrafts:()=>[...drafts.values()].some(value=>!!value.text||value.choice!==null)};
+    return {render,mount,captureFocus,restoreFocus,jump,updateDelivery,exportDrafts,importDrafts,hasDrafts:()=>[...drafts.values()].some(value=>!!value.text||value.choice!==null)};
   }
   const api={create,pending,status};if(typeof module!=='undefined')module.exports=api;else root.SlideQuestions=api;
 })(typeof window==='undefined'?{}:window);

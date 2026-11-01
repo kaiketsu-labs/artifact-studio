@@ -168,3 +168,53 @@ def test_duplicate_verified_targets_fail_before_any_write() -> None:
     with pytest.raises(ValueError, match="one write per slide"):
         _ = execute(client, [invocation("first"), invocation("first")], verify=True)
     assert not client.initialized and not client.calls
+
+
+def test_describe_additions_exposes_identity_and_fields_without_source(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Review a new slide's nested identity and retry token before sending its bytes."""
+    path = tmp_path / "add.json"
+    path.write_text(
+        json.dumps(
+            [
+                {
+                    "tool": "add_slide",
+                    "arguments": {
+                        "deck_id": "fictional-deck",
+                        "request_id": "reviewed-add-slide",
+                        "slide": {
+                            "id": "evidence",
+                            "title": "Evidence",
+                            "html": "PRIVATE_HTML_MARKER",
+                            "notes": "PRIVATE_NOTES_MARKER",
+                        },
+                    },
+                },
+                invocation("existing").model_dump(),
+            ]
+        )
+    )
+    assert agent_client.main(["--calls-file", str(path), "--describe"]) == 0
+    text = capsys.readouterr().out
+    described = json.loads(text)["calls"]
+    assert described[0]["slide_id"] == "evidence"
+    assert described[0]["request_id"] == "reviewed-add-slide"
+    assert described[0]["slide_fields"] == ["id", "title", "html", "notes"]
+    assert described[1]["slide_id"] == "existing" and described[1]["patch_fields"] == ["html"]
+    assert "PRIVATE_HTML_MARKER" not in text and "PRIVATE_NOTES_MARKER" not in text
+
+
+def test_verified_add_needs_retry_identity_before_any_write() -> None:
+    """Do not partially execute an add batch that cannot safely replay its prefix."""
+    client = FakeClient(lambda _: receipt("added", "token"))
+    add = Invocation(
+        tool="add_slide",
+        arguments={
+            "deck_id": "fictional-deck",
+            "slide": {"id": "added", "title": "Added", "html": "source"},
+        },
+    )
+    with pytest.raises(ValueError, match="request_id"):
+        _ = execute(client, [invocation("first"), add], verify=True)
+    assert not client.initialized and not client.calls

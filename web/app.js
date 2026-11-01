@@ -63,7 +63,7 @@
     onChange:()=>{if(deck&&selectedId){retainDraft();const draft=feedbackDraft();if(draft)draft.request_id=crypto.randomUUID();draftStore.persist();}updateComposer();}
   });
 
-  const slideQuestions=window.SlideQuestions.create({api,escape,svg,avatar:chatAvatar,onRefresh:async(answer,deckId,slideId)=>{if(answer&&deck?.id===deckId){const target=deck.slides.find(item=>item.id===slideId);if(target&&!target.feedback.some(item=>item.event_id===answer.event_id))target.feedback.push(answer);renderRail();renderComments(slide());}await refresh();}});
+  const slideQuestions=window.SlideQuestions.create({api,escape,svg,avatar:chatAvatar,deliveryMode:()=>deck?.workflow?.mode||'live',onRefresh:async(answer,deckId,slideId)=>{if(answer&&deck?.id===deckId){const target=deck.slides.find(item=>item.id===slideId);if(target&&!target.feedback.some(item=>item.event_id===answer.event_id))target.feedback.push(answer);renderRail();renderComments(slide());}await refresh();}});
   $('chat-question-status').addEventListener('click',()=>slideQuestions.jump($('feedback-list')));
 
   /** Report save and conflict results without interrupting the review flow. */
@@ -164,7 +164,10 @@
     $('mode-live').setAttribute('aria-label','Live feedback: '+(available?(harness||'agent')+' available':'agent unavailable'));
     $('end-review').hidden=!state.review_connected;
     $('send-batch').hidden=!state.pending;iconButton($('send-batch'),'send',(live?'Send queued comments':'Send batch')+' ('+state.pending+')',true);
-    iconButton($('send-feedback'),live?'send':'plus',live?'Send feedback':'Add to batch',false);$('send-feedback').title+=' (Enter · Shift+Enter for a new line)';
+    $('batch-delivery-help').hidden=live;$('send-feedback').classList.toggle('is-batch',!live);
+    if(live)$('feedback-text').removeAttribute('aria-describedby');else $('feedback-text').setAttribute('aria-describedby','batch-delivery-help');
+    iconButton($('send-feedback'),live?'send':'plus',live?'Send feedback':'Add to batch',!live);$('send-feedback').title+=' (Enter · Shift+Enter for a new line)';
+    slideQuestions.updateDelivery($('feedback-list'));
   }
 
   /** Keep each preview tied to its exact content snapshot while an agent revises the file. */
