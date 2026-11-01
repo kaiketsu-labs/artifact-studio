@@ -1,0 +1,81 @@
+# Continuous integration
+
+GitHub Actions runs `.github/workflows/ci.yml` on pull requests, pushes to `main`
+and manual dispatch. It uses the locked Python 3.14 dependencies, Node 24, pinned
+action revisions and read-only repository permissions. Every application process
+uses a temporary fictional collection and database; personal presentations,
+corporate packs and model credentials are not required.
+
+## Checks
+
+| Check | What it verifies |
+| --- | --- |
+| Ruff, types and unit tests | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests and JavaScript syntax. |
+| Playwright user journeys and rendering | Readable slides and thumbnails at two laptop sizes; feedback from UI to MCP; saved notes; approval invalidation after agent edits; keyboard navigation and draft recovery; sorter; presentation entry/navigation/exit; private notes hidden from the audience. Existing opt-in sandboxed renderer, interactive-content and DOM tests also run. |
+| Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
+
+The native Codex CLI must accept the HTTP MCP configuration using its invocation
+override. The native Claude Code CLI must register its project-local connection
+in an isolated configuration directory and report a successful server health
+check. Hook tests exercise each adapter's result envelope and generated command;
+they do not simulate host trust or claim an authenticated model session has run.
+
+Model-driven changes, host hook approval/loading, automatic continuation inside a
+signed-in desktop/CLI session, physical displays and the macOS controller still
+need their own application checks. CI does not bypass native trust or start paid
+model requests. The tested client versions are recorded in the artifacts; update
+the matrix versions deliberately when supporting a new client release.
+
+## Run locally
+
+Use an isolated default collection/database before the unit suite imports the app:
+
+```sh
+export SLIDE_STUDIO_COLLECTION="$(mktemp -d)/presentations"
+export SLIDE_STUDIO_DATABASE="$(mktemp -d)/review.sqlite3"
+uv sync --locked --python 3.14
+uv run ruff check studio tests
+uv run ruff format --check studio tests
+uv run basedpyright
+uv run pytest
+node --test tests/*.cjs
+```
+
+Enable the browser and agent suites explicitly:
+
+```sh
+uv run playwright install chromium --only-shell
+SLIDE_STUDIO_BROWSER_TESTS=1 uv run pytest tests/integration/test_browser.py
+SLIDE_STUDIO_AGENT_TESTS=1 uv run pytest tests/integration/test_agents.py
+SLIDE_STUDIO_RENDER_TESTS=1 uv run pytest tests/test_visuals.py tests/test_interactive.py tests/test_element_rotation_dom.py
+```
+
+The renderer requires an OS that supports Chromium's sandbox. The browser CI job
+uses an Ubuntu runner and installs Chromium's OS dependencies; renderer failures
+are reported as failures rather than skipped or retried without the sandbox.
+The current managed development container can run the browser user journeys but
+cannot launch the sandbox-required renderer.
+
+For the native checks, install the two exact package versions from the workflow,
+then run `SLIDE_STUDIO_NATIVE_CLIENT_TESTS=1 uv run pytest
+tests/integration/test_native_clients.py`. Set `SLIDE_STUDIO_NATIVE_CLIENT` to
+`codex` or `claude-code` to select one client, as CI does. Missing executables fail
+an enabled native check; they are not silently skipped.
+
+Set `SLIDE_STUDIO_ARTIFACTS=test-results/integration` to retain per-test server logs,
+browser screenshots, Playwright traces and native client versions. CI uploads
+these and JUnit reports even after a failure, with seven-day retention. View a
+trace with `uv run playwright show-trace path/to/trace.zip`.
+
+## Before committing
+
+Optional local hooks match CI's Ruff checks and the version in `uv.lock`:
+
+```sh
+uvx pre-commit install
+uvx pre-commit run --all-files
+```
+
+Adding a workflow does not change GitHub branch protection. To require these
+checks before merge, select the four CI job names in the repository's branch
+rules after their first successful run.
