@@ -179,6 +179,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS operations (
                     deck TEXT, request_id TEXT, payload_hash TEXT, result TEXT,
                     PRIMARY KEY(deck, request_id));
+                CREATE TABLE IF NOT EXISTS creation_receipts (
+                    deck TEXT PRIMARY KEY, request_id TEXT NOT NULL,
+                    payload_hash TEXT NOT NULL, document TEXT NOT NULL, marker TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS delivery (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER UNIQUE NOT NULL);
                 CREATE TABLE IF NOT EXISTS workflow (
@@ -1021,8 +1024,18 @@ class Store:
         design_id: str = "",
         brief: str = "",
         files: list[FileInput] | None = None,
+        request_id: str = "",
     ) -> Deck:
         """Create a branded starting canvas with a durable brief for the authoring agent."""
+        if request_id and not 8 <= len(request_id) <= 100:
+            raise ValueError("Use a unique request_id of 8–100 characters.")
+        payload_hash = digest(
+            json.dumps(
+                [deck_id, title, design_id, brief, [item.model_dump() for item in files or []]],
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*", deck_id):
             raise ValueError("Use a dated presentation ID: YYYY-MM-DD-short-title.")
         if not title.strip() or len(title) > 160:
@@ -1030,16 +1043,53 @@ class Store:
         brief = brief.strip()
         if len(brief) > 10_000:
             raise ValueError("Keep the presentation brief under 10,000 characters.")
-        decoded = decode_attachments(files or [])
-        design_id = design_id or self.default_design_id()
-        if not design_id:
-            raise ValueError("Add a design from a PPTX, URL or reference before creating slides.")
-        design = self.design(design_id)
         target = self.folder(deck_id)
         with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
+            prior = db.execute(
+                "SELECT request_id,payload_hash,document,marker "
+                "FROM creation_receipts WHERE deck=?",
+                (deck_id,),
+            ).fetchone()
+            if prior and request_id and prior[0] == request_id:
+                if prior[1] != payload_hash:
+                    raise ConflictError(
+                        "This creation request_id was already used with different content."
+                    )
+                if not target.is_dir():
+                    raise ConflictError(
+                        "The recorded presentation is missing. Read and reconcile before "
+                        "continuing; it was not recreated."
+                    )
+                marker_path = target / ".slide-studio-creation"
+                if (
+                    marker_path.is_symlink()
+                    or not marker_path.is_file()
+                    or marker_path.stat().st_size != 32
+                    or marker_path.read_bytes() != str(prior[3]).encode()
+                ):
+                    raise ConflictError(
+                        "The presentation's creation identity is unavailable or changed. "
+                        "Read and reconcile ownership before continuing."
+                    )
+                return Deck.model_validate_json(cast(str, prior[2]))
             if target.exists():
-                raise ConflictError("That folder already exists. Choose another presentation ID.")
+                raise ConflictError(
+                    "That presentation ID already exists. Read and reconcile its ownership "
+                    "and contents before choosing another ID."
+                )
+            if prior:
+                raise ConflictError(
+                    "This presentation ID has a recorded creation but its folder is missing. "
+                    "Read and reconcile before continuing."
+                )
+            decoded = decode_attachments(files or [])
+            design_id = design_id or self.default_design_id()
+            if not design_id:
+                raise ValueError(
+                    "Add a design from a PPTX, URL or reference before creating slides."
+                )
+            design = self.design(design_id)
             template = self.folder(design.folder_id)
             target.mkdir()
             for name in (
@@ -1135,6 +1185,13 @@ class Store:
             with index.open("a") as file:
                 _ = file.write(
                     f"\n- [{title}]({deck_id}/index.html) · [Context]({deck_id}/README.md)\n"
+                )
+            if request_id:
+                marker = uuid.uuid4().hex
+                _ = (target / ".slide-studio-creation").write_text(marker)
+                _ = db.execute(
+                    "INSERT INTO creation_receipts VALUES (?,?,?,?,?)",
+                    (deck_id, request_id, payload_hash, deck.model_dump_json(), marker),
                 )
         return deck
 

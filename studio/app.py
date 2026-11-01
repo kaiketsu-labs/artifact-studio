@@ -679,14 +679,18 @@ def create_presentation(
     files: list[FileInput] | None = None,
     include_content: bool = False,
     ctx: Context[None, Request] | None = None,
+    request_id: str = "",
 ) -> CreatedDeckReceipt | Deck:
     """Create a branded cover and save the human's brief as context and presentation feedback.
     Read that brief before drafting the full story; choose the slide count to fit the content.
     Returns deck identity and slide IDs; include_content=True returns the full cover source.
     deck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).
     The compact receipt includes workspace_url and private-field-free audience_url for review.
+    Supply a unique request_id (8–100 characters) for exact-payload retries. A recorded
+    retry returns the original creation snapshot, not current content; read the deck to resume.
+    If an ID already exists without a matching receipt, read and reconcile ownership first.
     """
-    deck = store.create(deck_id, title, design_id, brief, files)
+    deck = store.create(deck_id, title, design_id, brief, files, request_id)
     if include_content:
         return deck
     links = workspace_links(deck_id, ctx)
