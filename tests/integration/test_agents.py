@@ -43,6 +43,9 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
             names = {tool.name for tool in tools.tools}
             assert {
                 "get_working_context",
+                "ask_slide_question",
+                "get_slide_questions",
+                "cancel_slide_question",
                 "get_slide",
                 "revise_slide",
                 "read_feedback",
@@ -58,6 +61,22 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
             assert not slide.is_error
             assert slide.structured_content is not None
             assert "expected_hash" in json.dumps(slide.structured_content)
+            source = object_value(slide.structured_content)
+            question = await session.call_tool(
+                "ask_slide_question",
+                {
+                    "deck_id": DECK_ID,
+                    "slide_id": "cover",
+                    "question": "SDK audience question?",
+                    "options": ["Team", "Customers"],
+                    "expected_hash": source["expected_hash"],
+                    "request_id": "sdk-question-001",
+                },
+            )
+            assert not question.is_error
+            questions = await session.call_tool("get_slide_questions", {"deck_id": DECK_ID})
+            assert not questions.is_error and questions.structured_content is not None
+            assert "SDK audience question?" in json.dumps(questions.structured_content)
 
     asyncio.run(connect())
 
@@ -409,6 +428,40 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
         ).fetchone()
     assert acknowledged is not None
     assert acknowledged["feedback_cursor"] == feed["next_cursor"]
+    cursor = feed["next_cursor"]
+    source = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    question = live_app.call(
+        "ask_slide_question",
+        deck_id=DECK_ID,
+        slide_id="cover",
+        question="Which audience should this slide address?",
+        options=["Team", "Customers"],
+        expected_hash=source["expected_hash"],
+        request_id="native-question-001",
+    )
+    _ = dispatch(
+        "PostToolUse",
+        tool_name="mcp__slide_studio__ask_slide_question",
+        tool_input={"deck_id": DECK_ID, "slide_id": "cover"},
+        tool_response=response(question),
+    )
+    answer = live_app.post(
+        f"/api/decks/{DECK_ID}/slides/cover/questions/{question['event_id']}/answer",
+        {"answer": "Customers", "request_id": "native-question-answer"},
+    )
+    assert answer["released"] is False
+    assert not live_app.call("read_feedback", deck_id=DECK_ID, after_delivery_id=cursor)["events"]
+    _ = live_app.post(f"/api/decks/{DECK_ID}/send-batch", {})
+    assert dispatch("Stop")["decision"] == "block"
+    delivered = live_app.call("read_feedback", deck_id=DECK_ID, after_delivery_id=cursor)
+    assert "Customers" in str(delivered["events"])
+    assert live_app.store.feedback_feed(DECK_ID).events[-1].reply_to == question["event_id"]
+    _ = dispatch(
+        "PostToolUse",
+        tool_name="mcp__slide_studio__read_feedback",
+        tool_input={"deck_id": DECK_ID},
+        tool_response=response(delivered),
+    )
     assert dispatch("SessionEnd") == {}
     assert not live_app.store.workflow(DECK_ID).review_connected
     assert live_app.call("get_live_review_status", deck_id=DECK_ID)["status"] == "unavailable"

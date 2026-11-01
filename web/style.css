@@ -217,8 +217,6 @@ summary::-webkit-details-marker{display:none}
 .live-availability.available,.availability.available{color:var(--green)}
 .available::before{background:var(--green)}
 #send-batch{width:100%;margin-top:8px;font-size:12px;background:#f1f6ff;border-color:#d5e2f5}
-.questions-panel{border-left:2px solid #d4a47b;padding:2px 0 1px 11px;margin:0 0 15px}
-.questions-panel h3{font-size:11px;font-weight:600;margin:0 0 7px;color:#817055}
 .question{font-size:12px;line-height:1.5;color:#475569;margin:0 0 9px}
 .agent-panel{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:11px 0;margin:0 0 18px;font-size:12px}
 .agent-panel>summary{display:flex;align-items:center;gap:7px;list-style:none;color:#64748b}

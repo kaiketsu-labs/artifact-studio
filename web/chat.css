@@ -6,9 +6,8 @@
 .discussion .delivery-panel{flex-shrink:0;margin-bottom:12px}
 .discussion .mode-switch{background:#edf1f6;border-radius:9px;padding:3px}
 .discussion .mode-switch button{min-height:35px;border-radius:6px}
-.discussion .questions-panel,.discussion .agent-panel{flex-shrink:0;max-height:24vh;overflow:auto;margin-bottom:12px}
+.discussion .agent-panel{flex-shrink:0;max-height:24vh;overflow:auto;margin-bottom:12px}
 .discussion .agent-panel{border:1px solid #e4e9f1;background:#fff;border-radius:8px;padding:9px 10px}
-.discussion .questions-panel{font-size:12px}
 .discussion>#feedback-list{min-height:60px;flex:1 1 180px;overflow:auto;overscroll-behavior:contain;padding:12px 2px 9px;scroll-padding:12px;display:flex;flex-direction:column;gap:14px}
 .discussion .comment{flex-shrink:0;align-self:flex-start;max-width:94%;padding:10px 12px;margin:0;border:1px solid #e5eaf2;background:#fff;border-radius:13px 13px 13px 4px;box-shadow:0 1px 2px #22365203}
 .discussion .comment.user{align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:13px 13px 4px 13px}
@@ -16,7 +15,8 @@
 .discussion .comment-header{gap:18px;margin-bottom:6px;font-size:9px;color:#7a899e}
 .discussion .comment.user .comment-header{flex-direction:row-reverse}
 .chat-sender{display:inline-flex;align-items:center;gap:6px}
-.chat-reply{font-size:10px;color:var(--subtle,#718096)}
+.chat-reply{display:inline-flex;color:var(--subtle,#718096)}
+.chat-reply .ui-icon{width:14px;height:14px}
 .chat-avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:28px;height:28px;border:1px solid #d4e0f3;border-radius:50%;background:#e5edfc;color:#365f96;vertical-align:middle}
 .chat-avatar.agent{background:#e7f1ec;border-color:#d2e5dc;color:#386b56}
 .chat-avatar .ui-icon{width:17px;height:17px}
@@ -83,5 +83,5 @@
 #feedback-upload-status{color:#6f829d}
 #feedback-error:empty,#feedback-upload-status:empty{display:none}
 @media(min-width:1600px){.discussion{padding:23px 18px 16px}.discussion .comment p,.chat-markdown{font-size:13px}}
-@media(max-width:900px){.discussion{overflow:visible;padding:18px;min-height:350px}.discussion>#feedback-list{max-height:340px;min-height:80px;flex:1 1 auto}.discussion .agent-panel,.discussion .questions-panel{max-height:180px}.discussion .feedback-compose{margin-top:8px}.discussion .comment{max-width:88%}}
+@media(max-width:900px){.discussion{overflow:visible;padding:18px;min-height:350px}.discussion>#feedback-list{max-height:340px;min-height:80px;flex:1 1 auto}.discussion .agent-panel{max-height:180px}.discussion .feedback-compose{margin-top:8px}.discussion .comment{max-width:88%}}
 @media(max-width:600px){.discussion{padding:15px 12px}.chat-file-name{max-width:135px}.discussion .comment{max-width:96%}}
