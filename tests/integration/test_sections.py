@@ -153,3 +153,96 @@ def test_drag_into_a_collapsed_section_and_keyboard_undo(page: Page, live_app: R
     )
     page.keyboard.press("Control+z")
     expect(section(page, "Introduction").locator(".slide-thumb")).to_have_count(2)
+
+
+def test_section_history_and_interleaved_slide_move(
+    page: Page, live_app: RunningApp, artifacts: Path
+) -> None:
+    """Undo and redo section operations and earlier slide moves in chronological order."""
+    _ = live_app.store.add_slide(
+        DECK_ID, Slide(id="closing", title="Closing", html=markup("Closing"))
+    )
+    open_editor(page, live_app)
+    page.locator('.slide-thumb[data-id="next"]').click()
+    page.keyboard.press("Control+ArrowDown")
+    expect(page.locator(".slide-thumb").nth(1)).to_have_attribute("data-id", "closing")
+    add_section(page, "Results")
+    expect(section(page, "Results").locator(".section-toggle")).to_be_focused()
+    page.keyboard.press("Control+z")
+    expect(page.locator(".section-title")).to_have_count(0)
+    page.keyboard.press("Control+Shift+z")
+    expect(section(page, "Results")).to_be_visible()
+    page.get_by_role("button", name="Section options: Results").click()
+    page.get_by_role("menuitem", name="Rename").click()
+    page.locator("#section-name").fill("Decisions")
+    page.locator("#section-submit").click()
+    expect(section(page, "Decisions").locator(".section-toggle")).to_be_focused()
+    page.keyboard.press("Control+z")
+    expect(section(page, "Results")).to_be_visible()
+    page.keyboard.press("Control+y")
+    expect(section(page, "Decisions")).to_be_visible()
+    page.get_by_role("button", name="Section options: Decisions").click()
+    page.get_by_role("menuitem", name="Move up").click()
+    expect(page.locator(".section-title").first).to_have_text("Decisions")
+    expect(section(page, "Decisions").locator(".section-toggle")).to_be_focused()
+    page.keyboard.press("Control+z")
+    expect(page.locator(".section-title").first).to_have_text("Default section")
+    page.keyboard.press("Control+y")
+    expect(page.locator(".section-title").first).to_have_text("Decisions")
+    page.get_by_role("button", name="Section options: Decisions").click()
+    page.get_by_role("menuitem", name="Remove section").click()
+    expect(page.locator(".section-title")).to_have_count(1)
+    expect(page.locator('.slide-thumb[data-id="next"]')).to_be_focused()
+    page.keyboard.press("Control+z")
+    expect(page.locator(".section-title")).to_have_count(2)
+    page.keyboard.press("Control+y")
+    expect(page.locator(".section-title")).to_have_count(1)
+    page.keyboard.press("Control+z")
+    expect(page.locator(".section-title")).to_have_count(2)
+    page.keyboard.press("Control+z")
+    expect(page.locator(".section-title").first).to_have_text("Default section")
+    page.keyboard.press("Control+z")
+    expect(section(page, "Results")).to_be_visible()
+    page.keyboard.press("Control+z")
+    expect(page.locator(".section-title")).to_have_count(0)
+    page.keyboard.press("Control+z")
+    expect(page.locator(".slide-thumb").nth(1)).to_have_attribute("data-id", "next")
+    _ = page.screenshot(path=str(artifacts / "section-history.png"), full_page=True)
+
+
+def test_section_history_rejects_concurrent_changes(page: Page, live_app: RunningApp) -> None:
+    """An external rename must not be overwritten by a stale local undo."""
+    open_editor(page, live_app)
+    add_section(page, "Local")
+    snapshot = live_app.get(f"/api/decks/{DECK_ID}")
+    sections = snapshot["sections"]
+    assert isinstance(sections, list)
+    sections[0]["title"] = "Remote"
+    _ = live_app.post(
+        f"/api/decks/{DECK_ID}/sections",
+        {
+            "slide_ids": ["cover", "next"],
+            "expected_slide_ids": ["cover", "next"],
+            "expected_sections_hash": snapshot["sections_hash"],
+            "sections": sections,
+        },
+    )
+    expect(section(page, "Remote")).to_be_visible(timeout=10000)
+    section(page, "Remote").locator(".section-toggle").focus()
+    page.keyboard.press("Control+z")
+    expect(
+        page.get_by_text("Slide order or sections changed. Undo is no longer available.")
+    ).to_be_visible()
+    current = live_app.get(f"/api/decks/{DECK_ID}")["sections"]
+    assert isinstance(current, list) and current[0]["title"] == "Remote"
+
+
+def test_slide_delete_undo_still_works(page: Page, live_app: RunningApp) -> None:
+    """The shared keyboard handler still restores a deleted slide."""
+    open_editor(page, live_app)
+    page.locator('.slide-thumb[data-id="next"]').click()
+    page.keyboard.press("Delete")
+    expect(page.locator(".slide-thumb")).to_have_count(1)
+    expect(page.locator('.slide-thumb[data-id="cover"]')).to_be_focused()
+    page.keyboard.press("Control+z")
+    expect(page.locator(".slide-thumb")).to_have_count(2)
