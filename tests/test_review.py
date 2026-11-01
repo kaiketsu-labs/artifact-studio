@@ -45,7 +45,10 @@ def test_review_request_is_not_a_hook_connection(
     requested = service.start_live_review(target)
     assert requested["status"] == "awaiting_host_hook" and requested["review_connected"] is False
     assert requested["review_harness"] is None and requested["review_session"] is None
-    assert "guide" in requested and "PostToolUse" in str(requested["next_step"])
+    assert "guide" not in requested and requested["guide_topic"] == "live_review"
+    assert requested["guide_included"] is False and "PostToolUse" in str(requested["next_step"])
+    expanded = service.start_live_review(target, include_guide=True)
+    assert expanded["guide_included"] is True and "One-time setup" in str(expanded["guide"])
     assert service.get_live_review_status(target)["status"] == "unavailable"
     hooks = Reviews(store)
     other_target = "" if target else DECK

@@ -6,13 +6,15 @@ MCP is stateless at the transport level. Agents can still retain context between
 
 | Need | Call |
 | --- | --- |
-| Resume a deck | `get_working_context(deck_id=...)` — complete user rules, that deck's design preferences, short workflow, available designs and presentations. |
+| Resume a deck | `get_working_context(deck_id=..., include_discovery=False)` — complete rules, selected brand, source references and short workflow. Fetch discovery lists separately when needed. |
 | Create a deck | `get_working_context(design_id=...)`, then `create_presentation` with the selected design and brief. Omit design_id to use the default. |
-| Detailed instructions | `get_authoring_guide(topic=...)` — workflow, live_review, visual_review, interactive_html, design_import, design_guide or design_context. |
+| Detailed instructions | `get_authoring_guide(topic=...)` — load a topic once; reuse its `hash` as `known_hash` only while retaining that exact text. |
 | Asset inventory | `get_design_assets(design_id=...)`. |
 | Read a deck's brief | `get_presentation_outline(deck_id=..., include_context=True)` — slide order, hashes/status and the full brief. |
 | Check order/status later | `get_presentation_outline(deck_id=...)` — no slide HTML or conversation history. |
 | Edit one slide | `get_slide`, then `revise_slide` with only changed fields. |
+| Create or reorder | `create_presentation` / `reorder_slides` return deck identity and ordered `slide_ids`, without slide source. |
+| Start automatic review | Read the live_review topic once, then `start_live_review`; its default response contains status and a guide pointer. |
 | Continue reviewing | `read_feedback`/`wait_for_feedback` with `after_delivery_id=next_cursor`. |
 | Add continuation context | `append_presentation_context` with a short Markdown addition and current `context_hash`. |
 
@@ -20,7 +22,9 @@ Read the full brief and relevant `brief_files` attachments before authoring. Att
 
 ## Mutation response compatibility
 
-`add_slide` and `revise_slide` now return a **compact receipt by default**: deck/slide identity, title, revision, concurrency/content hashes, approval, visibility and unseen-change status. This changes the previous default response shape. Clients expecting HTML, notes, sources, agent explanations or feedback must set `include_content=True`, or call `get_slide`. Update integrations that assumed the old response before deploying this version. HTTP workspace responses are unchanged.
+`add_slide` and `revise_slide` return a **compact receipt by default**: deck/slide identity, title, revision, concurrency/content hashes, approval, visibility and unseen-change status. `create_presentation` and `reorder_slides` now also default to receipts containing `id`, `title`, `design_id` and ordered `slide_ids`. They no longer echo the template or the entire reordered deck. Set `include_content=True` for the previous full mutation response; `get_slide` and `get_presentation` remain available for source.
+
+`get_slide` returns complete source, notes, assets and hashes, with `feedback_included=false` and an empty discussion list by default. Use cursor-based `read_feedback` for released comments, or `get_slide(include_feedback=True)` for the released slide history. `start_live_review` returns status without the setup guide; use `include_guide=True` for its previous guide field, or load the live_review topic. These are explicit default-response changes; update clients that relied on those fields. HTTP workspace responses and canonical files are unchanged.
 
 An agent already knows the source it just submitted. Echoing that source and the whole discussion wastes input tokens on its next turn. A receipt acknowledges the saved revision without this repetition. It is not proof of visual correctness.
 
@@ -29,6 +33,14 @@ An agent already knows the source it just submitted. Echoing that source and the
 An initial working-context, presentation, outline or feedback read returns complete primary/secondary rules plus `rules_hash`. Subsequent `get_working_context`, `get_presentation`, `get_presentation_outline`, `read_feedback` and `wait_for_feedback` calls may send that `known_rules_hash` **only while the agent retains those exact rules**. The same hash is reusable across these tools and presentations in the workspace. An exact match sets `rules_included=false` and returns empty `authoring_instructions`/`learned_preferences` fields instead of repeating their text. Presentation briefs, slide content and other requested fields are still returned normally. A different hash always delivers the new rules in full. Omit the hash after compaction, restart or loss of context until the rules have been read again. Primary instructions are never summarized or truncated.
 
 Delivery cursors still govern released feedback; unchanged-rule omission never releases Batch comments or unsent drafts. Design preferences remain available in working context and its full variant.
+
+## Retain guides and queued requests separately
+
+Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Expanded context remains explicitly available and still includes its requested guides and inventory.
+
+`include_discovery=False` omits unrelated presentation, design and library lists and sets `discovery_included=false`. It preserves the selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages. Use `list_presentations`, `list_designs` or `list_libraries` when discovering new work. The default remains `True` for existing integrations.
+
+Feedback reads and waits return `design_requests_hash` and `design_requests_included`. Supply `known_design_requests_hash` only while retaining that exact queued-request snapshot. The unchanged list is then omitted; additions, edits or removals return a new snapshot, including an empty list when the queue clears. An unchanged retained queue no longer makes a wait return immediately. This is not an acknowledgement: reply with `status="working"` when taking up a request. Never compare design event IDs with feedback delivery cursors. Feedback and design retention are independent of rule retention.
 
 ## Keep binaries out of model text
 
@@ -49,3 +61,22 @@ Tokenization depends on the model. Use a named tokenizer as an estimate and comp
 Compact JSON often helps structured coordinates, but it is not always smaller than prose: “Delete this element” can be shorter than an action object. Prefer clear structured edit intent for precision; remove repeated HTML, history, guides and binary text first. Small HTML edits may still require submitting the changed slide's full HTML field. There is no arbitrary HTML fragment patch protocol in this version.
 
 The test suite checks compact/full responses, transport serialization, exact rule-version handling, withheld feedback, safe context appends and embedded-asset retries. Performance audits should record aggregate counts without committing presentation content or private review data.
+
+## Measured authoring exchange
+
+The November 2026 audit compared main commit `dc4dbbf` with these changes using disposable data: two extra designs, 30 reference decks, a 14-slide target, 18 released discussion messages and one queued design request. This is a synthetic stress fixture, not a claim about typical decks or billed tokens. Counts below are UTF-8 bytes of serialized MCP result JSON, including the compatible text and structured copies. Equal-length checkout paths avoid path-length bias. Each before/after pair uses the same operation and state; the retained-feedback pair uses the same delivery cursor and retained rules in both versions.
+
+| Exchange | Before | After | Reduction | Change |
+| --- | ---: | ---: | ---: | --- |
+| Selected-deck startup | 29,904 | 20,720 | 30.7% | Shorter quickstart; request `include_discovery=False`. Brand, references, queued requests and rules remain. |
+| Repeat startup, rules already retained | 23,428 | 6,443 | 72.5% | Also retain the exact quickstart with `known_guide_hash`; preferences and references still return. |
+| Start live review | 19,008 | 1,390 | 92.7% | Status and guide pointer instead of repeating the loaded guide. |
+| Create a presentation | 1,313 | 315 | 76.0% | Deck/slide identities instead of template source. |
+| Reorder the target deck | 200,903 | 769 | 99.6% | Ordered IDs instead of every slide's source. |
+| Read a slide for editing | 38,977 | 2,060 | 94.7% | Complete source/notes/hashes; released discussion read through its feed. |
+| Repeat feedback at the same cursor | 6,800 | 846 | 87.6% | Retain the exact queued-design snapshot; do not redeliver it or acknowledge it. |
+| Re-read an unchanged guide | 18,147 | 509 | 97.2% | Exact guide hash returns metadata rather than the text again. |
+
+For this scripted sequence, including call parameter JSON and one tool catalog but excluding the diagnostic full-context read, combined exchange size fell from 476,744 to 175,749 bytes (63.1%). Hashes add a small request cost that is included in this total. The tool catalog grew from 73,838 to 77,190 bytes (4.5%) because the safe controls and inclusion metadata are advertised. Full-detail context and first feedback reads remain complete; their metadata adds a small cost. Slide revision receipts were already compact and stayed at 780 bytes. Do not translate these byte reductions directly into token or billing percentages: tokenization, host selection of content copies and caching differ.
+
+Run the development benchmark with `uv run --no-sync python -m scripts.measure_agent_io --phase after`. It starts a temporary local server and collection and emits aggregate counts under `test-results/`; it never reads a user's collection. To reproduce the baseline, change to a neutral directory (outside both checkouts), then invoke the candidate benchmark script by absolute path with the baseline checkout on `PYTHONPATH` and `--phase before --output /path/to/before.json`. Use an environment with the project's locked dependencies and verify that `studio.__file__` resolves inside the baseline checkout, so you do not accidentally benchmark the candidate twice. Use equal-length checkout paths for strict byte comparisons. The real MCP integration test also records compact/full result sizes and checks that text and structured results agree.

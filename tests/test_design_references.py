@@ -295,6 +295,7 @@ def test_remove_excludes_sources_from_context_downloads_and_snapshots(store: Sto
         },
     ).json()
     source = next(item for item in files if item["name"] == "Private notes.md")
+    startup = service.get_working_context(design_id="test-brand", include_discovery=False)
     body = {"path": source["path"], "expected_version": source["version"]}
     removed = client.post(endpoint + "/remove", json=body)
     assert removed.status_code == 200
@@ -308,6 +309,14 @@ def test_remove_excludes_sources_from_context_downloads_and_snapshots(store: Sto
             service.get_working_context(design_id="test-brand", detail=detail)
         )
     assert "Private notes.md" not in str(service.get_design_assets("test-brand"))
+    cached = service.get_working_context(
+        design_id="test-brand",
+        known_guide_hash=str(startup["guide_hash"]),
+        include_discovery=False,
+    )
+    assert cached["guide_included"] is False
+    assert "Private notes.md" not in str(cached["design_references"])
+    assert "Keep.csv" in str(cached["design_references"])
     assert not any(
         item.path.endswith("Private notes.md") for item in Libraries(store).snapshot_files()
     )
