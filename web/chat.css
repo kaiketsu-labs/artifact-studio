@@ -14,7 +14,12 @@
 .discussion .comment.user{align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:13px 13px 4px 13px}
 .discussion .comment.agent{padding-left:12px;border-left:1px solid #e5eaf2}
 .discussion .comment-header{gap:18px;margin-bottom:6px;font-size:9px;color:#7a899e}
-.discussion .comment-header strong{font-size:10px;color:#4b607d}
+.discussion .comment.user .comment-header{flex-direction:row-reverse}
+.chat-avatar{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:28px;height:28px;border:1px solid #d4e0f3;border-radius:50%;background:#e5edfc;color:#365f96;vertical-align:middle}
+.chat-avatar.agent{background:#e7f1ec;border-color:#d2e5dc;color:#386b56}
+.chat-avatar .ui-icon{width:17px;height:17px}
+.design-message-header{display:flex;align-items:center;margin-bottom:6px}
+.design-message.user .design-message-header{justify-content:flex-end}
 .discussion .comment p{font-size:12px;line-height:1.6;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .discussion .comment p:empty{display:none}
 .discussion .comment{min-width:0;overflow-wrap:anywhere}

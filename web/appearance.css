@@ -7,6 +7,8 @@
 .appearance-menu button:hover,.appearance-menu button:focus-visible{background:#f1f5fb}
 :root[data-theme=light]{color-scheme:light}
 :root[data-theme=dark]{color-scheme:dark;color:#e2e7ef;background:#191c22;--ink:#e2e7ef;--line:#363d49;--subtle:#a4afc0;--orange:#aab8cd;--green:#7bc4a0;--red:#ef9085;--blue:#8babff;--surface:#22262e;--raised:#2b313c;--hover:#323a48;--selected:#2c3f5d;--link:#a2c1ff}
+:root[data-theme=dark] .chat-avatar{background:var(--selected);border-color:#526d93;color:#a2c1ff}
+:root[data-theme=dark] .chat-avatar.agent{background:#253d35;border-color:#456153;color:#a3dbc1}
 :root[data-theme=dark] body{background:#191c22}
 :root[data-theme=dark] :is(.topbar,.rail,.view-toolbar,.workspace.is-sorter .rail-heading,.workspace.is-sorter .rail-foot,.deck-menu,.appearance-menu,.slide-menu,.object-picker,.element-align-menu,.element-tools,dialog){background:var(--surface);color:var(--ink);border-color:var(--line)}
 :root[data-theme=dark] .workspace.is-sorter>.rail{background:#191c22}
