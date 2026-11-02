@@ -11,11 +11,11 @@ from typing import cast
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.libraries import inventory
-from studio.models import EditIntent, ElementTarget, FileInput
-from studio.projects import ClientState, open_project, save_project
-from studio.storage import ConflictError, Store
+from artifact_studio import app as service
+from artifact_studio.libraries import inventory
+from artifact_studio.models import EditIntent, ElementTarget, FileInput
+from artifact_studio.projects import ClientState, open_project, save_project
+from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

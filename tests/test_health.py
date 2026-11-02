@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.storage import Store
 
 
 def test_health_does_not_read_decks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -23,5 +23,5 @@ def test_health_does_not_read_decks(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     client = TestClient(service.app)
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"service": "slide-studio", "status": "ready", "version": "0.1.0"}
+    assert response.json() == {"service": "artifact-studio", "status": "ready", "version": "0.1.0"}
     assert response.headers["cache-control"] == "no-store"

@@ -1,7 +1,7 @@
 /* Apply the saved appearance before styles paint, keeping slide documents independent. */
 ((root)=>{
   'use strict';
-  const key='slide-studio:appearance';
+  const key='artifact-studio:appearance';
   const valid=value=>['light','dark','system'].includes(value)?value:'system';
   /** Follow system appearance until a local choice is saved, including across open tabs. */
   function create({doc,view,storage,media,icons=()=>view.SlideIcons}){

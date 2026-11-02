@@ -1,4 +1,4 @@
-"""End-to-end local HTTP boundaries and scoped agent context for Artifact Hub."""
+"""End-to-end local HTTP boundaries and scoped agent context for Artifact Studio."""
 
 import base64
 from pathlib import Path
@@ -8,10 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
-from studio.artifacts import ArtifactStore
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

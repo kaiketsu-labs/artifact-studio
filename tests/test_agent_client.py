@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from studio import agent_client
-from studio.agent_client import Client, Invocation, execute, read_calls
-from studio.models import SlideReceipt
+from artifact_studio import agent_client
+from artifact_studio.agent_client import Client, Invocation, execute, read_calls
+from artifact_studio.models import SlideReceipt
 
 
 class FakeClient(Client):

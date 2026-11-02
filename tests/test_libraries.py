@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio import libraries as module
-from studio.autosync import QUIET_SECONDS, AutoSync
-from studio.libraries import (
+from artifact_studio import app as service
+from artifact_studio import libraries as module
+from artifact_studio.autosync import QUIET_SECONDS, AutoSync
+from artifact_studio.libraries import (
     Libraries,
     LibraryInput,
     LibrarySyncSettings,
@@ -20,7 +20,7 @@ from studio.libraries import (
     inventory,
     safe_file,
 )
-from studio.storage import Store
+from artifact_studio.storage import Store
 
 
 @pytest.fixture
@@ -153,7 +153,7 @@ def test_unmanaged_collision_and_lock(library_setup: tuple[Libraries, Path]) -> 
     _ = module.git(checkout, "push", "-u", "origin", "main")
     with pytest.raises(ValueError, match="Remote changes"):
         _ = libraries.sync(library.id)
-    assert not (checkout / ".slide-studio-manifest.json").exists()
+    assert not (checkout / ".artifact-studio-manifest.json").exists()
     with libraries.locked(), pytest.raises(ValueError, match="operation is running"):
         _ = libraries.refresh(library.id)
 
@@ -179,7 +179,7 @@ def test_changing_file_does_not_leave_partial_checkout(
     with pytest.raises(ValueError, match="changing during sync"):
         _ = libraries.sync(library.id)
     assert module.git(Path(library.path), "status", "--porcelain") == ""
-    assert not (Path(library.path) / ".slide-studio-manifest.json").exists()
+    assert not (Path(library.path) / ".artifact-studio-manifest.json").exists()
 
 
 def test_automatic_sync_is_explicit_and_durable(library_setup: tuple[Libraries, Path]) -> None:
@@ -188,10 +188,10 @@ def test_automatic_sync_is_explicit_and_durable(library_setup: tuple[Libraries, 
     reference = libraries.register(LibraryInput(location="test/slides"))
     worker = AutoSync(libraries.store)
     worker.tick(100)
-    assert not (Path(reference.path) / ".slide-studio-manifest.json").exists()
+    assert not (Path(reference.path) / ".artifact-studio-manifest.json").exists()
     _ = libraries.register(LibraryInput(location="test/slides", sync_enabled=True))
     worker.tick(200)
-    assert not (Path(reference.path) / ".slide-studio-manifest.json").exists()
+    assert not (Path(reference.path) / ".artifact-studio-manifest.json").exists()
     _ = libraries.configure_sync(reference.id, LibrarySyncSettings(auto_sync_enabled=True))
     worker.tick(300)
     assert worker.state(reference.id).phase == "pending"
@@ -264,7 +264,7 @@ def test_frontend_rules_join_opted_in_auto_sync(
     assert saved.status_code == 200
     worker = AutoSync(libraries.store)
     worker.tick(100)
-    assert not (Path(library.path) / ".slide-studio-manifest.json").exists()
+    assert not (Path(library.path) / ".artifact-studio-manifest.json").exists()
     _ = libraries.configure_sync(library.id, LibrarySyncSettings(auto_sync_enabled=True))
     worker.tick(200)
     worker.tick(200 + QUIET_SECONDS)

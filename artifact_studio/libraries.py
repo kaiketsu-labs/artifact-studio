@@ -400,7 +400,7 @@ class Libraries:
             self.verify_repository(library.location, True)
             self.refresh_checkout(library)
             destination = Path(library.path)
-            manifest = destination / ".slide-studio-manifest.json"
+            manifest = destination / ".artifact-studio-manifest.json"
             previous: dict[str, str] = {}
             if manifest.is_symlink():
                 raise ValueError("The sync manifest cannot be a symbolic link.")

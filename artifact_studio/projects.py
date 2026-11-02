@@ -103,7 +103,7 @@ class OperationRecord(StrictModel):
 class ProjectBundle(StrictModel):
     """Versioned project metadata independent of a particular SQLite database."""
 
-    format: Literal["slide-studio-project"] = "slide-studio-project"
+    format: Literal["artifact-studio-project"] = "artifact-studio-project"
     version: Literal[1] = 1
     deck: Deck
     files: dict[str, ProjectFile]
@@ -335,7 +335,7 @@ def _read_bundle(data: bytes) -> tuple[ProjectBundle, dict[str, bytes]]:
             if any(_hash(content) != bundle.files[name].sha256 for name, content in files.items()):
                 raise ValueError("A project file is damaged or incomplete.")
     except (zipfile.BadZipFile, KeyError, RuntimeError, EOFError) as error:
-        raise ValueError("Choose a valid Slide Studio project file.") from error
+        raise ValueError("Choose a valid Artifact Studio project file.") from error
     if not {"index.html", "theme.css"}.issubset(files):
         raise ValueError("The project is missing its presentation or theme.")
     if len({slide.id for slide in bundle.deck.slides}) != len(bundle.deck.slides):

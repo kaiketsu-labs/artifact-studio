@@ -15,17 +15,17 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 
-from studio.agent_client import object_value
-from studio.design_library import DesignDetail
-from studio.hook_client import configure
-from studio.models import DesignRequestInput, Slide
+from artifact_studio.agent_client import object_value
+from artifact_studio.design_library import DesignDetail
+from artifact_studio.hook_client import configure
+from artifact_studio.models import DesignRequestInput, Slide
 from tests.design_factory import make_design
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 
 pytestmark = [
     pytest.mark.agents,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
+        os.environ.get("ARTIFACT_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
     ),
 ]
 
@@ -39,7 +39,7 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
             ClientSession(read, write, read_timeout_seconds=10) as session,
         ):
             initialized = await session.initialize()
-            assert initialized.server_info.name == "Slide Studio"
+            assert initialized.server_info.name == "Artifact Studio"
             tools = await session.list_tools()
             names = {tool.name for tool in tools.tools}
             assert {
@@ -388,7 +388,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     live_app: RunningApp, artifacts: Path, harness: Literal["codex", "claude-code"]
 ) -> None:
     """Execute the generated launcher over HTTP for both native hook response formats."""
-    configuration = configure(harness, live_app.project, live_app.url, "slide-studio", False)
+    configuration = configure(harness, live_app.project, live_app.url, "artifact-studio", False)
     hooks = object_value(json.loads(configuration.read_text()))["hooks"]
     hook_map = object_value(hooks)
 
@@ -419,7 +419,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     assert (
         dispatch(
             "PostToolUse",
-            tool_name="mcp__slide_studio__start_live_review",
+            tool_name="mcp__artifact_studio__start_live_review",
             tool_input={"deck_id": DECK_ID},
             tool_response=response(start),
         )
@@ -437,7 +437,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     assert (
         dispatch(
             "PostToolUse",
-            tool_name="mcp__slide_studio__get_live_review_status",
+            tool_name="mcp__artifact_studio__get_live_review_status",
             tool_input={"deck_id": DECK_ID},
             tool_response=response(unavailable),
         )
@@ -447,7 +447,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
         assert database.execute("SELECT expires_at FROM review_sessions").fetchone()[0] == expired
     _ = dispatch(
         "PostToolUse",
-        tool_name="mcp__slide_studio__start_live_review",
+        tool_name="mcp__artifact_studio__start_live_review",
         tool_input={"deck_id": DECK_ID},
         tool_response=response(live_app.call("start_live_review", deck_id=DECK_ID)),
     )
@@ -470,7 +470,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     assert (
         dispatch(
             "PostToolUse",
-            tool_name="mcp__slide_studio__read_feedback",
+            tool_name="mcp__artifact_studio__read_feedback",
             tool_input={"deck_id": DECK_ID},
             tool_response=response(feed),
         )
@@ -496,7 +496,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     )
     _ = dispatch(
         "PostToolUse",
-        tool_name="mcp__slide_studio__ask_slide_question",
+        tool_name="mcp__artifact_studio__ask_slide_question",
         tool_input={"deck_id": DECK_ID, "slide_id": "cover"},
         tool_response=response(question),
     )
@@ -513,7 +513,7 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     assert live_app.store.feedback_feed(DECK_ID).events[-1].reply_to == question["event_id"]
     _ = dispatch(
         "PostToolUse",
-        tool_name="mcp__slide_studio__read_feedback",
+        tool_name="mcp__artifact_studio__read_feedback",
         tool_input={"deck_id": DECK_ID},
         tool_response=response(delivered),
     )

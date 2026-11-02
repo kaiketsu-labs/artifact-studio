@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
-from studio.models import ElementGroupTarget, ElementTarget
+from artifact_studio.models import ElementGroupTarget, ElementTarget
 from tests.integration.support import DECK_ID, RunningApp, markup
 from tests.integration.test_browser import open_editor
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -29,7 +29,7 @@ def test_multiple_objects_toggle_restore_and_deliver_as_original_context(
     heading.click()
     expect(page.locator("#element-tools")).to_be_visible()
     expect(page.locator("#selection-box")).to_be_visible()
-    body.click(modifiers=["Meta"])
+    body.click(modifiers=["ControlOrMeta"])
     expect(page.locator("#target-label")).to_have_text("2 objects")
     expect(page.locator("#target-members .target-member")).to_have_count(2)
     expect(page.locator("#group-selection-boxes .element-box")).to_have_count(2)
@@ -39,7 +39,7 @@ def test_multiple_objects_toggle_restore_and_deliver_as_original_context(
     expect(page.locator("#objects-button")).to_have_attribute(
         "title", "Select slide objects · Cmd/Ctrl/Shift-click to add or remove"
     )
-    body.click(modifiers=["Control"])
+    body.click(modifiers=["ControlOrMeta"])
     expect(page.locator("#target-members")).to_be_hidden()
     expect(page.locator("#element-tools")).to_be_visible()
     body.click(modifiers=["Shift"])

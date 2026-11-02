@@ -1,7 +1,7 @@
 /* One browser preference for applying incoming artifact previews. */
 ((root)=>{
   'use strict';
-  const key='slide-studio:auto-update-previews';
+  const key='artifact-studio:auto-update-previews';
   /** Remember the choice while keeping unavailable browser storage harmless. */
   function create({storage,events=root,onChange=()=>{}}={}){
     let enabled=true;

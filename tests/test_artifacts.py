@@ -9,11 +9,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from studio import artifacts as artifact_module
-from studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactTarget
-from studio.artifacts import ArtifactStore
-from studio.models import FileInput
-from studio.storage import ConflictError, Store
+from artifact_studio import artifacts as artifact_module
+from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactTarget
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.models import FileInput
+from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

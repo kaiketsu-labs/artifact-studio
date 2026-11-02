@@ -4,13 +4,13 @@ import os
 
 import pytest
 
-from studio.agent_client import Client, Invocation, execute, object_value
+from artifact_studio.agent_client import Client, Invocation, execute, object_value
 from tests.integration.support import DECK_ID, RunningApp
 
 pytestmark = [
     pytest.mark.agents,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
+        os.environ.get("ARTIFACT_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
     ),
 ]
 

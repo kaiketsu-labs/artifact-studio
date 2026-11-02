@@ -1,21 +1,21 @@
 # Automatic feedback with an existing agent
 
-Slide Studio uses the same stateless MCP server for Codex, Claude Code and other MCP clients. Automatic continuation additionally needs a lifecycle adapter in the agent harness. This app includes project-local or optional user-level command hooks for **Codex** and **Claude Code**. Other clients can still read and revise slides through MCP; they need their own lifecycle adapter for automatic continuation.
+Artifact Studio uses the same stateless MCP server for Codex, Claude Code and other MCP clients. Automatic continuation additionally needs a lifecycle adapter in the agent harness. This app includes project-local or optional user-level command hooks for **Codex** and **Claude Code**. Other clients can still read and revise slides through MCP; they need their own lifecycle adapter for automatic continuation.
 
 The hooks keep an explicitly started review open at the end of an agent response. New Live feedback, a released batch or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
 
 ## One-time setup
 
-Connect the MCP server first, using Streamable HTTP at `http://127.0.0.1:8790/mcp`. The MCP server name defaults to `slide-studio`.
+Connect the MCP server first, using Streamable HTTP at `http://127.0.0.1:8790/mcp`. The MCP server name defaults to `artifact-studio`.
 
-From the Slide Studio checkout, prepare the hooks for the **agent's working project**, not a presentation output folder:
+From the Artifact Studio checkout, prepare the hooks for the **agent's working project**, not a presentation output folder:
 
 ```sh
-uv --no-cache run --no-sync python -m studio.hook_client configure \
+uv --no-cache run --no-sync python -m artifact_studio.hook_client configure \
   --harness codex \
   --project /absolute/path/to/agent-project \
   --url http://127.0.0.1:8790 \
-  --server-name slide-studio \
+  --server-name artifact-studio \
   --dry-run
 ```
 
@@ -34,7 +34,7 @@ Hooks run local commands with your host's permissions. The agent must not bypass
 
 In the connected agent chat, ask:
 
-> Read get_working_context(deck_id=...), then get_authoring_guide(topic="live_review"). Start live review for my presentation with start_live_review(deck_id=...), then check get_live_review_status(deck_id=...). Read get_presentation_outline(deck_id=..., include_context=True), the full brief, relevant brief_files attachments and read_feedback, then address my released feedback. Keep the review open while I use Slide Studio.
+> Read get_working_context(deck_id=...), then get_authoring_guide(topic="live_review"). Start live review for my presentation with start_live_review(deck_id=...), then check get_live_review_status(deck_id=...). Read get_presentation_outline(deck_id=..., include_context=True), the full brief, relevant brief_files attachments and read_feedback, then address my released feedback. Keep the review open while I use Artifact Studio.
 
 Use `start_live_review()` with no deck for the design inbox. The response reports `awaiting_host_hook`: the loaded host hook must register this successful call to opt that session into review. The tool response alone does not prove availability. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
 
@@ -58,7 +58,7 @@ One active hook reviewer owns a presentation at a time; another session is refus
 
 ## How it works and limitations
 
-`PostToolUse` reports successful Slide Studio tool calls and delivery cursors to the local `/api/review/hooks` endpoint. No transcript or reference-file content is forwarded by the hook. `Stop` waits in a local command, long-polling the durable queue without a model request for each poll. Feedback returns the host's `decision: block` with a tool-reading instruction, so the existing review turn continues. The hook renews after about nine quiet minutes through one agent continuation; it is not an unlimited, cost-free background worker.
+`PostToolUse` reports successful Artifact Studio tool calls and delivery cursors to the local `/api/review/hooks` endpoint. No transcript or reference-file content is forwarded by the hook. `Stop` waits in a local command, long-polling the durable queue without a model request for each poll. Feedback returns the host's `decision: block` with a tool-reading instruction, so the existing review turn continues. The hook renews after about nine quiet minutes through one agent continuation; it is not an unlimited, cost-free background worker.
 
 Session end releases the lease; Codex also has an Interrupt hook. The Claude adapter uses the common events supported by the installed 2.1.70 client and omits the newer StopFailure event. After a Claude interruption/API failure or an abrupt process kill, availability can persist until its bounded lease expires; use End review for immediate release. Only another explicit start reconnects an ended review. Local server loss fails open so unrelated agent work can continue. Run only one server against the same state database while testing hooks.
 

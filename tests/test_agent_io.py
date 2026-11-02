@@ -9,8 +9,8 @@ from typing import Literal, cast
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.models import (
+from artifact_studio import app as service
+from artifact_studio.models import (
     Deck,
     DeckReceipt,
     DesignRequestInput,
@@ -19,7 +19,7 @@ from studio.models import (
     SlideReceipt,
     SlideView,
 )
-from studio.storage import Store, digest
+from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

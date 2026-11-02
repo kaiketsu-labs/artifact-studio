@@ -6,10 +6,18 @@ from pathlib import Path
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.models import Deck, Feedback, FileInput, Slide, SlidePatch, SlideReceipt, SlideView
-from studio.projects import ClientState, open_project, save_project
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.models import (
+    Deck,
+    Feedback,
+    FileInput,
+    Slide,
+    SlidePatch,
+    SlideReceipt,
+    SlideView,
+)
+from artifact_studio.projects import ClientState, open_project, save_project
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

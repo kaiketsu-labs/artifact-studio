@@ -7,7 +7,7 @@
 
   function safeHref(value) {
     try {
-      const url = new URL(value, 'https://slide-studio.invalid/');
+      const url = new URL(value, 'https://artifact-studio.invalid/');
       return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? value : '';
     } catch { return ''; }
   }

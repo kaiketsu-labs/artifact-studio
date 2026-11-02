@@ -9,10 +9,10 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.models import DesignRequestInput
-from studio.review import ReviewHookInput, Reviews
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.models import DesignRequestInput
+from artifact_studio.review import ReviewHookInput, Reviews
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 DECK = "2026-10-28-review-check"
@@ -113,7 +113,8 @@ def test_repeated_feedback_after_agent_response(
     pending = reviews.pending(stop)
     assert pending.feedback_available
     assert pending.reason == (
-        f"Slide Studio feedback: call read_feedback(deck_id={DECK!r}, after_delivery_id={cursor})."
+        f"Artifact Studio feedback: call read_feedback(deck_id={DECK!r}, "
+        f"after_delivery_id={cursor})."
     )
     assert store.workflow(DECK).review_connected
 
@@ -125,30 +126,35 @@ def test_repeated_feedback_after_agent_response(
             DECK,
             False,
             False,
-            f"Slide Studio idle renewal: call read_feedback(deck_id={DECK!r}, "
+            f"Artifact Studio idle renewal: call read_feedback(deck_id={DECK!r}, "
             "after_delivery_id=0); read_design_requests(after_event_id=0).",
         ),
         (
             "",
             False,
             False,
-            "Slide Studio idle renewal: call read_design_requests(after_event_id=0).",
+            "Artifact Studio idle renewal: call read_design_requests(after_event_id=0).",
         ),
         (
             DECK,
             True,
             False,
-            f"Slide Studio feedback: call read_feedback(deck_id={DECK!r}, after_delivery_id=0).",
+            f"Artifact Studio feedback: call read_feedback(deck_id={DECK!r}, after_delivery_id=0).",
         ),
-        (DECK, False, True, "Slide Studio feedback: call read_design_requests(after_event_id=0)."),
+        (
+            DECK,
+            False,
+            True,
+            "Artifact Studio feedback: call read_design_requests(after_event_id=0).",
+        ),
         (
             DECK,
             True,
             True,
-            f"Slide Studio feedback: call read_feedback(deck_id={DECK!r}, "
+            f"Artifact Studio feedback: call read_feedback(deck_id={DECK!r}, "
             "after_delivery_id=0); read_design_requests(after_event_id=0).",
         ),
-        ("", False, True, "Slide Studio feedback: call read_design_requests(after_event_id=0)."),
+        ("", False, True, "Artifact Studio feedback: call read_design_requests(after_event_id=0)."),
     ],
 )
 def test_compact_continuation_reads(

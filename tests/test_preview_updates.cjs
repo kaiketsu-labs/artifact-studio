@@ -19,8 +19,8 @@ test('other tabs update the choice and unrelated storage events do not affect it
   const events={addEventListener:(name,fn)=>{listener=fn;},removeEventListener:()=>{removed=true;}};
   const preference=create({storage:{getItem:()=>null},events,onChange:value=>changes.push(value)});
   listener({key:'unrelated',newValue:'false'});assert.equal(preference.enabled,true);
-  listener({key:'slide-studio:auto-update-previews',newValue:'false'});assert.equal(preference.enabled,false);
-  listener({key:'slide-studio:auto-update-previews',newValue:null});assert.equal(preference.enabled,true);
+  listener({key:'artifact-studio:auto-update-previews',newValue:'false'});assert.equal(preference.enabled,false);
+  listener({key:'artifact-studio:auto-update-previews',newValue:null});assert.equal(preference.enabled,true);
   assert.deepEqual(changes,[false,true]);preference.stop();assert.equal(removed,true);
 });
 

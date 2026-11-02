@@ -1,7 +1,7 @@
 /* A local width preference for the desktop conversation pane. */
 ((root) => {
   'use strict';
-  const key = 'slide-studio:chat-width:v1';
+  const key = 'artifact-studio:chat-width:v1';
   const minimum = 280, maximum = 800;
 
   function create({workspace, handle, view, storage}) {

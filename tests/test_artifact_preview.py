@@ -9,22 +9,22 @@ from urllib.parse import urljoin
 import pytest
 from PIL import Image
 
-from studio.artifact_capture import (
+from artifact_studio.artifact_capture import (
     CAPTURE_ORIGIN,
     CAPTURE_URL,
     capture_artifact_image,
     capture_resource,
     capture_resources,
 )
-from studio.artifact_models import ArtifactFileInput, ArtifactView
-from studio.artifact_preview import (
+from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView
+from artifact_studio.artifact_preview import (
     artifact_file_headers,
     artifact_files_url,
     preview_document,
     preview_headers,
 )
-from studio.artifacts import ArtifactStore
-from studio.storage import Store
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.storage import Store
 
 ORIGIN = "http://127.0.0.1:8793"
 
@@ -293,7 +293,7 @@ assert.equal(messages.length, previous);
     )
 
 
-@pytest.mark.skipif(os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
+@pytest.mark.skipif(os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
 def test_isolated_capture_executes_local_modules_and_blocks_outside_requests(
     artifacts: ArtifactStore, tmp_path: Path
 ) -> None:

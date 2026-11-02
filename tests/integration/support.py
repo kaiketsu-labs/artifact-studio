@@ -12,9 +12,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from studio.agent_client import Client, Invocation, object_value
-from studio.models import AgentContext, Slide, SlidePatch
-from studio.storage import Store, digest
+from artifact_studio.agent_client import Client, Invocation, object_value
+from artifact_studio.models import AgentContext, Slide, SlidePatch
+from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -100,8 +100,8 @@ def running_app(root: Path, logs: Path) -> Generator[RunningApp]:
     url = f"http://127.0.0.1:{port}"
     environment = {
         **os.environ,
-        "SLIDE_STUDIO_COLLECTION": str(collection),
-        "SLIDE_STUDIO_DATABASE": str(database),
+        "ARTIFACT_STUDIO_COLLECTION": str(collection),
+        "ARTIFACT_STUDIO_DATABASE": str(database),
     }
     logs.parent.mkdir(parents=True, exist_ok=True)
     with logs.open("w") as output:
@@ -110,7 +110,7 @@ def running_app(root: Path, logs: Path) -> Generator[RunningApp]:
                 sys.executable,
                 "-m",
                 "uvicorn",
-                "studio.app:app",
+                "artifact_studio.app:app",
                 "--host",
                 "127.0.0.1",
                 "--port",

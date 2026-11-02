@@ -8,15 +8,15 @@ from zipfile import ZipFile
 import pytest
 from playwright.sync_api import Browser, Page, Route, expect
 
-from studio.agent_client import object_value
-from studio.libraries import Libraries, Library
+from artifact_studio.agent_client import object_value
+from artifact_studio.libraries import Libraries, Library
 from tests.integration.support import DECK_ID, RunningApp
 from tests.integration.test_browser import open_editor
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -55,7 +55,7 @@ def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: 
     open_editor(page, live_app)
     page.get_by_label("Speaker notes", exact=True).fill("Carry these notes to the next workspace")
     with page.expect_download() as downloaded:
-        page.keyboard.press("Control+s")
+        page.keyboard.press("ControlOrMeta+s")
     with ZipFile(downloaded.value.path()) as archive:
         sources = [name for name in archive.namelist() if name.endswith("index.html")]
         assert sources
@@ -374,9 +374,9 @@ def test_local_reference_folder_stays_read_only(
     libraries = Libraries(live_app.store)
     connected = next(item for item in libraries.list() if item.location == str(reference))
     assert not connected.sync_enabled and not connected.auto_sync_enabled
-    _ = source.write_text("A later edit made outside Slide Studio.")
+    _ = source.write_text("A later edit made outside Artifact Studio.")
     assert libraries.files(connected.id)[0].local_path == str(source)
-    assert source.read_text() == "A later edit made outside Slide Studio."
+    assert source.read_text() == "A later edit made outside Artifact Studio."
     assert sorted(path.name for path in reference.iterdir()) == ["story.md"]
 
 

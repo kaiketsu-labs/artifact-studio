@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.models import AgentContext, FileInput, SlidePatch
-from studio.projects import (
+from artifact_studio import app as service
+from artifact_studio.models import AgentContext, FileInput, SlidePatch
+from artifact_studio.projects import (
     AssetEmbedder,
     ClientState,
     FeedbackDraft,
@@ -18,7 +18,7 @@ from studio.projects import (
     open_project,
     save_project,
 )
-from studio.storage import Store
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
@@ -286,8 +286,8 @@ def test_project_and_export_http_routes_and_cross_origin_guard(
 
 def test_project_copy_restores_deleted_slides_and_private_history(tmp_path: Path) -> None:
     """Carry deleted slides and withheld batch comments into an independent project copy."""
-    from studio.slide_actions import SlideActions
-    from studio.storage import digest
+    from artifact_studio.slide_actions import SlideActions
+    from artifact_studio.storage import digest
 
     make_design(tmp_path / "collection" / TEMPLATE_ID)
     store = Store(tmp_path / "collection", tmp_path / "state/review.sqlite3")

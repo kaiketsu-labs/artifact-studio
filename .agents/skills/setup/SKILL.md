@@ -1,9 +1,9 @@
 ---
 name: setup
-description: Set up or repair a local Slide Studio installation, MCP connection and first-deck workflow. Use for Slide Studio onboarding or its setup command, not unrelated project setup.
+description: Set up or repair Artifact Studio, connect an agent through MCP and start an artifact project. Use for Artifact Studio onboarding or its setup command, not unrelated project setup.
 ---
 
-# Set up Slide Studio
+# Set up Artifact Studio
 
 Guide the user to a working local workspace and connected agent. Reuse existing configuration; rerunning setup must not reset data or create duplicate apps, connections, hooks or decks.
 
@@ -17,6 +17,6 @@ Configure this harness's MCP endpoint only if missing, preserving other settings
 
 For requested Live review, load only the [live-review guide](../../../docs/LIVE-REVIEW.md), or its MCP authoring-guide topic. Ask project-local versus user-level scope if not already chosen; default to project-local when no broader scope is requested. Preview configuration, preserve unrelated hooks, follow host trust/reload, then explicitly start review for the intended deck or design inbox. Do not claim Live availability without checking it; hooks cannot wake a closed chat.
 
-Once connected, offer to continue an existing deck or create the first one. For a new deck, obtain its design reference and brief (audience, takeaway and key material/files); do not invent a brand or populate a demo unasked. A design library may be empty. Follow the guide's import workflow and use the copied deck prompt to continue authoring. Keep explanations short, rules shared and audience/content context scoped to that deck. Do not enable GitHub sync, publish content or schedule learning as a side effect of setup.
+Once connected, continue an existing artifact or start a project from the user's brief and intended output. Pages, Markdown, images and bundles need no design pack. For a presentation, obtain its design reference, audience, takeaway and material/files; do not invent a brand or populate a demo unasked. A design library may be empty. Follow the guide's import workflow. Keep explanations short, rules shared and audience/content context scoped to its project. Do not enable GitHub sync, publish content or schedule learning as a side effect of setup.
 
 Finish with the working workspace link, connection status and any single remaining action. Distinguish verified server health, MCP access and Live review; report incomplete checks plainly.

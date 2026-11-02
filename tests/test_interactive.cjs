@@ -9,7 +9,7 @@ test('custom HTML is JSON encoded inside nested opaque sandboxes',()=>{
   assert.match(html,/connect-src 'none'/);
   assert.match(html,/frame-src about:/);
   assert.match(html,/\\u003cscript>/);
-  assert.match(html,/slideStudioCapture/);
+  assert.match(html,/artifactStudioCapture/);
 });
 
 test('status messages require the exact frame, opaque origin, token and known type',()=>{

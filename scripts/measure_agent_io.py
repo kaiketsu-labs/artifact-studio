@@ -5,7 +5,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from studio.models import DesignRequestInput, Slide
+from artifact_studio.models import DesignRequestInput, Slide
 from tests.design_factory import make_design
 from tests.integration.support import DECK_ID, PROJECT, running_app
 
@@ -91,7 +91,7 @@ with (
         )
     call("slide_for_edit", "get_slide", deck_id=DECK_ID, slide_id=current.id)
     current = live.store.read(DECK_ID).slides[-1]
-    from studio.storage import digest
+    from artifact_studio.storage import digest
 
     call(
         "revise",

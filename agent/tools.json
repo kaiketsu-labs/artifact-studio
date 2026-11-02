@@ -536,7 +536,7 @@
     },
     {
       "name": "list_presentations",
-      "description": "List editable Slide Studio decks; older collection presentations remain references.",
+      "description": "List editable Artifact Studio decks; older collection presentations remain references.",
       "input_schema": {
         "properties": {},
         "title": "list_presentationsArguments",

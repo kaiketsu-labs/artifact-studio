@@ -345,7 +345,7 @@ class Store:
         source = (self.folder(deck_id) / "index.html").read_text()
         match = DATA.search(source)
         if match is None:
-            raise ValueError("This presentation has no Slide Studio document yet.")
+            raise ValueError("This presentation has no Artifact Studio document yet.")
         deck = Deck.model_validate_json(match[2])
         if len({slide.id for slide in deck.slides}) != len(deck.slides):
             raise ValueError("Slide IDs must be unique.")
@@ -1098,7 +1098,7 @@ class Store:
                         "The recorded presentation is missing. Read and reconcile before "
                         "continuing; it was not recreated."
                     )
-                marker_path = target / ".slide-studio-creation"
+                marker_path = target / ".artifact-studio-creation"
                 if (
                     marker_path.is_symlink()
                     or not marker_path.is_file()
@@ -1237,7 +1237,7 @@ class Store:
                 )
             if request_id:
                 marker = uuid.uuid4().hex
-                _ = (target / ".slide-studio-creation").write_text(marker)
+                _ = (target / ".artifact-studio-creation").write_text(marker)
                 _ = db.execute(
                     "INSERT INTO creation_receipts VALUES (?,?,?,?,?)",
                     (deck_id, request_id, payload_hash, deck.model_dump_json(), marker),

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from studio import hook_client as client
+from artifact_studio import hook_client as client
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
@@ -20,9 +20,9 @@ def test_configure_merge_and_quote(
     )
     target.parent.mkdir()
     target.write_text(json.dumps({"other": 1, "hooks": {"Stop": [{"hooks": []}]}}))
-    client.configure(harness, tmp_path, "http://127.0.0.1:8790", "slide studio", False)
+    client.configure(harness, tmp_path, "http://127.0.0.1:8790", "artifact studio", False)
     before = target.read_text()
-    client.configure(harness, tmp_path, "http://127.0.0.1:8790", "slide studio", False)
+    client.configure(harness, tmp_path, "http://127.0.0.1:8790", "artifact studio", False)
     assert target.read_text() == before
     data = json.loads(before)
     assert data["other"] == 1
@@ -44,7 +44,7 @@ def test_configure_global(
     """Write user-level hooks so a session in any folder can join live review."""
     monkeypatch.setattr(client.shutil, "which", lambda _: "/tmp/uv")  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     monkeypatch.setattr(client.Path, "home", lambda: tmp_path)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
-    target = client.configure(harness, None, "http://127.0.0.1:8790", "slide-studio", False)
+    target = client.configure(harness, None, "http://127.0.0.1:8790", "artifact-studio", False)
     assert target == tmp_path / path
     assert set(json.loads(target.read_text())["hooks"]) >= {"PostToolUse", "Stop", "SessionEnd"}
 
@@ -55,7 +55,7 @@ def test_migrate_cache_dependent_hooks(
 ) -> None:
     """Replace legacy launchers without duplicate listeners or lost unrelated hooks."""
     monkeypatch.setattr(client.shutil, "which", lambda _: "/tmp/uv")  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
-    target = client.configure(harness, tmp_path, "http://localhost:8790", "slide-studio", False)
+    target = client.configure(harness, tmp_path, "http://localhost:8790", "artifact-studio", False)
     data = json.loads(target.read_text())
     unrelated = {"type": "command", "command": "echo keep-this", "timeout": 1}
     for groups in data["hooks"].values():
@@ -66,7 +66,7 @@ def test_migrate_cache_dependent_hooks(
         groups[0]["hooks"].append(unrelated)
     data["other"] = {"keep": True}
     target.write_text(json.dumps(data))
-    _ = client.configure(harness, tmp_path, "http://localhost:8799", "slide-studio", False)
+    _ = client.configure(harness, tmp_path, "http://localhost:8799", "artifact-studio", False)
     migrated = json.loads(target.read_text())
     assert migrated["other"] == {"keep": True}
     for groups in migrated["hooks"].values():
@@ -76,7 +76,7 @@ def test_migrate_cache_dependent_hooks(
         assert "--no-cache" in shlex.split(handlers[1]["command"])
         assert "http://localhost:8799" in shlex.split(handlers[1]["command"])
     before = target.read_text()
-    _ = client.configure(harness, tmp_path, "http://localhost:8799", "slide-studio", False)
+    _ = client.configure(harness, tmp_path, "http://localhost:8799", "artifact-studio", False)
     assert target.read_text() == before
 
 
@@ -84,7 +84,7 @@ def test_normalize_cursors_and_failures() -> None:
     """Bind only successful matching tools and retain observed cursors."""
     payload: dict[str, object] = {
         "session_id": "s",
-        "tool_name": "mcp__slide_studio__get_presentation",
+        "tool_name": "mcp__artifact_studio__get_presentation",
         "tool_input": {"deck_id": "d"},
         "tool_response": {
             "structuredContent": {
@@ -93,35 +93,36 @@ def test_normalize_cursors_and_failures() -> None:
             }
         },
     }
-    assert "seen_cursor" not in client.normalize("codex", "PostToolUse", "slide-studio", payload)
-    payload["tool_name"] = "mcp__slide-studio__read_feedback"
+    assert "seen_cursor" not in client.normalize("codex", "PostToolUse", "artifact-studio", payload)
+    payload["tool_name"] = "mcp__artifact-studio__read_feedback"
     payload["tool_response"] = {"content": [{"type": "text", "text": '{"next_cursor": 7}'}]}
-    assert client.normalize("codex", "PostToolUse", "slide-studio", payload)["seen_cursor"] == 7
+    assert client.normalize("codex", "PostToolUse", "artifact-studio", payload)["seen_cursor"] == 7
     for harness in ("codex", "claude-code"):
         for shape in ('{"next_cursor": 7}', [{"type": "text", "text": '{"next_cursor": 7}'}]):
             payload["tool_response"] = shape
             assert (
-                client.normalize(harness, "PostToolUse", "slide-studio", payload)["seen_cursor"]
+                client.normalize(harness, "PostToolUse", "artifact-studio", payload)["seen_cursor"]
                 == 7
             )
         payload["tool_response"] = "not json"
-        assert client.normalize(harness, "PostToolUse", "slide-studio", payload) == {}
+        assert client.normalize(harness, "PostToolUse", "artifact-studio", payload) == {}
     payload["tool_response"] = {"content": [{"type": "text", "text": '{"next_cursor": 7}'}]}
-    payload["tool_name"] = "mcp__slide_studio__read_design_requests"
+    payload["tool_name"] = "mcp__artifact_studio__read_design_requests"
     payload["tool_input"] = {}
     assert (
-        client.normalize("codex", "PostToolUse", "slide-studio", payload)["seen_design_cursor"] == 7
+        client.normalize("codex", "PostToolUse", "artifact-studio", payload)["seen_design_cursor"]
+        == 7
     )
     payload["tool_response"] = {"isError": True, "structuredContent": {"next_cursor": 8}}
-    assert client.normalize("codex", "PostToolUse", "slide-studio", payload) == {}
-    payload["tool_name"] = "mcp__slide_studio_extra__read_feedback"
-    assert client.normalize("codex", "PostToolUse", "slide-studio", payload) == {}
+    assert client.normalize("codex", "PostToolUse", "artifact-studio", payload) == {}
+    payload["tool_name"] = "mcp__artifact_studio_extra__read_feedback"
+    assert client.normalize("codex", "PostToolUse", "artifact-studio", payload) == {}
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
     """Keep quiet polls local, forward one wake-up and release unbound sessions."""
-    reason = "Slide Studio feedback: call read_feedback(deck_id='d', after_delivery_id=7)."
+    reason = "Artifact Studio feedback: call read_feedback(deck_id='d', after_delivery_id=7)."
     results = iter(
         [
             {"listening": True, "feedback_available": False, "reason": "waiting"},
@@ -132,7 +133,7 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
     monkeypatch.setattr(client, "_post", lambda *_: next(results))  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     monkeypatch.setattr(client.time, "sleep", lambda _: None)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     assert client.handle_event(
-        harness, "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
+        harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     ) == {"decision": "block", "reason": reason}
     monkeypatch.setattr(
         client,
@@ -141,7 +142,7 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
     )
     assert (
         client.handle_event(
-            harness, "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
+            harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
         )
         == {}
     )
@@ -150,7 +151,7 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
     """Forward one compact renewal after the bounded local idle wait."""
-    reason = "Slide Studio idle renewal: call read_design_requests(after_event_id=3)."
+    reason = "Artifact Studio idle renewal: call read_design_requests(after_event_id=3)."
     times = iter([0.0, 541.0])
     monkeypatch.setattr(client.time, "monotonic", lambda: next(times))
     monkeypatch.setattr(
@@ -159,7 +160,7 @@ def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: st
         lambda *_: {"listening": True, "feedback_available": False, "reason": reason},  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     )
     result = client.handle_event(
-        harness, "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
+        harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     )
     assert result == {"decision": "block", "reason": reason}
 
@@ -176,10 +177,10 @@ def test_conflicting_reviewer_is_reported(monkeypatch: pytest.MonkeyPatch) -> No
         "claude-code",
         "PostToolUse",
         "http://localhost",
-        "slide-studio",
+        "artifact-studio",
         {
             "session_id": "s",
-            "tool_name": "mcp__slide_studio__start_live_review",
+            "tool_name": "mcp__artifact_studio__start_live_review",
             "tool_input": {"deck_id": "d"},
             "tool_response": {"ok": True},
         },
@@ -201,32 +202,34 @@ def test_matcher_and_malformed_settings(tmp_path: Path, monkeypatch: pytest.Monk
     target.parent.mkdir()
     target.write_text('["keep"]')
     with pytest.raises(ValueError, match="settings must be an object"):
-        client.configure("codex", tmp_path, "http://localhost:8790", "slide-studio", False)
+        client.configure("codex", tmp_path, "http://localhost:8790", "artifact-studio", False)
     assert target.read_text() == '["keep"]'
     target.unlink()
-    client.configure("codex", tmp_path, "http://localhost:8790", "slide-studio", False)
+    client.configure("codex", tmp_path, "http://localhost:8790", "artifact-studio", False)
     data = json.loads(target.read_text())
     matcher = data["hooks"]["PostToolUse"][0]["matcher"]
-    assert re.match(matcher, "mcp__slide_studio__read_feedback")
-    assert re.match(matcher, "mcp__slide-studio__read_feedback")
-    assert not re.match(matcher, "mcp__slide_studio_other__read_feedback")
+    assert re.match(matcher, "mcp__artifact_studio__read_feedback")
+    assert re.match(matcher, "mcp__artifact-studio__read_feedback")
+    assert not re.match(matcher, "mcp__artifact_studio_other__read_feedback")
 
 
 def test_remote_url_and_inbox(tmp_path: Path) -> None:
     """Reject remote endpoints and bind an empty-deck live review to the inbox."""
     with pytest.raises(ValueError, match="local HTTP"):
-        client.configure("codex", tmp_path, "http://example.com", "slide-studio", True)
+        client.configure("codex", tmp_path, "http://example.com", "artifact-studio", True)
     assert (
         client.handle_event(
-            "codex", "Stop", "http://example.com", "slide-studio", {"session_id": "s"}
+            "codex", "Stop", "http://example.com", "artifact-studio", {"session_id": "s"}
         )
         == {}
     )
     event: dict[str, object] = {
         "session_id": "s",
-        "tool_name": "mcp__slide_studio__start_live_review",
+        "tool_name": "mcp__artifact_studio__start_live_review",
         "tool_input": {"deck_id": ""},
         "tool_response": {"structuredContent": {"ok": True}},
     }
-    assert client.normalize("codex", "PostToolUse", "slide-studio", event)["deck_id"] is None
-    assert client.normalize("codex", "PostToolUse", "slide-studio", event)["start_review"] is True
+    assert client.normalize("codex", "PostToolUse", "artifact-studio", event)["deck_id"] is None
+    assert (
+        client.normalize("codex", "PostToolUse", "artifact-studio", event)["start_review"] is True
+    )

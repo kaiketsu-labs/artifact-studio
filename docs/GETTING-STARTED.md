@@ -1,6 +1,6 @@
-# Set up and use Slide Studio
+# Set up and use Artifact Studio
 
-Create and review related artifacts with an existing AI agent. The home page is the **Artifact Hub**: a visual library of presentations, HTML pages, Markdown documents, images and other files, grouped by project. Each artifact opens with its own preview and conversation. Agents connect through **stateless Streamable HTTP MCP**; local files and review history persist between connections.
+Create and review related artifacts with an existing AI agent. The home page is the **Library**: a visual library of presentations, HTML pages, Markdown documents, images and other files, grouped by project. Each artifact opens with its own preview and conversation. Agents connect through **stateless Streamable HTTP MCP**; local files and review history persist between connections.
 
 General artifacts need no design pack or fixed template. The viewer supports authored HTML/CSS/JavaScript bundles, safe Markdown rendering and images at their original proportions. **Design packs and example presentations are not bundled.** For presentations, add a design from a PPTX, website, PDF or reference images. PowerPoint files remain reference inputs; the app creates HTML presentations and does not export PPTX.
 
@@ -13,7 +13,7 @@ Clone the repository using Git, then open its folder as your agent's working pro
 | Claude Code | `/setup` — bundled project command |
 | Codex | `$setup` — bundled repository skill |
 
-These use the same [setup workflow](../.agents/skills/setup/SKILL.md). It checks what is already installed, guides the missing setup, connects MCP and helps you start a deck. You can provide preferences with the command, such as “use the Mac menu-bar app and start at login”. It preserves existing workspaces and settings. If the command is not listed, reload the agent session; from another working folder, ask it to read this checkout's `.agents/skills/setup/SKILL.md` by absolute path.
+These use the same [setup workflow](../.agents/skills/setup/SKILL.md). It checks what is already installed, guides the missing setup, connects MCP and helps you start a project or artifact. You can provide preferences with the command, such as “use the Mac menu-bar app and start at login”. It preserves existing workspaces and settings. If the command is not listed, reload the agent session; from another working folder, ask it to read this checkout's `.agents/skills/setup/SKILL.md` by absolute path.
 
 The syntax follows [Codex skill invocation](https://learn.chatgpt.com/docs/build-skills) and [Claude Code project commands](https://code.claude.com/docs/en/slash-commands). `/setup` is a Claude Code command, not a browser-chat command or a universal MCP feature. Native trust/reload steps may need your interaction. Manual setup follows below.
 
@@ -22,8 +22,8 @@ The syntax follows [Codex skill invocation](https://learn.chatgpt.com/docs/build
 You need [Git](https://git-scm.com/) and [uv](https://docs.astral.sh/uv/getting-started/installation/). The repository is private, so your GitHub account needs access. Node.js, GitHub CLI and an AI API key are **not required to run the app**. Your existing agent supplies the AI connection.
 
 ```sh
-git clone https://github.com/kaiketsu-labs/slide-studio.git
-cd slide-studio
+git clone https://github.com/kaiketsu-labs/artifact-studio.git
+cd artifact-studio
 uv python install 3.14
 uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
@@ -39,25 +39,25 @@ Use one startup method for this workspace. Both serve the same browser app and M
 
 ### Mac menu-bar app
 
-Requires macOS 13+ and Apple's Command Line Tools. If needed, install the tools with `xcode-select --install` and wait for that installation to finish. From the Slide Studio checkout, run:
+Requires macOS 13+ and Apple's Command Line Tools. If needed, install the tools with `xcode-select --install` and wait for that installation to finish. From the Artifact Studio checkout, run:
 
 ```sh
 uv run --no-sync python scripts/install_macos.py --launch-at-login
 ```
 
-If you already started the server in Terminal, stop it with **Ctrl+C** first. Open `~/Applications/Slide Studio.app` in Finder, then choose **Open Slide Studio** from the slide-stack icon beside the clock. The app starts the server and registers login startup; approve it in System Settings if macOS asks.
+If you already started the server in Terminal, stop it with **Ctrl+C** first. Open `~/Applications/Artifact Studio.app` in Finder, then choose **Open Artifact Studio** from the artifact icon beside the clock. The app starts the server and registers login startup; approve it in System Settings if macOS asks.
 
 A green status dot means the server is responding. Start, Stop and Restart control the server owned by this app. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
 
 ### Terminal
 
-From the Slide Studio checkout:
+From the Artifact Studio checkout:
 
 ```sh
-uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
+uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
 ```
 
-Keep that Terminal running, then open [Slide Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
+Keep that Terminal running, then open [Artifact Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
 
 ### Designs and work
 
@@ -65,19 +65,19 @@ The sidebar’s **Designs** opens registered design packs and their examples, wi
 
 ### Storage locations
 
-By default, presentations, project briefs and owned artifact bundles go in `~/Documents/Presentations`; review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
+By default, presentations, project briefs and owned artifact bundles go in `~/Documents/Artifacts`; review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
 
 ```sh
-SLIDE_STUDIO_COLLECTION="$HOME/Documents/My Slides" \
-SLIDE_STUDIO_DATABASE="$HOME/Documents/Slide Studio State/review.sqlite3" \
-uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
+ARTIFACT_STUDIO_COLLECTION="$HOME/Documents/My Slides" \
+ARTIFACT_STUDIO_DATABASE="$HOME/Documents/Artifact Studio State/review.sqlite3" \
+uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
 ```
 
 Bind the service to `127.0.0.1`. It is a trusted local workspace, without multi-user authentication.
 
 ## Connect your agent
 
-Keep Slide Studio running. In an MCP-compatible agent, add this server:
+Keep Artifact Studio running. In an MCP-compatible agent, add this server:
 
 | Setting | Value |
 | --- | --- |
@@ -87,13 +87,13 @@ Keep Slide Studio running. In an MCP-compatible agent, add this server:
 For Codex CLI:
 
 ```sh
-codex mcp add slide-studio --url http://127.0.0.1:8790/mcp
+codex mcp add artifact-studio --url http://127.0.0.1:8790/mcp
 ```
 
 For [Claude Code](https://code.claude.com/docs/en/mcp), run from the project where you will review slides:
 
 ```sh
-claude mcp add --transport http slide-studio http://127.0.0.1:8790/mcp
+claude mcp add --transport http artifact-studio http://127.0.0.1:8790/mcp
 ```
 
 Use a new agent session if the newly added server is not visible in the current one. From the hub, **… → Presentation tools** opens the existing editor. Its **Menu → Connect an agent** provides a copyable presentation prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
@@ -106,13 +106,13 @@ Ask the connected agent to call `get_working_context(deck_id=...)` when resuming
 
 In the presentation editor, open **Menu → Instructions** to edit **Workspace rules** with rich text. Expand **Learned preferences** for secondary guidance. Click **Save** to write the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`; conflicts with another editor are reported without replacing either document. Applicable rules guide projects and artifacts, and learned guidance never overrides explicit workspace rules. Presentation-only requirements remain specific to presentations. Both are included in subsequent MCP context and feedback reads. Enabled GitHub auto-sync includes the saved files; reference-only connections do not upload them. Each presentation keeps its audience, client, content and brief in its own README. Advanced Markdown uses a source editor when needed to preserve formatting.
 
-The bundled `$slide-studio-learn` skill can review relevant human transcripts and released feedback weekly. Scheduling belongs to your agent harness; installing Slide Studio does not create a schedule automatically. Explicit rules stay primary, and each learned preference records its evidence and scope. [Invocation and weekly setup](PREFERENCE-LEARNING.md).
+The bundled `$artifact-studio-learn` skill can review relevant human transcripts and released feedback weekly. Scheduling belongs to your agent harness; installing Artifact Studio does not create a schedule automatically. Explicit rules stay primary, and each learned preference records its evidence and scope. [Invocation and weekly setup](PREFERENCE-LEARNING.md).
 
 ## Create and review an artifact project
 
 The library shows all existing artifacts. Use project filters, format tabs and search to find work. Preview cards contain cached rendered images; unavailable captures use a format fallback. Existing decks open in their established slide editor, and direct `/?deck=...` links remain valid.
 
-![Artifact Hub with fictional projects and rendered preview cards.](assets/artifact-hub.png)
+![Artifact Studio with fictional projects and rendered preview cards.](assets/artifact-hub.png)
 
 Choose **New project** to save a title and optional shared brief. Choose **Import**, select the project, and add files or a folder. **Open first** selects the entrypoint; type detection chooses a viewer. Browser import currently accepts up to 1,000 files and 100 MB at once. Sources can include arbitrary HTML, CSS, JavaScript, SVG, images, fonts, data and native files. Importing never executes build or installation scripts.
 
@@ -150,7 +150,7 @@ For visual inspection, agents can call `capture_artifact` with viewport dimensio
 An empty workspace on first launch is expected.
 
 1. From the hub, open **… → New presentation**. The existing editor also has **Menu → New presentation**. The hub's separate **New project** action creates a shared artifact project.
-2. Click **+** beside **Design library**. Send a PPTX, URL or reference files through the design chat. Then tell your connected agent: **“Read my pending design request in Slide Studio, inspect the reference, and build and register the design.”** If the request stays **Queued**, resume the agent with that prompt; connecting an agent alone does not keep it listening. You can also provide the reference directly in the agent's chat. [Design import details](DESIGN-PACKS.md).
+2. Click **+** beside **Design library**. Send a PPTX, URL or reference files through the design chat. Then tell your connected agent: **“Read my pending design request in Artifact Studio, inspect the reference, and build and register the design.”** If the request stays **Queued**, resume the agent with that prompt; connecting an agent alone does not keep it listening. You can also provide the reference directly in the agent's chat. [Design import details](DESIGN-PACKS.md).
 3. Once the design appears, select it. Enter a title and a brief: audience, intended takeaway and key material. The **paperclip beside Brief** attaches reference files, up to five files, 25 MB each and 50 MB total.
 4. Click **Create presentation**. This creates one branded draft cover and saves the brief and files for the agent; it does not generate the rest of the presentation automatically.
 5. Use the **Menu → Connect an agent → Copy agent prompt**, paste it into your connected agent's chat, and ask it to draft the presentation. Review the slides as the agent updates them.
@@ -224,15 +224,15 @@ In the presentation editor, use **Menu → Project files** for **Save project**,
 | Design folders in the collection | Brand styling, assets, supplied master and reusable examples. |
 | `.state/` by default | Review database, approvals, feedback, removal/default-design settings, design-chat attachments and reference-library state. |
 
-Back up **both the collection and the state folder**. If you override `SLIDE_STUDIO_DATABASE`, back up that database and its containing state folder instead of assuming `.state/`. Browser-local unfinished drafts are separate from saved server data. Removing a presentation from the selector changes local visibility; it does not delete its folder or unregister its design. Older HTML/PPTX files can be used as references, but only compatible Slide Studio decks appear in the editable selector.
+Back up **both the collection and the state folder**. If you override `ARTIFACT_STUDIO_DATABASE`, back up that database and its containing state folder instead of assuming `.state/`. Browser-local unfinished drafts are separate from saved server data. Removing a presentation from the selector changes local visibility; it does not delete its folder or unregister its design. Older HTML/PPTX files can be used as references, but only compatible Artifact Studio decks appear in the editable selector.
 
 ## Optional reference libraries and private sync
 
 From **… → Presentation tools**, open **Menu → Reference libraries**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
 
-GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login` and `gh auth setup-git`. New connections are **reference only**: agents can use earlier presentations for tone, design and context. Enable **Back up all presentations** beside the repository, or **Back up automatically** when connecting it, to upload saved workspace files to a **private** repository. Changes are grouped after eight quiet seconds while Slide Studio is running; delivery resumes on the next launch. The storage icon beside Menu shows delivery status even with the dialog closed; open it for the destination timestamp and retry control. Existing manual destinations retain their current-deck and collection upload buttons until you change the setting. Local files remain the working copy. This is one-way versioned storage; private review state is excluded. See [reference and sync behavior](REPOSITORY-SYNC.md) for conflicts, exclusions and recovery.
+GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login` and `gh auth setup-git`. New connections are **reference only**: agents can use earlier presentations for tone, design and context. Enable **Back up all presentations** beside the repository, or **Back up automatically** when connecting it, to upload saved workspace files to a **private** repository. Changes are grouped after eight quiet seconds while Artifact Studio is running; delivery resumes on the next launch. The storage icon beside Menu shows delivery status even with the dialog closed; open it for the destination timestamp and retry control. Existing manual destinations retain their current-deck and collection upload buttons until you change the setting. Local files remain the working copy. This is one-way versioned storage; private review state is excluded. See [reference and sync behavior](REPOSITORY-SYNC.md) for conflicts, exclusions and recovery.
 
-The Artifact Hub does not broaden this established presentation backup scope to new multi-artifact projects.
+The Artifact Studio does not broaden this established presentation backup scope to new multi-artifact projects.
 
 ## Update an existing installation
 
@@ -271,8 +271,8 @@ Restart the server from the Mac menu, or stop the Terminal server with Ctrl+C an
 uv sync --locked --python 3.14
 uv run pytest
 uv run basedpyright
-uv run ruff check studio tests
-uv run ruff format --check studio tests
+uv run ruff check artifact_studio tests
+uv run ruff format --check artifact_studio tests
 node --test tests/*.cjs
 ```
 

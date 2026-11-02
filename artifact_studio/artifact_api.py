@@ -101,7 +101,7 @@ def import_upload(artifacts: ArtifactStore, body: ArtifactImport) -> ArtifactVie
 
 def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     """Build routes with a late-bound store so isolated workspaces remain testable."""
-    router = APIRouter(tags=["Artifact Hub"])
+    router = APIRouter(tags=["Artifact Studio"])
 
     def artifacts() -> ArtifactStore:
         """Use the currently configured collection and durable review database."""

@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Slide Studio</title>
+  <title>Artifact Studio</title>
   <script src="/web/appearance.js"></script>
-  <link rel="icon" type="image/png" href="/web/brand/mark.png">
+  <link rel="icon" type="image/svg+xml" href="/web/brand/mark.svg">
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/hub-rail.css">
   <link rel="stylesheet" href="/web/objects.css">
@@ -51,11 +51,11 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.png" alt="" width="30" height="30"></span>Slide Studio</a>
+  <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span>Artifact Studio</a>
   <div class="top-actions">
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
     <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
-    <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Slide Studio">
+    <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Artifact Studio">
       <div role="group" aria-label="Files">
         <button id="new-button" type="button" role="menuitem" tabindex="-1" aria-label="New presentation"></button>
         <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Open project"></button>
@@ -210,7 +210,7 @@
   <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button></div>
   <h3 class="project-group-label">Export</h3>
   <div class="project-actions"><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
-  <input id="project-file" type="file" accept=".slide-studio.zip,.zip" hidden>
+  <input id="project-file" type="file" accept=".artifact-studio.zip,.zip" hidden>
   <p id="project-error" class="inline-error" role="alert"></p>
 </dialog>
 <dialog id="instructions-dialog">
@@ -229,7 +229,7 @@
 <dialog id="connect-dialog">
   <header><h2>Connect an agent</h2><button id="close-connect" aria-label="Close"></button></header>
   <details class="connection-details"><summary>Guided setup</summary>
-    <p>Open the Slide Studio checkout in your agent.</p>
+    <p>Open the Artifact Studio checkout in your agent.</p>
     <p><strong>Claude Code</strong> <code>/setup</code> · <strong>Codex</strong> <code>$setup</code></p>
   </details>
   <details class="connection-details"><summary>MCP setup</summary>

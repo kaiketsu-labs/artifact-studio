@@ -1,4 +1,4 @@
-"""Project-local lifecycle hooks for Slide Studio review sessions."""
+"""Project-local lifecycle hooks for Artifact Studio review sessions."""
 
 from __future__ import annotations
 
@@ -48,7 +48,8 @@ def _generated_handler(value: object, harness: str, event: str, server_name: str
     return (
         len(arguments) == 17
         and arguments[1] == "--directory"
-        and arguments[3:9] == ["run", "--no-sync", "python", "-m", "studio.hook_client", "event"]
+        and arguments[3:9]
+        == ["run", "--no-sync", "python", "-m", "artifact_studio.hook_client", "event"]
         and arguments[9:13] == ["--harness", harness, "--event", event]
         and arguments[13] == "--url"
         and arguments[15:] == ["--server-name", server_name]
@@ -116,7 +117,7 @@ def configure(
                 "--no-sync",
                 "python",
                 "-m",
-                "studio.hook_client",
+                "artifact_studio.hook_client",
                 "event",
                 "--harness",
                 harness,
@@ -304,7 +305,7 @@ def main() -> int:
     for subparser in (config, event_parser):
         subparser.add_argument("--harness", required=True, choices=["codex", "claude-code"])
         subparser.add_argument("--url", default="http://127.0.0.1:8790")
-        subparser.add_argument("--server-name", default="slide-studio")
+        subparser.add_argument("--server-name", default="artifact-studio")
     args = parser.parse_args()
     if args.command == "configure":
         try:

@@ -8,7 +8,8 @@ from playwright.sync_api import sync_playwright
 
 
 @pytest.mark.skipif(
-    os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in local Chromium integration"
+    os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1",
+    reason="Opt-in local Chromium integration",
 )
 def test_svg_rotation_pivot_matches_real_dom() -> None:
     """Keep nested SVG rotation correct through viewBox, custom origin, scale and rotation."""

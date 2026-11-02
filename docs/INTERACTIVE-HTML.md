@@ -1,6 +1,6 @@
 # Free HTML, CSS and JavaScript
 
-Slide Studio is a free canvas. Layout examples, design classes, build attributes and the snippets below are suggestions, not a catalogue of permitted compositions. Invent the HTML, SVG, canvas, charts, media, animation and interactions the presentation needs. Preserve the brand language and the human's instructions.
+Artifact Studio is a free canvas. Layout examples, design classes, build attributes and the snippets below are suggestions, not a catalogue of permitted compositions. Invent the HTML, SVG, canvas, charts, media, animation and interactions the presentation needs. Preserve the brand language and the human's instructions.
 
 `add_slide` and `revise_slide` accept two complementary fields:
 
@@ -27,10 +27,10 @@ The optional hooks below let arbitrary custom code expose its readiness and repr
 
 ```js
 // Optional promise for local asynchronous preparation.
-window.slideStudioReady = Promise.resolve();
+window.artifactStudioReady = Promise.resolve();
 
 // Called for capture_slide/capture_contact_sheet and PDF rendering.
-window.slideStudioCapture = async ({mode, elapsed_ms, final, reduced_motion}) => {
+window.artifactStudioCapture = async ({mode, elapsed_ms, final, reduced_motion}) => {
   // Set the requested animation position, or a settled final state.
 };
 ```
@@ -38,7 +38,7 @@ window.slideStudioCapture = async ({mode, elapsed_ms, final, reduced_motion}) =>
 For example, an author could map review time to a metric animation like this; the values and element are illustrative, not a required widget:
 
 ```js
-window.slideStudioCapture = ({elapsed_ms, final}) => {
+window.artifactStudioCapture = ({elapsed_ms, final}) => {
   const progress = final ? 1 : Math.min(1, elapsed_ms / 1500);
   document.getElementById('metric').textContent = Math.round(35 + 60 * progress) + '%';
 };
@@ -55,15 +55,15 @@ Unhandled keys and blank clicks retain slideshow navigation. Text inputs and con
 Custom instances have separate DOMs. To mirror interactive changes between the private current-slide view and the audience, implement a state setter and emit small JSON state when it changes:
 
 ```js
-window.slideStudioSetState = state => {
+window.artifactStudioSetState = state => {
   // Apply state without emitting it again.
 };
 function userChangedSomething(state) {
   // Update this instance, then share only public presentation state.
-  window.slideStudio.emitState(state);
+  window.artifactStudio.emitState(state);
 }
 ```
 
-Slide Studio forwards JSON state (up to 64 KiB) to the other current-slide instances and linked audience window, restores it when revisiting the slide in that presentation session, and passes it to newly opened audience windows. Do not emit from `slideStudioSetState`, which would create an echo. This state is temporary presentation state, not persisted content or an automatic DOM mirror. Without these hooks, custom interactions remain local to each instance. Private notes and conversations are never sent into custom documents.
+Artifact Studio forwards JSON state (up to 64 KiB) to the other current-slide instances and linked audience window, restores it when revisiting the slide in that presentation session, and passes it to newly opened audience windows. Do not emit from `artifactStudioSetState`, which would create an echo. This state is temporary presentation state, not persisted content or an automatic DOM mirror. Without these hooks, custom interactions remain local to each instance. Private notes and conversations are never sent into custom documents.
 
 Always review initial, intermediate and final views at presentation size, including meaningful interactions and reduced-motion behavior. Test author-defined state synchronization when using it. Physical display placement remains a separate hardware check.

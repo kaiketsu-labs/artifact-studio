@@ -67,7 +67,7 @@ def capture_cloud_slide(
         raise ValueError("Use stage -1 for final or 0–50, and elapsed_ms between zero and 5000.")
     original = store.locate(store.read(deck_id), slide_id)
     original_hash = store.content_hash(deck_id, original)
-    with TemporaryDirectory(prefix="slide-studio-copilot-capture-") as temporary:
+    with TemporaryDirectory(prefix="artifact-studio-copilot-capture-") as temporary:
         folder = Path(temporary)
         clone = audience_clone(store, deck_id, folder)
         result = capture(

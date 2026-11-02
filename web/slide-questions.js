@@ -1,7 +1,7 @@
 /* Answerable questions remain in the slide conversation, including their local drafts. */
 ((root)=>{
   'use strict';
-  const storageKey='slide-studio:question-drafts:v1';
+  const storageKey='artifact-studio:question-drafts:v1';
   function answerFor(question,events){return events.find(item=>item.author==='user'&&item.reply_to===question.event_id&&item.slide_id===question.slide_id);}
   function status(question,events){const answer=answerFor(question,events);return answer?(answer.released?'answered':'queued'):question.question?.cancelled?'cancelled':'open';}
   function pending(events){return events.filter(item=>item.author==='agent'&&item.question&&status(item,events)==='open');}

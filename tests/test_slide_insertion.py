@@ -6,11 +6,11 @@ from typing import TypedDict
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.models import DeckSection, Slide, SlideReceipt
-from studio.projects import ClientState, open_project, save_project
-from studio.sections import Sections, sections_hash
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.models import DeckSection, Slide, SlideReceipt
+from artifact_studio.projects import ClientState, open_project, save_project
+from artifact_studio.sections import Sections, sections_hash
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

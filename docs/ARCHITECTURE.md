@@ -1,4 +1,4 @@
-# Artifact Hub — architecture and implementation status
+# Artifact Studio — architecture and implementation status
 
 Status: **first implementation available, 2 November 2026**. The visual library, project/artifact foundation, adaptive viewers, generic MCP tools and versioned review workflow are implemented. The original clickable concept is a design reference; it is no longer the only available artifact interface.
 
@@ -75,7 +75,7 @@ flowchart LR
   F --> H[Human approves reviewed version]
 ```
 
-Implemented generic operations are registered in [studio/artifact_tools.py](../studio/artifact_tools.py). The generated [tool catalogue](../agent/tools.json) reflects runtime registration; [agent/README.md](../agent/README.md) maps the complete contract.
+Implemented generic operations are registered in [artifact_studio/artifact_tools.py](../artifact_studio/artifact_tools.py). The generated [tool catalogue](../agent/tools.json) reflects runtime registration; [agent/README.md](../agent/README.md) maps the complete contract.
 
 | Operation | Responsibility |
 | --- | --- |
@@ -114,7 +114,7 @@ agent/
   guides/artifacts.md             Generic authoring/review guide
   tools.json                      Generated runtime tool catalogue
 .agents/skills/                   Host-discoverable workflows
-studio/
+artifact_studio/
   app.py                          Existing and shared MCP/API integration
   artifact_tools.py               Generic MCP handlers
   artifact_api.py                 Browser API

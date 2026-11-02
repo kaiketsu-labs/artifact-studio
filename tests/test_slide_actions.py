@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.models import Slide
-from studio.slide_actions import SlideActions
-from studio.storage import ConflictError, Store, digest
+from artifact_studio import app as service
+from artifact_studio.models import Slide
+from artifact_studio.slide_actions import SlideActions
+from artifact_studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

@@ -21,7 +21,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .copilot_tools import BOOTSTRAP, register_tools
 from .storage import Store
 
-KEY_HEADER = "X-Slide-Studio-Key"
+KEY_HEADER = "X-Artifact-Studio-Key"
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
 
 
@@ -188,7 +188,7 @@ def create_gateway(config: GatewayConfig, *, store: Store | None = None) -> Gate
     """Create an independent MCP-only ASGI application without changing the local server."""
     key = read_key(config.key_file)
     selected_store = store or Store(config.collection, config.database)
-    server = MCPServer[None]("Slide Studio Copilot", instructions=BOOTSTRAP)
+    server = MCPServer[None]("Artifact Studio Copilot", instructions=BOOTSTRAP)
     register_tools(server, selected_store, config.project_id, config.whole_workspace)
     application = server.streamable_http_app(
         stateless_http=True,

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="web/brand/mark.png" width="104" height="104" alt="Slide Studio logo">
+  <img src="web/brand/mark.svg" width="104" height="104" alt="Artifact Studio logo">
 </p>
 
-<h1 align="center">Slide Studio</h1>
+<h1 align="center">Artifact Studio</h1>
 
 <p align="center">
   A local artifact workspace for you and your agent.<br>
@@ -16,11 +16,11 @@
   <a href="docs/GETTING-STARTED.md">Full guide</a>
 </p>
 
-![Artifact Hub library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
+![Artifact Studio library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
 
 **Local files · Free composition · Stateless MCP · Human approval**
 
-The **Artifact Hub** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
+The **Library** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
 
 | Artifact | Review it in its own format |
 | --- | --- |
@@ -39,8 +39,8 @@ Agents choose their tools, code and layouts. Import a file or folder, or have th
 Requires [Git](https://git-scm.com/), [uv](https://docs.astral.sh/uv/getting-started/installation/) and access to this private repository. Your existing agent supplies the AI connection; the app needs no separate AI API key.
 
 ```sh
-git clone https://github.com/kaiketsu-labs/slide-studio.git
-cd slide-studio
+git clone https://github.com/kaiketsu-labs/artifact-studio.git
+cd artifact-studio
 uv python install 3.14
 uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
@@ -50,7 +50,7 @@ Choose **one** way to run it:
 
 | Mac menu-bar app | Terminal |
 | --- | --- |
-| On macOS 13+ with Apple's Command Line Tools, run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Slide Studio.app`. | Run `uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
+| On macOS 13+ with Apple's Command Line Tools, run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Artifact Studio.app`. | Run `uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
 | Status, Open, Start/Stop/Restart and launch at login. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
 
 Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before switching to the Mac controller. Chromium enables cached rendered previews and agent capture tools; the library can show format fallbacks when no preview is available.
@@ -64,18 +64,18 @@ Both clients use **Streamable HTTP** at `http://127.0.0.1:8790/mcp`.
 **Codex**
 
 ```sh
-codex mcp add slide-studio --url http://127.0.0.1:8790/mcp
+codex mcp add artifact-studio --url http://127.0.0.1:8790/mcp
 ```
 
 **Claude Code** — run from the agent's working project.
 
 ```sh
-claude mcp add --transport http slide-studio http://127.0.0.1:8790/mcp
+claude mcp add --transport http artifact-studio http://127.0.0.1:8790/mcp
 ```
 
 Reload the agent session if the connection is not visible, then start with:
 
-> List the projects and artifacts in Slide Studio. Read the working context for the selected project, then help me make a page and a matching handout from my brief.
+> List the projects and artifacts in Artifact Studio. Read the working context for the selected project, then help me make a page and a matching handout from my brief.
 
 Use `get_working_context(artifact_id=...)` for selected work or `project_id=...` before creating related work. Existing decks also accept `deck_id=...` and retain their design guidance. The [agent contract map](agent/README.md) explains the canonical bootstrap, guides, tools and context receipts.
 
@@ -142,12 +142,12 @@ The hub's **… → Presentation tools** opens the existing editor menu for desi
 
 | What | Default location |
 | --- | --- |
-| Presentations, designs, project briefs and owned artifact bundles | `~/Documents/Presentations/` |
+| Presentations, designs, project briefs and owned artifact bundles | `~/Documents/Artifacts/` |
 | New artifact sources and immutable revisions | `projects/<project-id>/artifacts/<artifact-id>/` inside the collection |
 | Review database and workspace settings | `.state/` inside this checkout |
 | Unsent text and target drafts | Browser-local storage |
 
-Back up **both the collection and the state folder**. Set `SLIDE_STUDIO_COLLECTION` and `SLIDE_STUDIO_DATABASE` to choose other locations. New artifact revisions publish a complete snapshot through an atomic database pointer; a readable `artifact.json` sits beside the working sources. Out-of-band source edits are reconciled into a new revision before review.
+Back up **both the collection and the state folder**. Set `ARTIFACT_STUDIO_COLLECTION` and `ARTIFACT_STUDIO_DATABASE` to choose other locations. New artifact revisions publish a complete snapshot through an atomic database pointer; a readable `artifact.json` sits beside the working sources. Out-of-band source edits are reconciled into a new revision before review.
 
 Presentation **Save/Open project**, **Export HTML** and **Export PDF** remain available. Whole multi-artifact project archives and expanded repository auto-sync are **not implemented**. Existing presentation sync keeps its established scope; creating an artifact project does not opt it into uploads. Repository connections default to reference only. [Presentation exports](docs/PROJECTS.md) · [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
 
@@ -161,7 +161,7 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | --- | --- |
 | [Getting started](docs/GETTING-STARTED.md) | Installation, projects, imports, review, presentations and troubleshooting. |
 | [What agents receive](agent/README.md) | Canonical bootstrap, tool catalogue, guides, skills and context receipts. |
-| [Artifact architecture and remaining scope](docs/ARTIFACT-HUB-PROPOSAL.md) | Implemented foundation and subsequent work. |
+| [Artifact architecture and remaining scope](docs/ARCHITECTURE.md) | Implemented foundation and subsequent work. |
 | [Artifact authoring](agent/guides/artifacts.md) | Free file composition, versioned edits and scoped feedback. |
 | [Mac menu-bar app](docs/MACOS.md) | Server controls, startup and updates. |
 | [Automatic presentation feedback](docs/LIVE-REVIEW.md) | Host hooks, activation and limitations. |
@@ -178,8 +178,8 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 uv sync --locked --python 3.14
 uv run pytest
 uv run basedpyright
-uv run ruff check studio tests
-uv run ruff format --check studio tests
+uv run ruff check artifact_studio tests
+uv run ruff format --check artifact_studio tests
 node --test tests/*.cjs
 ```
 

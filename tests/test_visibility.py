@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.models import SlidePatch
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.models import SlidePatch
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

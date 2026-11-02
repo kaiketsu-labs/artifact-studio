@@ -16,12 +16,18 @@ from fastapi.testclient import TestClient
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView
-from studio.artifacts import ArtifactStore
-from studio.copilot import KEY_HEADER, GatewayConfig, create_gateway, initialize_key, read_key
-from studio.design_library import DesignDelete, DesignLibrary
-from studio.models import Slide, SlidePatch
-from studio.storage import Store
+from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.copilot import (
+    KEY_HEADER,
+    GatewayConfig,
+    create_gateway,
+    initialize_key,
+    read_key,
+)
+from artifact_studio.design_library import DesignDelete, DesignLibrary
+from artifact_studio.models import Slide, SlidePatch
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 HOST = "copilot.example.test"
@@ -130,7 +136,7 @@ def test_initialization_catalog_flat_schemas_and_bootstrap(gateway: GatewayFixtu
             "clientInfo": {"name": "fictional-copilot", "version": "1"},
         },
     )
-    assert object_value(initialized["serverInfo"])["name"] == "Slide Studio Copilot"
+    assert object_value(initialized["serverInfo"])["name"] == "Artifact Studio Copilot"
     assert "no shell" in str(initialized["instructions"])
     listed = [object_value(item) for item in list_value(rpc(gateway.client, "tools/list")["tools"])]
     names = {str(item["name"]) for item in listed}
@@ -506,7 +512,7 @@ def test_existing_local_mcp_remains_independent(
     gateway: GatewayFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Check local registrations without consuming the shared server's single-use lifespan."""
-    from studio import app as local
+    from artifact_studio import app as local
 
     monkeypatch.setattr(local, "store", gateway.store)
     client = TestClient(local.app, base_url="http://127.0.0.1:8790")
@@ -527,7 +533,7 @@ def test_existing_local_mcp_remains_independent(
 
 
 @pytest.mark.skipif(
-    os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in local Chromium rendering"
+    os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1", reason="Opt-in local Chromium rendering"
 )
 def test_actual_capture_images_cross_the_authenticated_mcp_transport(
     gateway: GatewayFixture,
@@ -585,7 +591,7 @@ def test_official_sdk_over_real_loopback_http(gateway: GatewayFixture) -> None:
                     ClientSession(read, write, read_timeout_seconds=10) as session,
                 ):
                     initialized = await session.initialize()
-                    assert initialized.server_info.name == "Slide Studio Copilot"
+                    assert initialized.server_info.name == "Artifact Studio Copilot"
                     listed = await session.list_tools()
                     assert "get_working_context" in {item.name for item in listed.tools}
                     response = await session.call_tool(

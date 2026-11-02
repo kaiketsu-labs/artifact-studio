@@ -13,10 +13,10 @@ PROJECT = Path(__file__).resolve().parents[1]
 async def main() -> None:
     """Initialize the server in a disposable workspace and serialize its real tool schemas."""
     with tempfile.TemporaryDirectory(prefix="artifact-contract-") as directory:
-        os.environ["SLIDE_STUDIO_COLLECTION"] = str(Path(directory) / "collection")
-        os.environ["SLIDE_STUDIO_DATABASE"] = str(Path(directory) / "review.sqlite3")
+        os.environ["ARTIFACT_STUDIO_COLLECTION"] = str(Path(directory) / "collection")
+        os.environ["ARTIFACT_STUDIO_DATABASE"] = str(Path(directory) / "review.sqlite3")
         sys.path.insert(0, str(PROJECT))
-        from studio.app import mcp
+        from artifact_studio.app import mcp
 
         tools = await mcp.list_tools()
         document = {

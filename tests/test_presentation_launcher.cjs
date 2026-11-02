@@ -27,7 +27,7 @@ function fixture({unsupported=false,reject=false,prepare=null,onError=()=>{}}={}
   const launcher=create({button,additionalButtons:[fullscreenButton],doc,view,prepare,onError,onReturn:id=>{returned=id;},onUnavailable:()=>unavailable++});
   const click=(extra={})=>button.handlers.click({button:0,preventDefault(){},...extra});
   const layer=()=>doc.body.children.at(-1),frame=()=>layer().child;
-  const message=(data,extra={})=>handlers.message({source:frame().contentWindow,origin:view.location.origin,data:{type:'slide-studio:presentation',...data},...extra});
+  const message=(data,extra={})=>handlers.message({source:frame().contentWindow,origin:view.location.origin,data:{type:'artifact-studio:presentation',...data},...extra});
   return {doc,handlers,launcher,button,fullscreenButton,sibling,order,messages,classes,click,layer,frame,message,returned:()=>returned,unavailable:()=>unavailable};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));

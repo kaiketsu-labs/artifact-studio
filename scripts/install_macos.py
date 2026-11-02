@@ -1,4 +1,4 @@
-"""Build a native menu-bar controller for an existing local Slide Studio installation."""
+"""Build a native menu-bar controller for an existing local Artifact Studio installation."""
 
 import argparse
 import json
@@ -36,29 +36,27 @@ def install(
     project = Path(__file__).resolve().parent.parent
     python = project / ".venv/bin/python"
     if not python.exists():
-        raise ValueError("Set up Slide Studio first with uv sync --locked --python 3.14.")
+        raise ValueError("Set up Artifact Studio first with uv sync --locked --python 3.14.")
     if destination.suffix != ".app" or destination.exists() or destination.is_symlink():
         raise ValueError("Choose a new .app destination; quit and move an older app aside first.")
     environment = os.environ.copy()
     command_line_tools = Path("/Library/Developer/CommandLineTools")
     if command_line_tools.exists() and "DEVELOPER_DIR" not in environment:
         environment["DEVELOPER_DIR"] = str(command_line_tools)
-    cache = project / ".state/macos-build-cache"
-    cache.mkdir(parents=True, exist_ok=True)
-    environment["CLANG_MODULE_CACHE_PATH"] = str(cache / "clang")
-    environment["SWIFT_MODULECACHE_PATH"] = str(cache / "swift")
     compiler = run("/usr/bin/xcrun", "--find", "swiftc", env=environment)
     sdk = run("/usr/bin/xcrun", "--show-sdk-path", env=environment)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="slide-studio-build-") as staging:
-        name = "Slide Studio QA" if qa else "Slide Studio"
-        bundle_id = "labs.kaiketsu.slide-studio" + (".qa" if qa else "")
+    with tempfile.TemporaryDirectory(prefix="artifact-studio-build-") as staging:
+        environment["CLANG_MODULE_CACHE_PATH"] = str(Path(staging) / "clang-cache")
+        environment["SWIFT_MODULECACHE_PATH"] = str(Path(staging) / "swift-cache")
+        name = "Artifact Studio QA" if qa else "Artifact Studio"
+        bundle_id = "labs.kaiketsu.artifact-studio" + (".qa" if qa else "")
         bundle = Path(staging) / destination.name
         contents = bundle / "Contents"
         resources, binaries = contents / "Resources", contents / "MacOS"
         resources.mkdir(parents=True)
         binaries.mkdir()
-        binary = binaries / "SlideStudio"
+        binary = binaries / "ArtifactStudio"
         _ = run(
             compiler,
             "-swift-version",
@@ -69,7 +67,7 @@ def install(
             f"{platform.machine()}-apple-macos13.0",
             "-sdk",
             sdk,
-            str(project / "macos/SlideStudio.swift"),
+            str(project / "macos/ArtifactStudio.swift"),
             "-framework",
             "AppKit",
             "-framework",
@@ -78,7 +76,7 @@ def install(
             str(binary),
             env=environment,
         )
-        iconset = Path(staging) / "SlideStudio.iconset"
+        iconset = Path(staging) / "ArtifactStudio.iconset"
         iconset.mkdir()
         for size in (16, 32, 128, 256, 512):
             for scale in (1, 2):
@@ -99,7 +97,7 @@ def install(
             "icns",
             str(iconset),
             "-o",
-            str(resources / "SlideStudio.icns"),
+            str(resources / "ArtifactStudio.icns"),
         )
         (contents / "Info.plist").write_bytes(
             plistlib.dumps(
@@ -107,11 +105,11 @@ def install(
                     "CFBundleIdentifier": bundle_id,
                     "CFBundleName": name,
                     "CFBundleDisplayName": name,
-                    "CFBundleExecutable": "SlideStudio",
+                    "CFBundleExecutable": "ArtifactStudio",
                     "CFBundlePackageType": "APPL",
                     "CFBundleShortVersionString": "0.1.0",
                     "CFBundleVersion": "1",
-                    "CFBundleIconFile": "SlideStudio.icns",
+                    "CFBundleIconFile": "ArtifactStudio.icns",
                     "LSMinimumSystemVersion": "13.0",
                     "LSUIElement": True,
                     "NSHighResolutionCapable": True,
@@ -154,9 +152,9 @@ def main() -> None:
     project = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--destination", type=Path, default=Path.home() / "Applications/Slide Studio.app"
+        "--destination", type=Path, default=Path.home() / "Applications/Artifact Studio.app"
     )
-    parser.add_argument("--collection", type=Path, default=Path.home() / "Documents/Presentations")
+    parser.add_argument("--collection", type=Path, default=Path.home() / "Documents/Artifacts")
     parser.add_argument("--database", type=Path, default=project / ".state/review.sqlite3")
     parser.add_argument("--port", type=int, default=8790)
     parser.add_argument("--launch-at-login", action="store_true")
@@ -172,7 +170,7 @@ def main() -> None:
         launch_at_login=args.launch_at_login,
         qa=args.qa,
     )
-    print(f"Installed {args.destination}. Open it in Finder to start Slide Studio.")
+    print(f"Installed {args.destination}. Open it in Finder to start Artifact Studio.")
 
 
 if __name__ == "__main__":

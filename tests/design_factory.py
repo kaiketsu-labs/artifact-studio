@@ -6,7 +6,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from studio.models import Deck, DesignManifest, Slide, Source
+from artifact_studio.models import Deck, DesignManifest, Slide, Source
 
 TEMPLATE_ID = "2026-10-28-test-design"
 PROJECT = Path(__file__).resolve().parents[1]

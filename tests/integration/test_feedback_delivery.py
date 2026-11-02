@@ -7,14 +7,14 @@ from typing import Literal
 import pytest
 from playwright.sync_api import Page, expect
 
-from studio.models import FeedbackFeed
+from artifact_studio.models import FeedbackFeed
 from tests.integration.support import DECK_ID, RunningApp
 from tests.integration.test_browser import open_editor
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 

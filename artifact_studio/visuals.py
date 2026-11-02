@@ -315,7 +315,7 @@ def capture(
                             tab.set_default_timeout(15_000)
                             tab.set_content(item.document, wait_until="load", timeout=15_000)
                             item.frame.diagnostics = Diagnostics.model_validate(
-                                tab.evaluate("() => window.SlideStudioCaptureReady")
+                                tab.evaluate("() => window.ArtifactStudioCaptureReady")
                             )
                             images.append(
                                 tab.screenshot(type="png", animations="allow", timeout=15_000)

@@ -75,7 +75,7 @@ class Client:
             {
                 "protocolVersion": LATEST_PROTOCOL_VERSION,
                 "capabilities": {},
-                "clientInfo": {"name": "slide-studio-agent-client", "version": "1"},
+                "clientInfo": {"name": "artifact-studio-agent-client", "version": "1"},
             },
         )
         protocol = result.get("protocolVersion")

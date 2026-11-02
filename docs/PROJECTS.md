@@ -1,10 +1,10 @@
 # Projects and exports
 
-Open **Menu → Project files**. Your existing presentations already persist locally between agent sessions; project files provide a portable copy you can reopen in another Slide Studio workspace.
+Open **Menu → Project files**. Your existing presentations already persist locally between agent sessions; project files provide a portable copy you can reopen in another Artifact Studio workspace.
 
 | Format | Purpose | Included |
 | --- | --- | --- |
-| `.slide-studio.zip` | Continue editing later or elsewhere | Current slides and order, hidden flags, assets, themes, brief attachments, context documents, speaker notes, chat history and replies, approvals, unread markers, revision history, Live/Batch delivery preference, unreleased Batch comments and unfinished browser/presenter note drafts. |
+| `.artifact-studio.zip` | Continue editing later or elsewhere | Current slides and order, hidden flags, assets, themes, brief attachments, context documents, speaker notes, chat history and replies, approvals, unread markers, revision history, Live/Batch delivery preference, unreleased Batch comments and unfinished browser/presenter note drafts. |
 | `.html` | Share or present an audience version offline | All slides, local images and fonts, CSS animations and interactive reveal steps. Normal navigation skips hidden slides; they remain available through See all slides. No private notes, chats or agent explanations. |
 | PDF | Distribute a static audience version | Every slide, including hidden slides, with reveal steps visible. No private notes or chats. |
 

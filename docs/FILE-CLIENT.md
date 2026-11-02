@@ -1,6 +1,6 @@
 # Apply reviewed files without copying HTML through the model
 
-For a local agent that already has reviewed patch JSON on disk, `studio.agent_client` sends those bytes through the existing stateless MCP tools. The model receives compact receipts instead of reprinting and retransmitting the slide HTML. It works with Codex, Claude Code or another harness that can run local commands.
+For a local agent that already has reviewed patch JSON on disk, `artifact_studio.agent_client` sends those bytes through the existing stateless MCP tools. The model receives compact receipts instead of reprinting and retransmitting the slide HTML. It works with Codex, Claude Code or another harness that can run local commands.
 
 This does not edit canonical files directly, add server tools, change permissions or grant extra authority. Follow the same user authorization and host restrictions as ordinary MCP calls. Never use it to route around denied access. Image results still belong in the host's visual-review tools.
 
@@ -28,7 +28,7 @@ Build this file from the reviewed local draft and its baseline; do not print lar
 Inspect the call identities/fields and obtain the file hash without sending anything:
 
 ```sh
-uv run python -m studio.agent_client --calls-file /absolute/path/reviewed-calls.json --describe
+uv run python -m artifact_studio.agent_client --calls-file /absolute/path/reviewed-calls.json --describe
 ```
 
 The description includes `slide.id` for additions, the explicit `request_id`, and the names of supplied `slide_fields` or `patch_fields`; it never prints HTML, notes or other source values. Every `add_slide` in a verified batch must carry a unique `request_id` of 8–100 characters at the top level of its `arguments`, alongside `deck_id` and `slide`. Preserve it across retries just as for revisions.
@@ -36,7 +36,7 @@ The description includes `slide.id` for additions, the explicit `request_id`, an
 Then supply that exact SHA-256:
 
 ```sh
-uv run python -m studio.agent_client \
+uv run python -m artifact_studio.agent_client \
   --calls-file /absolute/path/reviewed-calls.json \
   --sha256 HASH_FROM_DESCRIBE \
   --verify
@@ -64,6 +64,6 @@ For a positioned `add_slide`, keep `after_slide_id` and/or `section_id` at the t
 
 ## When connected tools are missing
 
-Refreshing server code does not prove an existing chat has rediscovered the tool catalogue. Check the callable tools in the **agent host**, not just the server response. Current Slide Studio includes `get_presentation_outline`, `append_presentation_context`, `get_authoring_guide` and retained-rule hash arguments. If they are absent, use the host's supported MCP connection refresh controls and recheck; do not add duplicate implementations.
+Refreshing server code does not prove an existing chat has rediscovered the tool catalogue. Check the callable tools in the **agent host**, not just the server response. Current Artifact Studio includes `get_presentation_outline`, `append_presentation_context`, `get_authoring_guide` and retained-rule hash arguments. If they are absent, use the host's supported MCP connection refresh controls and recheck; do not add duplicate implementations.
 
 OpenAI's [app-server documentation](https://learn.chatgpt.com/docs/app-server) describes `config/mcpServer/reload` as queuing a refresh for loaded chats. The [MCP setup guide](https://learn.chatgpt.com/docs/extend/mcp) also documents host restart controls. Those are host operations; this client does not modify Codex configuration or refresh its in-memory tools.

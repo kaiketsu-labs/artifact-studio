@@ -147,7 +147,7 @@ class Reviews:
         if designs or not events:
             reads.append(f"read_design_requests(after_event_id={design_cursor})")
         status = "feedback" if events or designs else "idle renewal"
-        reason = f"Slide Studio {status}: call {'; '.join(reads)}."
+        reason = f"Artifact Studio {status}: call {'; '.join(reads)}."
         return ReviewHookReply(listening=True, feedback_available=events or designs, reason=reason)
 
     async def handle(self, body: ReviewHookInput, timeout: float = 25) -> ReviewHookReply:

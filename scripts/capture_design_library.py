@@ -13,9 +13,9 @@ from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
 
+from artifact_studio.design_library import DesignCreate, DesignLibrary
+from artifact_studio.models import FileInput
 from scripts.screenshot_fixture import seed
-from studio.design_library import DesignCreate, DesignLibrary
-from studio.models import FileInput
 from tests.integration.support import PROJECT, running_app
 
 

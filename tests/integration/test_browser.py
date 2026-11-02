@@ -11,7 +11,7 @@ from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -170,7 +170,7 @@ def test_keyboard_navigation_and_recovered_draft(page: Page, live_app: RunningAp
     expect(page.get_by_label("Your feedback", exact=True)).to_have_value("Unsent cover draft")
     assert not live_app.call("read_feedback", deck_id=DECK_ID)["events"]
     page.keyboard.press("F10")
-    expect(page.get_by_role("menu", name="Slide Studio", exact=True)).to_be_visible()
+    expect(page.get_by_role("menu", name="Artifact Studio", exact=True)).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.get_by_role("button", name="Menu", exact=True)).to_be_focused()
 

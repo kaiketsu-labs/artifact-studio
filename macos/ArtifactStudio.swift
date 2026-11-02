@@ -41,12 +41,15 @@ private func menuBarImage(color: NSColor) -> NSImage {
         front.lineWidth = 1.4
         front.stroke()
         NSColor.white.setFill()
-        let play = NSBezierPath()
-        play.move(to: NSPoint(x: 11, y: 4.5))
-        play.line(to: NSPoint(x: 15.5, y: 7.25))
-        play.line(to: NSPoint(x: 11, y: 10))
-        play.close()
-        play.fill()
+        NSBezierPath(roundedRect: NSRect(x: 7.5, y: 7.5, width: 3, height: 3), xRadius: 0.6, yRadius: 0.6).fill()
+        let content = NSBezierPath()
+        content.lineWidth = 1.25
+        content.lineCapStyle = .round
+        content.move(to: NSPoint(x: 13, y: 9))
+        content.line(to: NSPoint(x: 17, y: 9))
+        content.move(to: NSPoint(x: 8, y: 5))
+        content.line(to: NSPoint(x: 17, y: 5))
+        content.stroke()
         color.setFill()
         NSBezierPath(ovalIn: NSRect(x: 23, y: 2, width: 4.5, height: 4.5)).fill()
         return true
@@ -91,12 +94,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.setActivationPolicy(.accessory)
         statusItem = NSStatusBar.system.statusItem(withLength: 33)
-        statusItem.button?.setAccessibilityLabel("Slide Studio")
+        statusItem.button?.setAccessibilityLabel("Artifact Studio")
         menu.autoenablesItems = false
         status.isEnabled = false
         menu.addItem(status)
         menu.addItem(.separator())
-        add("Open Slide Studio", symbol: "arrow.up.right.square", action: #selector(openWorkspace), key: "o")
+        add("Open Artifact Studio", symbol: "arrow.up.right.square", action: #selector(openWorkspace), key: "o")
         for (item, symbol) in [(startItem, "play.fill"), (stopItem, "stop.fill"), (restartItem, "arrow.clockwise")] {
             item.target = self
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
@@ -109,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(approvalItem)
         add("Show Logs", symbol: "doc.text", action: #selector(showLogs))
         menu.addItem(.separator())
-        add("Quit Slide Studio", symbol: "power", action: #selector(quit), key: "q")
+        add("Quit Artifact Studio", symbol: "power", action: #selector(quit), key: "q")
         statusItem.menu = menu
         updateMenu()
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
@@ -136,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func updateMenu() {
         status.title = external ? "Running · started elsewhere" : state.rawValue
         status.toolTip = errorMessage.isEmpty ? workspaceURL.absoluteString : errorMessage
-        statusItem.button?.toolTip = "Slide Studio · \(status.title)"
+        statusItem.button?.toolTip = "Artifact Studio · \(status.title)"
         statusItem.button?.setAccessibilityValue(status.title)
         statusItem.button?.image = menuBarImage(color: state.color)
         startItem.isEnabled = state == .stopped || state == .failed
@@ -156,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard (response as? HTTPURLResponse)?.statusCode == 200,
                   let reply = try JSONSerialization.jsonObject(with: data) as? [String: String]
             else { return false }
-            return reply["service"] == "slide-studio" && reply["status"] == "ready"
+            return reply["service"] == "artifact-studio" && reply["status"] == "ready"
         } catch { return false }
     }
 
@@ -204,10 +207,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let child = Process()
             child.executableURL = URL(fileURLWithPath: configuration.python)
             child.currentDirectoryURL = URL(fileURLWithPath: configuration.project)
-            child.arguments = ["-m", "uvicorn", "studio.app:app", "--host", "127.0.0.1", "--port", String(configuration.port), "--no-access-log"]
+            child.arguments = ["-m", "uvicorn", "artifact_studio.app:app", "--host", "127.0.0.1", "--port", String(configuration.port), "--no-access-log"]
             var environment = ProcessInfo.processInfo.environment
-            environment["SLIDE_STUDIO_COLLECTION"] = configuration.collection
-            environment["SLIDE_STUDIO_DATABASE"] = configuration.database
+            environment["ARTIFACT_STUDIO_COLLECTION"] = configuration.collection
+            environment["ARTIFACT_STUDIO_DATABASE"] = configuration.database
             let home = FileManager.default.homeDirectoryForCurrentUser.path
             environment["PATH"] = "\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (environment["PATH"] ?? "")
             child.environment = environment
@@ -225,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             state = .failed
             errorMessage = error.localizedDescription
             updateMenu()
-            showError("Could not start Slide Studio: \(errorMessage)")
+            showError("Could not start Artifact Studio: \(errorMessage)")
         }
     }
 
@@ -279,7 +282,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "Slide Studio"
+        alert.messageText = "Artifact Studio"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
@@ -287,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @main
-struct SlideStudioMenu {
+struct ArtifactStudioMenu {
     @MainActor static func main() {
         if let flag = CommandLine.arguments.firstIndex(of: "--icon-preview"),
            CommandLine.arguments.indices.contains(flag + 1) {

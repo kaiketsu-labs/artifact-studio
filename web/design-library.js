@@ -63,7 +63,7 @@
     }
     function useDialog(){
       const link=new URL('/',root.location.origin);link.searchParams.set('view','designs');link.searchParams.set('design',selected.id);
-      const message=`Use “${selected.name}” from my Slide Studio design library as visual reference for my next task. Inspect its current references first and flag anything you cannot read.
+      const message=`Use “${selected.name}” from my Artifact Studio design library as visual reference for my next task. Inspect its current references first and flag anything you cannot read.
 
 ${link}`;
       modal('Use with agent',`<div class="design-agent-handoff"><p>Copy this message into your connected agent’s chat.</p><label class="hub-field"><span>Message for your agent</span><textarea id="design-agent-message" readonly rows="7">${escape(message)}</textarea></label><p id="design-agent-copy-status" role="status"></p><div class="hub-form-actions">${control('copy-message','Copy message','copy','class="hub-primary"')}</div></div>`);

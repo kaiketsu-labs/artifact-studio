@@ -4,14 +4,14 @@ import os
 
 import pytest
 
-from studio.agent_client import Client, Invocation, execute
+from artifact_studio.agent_client import Client, Invocation, execute
 from tests.integration.support import DECK_ID, RunningApp
 from tests.integration.test_authoring_recovery import LostWriteResponse
 
 pytestmark = [
     pytest.mark.agents,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
+        os.environ.get("ARTIFACT_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
     ),
 ]
 

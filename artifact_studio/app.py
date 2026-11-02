@@ -100,12 +100,12 @@ from .visuals import CaptureOptions, VisualResult, capture
 
 PROJECT = Path(__file__).resolve().parent.parent
 COLLECTION = Path(
-    os.environ.get("SLIDE_STUDIO_COLLECTION", str(Path.home() / "Documents/Presentations"))
+    os.environ.get("ARTIFACT_STUDIO_COLLECTION", str(Path.home() / "Documents/Artifacts"))
 )
-DATABASE = Path(os.environ.get("SLIDE_STUDIO_DATABASE", str(PROJECT / ".state/review.sqlite3")))
+DATABASE = Path(os.environ.get("ARTIFACT_STUDIO_DATABASE", str(PROJECT / ".state/review.sqlite3")))
 store = Store(COLLECTION, DATABASE)
 mcp = MCPServer[None](
-    "Slide Studio",
+    "Artifact Studio",
     instructions=(PROJECT / "agent/bootstrap.md").read_text(),
 )
 
@@ -538,13 +538,13 @@ def sync_presentations(library_id: str, deck_id: str | None = None) -> SyncResul
     return Libraries(store).sync(library_id, deck_id)
 
 
-@mcp.resource("slide-studio://guide", mime_type="text/markdown")
+@mcp.resource("artifact-studio://guide", mime_type="text/markdown")
 def agent_guide() -> str:
     """Describe the workflow and flexible design contract for agents."""
     return (PROJECT / "docs/AGENT-GUIDE.md").read_text()
 
 
-@mcp.resource("slide-studio://preferences", mime_type="text/markdown")
+@mcp.resource("artifact-studio://preferences", mime_type="text/markdown")
 def user_preferences() -> str:
     """Expose durable user feedback distilled from previous presentation work."""
     design_id = store.default_design_id()
@@ -558,7 +558,7 @@ def user_preferences() -> str:
 @mcp.tool(annotations=READ)
 @tool_errors
 def list_presentations() -> list[dict[str, str]]:
-    """List editable Slide Studio decks; older collection presentations remain references."""
+    """List editable Artifact Studio decks; older collection presentations remain references."""
     return store.list_decks()
 
 
@@ -1188,7 +1188,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
             await task
 
 
-app = FastAPI(title="Slide Studio", lifespan=lifespan)
+app = FastAPI(title="Artifact Studio", lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
 
 
@@ -1279,7 +1279,7 @@ def copilot_setup_document(document: Literal["guide", "instructions"]) -> FileRe
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Identify a ready local server without loading presentations or exposing private context."""
-    return {"service": "slide-studio", "status": "ready", "version": "0.1.0"}
+    return {"service": "artifact-studio", "status": "ready", "version": "0.1.0"}
 
 
 @app.get("/api/decks")
@@ -1459,7 +1459,7 @@ def project_save(deck_id: DeckID, body: ClientState) -> Response:
         save_project(store, deck_id, body),
         media_type="application/zip",
         headers={
-            "Content-Disposition": f'attachment; filename="{deck_id}.slide-studio.zip"',
+            "Content-Disposition": f'attachment; filename="{deck_id}.artifact-studio.zip"',
             "Cache-Control": "no-store",
         },
     )
