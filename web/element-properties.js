@@ -67,13 +67,25 @@
     const doc=container.ownerDocument,view=doc.defaultView,controller=new view.AbortController();
     const svg=name=>root.SlideIcons?.svg(name)||'';
     container.classList.add('element-properties');container.hidden=true;
-    container.innerHTML=`<span class="ep-label sr-only"></span><div class="ep-formatting" role="toolbar" aria-label="Text formatting"><button type="button" data-panel="text" title="Edit text" aria-label="Edit text" aria-expanded="false">${svg('edit')}</button><span class="ep-group ep-size" role="group" aria-label="Text size"><button type="button" data-step="-1" title="Smaller text" aria-label="Smaller text"><span class="ep-smaller" aria-hidden="true">A<sup>−</sup></span></button><input type="number" min="1" max="2000" step="any" aria-label="Font size" aria-description="Text size in points" title="Font size"><button type="button" data-step="1" title="Larger text" aria-label="Larger text"><span class="ep-larger" aria-hidden="true">A<sup>+</sup></span></button></span><span class="ep-group" role="group" aria-label="Text style"><button type="button" data-toggle="font_weight" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-toggle="font_style" title="Italic" aria-label="Italic"><i>I</i></button><label class="ep-color" title="Text color"><span aria-hidden="true">A</span><input type="color" aria-label="Text color"></label></span><button type="button" data-panel="alignment" title="Text alignment" aria-label="Text alignment" aria-expanded="false">${alignmentIcon('left')}</button>${extraControls?`<button type="button" data-panel="objects" title="Move, rotate or remove" aria-label="Object options" aria-expanded="false">${svg('more')}</button>`:''}<span class="ep-actions" hidden><button type="button" data-action="send" title="Send edit" aria-label="Send edit">${svg('send')}</button><button type="button" data-action="cancel" title="Cancel edit" aria-label="Cancel edit">${svg('close')}</button></span></div><div class="ep-panel ep-text-panel" data-detail="text" hidden><textarea aria-label="Text" rows="2" maxlength="9000"></textarea></div><div class="ep-panel ep-alignment-panel" data-detail="alignment" hidden role="group" aria-label="Text alignment">${[['left','Align left'],['center','Center text'],['right','Align right'],['justify','Justify text']].map(([value,label])=>`<button type="button" data-align="${value}" title="${label}" aria-label="${label}" aria-pressed="false">${alignmentIcon(value)}</button>`).join('')}</div>${extraControls?'<div class="ep-panel ep-object-panel" data-detail="objects" hidden></div>':''}`;
+    container.innerHTML=`<span class="ep-label sr-only"></span><div class="ep-formatting" role="toolbar" aria-label="Text formatting"><button type="button" data-panel="text" title="Edit text" aria-label="Edit text" aria-expanded="false">${svg('edit')}</button><span class="ep-group ep-size" role="group" aria-label="Text size"><button type="button" data-step="-1" title="Smaller text" aria-label="Smaller text"><span class="ep-smaller" aria-hidden="true">A<sup>−</sup></span></button><input type="number" min="1" max="2000" step="any" aria-label="Font size" aria-description="Text size in points" title="Font size"><button type="button" data-step="1" title="Larger text" aria-label="Larger text"><span class="ep-larger" aria-hidden="true">A<sup>+</sup></span></button></span><span class="ep-group" role="group" aria-label="Text style"><button type="button" data-toggle="font_weight" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-toggle="font_style" title="Italic" aria-label="Italic"><i>I</i></button><label class="ep-color" title="Text color"><span aria-hidden="true">A</span><input type="color" aria-label="Text color"></label></span><button type="button" data-panel="alignment" title="Text alignment" aria-label="Text alignment" aria-expanded="false">${alignmentIcon('left')}</button>${extraControls?`<button type="button" data-panel="objects" title="Move, rotate or remove" aria-label="Object options" aria-expanded="false">${svg('more')}</button>`:''}</div><div class="ep-panel ep-text-panel" data-detail="text" hidden><textarea aria-label="Text" rows="2" maxlength="9000"></textarea></div><span class="ep-actions" hidden><button type="button" data-action="send" title="Send edit" aria-label="Send edit">${svg('send')}</button><button type="button" data-action="cancel" title="Cancel edit" aria-label="Cancel edit">${svg('close')}</button></span><div class="ep-panel ep-alignment-panel" data-detail="alignment" hidden role="group" aria-label="Text alignment">${[['left','Align left'],['center','Center text'],['right','Align right'],['justify','Justify text']].map(([value,label])=>`<button type="button" data-align="${value}" title="${label}" aria-label="${label}" aria-pressed="false">${alignmentIcon(value)}</button>`).join('')}</div>${extraControls?'<div class="ep-panel ep-object-panel" data-detail="objects" hidden></div>':''}`;
     if(extraControls)container.querySelector('.ep-object-panel').append(extraControls);
     const text=container.querySelector('textarea'),size=container.querySelector('input[type=number]'),color=container.querySelector('input[type=color]'),bold=container.querySelector('[data-toggle=font_weight]'),italic=container.querySelector('[data-toggle=font_style]'),actions=container.querySelector('.ep-actions'),textButton=container.querySelector('[data-panel=text]');
     let model=sizeModel(),state={},selectionKey=null,canText=false,frame=null;
     function position(){
       frame=null;if(container.hidden || !container.isConnected)return;
       const anchor=getAnchor();if(!anchor)return;
+      const viewport=view.visualViewport, mobile=view.innerWidth<=600 && !container.querySelector('[data-detail=text]').hidden;
+      container.classList.toggle('ep-mobile-text',mobile);
+      if(mobile){
+        const left=viewport?.offsetLeft||0, top=viewport?.offsetTop||0, width=viewport?.width||view.innerWidth, height=viewport?.height||view.innerHeight;
+        container.style.setProperty('--ep-available-height',`${Math.max(80,height-56)}px`);
+        container.style.left=`${left+8}px`;
+        const preferred=anchor.bounds.top+anchor.bounds.height+8, limit=top+height-container.offsetHeight-48;
+        container.style.top=`${Math.max(top+8,Math.min(preferred,limit))}px`;
+        container.style.width=`${Math.max(0,width-16)}px`;
+        container.classList.remove('ep-panels-above');return;
+      }
+      container.style.width='';
       const point=toolbarPosition(anchor,{width:container.offsetWidth,height:container.offsetHeight},{width:view.innerWidth,height:view.innerHeight});
       container.style.left=`${point.left}px`;container.style.top=`${point.top}px`;
       const panel=container.querySelector('[data-detail]:not([hidden])');
@@ -101,8 +113,8 @@
     }
     function setState(next){
       const showObjects=next.objectDraft && !state.objectDraft;
-      state={...state,...next};actions.hidden=!state.dirty;
-      for(const control of container.querySelectorAll('.ep-formatting button,.ep-formatting input,.ep-text-panel textarea,.ep-alignment-panel button'))control.disabled=!!(state.disabled||state.busy);
+      state={...state,...next};actions.hidden=!state.dirty;container.classList.toggle('ep-dirty',!!state.dirty);
+      for(const control of container.querySelectorAll('.ep-formatting button,.ep-formatting input,.ep-actions button,.ep-text-panel textarea,.ep-alignment-panel button'))control.disabled=!!(state.disabled||state.busy);
       const objects=container.querySelector('[data-panel=objects]');
       if(objects){
         objects.disabled=!!state.busy;
@@ -121,10 +133,16 @@
       if(button.dataset.step){size.value=String(nextSize(Number(size.value)||model.display,Number(button.dataset.step)));resize();}
       if(button.dataset.toggle){const key=button.dataset.toggle,pressed=button.getAttribute('aria-pressed')!=='true';button.setAttribute('aria-pressed',String(pressed));onPreview({[key]:key==='font_weight'?(pressed?'bold':'normal'):(pressed?'italic':'normal')});}
       if(button.dataset.align){align(button.dataset.align);onPreview({text_align:button.dataset.align});closePanels();}
-      if(button.dataset.action==='send')onSend();if(button.dataset.action==='cancel')onCancel();
+      if(button.dataset.action){
+        const result=button.dataset.action==='send'?onSend():onCancel();
+        Promise.resolve(result).then(success=>{
+          if(container.hidden || textButton.disabled || (doc.activeElement!==doc.body && !actions.contains(doc.activeElement)))return;
+          (success===false && !text.closest('[hidden]')?text:textButton).focus({preventScroll:true});
+        });
+      }
     });
     container.addEventListener('keydown',event=>{if(event.key==='Escape' && container.querySelector('[data-detail]:not([hidden])')){event.preventDefault();event.stopPropagation();const button=container.querySelector('[data-panel][aria-expanded=true]');closePanels();button?.focus();}});
-    view.addEventListener('resize',reposition,{signal:controller.signal});doc.addEventListener('scroll',reposition,{capture:true,passive:true,signal:controller.signal});
+    view.addEventListener('resize',reposition,{signal:controller.signal});view.visualViewport?.addEventListener('resize',reposition,{signal:controller.signal});view.visualViewport?.addEventListener('scroll',reposition,{signal:controller.signal});doc.addEventListener('scroll',reposition,{capture:true,passive:true,signal:controller.signal});
     const observer=new view.ResizeObserver(reposition);observer.observe(container);
     function destroy(){controller.abort();observer.disconnect();if(frame!==null)view.cancelAnimationFrame(frame);}
     return {setSelection,setState,clear,reposition,focusText,destroy};

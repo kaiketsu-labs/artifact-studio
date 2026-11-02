@@ -25,7 +25,14 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
-from .agent_io import deck_receipt, feedback_response, guide_fields, rule_fields, slide_receipt
+from .agent_io import (
+    compact_source_references,
+    deck_receipt,
+    feedback_response,
+    guide_fields,
+    rule_fields,
+    slide_receipt,
+)
 from .artifact_api import artifact_routes
 from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
@@ -182,6 +189,7 @@ def get_working_context(
     project_id: str = "",
     artifact_id: str = "",
     known_presentation_guide_hash: str = "",
+    compact_sources: bool = False,
 ) -> dict[str, object]:
     """Read first: compact startup with complete user rules; load guides on demand.
     Pass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.
@@ -196,6 +204,8 @@ def get_working_context(
     For a legacy deck selected by artifact_id, retain its nested guide separately with
     known_presentation_guide_hash, only while retaining that exact text.
     include_discovery=False skips unrelated lists; selected brand and queued requests remain.
+    compact_sources=True links duplicate design-file provenance to design_context.files[N]
+    in this same response; full file metadata and delivery status remain. Default stays full.
     """
     if (
         design_id
@@ -214,6 +224,8 @@ def get_working_context(
             include_discovery=include_discovery,
         )
         _compact_context_receipt(result)
+        if compact_sources:
+            compact_source_references(result)
         result.update(workspace_links("", ctx))
         return result
     if artifact_id or project_id:
@@ -232,6 +244,8 @@ def get_working_context(
             include_discovery=include_discovery,
         )
         _compact_context_receipt(result)
+        if compact_sources:
+            compact_source_references(result)
         result.update(workspace_links("", ctx))
         if artifact_id:
             result["workspace_url"] = str(result["workspace_url"]) + "?artifact=" + artifact_id

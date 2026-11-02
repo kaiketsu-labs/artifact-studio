@@ -14,3 +14,12 @@
 :root[data-theme=dark] .element-properties .ep-formatting button{background:transparent;border-color:transparent;color:var(--ink)}
 :root[data-theme=dark] .element-properties .ep-formatting button:hover{background:var(--hover)}
 :root[data-theme=dark] .element-properties .ep-formatting button:is([aria-pressed=true],[aria-expanded=true]){background:var(--selected);color:var(--link)}
+
+/* Keep actions visually in the toolbar, after the text field in keyboard order. */
+.element-properties.ep-dirty .ep-formatting{padding-right:68px}
+.element-properties .ep-actions{position:absolute;right:5px;top:5px}
+.element-properties.ep-mobile-text{max-height:var(--ep-available-height,calc(100vh - 56px));overflow:auto}
+.element-properties.ep-mobile-text .ep-text-panel{position:static;width:100%;min-width:0;max-width:none;margin-top:6px;box-shadow:none}
+.element-properties.ep-mobile-text .ep-formatting{gap:1px}
+.element-properties.ep-mobile-text .ep-formatting button,.element-properties.ep-mobile-text .ep-color{width:26px}
+.element-properties.ep-mobile-text input[type=number]{width:43px}

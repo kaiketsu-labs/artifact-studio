@@ -81,6 +81,7 @@ jobs:
           tests/test_interactive.py tests/test_element_rotation_dom.py tests/test_copilot_capture.py tests/integration/test_object_selection.py tests/integration/test_design_library.py
           tests/integration/test_editor_layout.py tests/integration/test_artifact_workspace.py tests/integration/test_element_properties.py
           tests/integration/test_native_sharing.py
+          tests/integration/test_element_properties_layout.py tests/integration/test_structural_undo.py
           --junitxml=test-results/browser.xml
       - name: Upload screenshots, Playwright traces and server logs
         if: always()
