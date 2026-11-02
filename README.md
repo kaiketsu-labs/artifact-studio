@@ -79,6 +79,8 @@ Reload the agent session if the connection is not visible, then start with:
 
 Use `get_working_context(artifact_id=...)` for selected work or `project_id=...` before creating related work. Existing decks also accept `deck_id=...` and retain their design guidance. The [agent contract map](agent/README.md) explains the canonical bootstrap, guides, tools and context receipts.
 
+**Microsoft 365 Copilot:** use a Copilot Studio agent with the optional [authenticated gateway](docs/MICROSOFT-COPILOT.md). Select one project or explicitly allow the workspace. The gateway needs an approved HTTPS endpoint; the local editor stays private. Start from **Connect an agent → Microsoft 365 Copilot**, or the hub menu. Microsoft sign-in, connector policies and an actual Copilot tool call must be verified separately. Automatic Copilot wake-up is not included.
+
 Reusable design examples live under **Designs**, separate from project artifacts. Normal presentations using a design remain in the library. Open a design card to inspect or edit its example; the workspace default is marked.
 
 ### Your first project

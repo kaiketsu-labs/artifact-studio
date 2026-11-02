@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Connect Copilot · Slide Studio</title>
+  <script src="/web/appearance.js"></script>
+  <link rel="icon" href="/web/brand/mark.png">
+  <link rel="stylesheet" href="/web/appearance.css">
+  <link rel="stylesheet" href="/web/hub.css">
+  <link rel="stylesheet" href="/web/copilot-setup.css">
+  <script src="/web/icons.js" defer></script>
+  <script src="/web/vendor/marked-18.1.2.js" defer></script>
+  <script src="/web/chat-markdown.js" defer></script>
+  <script src="/web/copilot-setup.js" defer></script>
+</head>
+<body>
+  <header class="hub-top"><a class="hub-brand" href="/"><img src="/web/brand/mark.png" width="30" height="30" alt=""><span>Slide Studio</span></a><a class="copilot-back" href="/">← All artifacts</a></header>
+  <main class="copilot-setup">
+    <div class="copilot-kicker">Connect an agent</div>
+    <h1>Microsoft 365 Copilot</h1>
+    <p class="copilot-lead">Review and revise your artifacts from Copilot Studio.</p>
+    <div class="copilot-route" aria-label="Connection: your Mac through an authenticated gateway to Microsoft Copilot">
+      <div><span data-icon="folder"></span><strong>Your Mac</strong><small>Local files</small></div><span class="copilot-arrow" aria-hidden="true">→</span>
+      <div><span data-icon="plug"></span><strong>Gateway</strong><small>Chosen project · API key</small></div><span class="copilot-arrow" aria-hidden="true">→</span>
+      <div><span data-icon="robot"></span><strong>Copilot</strong><small>Microsoft 365</small></div>
+    </div>
+    <section class="copilot-start">
+      <h2>Set it up with your local agent</h2>
+      <p>Choose the project to share. Test with fictional content first.</p>
+      <button type="button" id="copy-copilot-setup" class="hub-primary">Copy setup prompt</button>
+      <a href="https://copilotstudio.microsoft.com/" target="_blank" rel="noopener noreferrer">Open Copilot Studio ↗</a>
+      <p id="copilot-copy-status" role="status" class="copilot-copy-status"></p>
+    </section>
+    <p class="copilot-boundary">Microsoft processes the content requested through this connection. The gateway stays off until configured. Automatic chat wake-up is not included.</p>
+    <details id="copilot-manual"><summary>Manual setup</summary><article id="copilot-guide" class="chat-markdown" aria-live="polite"></article></details>
+  </main>
+</body>
+</html>

@@ -1218,6 +1218,13 @@ def workspace(request: Request, deck: str = "", editor: bool = False) -> FileRes
     )
 
 
+@app.get("/api/copilot/setup/{document}", response_class=FileResponse)
+def copilot_setup_document(document: Literal["guide", "instructions"]) -> FileResponse:
+    """Serve maintained setup text without exposing gateway settings or credentials."""
+    source = "docs/MICROSOFT-COPILOT.md" if document == "guide" else "agent/copilot.md"
+    return FileResponse(PROJECT / source, media_type="text/plain; charset=utf-8")
+
+
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Identify a ready local server without loading presentations or exposing private context."""

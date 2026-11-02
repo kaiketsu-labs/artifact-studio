@@ -7,6 +7,7 @@ This directory maps the implemented agent interface to its canonical files. It i
 | Part | Canonical source |
 | --- | --- |
 | MCP startup instructions | [bootstrap.md](bootstrap.md), loaded by `MCPServer(instructions=...)` in [studio/app.py](../studio/app.py) |
+| Microsoft Copilot gateway bootstrap | [copilot.md](copilot.md), loaded separately by [studio/copilot.py](../studio/copilot.py); scoped tools live in [studio/copilot_tools.py](../studio/copilot_tools.py) |
 | General artifact authoring guide | [guides/artifacts.md](guides/artifacts.md) |
 | Generic artifact MCP handlers | [studio/artifact_tools.py](../studio/artifact_tools.py) |
 | Presentation and shared MCP handlers | [studio/app.py](../studio/app.py) |
@@ -16,6 +17,8 @@ This directory maps the implemented agent interface to its canonical files. It i
 | Host-invoked workflows | [.agents/skills/](../.agents/skills/) |
 
 The running server's MCP initialization and `tools/list` responses are authoritative for the connected process. A checkout can be newer than that process. The host controls which discovered tools are exposed; connecting MCP does not automatically load skill bodies.
+
+The opt-in Microsoft Copilot gateway has its own smaller tool surface and explicit project/workspace scope. It does not expose local filesystem imports, approvals, settings, repository sync or local review hooks. Its live `tools/list` is authoritative; `tools.json` describes the ordinary local MCP server. [Connection and verification](../docs/MICROSOFT-COPILOT.md).
 
 ## Context delivery
 
