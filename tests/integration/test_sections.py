@@ -287,7 +287,9 @@ def test_section_boundary_and_new_slide_in_collapsed_group(
     page.keyboard.press("Enter")
     expect(page.get_by_role("dialog", name="Rename section")).to_be_visible()
     page.get_by_role("textbox", name="Section name").fill("Introduction")
-    page.get_by_role("button", name="Save", exact=True).click()
+    page.get_by_role("dialog", name="Rename section").get_by_role(
+        "button", name="Save", exact=True
+    ).click()
     expect(section(page, "Introduction")).to_be_visible()
     section(page, "Introduction").locator(".section-toggle").click()
     page.get_by_role("button", name="New slide", exact=True).click()

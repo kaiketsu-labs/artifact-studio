@@ -22,6 +22,7 @@
     ['copy-live-setup','copy','Copy setup prompt',true],['end-review','close','End review',true],
     ['create-button','plus','Create presentation',true],['mode-live','live','Live',true],['mode-batch','batch','Batch',true]
   ])iconButton($(id),icon,label,show);
+  $('save-notes').setAttribute('aria-label','Save notes');
   $('hover-hint').innerHTML=svg('cursor');$('hover-hint').title='Select an element to edit, move or comment';$('element-proposal-sent').innerHTML=svg('send');
   let deck=null, slideSections=null, selectedId=null, pendingDeck=null, selectedElement=null, hoverElement=null, toastTimer;
   let visibilityBusy=false,menuSlide=null;
