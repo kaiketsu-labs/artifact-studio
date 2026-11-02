@@ -135,7 +135,7 @@ class ScopedTools:
                 "SELECT id FROM artifact_items WHERE id=?", (artifact_id,)
             ).fetchone()
         if owned_row is None:
-            designs = {item.folder_id for item in self.store.designs()}
+            designs = {item.folder_id for item in self.store.designs(include_archived=True)}
             available = {item["id"] for item in self.store.list_decks()} - designs
             if artifact_id not in available:
                 raise ValueError("Artifact is unavailable in this gateway's scope.")
@@ -192,7 +192,7 @@ class ScopedTools:
                 cast(str, row[0]): cast(str, row[1])
                 for row in db.execute("SELECT artifact_id,project_id FROM artifact_legacy_projects")
             }
-        designs = {item.folder_id for item in self.store.designs()}
+        designs = {item.folder_id for item in self.store.designs(include_archived=True)}
         ids.extend(
             item["id"]
             for item in self.store.list_decks()
