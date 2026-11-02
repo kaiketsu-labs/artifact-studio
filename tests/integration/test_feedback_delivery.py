@@ -1,6 +1,7 @@
 """Make Batch delivery understandable before sending the first comment."""
 
 import os
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -39,7 +40,9 @@ def test_initial_batch_explains_queueing_and_releases_only_on_send(
     add = page.get_by_role("button", name="Add to batch", exact=True)
     helper = page.locator("#batch-delivery-help")
     feedback = page.get_by_label("Your feedback", exact=True)
-    expect(add.get_by_text("Add to batch", exact=True)).to_be_visible()
+    expect(add).to_be_in_viewport()
+    expect(add).to_have_attribute("title", re.compile("^Add to batch"))
+    expect(add.locator("svg")).to_be_visible()
     expect(helper).to_have_text("Comments stay private until you choose Send batch.")
     expect(helper).to_be_in_viewport()
     expect(feedback).to_have_attribute("aria-describedby", "batch-delivery-help")
