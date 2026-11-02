@@ -63,7 +63,7 @@
       sentBadge.hidden=(!sent&&!draft)||busy;
       if(sentBadge.dataset.state!==status){sentBadge.dataset.state=status;sentBadge.title=label;sentBadge.setAttribute('aria-label',label);sentBadge.innerHTML=root.SlideIcons.svg(({draft:'edit',queued:'batch',released:'send',answered:'notes'})[status]||'send');const text=document.createElement('span');text.className='sr-only';text.textContent=label;sentBadge.append(text);}
       tools.classList.toggle('has-suggestion',!!(sent||draft));
-      properties?.setState({dirty:editingProperties,busy,sent,disabled:blocked()||draftGeometry||textEditing});
+      properties?.setState({dirty:editingProperties,busy,sent,disabled:blocked()||draftGeometry||textEditing,objectDraft:draftGeometry||textEditing});
       if(element)onChange(element);
     }
     function remember(){
@@ -88,7 +88,7 @@
       const pixels=Math.round((Number.parseFloat(computed.fontSize)||16)*scale*1000)/1000;
       const typography={font_size:match?Number(match[1]):16,font_size_unit:unit,font_size_px:pixels,font_weight:computed.fontWeight||'normal',font_style:computed.fontStyle||'normal',text_align:['left','center','right','justify'].includes(computed.textAlign)?computed.textAlign:'left',color};
       propertyBaseline={text:element.textContent||'',...typography};
-      properties.setSelection({label:element.tagName.toLowerCase(),text:propertyBaseline.text,canText:canPropertyText(),typography});
+      properties.setSelection({key:element,label:element.tagName.toLowerCase(),text:propertyBaseline.text,canText:canPropertyText(),typography});
     }
     function select(next){closeAlign();restore();propertyValues={};element=next;textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;dragEnabled=true;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
     function cancel(){closeAlign();restore();propertyValues={};textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}

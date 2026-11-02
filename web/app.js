@@ -13,7 +13,7 @@
     ['share-artifact','share','Share presentation',false],['view-artifact','eye','Focus view',false],
     ['hide-slide','eye','Hide slide',false],['objects-button','group','Slide objects',false],
     ['delete-element','trash','Remove element',false],['attach-feedback','attach','Attach files',false],
-    ['edit-element-text','edit','Edit text',false],['move-element','move','Move element',false],['align-element','align','Align to slide',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
+    ['edit-element-text','edit','Edit text on slide',false],['move-element','move','Move element',false],['align-element','align','Align to slide',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
     ['retry-preview','refresh','Retry loading design',false],['copy-start','copy','Copy agent prompt',true],['copy-agent-prompt','copy','Copy agent prompt',true],
     ['attach-brief','attach','Attach brief files',false],['toggle-design-chat','plus','Add a design',false],['attach-design','attach','Attach reference files',false],['send-design','send','Send design request',false],
     ['new-button','plus','New presentation',true],['connect-button','plug','Connect an agent',true],['deck-design-references','attach','Design references',true],
@@ -47,7 +47,7 @@
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;
   let elementEditor;
-  const properties=window.ElementProperties.create({container:$('element-properties'),onPreview:values=>elementEditor.previewProperties(values),onSend:()=>elementEditor.commit(),onCancel:()=>elementEditor.cancel()});
+  const properties=window.ElementProperties.create({container:$('element-properties'),extraControls:$('element-tools'),getAnchor:()=>selectedElement?window.ElementProperties.frameAnchor(selectedElement.getBoundingClientRect(),$('preview')):null,onPreview:values=>elementEditor.previewProperties(values),onSend:()=>elementEditor.commit(),onCancel:()=>elementEditor.cancel()});
   const workspacePanels=window.WorkspacePanels.create({doc:document,view:window,storage:window.localStorage,kind:'slides'});
   workspacePanels.refresh();
   const sharing=window.ArtifactSharing.create();
@@ -194,7 +194,7 @@
     for(const type of ['pointerdown','pointermove','click','dblclick','wheel'])doc.addEventListener(type,event=>{if(document.body.classList.contains('workspace-clean-view'))event.stopImmediatePropagation();},true);
     doc.addEventListener('keydown',event=>{if(document.body.classList.contains('workspace-clean-view') && event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();workspacePanels.exitView();}},true);
     workspaceMenu?.bindDocument(doc);
-    doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||event.defaultPrevented||event.altKey||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false,isAdditive(event));if(selectedElement)($('edit-element-text').disabled?$('move-element'):$('edit-element-text')).focus();});
+    doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||event.defaultPrevented||event.altKey||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false,isAdditive(event));if(selectedElement){if($('edit-element-text').disabled)$('element-properties').querySelector('[data-panel=objects]')?.focus();else properties.focusText();}});
   }
   /** Store a selection without silently moving an existing draft to another revision. */
   function setTarget(target,{retarget=false,focus=false}={}){

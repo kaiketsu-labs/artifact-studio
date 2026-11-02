@@ -32,6 +32,8 @@ def test_inspector_emits_changed_values_and_cancel(page: Page) -> None:
     expect(page.locator(".ep-label")).to_have_text("Heading")
     expect(page.locator("select")).to_have_count(0)
     expect(page.get_by_label("Font size", exact=True)).to_have_value("24")
+    expect(page.get_by_label("Text", exact=True)).to_be_hidden()
+    page.get_by_label("Edit text", exact=True).click()
     page.get_by_label("Text", exact=True).fill("Changed")
     page.get_by_label("Larger text").click()
     assert page.evaluate("window.patches.at(-1)") == {
@@ -43,6 +45,8 @@ def test_inspector_emits_changed_values_and_cancel(page: Page) -> None:
     assert page.evaluate("window.patches.at(-1)") == {"font_size": 2, "font_size_unit": "cqw"}
     page.get_by_label("Text", exact=True).fill("Hello")
     assert page.evaluate("window.patches.at(-1)") == {"text": "Hello"}
+    expect(page.get_by_label("Align right", exact=True)).to_be_hidden()
+    page.get_by_role("button", name="Text alignment").click()
     page.get_by_label("Align right", exact=True).click()
     assert page.evaluate("window.patches.at(-1)") == {"text_align": "right"}
     page.get_by_label("Font size", exact=True).fill("30")

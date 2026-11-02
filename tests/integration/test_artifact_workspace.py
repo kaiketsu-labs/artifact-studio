@@ -50,10 +50,17 @@ def test_direct_edit_and_clean_view(live_app: RunningApp, page: Page, tmp_path: 
     page.goto(f"{live_app.url}/?artifact={item.id}")
     frame = page.frame_locator("#hub-html-preview")
     expect(frame.locator("#title")).to_have_text("Original heading")
+    original_frame = page.locator("#hub-html-preview").bounding_box()
     page.get_by_role("button", name="Select", exact=True).click()
     frame.locator("#title").click()
     inspector = page.locator("#hub-element-properties")
     expect(inspector).to_be_visible()
+    assert page.locator("#hub-html-preview").bounding_box() == original_frame
+    toolbar_bounds = inspector.bounding_box()
+    assert toolbar_bounds is not None and toolbar_bounds["height"] <= 48
+    expect(inspector.get_by_label("Text", exact=True)).to_be_hidden()
+    inspector.get_by_role("button", name="Edit text", exact=True).click()
+    assert page.locator("#hub-html-preview").bounding_box() == original_frame
     _ = page.screenshot(path=str(tmp_path / "workspace-review.png"))
     inspector.get_by_label("Text", exact=True).fill("Revised heading")
     inspector.get_by_label("Font size", exact=True).fill("30")
@@ -141,10 +148,14 @@ def test_slide_inspector_preserves_original_until_agent_applies_feedback(
 
     original = live_app.store.view_slide(DECK_ID, live_app.store.read(DECK_ID).slides[0])
     open_editor(page, live_app)
+    original_frame = page.locator("#preview").bounding_box()
+    original_notes = page.locator("#notes-panel").bounding_box()
     heading = page.frame_locator("#preview").get_by_role("heading", level=1)
     heading.click()
     properties = page.locator("#element-properties")
     expect(properties).to_be_visible()
+    assert page.locator("#preview").bounding_box() == original_frame
+    assert page.locator("#notes-panel").bounding_box() == original_notes
     expect(properties.locator(".ep-label")).to_have_text("Heading")
     expect(properties.locator("select")).to_have_count(0)
     expect(properties.get_by_label("Font size", exact=True)).to_have_value("38.3")
@@ -152,6 +163,7 @@ def test_slide_inspector_preserves_original_until_agent_applies_feedback(
     heading.click()
     expect(properties.get_by_label("Font size", exact=True)).to_have_value("38.3")
     page.get_by_role("button", name="Open sidebar").click()
+    properties.get_by_role("button", name="Edit text", exact=True).click()
     properties.get_by_label("Text", exact=True).fill("Draft heading")
     properties.get_by_label("Font size", exact=True).fill("48")
     expect(heading).to_have_text("Draft heading")
@@ -185,6 +197,36 @@ def test_slide_inspector_preserves_original_until_agent_applies_feedback(
     page.mouse.down()
     page.mouse.move(box["x"] - 40, box["y"] + box["height"] / 2)
     page.mouse.up()
+
+
+def test_slide_move_keeps_draft_controls_reachable(live_app: RunningApp, page: Page) -> None:
+    """Reveal send and cancel after moving directly from a closed floating toolbar."""
+    from tests.integration.support import DECK_ID
+    from tests.integration.test_browser import open_editor
+
+    original = live_app.store.view_slide(DECK_ID, live_app.store.read(DECK_ID).slides[0])
+    open_editor(page, live_app)
+    heading = page.frame_locator("#preview").get_by_role("heading", level=1)
+    heading.click()
+    properties = page.locator("#element-properties")
+    options = properties.get_by_role("button", name="Object options", exact=True)
+    expect(options).to_have_attribute("aria-expanded", "false")
+    page.locator("#selection-box").press("ArrowRight")
+    expect(options).to_have_attribute("aria-expanded", "true")
+    expect(page.get_by_role("button", name="Send element change", exact=True)).to_be_visible()
+    options.click()
+    expect(page.get_by_role("button", name="Send element change", exact=True)).to_be_hidden()
+    options.click()
+    with page.expect_response(
+        lambda response: "/feedback" in response.url and response.request.method == "POST"
+    ) as response:
+        page.get_by_role("button", name="Send element change", exact=True).click()
+    assert response.value.ok
+    feedback = live_app.store.feedback_feed(DECK_ID).events[0]
+    assert feedback.content_hash == original.content_hash
+    assert feedback.edit_intent is not None
+    assert feedback.edit_intent.action == "move"
+    assert live_app.store.read(DECK_ID).slides[0].html == original.html
 
 
 @pytest.mark.parametrize("width", [390, 768])

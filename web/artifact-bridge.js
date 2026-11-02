@@ -8,7 +8,7 @@
   const format = bridge.dataset.artifactFormat;
   const send = message => { if (parent !== window) parent.postMessage(message, parentOrigin); };
   let selecting = false, hovered = null, selectors = [], overlay = null, marks = null;
-  let scheduled = false, lastHeight = 0;
+  let scheduled = false, lastHeight = 0, inspectedSelector = null, lastGeometry = '';
 
   /** Resolve selectors defensively because anchors may outlive their original DOM. */
   function selectedElement(selector) {
@@ -50,6 +50,7 @@
     const authoredSize = element.style.getPropertyValue('font-size');
     const size = /^(\d+(?:\.\d+)?)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(authoredSize.trim()) || /^(\d+(?:\.\d+)?)(px)$/.exec(computed.fontSize);
     const rect = element.getBoundingClientRect();
+    inspectedSelector = selector;
     const rgb = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(computed.color);
     const color = rgb ? '#' + rgb.slice(1).map(value => Number(value).toString(16).padStart(2, '0')).join('') : computed.color;
     send({type: 'artifact:inspector', request_id: requestId, selector, label: (element.getAttribute('aria-label') || element.localName).slice(0, 500),
@@ -153,6 +154,7 @@
       marks.append(mark);
     }
     const height = Math.ceil(Math.max(document.body.scrollHeight, document.documentElement.scrollHeight));
+    if(selecting && inspectedSelector && selectors.length===1 && selectors[0]===inspectedSelector){const rect=selectedElement(inspectedSelector)?.getBoundingClientRect();if(rect){const geometry={type:'artifact:geometry',selector:inspectedSelector,rect:{left:rect.left,top:rect.top,width:rect.width,height:rect.height}},key=JSON.stringify(geometry);if(key!==lastGeometry){lastGeometry=key;send(geometry);}}}
     if (Number.isFinite(height) && height > 0 && height !== lastHeight) {
       lastHeight = height;
       send({type: 'artifact:height', height});

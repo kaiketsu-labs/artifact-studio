@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {sizeModel,nextSize,selectionLabel,summary}=require('../web/element-properties.js');
+const {sizeModel,nextSize,selectionLabel,summary,frameAnchor,toolbarPosition}=require('../web/element-properties.js');
 
 test('document sizes preserve responsive CSS and restore the exact source value',()=>{
   const model=sizeModel({font_size:4.625,font_size_unit:'cqw',font_size_px:59.2});
@@ -28,4 +28,29 @@ test('content labels and chat descriptions contain no HTML tags or CSS units',()
   assert.equal(selectionLabel({label:'#revenue:nth-child(2)'}),'Selection');
   assert.equal(selectionLabel({label:'Quarterly revenue'}),'Quarterly revenue');
   assert.deepEqual(summary({action:'style',values:{font_size:5,font_size_unit:'cqw',color:'#ff0000'}}),['Text size changed','Text color changed']);
+});
+
+
+test('frame anchor translates and scales iframe coordinates including borders',()=>{
+  const frame={getBoundingClientRect:()=>({left:100,top:50,width:400,height:300}),offsetWidth:800,offsetHeight:600,clientLeft:2,clientTop:4};
+  assert.deepEqual(frameAnchor({left:20,top:30,width:100,height:40},frame),{
+    left:111,top:67,width:50,height:20,bounds:{left:100,top:50,width:400,height:300}
+  });
+  assert.equal(frameAnchor(null,frame),null);
+});
+
+test('toolbar stays within viewport at each edge and flips below near the top',()=>{
+  const viewport={width:800,height:600},size={width:220,height:48};
+  for(const anchor of [
+    {left:0,top:0,width:20,height:20},
+    {left:790,top:0,width:10,height:20},
+    {left:0,top:590,width:20,height:10},
+    {left:790,top:590,width:10,height:10},
+  ]){
+    const point=toolbarPosition(anchor,size,viewport);
+    assert.ok(point.left>=0 && point.left+size.width<=viewport.width);
+    assert.ok(point.top>=0 && point.top+size.height<=viewport.height);
+  }
+  assert.ok(toolbarPosition({left:20,top:5,width:20,height:20},size,viewport).top>=25);
+  assert.ok(toolbarPosition({left:20,top:-300,width:20,height:20},size,viewport).top>=0);
 });
