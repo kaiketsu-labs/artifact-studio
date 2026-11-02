@@ -45,6 +45,8 @@ The browser's **Agent context** inspector shows available sources and the latest
 
 Create a project with `create_project`. Author local files using suitable tools, then call `register_artifact` with the source path and entrypoint. Registration keeps the originals intact and creates an owned bundle; no design pack or fixed component library is required. The browser's Import action provides the corresponding file/folder route.
 
+Designs are reusable file contexts, separate from work. Discover packs and reference collections with `list_design_contexts`, then inspect `get_design_context(design_id=...)`. Include a selected design in project or artifact guidance using `get_working_context(project_id=..., design_id=...)` or `artifact_id=...`. References may be any files and do not need example slides. Open the sources explicitly; inventories are pointers. Only registered slide packs can serve as presentation templates.
+
 Use `revise_artifact` for a changed-file set, passing the current revision or content hash as `expected_revision` and a unique `request_id`. Unrelated files remain intact. Exact retries return the original operation result; stale writes report conflicts. The response is a compact revision/destination receipt, not a repeated source tree or base64 inventory.
 
 Call `capture_artifact` for an actual image of the exact revision and viewport. Authored JavaScript runs in a fresh offline runtime; `elapsed_ms` samples animations and `full_page` requests the full page within capture limits. Returned metadata includes blocked requests and external dependencies. User-driven interaction states require browser inspection. Legacy decks continue to use their specialized slide capture tools.

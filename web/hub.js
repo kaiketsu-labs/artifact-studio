@@ -76,7 +76,7 @@
   const extraIcons={search:'m21 21-5-5M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15',image:'M3 3h18v18H3zM3 16l6-6 5 5 3-3 4 4M16 7h.01',updated:'M20 4v5h-5M19.2 8a8 8 0 1 0-4.7 11.6'};
   const icon=name => extraIcons[name]?`<svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${extraIcons[name]}"/>${name==='updated'?'<circle cx="20" cy="17" r="2" fill="currentColor" stroke="none"/>':''}</svg>`:root.SlideIcons.svg(name);
   const sizeLabel=size => root.SlideChatComposer.sizeLabel(Number(size) || 0);
-  const state={projects:[],artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
+  const state={designActive:null,projects:[],artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
   const previewUpdates=root.SlidePreviewUpdates.create({onChange:()=>{syncAutoUpdate();if(previewUpdates.enabled)void refresh();}});
   const drafts=new Map(), attachments=new Map(), sending=new Set();
   let importFiles=[],toastTimer,refreshing=false,regionStart=null;
@@ -124,11 +124,7 @@
     const count=visibleItems().length;
     return `${count} ${state.project==='designs'?'design':'artifact'}${count===1?'':'s'}`;
   }
-  function designCards() {
-    const items=visibleItems();
-    if(!items.length)return `<div class="hub-empty">${icon('palette')}<h2>${state.search?'No matching designs':'No designs yet'}</h2><a class="hub-download" href="/?editor=1&new=1">${icon('plus')}Add a design</a></div>`;
-    return items.map(item=>`<article class="hub-card"><a class="hub-card-open hub-design-open" href="/?deck=${encodeURIComponent(item.folder_id)}" aria-label="Open ${escape(item.name)} design"><span class="hub-cover"><span class="hub-cover-fallback">${icon('palette')}</span><img src="/api/hub/previews/${encodeURIComponent(item.folder_id)}" alt="" loading="lazy" decoding="async" data-preview-image></span><span class="hub-card-info"><span class="hub-card-title">${icon('palette')}<span>${escape(item.name)}</span></span><span class="hub-design-description">${escape(item.description)}</span>${item.is_default?`<span class="hub-card-meta"><span class="hub-status">${icon('check')}Default</span></span>`:''}</span></a></article>`).join('');
-  }
+  function designCards(){return designLibrary.cards(visibleItems(),state.search);}
   function cards() {
     if(state.project==='designs')return designCards();
     const items=filterArtifacts(state.artifacts,state);
@@ -141,6 +137,8 @@
   }
   function library() {
     const designs=state.project==='designs';
+    for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
+    for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
     content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
     doc.title=`${projectTitle(state.project)} · Artifact Hub`;
   }
@@ -233,8 +231,9 @@
     const data=await api('/api/hub');state.projects=data.projects || [];state.artifacts=data.artifacts || [];state.designs=data.designs || [];
     if(!['all','designs'].includes(state.project) && !state.projects.some(project=>project.id===state.project))state.project='all';
   }
-  function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');root.history.pushState({},'',url);}
+  function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
+    state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
     if(item?.legacy_deck_id){root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
     const token=++state.loading;state.active=id;state.selecting=false;state.sourceView=false;state.newRevision=null;
@@ -252,8 +251,23 @@
       if(detail.status==='updated')api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).then(()=>{const card=state.artifacts.find(item=>item.id===id);if(card)card.status='draft';if(state.detail===detail){detail.status='draft';const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(detail);}}).catch(()=>{});
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
-  function home(project='all',push=true) {if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
+  function home(project='all',push=true) {if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
   function modal(title,body,wide=false) {dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();}
+  const designLibrary=root.SlideDesignLibrary.create({api,icon,escape,sizeLabel,toast,modal,changed:async id=>{
+    await loadRegistry();if(id)return openDesign(id,false);home('designs');
+  }});
+  async function openDesign(id,push=true){
+    const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
+    try{
+      const item=await api(`/api/design-library/${encodeURIComponent(id)}`);if(token!==state.loading)return;
+      library();state.designActive=id;
+      doc.querySelector('.hub-main').innerHTML=designLibrary.detail(item);
+      doc.title=`${item.name} · Designs`;
+      if(push||new URL(root.location.href).searchParams.get('design')!==id){
+        const url=new URL(root.location.href);url.searchParams.set('view','designs');url.searchParams.set('design',id);url.searchParams.delete('artifact');url.searchParams.delete('deck');root.history.pushState({},'',url);
+      }
+    }catch(error){if(token===state.loading){home('designs',false);toast(error.message,true);}}
+  }
   function projectDialog(thenImport=false) {
     modal('New project',`<form id="hub-project-form" class="hub-form" data-then-import="${thenImport}"><label class="hub-field"><span>Project name</span><input name="title" required maxlength="200" autofocus placeholder="Name your project"></label><label class="hub-field"><span>Shared brief <span class="hub-muted">· optional</span></span><textarea name="context" placeholder="Purpose, audience and source context"></textarea></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Create project</button></div></form>`);
     dialog.querySelector('input').focus();
@@ -337,6 +351,7 @@
     const node=event.target.closest('button');if(!node)return;
     const run=async()=>{
       if(node.dataset.action)return action(node.dataset.action,node);
+      if(node.dataset.openDesign)return openDesign(node.dataset.openDesign);
       if(node.dataset.artifact)return openArtifact(node.dataset.artifact);
       if(node.dataset.moveArtifact)return moveDialog(node.dataset.moveArtifact);
       if(node.dataset.project)return home(node.dataset.project);
@@ -406,7 +421,7 @@
     if(event.data.type==='artifact:height' && Number.isFinite(event.data.height))frame.style.height=`${Math.min(30000,Math.max(500,event.data.height))}px`;
     if(event.data.type==='artifact:target' && state.selecting){const target=event.data.target;if(target && target.kind==='element' && typeof target.selector==='string' && target.selector.length<=2000)setTarget({kind:'element',selector:target.selector,label:String(target.label || target.quote || target.selector).slice(0,200),quote:String(target.quote || '').slice(0,2000),...(target.viewport && Number.isFinite(target.viewport.width) && Number.isFinite(target.viewport.height)?{viewport:{width:target.viewport.width,height:target.viewport.height}}:{})},event.data.additive===true);}
   });
-  root.addEventListener('popstate',()=>{const query=new URL(root.location.href).searchParams,id=query.get('artifact');id?openArtifact(id,false):home(query.get('view')==='designs'?'designs':'all',false);});
+  root.addEventListener('popstate',()=>{const query=new URL(root.location.href).searchParams,id=query.get('artifact');query.get('design')?openDesign(query.get('design'),false):id?openArtifact(id,false):home(query.get('view')==='designs'?'designs':'all',false);});
   root.addEventListener('resize',()=>{if(state.detail && kindOf(state.detail)==='image')renderImageRegions();});
   function artifactPreviewBusy() {
     return !!regionStart || sending.has(state.active) || !!doc.activeElement?.closest('#hub-viewer') && (doc.activeElement.tagName==='IFRAME' || doc.activeElement.matches('input,textarea,select,[contenteditable]'));
@@ -450,6 +465,8 @@
           const release=doc.querySelector('[data-action=release]'),count=pendingCount(state.detail);
           if(release){release.disabled=!count;release.innerHTML=icon('send')+`<span>Send batch${count?' · '+count:''}</span>`;}
         }
+      }else if(state.designActive){
+        if(!state.designs.some(item=>item.id===state.designActive))home('designs');
       }else if(!state.active && previous!==JSON.stringify([state.artifacts,state.designs,state.projects])){
         const search=doc.getElementById('hub-search'),focused=doc.activeElement===search,position=search?.selectionStart;
         library();if(focused){const next=doc.getElementById('hub-search');next.focus();try{next.setSelectionRange(position,position);}catch{}}
@@ -457,6 +474,6 @@
     }catch{}finally{refreshing=false;}
   }
   headerIcons();
-  loadRegistry().then(()=>{const query=new URL(root.location.href).searchParams;const id=query.get('artifact');const project=query.get('project');if(state.projects.some(item=>item.id===project))state.project=project;if(query.get('view')==='designs')state.project='designs';return id?openArtifact(id,false):library();}).catch(error=>{content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;toast(error.message,true);});
+  loadRegistry().then(()=>{const query=new URL(root.location.href).searchParams;const id=query.get('artifact');const project=query.get('project');if(state.projects.some(item=>item.id===project))state.project=project;if(query.get('view')==='designs')state.project='designs';return query.get('design')?openDesign(query.get('design'),false):id?openArtifact(id,false):library();}).catch(error=>{content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;toast(error.message,true);});
   setInterval(refresh,12000);
 })(typeof window==='undefined'?{}:window);

@@ -7,6 +7,7 @@ from typing import Literal
 
 from .agent_io import guide_fields, rule_fields
 from .artifacts import ArtifactStore
+from .design_library import DesignLibrary
 from .storage import Store, digest
 
 PROJECT = Path(__file__).resolve().parent.parent
@@ -20,6 +21,7 @@ def artifact_context(
     known_rules_hash: str = "",
     known_guide_hash: str = "",
     record_delivery: bool = False,
+    design_id: str = "",
 ) -> dict[str, object]:
     """Resolve applicable guidance without loading unrelated artifact source bodies."""
     artifacts = ArtifactStore(store)
@@ -95,7 +97,21 @@ def artifact_context(
                 "delivery": state,
             }
         )
+    selected_design = DesignLibrary(store).get(design_id) if design_id else None
+    if selected_design:
+        sources.extend(
+            {
+                "title": file.name,
+                "scope": "design · " + selected_design.id,
+                "path": file.local_path,
+                "hash": file.sha256,
+                "delivery": "pointer returned" if record_delivery else "available",
+            }
+            for file in selected_design.files
+        )
     result: dict[str, object] = {
+        "available_designs": [item.model_dump() for item in DesignLibrary(store).list()],
+        "design_context": selected_design.model_dump() if selected_design else None,
         **rules,
         **guide,
         "project": project.model_dump() if project else None,

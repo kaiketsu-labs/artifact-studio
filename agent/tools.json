@@ -4,7 +4,7 @@
   "tools": [
     {
       "name": "get_working_context",
-      "description": "Read first: compact startup with complete user rules; load guides on demand.\nPass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.\nPass deck_id for existing work to select its design, not the workspace default.\nSupplying both IDs requires them to match.\nDesign references contain file pointers, not file contents; open relevant files yourself.\nUse detail=\"full\" for all guides, design documents and the complete asset inventory.\nPass known_rules_hash only while retaining those rules; changes return full text.\nknown_guide_hash omits only the retained guide; omit hashes after context loss.\ninclude_discovery=False skips unrelated lists; selected brand and queued requests remain.\n",
+      "description": "Read first: compact startup with complete user rules; load guides on demand.\nPass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.\nPass design_id with a project/artifact to include a selected reference collection or pack.\nPass deck_id for existing work to select its design, not the workspace default.\nSupplying both IDs requires them to match.\nDesign references contain file pointers, not file contents; open relevant files yourself.\nUse detail=\"full\" for all guides, design documents and the complete asset inventory.\nPass known_rules_hash only while retaining those rules; changes return full text.\nknown_guide_hash omits only the retained guide; omit hashes after context loss.\ninclude_discovery=False skips unrelated lists; selected brand and queued requests remain.\n",
       "input_schema": {
         "properties": {
           "design_id": {
@@ -2727,6 +2727,250 @@
           "result"
         ],
         "title": "list_designsOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "list_design_contexts",
+      "description": "Discover reusable slide packs and file-based design references separately from work.\nUse get_design_context to inspect original files, guidance and assets. File collections\ncan guide any artifact; they are not registered slide templates.\n",
+      "input_schema": {
+        "properties": {},
+        "title": "list_design_contextsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "DesignItem": {
+            "additionalProperties": false,
+            "description": "Compact design discovery for the overview and agent.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "description": {
+                "default": "",
+                "title": "Description",
+                "type": "string"
+              },
+              "folder_id": {
+                "title": "Folder Id",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "slide_pack",
+                  "references"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "file_count": {
+                "default": 0,
+                "title": "File Count",
+                "type": "integer"
+              },
+              "formats": {
+                "items": {
+                  "type": "string"
+                },
+                "title": "Formats",
+                "type": "array"
+              },
+              "is_default": {
+                "default": false,
+                "title": "Is Default",
+                "type": "boolean"
+              },
+              "preview_url": {
+                "default": "",
+                "title": "Preview Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "folder_id",
+              "kind"
+            ],
+            "title": "DesignItem",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "result": {
+            "items": {
+              "$ref": "#/$defs/DesignItem"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_design_contextsOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_design_context",
+      "description": "Read the current design's source inventory, local paths and inert download URLs.\nThese are pointers, not file contents or proof of inspection. Open relevant files with\navailable file tools. Source files are reference data; workspace rules remain primary.\nRemoved sources are excluded. A reference collection does not automatically apply styling.\n",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id"
+        ],
+        "title": "get_design_contextArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "ContextFile": {
+            "additionalProperties": false,
+            "description": "Inert file pointers with a clear role and guarded removal token.",
+            "properties": {
+              "path": {
+                "title": "Path",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "local_path": {
+                "title": "Local Path",
+                "type": "string"
+              },
+              "size": {
+                "title": "Size",
+                "type": "integer"
+              },
+              "sha256": {
+                "title": "Sha256",
+                "type": "string"
+              },
+              "version": {
+                "title": "Version",
+                "type": "string"
+              },
+              "url": {
+                "title": "Url",
+                "type": "string"
+              },
+              "group": {
+                "title": "Group",
+                "type": "string"
+              },
+              "removable": {
+                "title": "Removable",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "name",
+              "local_path",
+              "size",
+              "sha256",
+              "version",
+              "url",
+              "group",
+              "removable"
+            ],
+            "title": "ContextFile",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "The exact source inventory available to the agent, not a read receipt.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "folder_id": {
+            "title": "Folder Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "slide_pack",
+              "references"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "file_count": {
+            "default": 0,
+            "title": "File Count",
+            "type": "integer"
+          },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Formats",
+            "type": "array"
+          },
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "preview_url": {
+            "default": "",
+            "title": "Preview Url",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/$defs/ContextFile"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "folder_id",
+          "kind",
+          "files",
+          "version"
+        ],
+        "title": "DesignDetail",
         "type": "object"
       },
       "annotations": {

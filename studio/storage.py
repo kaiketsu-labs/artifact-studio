@@ -158,6 +158,7 @@ class Store:
         database.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.executescript("""
+                CREATE TABLE IF NOT EXISTS design_archives (folder TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS workspace_settings (
                     key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS archived_decks (
@@ -963,10 +964,14 @@ class Store:
             self.write(deck_id, deck)
             return slide.notes_revision
 
-    def designs(self) -> list[DesignView]:
+    def designs(self, *, include_archived: bool = False) -> list[DesignView]:
         """Discover reusable designs and validate the files needed for deck creation."""
         result: list[DesignView] = []
+        with self.connect() as db:
+            archived = {str(row[0]) for row in db.execute("SELECT folder FROM design_archives")}
         for manifest in sorted(self.root.glob("*/design.json")):
+            if not include_archived and manifest.parent.name in archived:
+                continue
             folder = self.folder(manifest.parent.name)
             design = DesignManifest.model_validate_json(manifest.read_text())
             if any(existing.id == design.id for existing in result):
@@ -996,6 +1001,8 @@ class Store:
     def set_default_design(self, design_id: str) -> str:
         """Save a user-selected brand without changing any existing presentation."""
         _ = self.design(design_id)
+        if not any(item.id == design_id for item in self.designs()):
+            raise ValueError("Restore the deleted design before making it the default.")
         with self.connect() as db:
             _ = db.execute(
                 "INSERT OR REPLACE INTO workspace_settings VALUES ('default_design', ?)",
@@ -1005,7 +1012,7 @@ class Store:
 
     def design(self, design_id: str) -> DesignView:
         """Resolve an explicitly selected design without hidden session state."""
-        for design in self.designs():
+        for design in self.designs(include_archived=True):
             if design.id == design_id:
                 return design
         raise ValueError(f"Unknown design '{design_id}'. Call list_designs to choose a design.")
@@ -1013,6 +1020,14 @@ class Store:
     def register_design(self, folder_id: str, manifest: DesignManifest) -> DesignView:
         """Validate and register an agent-prepared design without replacing an existing brand."""
         folder = self.folder(folder_id)
+        if any(
+            not path.is_symlink() and json.loads(path.read_text()).get("id") == manifest.id
+            for path in self.root.glob("*/design-context.json")
+            if not path.parent.name.startswith(".")
+        ):
+            raise ConflictError(
+                "This ID belongs to a reference collection. Choose a new slide design ID."
+            )
         if not folder.is_dir():
             raise ValueError("Prepare the reference-based design folder before registering it.")
         for name in DESIGN_FILES:
@@ -1022,7 +1037,10 @@ class Store:
             raise ValueError("Set the example deck's design_id to the chosen design ID first.")
         with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
-            existing = next((item for item in self.designs() if item.id == manifest.id), None)
+            existing = next(
+                (item for item in self.designs(include_archived=True) if item.id == manifest.id),
+                None,
+            )
             result = DesignView(**manifest.model_dump(), folder_id=folder_id)
             if existing == result:
                 return result

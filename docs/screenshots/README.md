@@ -7,11 +7,20 @@ From the repository root, after the normal development installation:
 ```sh
 uv run playwright install chromium --only-shell
 uv run python -m scripts.capture_screenshots
+uv run python -m scripts.capture_design_library
 ```
 
 The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/slide-studio-docs`.
 
-The screenshot source is [capture_screenshots.py](../../scripts/capture_screenshots.py); the fictional slide content is [screenshot_fixture.py](../../scripts/screenshot_fixture.py). The generated [capture inventory](captures.json) records all 26 outputs, pixel sizes, viewports and SHA-256 hashes. Captures use a 1440 × 1000 viewport, light or dark appearance, reduced motion and a fixed browser clock. Chat timestamps come from the temporary server's real clock. The command checks that every documentation PNG was captured before copying the finished set to the destination.
+The editor screenshot source is [capture_screenshots.py](../../scripts/capture_screenshots.py); the fictional slide content is [screenshot_fixture.py](../../scripts/screenshot_fixture.py). Its generated [capture inventory](captures.json) records 26 editor outputs, pixel sizes, viewports and SHA-256 hashes. Captures use a 1440 × 1000 viewport, light or dark appearance, reduced motion and a fixed browser clock. Chat timestamps come from the temporary server's real clock. The command checks its own inventory before copying the finished set to the destination.
+
+[capture_design_library.py](../../scripts/capture_design_library.py) captures the dedicated design overview, reference context, mobile context and slide pack context, using isolated fictional Markdown, SVG, CSV and JSON sources. Its [inventory](design-captures.json) records the viewports and hashes. Reference file collections do not contain synthetic slide decks. Existing Artifact Hub captures are maintained separately.
+
+| Design library view | Screenshot |
+| --- | --- |
+| File-first overview with add and delete controls | [Overview](../assets/design-library.png) |
+| Context file inventory with add, download and remove controls | [Context](../assets/design-context.png), [mobile](design-context-mobile.png) |
+| Slide design pack with separate example action | [Pack context](design-pack-context.png) |
 
 | Images | Shows |
 | --- | --- |
