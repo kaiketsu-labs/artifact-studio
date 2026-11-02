@@ -37,6 +37,8 @@ class NoteDraft(StrictModel):
 
     notes: str = Field(max_length=20_000)
     expected_notes: str = Field(max_length=20_000)
+    expected_revision: int | None = Field(default=None, ge=0)
+    pending_notes: str | None = Field(default=None, max_length=20_000)
 
 
 class FeedbackDraft(StrictModel):

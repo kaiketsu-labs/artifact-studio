@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {create}=require('../web/presentation-launcher.js');
 
 /** Model fullscreen events and frame messages without granting synthetic activation. */
-function fixture({unsupported=false,reject=false}={}){
+function fixture({unsupported=false,reject=false,prepare=null,onError=()=>{}}={}){
   const order=[],messages=[],handlers={},classes=new Set();let returned=null,unavailable=0;
   const doc={fullscreenElement:null,documentElement:{},body:{children:[],classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)},append(element){this.children.push(element);}},addEventListener(type,listener){handlers[type]=listener;}};
   const view={location:{origin:'http://localhost',href:'http://localhost/?deck=test'},addEventListener(type,listener){handlers[type]=listener;}};
@@ -24,13 +24,28 @@ function fixture({unsupported=false,reject=false}={}){
   if(!unsupported)doc.documentElement.requestFullscreen=()=>{};
   doc.exitFullscreen=async()=>{doc.fullscreenElement=null;handlers.fullscreenchange();};
   const button=new Element('a'),fullscreenButton=new Element('button'),sibling=new Element('main');sibling.inert=true;doc.body.children.push(sibling);
-  const launcher=create({button,additionalButtons:[fullscreenButton],doc,view,onReturn:id=>{returned=id;},onUnavailable:()=>unavailable++});
+  const launcher=create({button,additionalButtons:[fullscreenButton],doc,view,prepare,onError,onReturn:id=>{returned=id;},onUnavailable:()=>unavailable++});
   const click=(extra={})=>button.handlers.click({button:0,preventDefault(){},...extra});
   const layer=()=>doc.body.children.at(-1),frame=()=>layer().child;
   const message=(data,extra={})=>handlers.message({source:frame().contentWindow,origin:view.location.origin,data:{type:'slide-studio:presentation',...data},...extra});
   return {doc,handlers,launcher,button,fullscreenButton,sibling,order,messages,classes,click,layer,frame,message,returned:()=>returned,unavailable:()=>unavailable};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
+
+test('pending notes save after fullscreen activation and before the presentation loads',async()=>{
+  let finish;const saving=new Promise(resolve=>{finish=resolve;});
+  const check=fixture({prepare:()=>saving});check.click();
+  assert.deepEqual(check.order,['fullscreen']);
+  await settle();assert.deepEqual(check.order,['fullscreen']);
+  finish();await settle();assert.deepEqual(check.order,['fullscreen','navigate']);
+});
+
+test('a failed note save returns to editing with an actionable error',async()=>{
+  const errors=[],check=fixture({prepare:async()=>{throw Error('Review notes');},onError:message=>errors.push(message)});
+  check.click();await settle();
+  assert.equal(check.launcher.isOpen(),false);assert.deepEqual(errors,['Review notes']);
+  assert.deepEqual(check.order,['fullscreen']);assert.equal(check.button.focused,true);
+});
 
 test('Present requests fullscreen synchronously before loading the slideshow',async()=>{
   const check=fixture();check.click();

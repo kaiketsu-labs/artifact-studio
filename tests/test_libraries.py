@@ -15,6 +15,7 @@ from studio.libraries import (
     Libraries,
     LibraryInput,
     LibrarySyncSettings,
+    SyncResult,
     command,
     inventory,
     safe_file,
@@ -439,3 +440,140 @@ def test_auto_sync_removes_only_unchanged_managed_files(
     with pytest.raises(ValueError, match="Remote changes"):
         _ = libraries.sync(library.id, automatic=True)
     assert (checkout / "2026-10-28-example/index.html").read_text() == "Independent edit"
+
+
+def test_reverted_local_edit_clears_pending_without_an_upload(
+    library_setup: tuple[Libraries, Path],
+) -> None:
+    """A quiet-period edit reverted to the delivered content is already backed up."""
+    libraries, _ = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    worker.tick(100)
+    worker.tick(100 + QUIET_SECONDS)
+    delivered = worker.state(library.id)
+    path = libraries.store.root / "2026-10-28-example/notes.md"
+    original = path.read_bytes()
+    _ = path.write_text("A temporary change")
+    worker.tick(200)
+    assert worker.state(library.id).phase == "pending"
+    _ = path.write_bytes(original)
+    worker.tick(203)
+    restored = worker.state(library.id)
+    assert restored.phase == "synced"
+    assert restored.commit == delivered.commit
+    assert restored.last_synced_at == delivered.last_synced_at
+
+
+def test_disappearing_file_during_observation_recovers_without_manual_retry(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An atomic replacement may invalidate an inventory entry before it is hashed."""
+    libraries, _ = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    original = worker.fingerprint
+
+    def vanished() -> str:
+        raise FileNotFoundError("File replaced during save")
+
+    monkeypatch.setattr(worker, "fingerprint", vanished)
+    worker.tick(100)
+    assert worker.state(library.id).phase == "pending"
+    assert not worker.state(library.id).error
+    monkeypatch.setattr(worker, "fingerprint", original)
+    worker.tick(103)
+    worker.tick(103 + QUIET_SECONDS)
+    assert worker.state(library.id).phase == "synced"
+
+
+def test_source_removed_during_delivery_is_reobserved(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A normal removal after the quiet period must not permanently pause backup."""
+    libraries, _ = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    sync = worker.libraries.sync
+    calls = 0
+
+    def changing_source(
+        identifier: str, deck_id: str | None = None, *, automatic: bool = False
+    ) -> SyncResult:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            (libraries.store.root / "2026-10-28-example/notes.md").unlink()
+            raise FileNotFoundError("Reference removed while preparing backup")
+        return sync(identifier, deck_id, automatic=automatic)
+
+    monkeypatch.setattr(worker.libraries, "sync", changing_source)
+    worker.tick(100)
+    worker.tick(100 + QUIET_SECONDS)
+    assert worker.state(library.id).phase == "pending"
+    worker.tick(111)
+    worker.tick(111 + QUIET_SECONDS)
+    assert calls == 2
+    assert worker.state(library.id).phase == "synced"
+    assert not (Path(library.path) / "2026-10-28-example/notes.md").exists()
+
+
+def test_unacknowledged_push_retries_without_a_duplicate_commit(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exercise actual Git delivery, then lose only its acknowledgement."""
+    libraries, remote = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    run = module.command
+    lose_ack = True
+
+    def unreliable(*args: str, cwd: Path | None = None) -> str:
+        nonlocal lose_ack
+        result = run(*args, cwd=cwd)
+        if "push" in args and lose_ack:
+            lose_ack = False
+            raise ValueError("Connection lost after push")
+        return result
+
+    monkeypatch.setattr(module, "command", unreliable)
+    worker = AutoSync(libraries.store)
+    worker.tick(100)
+    worker.tick(100 + QUIET_SECONDS)
+    assert worker.state(library.id).phase == "error"
+    delivered = command("git", "--git-dir", str(remote), "rev-parse", "main")
+    _ = worker.queue(library.id)
+    worker.tick(200)
+    worker.tick(200 + QUIET_SECONDS)
+    assert worker.state(library.id).phase == "synced"
+    assert worker.state(library.id).commit == delivered
+    assert command("git", "--git-dir", str(remote), "rev-list", "--count", "main") == "1"
+
+
+def test_restart_reconciles_an_interrupted_delivery(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A persisted syncing phase is an unknown outcome and must be checked again."""
+    libraries, _ = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    worker.tick(100)
+    worker.tick(100 + QUIET_SECONDS)
+    checkpoint = worker.state(library.id)
+    checkpoint.phase = "syncing"
+    worker.save(checkpoint)
+    restarted = AutoSync(libraries.store)
+    attempts: list[str] = []
+    sync = restarted.libraries.sync
+
+    def deliver(
+        identifier: str, deck_id: str | None = None, *, automatic: bool = False
+    ) -> SyncResult:
+        attempts.append(identifier)
+        return sync(identifier, deck_id, automatic=automatic)
+
+    monkeypatch.setattr(restarted.libraries, "sync", deliver)
+    restarted.tick(200)
+    assert restarted.state(library.id).phase == "pending"
+    restarted.tick(200 + QUIET_SECONDS)
+    assert attempts == [library.id]
+    assert restarted.state(library.id).phase == "synced"

@@ -706,6 +706,8 @@ class Store:
             )
             changes = patch.model_dump(exclude_none=True)
             revised = Slide.model_validate(slide.model_dump() | changes)
+            if revised.notes != slide.notes:
+                revised.notes_revision = slide.notes_revision + 1
             SlideMarkup().feed(revised.html)
             if (
                 revised.html != slide.html
@@ -934,15 +936,30 @@ class Store:
             _ = db.execute("INSERT INTO delivery(event_id) VALUES (?)", (cursor.lastrowid,))
         return str(cursor.lastrowid)
 
-    def save_notes(self, deck_id: str, slide_id: str, notes: str, expected_notes: str) -> None:
+    def save_notes(
+        self,
+        deck_id: str,
+        slide_id: str,
+        notes: str,
+        expected_notes: str,
+        expected_revision: int | None = None,
+    ) -> int:
         """Preserve simultaneous content edits while saving human speaker notes."""
         with self.editing(deck_id):
             deck = self.read(deck_id)
             slide = self.locate(deck, slide_id)
+            if expected_revision is not None and slide.notes_revision != expected_revision:
+                if slide.notes == notes and slide.notes_revision > expected_revision:
+                    return slide.notes_revision
+                raise ConflictError("Notes changed in another window. Review the saved notes.")
+            if slide.notes == notes and expected_revision is None:
+                return slide.notes_revision
             if slide.notes != expected_notes:
                 raise ConflictError("Notes changed in another window. Copy your edit and refresh.")
             slide.notes = notes
+            slide.notes_revision += 1
             self.write(deck_id, deck)
+            return slide.notes_revision
 
     def designs(self) -> list[DesignView]:
         """Discover reusable designs and validate the files needed for deck creation."""

@@ -98,6 +98,12 @@ def test_actions_preserve_state_and_retry(tmp_path: Path) -> None:
     final = store.view(TEMPLATE_ID)
     first = next(s for s in final.slides if s.id == ids[0])
     assert first.notes == "Notes" and first.hidden and first.approved and first.feedback
+    original_notes_revision = next(s for s in before.slides if s.id == ids[0]).notes_revision
+    assert first.notes_revision == original_notes_revision + 1
+    with pytest.raises(ConflictError):
+        store.save_notes(
+            TEMPLATE_ID, first.id, "An old pending note", "Notes", original_notes_revision
+        )
     assert any(s.id == "concurrent" for s in final.slides)
 
 

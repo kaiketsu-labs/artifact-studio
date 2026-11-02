@@ -1,0 +1,19 @@
+/* Quiet save indicators; errors expose recovery without interrupting typing. */
+#storage-status{position:relative}
+#storage-status[data-phase=error]{color:var(--red)}
+#storage-status[data-phase=synced]{color:var(--green)}
+#storage-status[data-phase=pending]::after,#storage-status[data-phase=syncing]::after{content:'';position:absolute;right:4px;top:4px;width:5px;height:5px;border-radius:50%;background:var(--blue)}
+#notes-state[data-phase=saved]{color:var(--green)}
+#notes-state[data-phase=pending],#notes-state[data-phase=saving]{color:var(--subtle)}
+#notes-state[data-phase=error],#notes-state[data-phase=conflict]{color:var(--red)}
+.notes-footer{align-items:center;gap:10px;padding-top:8px}
+.notes-footer .inline-error{margin:0;flex:1;font-size:12px}
+.notes-footer button{flex-shrink:0}
+.notes-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.notes-comparison label{min-width:0;font-size:12px;font-weight:600}
+.notes-comparison textarea{width:100%;height:210px;resize:vertical;margin-top:8px;padding:12px;font-size:13px;font-weight:400;line-height:1.5;color:inherit;background:transparent;border:1px solid var(--line);border-radius:8px}
+#notes-conflict-dialog{width:min(760px,94vw)}
+.library-path{overflow-wrap:anywhere}
+.library-row:last-child{border-bottom:0}
+.backup-details{color:var(--subtle);font-size:12px;margin-top:18px;line-height:1.5}
+@media(max-width:600px){.notes-comparison{grid-template-columns:1fr}.notes-comparison textarea{height:140px}.notes-footer{flex-wrap:wrap}}

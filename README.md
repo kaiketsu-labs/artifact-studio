@@ -111,7 +111,7 @@ The project menu at the top left marks the current project and wraps long names 
 
 Select an element to edit text, drag its selection border, align it or rotate it using the round handle or degree field. The trash icon stages a deletion request. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide.
 
-**Speaker notes open by default** below the slide. Edit them and click the save icon; your saved panel preference is respected when reopening a project. Agent explanations and sources stay collapsed; open questions remain visible.
+**Speaker notes open by default and save automatically** after a short pause, when leaving the field, or when switching slides. The header shows **Saving…**, **Saved**, or a recovery action. Failed saves keep a browser draft; **Retry** sends it again. If another editor changed the notes, **Review changes** compares both versions before you choose. Project save and Present wait for pending note saves. Your saved panel preference is respected when reopening a project. Agent explanations and sources stay collapsed; open questions remain visible.
 
 Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.
 
@@ -209,7 +209,7 @@ Rich editing supports headings, lists, emphasis, links, quotes and code. Documen
 
 Back up **both the presentation collection and state folder**. Set `SLIDE_STUDIO_COLLECTION` and `SLIDE_STUDIO_DATABASE` to choose other locations. Removing a presentation from the selector preserves its files and history; use **Undo** or the restore icon to bring it back.
 
-The app ships without corporate masters, logos or fonts. Repository connections default to reference only. Enable **Auto-sync all presentations** for an explicitly selected private repository to save workspace changes to GitHub while Slide Studio runs. See [reference libraries and sync](docs/REPOSITORY-SYNC.md).
+The app ships without corporate masters, logos or fonts. The **storage icon beside Menu** opens your working-folder path and backup status. Repository connections default to reference only. Enable **Back up all presentations** for a selected private repository to upload saved files while Slide Studio runs. The icon shows pending delivery or errors even with the dialog closed. GitHub is a one-way backup; **Save project → Open project** carries the full workspace, including chats and review state, to another device or Codex environment. See [storage and GitHub backup](docs/REPOSITORY-SYNC.md).
 
 ## Documentation
 

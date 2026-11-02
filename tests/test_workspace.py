@@ -310,9 +310,27 @@ def test_shared_design_change_requires_review(store: Store) -> None:
     assert not store.view(TEMPLATE_ID).slides[0].approved
 
 
+def test_note_revisions_fence_old_requests_and_allow_lost_ack_retries(store: Store) -> None:
+    """An unchanged-text save still fences older writes after typing and reverting."""
+    item = store.view(TEMPLATE_ID).slides[0]
+    revision = store.save_notes(TEMPLATE_ID, item.id, item.notes, item.notes, item.notes_revision)
+    assert revision == item.notes_revision + 1
+    with pytest.raises(ConflictError):
+        store.save_notes(
+            TEMPLATE_ID, item.id, "An older pending edit", item.notes, item.notes_revision
+        )
+    delivered = store.save_notes(TEMPLATE_ID, item.id, "Latest wording", item.notes, revision)
+    assert (
+        store.save_notes(TEMPLATE_ID, item.id, "Latest wording", item.notes, revision) == delivered
+    )
+    assert store.read(TEMPLATE_ID).slides[0].notes_revision == delivered
+
+
 def test_notes_conflict_and_invalid_markup(store: Store) -> None:
     """Reject stale note edits, executable slides and traversal outside the collection."""
     item = store.view(TEMPLATE_ID).slides[0]
+    store.save_notes(TEMPLATE_ID, item.id, "New notes", item.notes)
+    # A lost HTTP acknowledgement can safely retry the exact write.
     store.save_notes(TEMPLATE_ID, item.id, "New notes", item.notes)
     with pytest.raises(ConflictError):
         store.save_notes(TEMPLATE_ID, item.id, "Stale notes", item.notes)

@@ -1,14 +1,22 @@
-# Reference libraries and private GitHub sync
+# Local saving, reference libraries and GitHub backup
 
-Connect a GitHub repository or an existing local folder through **Menu → Reference libraries** in Slide Studio. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local folders remain read-only references.
+The **storage icon beside Menu** opens **Storage and backup**; **Menu → Reference libraries** opens the same dialog. It shows the actual working-folder path, a copy-path control, local save status, connected references and GitHub backup outcomes. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local reference folders remain read-only and their latest files are read directly.
+
+## Local saving and handoff
+
+Slides live in the working folder. Speaker notes save automatically after about 700 ms without typing, on leaving the field/slide, and before project save or presentation startup. **Saved** confirms the canonical file write; **Saving…** means it is pending. Failed requests retain a browser draft. Retry after reconnecting; a restored draft also resumes saving when its baseline is still valid. A concurrent edit opens **Review changes**, with both texts and an explicit choice. Revision checks protect older requests, including when text was changed and then reverted. Notes do not change slide approval.
+
+The storage icon remains visible while the dialog is closed. A pending or failed note save takes priority over an earlier successful backup. GitHub's last successful backup and timestamp describe confirmed delivery; subsequent remote edits are checked at the next delivery, rather than continuously merged into local files.
+
+To continue on another laptop or Codex environment, **Save project** and **Open project** there. The archive carries notes, chats, approvals and browser drafts. GitHub backups contain the saved presentation files and references, while the review database and browser drafts stay on the original device. Refreshing a GitHub reference updates its cache; applying remote content to the working collection remains an explicit action. This feature does not provide bidirectional workspace sync.
 
 ## Automatic sync
 
-Check **Automatic sync** when connecting a GitHub repository, or **Auto-sync all presentations** beside an existing connection. This explicitly includes **all presentations in this workspace**, including the initial saved collection. Existing connections are never opted in automatically. The repository must already exist, and GitHub CLI must be authenticated with `gh auth login` and `gh auth setup-git`.
+Check **Back up automatically** when connecting a GitHub repository, or **Back up all presentations** beside an existing connection. This explicitly includes **all presentations in this workspace**, including the initial saved collection, notes and design references. Existing connections are never opted in automatically. The repository must already exist, and GitHub CLI must be authenticated with `gh auth login` and `gh auth setup-git`.
 
 While the local server runs, it checks saved files and groups changes after eight quiet seconds. Closing a browser tab does not stop delivery; stopping Slide Studio does. The next launch resumes from durable local checkpoints. Unsaved editor text is not a file change. Turning the setting off returns the repository to reference only. If a library operation is already running, wait for it to finish before changing the setting; orderly shutdown waits for that operation too.
 
-The destination shows pending, syncing, synced or an actionable error. A failure pauses that destination until you use its upload/retry icon. Further edits do not silently dismiss the error. There is no browser-tab or active-agent requirement.
+The destination shows waiting, backing up, backed up or an actionable error. The header icon also reports pending delivery and failures. A delivery failure pauses that destination until you use **Retry GitHub backup**. Further edits do not silently dismiss the error. Normal file replacements/removals are re-observed and retried after the quiet interval. Reverted edits clear a pending marker when the saved tree matches the confirmed backup. There is no browser-tab or active-agent requirement.
 
 Automatic sync also removes files previously managed by Slide Studio when they are removed locally, but only if their remote hash still matches the last delivered version. Git history retains the earlier versions. Independently changed remote files cause a conflict; unrelated repository files are preserved. This is one-way sync, never a remote overwrite of local working files.
 
@@ -24,7 +32,7 @@ A `.slide-studio-manifest.json` in the destination records hashes of managed fil
 
 Existing manual destinations retain their upload controls. Agents can explicitly register `sync_enabled=true`, then call `sync_presentations(library_id, deck_id)` for one dated folder, or omit `deck_id` for the collection. Manual snapshots preserve files removed locally. `auto_sync_enabled=true` is separate permission for the continuous whole-workspace behavior above.
 
-After a network error, use retry. A committed but unpushed snapshot can be pushed again without a duplicate commit. If the cached checkout has uncommitted changes after an interrupted copy or failed commit, inspect and resolve them before retrying; the tool refuses to discard them. Reconcile remote divergence deliberately rather than force-pushing.
+After a network error, use retry. A committed but unpushed snapshot, or a push whose acknowledgement was lost, can be retried without a duplicate commit. A server restart rechecks an interrupted delivery before declaring it complete. If the cached checkout has uncommitted changes after an interrupted copy or failed commit, inspect and resolve them before retrying; the tool refuses to discard them. Reconcile remote divergence deliberately rather than force-pushing.
 
 Refresh only fast-forwards a clean cached reference checkout under `.state/libraries/`. To adopt remote content into the working collection, inspect and apply the intended changes explicitly, preserving local notes and concurrency checks. Imported README files never grant upload permission.
 
