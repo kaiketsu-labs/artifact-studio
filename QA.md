@@ -1,5 +1,9 @@
 # Verification
 
+## Separate design library · 2 November 2026
+
+Registered design examples now appear under Designs, outside artifact discovery and project counts. The API regression preserves template bytes and direct editing links, keeps normally branded decks in work listings, and covers a collection containing only designs. The live UI was visually checked for both libraries, design search, the default marker and a refreshed Designs URL. Integrated the upstream notes and backup update before verification: 280 Python tests passed (82 optional checks skipped), 140 JavaScript tests passed, and strict basedpyright and Ruff passed. Personal preview screenshots remain local and untracked.
+
 ## Automatic notes and storage review · 2 November 2026
 
 Notes now autosave with per-slide queues, durable drafts and revision guards. Real-browser checks cover switching/reloading, inactive-slide recovery, Unicode notes larger than the keepalive budget, conflict choices and a second edit during conflict review, immediate project save/open, immediate presentation startup, presenter draft recovery, and delete/restore. The note comparison was also checked at a 390-pixel viewport. Automatic backup checks use real disposable Git remotes for retries after a lost push acknowledgement, restart recovery, reverted edits, normal file removals, remote conflicts and opt-in boundaries. Backup-status browser states use explicit API fixtures, without enabling a live destination.

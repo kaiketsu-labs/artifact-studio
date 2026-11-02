@@ -34,6 +34,11 @@
     const query = search.trim().toLocaleLowerCase();
     return artifacts.filter(item => (project === 'all' || item.project_id === project) && (kind === 'all' || kindOf(item) === kind) && `${item.title} ${item.project_title || ''} ${item.entrypoint || ''}`.toLocaleLowerCase().includes(query));
   }
+  /** Search registered visual languages independently of presentation artifacts. */
+  function filterDesigns(designs, search='') {
+    const query=search.trim().toLocaleLowerCase();
+    return designs.filter(item=>`${item.name} ${item.description}`.toLocaleLowerCase().includes(query));
+  }
   /** Resolve bundle-local links while rejecting schemes and traversal outside the bundle. */
   function bundlePath(entrypoint, value) {
     if (!value || /^(?:[a-z][a-z\d+.-]*:|\/\/|\/|#)/i.test(value)) return null;
@@ -64,14 +69,14 @@
     };
     return new markdown.Marked({renderer,gfm:true,breaks:false}).parse(source,{async:false});
   }
-  const exports = {filterArtifacts,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath};
+  const exports = {filterArtifacts,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath};
   if (typeof module !== 'undefined' && module.exports) { module.exports=exports; return; }
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
   const extraIcons={search:'m21 21-5-5M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15',image:'M3 3h18v18H3zM3 16l6-6 5 5 3-3 4 4M16 7h.01',updated:'M20 4v5h-5M19.2 8a8 8 0 1 0-4.7 11.6'};
   const icon=name => extraIcons[name]?`<svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${extraIcons[name]}"/>${name==='updated'?'<circle cx="20" cy="17" r="2" fill="currentColor" stroke="none"/>':''}</svg>`:root.SlideIcons.svg(name);
   const sizeLabel=size => root.SlideChatComposer.sizeLabel(Number(size) || 0);
-  const state={projects:[],artifacts:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
+  const state={projects:[],artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
   const drafts=new Map(), attachments=new Map(), sending=new Set();
   let importFiles=[],toastTimer,refreshing=false,regionStart=null;
   try {
@@ -79,7 +84,7 @@
     for (const [id,value] of Object.entries(saved)) if (value && typeof value.message === 'string') drafts.set(id,{...value,targets:Array.isArray(value.targets) ? value.targets : []});
   } catch {}
   const selectedProject=id => state.projects.find(project=>project.id===id);
-  const projectTitle=id => selectedProject(id)?.title || (id === 'all' ? 'All artifacts' : 'Project');
+  const projectTitle=id => id==='designs'?'Designs':selectedProject(id)?.title || (id === 'all' ? 'All artifacts' : 'Project');
   const fileRecords=item => (item.files || []).map(file=>typeof file==='string'?{path:file}:file);
   const draft = (item=state.detail) => {
     if (!drafts.has(item.id)) drafts.set(item.id,{message:'',targets:[],revision:item.revision,content_hash:item.content_hash,request_id:null});
@@ -109,9 +114,22 @@
       const item=state.detail;
       return `<aside class="hub-sidebar" aria-label="Project artifacts">${button('home','Library','grid','class="hub-library-link"')}<label class="hub-project-picker">${icon('folder')}<select id="hub-project-picker" aria-label="Choose project">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><nav class="hub-project-artifacts" aria-label="Related artifacts">${state.artifacts.filter(other=>other.project_id===item.project_id).map(other=>`<button type="button" data-artifact="${escape(other.id)}" aria-current="${other.id===item.id}" title="${escape(other.title)}">${icon(kinds[kindOf(other)].icon)}<span>${escape(other.title)}</span>${other.status==='updated'?`<span class="hub-status updated" title="Updated">${icon('updated')}</span>`:''}</button>`).join('')}</nav></aside>`;
     }
-    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><div class="hub-sidebar-label">Projects${button('new-project','','plus','aria-label="New project" title="New project"')}</div>${state.projects.map(project=>`<button type="button" data-project="${escape(project.id)}" aria-current="${state.project===project.id}" title="${escape(project.title)}">${icon('folder')}<span>${escape(project.title)}</span><span class="hub-count">${state.artifacts.filter(item=>item.project_id===project.id).length}</span></button>`).join('')}</aside>`;
+    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><div class="hub-sidebar-label">Projects${button('new-project','','plus','aria-label="New project" title="New project"')}</div>${state.projects.map(project=>`<button type="button" data-project="${escape(project.id)}" aria-current="${state.project===project.id}" title="${escape(project.title)}">${icon('folder')}<span>${escape(project.title)}</span><span class="hub-count">${state.artifacts.filter(item=>item.project_id===project.id).length}</span></button>`).join('')}</aside>`;
+  }
+  function visibleItems() {
+    return state.project==='designs'?filterDesigns(state.designs,state.search):filterArtifacts(state.artifacts,state);
+  }
+  function resultCount() {
+    const count=visibleItems().length;
+    return `${count} ${state.project==='designs'?'design':'artifact'}${count===1?'':'s'}`;
+  }
+  function designCards() {
+    const items=visibleItems();
+    if(!items.length)return `<div class="hub-empty">${icon('palette')}<h2>${state.search?'No matching designs':'No designs yet'}</h2><a class="hub-download" href="/?editor=1&new=1">${icon('plus')}Add a design</a></div>`;
+    return items.map(item=>`<article class="hub-card"><a class="hub-card-open hub-design-open" href="/?deck=${encodeURIComponent(item.folder_id)}" aria-label="Open ${escape(item.name)} design"><span class="hub-cover"><span class="hub-cover-fallback">${icon('palette')}</span><img src="/api/hub/previews/${encodeURIComponent(item.folder_id)}" alt="" loading="lazy" decoding="async" data-preview-image></span><span class="hub-card-info"><span class="hub-card-title">${icon('palette')}<span>${escape(item.name)}</span></span><span class="hub-design-description">${escape(item.description)}</span>${item.is_default?`<span class="hub-card-meta"><span class="hub-status">${icon('check')}Default</span></span>`:''}</span></a></article>`).join('');
   }
   function cards() {
+    if(state.project==='designs')return designCards();
     const items=filterArtifacts(state.artifacts,state);
     if(!items.length)return `<div class="hub-empty">${icon(state.search?'eye':'folder')}<h2>${state.search || state.kind!=='all'?'No matching artifacts':state.project==='all'?'A place for your work':'This project is ready'}</h2><p>${state.search || state.kind!=='all'?'Try another search or format.':'Import a page, document, image, presentation or a bundle of files.'}</p>${state.search || state.kind!=='all'?'':`<div class="hub-empty-actions">${button('import','Import files','upload','class="hub-primary"')}</div>`}</div>`;
     return items.map(item=>{
@@ -121,8 +139,8 @@
     }).join('');
   }
   function library() {
-    const count=filterArtifacts(state.artifacts,state).length;
-    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${count} artifact${count===1?'':'s'}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search artifacts…" aria-label="Search artifacts" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats">${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
+    const designs=state.project==='designs';
+    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
     doc.title=`${projectTitle(state.project)} · Artifact Hub`;
   }
   function fileList(item) {
@@ -206,10 +224,10 @@
     }
   }
   async function loadRegistry() {
-    const data=await api('/api/hub');state.projects=data.projects || [];state.artifacts=data.artifacts || [];
-    if(state.project!=='all' && !state.projects.some(project=>project.id===state.project))state.project='all';
+    const data=await api('/api/hub');state.projects=data.projects || [];state.artifacts=data.artifacts || [];state.designs=data.designs || [];
+    if(!['all','designs'].includes(state.project) && !state.projects.some(project=>project.id===state.project))state.project='all';
   }
-  function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');root.history.pushState({},'',url);}
+  function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
     const item=state.artifacts.find(item=>item.id===id);
     if(item?.legacy_deck_id){root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
@@ -228,7 +246,7 @@
       if(detail.status==='updated')api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).then(()=>{const card=state.artifacts.find(item=>item.id===id);if(card)card.status='draft';if(state.detail===detail){detail.status='draft';const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(detail);}}).catch(()=>{});
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
-  function home(project='all',push=true) {++state.loading;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
+  function home(project='all',push=true) {if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
   function modal(title,body,wide=false) {dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();}
   function projectDialog(thenImport=false) {
     modal('New project',`<form id="hub-project-form" class="hub-form" data-then-import="${thenImport}"><label class="hub-field"><span>Project name</span><input name="title" required maxlength="200" autofocus placeholder="Name your project"></label><label class="hub-field"><span>Shared brief <span class="hub-muted">· optional</span></span><textarea name="context" placeholder="Purpose, audience and source context"></textarea></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Create project</button></div></form>`);
@@ -256,7 +274,7 @@
   }
   async function contextDialog() {
     modal('Agent context','<p class="hub-muted" role="status">Loading context…</p>',true);
-    const data=await api(`/api/hub/context${state.detail?'?artifact_id='+encodeURIComponent(state.detail.id):state.project!=='all'?'?project_id='+encodeURIComponent(state.project):''}`);
+    const data=await api(`/api/hub/context${state.detail?'?artifact_id='+encodeURIComponent(state.detail.id):!['all','designs'].includes(state.project)?'?project_id='+encodeURIComponent(state.project):''}`);
     const sources=Array.isArray(data.sources)?data.sources:Array.isArray(data.context?.sources)?data.context.sources:[];
     if(!dialog.open)return;
     modal('Agent context',`<div class="hub-context-grid"><section><h3>Sources & delivery</h3><ul class="hub-context-list">${sources.length?sources.map(source=>`<li class="hub-context-source"><strong><span>${escape(source.title || source.name || source.kind || 'Context source')}</span><span class="hub-context-delivery">${escape(source.delivery || source.delivery_state || source.status || 'Available')}</span></strong><code>${escape(source.path || source.canonical_path || '')}</code><span class="hub-scope">Scope: ${escape(typeof source.scope==='object'?JSON.stringify(source.scope):source.scope || 'workspace')}</span>${source.hash || source.content_hash?`<code title="Content hash">${escape(source.hash || source.content_hash)}</code>`:''}</li>`).join(''):'<li class="hub-context-source">No source receipt was returned.</li>'}</ul></section><section><h3 style="margin-bottom:12px">${data.receipt?'Latest recorded delivery':'Available context'}</h3><pre class="hub-context-receipt">${escape(JSON.stringify(data.receipt || data,null,2))}</pre></section></div><p class="hub-context-note">Delivery records what the server returned. Available sources are not proof that an agent opened or retained them.</p>`,true);
@@ -322,7 +340,7 @@
     };run().catch(error=>toast(error.message,true));
   });
   doc.addEventListener('input',event=>{
-    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();const count=filterArtifacts(state.artifacts,state).length;doc.getElementById('hub-result-count').textContent=`${count} artifact${count===1?'':'s'}`;}
+    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();}
     if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
   });
   doc.addEventListener('change',event=>{
@@ -381,12 +399,12 @@
     if(event.data.type==='artifact:height' && Number.isFinite(event.data.height))frame.style.height=`${Math.min(30000,Math.max(500,event.data.height))}px`;
     if(event.data.type==='artifact:target' && state.selecting){const target=event.data.target;if(target && target.kind==='element' && typeof target.selector==='string' && target.selector.length<=2000)setTarget({kind:'element',selector:target.selector,label:String(target.label || target.quote || target.selector).slice(0,200),quote:String(target.quote || '').slice(0,2000),...(target.viewport && Number.isFinite(target.viewport.width) && Number.isFinite(target.viewport.height)?{viewport:{width:target.viewport.width,height:target.viewport.height}}:{})},event.data.additive===true);}
   });
-  root.addEventListener('popstate',()=>{const id=new URL(root.location.href).searchParams.get('artifact');id?openArtifact(id,false):home('all',false);});
+  root.addEventListener('popstate',()=>{const query=new URL(root.location.href).searchParams,id=query.get('artifact');id?openArtifact(id,false):home(query.get('view')==='designs'?'designs':'all',false);});
   root.addEventListener('resize',()=>{if(state.detail && kindOf(state.detail)==='image')renderImageRegions();});
   async function refresh() {
     if(refreshing || doc.hidden || dialog.open)return;refreshing=true;
     try {
-      const previous=JSON.stringify(state.artifacts),id=state.active;
+      const previous=JSON.stringify([state.artifacts,state.designs,state.projects]),id=state.active;
       await loadRegistry();
       if(state.detail && state.active===id){
         const latest=state.artifacts.find(item=>item.id===id);
@@ -399,13 +417,13 @@
           const release=doc.querySelector('[data-action=release]'),count=pendingCount(state.detail);
           if(release){release.disabled=!count;release.innerHTML=icon('send')+`<span>Send batch${count?' · '+count:''}</span>`;}
         }
-      }else if(!state.active && previous!==JSON.stringify(state.artifacts)){
+      }else if(!state.active && previous!==JSON.stringify([state.artifacts,state.designs,state.projects])){
         const search=doc.getElementById('hub-search'),focused=doc.activeElement===search,position=search?.selectionStart;
         library();if(focused){const next=doc.getElementById('hub-search');next.focus();try{next.setSelectionRange(position,position);}catch{}}
       }
     }catch{}finally{refreshing=false;}
   }
   headerIcons();
-  loadRegistry().then(()=>{const query=new URL(root.location.href).searchParams;const id=query.get('artifact');const project=query.get('project');if(state.projects.some(item=>item.id===project))state.project=project;return id?openArtifact(id,false):library();}).catch(error=>{content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;toast(error.message,true);});
+  loadRegistry().then(()=>{const query=new URL(root.location.href).searchParams;const id=query.get('artifact');const project=query.get('project');if(state.projects.some(item=>item.id===project))state.project=project;if(query.get('view')==='designs')state.project='designs';return id?openArtifact(id,false):library();}).catch(error=>{content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;toast(error.message,true);});
   setInterval(refresh,12000);
 })(typeof window==='undefined'?{}:window);

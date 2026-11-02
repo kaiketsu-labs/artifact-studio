@@ -94,7 +94,7 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
     @mcp.tool(annotations=read)
     @tool_errors
     def list_artifacts(project_id: str = "") -> list[dict[str, object]]:
-        """Discover artifacts and review status, optionally within one project."""
+        """Discover work and review status. Use list_designs for reusable designs."""
         return [
             {**artifact_receipt(item), "status": item.status, "legacy_deck_id": item.legacy_deck_id}
             for item in ArtifactStore(get_store()).list_artifacts(project_id)

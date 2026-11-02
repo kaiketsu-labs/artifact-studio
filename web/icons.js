@@ -12,6 +12,7 @@
     robot:'M12 3v4M9 3h6M7 7h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-8a3 3 0 0 1 3-3ZM2 11v5m20-5v5M9 12h.01M15 12h.01M9 17h6',
     sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5',
     moon:'M20.5 13a8.5 8.5 0 0 1-9.5-9.5A8.5 8.5 0 1 0 20.5 13Z',monitor:'M3 4h18v13H3zM12 17v4m-4 0h8',
+    palette:'M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 1-2.3h2a4 4 0 0 0 4-4c0-4.4-4-8-9-8ZM7 10h.01M10 7h.01M15 7h.01M18 10h.01',
     grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
     align:'M3 4v16M7 7h13v4H7zM7 15h8v3H7z',
     alignLeft:'M4 3v18M8 6h12v4H8zM8 14h8v4H8z',alignCenter:'M12 2v3m0 5v4m0 4v4M4 5h16v5H4zM7 14h10v4H7z',alignRight:'M20 3v18M4 6h12v4H4zM8 14h8v4H8z',

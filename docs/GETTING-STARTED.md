@@ -59,6 +59,10 @@ uv run --no-sync uvicorn studio.app:app --host 127.0.0.1 --port 8790
 
 Keep that Terminal running, then open [Slide Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
 
+### Designs and work
+
+The sidebar’s **Designs** opens registered design packs and their examples, with the workspace default marked. They are excluded from **All artifacts** and project counts. Presentations created from a design remain normal artifacts. Classification uses each pack’s `design.json`; files and existing links stay in place.
+
 ### Storage locations
 
 By default, presentations, project briefs and owned artifact bundles go in `~/Documents/Presentations`; review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:

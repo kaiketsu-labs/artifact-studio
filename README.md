@@ -79,6 +79,8 @@ Reload the agent session if the connection is not visible, then start with:
 
 Use `get_working_context(artifact_id=...)` for selected work or `project_id=...` before creating related work. Existing decks also accept `deck_id=...` and retain their design guidance. The [agent contract map](agent/README.md) explains the canonical bootstrap, guides, tools and context receipts.
 
+Reusable design examples live under **Designs**, separate from project artifacts. Normal presentations using a design remain in the library. Open a design card to inspect or edit its example; the workspace default is marked.
+
 ### Your first project
 
 Choose **New project** and save its name and optional shared brief. **Import** accepts files or a folder; choose the entrypoint the viewer should open first. Alternatively, ask the agent to author local files and call `register_artifact` with the project ID. The hub keeps an owned copy and leaves the originals intact.

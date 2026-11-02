@@ -233,6 +233,11 @@ class ArtifactStore:
             raise ValueError("Keep the project brief at or below 100,000 characters.")
         return project.model_copy(update={"context": context, "context_hash": digest(context)})
 
+    def _presentations(self) -> list[dict[str, str]]:
+        """Keep registered design examples out of work listings without moving their files."""
+        designs = {design.folder_id for design in self.store.designs()}
+        return [deck for deck in self.store.list_decks() if deck["id"] not in designs]
+
     def list_projects(self) -> list[ProjectView]:
         """List briefs and counts while keeping the legacy collection virtual and in place."""
         with self.store.connect() as db:
@@ -250,7 +255,7 @@ class ArtifactStore:
                     "SELECT project_id,COUNT(*) FROM artifact_items GROUP BY project_id"
                 )
             }
-        for deck in self.store.list_decks():
+        for deck in self._presentations():
             project_id = bindings.get(deck["id"], LEGACY_PROJECT)
             counts[project_id] = counts.get(project_id, 0) + 1
         if counts.get(LEGACY_PROJECT):
@@ -610,7 +615,7 @@ class ArtifactStore:
             return self._view(db, manifest)
 
     def list_artifacts(self, project_id: str = "") -> list[ArtifactView]:
-        """List owned bundles and compatible presentations without source bodies or feedback."""
+        """List work without reusable design examples, source bodies or feedback."""
         with self.store.connect() as db:
             if project_id:
                 _ = self._project(db, project_id)
@@ -618,7 +623,7 @@ class ArtifactStore:
                 cast(str, row[0]) for row in db.execute("SELECT id FROM artifact_items ORDER BY id")
             ]
         items = [self.get_artifact(artifact_id) for artifact_id in ids]
-        items.extend(self._legacy(deck["id"]) for deck in self.store.list_decks())
+        items.extend(self._legacy(deck["id"]) for deck in self._presentations())
         return [item for item in items if not project_id or item.project_id == project_id]
 
     def resolve_file(self, artifact_id: str, path: str, revision: int | None = None) -> Path:

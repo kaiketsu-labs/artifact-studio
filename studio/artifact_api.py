@@ -109,11 +109,17 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def library() -> dict[str, object]:
         """Discover artifacts without loading discussion or binary source bodies."""
         service = artifacts()
+        store = get_store()
+        default_design = store.default_design_id()
         return {
             "projects": [item.model_dump(exclude={"context"}) for item in service.list_projects()],
             "artifacts": [
                 item.model_dump(exclude={"files", "context", "original_source_path"})
                 for item in service.list_artifacts()
+            ],
+            "designs": [
+                {**design.model_dump(), "is_default": design.id == default_design}
+                for design in store.designs()
             ],
         }
 

@@ -226,3 +226,21 @@ def test_legacy_deep_links_and_project_assignment_remain_compatible(client: Test
     library = client.get("/")
     assert library.status_code == 200 and "hub.js" in library.text
     assert client.get(f"/api/decks/{deck.id}").status_code == 200
+
+
+def test_design_examples_are_separate_from_work_and_project_counts(client: TestClient) -> None:
+    """Classify registered designs, preserving branded decks and direct template editing."""
+    make_design(service.store.root / TEMPLATE_ID)
+    design_bytes = (service.store.folder(TEMPLATE_ID) / "index.html").read_bytes()
+    deck = service.store.create("2026-11-02-design-review", "Default design discussion")
+    library = client.get("/api/hub").json()
+    assert [item["id"] for item in library["artifacts"]] == [deck.id]
+    assert library["projects"][0]["artifact_count"] == 1
+    assert library["designs"][0]["folder_id"] == TEMPLATE_ID
+    assert library["designs"][0]["is_default"] is True
+    assert client.get(f"/api/artifacts/{TEMPLATE_ID}").status_code == 200
+    assert (service.store.folder(TEMPLATE_ID) / "index.html").read_bytes() == design_bytes
+    service.store.set_archived(deck.id, archived=True)
+    library = client.get("/api/hub").json()
+    assert library["artifacts"] == [] and library["projects"] == []
+    assert len(library["designs"]) == 1

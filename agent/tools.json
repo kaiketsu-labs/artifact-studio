@@ -1096,6 +1096,12 @@
                 "title": "Notes",
                 "type": "string"
               },
+              "notes_revision": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Notes Revision",
+                "type": "integer"
+              },
               "sources": {
                 "items": {
                   "$ref": "#/$defs/Source"
@@ -1737,6 +1743,12 @@
             "maxLength": 20000,
             "title": "Notes",
             "type": "string"
+          },
+          "notes_revision": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Notes Revision",
+            "type": "integer"
           },
           "sources": {
             "items": {
@@ -2490,6 +2502,12 @@
                 "maxLength": 20000,
                 "title": "Notes",
                 "type": "string"
+              },
+              "notes_revision": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Notes Revision",
+                "type": "integer"
               },
               "sources": {
                 "items": {
@@ -3433,6 +3451,12 @@
                 "title": "Notes",
                 "type": "string"
               },
+              "notes_revision": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Notes Revision",
+                "type": "integer"
+              },
               "sources": {
                 "items": {
                   "$ref": "#/$defs/Source"
@@ -3986,6 +4010,12 @@
                 "maxLength": 20000,
                 "title": "Notes",
                 "type": "string"
+              },
+              "notes_revision": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Notes Revision",
+                "type": "integer"
               },
               "sources": {
                 "items": {
@@ -4718,6 +4748,12 @@
                 "maxLength": 20000,
                 "title": "Notes",
                 "type": "string"
+              },
+              "notes_revision": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Notes Revision",
+                "type": "integer"
               },
               "sources": {
                 "items": {
@@ -6315,6 +6351,12 @@
                 "title": "Notes",
                 "type": "string"
               },
+              "notes_revision": {
+                "default": 0,
+                "minimum": 0,
+                "title": "Notes Revision",
+                "type": "integer"
+              },
               "sources": {
                 "items": {
                   "$ref": "#/$defs/Source"
@@ -6599,7 +6641,7 @@
     },
     {
       "name": "list_artifacts",
-      "description": "Discover artifacts and review status, optionally within one project.",
+      "description": "Discover work and review status. Use list_designs for reusable designs.",
       "input_schema": {
         "properties": {
           "project_id": {
