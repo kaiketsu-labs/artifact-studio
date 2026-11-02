@@ -74,9 +74,7 @@ def test_mobile_visible_viewport_repositions_without_losing_caret(
         Object.defineProperty(window.visualViewport, 'height', {value: 540, configurable: true});
         window.visualViewport.dispatchEvent(new Event('resize'));
     }""")
-    expect(page.locator("#element-properties")).to_have_class(
-        re.compile("ep-mobile-text")
-    )
+    expect(page.locator("#element-properties")).to_have_class(re.compile("ep-mobile-text"))
     page.wait_for_function(
         "document.querySelector('#element-properties').getBoundingClientRect().bottom <= 492"
     )
