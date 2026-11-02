@@ -48,7 +48,7 @@
         "width": 1440,
         "height": 1000
       },
-      "sha256": "128636fb965acdc7bb1328e70bfbafe5d836e7b2411884021f580f6af9d7485b"
+      "sha256": "e5a595d7959e78c1064ad61406589256d57a38e4a149b03330f66d5b56002b6f"
     },
     "docs/screenshots/design-context-mobile.png": {
       "viewport": {
@@ -64,5 +64,6 @@
       },
       "sha256": "78ae73b6ed25104244d146f72ea8f3e1d3a13770133141797deaba6adb71beaa"
     }
-  }
+  },
+  "native_share": "Simulated native API for the agent message"
 }

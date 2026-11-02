@@ -1,0 +1,27 @@
+{
+  "fixture": "Original fictional Studio Blue presentation",
+  "native_share": "Simulated API availability; only web UI is captured",
+  "screenshots": {
+    "docs/assets/sharing.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "c26e64736d7119fd19387b869d1a0f158128da67976c8c11e06ecb9b1a493c8f"
+    },
+    "docs/screenshots/sharing-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "f2fda9e51dbe5e0c58afbf2c7c85a70041c3b6158e8c5e8a83675634e6f11970"
+    },
+    "docs/screenshots/sharing-fallback.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "940a48e2aa0a80242f598eeb7d6153139c6a665e53dc3d42d348f5fab435c98f"
+    }
+  }
+}
