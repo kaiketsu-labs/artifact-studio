@@ -190,6 +190,11 @@
         return existing;
       }
       if(input.isContentEditable&&!adapter?.insert)return null;
+      // Live speech status inside a wrapping label must not rename its text field.
+      if(!input.hasAttribute('aria-label')&&!input.hasAttribute('aria-labelledby')&&input.labels?.length){
+        const label=[...input.labels].map(node=>node.textContent.trim()).join(' ').trim();
+        if(label)input.setAttribute('aria-label',label);
+      }
       const controls=document.createElement('span'),button=document.createElement('button'),status=document.createElement('span');
       const id=input.id||'voice-field-'+(++sequence);if(!input.id&&!input.isContentEditable)input.id=id;
       controls.className='voice-input-controls';controls.dataset.voiceFor=id;controls.dataset.voicePhase=Recognition?'idle':'unavailable';
