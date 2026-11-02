@@ -373,3 +373,97 @@ def test_hub_interrupted_recording_send_keeps_drafts_unsent(
         "Typed draft stays",
     ]
     assert store.feedback_feed(artifact_id).events == []
+
+
+def open_voice_property(page: Page, live_app: RunningApp) -> str:
+    """Open the selected HTML heading's text editor with its microphone."""
+    install_voice(page)
+    artifact_id = open_voice_artifact(page, live_app)
+    page.frame_locator("#hub-html-preview").locator("#title").click()
+    panel = page.locator("#hub-element-properties")
+    expect(panel).to_be_visible()
+    panel.get_by_role("button", name="Edit text", exact=True).click()
+    expect(panel.locator(".voice-input-button")).to_be_visible()
+    return artifact_id
+
+
+def test_hub_property_voice_selection_change_retires_old_callbacks(
+    page: Page, live_app: RunningApp
+) -> None:
+    artifact_id = open_voice_property(page, live_app)
+    panel = page.locator("#hub-element-properties")
+    panel.locator(".voice-input-button").click()
+    voice_result(page, "Unfinished", final=False)
+    page.frame_locator("#hub-html-preview").locator("#body").click()
+    panel.get_by_role("button", name="Edit text", exact=True).click()
+    expect(panel.get_by_label("Text", exact=True)).to_have_value("Original body")
+    voice_result(page, "Late old title")
+    voice_end(page)
+    expect(panel.get_by_label("Text", exact=True)).to_have_value("Original body")
+    assert page.evaluate("window.__speech.sessions[0].aborts") == 1
+    assert ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True) == []
+
+
+def test_hub_property_cancel_aborts_recording_and_restores_original(
+    page: Page, live_app: RunningApp
+) -> None:
+    artifact_id = open_voice_property(page, live_app)
+    panel = page.locator("#hub-element-properties")
+    panel.get_by_label("Text", exact=True).fill("Draft heading")
+    expect(page.frame_locator("#hub-html-preview").locator("#title")).to_have_text("Draft heading")
+    panel.locator(".voice-input-button").click()
+    panel.get_by_role("button", name="Cancel edit").click()
+    voice_result(page, "Late cancelled words")
+    voice_end(page)
+    expect(page.frame_locator("#hub-html-preview").locator("#title")).to_have_text("Original title")
+    assert page.evaluate("window.__speech.sessions[0].aborts") == 1
+    assert ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True) == []
+
+
+def test_hub_property_send_drains_final_words_and_keeps_target(
+    page: Page, live_app: RunningApp
+) -> None:
+    artifact_id = open_voice_property(page, live_app)
+    panel = page.locator("#hub-element-properties")
+    panel.get_by_label("Text", exact=True).fill("Draft heading")
+    expect(page.frame_locator("#hub-html-preview").locator("#title")).to_have_text("Draft heading")
+    panel.locator(".voice-input-button").click()
+    panel.get_by_role("button", name="Send edit").click()
+    assert ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True) == []
+    voice_result(page, "final words")
+    voice_end(page)
+    expect(panel.get_by_role("button", name="Send edit")).to_be_hidden()
+    feedback = ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True)
+    assert len(feedback) == 1
+    assert feedback[0].target is not None and feedback[0].target.selector == "#title"
+    assert feedback[0].edit_intent is not None
+    assert feedback[0].edit_intent.values["text"] == "Draft heading final words"
+
+
+@pytest.mark.parametrize("ending", ["cancel", "error"])
+def test_hub_property_interrupted_send_never_submits(
+    page: Page, live_app: RunningApp, ending: str
+) -> None:
+    artifact_id = open_voice_property(page, live_app)
+    panel = page.locator("#hub-element-properties")
+    panel.get_by_label("Text", exact=True).fill("Draft heading")
+    expect(page.frame_locator("#hub-html-preview").locator("#title")).to_have_text("Draft heading")
+    panel.locator(".voice-input-button").click()
+    page.evaluate(
+        """ending => {
+      document.querySelector('#hub-element-properties [data-action=send]').click();
+      if (ending === 'cancel')
+        document.querySelector('#hub-element-properties [data-action=cancel]').click();
+      else window.__speech.sessions.at(-1).fail('network');
+    }""",
+        ending,
+    )
+    expect(page.locator("#hub-toast")).to_contain_text("without sending")
+    voice_result(page, "Late words")
+    assert ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True) == []
+    if ending == "cancel":
+        expect(page.frame_locator("#hub-html-preview").locator("#title")).to_have_text(
+            "Original title"
+        )
+    else:
+        expect(panel.get_by_label("Text", exact=True)).to_have_value("Draft heading")

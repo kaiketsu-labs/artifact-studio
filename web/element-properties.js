@@ -63,16 +63,16 @@
     return {left,top};
   }
   /** Show compact formatting next to the selection, with optional detail panels. */
-  function create({container,onPreview,onSend,onCancel,getAnchor=()=>null,extraControls=null}){
+  function create({container,onPreview,onSend,onCancel,getAnchor=()=>null,extraControls=null,getVoice=()=>root.slideVoice}){
     const doc=container.ownerDocument,view=doc.defaultView,controller=new view.AbortController();
     const svg=name=>root.SlideIcons?.svg(name)||'';
     container.classList.add('element-properties');container.hidden=true;
     container.innerHTML=`<span class="ep-label sr-only"></span><div class="ep-formatting" role="toolbar" aria-label="Text formatting"><button type="button" data-panel="text" title="Edit text" aria-label="Edit text" aria-expanded="false">${svg('edit')}</button><span class="ep-group ep-size" role="group" aria-label="Text size"><button type="button" data-step="-1" title="Smaller text" aria-label="Smaller text"><span class="ep-smaller" aria-hidden="true">A<sup>−</sup></span></button><input type="number" min="1" max="2000" step="any" aria-label="Font size" aria-description="Text size in points" title="Font size"><button type="button" data-step="1" title="Larger text" aria-label="Larger text"><span class="ep-larger" aria-hidden="true">A<sup>+</sup></span></button></span><span class="ep-group" role="group" aria-label="Text style"><button type="button" data-toggle="font_weight" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-toggle="font_style" title="Italic" aria-label="Italic"><i>I</i></button><label class="ep-color" title="Text color"><span aria-hidden="true">A</span><input type="color" aria-label="Text color"></label></span><button type="button" data-panel="alignment" title="Text alignment" aria-label="Text alignment" aria-expanded="false">${alignmentIcon('left')}</button>${extraControls?`<button type="button" data-panel="objects" title="Move, rotate or remove" aria-label="Object options" aria-expanded="false">${svg('more')}</button>`:''}<span class="ep-actions" hidden><button type="button" data-action="send" title="Send edit" aria-label="Send edit">${svg('send')}</button><button type="button" data-action="cancel" title="Cancel edit" aria-label="Cancel edit">${svg('close')}</button></span></div><div class="ep-panel ep-text-panel" data-detail="text" hidden><textarea aria-label="Text" rows="2" maxlength="9000"></textarea></div><div class="ep-panel ep-alignment-panel" data-detail="alignment" hidden role="group" aria-label="Text alignment">${[['left','Align left'],['center','Center text'],['right','Align right'],['justify','Justify text']].map(([value,label])=>`<button type="button" data-align="${value}" title="${label}" aria-label="${label}" aria-pressed="false">${alignmentIcon(value)}</button>`).join('')}</div>${extraControls?'<div class="ep-panel ep-object-panel" data-detail="objects" hidden></div>':''}`;
     if(extraControls)container.querySelector('.ep-object-panel').append(extraControls);
     const text=container.querySelector('textarea'),size=container.querySelector('input[type=number]'),color=container.querySelector('input[type=color]'),bold=container.querySelector('[data-toggle=font_weight]'),italic=container.querySelector('[data-toggle=font_style]'),actions=container.querySelector('.ep-actions'),textButton=container.querySelector('[data-panel=text]');
-    let model=sizeModel(),state={},selectionKey=null,canText=false,frame=null,textVoice=null;
-    function cancelVoice(){textVoice?.cancel();}
-    async function stopVoice(){return !textVoice || !root.slideVoice?.isActive(text) || await textVoice.stop();}
+    let model=sizeModel(),state={},selectionKey=null,canText=false,frame=null,textVoice=null,selectionGeneration=0;
+    function cancelVoice(){selectionGeneration++;textVoice?.cancel();}
+    async function stopVoice(){return !textVoice || !getVoice()?.isActive(text) || await textVoice.stop();}
     function position(){
       frame=null;if(container.hidden || !container.isConnected)return;
       const anchor=getAnchor();if(!anchor)return;
@@ -83,7 +83,7 @@
     }
     function reposition(){if(frame===null)frame=view.requestAnimationFrame(position);}
     function closePanels(){for(const panel of container.querySelectorAll('[data-detail]'))panel.hidden=true;for(const button of container.querySelectorAll('[data-panel]'))button.setAttribute('aria-expanded','false');}
-    function focusText(){if(!canText || state.busy || state.disabled)return;closePanels();textButton.setAttribute('aria-expanded','true');container.querySelector('[data-detail=text]').hidden=false;textVoice=root.slideVoice?.register(text)||textVoice;root.slideVoice?.refresh();text.focus({preventScroll:true});text.select();reposition();}
+    function focusText(){if(!canText || state.busy || state.disabled)return;closePanels();textButton.setAttribute('aria-expanded','true');container.querySelector('[data-detail=text]').hidden=false;textVoice=getVoice()?.register(text)||textVoice;getVoice()?.refresh();text.focus({preventScroll:true});text.select();reposition();}
     const align=value=>{for(const button of container.querySelectorAll('[data-align]'))button.setAttribute('aria-pressed',String(button.dataset.align===value));container.querySelector('[data-panel=alignment]').innerHTML=alignmentIcon(value);};
     function resize(){if(size.validity.valid&&size.value)onPreview(model.patch(Number(size.value)));}
     function setSelection(selection){
@@ -129,7 +129,7 @@
     view.addEventListener('resize',reposition,{signal:controller.signal});doc.addEventListener('scroll',reposition,{capture:true,passive:true,signal:controller.signal});
     const observer=new view.ResizeObserver(reposition);observer.observe(container);
     function destroy(){cancelVoice();controller.abort();observer.disconnect();if(frame!==null)view.cancelAnimationFrame(frame);}
-    return {setSelection,setState,clear,reposition,focusText,cancelVoice,stopVoice,destroy};
+    return {setSelection,setState,clear,reposition,focusText,cancelVoice,stopVoice,destroy,selectionGeneration:()=>selectionGeneration};
   }
   const api={create,summary,sizeModel,nextSize,selectionLabel,frameAnchor,toolbarPosition};
   if(typeof module!=='undefined')module.exports=api;else root.ElementProperties=api;
