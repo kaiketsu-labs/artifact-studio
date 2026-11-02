@@ -693,7 +693,9 @@
                   "rotate",
                   "transform",
                   "delete",
-                  "replace_text"
+                  "replace_text",
+                  "style",
+                  "update"
                 ],
                 "title": "Action",
                 "type": "string"
@@ -1431,7 +1433,9 @@
                   "rotate",
                   "transform",
                   "delete",
-                  "replace_text"
+                  "replace_text",
+                  "style",
+                  "update"
                 ],
                 "title": "Action",
                 "type": "string"
@@ -3949,7 +3953,9 @@
                   "rotate",
                   "transform",
                   "delete",
-                  "replace_text"
+                  "replace_text",
+                  "style",
+                  "update"
                 ],
                 "title": "Action",
                 "type": "string"
@@ -4729,7 +4735,9 @@
                   "rotate",
                   "transform",
                   "delete",
-                  "replace_text"
+                  "replace_text",
+                  "style",
+                  "update"
                 ],
                 "title": "Action",
                 "type": "string"
@@ -5424,7 +5432,9 @@
                   "rotate",
                   "transform",
                   "delete",
-                  "replace_text"
+                  "replace_text",
+                  "style",
+                  "update"
                 ],
                 "title": "Action",
                 "type": "string"
@@ -6053,7 +6063,9 @@
                   "rotate",
                   "transform",
                   "delete",
-                  "replace_text"
+                  "replace_text",
+                  "style",
+                  "update"
                 ],
                 "title": "Action",
                 "type": "string"

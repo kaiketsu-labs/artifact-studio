@@ -119,7 +119,7 @@ def test_policy_scopes_fetch_modules_and_images_to_the_owned_revision() -> None:
     policy = headers["Content-Security-Policy"]
     directives = dict(part.strip().split(" ", 1) for part in policy.split(";"))
     files = ORIGIN + "/api/artifacts/artifact-a/revisions/4/files/"
-    assert directives["sandbox"] == "allow-scripts"
+    assert directives["sandbox"] == "allow-scripts allow-downloads"
     assert "allow-same-origin" not in policy and "'self'" not in policy
     assert directives["default-src"] == "'none'"
     assert directives["connect-src"] == files

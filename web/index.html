@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/slide-questions.css">
   <link rel="stylesheet" href="/web/element-controls.css">
+  <link rel="stylesheet" href="/web/element-properties.css">
+  <link rel="stylesheet" href="/web/workspace-panels.css">
   <link rel="stylesheet" href="/web/appearance.css">
   <link rel="stylesheet" href="/web/design-references.css">
   <link rel="stylesheet" href="/web/slide-sections.css">
@@ -27,6 +29,8 @@
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-questions.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
+  <script src="/web/element-properties.js" defer></script>
+  <script src="/web/workspace-panels.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
   <script src="/web/slide-sections.js" defer></script>
   <script src="/web/slide-sorter.js" defer></script>
@@ -99,6 +103,7 @@
       <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
       <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
     </div>
+    <div id="element-properties" hidden></div>
     <div class="preview-wrap" id="preview-wrap">
       <iframe id="preview" title="Slide preview — click an element to give feedback" sandbox="allow-same-origin"></iframe>
       <div id="preview-status" class="preview-status" role="status" hidden><span id="preview-message">Loading design…</span><button id="retry-preview" type="button" hidden aria-label="Retry loading design"></button></div>
@@ -293,16 +298,16 @@
 </dialog>
 <dialog id="library-dialog" aria-labelledby="library-dialog-title">
   <header><h2 id="library-dialog-title">Storage and backup</h2><button id="close-libraries" aria-label="Close"></button></header>
-  <p>Slides and notes save on this device. GitHub backup uploads saved files; it does not pull changes into your working folder.</p>
+  <p>Artifacts and notes save on this device. GitHub backup uploads saved files; it does not pull changes into your working folder.</p>
   <div id="library-list"></div>
   <form id="library-form">
     <label for="library-location">Add a GitHub repository or local folder</label>
     <div class="copy-row"><input id="library-location" placeholder="https://github.com/you/presentations or /Users/…" required><button id="add-library" type="submit"></button></div>
-    <label id="library-sync-setting" class="library-checkbox" hidden><input id="library-sync" type="checkbox"><span>Back up automatically<small>All presentations, notes and design references · private repository</small></span></label>
+    <label id="library-sync-setting" class="library-checkbox" hidden><input id="library-sync" type="checkbox"><span>Back up automatically<small>All saved artifacts, notes and design references · private repository</small></span></label>
   </form>
   <p id="library-status" role="status" aria-live="polite"></p>
   <p id="library-error" class="inline-error" role="alert"></p>
-  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives saved slides, notes, assets and design references. Review chat, approvals and browser drafts stay here. For a complete workspace handoff, save and open a project file.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
+  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. A GitHub snapshot alone does not restore the Studio review database.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
 </dialog>
 </body>
 </html>

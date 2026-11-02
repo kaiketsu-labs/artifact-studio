@@ -149,9 +149,13 @@ The hub's **… → Presentation tools** opens the existing editor menu for desi
 
 Back up **both the collection and the state folder**. Set `ARTIFACT_STUDIO_COLLECTION` and `ARTIFACT_STUDIO_DATABASE` to choose other locations. New artifact revisions publish a complete snapshot through an atomic database pointer; a readable `artifact.json` sits beside the working sources. Out-of-band source edits are reconciled into a new revision before review.
 
-Presentation **Save/Open project**, **Export HTML** and **Export PDF** remain available. Whole multi-artifact project archives and expanded repository auto-sync are **not implemented**. Existing presentation sync keeps its established scope; creating an artifact project does not opt it into uploads. Repository connections default to reference only. [Presentation exports](docs/PROJECTS.md) · [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
+HTML, Markdown and images have a **View** action that removes Studio’s surrounding controls without requiring fullscreen. **Esc** or **Exit view** returns to editing; interactive pages retain their state. Collapse either side panel with its edge arrow or by dragging its divider outward, then use the arrow to reopen it. Drag library cards onto project folders to organize related work; the keyboard-accessible Move action remains available.
 
-The presentation editor’s **storage icon beside Menu** shows the working folder and backup status. **Back up all presentations** enables one-way backup to a selected private GitHub repository; private review state stays local.
+Select a slide or HTML element to change its text, size, weight, alignment or color. Changes preview locally; **Send edit** records a structured request against the original version for the agent to apply, while Cancel restores the preview. Authored HTML/SVG/JavaScript remains unrestricted. Preview downloads support generated HTML, JSON and CSV.
+
+Presentation **Save/Open project**, **Export HTML** and **Export PDF** remain available. Whole multi-artifact project archives are **not implemented**. Opted-in repository backup includes current artifact bundles, project briefs and manifests alongside presentations; creating a project does not opt it into uploads. Repository connections default to reference only. [Presentation exports](docs/PROJECTS.md) · [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
+
+The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way backup to a selected private repository; review chat, approvals and revision history stay local. The Mac menu’s **GitHub Backup** submenu exposes the same setting, last delivery, Sync Now and recovery controls.
 
 Workspace rules remain primary; learned preferences are secondary. Project and artifact context refine the work within that scope. The app ships without corporate designs or assets. [Preference learning](docs/PREFERENCE-LEARNING.md).
 

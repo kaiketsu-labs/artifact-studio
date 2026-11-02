@@ -17,10 +17,11 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 | Pixel status square | Filled: responding. Small: starting/stopping. Outline: stopped or failed; open the menu for the exact status. The icon follows the menu bar's light/dark appearance. |
 | Open Artifact Studio | Opens the workspace in your default browser. |
 | Start / Stop / Restart | Controls the server started by this menu-bar app. Stop waits for a graceful shutdown. |
+| GitHub Backup | Repository delivery status, last successful backup, Automatic Backup, Sync Now/Retry, and Open Backup Settings. Uses the server’s shared settings. |
 | Show Logs | Reveals the local server log in Finder. |
 | Quit Artifact Studio | Gracefully stops its server and closes the menu-bar app. Launch at Login remains configured. |
 
-The controller checks `/api/health` every two seconds, without reading decks or private notes. If another Artifact Studio already uses the configured port, it displays **Running · started elsewhere** and disables Stop/Restart. Stop that instance from its original Terminal or controller, then use **Start** here. It never kills an unrelated process using the same port.
+The controller checks `/api/health` every two seconds, without reading decks or private notes. Backup settings/status load when you open the menu; the controller does not continuously reread artifact content. If another Artifact Studio already uses the configured port, it displays **Running · started elsewhere** and disables Stop/Restart. Stop that instance from its original Terminal or controller, then use **Start** here. It never kills an unrelated process using the same port.
 
 Closing a browser tab does not stop the server. Stopping or restarting the server interrupts active agent connections; unsent attachments stay in the tab, while submitted feedback and saved decks remain on disk. A crashed server shows a failed state; Start retries deliberately rather than looping indefinitely.
 

@@ -10,6 +10,28 @@ struct Configuration: Decodable {
     let launchAtLogin: Bool
 }
 
+private struct BackupLibrary: Decodable {
+    let id: String
+    let kind: String
+    let location: String
+    let sync_enabled: Bool
+    let auto_sync_enabled: Bool
+}
+
+private struct BackupStatus: Decodable {
+    let library_id: String
+    let phase: String
+    let last_synced_at: String?
+    let error: String
+}
+
+private enum BackupRequestError: LocalizedError {
+    case response(String)
+    var errorDescription: String? {
+        switch self { case .response(let message): return message }
+    }
+}
+
 enum ServerState: String {
     case stopped = "Stopped", starting = "Starting…", running = "Running"
     case stopping = "Stopping…", failed = "Could not start"
@@ -54,7 +76,7 @@ private func menuBarImage(state: ServerState) -> NSImage {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var configuration: Configuration!
     private var statusItem: NSStatusItem!
     private var timer: Timer?
@@ -67,6 +89,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var external = false
     private var errorMessage = ""
     private let menu = NSMenu()
+    private let backupItem = NSMenuItem(title: "GitHub Backup", action: nil, keyEquivalent: "")
+    private let backupMenu = NSMenu(title: "GitHub Backup")
+    private var backupLibraries: [BackupLibrary] = []
+    private var backupStatuses: [BackupStatus] = []
+    private var backupLoading = false
+    private var backupError = ""
     private let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let startItem = NSMenuItem(title: "Start", action: #selector(start), keyEquivalent: "")
     private let stopItem = NSMenuItem(title: "Stop", action: #selector(stop), keyEquivalent: "")
@@ -93,6 +121,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.setAccessibilityLabel("Artifact Studio")
         menu.autoenablesItems = false
+        menu.delegate = self
+        backupMenu.autoenablesItems = false
+        backupItem.image = NSImage(systemSymbolName: "externaldrive.badge.icloud", accessibilityDescription: nil)
+        backupItem.submenu = backupMenu
         status.isEnabled = false
         menu.addItem(status)
         menu.addItem(.separator())
@@ -102,6 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             menu.addItem(item)
         }
+        menu.addItem(backupItem)
         menu.addItem(.separator())
         loginItem.target = self
         menu.addItem(loginItem)
@@ -139,12 +172,156 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.toolTip = "Artifact Studio · \(status.title)"
         statusItem.button?.setAccessibilityValue(status.title)
         statusItem.button?.image = menuBarImage(state: state)
+        backupItem.isEnabled = state == .running
+        if state != .running { backupLibraries = []; backupStatuses = []; backupError = "" }
+        renderBackupMenu()
         startItem.isEnabled = state == .stopped || state == .failed
         stopItem.isEnabled = process?.isRunning == true && state != .stopping
         restartItem.isEnabled = process?.isRunning == true && state == .running
         let login = SMAppService.mainApp.status
         loginItem.state = login == .enabled ? .on : login == .requiresApproval ? .mixed : .off
         approvalItem.isHidden = login != .requiresApproval
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === self.menu, state == .running else { return }
+        Task { await refreshBackup() }
+    }
+
+    private func request(_ path: String, body: [String: Bool]? = nil, timeout: TimeInterval = 15) async throws -> Data {
+        guard let url = URL(string: path, relativeTo: workspaceURL) else {
+            throw BackupRequestError.response("Invalid backup endpoint.")
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        if let body {
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let detail = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"] as? String
+            throw BackupRequestError.response(detail ?? "Backup request failed.")
+        }
+        return data
+    }
+
+    private func refreshBackup() async {
+        guard state == .running, !backupLoading else { return }
+        backupLoading = true
+        defer { backupLoading = false; renderBackupMenu() }
+        do {
+            async let libraries = request("api/libraries")
+            async let statuses = request("api/library-sync")
+            let (libraryData, statusData) = try await (libraries, statuses)
+            backupLibraries = try JSONDecoder().decode([BackupLibrary].self, from: libraryData).filter { $0.kind == "github" }
+            backupStatuses = try JSONDecoder().decode([BackupStatus].self, from: statusData)
+            backupError = ""
+        } catch { backupError = error.localizedDescription }
+    }
+
+    private func backupLabel(_ library: BackupLibrary, _ status: BackupStatus?) -> String {
+        guard library.auto_sync_enabled else { return library.sync_enabled ? "Manual" : "Off" }
+        switch status?.phase {
+        case "pending": return "Queued"
+        case "syncing": return "Syncing"
+        case "synced": return "Synced"
+        case "error": return "Failed"
+        default: return "Status unavailable"
+        }
+    }
+
+    private func conciseError(_ error: String) -> String {
+        let compact = error.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return compact.count > 100 ? String(compact.prefix(99)) + "…" : compact
+    }
+
+    private func renderBackupMenu() {
+        backupMenu.removeAllItems()
+        if !backupError.isEmpty {
+            let item = NSMenuItem(title: "Status unavailable: " + conciseError(backupError), action: nil, keyEquivalent: "")
+            item.toolTip = backupError
+            item.isEnabled = false
+            backupMenu.addItem(item)
+        } else if backupLibraries.isEmpty {
+            let item = NSMenuItem(title: backupLoading ? "Loading…" : "No connected repositories", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            backupMenu.addItem(item)
+        }
+        for library in backupLibraries {
+            let status = backupStatuses.first { $0.library_id == library.id }
+            let phase = backupLabel(library, status)
+            let single = backupLibraries.count == 1
+            let entry = NSMenuItem(title: "\(library.location) · \(phase)", action: nil, keyEquivalent: "")
+            let submenu = single ? backupMenu : NSMenu(title: library.location)
+            submenu.autoenablesItems = false
+            if single { entry.isEnabled = false; submenu.addItem(entry) }
+            let summary = NSMenuItem(title: phase, action: nil, keyEquivalent: "")
+            summary.isEnabled = false
+            summary.toolTip = status?.error.isEmpty == false ? status?.error : nil
+            if !single { submenu.addItem(summary) }
+            if phase == "Failed", let error = status?.error, !error.isEmpty {
+                let message = NSMenuItem(title: "Error: " + conciseError(error), action: nil, keyEquivalent: "")
+                message.isEnabled = false; submenu.addItem(message)
+            }
+            if let value = status?.last_synced_at, !value.isEmpty {
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                let date = formatter.date(from: value) ?? ISO8601DateFormatter().date(from: value)
+                let text = date.map { DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .short) } ?? value
+                let last = NSMenuItem(title: "Last synced: " + text, action: nil, keyEquivalent: "")
+                last.isEnabled = false; submenu.addItem(last)
+            }
+            submenu.addItem(.separator())
+            let toggle = NSMenuItem(title: "Automatic Backup", action: #selector(toggleBackup(_:)), keyEquivalent: "")
+            toggle.target = self; toggle.representedObject = library.id
+            toggle.state = library.auto_sync_enabled ? .on : .off
+            toggle.isEnabled = state == .running && !backupLoading && backupError.isEmpty
+            submenu.addItem(toggle)
+            let sync = NSMenuItem(title: phase == "Failed" ? "Retry Backup" : "Sync Now", action: #selector(syncBackup(_:)), keyEquivalent: "")
+            sync.target = self; sync.representedObject = library.id
+            sync.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: nil)
+            sync.isEnabled = state == .running && !backupLoading && backupError.isEmpty && library.sync_enabled && phase != "Syncing"
+            submenu.addItem(sync)
+            if !single { entry.submenu = submenu; backupMenu.addItem(entry) }
+        }
+        backupMenu.addItem(.separator())
+        let settings = NSMenuItem(title: "Open Backup Settings…", action: #selector(openBackupSettings), keyEquivalent: "")
+        settings.target = self; settings.isEnabled = state == .running
+        settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+        backupMenu.addItem(settings)
+    }
+
+    @objc private func openBackupSettings() {
+        if let url = URL(string: "?settings=backup", relativeTo: workspaceURL) { NSWorkspace.shared.open(url.absoluteURL) }
+    }
+
+    @objc private func toggleBackup(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let library = backupLibraries.first(where: { $0.id == id }) else { return }
+        changeBackup(id: id, action: "settings", body: ["auto_sync_enabled": !library.auto_sync_enabled])
+    }
+
+    @objc private func syncBackup(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let library = backupLibraries.first(where: { $0.id == id }) else { return }
+        changeBackup(id: id, action: library.auto_sync_enabled ? "retry" : "sync", body: [:])
+    }
+
+    private func changeBackup(id: String, action: String, body: [String: Bool]) {
+        guard state == .running, !backupLoading,
+              let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              !encoded.contains("/") else { return }
+        backupLoading = true
+        renderBackupMenu()
+        Task {
+            do { _ = try await request("api/libraries/\(encoded)/\(action)", body: body, timeout: action == "sync" ? 240 : 15) }
+            catch { showError("GitHub backup: \(error.localizedDescription)") }
+            backupLoading = false
+            await refreshBackup()
+        }
     }
 
     private func isReady() async -> Bool {

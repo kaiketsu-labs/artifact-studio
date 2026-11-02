@@ -4,7 +4,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
-from .models import FeedbackFile, FileInput, StrictModel
+from .models import EditIntent, FeedbackFile, FileInput, StrictModel
 
 
 class ProjectView(StrictModel):
@@ -137,6 +137,7 @@ class ArtifactFeedbackInput(StrictModel):
     request_id: str = Field(min_length=8, max_length=100)
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     target: ArtifactTarget | None = None
+    edit_intent: EditIntent | None = None
     reply_to: int | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
 
@@ -153,6 +154,7 @@ class ArtifactFeedback(StrictModel):
     message: str
     created_at: str
     target: ArtifactTarget | None = None
+    edit_intent: EditIntent | None = None
     reply_to: int | None = None
     released: bool = True
     delivery_id: int | None = None

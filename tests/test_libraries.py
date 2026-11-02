@@ -577,3 +577,88 @@ def test_restart_reconciles_an_interrupted_delivery(
     restarted.tick(200 + QUIET_SECONDS)
     assert attempts == [library.id]
     assert restarted.state(library.id).phase == "synced"
+
+
+def test_auto_sync_includes_owned_current_artifact_sources_without_history(
+    library_setup: tuple[Libraries, Path], tmp_path: Path
+) -> None:
+    """Publish a fictional bundle and its metadata without private or revision state."""
+    from artifact_studio.artifacts import ArtifactStore
+
+    libraries, remote = library_setup
+    artifacts = ArtifactStore(libraries.store)
+    project = artifacts.create_project("Fictional project", "A fictional project brief")
+    bundle = tmp_path / "fictional-bundle"
+    (bundle / "research").mkdir(parents=True)
+    _ = (bundle / "index.html").write_text('<script type="module" src="app.mjs"></script>')
+    _ = (bundle / "app.mjs").write_text("export const answer = 42;")
+    _ = (bundle / "research" / "model.bin").write_bytes(b"fictional-data")
+    _ = (bundle / ".env").write_text("private")
+    _ = (bundle / "secrets.json").write_text("private")
+    artifact = artifacts.register_artifact(project.id, "Fictional page", bundle, "index.html")
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    first_fingerprint = worker.fingerprint()
+    root = libraries.store.root / "projects" / project.id
+    source = root / "artifacts" / artifact.id / "files"
+    _ = (source / "research" / "model.bin").write_bytes(b"updated-fictional-data")
+    assert worker.fingerprint() != first_fingerprint
+    worker.tick(10)
+    worker.tick(10 + QUIET_SECONDS)
+    assert worker.state(library.id).phase == "synced"
+    tracked = set(
+        command(
+            "git", "--git-dir", str(remote), "ls-tree", "-r", "--name-only", "main"
+        ).splitlines()
+    )
+    prefix = f"projects/{project.id}"
+    artifact_prefix = f"{prefix}/artifacts/{artifact.id}"
+    assert {
+        f"{prefix}/README.md",
+        f"{prefix}/project.json",
+        f"{artifact_prefix}/artifact.json",
+    } <= tracked
+    assert {
+        f"{artifact_prefix}/files/index.html",
+        f"{artifact_prefix}/files/app.mjs",
+        f"{artifact_prefix}/files/research/model.bin",
+    } <= tracked
+    assert not any(
+        "/revisions/" in path or path.endswith(("/.env", "/secrets.json")) for path in tracked
+    )
+    assert (
+        command(
+            "git",
+            "--git-dir",
+            str(remote),
+            "show",
+            f"main:{artifact_prefix}/files/research/model.bin",
+        )
+        == "updated-fictional-data"
+    )
+
+
+def test_auto_sync_preserves_previously_managed_revision_history(
+    library_setup: tuple[Libraries, Path],
+) -> None:
+    """Stop updating old revision snapshots without deleting already delivered history."""
+    import json
+
+    libraries, remote = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    _ = libraries.sync(library.id)
+    checkout = Path(library.path)
+    relative = "projects/project-a/artifacts/artifact-a/revisions/1/files/old.bin"
+    old = checkout / relative
+    old.parent.mkdir(parents=True)
+    _ = old.write_bytes(b"old revision")
+    manifest_path = checkout / ".artifact-studio-manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest[relative] = module.file_hash(old)
+    _ = manifest_path.write_text(json.dumps(manifest))
+    _ = module.git(checkout, "add", "--", relative, manifest_path.name)
+    _ = module.git(checkout, "commit", "-m", "test(sync): retain older revision")
+    _ = module.git(checkout, "push")
+    _ = libraries.sync(library.id, automatic=True)
+    assert command("git", "--git-dir", str(remote), "show", f"main:{relative}") == "old revision"
+    assert relative in json.loads(manifest_path.read_text())

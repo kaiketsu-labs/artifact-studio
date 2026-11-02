@@ -351,7 +351,7 @@ def test_local_storage_controls_and_live_backup_status(
         "datetime", "2026-11-02T10:30:00+01:00"
     )
     _ = page.screenshot(path=str(artifacts / "backup-status-ui-fixture.png"))
-    page.get_by_role("checkbox", name="Back up all presentations", exact=True).uncheck()
+    page.get_by_role("checkbox", name="Back up all artifacts", exact=True).uncheck()
     expect(page.locator("#storage-status")).to_have_attribute("data-phase", "local")
     expect(page.locator("#library-list")).to_contain_text("GitHub reference · read-only")
     assert posts == ["retry", "disable"]

@@ -37,6 +37,91 @@
     return result.length <= 2000 ? result : '';
   }
 
+  let draft = null;
+
+  /** Describe a selected element using plain data, never authored markup. */
+  function inspect(selector, requestId = null) {
+    const element = selectedElement(selector);
+    if (!element || !(element instanceof HTMLElement || element instanceof SVGElement) || element === overlay || overlay?.contains(element)) {
+      if (requestId !== null) send({type: 'artifact:edit-error', request_id: requestId, message: 'Element is no longer available.'});
+      return;
+    }
+    const computed = getComputedStyle(element);
+    const authoredSize = element.style.getPropertyValue('font-size');
+    const size = /^(\d+(?:\.\d+)?)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(authoredSize.trim()) || /^(\d+(?:\.\d+)?)(px)$/.exec(computed.fontSize);
+    const rect = element.getBoundingClientRect();
+    const rgb = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(computed.color);
+    const color = rgb ? '#' + rgb.slice(1).map(value => Number(value).toString(16).padStart(2, '0')).join('') : computed.color;
+    send({type: 'artifact:inspector', request_id: requestId, selector, label: (element.getAttribute('aria-label') || element.localName).slice(0, 500),
+      text: element.childElementCount === 0 ? (element.textContent || '').slice(0, 9000) : '',
+      canText: element.childElementCount === 0 && (element.textContent || '').length <= 9000 && !['script','style','input','textarea','img','br','hr'].includes(element.localName),
+      typography: {font_size: size ? Number(size[1]) : 16, font_size_unit: size ? size[2] : 'px', font_weight: computed.fontWeight,
+        font_style: computed.fontStyle === 'italic' ? 'italic' : 'normal', text_align: computed.textAlign,
+        color},
+      rect: {left: rect.left, top: rect.top, width: rect.width, height: rect.height},
+      dirty: !!draft && draft.selector === selector && Object.keys(draft.changes).length > 0,
+      changes: draft?.selector === selector ? {...draft.changes} : {}});
+  }
+
+  /** Restore only properties touched by the preview, including their authored priorities. */
+  function cancelEdit() {
+    if (!draft) return;
+    const {element, original, text} = draft;
+    for (const [name, saved] of Object.entries(original)) {
+      if (saved.value) element.style.setProperty(name, saved.value, saved.priority);
+      else element.style.removeProperty(name);
+    }
+    if (text !== null) element.textContent = text;
+    const selector = draft.selector;
+    draft = null;
+    inspect(selector);
+    schedule();
+  }
+
+  /** Validate a bounded patch before mutating the sandboxed preview. */
+  function previewEdit(selector, values, requestId = null) {
+    const element = selectedElement(selector);
+    if (!element || !(element instanceof HTMLElement || element instanceof SVGElement)) throw Error('Element is no longer available.');
+    if (draft && draft.selector !== selector) throw Error('Send or cancel the edit first.');
+    if (!values || typeof values !== 'object' || Array.isArray(values)) throw Error('Invalid edit.');
+    const keys = Object.keys(values);
+    if (!keys.length || keys.some(key => !['text', 'font_size', 'font_size_unit', 'font_weight', 'font_style', 'color', 'text_align'].includes(key))) throw Error('Invalid edit property.');
+    const styles = {};
+    if ('text' in values && (typeof values.text !== 'string' || values.text.length > 9000 || (element.textContent || '').length > 9000 || element.childElementCount || ['script','style','input','textarea','img','br','hr'].includes(element.localName))) throw Error('This element cannot be edited as plain text.');
+    if ('font_size' in values || 'font_size_unit' in values) {
+      if (typeof values.font_size !== 'number' || !Number.isFinite(values.font_size) || values.font_size <= 0 || values.font_size > 10000 || !['px','pt','em','rem','%','vw','vh','cqw','cqh'].includes(values.font_size_unit)) throw Error('Invalid font size.');
+      styles['font-size'] = `${values.font_size}${values.font_size_unit}`;
+    }
+    if ('font_weight' in values) {
+      if (typeof values.font_weight !== 'string' || !/^(normal|bold|bolder|lighter|[1-9]00)$/.test(values.font_weight)) throw Error('Invalid font weight.');
+      styles['font-weight'] = values.font_weight;
+    }
+    if ('font_style' in values) {
+      if (!['normal','italic'].includes(values.font_style)) throw Error('Invalid font style.');
+      styles['font-style'] = values.font_style;
+    }
+    if ('text_align' in values) {
+      if (!['left','center','right','justify'].includes(values.text_align)) throw Error('Invalid alignment.');
+      styles['text-align'] = values.text_align;
+    }
+    if ('color' in values) {
+      if (typeof values.color !== 'string' || values.color.length > 100 || !CSS.supports('color', values.color) || /[;{}]/.test(values.color)) throw Error('Invalid color.');
+      styles.color = values.color;
+    }
+    if (!draft) draft = {selector, element, original: {}, text: null, changes: {}};
+    for (const [name, value] of Object.entries(styles)) {
+      if (!draft.original[name]) draft.original[name] = {value: element.style.getPropertyValue(name), priority: element.style.getPropertyPriority(name)};
+      element.style.setProperty(name, value, 'important');
+    }
+    if ('text' in values) {
+      if (draft.text === null) draft.text = element.textContent || '';
+      element.textContent = values.text;
+    }
+    Object.assign(draft.changes, values);
+    inspect(selector, requestId);
+    schedule();
+  }
+
   /** Redraw outlines without adding styles or attributes to authored elements. */
   function draw() {
     scheduled = false;
@@ -84,6 +169,7 @@
     if (!element || element === overlay || overlay?.contains(element)) return;
     const selector = selectorFor(element);
     if (!selector) return;
+    if (draft && draft.selector !== selector) { send({type: 'artifact:edit-error', message: 'Send or cancel the edit first.'}); return; }
     const text = (element instanceof HTMLElement ? element.innerText : element.textContent) || '';
     const quote = text.replace(/\s+/g, ' ').trim().slice(0, 1000);
     const label = element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('title') || quote || element.localName;
@@ -103,6 +189,7 @@
     }, {capture: true, passive: false});
   }
   window.addEventListener('keydown', event => {
+    if (event.key === 'Escape') send({type: 'artifact:escape'});
     if (!selecting || !['Enter', ' '].includes(event.key)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -120,7 +207,14 @@
     if (event.source !== parent || event.origin !== parentOrigin) return;
     const message = event.data;
     if (!message || typeof message !== 'object') return;
-    if (message.type === 'artifact:select' && typeof message.enabled === 'boolean') {
+    if (message.type === 'artifact:inspect' && typeof message.selector === 'string' && message.selector.length <= 2000) {
+      if (draft && draft.selector !== message.selector) send({type: 'artifact:edit-error', message: 'Send or cancel the edit first.'});
+      else inspect(message.selector, message.request_id);
+    } else if (message.type === 'artifact:edit-preview' && typeof message.selector === 'string' && message.selector.length <= 2000) {
+      try { previewEdit(message.selector, message.values, message.request_id); } catch (error) { send({type: 'artifact:edit-error', request_id: message.request_id, message: error.message}); }
+    } else if (message.type === 'artifact:edit-cancel') { cancelEdit();
+    } else if (message.type === 'artifact:edit-accept') { const selector = draft?.selector; draft = null; if (selector) inspect(selector);
+    } else if (message.type === 'artifact:select' && typeof message.enabled === 'boolean') {
       selecting = message.enabled;
       if (!selecting) hovered = null;
       schedule();

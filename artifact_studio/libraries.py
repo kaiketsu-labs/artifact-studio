@@ -144,7 +144,7 @@ def snapshot_target(destination: Path, relative: str) -> Path:
     if (
         path.is_absolute()
         or ".." in path.parts
-        or not allowed(path)
+        or not snapshot_allowed(path)
         or any(part.is_symlink() for part in (target, *target.parents) if part != destination)
         or not target.resolve().is_relative_to(destination.resolve())
     ):
@@ -175,11 +175,44 @@ def allowed(
     )
 
 
+def artifact_source(relative: Path) -> bool:
+    """Recognize working artifact files without treating other project paths as bundles."""
+    parts = relative.parts
+    return (
+        len(parts) >= 6
+        and parts[0] == "projects"
+        and parts[2] == "artifacts"
+        and parts[4] == "files"
+    )
+
+
+def snapshot_allowed(relative: Path) -> bool:
+    """Include arbitrary owned source types while excluding hidden state and credentials."""
+    if relative.parts and relative.parts[0] == "projects":
+        if re.search(r"\.(?:db|sqlite|sqlite3)(?:-wal|-shm|-journal)?$", relative.name, re.I):
+            return False
+        excluded: frozenset[str] = frozenset() if artifact_source(relative) else frozenset(EXCLUDED)
+        return allowed(relative, all_extensions=True, excluded=excluded)
+    return allowed(relative)
+
+
+def revision_directory(relative: Path) -> bool:
+    """Leave immutable history out of portable current-source snapshots."""
+    parts = relative.parts
+    return (
+        len(parts) >= 5
+        and parts[0] == "projects"
+        and parts[2] == "artifacts"
+        and parts[4] == "revisions"
+    )
+
+
 def inventory(
     root: Path,
     *,
     all_extensions: bool = False,
     excluded: frozenset[str] = frozenset(EXCLUDED),
+    snapshot: bool = False,
 ) -> list[LibraryFile]:
     """List reusable documents and assets without following symbolic links."""
     result: list[LibraryFile] = []
@@ -188,14 +221,23 @@ def inventory(
             name
             for name in directories
             if not name.startswith(".")
-            and name not in excluded
+            and (
+                name not in excluded
+                or snapshot
+                and artifact_source((folder / name).relative_to(root) / "placeholder")
+            )
+            and not (snapshot and revision_directory((folder / name).relative_to(root)))
             and not (folder / name).is_symlink()
         ]
         for name in sorted(names):
             path = folder / name
             relative = path.relative_to(root)
             if (
-                allowed(relative, all_extensions=all_extensions, excluded=excluded)
+                (
+                    snapshot_allowed(relative)
+                    if snapshot
+                    else allowed(relative, all_extensions=all_extensions, excluded=excluded)
+                )
                 and path.is_file()
                 and not path.is_symlink()
             ):
@@ -376,7 +418,7 @@ class Libraries:
             raise ValueError("The presentation folder does not exist.")
         return [
             item
-            for item in inventory(source)
+            for item in inventory(source, snapshot=deck_id is None)
             if not Path(item.local_path).is_relative_to(self.cache)
         ]
 
@@ -414,6 +456,8 @@ class Libraries:
             removals: list[tuple[Path, str]] = []
             if automatic:
                 for relative in previous.keys() - current_paths:
+                    if revision_directory(Path(relative)):
+                        continue
                     target = snapshot_target(destination, relative)
                     if target.exists():
                         if not target.is_file() or file_hash(target) != previous[relative]:
@@ -422,7 +466,9 @@ class Libraries:
                             )
                         removals.append((target, relative))
                 previous = {
-                    path: value for path, value in previous.items() if path in current_paths
+                    path: value
+                    for path, value in previous.items()
+                    if path in current_paths or revision_directory(Path(path))
                 }
             updates: list[tuple[Path, Path, str, str]] = []
             for item in files:

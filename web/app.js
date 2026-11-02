@@ -45,7 +45,12 @@
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;
-  const elementEditor=window.SlideEdits.create({
+  let elementEditor;
+  const properties=window.ElementProperties.create({container:$('element-properties'),onPreview:values=>elementEditor.previewProperties(values),onSend:()=>elementEditor.commit(),onCancel:()=>elementEditor.cancel()});
+  const workspacePanels=window.WorkspacePanels.create({doc:document,view:window,storage:window.localStorage,kind:'slides'});
+  workspacePanels.refresh();
+  elementEditor=window.SlideEdits.create({
+    properties,
     tools:$('element-tools'),selectionBox:$('selection-box'),deleteButton:$('delete-element'),rotationInput:$('rotate-element'),editButton:$('edit-element-text'),moveButton:$('move-element'),alignButton:$('align-element'),alignMenu:$('element-align-menu'),commitButton:$('commit-element-text'),cancelButton:$('cancel-element-edit'),sentBadge:$('element-proposal-sent'),
     anchor:()=>({deck_id:deck.id,slide_id:selectedId,content_hash:slide().content_hash,target:structuredClone(currentTarget)}),
     onSend:async({deck_id,slide_id,content_hash,target,message,request_id,edit_intent})=>{
@@ -287,7 +292,7 @@
     const focused=slideQuestions.captureFocus(list);
     const atEnd=list.scrollHeight-list.scrollTop-list.clientHeight<35;
     commentsKey=key();commentsSignature=signature;
-    list.innerHTML=comments.map(comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}"><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to)}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.message)}</div>${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&comment.content_hash!==item.content_hash?'<span class="old-version">Earlier version</span>':''}</article>`).join('')||'';
+    list.innerHTML=comments.map(comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}"><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to)}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.message)}${window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&comment.content_hash!==item.content_hash?'<span class="old-version">Earlier version</span>':''}</article>`).join('')||'';
     slideQuestions.mount(list,comments,deck.id,item.id);
     if(changedContext&&pendingQuestions){list.querySelector('[data-question-state="open"]')?.scrollIntoView({block:'nearest'});}else if(changedContext||atEnd)list.scrollTop=list.scrollHeight;
     slideQuestions.restoreFocus(list,focused);
@@ -633,5 +638,5 @@
   workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   const createOnOpen=new URLSearchParams(location.search).get('new')==='1';
-  start().then(()=>{if(createOnOpen)$('new-button').click();}).catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
+  start().then(()=>{if(createOnOpen)$('new-button').click();if(new URLSearchParams(location.search).get('settings')==='backup')void libraryControls.open();}).catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
 })();

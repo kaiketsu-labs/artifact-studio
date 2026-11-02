@@ -40,12 +40,12 @@ def preview_headers(artifact_id: str, revision: int, origin: str) -> dict[str, s
     """Isolate scripts and restrict subresource requests to this immutable file bundle.
 
     The embedding page must also restrict frame-src to local artifact URLs to block
-    external self-navigation. The iframe must retain sandbox="allow-scripts".
+    external self-navigation. The iframe must retain sandbox="allow-scripts allow-downloads".
     """
     origin = _origin(origin)
     files = artifact_files_url(artifact_id, revision, origin)
     policy = (
-        "sandbox allow-scripts; default-src 'none'; "
+        "sandbox allow-scripts allow-downloads; default-src 'none'; "
         f"script-src 'unsafe-inline' 'unsafe-eval' {files} "
         f"{origin}{BRIDGE_PATH} {origin}{MARKDOWN_PATH}; "
         f"style-src 'unsafe-inline' {files}; img-src {files} data: blob:; "

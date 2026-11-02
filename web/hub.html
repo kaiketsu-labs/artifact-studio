@@ -9,18 +9,29 @@
   <link rel="stylesheet" href="/web/appearance.css">
   <link rel="stylesheet" href="/web/hub.css">
   <link rel="stylesheet" href="/web/design-library.css">
+  <link rel="stylesheet" href="/web/element-properties.css">
+  <link rel="stylesheet" href="/web/project-folders.css">
+  <link rel="stylesheet" href="/web/workspace-panels.css">
+  <link rel="stylesheet" href="/web/backup-settings.css">
   <script src="/web/icons.js" defer></script>
   <script src="/web/vendor/marked-18.1.2.js" defer></script>
   <script src="/web/chat-markdown.js" defer></script>
   <script src="/web/chat-composer.js" defer></script>
   <script src="/web/preview-updates.js" defer></script>
   <script src="/web/design-library.js" defer></script>
+  <script src="/web/element-properties.js" defer></script>
+  <script src="/web/artifact-editor.js" defer></script>
+  <script src="/web/project-folders.js" defer></script>
+  <script src="/web/workspace-panels.js" defer></script>
+  <script src="/web/libraries.js" defer></script>
   <script src="/web/hub.js" defer></script>
 </head>
 <body>
   <header class="hub-top">
     <a class="hub-brand" href="/" aria-label="Artifact Studio library"><img src="/web/brand/mark.svg" width="30" height="30" alt=""><span>Artifact Studio</span></a>
     <div class="hub-top-actions">
+      <button id="storage-status" type="button" aria-label="Storage and backup" aria-haspopup="dialog" class="hub-icon-only"></button>
+      <button id="libraries-button" type="button" hidden></button>
       <button type="button" data-design-action="deleted" aria-label="Deleted designs" title="Deleted designs" class="hub-icon-only" data-icon="restore" hidden></button>
       <button type="button" data-design-action="new" data-icon="plus" class="hub-primary" hidden>Add design</button>
       <button type="button" data-action="context" title="Inspect agent context" aria-label="Inspect agent context" data-icon="code" class="hub-icon-only"></button>
@@ -35,5 +46,18 @@
   <div id="hub-content"><main class="hub-loading" role="status">Loading your artifacts…</main></div>
   <div id="hub-toast" class="hub-toast" role="status" hidden></div>
   <dialog id="hub-dialog" aria-labelledby="hub-dialog-title"></dialog>
+<dialog id="library-dialog" aria-labelledby="library-dialog-title">
+  <header><h2 id="library-dialog-title">Storage and backup</h2><button id="close-libraries" aria-label="Close"></button></header>
+  <p>Artifacts and notes save on this device. GitHub backup uploads saved files; it does not pull changes into your working folder.</p>
+  <div id="library-list"></div>
+  <form id="library-form">
+    <label for="library-location">Add a GitHub repository or local folder</label>
+    <div class="copy-row"><input id="library-location" placeholder="https://github.com/you/presentations or /Users/…" required><button id="add-library" type="submit"></button></div>
+    <label id="library-sync-setting" class="library-checkbox" hidden><input id="library-sync" type="checkbox"><span>Back up automatically<small>All saved artifacts, notes and design references · private repository</small></span></label>
+  </form>
+  <p id="library-status" role="status" aria-live="polite"></p>
+  <p id="library-error" class="inline-error" role="alert"></p>
+  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. A GitHub snapshot alone does not restore the Studio review database.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
+</dialog>
 </body>
 </html>

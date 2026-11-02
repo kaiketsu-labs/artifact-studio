@@ -1,0 +1,27 @@
+/* Keep collapsed panels mounted so drafts and live previews survive. */
+.hub-layout{grid-template-columns:var(--panel-left-width,205px) minmax(0,1fr)}
+.hub-layout .hub-workspace{grid-template-columns:minmax(0,1fr) var(--panel-right-width,335px)}
+.hub-layout.panels-left-closed{grid-template-columns:0 minmax(0,1fr)}
+.hub-layout.panels-right-closed .hub-workspace{grid-template-columns:minmax(0,1fr) 0}
+.workspace.panels-left-closed:not(.is-sorter){--chat-rail-width:0px}
+.workspace.panels-right-closed:not(.is-sorter){grid-template-columns:var(--chat-rail-width) minmax(0,1fr) 0 0}
+.panels-left-closed>.hub-sidebar,.panels-left-closed>.rail,.panels-right-closed .hub-chat,.panels-right-closed>.discussion,.panels-right-closed>.chat-resizer{visibility:hidden;overflow:hidden;min-width:0;padding:0;border:0}
+.workspace-panel-toggle,.workspace-panel-resize{position:fixed;z-index:35}
+.workspace-panel-toggle{top:76px;width:24px;height:32px;padding:0;border:1px solid var(--hub-line,var(--line));background:var(--hub-panel,var(--panel));color:var(--hub-ink,var(--ink));border-radius:5px;font-size:19px;line-height:1}
+.workspace-panel-toggle.panel-left{left:0}.workspace-panel-toggle.panel-right{right:0}
+.workspace-panel-resize{width:8px;cursor:col-resize;touch-action:none}
+.workspace-panel-resize.panel-left{left:calc(var(--panel-left-position,205px) - 4px)}
+.workspace-panel-resize.panel-right{right:calc(var(--panel-right-position,335px) - 4px)}
+.workspace-panel-resize:hover,.workspace-panel-resize:focus-visible,.workspace-panel-resize.is-closing{background:var(--hub-soft,#315fce33)}
+.workspace-panel-dragging,.workspace-panel-dragging *{cursor:col-resize!important;user-select:none!important}.workspace-panel-dragging iframe{pointer-events:none}
+.workspace-clean-exit{position:fixed;z-index:100;top:10px;right:10px;border:1px solid var(--hub-line);background:var(--hub-panel);color:var(--hub-ink);box-shadow:0 2px 10px #0002}
+.workspace-clean-view .hub-top,.workspace-clean-view .hub-sidebar,.workspace-clean-view .hub-chat,.workspace-clean-view .hub-edit-area>:not(#hub-viewer){display:none!important}
+.workspace-clean-view .hub-layout,.workspace-clean-view .hub-workspace{display:block;min-height:100dvh}
+.workspace-clean-view .hub-edit-area{padding:0}.workspace-clean-view #hub-viewer,.workspace-clean-view .hub-preview-scroll{height:100dvh;max-width:none}
+.workspace-clean-view .hub-html-frame{height:100dvh!important;width:100%!important;border:0;border-radius:0;box-shadow:none}
+.workspace-clean-view .hub-markdown{box-shadow:none;border:0}
+@media(max-width:950px){.workspace-panel-resize{display:none}.hub-layout .hub-workspace,.hub-layout.panels-right-closed .hub-workspace{grid-template-columns:minmax(0,1fr)}.hub-layout.panels-right-closed .hub-chat{display:none}}
+@media(max-width:900px){.workspace.panels-right-closed:not(.is-sorter){grid-template-columns:var(--chat-rail-width) minmax(0,1fr)}.workspace.panels-right-closed>.discussion{display:none}}
+@media(max-width:650px){.hub-layout.panels-left-closed>.hub-sidebar{display:none}}
+
+.workspace-panel-toggle .ui-icon{width:16px;height:16px}

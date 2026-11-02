@@ -165,7 +165,7 @@ type SlideTarget = ElementTarget | ElementGroupTarget
 class EditIntent(StrictModel):
     """A pending element edit whose target and revision live in its feedback envelope."""
 
-    action: Literal["move", "rotate", "transform", "delete", "replace_text"]
+    action: Literal["move", "rotate", "transform", "delete", "replace_text", "style", "update"]
     values: dict[str, float | str] = Field(default_factory=dict, max_length=20)
 
 

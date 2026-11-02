@@ -43,11 +43,14 @@
       if (!drag) return;
       const previous = drag;
       drag = null;
-      if (!commit) preferred = previous.preferred;
+      if (!commit || previous.rawWidth < 100) preferred = previous.preferred;
       workspace.classList.remove('is-resizing-chat');
       if (handle.hasPointerCapture(previous.id)) handle.releasePointerCapture(previous.id);
       apply();
-      if (commit) save();
+      if (commit) {
+        save();
+        if (previous.rawWidth < 100) view.document.dispatchEvent(new view.CustomEvent('workspace-collapse-chat'));
+      }
     }
     handle.addEventListener('pointerdown', event => {
       if (!available() || event.button !== 0 || drag) return;
@@ -60,7 +63,8 @@
     handle.addEventListener('pointermove', event => {
       if (!drag || event.pointerId !== drag.id) return;
       const bounds = limits();
-      preferred = Math.max(bounds.min, Math.min(bounds.max, drag.width + drag.x - event.clientX));
+      drag.rawWidth = drag.width + drag.x - event.clientX;
+      preferred = Math.max(bounds.min, Math.min(bounds.max, drag.rawWidth));
       apply();
     });
     handle.addEventListener('pointerup', event => {
