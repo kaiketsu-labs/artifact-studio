@@ -67,7 +67,9 @@ class ClientState(StrictModel):
     editor_zoom: int = Field(default=100, ge=55, le=400)
     notes: dict[str, NoteDraft] = Field(default_factory=dict, max_length=100)
     feedback: dict[str, FeedbackDraft] = Field(default_factory=dict, max_length=100)
-    open_panels: list[Literal["notes", "sources", "agent"]] = Field(default_factory=list)
+    open_panels: list[Literal["notes", "sources", "agent"]] = Field(
+        default_factory=lambda: ["notes"]
+    )
     presenter_notes: dict[str, dict[str, str]] = Field(default_factory=dict, max_length=100)
     question_answers: dict[str, QuestionDraft] = Field(default_factory=dict, max_length=500)
     collapsed_sections: list[str] = Field(default_factory=list, max_length=100)
