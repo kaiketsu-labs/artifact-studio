@@ -111,7 +111,11 @@ def main() -> None:
                 _ = page.evaluate("document.fonts.ready")
                 target = staging / name
                 target.parent.mkdir(parents=True, exist_ok=True)
-                data = page.screenshot(path=target, animations="disabled", full_page=True)
+                data = page.screenshot(
+                    path=target,
+                    animations="disabled",
+                    full_page=not page.locator("dialog[open]").count(),
+                )
                 captures[name] = {
                     "viewport": page.viewport_size,
                     "sha256": hashlib.sha256(data).hexdigest(),
@@ -125,9 +129,25 @@ def main() -> None:
                 ).to_be_visible()
                 expect(page.locator(".design-card-art img")).to_have_js_property("complete", True)
                 capture("docs/assets/design-library.png")
+                page.get_by_role("button", name="Add design", exact=True).click()
+                add_dialog = page.get_by_role("dialog", name="Add design", exact=True)
+                add_dialog.get_by_role("textbox", name="Name", exact=True).fill("Editorial system")
+                source = library.get(editorial.id)
+                page.locator("#design-library-input").set_input_files(
+                    [file.local_path for file in source.files if file.name != "palette.csv"]
+                )
+                capture("docs/assets/add-design.png")
+                page.set_viewport_size({"width": 390, "height": 844})
+                capture("docs/screenshots/add-design-mobile.png")
+                add_dialog.get_by_role("button", name="Close dialog").click()
+                page.set_viewport_size({"width": 1440, "height": 1000})
                 page.get_by_role("button", name="Open Editorial system design", exact=True).click()
                 expect(page.locator(".design-file-group li")).to_have_count(3)
                 capture("docs/assets/design-context.png")
+                page.get_by_role("button", name="Use with agent", exact=True).click()
+                expect(page.get_by_role("dialog", name="Use with agent")).to_be_visible()
+                capture("docs/screenshots/design-use-agent.png")
+                page.get_by_role("dialog").get_by_role("button", name="Close dialog").click()
                 page.set_viewport_size({"width": 390, "height": 844})
                 capture("docs/screenshots/design-context-mobile.png")
                 page.set_viewport_size({"width": 1440, "height": 1000})

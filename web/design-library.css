@@ -24,7 +24,7 @@
 .design-detail-heading h1{font-size:30px;line-height:1.2;margin:8px 0 12px;overflow-wrap:anywhere}
 .design-eyebrow{font-size:11px;color:var(--hub-muted);margin:0}
 .design-description{font-size:14px;line-height:1.7;color:var(--hub-muted);max-width:650px;white-space:pre-wrap}
-.design-detail-actions{display:flex;gap:6px;flex-shrink:0}
+.design-detail-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap}
 .design-detail-actions button:has(>svg:only-child){width:36px;padding:8px}
 .design-context{border:1px solid var(--hub-line);border-radius:12px;background:var(--hub-panel);overflow:hidden}
 .design-context>header{padding:22px 24px;border-bottom:1px solid var(--hub-line)}
@@ -43,8 +43,21 @@
 .design-file-size{white-space:nowrap;flex-shrink:0}
 .design-example-link{display:inline-flex;align-items:center;gap:8px;margin-top:22px;color:var(--hub-muted);font-size:12px}
 .design-empty-files{text-align:center;padding:36px;color:var(--hub-muted);font-size:13px}
-.design-upload{border:1px dashed var(--hub-line);border-radius:9px;padding:16px;display:grid;gap:12px}
-.design-upload>small{font-size:11px;color:var(--hub-muted)}
+.design-form-intro,.design-agent-handoff>p{font-size:13px;line-height:1.6;color:var(--hub-muted)}
+.design-reference-field{display:grid;gap:8px}
+.design-field-label{font-size:12px}
+.design-field-label small,.design-description-disclosure small{font-size:11px;color:var(--hub-muted)}
+.design-upload{border:1px dashed var(--hub-line);border-radius:9px;padding:16px;display:grid;gap:8px;transition:background .15s,border-color .15s}
+.design-upload.is-dragover{background:var(--hub-soft);border-color:var(--hub-blue)}
+.design-upload-choose{width:100%;padding:10px;font-size:13px}
+.design-upload>p{font-size:11px;line-height:1.6;color:var(--hub-muted);text-align:center}
+.design-upload-limits{font-size:10px;color:var(--hub-muted)}
+.design-description-disclosure summary{font-size:12px;cursor:pointer}
+.design-description-disclosure textarea{display:block;width:100%;margin-top:10px;min-height:90px;font-size:12px}
+.design-agent-handoff{display:grid;gap:17px}
+.design-agent-handoff textarea{width:100%;font-size:12px;line-height:1.6;resize:vertical}
+#design-agent-copy-status:empty,#design-library-error:empty{display:none}
+#design-agent-copy-status{font-size:12px;color:var(--hub-muted)}
 #design-library-pending li,.design-deleted-list li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hub-line);font-size:13px}
 #design-library-pending li>span,.design-deleted-list li>span{flex:1;overflow-wrap:anywhere;min-width:0}
 #design-library-pending small{color:var(--hub-muted);font-size:10px}
