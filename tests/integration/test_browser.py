@@ -28,7 +28,7 @@ def open_editor(page: Page, live_app: RunningApp) -> None:
 def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
     page: Page, live_app: RunningApp, selected: bool
 ) -> None:
-    """Exercise the actual copy buttons with a fresh deck and an empty workspace."""
+    """Copy handoffs from a deck or reach the empty editor through the artifact hub."""
     page.add_init_script(
         "Object.defineProperty(navigator,'clipboard',{value:{"
         "writeText:async text=>{window.copiedAgentPrompt=text;}}});"
@@ -54,6 +54,11 @@ def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
     _ = page.goto(
         live_app.url + (f"/?deck={deck_id}" if selected else "/"), wait_until="networkidle"
     )
+    if not selected:
+        expect(page.get_by_role("heading", name="All artifacts", exact=True)).to_be_visible()
+        page.get_by_role("button", name="Presentation tools", exact=True).click()
+        page.get_by_role("link", name="Presentation tools", exact=True).click()
+        expect(page.locator("#slide-title")).to_have_text("No presentations")
 
     def check_prompt(setup: bool = False) -> str:
         """Check the copied handoff rather than merely searching the frontend source."""
