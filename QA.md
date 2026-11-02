@@ -1,5 +1,15 @@
 # Verification
 
+## Whole-workflow and token-efficiency audit · 2 November 2026
+
+The isolated full run passed 414 Python checks with browser/rendering and real MCP/generated-hook checks enabled; two installed-native-client checks were skipped. All 145 frontend checks passed. After integration, 68 focused context, rule-retention, queue-privacy and hook tests passed; strict basedpyright, Ruff and formatting passed. A fresh Terra reviewer found no confirmed issue in the final diff. The existing fresh-install check remains applicable: dependencies and setup commands were unchanged.
+
+General artifact/project and reference-only startup now honors `include_discovery=False`. Selected design sources, complete rules and scoped related-artifact pointers remain. A presentation opened through its artifact ID can retain the artifact and presentation guides separately. MCP source metadata appears once, while the full HTTP context receipt remains available to the UI. Controlled real-transport measurements show 21–35% smaller first context reads and 42–58% smaller retained reads for the documented fixture; these are byte counts, not billed tokens. [Reproduction and limits](docs/TOKEN-EFFICIENCY.md#scoped-artifact-context--2-november-2026).
+
+Idle review polling uses queue-existence queries without loading feedback bodies, private attachments, full inboxes or guidance. A 100-poll simulated fixture reduced lease writes from 100 to one. Late Batch release, wrong-deck suppression, current design status, cursor replay and interruption remain covered. The bounded host continuation is unchanged.
+
+The pixel app mark and native template icon were visually checked at small/large sizes and on light/dark backgrounds. The template retains filled/outlined running/stopped indicators. The signed native app was built and installed with its previous storage paths and login setting preserved; the restarted service returned ready. Library/design navigation and live file previews were inspected. Personal content and approval states were not changed. Physical second-display placement, the actual menu-bar appearance and a live Microsoft tenant call were not re-tested.
+
 ## Automatic previews and multi-object feedback · 2 November 2026
 
 Auto-update defaults on and shares a saved browser preference across the slide editor and artifact viewers. CUA checks in the fictional 8797 workspace verified incoming slide and HTML revisions without clicking Show update, preservation of draft text/focus and original targets, manual mode holding the old preview, and re-enabling auto-update applying the pending version. An active direct text edit retained the old slide until cancelled, then loaded the pending revision automatically.

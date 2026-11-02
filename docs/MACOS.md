@@ -14,7 +14,7 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 
 | Control | Behavior |
 | --- | --- |
-| Status dot | Green: responding. Orange: starting/stopping. Gray: stopped. Red: failed to start. |
+| Pixel status square | Filled: responding. Small: starting/stopping. Outline: stopped or failed; open the menu for the exact status. The icon follows the menu bar's light/dark appearance. |
 | Open Artifact Studio | Opens the workspace in your default browser. |
 | Start / Stop / Restart | Controls the server started by this menu-bar app. Stop waits for a graceful shutdown. |
 | Show Logs | Reveals the local server log in Finder. |

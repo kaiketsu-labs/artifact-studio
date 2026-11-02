@@ -14,46 +14,43 @@ enum ServerState: String {
     case stopped = "Stopped", starting = "Starting…", running = "Running"
     case stopping = "Stopping…", failed = "Could not start"
 
-    var color: NSColor {
-        switch self {
-        case .running: .systemGreen
-        case .starting, .stopping: .systemOrange
-        case .failed: .systemRed
-        case .stopped: .secondaryLabelColor
-        }
-    }
 }
 
 @MainActor
-private func menuBarImage(color: NSColor) -> NSImage {
-    NSImage(size: NSSize(width: 29, height: 18), flipped: false) { _ in
-        NSColor.white.setStroke()
-        let back = NSBezierPath()
-        back.lineWidth = 1.4
-        back.lineCapStyle = .round
-        back.lineJoinStyle = .round
-        back.move(to: NSPoint(x: 1.5, y: 7))
-        back.line(to: NSPoint(x: 1.5, y: 14))
-        back.curve(to: NSPoint(x: 3.5, y: 16), controlPoint1: NSPoint(x: 1.5, y: 15.5), controlPoint2: NSPoint(x: 2, y: 16))
-        back.line(to: NSPoint(x: 17, y: 16))
-        back.stroke()
-        let front = NSBezierPath(roundedRect: NSRect(x: 4.5, y: 1.5, width: 16, height: 11.5), xRadius: 2, yRadius: 2)
-        front.lineWidth = 1.4
-        front.stroke()
-        NSColor.white.setFill()
-        NSBezierPath(roundedRect: NSRect(x: 7.5, y: 7.5, width: 3, height: 3), xRadius: 0.6, yRadius: 0.6).fill()
-        let content = NSBezierPath()
-        content.lineWidth = 1.25
-        content.lineCapStyle = .round
-        content.move(to: NSPoint(x: 13, y: 9))
-        content.line(to: NSPoint(x: 17, y: 9))
-        content.move(to: NSPoint(x: 8, y: 5))
-        content.line(to: NSPoint(x: 17, y: 5))
-        content.stroke()
-        color.setFill()
-        NSBezierPath(ovalIn: NSRect(x: 23, y: 2, width: 4.5, height: 4.5)).fill()
+private func menuBarImage(state: ServerState) -> NSImage {
+    let image = NSImage(size: NSSize(width: 24, height: 18), flipped: true) { _ in
+        NSColor.black.setFill()
+        // The same stepped document and pixel A used by the app icon.
+        for rect in [
+            NSRect(x: 1, y: 1, width: 10, height: 1),
+            NSRect(x: 1, y: 2, width: 1, height: 10),
+            NSRect(x: 4, y: 3, width: 11, height: 1),
+            NSRect(x: 3, y: 4, width: 1, height: 10),
+            NSRect(x: 15, y: 4, width: 1, height: 10),
+            NSRect(x: 4, y: 14, width: 11, height: 1),
+            NSRect(x: 8, y: 6, width: 3, height: 1),
+            NSRect(x: 7, y: 7, width: 1, height: 5),
+            NSRect(x: 11, y: 7, width: 1, height: 5),
+            NSRect(x: 8, y: 9, width: 3, height: 1),
+        ] {
+            rect.fill()
+        }
+        // A filled square means running; an outline means stopped or failed.
+        let indicator = NSRect(x: 19, y: 10, width: 4, height: 4)
+        if state == .running {
+            indicator.fill()
+        } else if state == .starting || state == .stopping {
+            NSRect(x: 20, y: 11, width: 2, height: 2).fill()
+        } else {
+            NSRect(x: 19, y: 10, width: 4, height: 1).fill()
+            NSRect(x: 19, y: 13, width: 4, height: 1).fill()
+            NSRect(x: 19, y: 11, width: 1, height: 2).fill()
+            NSRect(x: 22, y: 11, width: 1, height: 2).fill()
+        }
         return true
     }
+    image.isTemplate = true
+    return image
 }
 
 @MainActor
@@ -93,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSApp.setActivationPolicy(.accessory)
-        statusItem = NSStatusBar.system.statusItem(withLength: 33)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.setAccessibilityLabel("Artifact Studio")
         menu.autoenablesItems = false
         status.isEnabled = false
@@ -141,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         status.toolTip = errorMessage.isEmpty ? workspaceURL.absoluteString : errorMessage
         statusItem.button?.toolTip = "Artifact Studio · \(status.title)"
         statusItem.button?.setAccessibilityValue(status.title)
-        statusItem.button?.image = menuBarImage(color: state.color)
+        statusItem.button?.image = menuBarImage(state: state)
         startItem.isEnabled = state == .stopped || state == .failed
         stopItem.isEnabled = process?.isRunning == true && state != .stopping
         restartItem.isEnabled = process?.isRunning == true && state == .running
@@ -294,7 +291,8 @@ struct ArtifactStudioMenu {
     @MainActor static func main() {
         if let flag = CommandLine.arguments.firstIndex(of: "--icon-preview"),
            CommandLine.arguments.indices.contains(flag + 1) {
-            let image = menuBarImage(color: .systemGreen)
+            let previewState: ServerState = CommandLine.arguments.contains("--running") ? .running : .stopped
+            let image = menuBarImage(state: previewState)
             if let data = image.tiffRepresentation,
                let bitmap = NSBitmapImageRep(data: data),
                let png = bitmap.representation(using: .png, properties: [:]) {

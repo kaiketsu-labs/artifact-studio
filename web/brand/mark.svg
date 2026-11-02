@@ -1,15 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <defs>
-    <linearGradient id="blue" x1="48" y1="24" x2="460" y2="504" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#5477ff"/>
-      <stop offset="1" stop-color="#2948db"/>
-    </linearGradient>
-  </defs>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#blue)"/>
-  <path d="M126 160v-20a36 36 0 0 1 36-36h188a36 36 0 0 1 36 36v20" stroke="#fff" stroke-opacity=".45" stroke-width="16" stroke-linecap="round"/>
-  <rect x="88" y="164" width="336" height="244" rx="40" fill="#fff"/>
-  <rect x="128" y="208" width="80" height="80" rx="18" fill="#3d60ef"/>
-  <circle cx="166" cy="248" r="17" fill="#fff"/>
-  <path d="M244 224h108m-108 32h80" stroke="#3d60ef" stroke-width="16" stroke-linecap="round"/>
-  <path d="m136 356 52-40 48 24 62-48 62 64" stroke="#3d60ef" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect x="16" y="16" width="480" height="480" rx="104" fill="#3454e8"/>
+  <path d="M96 96h256v32H128v192H96z" fill="#a9c5ff"/>
+  <path d="M160 144h224v32h32v192h-32v32H160v-32h-32V176h32z" fill="#fff"/>
+  <path d="M160 176h224v192H160z" fill="#3454e8"/>
+  <path d="M240 208h64v32h32v96h-32v-32h-64v32h-32v-96h32zm0 32v32h64v-32z" fill="#fff" fill-rule="evenodd"/>
+  <path d="M160 400h224v16H160z" fill="#203ac2" opacity=".45"/>
 </svg>
