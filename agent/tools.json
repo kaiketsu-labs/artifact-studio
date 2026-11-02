@@ -4,7 +4,7 @@
   "tools": [
     {
       "name": "get_working_context",
-      "description": "Read first: compact startup with complete user rules; load guides on demand.\nPass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.\nPass design_id with a project/artifact to include a selected reference collection or pack.\nPass deck_id for existing work to select its design, not the workspace default.\nSupplying both IDs requires them to match.\nDesign references contain file pointers, not file contents; open relevant files yourself.\nUse detail=\"full\" for all guides, design documents and the complete asset inventory.\nPass known_rules_hash only while retaining those rules; changes return full text.\nknown_guide_hash omits only the retained guide; omit hashes after context loss.\ninclude_discovery=False skips unrelated lists; selected brand and queued requests remain.\n",
+      "description": "Read first: compact startup with complete user rules; load guides on demand.\nPass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.\nPass design_id with a project/artifact to include a selected reference collection or pack.\nPass deck_id for existing work to select its design, not the workspace default.\nSupplying both IDs requires them to match.\nDesign references contain file pointers, not file contents; open relevant files yourself.\nFor decks, detail=\"full\" loads expanded guides and asset inventory; general artifacts\nuse their artifact guide for either detail setting.\nPass known_rules_hash only while retaining those rules; changes return full text.\nknown_guide_hash omits only the retained guide; omit hashes after context loss.\nFor a legacy deck selected by artifact_id, retain its nested guide separately with\nknown_presentation_guide_hash, only while retaining that exact text.\ninclude_discovery=False skips unrelated lists; selected brand and queued requests remain.\n",
       "input_schema": {
         "properties": {
           "design_id": {
@@ -49,6 +49,11 @@
           "artifact_id": {
             "default": "",
             "title": "Artifact Id",
+            "type": "string"
+          },
+          "known_presentation_guide_hash": {
+            "default": "",
+            "title": "Known Presentation Guide Hash",
             "type": "string"
           }
         },

@@ -179,6 +179,85 @@ def test_compact_continuation_reads(
     assert reviews.pending(body) == pending
 
 
+def test_idle_poll_renews_lease_only_near_expiry(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep the listener live without rewriting its lease on every idle poll."""
+    now = 1_000.0
+    monkeypatch.setattr("artifact_studio.review.time.time", lambda: now)
+    reviews = Reviews(store)
+    body = ReviewHookInput(harness="codex", session_id="s", event="PostToolUse", start_review=True)
+    assert reviews.bind(body).listening
+
+    def expiry() -> float:
+        """Read the persisted lease expiry."""
+        with store.connect() as db:
+            return float(db.execute("SELECT expires_at FROM review_sessions").fetchone()[0])
+
+    assert expiry() == 1_120.0
+    assert reviews.pending(body).listening
+    assert expiry() == 1_040.0
+    assert reviews.pending(body).listening
+    assert expiry() == 1_040.0
+    now = 1_021.0
+    assert reviews.pending(body).listening
+    assert expiry() == 1_061.0
+    assert reviews.pending(body).listening
+    assert expiry() == 1_061.0
+
+
+def test_pending_checks_queue_presence_without_loading_content(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Check delivery and current request status without constructing complete feeds."""
+    other = "2026-10-28-other-review"
+    _ = store.create(other, "Other review")
+    reviews = Reviews(store)
+    body = ReviewHookInput(
+        harness="codex", session_id="s", event="PostToolUse", deck_id=DECK, start_review=True
+    )
+    assert reviews.bind(body).listening
+    with store.connect() as db:
+        _ = store.append_feedback(db, other, "", "user", "Other deck", "", released=True)
+    comment(store, "Withheld", released=False)
+    request = store.post_design_request(
+        DesignRequestInput(message="Design", request_id="design-pending-check")
+    )
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        """Reject full feed or guidance reads during the presence check."""
+        raise AssertionError("pending read full queue content or workspace guidance")
+
+    for name in (
+        "feedback_feed",
+        "comments",
+        "design_inbox",
+        "authoring_instructions",
+        "learned_preferences",
+    ):
+        monkeypatch.setattr(store, name, forbidden)
+
+    assert reviews.pending(body).feedback_available
+    _ = store.reply_design(request.event_id, "Working", "reply-working", "working")
+    assert not reviews.pending(body).feedback_available
+    request2 = store.post_design_request(
+        DesignRequestInput(message="Another design", request_id="design-pending-check-2")
+    )
+    assert reviews.pending(body).feedback_available
+    _ = reviews.bind(
+        body.model_copy(update={"start_review": False, "seen_design_cursor": request2.event_id})
+    )
+    assert not reviews.pending(body).feedback_available
+    comment(store, "Released")
+    assert reviews.pending(body).feedback_available
+    with store.connect() as db:
+        cursor = int(db.execute("SELECT MAX(id) FROM delivery").fetchone()[0])
+    _ = reviews.bind(body.model_copy(update={"start_review": False, "seen_cursor": cursor}))
+    assert not reviews.pending(body).feedback_available
+    _ = store.release_batch(DECK)
+    assert reviews.pending(body).feedback_available
+
+
 def test_batch_release_and_design_inbox(store: Store) -> None:
     """Keep withheld feedback private while delivering a later batch and design request."""
     reviews = Reviews(store)

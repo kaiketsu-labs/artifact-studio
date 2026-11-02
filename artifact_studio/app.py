@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager, suppress
 from functools import wraps
 from html import escape
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, Request
@@ -156,6 +156,18 @@ def working_design(design_id: str, deck_id: str) -> tuple[str, DesignView | None
     return design_id, design
 
 
+def _compact_context_receipt(context: dict[str, object]) -> None:
+    """Reference returned sources without repeating the persisted delivery receipt."""
+    receipt = context.get("receipt")
+    if isinstance(receipt, dict):
+        context["receipt"] = {
+            key: value
+            for key, value in cast(dict[str, object], receipt).items()
+            if key != "sources"
+        }
+        context["receipt_sources"] = "sources"
+
+
 @mcp.tool(annotations=READ)
 @tool_errors
 def get_working_context(
@@ -168,6 +180,7 @@ def get_working_context(
     include_discovery: bool = True,
     project_id: str = "",
     artifact_id: str = "",
+    known_presentation_guide_hash: str = "",
 ) -> dict[str, object]:
     """Read first: compact startup with complete user rules; load guides on demand.
     Pass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.
@@ -175,9 +188,12 @@ def get_working_context(
     Pass deck_id for existing work to select its design, not the workspace default.
     Supplying both IDs requires them to match.
     Design references contain file pointers, not file contents; open relevant files yourself.
-    Use detail="full" for all guides, design documents and the complete asset inventory.
+    For decks, detail="full" loads expanded guides and asset inventory; general artifacts
+    use their artifact guide for either detail setting.
     Pass known_rules_hash only while retaining those rules; changes return full text.
     known_guide_hash omits only the retained guide; omit hashes after context loss.
+    For a legacy deck selected by artifact_id, retain its nested guide separately with
+    known_presentation_guide_hash, only while retaining that exact text.
     include_discovery=False skips unrelated lists; selected brand and queued requests remain.
     """
     if (
@@ -194,7 +210,9 @@ def get_working_context(
             known_rules_hash=known_rules_hash,
             known_guide_hash=known_guide_hash,
             record_delivery=True,
+            include_discovery=include_discovery,
         )
+        _compact_context_receipt(result)
         result.update(workspace_links("", ctx))
         return result
     if artifact_id or project_id:
@@ -210,7 +228,9 @@ def get_working_context(
             known_guide_hash=known_guide_hash,
             record_delivery=True,
             design_id=design_id,
+            include_discovery=include_discovery,
         )
+        _compact_context_receipt(result)
         result.update(workspace_links("", ctx))
         if artifact_id:
             result["workspace_url"] = str(result["workspace_url"]) + "?artifact=" + artifact_id
@@ -223,7 +243,7 @@ def get_working_context(
                 design_id="" if reference_collection else design_id,
                 detail=detail,
                 known_rules_hash=known_rules_hash,
-                known_guide_hash=known_guide_hash,
+                known_guide_hash=known_presentation_guide_hash,
                 include_discovery=False,
                 ctx=ctx,
             )

@@ -22,6 +22,7 @@ def artifact_context(
     known_guide_hash: str = "",
     record_delivery: bool = False,
     design_id: str = "",
+    include_discovery: bool = True,
 ) -> dict[str, object]:
     """Resolve applicable guidance without loading unrelated artifact source bodies."""
     artifacts = ArtifactStore(store)
@@ -110,7 +111,10 @@ def artifact_context(
             for file in selected_design.files
         )
     result: dict[str, object] = {
-        "available_designs": [item.model_dump() for item in DesignLibrary(store).list()],
+        "discovery_included": include_discovery,
+        "available_designs": [item.model_dump() for item in DesignLibrary(store).list()]
+        if include_discovery
+        else [],
         "design_context": selected_design.model_dump() if selected_design else None,
         **rules,
         **guide,

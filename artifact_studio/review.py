@@ -133,14 +133,34 @@ class Reviews:
             ).fetchone()
             if other:
                 return ReviewHookReply()
-            _ = db.execute(
-                "UPDATE review_sessions SET expires_at=? WHERE harness=? AND session_id=?",
-                (time.time() + 40, body.harness, body.session_id),
+            now = time.time()
+            expiry = cast(float, row["expires_at"])
+            if expiry < now + 20 or expiry > now + 40:
+                _ = db.execute(
+                    "UPDATE review_sessions SET expires_at=? WHERE harness=? AND session_id=?",
+                    (now + 40, body.harness, body.session_id),
+                )
+            cursor = cast(int, row["feedback_cursor"])
+            design_cursor = cast(int, row["design_cursor"])
+            designs = bool(
+                db.execute(
+                    "SELECT 1 FROM design_chat WHERE id>? "
+                    "AND json_extract(document,'$.author')='user' "
+                    "AND json_extract(document,'$.status')='queued' LIMIT 1",
+                    (design_cursor,),
+                ).fetchone()
             )
-        cursor, design_cursor = cast(int, row["feedback_cursor"]), cast(int, row["design_cursor"])
-        inbox = self.store.design_inbox(design_cursor)
-        designs = any(item.author == "user" and item.status == "queued" for item in inbox.messages)
-        events = bool(self.store.feedback_feed(deck_id, cursor).events) if deck_id else False
+            events = (
+                bool(
+                    db.execute(
+                        "SELECT 1 FROM delivery d JOIN feedback f ON f.id=d.event_id "
+                        "WHERE d.id>? AND f.deck=? LIMIT 1",
+                        (cursor, deck_id),
+                    ).fetchone()
+                )
+                if deck_id
+                else False
+            )
         reads: list[str] = []
         if deck_id and (events or not designs):
             reads.append(f"read_feedback(deck_id={deck_id!r}, after_delivery_id={cursor})")
