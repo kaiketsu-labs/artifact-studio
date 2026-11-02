@@ -19,6 +19,7 @@ from artifact_studio.design_library import DesignCreate, DesignLibrary
 from artifact_studio.models import FileInput
 from scripts.screenshot_fixture import seed
 from tests.design_factory import powerpoint_source
+from tests.integration.native_sharing import install_native_share
 from tests.integration.support import PROJECT, running_app
 
 
@@ -127,6 +128,7 @@ def main() -> None:
                 timezone_id="Europe/Berlin",
             )
             page = context.new_page()
+            install_native_share(page)
             page.clock.set_fixed_time("2026-11-02T09:30:00Z")
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
@@ -205,7 +207,11 @@ def main() -> None:
                 manifest = staging / "docs/screenshots/design-captures.json"
                 _ = manifest.write_text(
                     json.dumps(
-                        {"fixture": "Original fictional design library", "screenshots": captures},
+                        {
+                            "fixture": "Original fictional design library",
+                            "native_share": "Simulated native API for the agent message",
+                            "screenshots": captures,
+                        },
                         indent=2,
                     )
                     + "\n"

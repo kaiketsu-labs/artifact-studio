@@ -3,6 +3,6 @@ repos:
     rev: v0.17.3
     hooks:
       - id: ruff-check
-        files: ^(studio|tests)/.*\.py$
+        files: ^(artifact_studio|tests)/.*\.py$
       - id: ruff-format
-        files: ^(studio|tests)/.*\.py$
+        files: ^(artifact_studio|tests)/.*\.py$

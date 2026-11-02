@@ -81,7 +81,8 @@
       const message=`Use “${selected.name}” from my Artifact Studio design library as visual reference for my next task. Inspect its current references first and flag anything you cannot read.
 
 ${link}`;
-      modal('Use with agent',`<div class="design-agent-handoff"><p>Copy this message into your connected agent’s chat.</p><label class="hub-field"><span>Message for your agent</span><textarea id="design-agent-message" readonly rows="7">${escape(message)}</textarea></label><p id="design-agent-copy-status" role="status"></p><div class="hub-form-actions">${control('copy-message','Copy message','copy','class="hub-primary"')}</div></div>`);
+      const share=root.ArtifactSharing.canShare({title:selected.name,text:message})?control('share-message','Share…','share','aria-label="Share message" title="Share this message using apps on your device"'):'';
+      modal('Use with agent',`<div class="design-agent-handoff"><p>Use this message in your connected agent’s chat.</p><label class="hub-field"><span>Message for your agent</span><textarea id="design-agent-message" readonly rows="7">${escape(message)}</textarea></label><p id="design-agent-copy-status" role="status"></p><div class="hub-form-actions">${share}${control('copy-message','Copy message','copy','class="hub-primary"')}</div></div>`);
     }
     async function encoded(){
       return Promise.all(pending.map(file=>new Promise((resolve,reject)=>{
@@ -107,6 +108,12 @@ ${link}`;
         if(action==='preview-file'){
           const file=selected.files.find(file=>file.path===node.dataset.filePath);
           modal(file.name,`<div class="design-preview-dialog"><img src="${escape(filePreview(file))}" alt="${escape(file.name)}" decoding="async"><a href="${escape(file.url)}" download>${icon('download')}Download original</a></div>`);return;
+        }
+        if(action==='share-message'){
+          const field=doc.getElementById('design-agent-message');node.disabled=true;doc.getElementById('design-agent-copy-status').textContent='';
+          try{await root.navigator.share({title:selected.name,text:field.value});}
+          catch(error){if(error.name!=='AbortError')doc.getElementById('design-agent-copy-status').textContent='Sharing unavailable. Copy the message instead.';}
+          finally{node.disabled=false;}return;
         }
         if(action==='copy-message'){
           const field=doc.getElementById('design-agent-message');node.disabled=true;

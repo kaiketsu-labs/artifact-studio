@@ -8,6 +8,7 @@ From the repository root, after the normal development installation:
 uv run playwright install chromium --only-shell
 uv run python -m scripts.capture_screenshots
 uv run python -m scripts.capture_design_library
+uv run python -m scripts.capture_sharing
 ```
 
 The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/artifact-studio-docs`.
@@ -24,6 +25,8 @@ The editor screenshot source is [capture_screenshots.py](../../scripts/capture_s
 | Context file inventory with add, download and remove controls | [Context](../assets/design-context.png), [dark](design-context-dark.png), [mobile](design-context-mobile.png) |
 | Image and PowerPoint cover previews | [Enlarged cover](design-file-preview.png) |
 | Slide design pack with separate example action | [Pack context](design-pack-context.png) |
+
+[capture_sharing.py](../../scripts/capture_sharing.py) captures the real web Share panel on [desktop](../assets/sharing.png), [mobile](sharing-mobile.png), and with the [download fallback](sharing-fallback.png). Its [inventory](sharing-captures.json) records viewports and hashes. These captures and the design handoff simulate native API availability at the OS boundary; exports, files and web controls are real. They do not show or verify a native app picker. Installed destinations and an actual iPhone/macOS share require device testing.
 
 | Images | Shows |
 | --- | --- |

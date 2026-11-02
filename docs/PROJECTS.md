@@ -24,11 +24,17 @@ The versioned archive contains `project.json` and a hashed `files/` inventory. L
 
 ## Share an artifact or project
 
+![Share a prepared file using the device’s share sheet.](assets/sharing.png)
+
 Use the square-and-arrow **Share** action on an artifact card, in its header, or in the presentation toolbar. Open a project in the library to share all its artifacts as a ZIP.
 
 When a presentation is included, select **HTML** or **PDF** first. HTML is one offline file with local assets, animations and interactions. PDF is a rendered document containing every slide, including hidden slides. One format applies to all presentations in a project ZIP; other artifacts retain their original format or complete multi-file bundle. Project folders have readable, unique names.
 
-Choose **Outlook** to open a new message with the prepared file attached. Add recipients, a subject and your message in Outlook, then send it yourself. On macOS this uses Outlook’s native file-open handoff, including New Outlook; no AppleScript automation or default-mail-client change is required. **Save file** downloads the same attachment. Where the browser supports file sharing, **More…** offers its system share sheet.
+Choose **Share…** to open the operating system’s share sheet with the prepared file attached, like sharing from an iPhone. The OS chooses available apps: Teams, Mail, Messages and others appear when installed and registered for that content. Artifact Studio does not manage a fixed list of destinations. The browser needs Web Share file support and a secure context (HTTPS or localhost). It checks the actual file type before offering native sharing.
+
+**Save file** downloads the same attachment when native sharing is unavailable or rejected. Cancelling the OS picker keeps the Share panel open without downloading a file. A preparation failure offers **Try again**. On a supported Mac, **Outlook** remains an alternative that opens a new draft with the file attached; choose recipients and send from Outlook.
+
+The design library’s **Use with agent** dialog also offers native sharing for its message when supported, alongside **Copy message**. This shares the displayed text, including the local design reference, rather than uploading the design files.
 
 Shares use saved artifact revisions. Speaker notes, review chat, workspace rules and Studio review metadata stay out of presentation audience exports. Generic bundles omit recognized private/configuration paths and list exclusions in the Share panel; a detected reference to an excluded file stops the export. Authored files can still contain sensitive content. Remote dependencies in generic HTML are not downloaded automatically.
 
