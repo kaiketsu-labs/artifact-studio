@@ -6,28 +6,49 @@
         "width": 1440,
         "height": 1000
       },
-      "sha256": "a968dca217fffb7eee162ec5198ce7eeb589924c82410fa15dd7e2f47aa2f59e"
+      "sha256": "e3c7432e80fc3bcc287b1b1ee770de91a4e2d4cbc6d6f58f6f1e6b40b6e7359f"
+    },
+    "docs/assets/add-design.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "8d570541e2bf125d27286f9ded1d1ccf87fd8e79f88d60cb0f8bf83ac8b8909c"
+    },
+    "docs/screenshots/add-design-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "bf0c9d1acf0178021dd56aa9224b388492701f24a8abe04b2a7e1becd2f33956"
     },
     "docs/assets/design-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "b5241932eda45db2774a62186bd54d1d506eb95a6eaa319b9aa8e15a2a5cd4a5"
+      "sha256": "ac2a437c9be98fb69e3788ca6b048b77a6118c4163779429299add7fe509ccda"
+    },
+    "docs/screenshots/design-use-agent.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "91d427dec38576675b1e37650b04d4a707f615607ec61e6b12e920065c460227"
     },
     "docs/screenshots/design-context-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "sha256": "6da2d90906a88c6840801049f372b936b6b629f3cdc5cb68a369006eff2bed90"
+      "sha256": "249b044fbc5c6e27f46efbf1c2aaa8880a4394fa0440f09950cb40147ff371d6"
     },
     "docs/screenshots/design-pack-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "eb5bea6a303cd61a80a3a0bf071f9bef37a4a9816e2da0ad273b06c11dc127e9"
+      "sha256": "a1e4be5224a57e405ad1f37d23841fcba20f52f6b28e24afd8d2950b2331d4a9"
     }
   }
 }

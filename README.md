@@ -81,7 +81,11 @@ Use `get_working_context(artifact_id=...)` for selected work or `project_id=...`
 
 **Microsoft 365 Copilot:** use a Copilot Studio agent with the optional [authenticated gateway](docs/MICROSOFT-COPILOT.md). Select one project or explicitly allow the workspace. The gateway needs an approved HTTPS endpoint; the local editor stays private. Start from **Connect an agent → Microsoft 365 Copilot**, or the hub menu. Microsoft sign-in, connector policies and an actual Copilot tool call must be verified separately. Automatic Copilot wake-up is not included.
 
-Open **Designs → Add design** to collect guidelines, PDFs, images, fonts, PowerPoint masters or other reference files. A design can be a file collection without any slides. Click its card to see the context files, add more, download a source or remove an attachment. Registered slide design packs also offer **Open example slides**; the workspace default is marked. Normal presentations using a design remain in the artifact library.
+Open **Designs → Add design**, enter a name, then drop in reference files or choose them from your computer. Master slides, guidelines, PDFs, logos, images, fonts and other file types are supported. The description is collapsed and optional; files can also be added later. **Add design** saves the collection and opens its context files. A design does not need example slides.
+
+![Adding a design with named reference files and an optional description.](docs/assets/add-design.png)
+
+Click a design card to see the context files, add more, download a source or remove an attachment. **Use with agent** prepares a message you can copy into your connected agent's chat to use the design for your next task. If clipboard access is blocked, the message remains selected for manual copying. Registered slide design packs also offer **Open example slides**; the workspace default is marked. Normal presentations using a design remain in the artifact library.
 
 ![Design library with slide design packs and reference file collections.](docs/assets/design-library.png)
 

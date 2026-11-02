@@ -4,7 +4,11 @@ Slide Studio contains no corporate identity, PowerPoint masters, brand fonts, lo
 
 ## For the person making slides
 
-Open **Designs → Add design**, give it a name and optionally attach files. A design can be a collection of guidelines, PDFs, images, fonts, data or other sources; it does not need example slides. Click its card for the exact file inventory. **Add files** adds references, file trash icons remove attachments from future context, and file names download the originals. Uploads accept up to five files per batch, 25 MB each and 50 MB total. Removing an attachment cannot erase content an agent already read.
+Open **Designs → Add design**, give it a name, then drop reference files into the upload area or choose them from your computer. Expand **Add a description** only if needed; files are optional and can be added later. **Add design** saves the reference collection and opens its file inventory. A design can contain guidelines, PDFs, images, fonts, data or other sources without any example slides.
+
+Use **Use with agent → Copy message**, then paste into your connected agent's chat. The message identifies this design and asks the agent to inspect its current references before proposing changes. A blocked clipboard leaves the message selected for manual copying. Add files or a description before using an empty collection. This handoff does not send a message or change any project automatically.
+
+**Add files** adds references, file trash icons remove attachments from future context, and file names download the originals. Uploads accept up to five files per batch, 25 MB each and 50 MB total. Removing an attachment cannot erase content an agent already read.
 
 The design's trash icon removes it from the library while preserving source files and existing presentations. Use **Deleted designs** in the toolbar to restore it. Registered slide packs also expose **Open example slides** as a separate action. Reference collections are not automatically available as presentation templates or workspace defaults.
 
