@@ -1,0 +1,315 @@
+{
+  "fixture": "Original fictional Studio Blue deck",
+  "screenshots": {
+    "docs/assets/workspace.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "444a8a23d43336b03f468f9f127e735995a5188851061aa909eb73ac03204ecb"
+    },
+    "docs/assets/slide-chat.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "e25bc141c6850fd956159ebedc412a3a7ff7dae51e78ee8265519c2a5f97cec0"
+    },
+    "docs/screenshots/chat-sender-icons-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "e25bc141c6850fd956159ebedc412a3a7ff7dae51e78ee8265519c2a5f97cec0"
+    },
+    "docs/screenshots/chat-sender-icons-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "c28fac6aab6c4935430ac7ec8a4637f8a13596cfcee8f76c977f7a829cb8b3bb"
+    },
+    "docs/assets/element-review.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "f0065048234155e1b59514a1e38ae214c97b451bd58cd4e90df7945e303b8cdb"
+    },
+    "docs/assets/slide-sorter.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "d5dbc44f6dd4553797f39c9a53ee5589ac6c8513bcdd65fcb83b05a34d4ed1c1"
+    },
+    "docs/screenshots/section-sorter-navigation.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "03a5ab6690850bb4018322a81b6b95f85c66e104cc45bc2dce21a19902d6fd44"
+    },
+    "docs/assets/slide-management.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "8688cff94a84a2cc68c01bbabe1237f9f7ee06d65451d8fcac7af5485d61a8f7"
+    },
+    "docs/assets/projects.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "104eac755944d5c1a6d98761e25e7a31781189c6973cba3ed4bd4ead0e57650e"
+    },
+    "docs/assets/interactive-slide.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1eab38332f4d7e8b3162e195e0d23006461ec892ccdd4d3f779215730da23107"
+    },
+    "docs/assets/presenter.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "9db64c1aaa2705700c472b7ff4f55eced2830cff001f9fef1c8bfff70118f02c"
+    },
+    "docs/screenshots/slide-question-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "e59f0d2c031ca16ff21087ef325dd9dd33c8244189e58b2b5fd6f64a634fe6d7"
+    },
+    "docs/screenshots/slide-question-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "5a25bdcdbce8102fdff7c7cd5815704a5e6f1b10caebbd18cc0a658d6febda2d"
+    },
+    "docs/screenshots/slide-sections-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "4c28977015884e2431ee66c9de29811a3a7f79ed77a4dc2e8e3cd2a965289c10"
+    },
+    "docs/screenshots/slide-sections-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "f8eef93ef95283e29b6559d66fb7f21a18ef238c36023888cfbe6ba701ee487f"
+    },
+    "docs/assets/slide-sections.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "f8eef93ef95283e29b6559d66fb7f21a18ef238c36023888cfbe6ba701ee487f"
+    },
+    "docs/screenshots/section-active-slide.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "00c239e2ae67f8e825383c38d03a05568d49c5e0831df67e640e3b9cb885fff8"
+    },
+    "docs/screenshots/design-references.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "704cfd176d651945ac48b6e4454f53083c206a300cac674e68f42a3c425edc81"
+    },
+    "docs/screenshots/reference-controls.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "6eff4f493ba0ed25f2198a3fb27e3d42cd39f82780323a1266717ac5fb5c4225"
+    },
+    "docs/screenshots/reference-files.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "d5ca64984be841a43a201ce1b975ff51c2fdf5c0fedd5fbe08d24258b1bcc35c"
+    },
+    "docs/screenshots/reference-removed.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "cebf1b520cedd8e1f672df89a5b1b6ae643e06c39c801fc32d6c5192b00d32b6"
+    },
+    "docs/screenshots/new-presentation-references.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "f07d8b5e689768e8aee2143f3ab524db508dd91908300fcc66081d032ce8c762"
+    },
+    "docs/assets/visual-review.png": {
+      "renderer": "studio.visuals.snapshot + Playwright + contact_sheet",
+      "diagnostics": {
+        "cover": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "workflow": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "story": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "appendix": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        }
+      },
+      "pixels": [
+        1008,
+        652
+      ],
+      "sha256": "17f4e7449626347d5a6096ca8751f69630543246afb22a4409b8a12523f6a279"
+    }
+  }
+}
