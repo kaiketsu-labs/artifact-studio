@@ -331,6 +331,8 @@
   let revealed=0,mode=direct?'single':'preview',active=direct,blackout=false,laser=false;
   let audienceWindow=null,screenDetails=null,selectedScreen=null,noteTimer,lastWheel=0,lastPointer=0;
   let filmSignature='',stageSignature='',notesSlide=null;
+  let presenterVoice=null,presenterVoiceLoading=null,notesGeneration=0;
+  const noteVoiceHandles=new Map();
   const slideSources=new WeakMap(),interactiveInstances=new Map(),interactiveStates=new Map();
   const slideAnimations=new Map(),motionPreference=window.matchMedia?.('(prefers-reduced-motion: reduce)');
   let ending=false,leavingFullscreen=false;
@@ -354,6 +356,31 @@
   ])iconButton($(id),icon,label,show);
   document.querySelectorAll('[data-close]').forEach(button=>iconButton(button,'close','Close',false));
   for(const id of ['presenter-notes','notes-text'])$(id).maxLength=20000;
+  /** Hosted private notes can share dictation; portable/audience documents stay self-contained. */
+  function loadPresenterVoice(){
+    if(isAudience||document.documentElement.dataset.export==='audience'||!/^https?:$/.test(location.protocol)||workspaceDeck!==deck.id)return Promise.resolve();
+    if(presenterVoiceLoading)return presenterVoiceLoading;
+    presenterVoiceLoading=new Promise(resolve=>{
+      const script=document.createElement('script');script.src='/web/voice-input.js';
+      script.onerror=()=>{script.remove();resolve();};
+      script.onload=()=>{
+        if(!window.SlideVoice){resolve();return;}
+        const style=document.createElement('link');style.rel='stylesheet';style.href='/web/voice-input.css';document.head.append(style);
+        presenterVoice=window.SlideVoice.create({discover:false});
+        for(const id of ['presenter-notes','notes-text']){
+          const input=$(id);
+          noteVoiceHandles.set(id,presenterVoice.register(input,{
+            capture:()=>({slide_id:deck.slides[current].id,generation:notesGeneration,value:input.value,start:input.selectionStart,end:input.selectionEnd}),
+            available:context=>!ending&&!emptyShow&&context.slide_id===deck.slides[current].id&&context.generation===notesGeneration&&!input.disabled&&!!input.getClientRects().length&&!input.closest('[hidden],dialog:not([open])'),
+            insert:(text,context)=>window.SlideVoice.insertText(input,text,context,document)
+          }));
+        }
+        resolve();
+      };
+      document.head.append(script);
+    });
+    return presenterVoiceLoading;
+  }
   if(!isAudience){try{const saved=JSON.parse(localStorage.getItem(noteKey)||'{}');for(const [id,value] of Object.entries(saved)){if(value&&typeof value.notes==='string'&&typeof value.expected==='string')noteDrafts.set(id,value);}}catch{}}
   for(const [id,draft] of noteDrafts){
     const slide=deck.slides.find(item=>item.id===id);if(!slide){noteDrafts.delete(id);continue;}
@@ -427,7 +454,8 @@
     document.body.classList.toggle('single-screen',mode==='single'&&!isAudience);document.body.classList.toggle('presenter-mode',mode==='presenter');
     $('normal-view').hidden=mode==='presenter';$('presenter-view').hidden=mode!=='presenter';
     $('presenter-notes').disabled=emptyShow;
-    if(notesSlide!==deck.slides[current].id||emptyShow){$('presenter-notes').value=emptyShow?'':noteValue();$('notes-text').value=emptyShow?'':noteValue();notesSlide=emptyShow?null:deck.slides[current].id;noteStatus(noteDrafts.has(notesSlide)?'Unsaved':'');}
+    if(notesSlide!==deck.slides[current].id||emptyShow){presenterVoice?.cancel();notesGeneration++;$('presenter-notes').value=emptyShow?'':noteValue();$('notes-text').value=emptyShow?'':noteValue();notesSlide=emptyShow?null:deck.slides[current].id;noteStatus(noteDrafts.has(notesSlide)?'Unsaved':'');}
+    if(mode==='presenter')void loadPresenterVoice();else noteVoiceHandles.get('presenter-notes')?.cancel();
     for(const id of ['blackout-button','single-blackout'])$(id).setAttribute('aria-pressed',String(blackout));
     $('laser-button').setAttribute('aria-pressed',String(laser));
     const film=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
@@ -441,6 +469,7 @@
   /** Route all audience commands to the presenter to keep one navigation authority. */
   function navigate(action,index){
     if(isAudience){channel?.postMessage({kind:'navigate',action,index});return;}
+    if(presenterVoice?.isActive()){void presenterVoice.stop().then(()=>navigate(action,index));return;}
     const previousId=deck.slides[current].id;if(noteDrafts.has(previousId))void saveNotes(previousId);
     if(action==='next'||action==='previous'){if(!emptyShow)({current,revealed}=nextBuildState(current,revealed,action==='next'?1:-1,deck.slides.map(slide=>slide.interactive_html?0:buildCount(slide.html)),active?deck.slides.map(slide=>slide.hidden):[]));}
     else{const route=active?shownIndices(deck.slides):deck.slides.map((_,index)=>index);emptyShow=action!=='goto'&&!route.length;if(!emptyShow){current=action==='first'?route[0]:action==='last'?route.at(-1):Math.max(0,Math.min(deck.slides.length-1,Number(index)||0));revealed=0;}}
@@ -461,6 +490,8 @@
   }
   async function endPresentation(){
     if(isAudience){channel?.postMessage({kind:'end'});return;}
+    if(ending)return;
+    await presenterVoice?.stop();
     if(ending)return;ending=true;
     active=false;clock.pause();audienceWindow?.close();audienceWindow=null;
     await Promise.all([...noteDrafts.keys()].map(id=>saveNotes(id)));
@@ -515,9 +546,10 @@
   $('presenter-current').addEventListener('pointermove',event=>{if(!laser||performance.now()-lastPointer<30)return;lastPointer=performance.now();const rect=event.currentTarget.getBoundingClientRect();channel?.postMessage({kind:'pointer',visible:true,x:(event.clientX-rect.left)/rect.width,y:(event.clientY-rect.top)/rect.height});});
   $('presenter-current').addEventListener('pointerleave',()=>channel?.postMessage({kind:'pointer',visible:false}));
   $('presenter-notes').addEventListener('input',event=>editNotes(event.target.value));$('notes-text').addEventListener('input',event=>editNotes(event.target.value));
-  $('presenter-notes').addEventListener('blur',()=>saveNotes());$('notes-text').addEventListener('blur',()=>saveNotes());$('save-presenter-notes').addEventListener('click',()=>saveNotes());
+  $('presenter-notes').addEventListener('blur',()=>saveNotes());$('notes-text').addEventListener('blur',()=>saveNotes());$('save-presenter-notes').addEventListener('click',async()=>{await presenterVoice?.stop();await saveNotes();});
   for(const [id,delta] of [['notes-smaller',-2],['notes-larger',2]])$(id).addEventListener('click',()=>{noteFont=Math.max(14,Math.min(40,noteFont+delta));$('presenter-notes').style.fontSize=`${noteFont}px`;});
-  $('notes-button').addEventListener('click',()=>{$('notes-text').value=noteValue();$('notes-hint').textContent='';$('notes-dialog').showModal();});
+  $('notes-button').addEventListener('click',()=>{presenterVoice?.cancel();notesGeneration++;$('notes-text').value=noteValue();$('notes-hint').textContent='';$('notes-dialog').showModal();void loadPresenterVoice();});
+  $('notes-dialog').addEventListener('close',()=>noteVoiceHandles.get('notes-text')?.cancel());
   $('sources-button').addEventListener('click',()=>{$('sources-list').innerHTML=(deck.slides[current].sources||[]).map(source=>`<div class="source">${source.url?`<a href="${escape(source.url)}" target="_blank" rel="noopener">${escape(source.label)}</a>`:escape(source.label)}</div>`).join('')||'No sources.';$('sources-dialog').showModal();});
   document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>$(button.dataset.close).close()));
   for(const id of ['stage','presenter-current'])$(id).addEventListener('click',event=>{
@@ -554,7 +586,7 @@
   motionPreference?.addEventListener('change',()=>{for(const animation of slideAnimations.values())animation.update(revealed,{build:animation.build});});
   window.addEventListener('beforeprint',()=>{for(const animation of slideAnimations.values())animation.beforePrint();});
   window.addEventListener('afterprint',()=>{for(const animation of slideAnimations.values())animation.afterPrint();});
-  window.addEventListener('beforeunload',()=>{for(const mounted of interactiveInstances.values())mounted.dispose();for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
+  window.addEventListener('beforeunload',()=>{presenterVoice?.destroy();for(const mounted of interactiveInstances.values())mounted.dispose();for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
   render();tick();
   hostMessage('ready');
   if(query.get('presenter')==='1'&&!isAudience)showPresenter();

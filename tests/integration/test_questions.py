@@ -90,6 +90,10 @@ def test_question_choices_and_slide_markers(
     expect(card.get_by_role("textbox", name="Write your own answer")).to_be_focused()
     expect(choice).to_be_checked()
     page.keyboard.press("Tab")
+    dictation = card.get_by_role("button", name="Dictate into Write your own answer", exact=True)
+    if dictation.is_enabled():
+        expect(dictation).to_be_focused()
+        page.keyboard.press("Tab")
     expect(card.get_by_role("button", name="Discard unsent answer", exact=True)).to_be_focused()
     page.keyboard.press("Tab")
     expect(card.get_by_role("button", name="Send answer", exact=True)).to_be_focused()

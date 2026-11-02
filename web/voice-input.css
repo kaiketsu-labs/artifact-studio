@@ -1,0 +1,84 @@
+/* Adjacent controls preserve text-field ownership, labels and editor DOM. */
+.voice-input-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;min-width:0;max-width:100%;margin:4px 0 6px;line-height:1.35}
+.voice-input-controls[hidden]{display:none!important}
+.voice-input-button{display:inline-grid;place-items:center;flex-shrink:0;width:29px;height:29px;min-height:29px;padding:6px;border:0;border-radius:50%;background:transparent;color:var(--ink,var(--hub-ink,#27313f));cursor:pointer}
+.voice-input-button svg{width:18px;height:18px}
+.voice-input-button:hover:not(:disabled){background:var(--selected,var(--hub-hover,#edf2fa));color:var(--ink,var(--hub-ink,#182638))}
+.voice-input-button:focus-visible{outline:2px solid var(--blue,#648ac3);outline-offset:2px}
+.voice-input-button[aria-pressed=true]{color:var(--red,#aa3830);background:transparent}
+.voice-input-button:disabled{opacity:.4;cursor:default}
+.voice-input-status{min-width:0;max-width:100%;font-size:11px;color:var(--subtle,var(--hub-muted,#59677a));white-space:pre-wrap;overflow-wrap:anywhere}
+.voice-input-controls[data-voice-phase=error] .voice-input-status{color:var(--red,#aa3830)}
+.voice-input-status.has-interim{font-style:italic}
+.voice-input-controls[data-voice-phase=unavailable] .voice-input-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.voice-input-controls[data-voice-phase=idle] .voice-input-status:empty{display:none}
+.voice-input-controls[data-voice-phase=error] .voice-input-button{border-color:var(--red,#aa3830);color:var(--red,#aa3830)}
+.voice-segments[hidden]{display:none}
+.voice-segments{display:grid;gap:6px;min-width:0;max-height:24dvh;overflow:auto;overscroll-behavior:contain;margin:0 0 6px}
+.voice-segment{min-width:0;padding:2px 0;margin:0;border:0;border-radius:0;background:transparent}
+.voice-segment-heading{display:flex;align-items:center;gap:5px;min-height:24px;margin:0;font-size:10px;font-weight:500;overflow-wrap:anywhere}
+.voice-segment-heading>span,.voice-segment-heading>label{flex:0 1 auto;min-width:0;max-width:140px;padding:2px 6px;border-radius:5px;background:var(--selected,var(--hub-hover,#f0f2f5));color:var(--subtle,var(--hub-muted,#687382));overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.voice-segment-heading>button{display:grid;place-items:center;margin-left:auto;padding:4px;width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:var(--subtle,var(--hub-muted,#59677a));flex-shrink:0;opacity:0;transition:opacity .12s}
+.voice-segment-heading>button svg{width:13px;height:13px}
+.voice-segment textarea.voice-feedback-text,.voice-segment textarea[data-hub-voice-segment]{display:block;width:100%;min-width:0;min-height:22px;max-height:80px;field-sizing:content;padding:2px 0;margin:0;border:0;border-radius:0;background:transparent;color:var(--ink,var(--hub-ink,#182638));font:inherit;font-size:12px;line-height:1.5;resize:none}
+.voice-segment-context{display:block;font-size:10px;line-height:1.4;color:var(--subtle,var(--hub-muted,#59677a));overflow-wrap:anywhere}
+.voice-segment .voice-input-controls{margin:0;opacity:0;transition:opacity .12s}
+.voice-segment-heading .voice-input-controls{margin:0;flex-shrink:0}
+.voice-segment-heading .voice-input-button{width:25px;height:25px;min-height:25px;padding:4px;border:0}
+.voice-segment-heading .voice-input-controls[data-voice-phase=idle] .voice-input-status{display:none}
+.voice-segment:hover .voice-segment-heading>button,.voice-segment:focus-within .voice-segment-heading>button,.voice-segment:hover .voice-input-controls,.voice-segment:focus-within .voice-input-controls,.voice-segment .voice-input-controls:has(.voice-input-button[aria-pressed=true]),.voice-segment .voice-input-controls[data-voice-phase=error]{opacity:1}
+.voice-segment-context[hidden]{display:none}
+.discussion .voice-segment textarea.voice-feedback-text{min-height:22px;max-height:80px;padding:2px 0;line-height:1.5}
+.discussion .feedback-compose{min-height:0;max-height:45dvh;overflow-y:auto;flex-shrink:1}
+.hub-compose{min-height:0;max-height:45dvh;overflow-y:auto;flex-shrink:1}
+.discussion :is(.compose-actions,.hub-compose-actions)>.voice-input-controls{margin:0 0 0 auto;flex:0 0 auto;justify-content:flex-end}
+.discussion :is(.compose-actions,.hub-compose-actions) .voice-input-status{font-size:10px;line-height:1.35}
+.discussion :is(.compose-actions,.hub-compose-actions)>.voice-input-controls[data-voice-phase=idle] .voice-input-status{display:none}
+.discussion .feedback-compose:has(.voice-segments:not([hidden])) .target-members{max-height:65px;overflow:auto}
+/* Both review composers keep the same compact controls before and during dictation. */
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions){display:flex;align-items:center;justify-content:flex-start;gap:8px;margin-top:5px}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions)>#attach-feedback{margin-right:auto;padding:6px;border:0;background:transparent}
+#hub-feedback-form .hub-compose-actions>[data-action=attach]{margin-right:auto;padding:6px;border:0;background:transparent}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions)>.voice-input-controls{margin-left:0;flex:0 1 auto}
+:is(#feedback-form,#hub-feedback-form)>:is(#feedback-text,#hub-feedback-text){min-height:36px;max-height:130px}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions) .voice-input-button{width:32px;height:32px;min-height:32px;padding:6px;border:0;border-radius:50%;background:transparent;color:var(--ink,#222)}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions) .voice-input-button:hover:not(:disabled){background:var(--selected,#f0f1f3)}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback,#hub-send){display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;padding:7px;border:0;border-radius:50%;background:#151515;color:#fff;box-shadow:none}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback,#hub-send):hover:not(:disabled){background:#303030}
+#hub-feedback-form #hub-send,#hub-feedback-form #hub-send-voice{background:#151515!important;color:#fff!important}
+#hub-feedback-form #hub-send:hover:not(:disabled),#hub-feedback-form #hub-send-voice:hover:not(:disabled){background:#303030!important}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback,#hub-send) .ui-icon{width:18px;height:18px}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback,#hub-send)>span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+:is(#feedback-form,#hub-feedback-form) :is(#feedback-recording,#hub-feedback-recording)[hidden]{display:none!important}
+:is(#feedback-form,#hub-feedback-form) .voice-recording-bar{display:flex;align-items:center;gap:12px;width:100%;height:48px;min-height:48px;padding:0 1px}
+:is(#feedback-form,#hub-feedback-form) .voice-recording-bar>button{display:grid;place-items:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;padding:7px;border:0;border-radius:50%;box-shadow:none}
+:is(#feedback-form,#hub-feedback-form) :is(#cancel-feedback-voice,#hub-cancel-voice){background:#f1f1f1;color:#777}
+:is(#feedback-form,#hub-feedback-form) :is(#cancel-feedback-voice,#hub-cancel-voice):hover:not(:disabled){background:#e8e8e8;color:#333}
+:is(#feedback-form,#hub-feedback-form) :is(#cancel-feedback-voice,#hub-cancel-voice) .ui-icon{width:16px;height:16px}
+:is(#feedback-form,#hub-feedback-form) :is(#stop-feedback-voice,#hub-stop-voice){background:#f1f1f1;color:#111}
+:is(#feedback-form,#hub-feedback-form) :is(#stop-feedback-voice,#hub-stop-voice):hover:not(:disabled){background:#e7e7e7}
+:is(#feedback-form,#hub-feedback-form) :is(#stop-feedback-voice,#hub-stop-voice)::before{content:'';display:block;width:14px;height:14px;border-radius:1px;background:#111}
+:is(#feedback-form,#hub-feedback-form) :is(#stop-feedback-voice,#hub-stop-voice)>svg{display:none}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback-voice,#hub-send-voice){background:#151515;color:#fff}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback-voice,#hub-send-voice):hover:not(:disabled){background:#303030}
+:is(#feedback-form,#hub-feedback-form) :is(#send-feedback-voice,#hub-send-voice) .ui-icon{width:18px;height:18px}
+:is(#feedback-form,#hub-feedback-form) .voice-listening-dots{display:flex;align-items:center;justify-content:space-between;gap:3px;flex:1;min-width:0;height:24px;overflow:hidden}
+:is(#feedback-form,#hub-feedback-form) .voice-listening-dots span{display:block;flex:0 1 3px;width:3px;height:3px;border-radius:50%;background:var(--subtle,#939393);opacity:.42;animation:voice-listening-pulse 1.4s ease-in-out infinite alternate}
+:is(#feedback-form,#hub-feedback-form) .voice-listening-dots span:nth-child(3n){animation-delay:-.45s}
+:is(#feedback-form,#hub-feedback-form) .voice-listening-dots span:nth-child(3n + 1){animation-delay:-.9s}
+:is(#feedback-form,#hub-feedback-form) .is-finishing .voice-listening-dots span,:is(#feedback-form,#hub-feedback-form).is-finishing .voice-listening-dots span{animation:none;opacity:.4}
+:is(#feedback-form,#hub-feedback-form).is-recording>:is(#feedback-text,#hub-feedback-text),:is(#feedback-form,#hub-feedback-form).is-recording>:is(#voice-feedback-segments,#hub-voice-segments),:is(#feedback-form,#hub-feedback-form).is-recording>:is(.compose-actions,.hub-compose-actions),:is(#feedback-form,#hub-feedback-form).is-recording #target-members{display:none!important}
+#hub-feedback-form.is-recording #hub-targets{max-height:28px;overflow:auto}
+@keyframes voice-listening-pulse{from{opacity:.28}to{opacity:.72}}
+.hub-search{position:relative}
+.hub-search .voice-input-controls{flex:0 0 auto;margin:0}
+.hub-search .voice-input-status{position:absolute;top:calc(100% + 5px);right:0;z-index:30;width:260px;padding:7px;background:var(--hub-panel,#fff);border:1px solid var(--line,#dce1e9);border-radius:6px;box-shadow:0 3px 10px #0001}
+.hub-search .voice-input-controls[data-voice-phase=idle] .voice-input-status{display:none}
+.ql-toolbar .voice-input-controls{display:inline-flex;vertical-align:middle;margin:0 0 0 8px}
+.ql-toolbar .voice-input-button{float:none;width:29px;height:29px;padding:6px}
+.ql-toolbar .voice-input-status{max-width:220px}
+@media(prefers-reduced-motion:reduce){.voice-input-button,.voice-segment-heading>button,.voice-segment .voice-input-controls{transition:none}:is(#feedback-form,#hub-feedback-form) .voice-listening-dots span{animation:none;opacity:.45}}
+/* Keep composer actions visible as the transcript grows. */
+#feedback-form{display:flex;flex-direction:column}
+#feedback-form>#voice-feedback-segments{flex:0 1 auto;min-height:0}
+#feedback-form>:is(.compose-context,.target-members,#feedback-text,.compose-actions,.compose-delivery-help,.voice-recording-bar){flex-shrink:0}

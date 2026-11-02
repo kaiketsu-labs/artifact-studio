@@ -77,7 +77,7 @@ jobs:
       - name: Browser journeys and sandboxed renderer tests
         run: >-
           uv run --no-sync pytest
-          tests/integration/test_browser.py tests/integration/test_chat.py tests/integration/test_questions.py tests/integration/test_zoom.py tests/integration/test_sections.py tests/integration/test_feedback_delivery.py tests/integration/test_audience_preview.py tests/integration/test_design_references.py tests/integration/test_notes_and_backup.py tests/test_visuals.py
+          tests/integration/test_browser.py tests/integration/test_chat.py tests/integration/test_questions.py tests/integration/test_zoom.py tests/integration/test_sections.py tests/integration/test_feedback_delivery.py tests/integration/test_audience_preview.py tests/integration/test_design_references.py tests/integration/test_notes_and_backup.py tests/integration/test_object_selection.py tests/integration/test_voice_input.py tests/integration/test_voice_hub.py tests/integration/test_voice_rich.py tests/integration/test_voice_presenter.py tests/test_visuals.py
           tests/test_interactive.py tests/test_element_rotation_dom.py tests/integration/test_design_library.py
           --junitxml=test-results/browser.xml
       - name: Upload screenshots, Playwright traces and server logs

@@ -39,10 +39,13 @@
   function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,anchor,onSend,onChange,onError,deliveryStatus=()=> 'released',blocked=()=>false}){
     let element=null,original=null,textEditing=false,dragEnabled=true,drag=null,doc=null,busy=false,suppressClick=false,sent=false,keyboardMove=null,submission=null,positionPreview=null,rotationPreview=0,pendingDelete=false,rotationDrag=null;
     const requests=new Map();
+    let textVoice=null,textGeneration=0;
+    function cancelTextVoice(){textGeneration++;textVoice?.cancel();if(textVoice)textVoice.controls.hidden=true;}
     const canText=()=>!!element&&element.namespaceURI==='http://www.w3.org/1999/xhtml'&&/^(H[1-6]|P|SPAN|LI|DIV|LABEL)$/.test(element.tagName)&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol')&&!!element.textContent.trim();
     const canMove=()=>!!element&&(element.namespaceURI==='http://www.w3.org/1999/xhtml'||element.tagName.toLowerCase()==='svg');
     const controls=selectionBox?createSelectionControls(selectionBox):null;
     function update(){
+      if(textVoice)textVoice.controls.hidden=!textEditing||busy||blocked();
       const draftGeometry=!!keyboardMove||pendingDelete;
       tools.hidden=!element;editButton.hidden=textEditing||draftGeometry;moveButton.hidden=textEditing||pendingDelete;commitButton.hidden=!textEditing&&!draftGeometry;cancelButton.hidden=!textEditing&&!draftGeometry;
       alignButton.hidden=textEditing||pendingDelete;alignButton.disabled=busy||blocked()||!canMove();
@@ -67,6 +70,7 @@
       original={html:element.innerHTML,style:element.getAttribute('style'),editable:element.getAttribute('contenteditable'),text:element.innerText??element.textContent,anchor:anchor()};
     }
     function restore(){
+      cancelTextVoice();
       if(!original||!element)return;
       element.innerHTML=original.html;
       for(const [name,value] of [['style',original.style],['contenteditable',original.editable]]){if(value===null)element.removeAttribute(name);else element.setAttribute(name,value);}
@@ -79,7 +83,39 @@
     function cancel(){closeAlign();restore();textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;sent=false;submission=null;if(rotationInput)rotationInput.value='0';update();}
     function startText(){
       if(busy||blocked()||keyboardMove||pendingDelete||!canText())return;
-      restore();remember();sent=false;textEditing=true;element.setAttribute('contenteditable','plaintext-only');element.style.cursor='text';element.style.outline='none';element.focus();update();
+      restore();remember();sent=false;textEditing=true;element.setAttribute('contenteditable','plaintext-only');element.style.cursor='text';element.style.outline='none';element.focus();
+      bindTextVoice();update();
+    }
+    /** Keep dictation in the original text edit, with controls outside authored slide markup. */
+    function bindTextVoice(){
+      if(!root.slideVoice)return;
+      const target=element;
+      textVoice=root.slideVoice.register(target,{
+        label:'selected element text',controlsHost:tools,visible:()=>textEditing&&element===target,
+        capture(){
+          const selection=doc.getSelection(),range=selection?.rangeCount?selection.getRangeAt(0):null,value=target.textContent;
+          let start=value.length,end=start;
+          if(range&&target.contains(range.startContainer)&&target.contains(range.endContainer)){
+            const prefix=doc.createRange();prefix.selectNodeContents(target);prefix.setEnd(range.startContainer,range.startOffset);start=prefix.toString().length;
+            prefix.setEnd(range.endContainer,range.endOffset);end=prefix.toString().length;
+          }
+          return {generation:textGeneration,value,start,end};
+        },
+        available:context=>textEditing&&!busy&&!blocked()&&element===target&&target.isConnected&&context.generation===textGeneration,
+        insert(text,context){
+          if(!textEditing||busy||blocked()||element!==target||context.generation!==textGeneration||target.textContent!==context.value)return false;
+          const value=target.textContent,before=value.slice(0,context.start),after=value.slice(context.end);
+          const insertion=(before&&!/\s$/.test(before)&&! /^[,.;:!?)]/.test(text)?' ':'')+text+(after&&!/^\s|^[,.;:!?)]/.test(after)?' ':'');
+          if(before.length+insertion.length+after.length>9000)return false;
+          const nodes=[],walker=doc.createTreeWalker(target,4);while(walker.nextNode())nodes.push(walker.currentNode);
+          function point(offset){for(const node of nodes){if(offset<=node.textContent.length)return [node,offset];offset-=node.textContent.length;}return [target,target.childNodes.length];}
+          const range=doc.createRange();range.setStart(...point(context.start));range.setEnd(...point(context.end));range.deleteContents();
+          const inserted=doc.createTextNode(insertion);range.insertNode(inserted);range.setStartAfter(inserted);range.collapse(true);
+          const selection=doc.getSelection();selection.removeAllRanges();selection.addRange(range);
+          context.value=target.textContent;context.start=before.length+insertion.length;context.end=context.start;
+          target.dispatchEvent(new doc.defaultView.InputEvent('input',{bubbles:true,inputType:'insertText',data:insertion}));return true;
+        }
+      });
     }
     async function send(message,captured,intent){
       const signature=JSON.stringify([captured,message,intent]);
@@ -90,6 +126,8 @@
       finally{busy=false;update();}
     }
     async function commitText(){
+      if(busy)return false;
+      await textVoice?.stop();
       if(busy)return false;
       if(pendingDelete){if(await send('Delete this element.',original.anchor,editIntent('delete',{}))){pendingDelete=false;sent=true;update();return true;}return false;}
       if(keyboardMove){

@@ -29,6 +29,30 @@
     const key = targetKey(target), found = targets.some(item => targetKey(item) === key);
     return found ? targets.filter(item => targetKey(item) !== key) : [...targets,target].slice(0,100);
   }
+  /** Retain only bounded, versioned voice drafts recovered from private browser storage. */
+  function validVoiceTarget(target,group=true) {
+    if(target===null)return true;
+    if(!target || typeof target!=='object')return false;
+    if(target.kind==='group')return group && Array.isArray(target.elements) && target.elements.length>0 && target.elements.length<=100 && target.elements.every(item=>item!==null && validVoiceTarget(item,false));
+    return ['element','text','region'].includes(target.kind) && ['selector','label','quote'].every(name=>target[name]===undefined || typeof target[name]==='string');
+  }
+  function validVoiceSegment(value) {
+    return value && typeof value.message==='string' && value.message.length<=10000 && typeof value.request_id==='string' && value.request_id.length>=8 && value.request_id.length<=100 && (value.id===undefined || typeof value.id==='string' && value.id.length>=8 && value.id.length<=100) && Number.isInteger(value.revision) && value.revision>0 && typeof value.content_hash==='string' && /^[a-f0-9]{64}$/.test(value.content_hash) && validVoiceTarget(value.target);
+  }
+  /** Append final recognition text using the session's captured artifact and target snapshot. */
+  function appendVoiceSegment(value, captured, text) {
+    if(typeof text!=='string' || !text.trim())return true;
+    const segments=value.voice_segments || [], prior=segments.find(segment=>(segment.id || segment.request_id)===(captured.id || captured.request_id));
+    const message=[prior?.message,text.trim()].filter(Boolean).join(' ');
+    if(message.length>10000 || !prior && segments.length>=100)return false;
+    if(prior)prior.message=message;
+    else {
+      const segment={id:captured.id || captured.request_id,request_id:captured.request_id,message,revision:captured.revision,content_hash:captured.content_hash,target:structuredClone(captured.target)};
+      if(!validVoiceSegment(segment))return false;
+      value.voice_segments=[...segments,segment];
+    }
+    return true;
+  }
   /** Filter the real registry without treating project names as artifact titles. */
   function filterArtifacts(artifacts, {project='all',kind='all',search=''}) {
     const query = search.trim().toLocaleLowerCase();
@@ -69,20 +93,24 @@
     };
     return new markdown.Marked({renderer,gfm:true,breaks:false}).parse(source,{async:false});
   }
-  const exports = {filterArtifacts,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath};
+  const exports = {filterArtifacts,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath,validVoiceSegment,appendVoiceSegment};
   if (typeof module !== 'undefined' && module.exports) { module.exports=exports; return; }
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
-  const extraIcons={search:'m21 21-5-5M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15',image:'M3 3h18v18H3zM3 16l6-6 5 5 3-3 4 4M16 7h.01',updated:'M20 4v5h-5M19.2 8a8 8 0 1 0-4.7 11.6'};
+  const extraIcons={voiceSend:'M12 20V4m-7 7 7-7 7 7',search:'m21 21-5-5M10.5 3a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15',image:'M3 3h18v18H3zM3 16l6-6 5 5 3-3 4 4M16 7h.01',updated:'M20 4v5h-5M19.2 8a8 8 0 1 0-4.7 11.6'};
   const icon=name => extraIcons[name]?`<svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${extraIcons[name]}"/>${name==='updated'?'<circle cx="20" cy="17" r="2" fill="currentColor" stroke="none"/>':''}</svg>`:root.SlideIcons.svg(name);
   const sizeLabel=size => root.SlideChatComposer.sizeLabel(Number(size) || 0);
   const state={designActive:null,projects:[],artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
   const previewUpdates=root.SlidePreviewUpdates.create({onChange:()=>{syncAutoUpdate();if(previewUpdates.enabled)void refresh();}});
-  const drafts=new Map(), attachments=new Map(), sending=new Set();
-  let importFiles=[],toastTimer,refreshing=false,regionStart=null;
+  const drafts=new Map(), attachments=new Map(), sending=new Set(),discardedVoiceSegments=new Set();
+  let importFiles=[],toastTimer,refreshing=false,regionStart=null,voiceRecordingBase=null,feedbackVoiceHandle=null;
+  const voice=root.SlideVoice.create({onIdle:input=>{if(input?.id==='hub-feedback-text')voiceRecordingBase=null;lockComposer();if(state.newRevision && previewUpdates.enabled)void refresh();}});
   try {
     const saved=JSON.parse(root.localStorage.getItem('artifact-hub:drafts:v1') || '{}');
-    for (const [id,value] of Object.entries(saved)) if (value && typeof value.message === 'string') drafts.set(id,{...value,targets:Array.isArray(value.targets) ? value.targets : []});
+    for (const [id,value] of Object.entries(saved)) if (value && typeof value.message === 'string') {
+      const seen=new Set(),segments=Array.isArray(value.voice_segments)?value.voice_segments.filter(segment=>validVoiceSegment(segment) && !seen.has(segment.request_id) && seen.add(segment.request_id)).slice(0,100):[];
+      drafts.set(id,{...value,targets:Array.isArray(value.targets) ? value.targets : [],voice_segments:segments});
+    }
   } catch {}
   const selectedProject=id => state.projects.find(project=>project.id===id);
   const projectTitle=id => id==='designs'?'Designs':selectedProject(id)?.title || (id === 'all' ? 'All artifacts' : 'Project');
@@ -91,7 +119,7 @@
     if (!drafts.has(item.id)) drafts.set(item.id,{message:'',targets:[],revision:item.revision,content_hash:item.content_hash,request_id:null});
     return drafts.get(item.id);
   };
-  const persist=()=>{try{root.localStorage.setItem('artifact-hub:drafts:v1',JSON.stringify(Object.fromEntries([...drafts].filter(([,value])=>value.message || value.targets.length))));}catch{}};
+  const persist=()=>{try{root.localStorage.setItem('artifact-hub:drafts:v1',JSON.stringify(Object.fromEntries([...drafts].filter(([,value])=>value.message || value.targets.length || value.voice_segments?.length))));}catch{}};
   const isAdditive=event=>event.metaKey || event.ctrlKey || event.shiftKey;
   const button=(action,label,name,extra='')=>`<button type="button" data-action="${action}" ${extra}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
   const status=item=>`<span class="hub-status ${item.status || 'draft'}">${icon(item.status==='approved'?'check':item.status==='updated'?'updated':'clock')}${item.status==='approved'?'Approved':item.status==='updated'?'Updated':'To review'}</span>`;
@@ -136,6 +164,7 @@
     }).join('');
   }
   function library() {
+    void voice.stop();
     const designs=state.project==='designs';
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
     for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
@@ -172,7 +201,7 @@
   }
   function chatMarkup(item) {
     const value=draft(item), mode=item.mode || 'batch', count=pendingCount(item), live=item.delivery?.live_available===true;
-    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)} · version ${escape(item.revision || 1)}</p></header><div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${live?'Release feedback immediately to the connected agent':'Release feedback immediately. Automatic agent continuation is unavailable.'}">${icon('live')}Live${live?'':'<span class="hub-live-dot" aria-label="Automatic continuation unavailable"></span>'}</button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch">${icon('batch')}Batch</button></div>${mode==='batch'?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count?'':'disabled'}`):''}</div><div class="hub-thread" id="hub-thread">${(item.feedback || []).length?item.feedback.map(message=>messageMarkup(message,item)).join(''):''}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="What would you change?" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="Send feedback" title="Send · Enter; new line · Shift+Enter">${icon('send')}</button></div></form>`;
+    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)} · version ${escape(item.revision || 1)}</p></header><div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${live?'Release feedback immediately to the connected agent':'Release feedback immediately. Automatic agent continuation is unavailable.'}">${icon('live')}Live${live?'':'<span class="hub-live-dot" aria-label="Automatic continuation unavailable"></span>'}</button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch">${icon('batch')}Batch</button></div>${mode==='batch'?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count?'':'disabled'}`):''}</div><div class="hub-thread" id="hub-thread">${(item.feedback || []).length?item.feedback.map(message=>messageMarkup(message,item)).join(''):''}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="What would you change?" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
   }
   function attachmentMarkup(id) {return (attachments.get(id) || []).map((file,index)=>`<span class="hub-attachment"><span title="${escape(file.name)}">${escape(file.name)}</span><button type="button" data-remove-file="${index}" aria-label="Remove ${escape(file.name)}">${icon('close')}</button></span>`).join('');}
   function targetsMarkup(value,item) {
@@ -180,16 +209,81 @@
     return `${value.targets.length>1?`<div class="hub-target-row"><span class="hub-muted">${value.targets.length} selected</span>${button('clear-targets','','close','aria-label="Clear all targets" title="Clear all targets"')}</div>`:''}${value.targets.map((target,index)=>`<div class="hub-target-row"><span class="hub-target">${escape(targetLabel(target))}</span><button type="button" data-remove-target="${index}" aria-label="Remove ${escape(targetLabel(target))}" title="Remove target">${icon('close')}</button></div>`).join('')}`;
   }
   function workspace() {
+    void voice.stop();
     const item=state.detail;
     content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
     doc.title=`${item.title} · Artifact Hub`;
-    bindViewer();syncSelection();lockComposer();
+    bindViewer();syncSelection();bindVoiceFeedback();lockComposer();
   }
   function renderChat() {
     const node=doc.getElementById('hub-chat');if(!node || !state.detail)return;
-    node.innerHTML=chatMarkup(state.detail);const thread=doc.getElementById('hub-thread');thread.scrollTop=thread.scrollHeight;lockComposer();
+    void voice.stop();node.innerHTML=chatMarkup(state.detail);bindVoiceFeedback();const thread=doc.getElementById('hub-thread');thread.scrollTop=thread.scrollHeight;lockComposer();
   }
-  function lockComposer() {for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input'))control.disabled=sending.has(state.active);}
+  function lockComposer() {
+    for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input'))if(!control.closest('.voice-input-controls'))control.disabled=sending.has(state.active);
+    const submit=doc.getElementById('hub-send'),active=voice.isActive();
+    if(submit){submit.disabled=sending.has(state.active)||active;submit.title=active?'Stop dictation before sending feedback':`${state.detail?.mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter`;}
+    syncVoiceChrome();
+  }
+  /** Display pinned drafts without replacing text fields that may be receiving dictation. */
+  function renderVoiceSegments(id=state.active) {
+    if(id!==state.active || !state.detail)return;
+    const panel=doc.getElementById('hub-voice-segments');if(!panel)return;
+    const segments=draft().voice_segments || [],ids=new Set(segments.map(segment=>segment.id || segment.request_id));
+    for(const node of [...panel.children])if(!ids.has(node.dataset.voiceSegment))node.remove();
+    panel.hidden=!segments.length;
+    for(const [index,segment] of segments.entries()){
+      let node=[...panel.children].find(node=>node.dataset.voiceSegment===(segment.id || segment.request_id));
+      if(!node){
+        node=doc.createElement('section');node.className='voice-segment';node.dataset.voiceSegment=segment.id || segment.request_id;
+        const heading=doc.createElement('div');heading.className='voice-segment-heading';
+        const label=doc.createElement('label');label.htmlFor=`hub-voice-${segment.id || segment.request_id}`;
+        const remove=doc.createElement('button');remove.type='button';remove.dataset.removeVoiceSegment=segment.id || segment.request_id;remove.setAttribute('aria-label','Remove dictated feedback draft');remove.title='Remove dictated feedback draft';remove.innerHTML=icon('close');heading.append(label,remove);
+        const text=doc.createElement('textarea');text.id=label.htmlFor;text.dataset.hubVoiceSegment=segment.id || segment.request_id;text.maxLength=10000;text.rows=1;
+        const context=doc.createElement('small');context.className='voice-segment-context';
+        node.append(heading,text,context);panel.append(node);voice.register(text,{controlsHost:heading,visible:()=>true});
+      }
+      const target=segment.target?.kind==='group'?`${segment.target.elements.length} selected objects`:segment.target?targetLabel(segment.target):state.detail.title;
+      node.querySelector('label').textContent=`Voice draft ${index+1} · ${target}`;
+      node.querySelector('small').textContent=`Version ${segment.revision} · retained selection${segment.content_hash!==state.detail.content_hash?' · earlier version':''}`;
+      const text=node.querySelector('textarea');if(text.value!==segment.message){const start=text.selectionStart,end=text.selectionEnd;text.value=segment.message;if(doc.activeElement===text)text.setSelectionRange(start,end);}
+    }
+    voice.refresh();lockComposer();
+  }
+  /** Bind final text to the artifact/version/selection present when recognition began. */
+  function bindVoiceFeedback() {
+    const input=doc.getElementById('hub-feedback-text');if(!input || !state.detail)return;
+    const handle=voice.register(input,{
+      label:'artifact feedback',
+      capture:()=>{const item=state.detail,value=draft(item),id=root.crypto.randomUUID(),original=value.targets.length?value:item;return {artifact_id:item.id,id,request_id:id,revision:original.revision,content_hash:original.content_hash,target:feedbackTarget(groupTargets(value.targets))};},
+      available:context=>!!context?.artifact_id && drafts.has(context.artifact_id) && !discardedVoiceSegments.has(context.id || context.request_id),
+      insert:(text,context)=>{
+        const value=drafts.get(context.artifact_id);if(!value || discardedVoiceSegments.has(context.id || context.request_id) || !appendVoiceSegment(value,context,text))return false;
+        persist();renderVoiceSegments(context.artifact_id);return true;
+      },
+    });
+    feedbackVoiceHandle=handle;
+    if(handle)doc.querySelector('#hub-feedback-form .hub-compose-actions').insertBefore(handle.controls,doc.getElementById('hub-send'));
+    renderVoiceSegments();voice.refresh();
+  }
+  function voiceBoundary() {const input=doc.getElementById('hub-feedback-text');if(input)voice.boundary(input);}
+  function syncVoiceChrome(phase='') {
+    const input=doc.getElementById('hub-feedback-text'),form=doc.getElementById('hub-feedback-form'),bar=doc.getElementById('hub-feedback-recording');
+    if(!input || !form || !bar)return;
+    const active=voice.isActive(input);bar.hidden=!active;form.classList.toggle('is-recording',active);
+    if(phase)bar.dataset.phase=phase;
+    const currentPhase=bar.dataset.phase;bar.classList.toggle('is-finishing',currentPhase!=='listening');
+    const statusLabel=currentPhase==='waiting'?'Waiting for microphone':currentPhase==='starting'?'Starting microphone':currentPhase==='finishing'?'Finishing dictation':'Listening';
+    bar.querySelector('[role=status]').setAttribute('aria-label',statusLabel);
+    for(const control of bar.querySelectorAll('button'))control.disabled=sending.has(state.active) || control.id==='hub-send-voice' && currentPhase!=='listening';
+  }
+  doc.addEventListener('voice-input-state',event=>{
+    if(event.detail?.input===doc.getElementById('hub-feedback-text')){
+      if(event.detail.active && (!voiceRecordingBase || voiceRecordingBase.artifact_id!==state.active))voiceRecordingBase={artifact_id:state.active,ids:new Set((draft().voice_segments || []).map(segment=>segment.id || segment.request_id))};
+      syncVoiceChrome(event.detail.phase);
+    }else if(event.detail?.active && !voice.isActive(doc.getElementById('hub-feedback-text')))voiceRecordingBase=null;
+    lockComposer();
+  });
   function syncSelection() {
     if(!state.detail)return;
     const value=draft(),targetNode=doc.getElementById('hub-targets');if(targetNode)targetNode.innerHTML=targetsMarkup(value,state.detail);
@@ -205,7 +299,7 @@
     if(sending.has(state.active))return;
     const value=draft();
     if(value.content_hash!==state.detail.content_hash && (value.message || value.targets.length)){toast('Send or clear the earlier-version draft before selecting this version.',true);return;}
-    value.content_hash=state.detail.content_hash;value.revision=state.detail.revision;value.targets=selectTargets(value.targets,target,additive);value.request_id=null;syncSelection();
+    value.content_hash=state.detail.content_hash;value.revision=state.detail.revision;value.targets=selectTargets(value.targets,target,additive);value.request_id=null;syncSelection();voiceBoundary();
   }
   function bindViewer() {
     const frame=doc.getElementById('hub-html-preview');frame?.addEventListener('load',syncSelection);
@@ -233,6 +327,7 @@
   }
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
+    void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
     if(item?.legacy_deck_id){root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
@@ -251,13 +346,13 @@
       if(detail.status==='updated')api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).then(()=>{const card=state.artifacts.find(item=>item.id===id);if(card)card.status='draft';if(state.detail===detail){detail.status='draft';const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(detail);}}).catch(()=>{});
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
-  function home(project='all',push=true) {if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
-  function modal(title,body,wide=false) {dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();}
+  function home(project='all',push=true) {void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
+  function modal(title,body,wide=false) {void voice.stop();dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();voice.refresh();}
   const designLibrary=root.SlideDesignLibrary.create({api,icon,escape,sizeLabel,toast,modal,changed:async id=>{
     await loadRegistry();if(id)return openDesign(id,false);home('designs');
   }});
   async function openDesign(id,push=true){
-    const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
+    void voice.stop();const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
     try{
       const item=await api(`/api/design-library/${encodeURIComponent(id)}`);if(token!==state.loading)return;
       library();state.designActive=id;
@@ -306,15 +401,26 @@
   }
   async function sendFeedback(form) {
     const item=state.detail,value=draft(item),files=attachments.get(item.id) || [];
-    if(sending.has(item.id) || !value.message.trim() && !files.length)return;
+    if(voice.isActive()){toast('Stop dictation before sending feedback.');return;}
+    if(sending.has(item.id) || !value.message.trim() && !files.length && !value.voice_segments?.some(segment=>segment.message.trim()))return;
     sending.add(item.id);
     const controls=[...form.querySelectorAll('button,textarea,input')],error=form.querySelector('[role=alert]');for(const control of controls)control.disabled=true;error.textContent='';
-    value.request_id ||= root.crypto.randomUUID();persist();
+    lockComposer();persist();
     try{
-      await api(artifactPath(item.id,'/feedback'),{message:value.message.trim(),target:feedbackTarget(groupTargets(value.targets)),files:await encodeFiles(files),content_hash:value.content_hash,request_id:value.request_id});
+      // Acknowledge each completed prefix locally; failed or lost responses retain their retry IDs.
+      for(const segment of [...(value.voice_segments || [])]){
+        if(!segment.message.trim())continue;
+        await api(artifactPath(item.id,'/feedback'),{message:segment.message,target:segment.target,content_hash:segment.content_hash,request_id:segment.request_id});
+        value.voice_segments=value.voice_segments.filter(current=>current.request_id!==segment.request_id);persist();renderVoiceSegments(item.id);
+      }
+      if(value.message.trim() || files.length){
+        value.request_id ||= root.crypto.randomUUID();persist();
+        await api(artifactPath(item.id,'/feedback'),{message:value.message.trim(),target:feedbackTarget(groupTargets(value.targets)),files:await encodeFiles(files),content_hash:value.content_hash,request_id:value.request_id});
+        value.message='';value.request_id=null;attachments.delete(item.id);persist();
+      }
       drafts.delete(item.id);attachments.delete(item.id);persist();
       const detail=await api(artifactPath(item.id));if(state.active===item.id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();syncSelection();}
-    }catch(reason){error.textContent=reason.message;}finally{sending.delete(item.id);for(const control of controls)control.disabled=false;lockComposer();if(state.active===item.id)doc.getElementById('hub-feedback-text')?.focus();}
+    }catch(reason){error.textContent=reason.message;renderVoiceSegments(item.id);}finally{sending.delete(item.id);for(const control of controls)if(!control.closest('.voice-input-controls'))control.disabled=false;lockComposer();if(state.active===item.id)doc.getElementById('hub-feedback-text')?.focus();}
   }
   function addAttachments(incoming) {
     if(sending.has(state.active))return;
@@ -334,7 +440,7 @@
     if(name==='choose-folder')return doc.getElementById('hub-import-folder').click();
     if(name==='move')return moveDialog();
     if(name==='attach')return doc.getElementById('hub-feedback-files').click();
-    if(name==='clear-targets'){draft().targets=[];draft().request_id=null;syncSelection();return;}
+    if(name==='clear-targets'){draft().targets=[];draft().request_id=null;syncSelection();voiceBoundary();return;}
     if(name==='reload')return openArtifact(state.active,false);
     if(name==='select'){state.selecting=!state.selecting;node.setAttribute('aria-pressed',String(state.selecting));node.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;syncSelection();return;}
     if(name==='source'){state.sourceView=!state.sourceView;doc.getElementById('hub-viewer').innerHTML=viewer(state.detail);node.setAttribute('aria-pressed',String(state.sourceView));node.innerHTML=icon(state.sourceView?'eye':'code')+`<span>${state.sourceView?'Preview':'Source'}</span>`;bindViewer();syncSelection();return;}
@@ -350,13 +456,31 @@
   doc.addEventListener('click',event=>{
     const node=event.target.closest('button');if(!node)return;
     const run=async()=>{
+      if(node.id==='hub-stop-voice'){await feedbackVoiceHandle?.stop();syncVoiceChrome();return;}
+      if(node.id==='hub-cancel-voice'){
+        const recording=voiceRecordingBase;feedbackVoiceHandle?.cancel();voiceRecordingBase=null;
+        if(recording){
+          const value=drafts.get(recording.artifact_id);
+          if(value){
+            for(const segment of value.voice_segments || [])if(!recording.ids.has(segment.id || segment.request_id))discardedVoiceSegments.add(segment.id || segment.request_id);
+            value.voice_segments=(value.voice_segments || []).filter(segment=>recording.ids.has(segment.id || segment.request_id));
+            persist();renderVoiceSegments(recording.artifact_id);
+          }
+        }
+        syncVoiceChrome();return;
+      }
+      if(node.id==='hub-send-voice'){
+        const id=state.active,form=doc.getElementById('hub-feedback-form');await feedbackVoiceHandle?.stop();syncVoiceChrome();
+        if(id===state.active && form.isConnected)form.requestSubmit();return;
+      }
       if(node.dataset.action)return action(node.dataset.action,node);
       if(node.dataset.openDesign)return openDesign(node.dataset.openDesign);
       if(node.dataset.artifact)return openArtifact(node.dataset.artifact);
       if(node.dataset.moveArtifact)return moveDialog(node.dataset.moveArtifact);
       if(node.dataset.project)return home(node.dataset.project);
       if(node.dataset.kind){state.kind=node.dataset.kind;library();return;}
-      if(node.dataset.removeTarget!==undefined){draft().targets.splice(Number(node.dataset.removeTarget),1);draft().request_id=null;syncSelection();return;}
+      if(node.dataset.removeTarget!==undefined){draft().targets.splice(Number(node.dataset.removeTarget),1);draft().request_id=null;syncSelection();voiceBoundary();return;}
+      if(node.dataset.removeVoiceSegment!==undefined){if(sending.has(state.active))return;discardedVoiceSegments.add(node.dataset.removeVoiceSegment);draft().voice_segments=(draft().voice_segments || []).filter(segment=>(segment.id || segment.request_id)!==node.dataset.removeVoiceSegment);persist();renderVoiceSegments();voiceBoundary();return;}
       if(node.dataset.removeFile!==undefined){attachments.get(state.active)?.splice(Number(node.dataset.removeFile),1);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);return;}
       if(node.dataset.mode){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/mode'),{mode:node.dataset.mode});const detail=await api(artifactPath(id));if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();}}finally{node.disabled=false;}}
     };run().catch(error=>toast(error.message,true));
@@ -364,6 +488,7 @@
   doc.addEventListener('input',event=>{
     if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();}
     if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
+    if(event.target.dataset.hubVoiceSegment){const segment=draft().voice_segments?.find(segment=>(segment.id || segment.request_id)===event.target.dataset.hubVoiceSegment);if(segment){segment.id ||= segment.request_id;segment.message=event.target.value;segment.request_id=root.crypto.randomUUID();persist();}}
   });
   doc.addEventListener('change',event=>{
     const node=event.target;
@@ -376,6 +501,7 @@
   doc.addEventListener('submit',event=>{
     const form=event.target;if(!['hub-feedback-form','hub-project-form','hub-import-form','hub-move-form'].includes(form.id))return;event.preventDefault();
     if(form.id==='hub-feedback-form'){sendFeedback(form);return;}
+    if(voice.isActive()){toast('Stop dictation before submitting this form.');return;}
     const submit=form.querySelector('[type=submit]'),error=form.querySelector('[role=alert]');submit.disabled=true;error.textContent='';
     (async()=>{
       const fields=new FormData(form);
@@ -423,8 +549,9 @@
   });
   root.addEventListener('popstate',()=>{const query=new URL(root.location.href).searchParams,id=query.get('artifact');query.get('design')?openDesign(query.get('design'),false):id?openArtifact(id,false):home(query.get('view')==='designs'?'designs':'all',false);});
   root.addEventListener('resize',()=>{if(state.detail && kindOf(state.detail)==='image')renderImageRegions();});
+  root.addEventListener('beforeunload',event=>{if(voice.isActive() || [...drafts.values()].some(value=>value.message.trim() || value.voice_segments?.length)){event.preventDefault();event.returnValue='';}});
   function artifactPreviewBusy() {
-    return !!regionStart || sending.has(state.active) || !!doc.activeElement?.closest('#hub-viewer') && (doc.activeElement.tagName==='IFRAME' || doc.activeElement.matches('input,textarea,select,[contenteditable]'));
+    return voice.isActive() || !!regionStart || sending.has(state.active) || !!doc.activeElement?.closest('#hub-viewer') && (doc.activeElement.tagName==='IFRAME' || doc.activeElement.matches('input,textarea,select,[contenteditable]'));
   }
   /** Apply a new preview while retaining draft anchors, attachment choices and typing focus. */
   async function applyArtifactUpdate(detail) {

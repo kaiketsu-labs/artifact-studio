@@ -17,12 +17,15 @@
   <link rel="stylesheet" href="/web/design-references.css">
   <link rel="stylesheet" href="/web/slide-sections.css">
   <link rel="stylesheet" href="/web/storage-status.css">
+  <link rel="stylesheet" href="/web/voice-input.css">
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
   <script src="/web/preview-loader.js" defer></script>
   <script src="/web/selection.js" defer></script>
+  <script src="/web/voice-feedback.js" defer></script>
   <script src="/web/drafts.js" defer></script>
+  <script src="/web/voice-input.js" defer></script>
   <script src="/web/notes-autosave.js" defer></script>
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-questions.js" defer></script>
@@ -143,10 +146,17 @@
       <div id="target-members" class="target-members" aria-label="Selected objects" hidden></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>
+      <div id="voice-feedback-segments" class="voice-segments" aria-label="Dictated feedback" hidden></div>
       <textarea id="feedback-text" placeholder="Message your agent…" maxlength="10000"></textarea>
       <div id="feedback-error" role="alert"></div>
       <div id="feedback-upload-status" role="status"></div>
       <input id="feedback-file-input" type="file" multiple hidden>
+      <div id="feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden>
+        <button id="cancel-feedback-voice" type="button" aria-label="Cancel recording" title="Cancel recording"></button>
+        <div class="voice-listening-dots" role="status" aria-label="Listening"></div>
+        <button id="stop-feedback-voice" type="button" aria-label="Stop recording" title="Stop recording"></button>
+        <button id="send-feedback-voice" type="button" aria-label="Send dictated feedback" title="Send dictated feedback"></button>
+      </div>
       <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
       <p id="batch-delivery-help" class="compose-delivery-help" hidden>Comments stay private until you choose Send batch.</p>
     </form>
