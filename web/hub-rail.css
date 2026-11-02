@@ -1,9 +1,12 @@
 /* Compact project navigation above the existing presentation thumbnails. */
+.artifact-library-back{display:flex;align-items:center;gap:8px;margin:9px 10px 0;padding:8px 6px;border-radius:6px;color:var(--subtle);font-size:12px;line-height:1.3;text-decoration:none;flex:none}
+.artifact-library-back:hover{background:var(--hover,#f2f5f9);color:var(--ink);text-decoration:none}
+.artifact-library-back:focus-visible{outline:2px solid var(--link,#3456a7);outline-offset:2px}
+.artifact-library-back .ui-icon{width:16px;height:16px;flex:none}
+.workspace.is-sorter .artifact-library-back{align-self:flex-start;margin-left:22px}
 #artifact-rail-header{display:flex;align-items:center;gap:6px;padding:15px 10px 8px}
 #artifact-rail-header[hidden],#artifact-rail-items[hidden],#deck-switcher[hidden]{display:none}
-.artifact-rail-library{display:grid;place-items:center;width:30px;height:30px;flex:none;border-radius:6px;color:var(--subtle)}
-.artifact-rail-library:hover{background:var(--hover,#f2f5f9);color:var(--ink)}
-.artifact-rail-library .ui-icon,.artifact-rail-item .ui-icon{width:15px;height:15px;flex:none}
+.artifact-rail-item .ui-icon{width:15px;height:15px;flex:none}
 #artifact-rail-header select{min-width:0;width:100%;padding:7px 4px;border:0;background:transparent;color:var(--ink);font-size:12px;font-weight:600}
 .has-artifact-rail .rail-heading{padding-top:0;padding-bottom:10px}
 .has-artifact-rail .deck-picker-row{justify-content:flex-end;margin-bottom:2px}
@@ -12,4 +15,5 @@
 .artifact-rail-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .artifact-rail-item[aria-current=true]{background:var(--selected,#edf2ff);color:var(--link,#3456a7);font-weight:600}
 .workspace.is-sorter #artifact-rail-header,.workspace.is-sorter #artifact-rail-items{display:none}
-@media(max-width:900px){#artifact-rail-header{padding:10px 5px 5px;gap:1px}#artifact-rail-items{padding:0 5px 5px}.artifact-rail-item{padding:7px 4px;gap:4px;font-size:10px}.artifact-rail-library{width:24px}}
+@media(max-width:900px){#artifact-rail-header{padding:10px 5px 5px;gap:1px}#artifact-rail-items{padding:0 5px 5px}.artifact-rail-item{padding:7px 4px;gap:4px;font-size:10px}.artifact-library-back{margin-inline:5px;gap:5px;font-size:11px}}
+@media(max-width:600px){.artifact-library-back{margin-inline:4px;padding:8px 3px;font-size:10px}}

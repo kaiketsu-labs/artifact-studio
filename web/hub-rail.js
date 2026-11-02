@@ -31,17 +31,11 @@
     items.hidden = false;
     header.replaceChildren();
     items.replaceChildren();
-    const library = document.createElement('a');
-    library.href = '/';
-    library.className = 'artifact-rail-library';
-    library.innerHTML = icon('grid');
-    library.setAttribute('aria-label', 'Library');
-    library.title = 'Library';
     const select = document.createElement('select');
     select.setAttribute('aria-label', 'Choose project');
     for (const entry of data.projects) select.add(new Option(entry.title, entry.id, false, entry.id === project.id));
     select.addEventListener('change', () => { location.href = `/?project=${encodeURIComponent(select.value)}`; });
-    header.append(library, select);
+    header.append(select);
     const related = data.artifacts.filter(item => item.project_id === project.id);
     const ordered = [...related.filter(item => item.id !== active.id), active];
     for (const item of ordered) {

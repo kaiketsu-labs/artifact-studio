@@ -120,7 +120,7 @@ Existing decks keep the full slide workflow: sections, sorter, hidden slides, mu
 
 **Speaker notes save automatically**, including when switching slides. Failed saves retain a browser draft; conflicting edits offer **Review changes**. Present and project export wait for pending saves.
 
-The hub's **… → Presentation tools** opens the existing editor menu for design references, reference libraries, instructions and agent connection. Existing `/?deck=...` links remain valid.
+The hub's **… → Presentation tools** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
 
 ## Your files stay local
 
