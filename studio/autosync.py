@@ -113,8 +113,28 @@ class AutoSync:
         enabled = [item for item in self.libraries.list() if item.auto_sync_enabled]
         if not enabled:
             return
+        for library in enabled:
+            state = self.state(library.id)
+            if state.phase == "syncing":
+                # The process-wide lock is ours, so this checkpoint predates a crash.
+                # Reconcile delivery rather than trusting an unacknowledged push.
+                state.phase = "pending"
+                state.observed = state.synced = ""
+                self.save(state)
         try:
             fingerprint = self.fingerprint()
+        except FileNotFoundError:
+            # A saved file may be atomically replaced or removed during enumeration.
+            # Observe the settled tree on the next tick without pausing the destination.
+            for library in enabled:
+                state = self.state(library.id)
+                if state.phase == "error":
+                    continue
+                state.phase = "pending"
+                state.observed = ""
+                state.changed_at = now
+                self.save(state)
+            return
         except (OSError, ValueError) as error:
             for library in enabled:
                 state = self.state(library.id)
@@ -127,6 +147,10 @@ class AutoSync:
             if state.phase == "error":
                 continue
             if state.synced == fingerprint:
+                if state.phase != "synced":
+                    state.phase = "synced"
+                    state.observed = fingerprint
+                    self.save(state)
                 continue
             if state.observed != fingerprint:
                 state.observed = fingerprint
@@ -140,6 +164,11 @@ class AutoSync:
             self.save(state)
             try:
                 result = self.libraries.sync(library.id, automatic=True)
+            except FileNotFoundError:
+                state.phase = "pending"
+                state.observed = ""
+                state.changed_at = now
+                state.error = ""
             except (ValueError, OSError) as error:
                 state.phase = "pending" if "operation is running" in str(error) else "error"
                 state.error = str(error)

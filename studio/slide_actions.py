@@ -207,7 +207,9 @@ class SlideActions:
                     if right
                     else len(current_ids)
                 )
-                after.slides.insert(position, slide.model_copy(deep=True))
+                restored = slide.model_copy(deep=True)
+                restored.notes_revision += 1
+                after.slides.insert(position, restored)
             result.added_ids = deleted.deleted_ids
             result.insertion_anchor = deleted.insertion_anchor
             for section in after.sections:

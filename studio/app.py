@@ -1666,10 +1666,12 @@ def presentation_feedback(deck_id: DeckID, body: PresentationCommentInput) -> di
 
 
 @app.post("/api/decks/{deck_id}/slides/{slide_id}/notes")
-def notes(deck_id: DeckID, slide_id: SlideID, body: NotesInput) -> dict[str, bool]:
+def notes(deck_id: DeckID, slide_id: SlideID, body: NotesInput) -> dict[str, bool | int]:
     """Save speaker notes without resetting approval or overwriting newer notes."""
-    store.save_notes(deck_id, slide_id, body.notes, body.expected_notes)
-    return {"saved": True}
+    revision = store.save_notes(
+        deck_id, slide_id, body.notes, body.expected_notes, body.expected_revision
+    )
+    return {"saved": True, "notes_revision": revision}
 
 
 @app.get("/api/decks/{deck_id}/slides/{slide_id}/preview", response_class=HTMLResponse)

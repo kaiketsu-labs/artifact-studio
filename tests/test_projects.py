@@ -98,7 +98,14 @@ def test_project_round_trip_preserves_deck_private_history_and_drafts(
         active_slide_id=first.id,
         view_zoom=view_zoom,
         editor_zoom=editor_zoom,
-        notes={first.id: NoteDraft(notes="Unfinished note", expected_notes="Human context")},
+        notes={
+            first.id: NoteDraft(
+                notes="Unfinished note",
+                expected_notes="Human context",
+                expected_revision=store.read(created.id).slides[0].notes_revision,
+                pending_notes="An interrupted note save",
+            )
+        },
         feedback={
             first.id: FeedbackDraft(
                 feedback="Unsent comment",

@@ -16,6 +16,13 @@
       $('add-slide').disabled=busy||!state||state.slides.length>=100;
       $('deleted-slides').disabled=busy||!state;
     }
+    async function ready(context){
+      if(busy)return false;
+      busy=true;onBusy(true);update();
+      try{return await prepare(context);}
+      catch(error){notify(error.message,null,true);return false;}
+      finally{busy=false;onBusy(false);update();}
+    }
     async function execute(command){
       if(busy)return false;
       pending=command;
@@ -47,7 +54,7 @@
         if(pending.deckId===state.id&&pending.payload.action===action){await execute(pending);return;}
         notify('Finish the previous slide action first.',()=>execute(pending),true);return;
       }
-      if(!await prepare())return;
+      if(!await ready({action,ids:action==='add'?[state.activeId]:selection()}))return;
       const current=read(),ids=action==='add'?[current.activeId]:selection();
       if(action==='delete'&&ids.length===current.slides.length){notify('Keep at least one slide.',null,true);return;}
       const payload={action,slide_ids:ids,expected_slide_ids:current.slides.map(slide=>slide.id),expected_hashes:Object.fromEntries(current.slides.filter(slide=>ids.includes(slide.id)).map(slide=>[slide.id,slide.expected_hash])),request_id:crypto.randomUUID()};
@@ -57,7 +64,7 @@
     async function restore(deckId,deletionId){
       if(busy)return;
       if(pending){notify('Finish the previous slide action first.',()=>execute(pending),true);return;}
-      if(!await prepare())return;
+      if(!await ready({action:'restore',ids:[]}))return;
       pending={deckId,url:`/api/decks/${encodeURIComponent(deckId)}/restore-slides`,payload:{deletion_id:deletionId,request_id:crypto.randomUUID()},activeId:read()?.activeId};
       const done=await execute(pending);
       if(done&&$('deleted-slides-dialog').open)await showDeleted();

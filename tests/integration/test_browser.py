@@ -129,8 +129,8 @@ def test_feedback_notes_and_guarded_agent_revision(page: Page, live_app: Running
 
     expect(page.get_by_label("Speaker notes", exact=True)).to_be_visible()
     page.get_by_label("Speaker notes", exact=True).fill("Human notes preserved by the agent")
-    page.get_by_role("button", name="Save notes", exact=True).click()
-    expect(page.get_by_role("button", name="Save notes", exact=True)).to_be_disabled()
+    expect(page.locator("#notes-state")).to_have_text("Saved")
+    expect(page.locator("#save-notes")).to_be_hidden()
     page.locator("#notes-panel summary").click()
     current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
     result = live_app.call(

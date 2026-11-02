@@ -2,7 +2,7 @@
 ((root)=>{
   'use strict';
   /** Own native fullscreen and return to the unchanged editor after the show. */
-  function create({button,additionalButtons=[],onReturn=()=>{},onUnavailable=()=>{},doc=document,view=window}){
+  function create({button,additionalButtons=[],onReturn=()=>{},onUnavailable=()=>{},prepare=null,onError=()=>{},doc=document,view=window}){
     let session=null;
     const currentFullscreen=()=>doc.fullscreenElement||doc.webkitFullscreenElement;
     const supported=()=>!!(doc.documentElement.requestFullscreen||doc.documentElement.webkitRequestFullscreen);
@@ -50,7 +50,10 @@
       layer.append(frame);doc.body.append(layer);doc.body.classList.add('is-presenting');
       session={layer,frame,trigger,siblings,slideId:decodeURIComponent(url.hash.slice(1)),native:false,deliberate:false,ready:false};
       void fullscreen();
-      url.searchParams.set('workspace','1');frame.src=url.href;
+      url.searchParams.set('workspace','1');
+      const current=session,load=()=>{if(session===current)frame.src=url.href;};
+      if(prepare)Promise.resolve().then(()=>prepare()).then(load,error=>{if(session===current)void close().then(()=>onError(error.message));});
+      else load();
       frame.addEventListener('load',()=>{if(session?.frame!==frame)return;try{if(frame.contentWindow.location.pathname==='/'&&new URL(frame.contentWindow.location.href).searchParams.has('deck')){void close();return;}}catch{}frame.focus();notify();});
     }
     view.addEventListener('message',event=>{

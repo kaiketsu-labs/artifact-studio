@@ -37,12 +37,13 @@ class Capture:
             color_scheme="light",
             reduced_motion="reduce",
             locale="en-GB",
+            timezone_id="Europe/Berlin",
         )
         self.context.on(
             "page", lambda page: page.on("pageerror", lambda error: self.errors.append(str(error)))
         )
         self.page = self.context.new_page()
-        self.page.clock.set_fixed_time("2026-11-02T10:30:00Z")
+        self.page.clock.set_fixed_time("2026-11-02T09:30:00Z")
 
     def open(self, slide: str = "workflow") -> None:
         """Wait for canonical slide context, fonts and the default-open notes."""
@@ -238,7 +239,7 @@ class Capture:
 
     def presenter(self) -> None:
         page = self.context.new_page()
-        page.clock.set_fixed_time("2026-11-02T10:30:00Z")
+        page.clock.set_fixed_time("2026-11-02T09:30:00Z")
         page.goto(f"{self.app.url}/decks/{DECK_ID}/index.html?present=1#workflow")
         page.locator("#show-presenter").click()
         expect(page.locator("#presenter-view")).to_be_visible()
@@ -287,6 +288,48 @@ class Capture:
         print(f"Captured {name}", flush=True)
         page.close()
 
+    def notes_and_storage(self) -> None:
+        """Capture real note-conflict and failed-save recovery, plus local storage controls."""
+        original = next(
+            slide for slide in self.app.store.read(DECK_ID).slides if slide.id == "workflow"
+        ).notes
+
+        def competing_editor(route):
+            slide = next(
+                item for item in self.app.store.read(DECK_ID).slides if item.id == "workflow"
+            )
+            self.app.store.save_notes(
+                DECK_ID,
+                slide.id,
+                "Name the three steps, then invite the audience into the review loop.",
+                slide.notes,
+                slide.notes_revision,
+            )
+            route.continue_()
+
+        pattern = "**/slides/workflow/notes"
+        self.page.route(pattern, competing_editor, times=1)
+        self.page.locator("#notes").fill(
+            "Make one point, then leave room for an audience question."
+        )
+        expect(self.page.locator("#notes-state")).to_have_text("Needs review")
+        self.page.get_by_role("button", name="Review changes", exact=True).click()
+        self.save("docs/screenshots/notes-conflict.png")
+        self.page.get_by_role("button", name="Use saved notes", exact=True).click()
+        self.page.route(pattern, lambda route: route.abort("connectionfailed"))
+        self.page.locator("#notes").fill("Pause here and invite a question before moving on.")
+        expect(self.page.locator("#notes-state")).to_have_text("Not saved")
+        self.save("docs/screenshots/notes-retry.png")
+        self.page.unroute(pattern)
+        self.page.get_by_role("button", name="Retry saving notes", exact=True).click()
+        expect(self.page.locator("#notes-state")).to_have_text("Saved")
+        self.page.locator("#notes").fill(original)
+        expect(self.page.locator("#notes-state")).to_have_text("Saved")
+        self.page.locator("#storage-status").click()
+        expect(self.page.get_by_role("dialog", name="Storage and backup")).to_be_visible()
+        self.save("docs/screenshots/storage-backup.png")
+        self.page.locator("#close-libraries").click()
+
     def run(self, deck: Deck) -> None:
         self.workspace()
         self.overview()
@@ -297,8 +340,9 @@ class Capture:
         # Restore the fictional canonical deck after the new-slide capture.
         self.app.store.write(DECK_ID, deck)
         self.open()
+        self.notes_and_storage()
         self.references()
-        self.visual_review(deck)
+        self.visual_review(self.app.store.read(DECK_ID))
         if self.errors:
             raise RuntimeError(self.errors)
         expected = {
@@ -306,8 +350,16 @@ class Capture:
             for folder in (PROJECT / "docs/assets", PROJECT / "docs/screenshots")
             for path in folder.glob("*.png")
         }
-        if expected != self.images.keys():
-            raise RuntimeError(f"Screenshot inventory mismatch: {expected ^ self.images.keys()}")
+        generated = {
+            str(path.relative_to(self.output))
+            for folder in (self.output / "docs/assets", self.output / "docs/screenshots")
+            for path in folder.glob("*.png")
+        }
+        missing = expected - self.images.keys()
+        if missing or generated != self.images.keys():
+            raise RuntimeError(
+                f"Screenshot inventory mismatch: {missing | (generated ^ self.images.keys())}"
+            )
         for name, metadata in self.images.items():
             data = (self.output / name).read_bytes()
             if data[:8] != b"\x89PNG\r\n\x1a\n":

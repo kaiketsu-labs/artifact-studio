@@ -321,6 +321,7 @@
   const workspaceDeck=location.pathname.match(/^\/decks\/([^/]+)\//)?.[1];
   const clock=new PresentationClock();
   const expectedNotes=new Map(deck.slides.map(slide=>[slide.id,slide.notes]));
+  const expectedNoteVersions=new Map(deck.slides.map(slide=>[slide.id,slide.notes_revision??0]));
   const noteDrafts=new Map(),saving=new Map();
   const noteKey=`slide-studio:presenter-notes:${deck.id}`;
   const requested=deck.slides.findIndex(slide=>slide.id===decodeURIComponent(location.hash.slice(1)));
@@ -352,7 +353,14 @@
     ['all-slides-button','grid','See all slides',false],['close-all-slides','close','Close',false]
   ])iconButton($(id),icon,label,show);
   document.querySelectorAll('[data-close]').forEach(button=>iconButton(button,'close','Close',false));
+  for(const id of ['presenter-notes','notes-text'])$(id).maxLength=20000;
   if(!isAudience){try{const saved=JSON.parse(localStorage.getItem(noteKey)||'{}');for(const [id,value] of Object.entries(saved)){if(value&&typeof value.notes==='string'&&typeof value.expected==='string')noteDrafts.set(id,value);}}catch{}}
+  for(const [id,draft] of noteDrafts){
+    const slide=deck.slides.find(item=>item.id===id);if(!slide){noteDrafts.delete(id);continue;}
+    if(draft.pending!==undefined&&draft.pending===slide.notes){draft.expected=slide.notes;draft.version=String(slide.notes_revision??0);delete draft.pending;}
+    else if(draft.version===undefined&&draft.expected===slide.notes)draft.version=String(slide.notes_revision??0);
+  }
+  if(noteDrafts.size)setTimeout(()=>{for(const id of noteDrafts.keys())void saveNotes(id);},0);
   let noteFont=22;
 
   /** Keep unfinished notes attached to their original slide and concurrency baseline. */
@@ -360,19 +368,20 @@
   function noteValue(index=current){const slide=deck.slides[index];return noteDrafts.get(slide?.id)?.notes??slide?.notes??'';}
   function noteStatus(message=''){$('presenter-note-status').textContent=message;$('message').textContent=message;}
   function displayStatus(message=''){if(isAudience)return;const status=$('display-status');status.textContent=message;status.hidden=!message;}
-  function editNotes(value){if(isAudience)return;const slide=deck.slides[current];noteDrafts.set(slide.id,{notes:value,expected:noteDrafts.get(slide.id)?.expected??expectedNotes.get(slide.id)});persistNotes();noteStatus('Unsaved');clearTimeout(noteTimer);noteTimer=setTimeout(()=>saveNotes(slide.id),700);}
+  function editNotes(value){if(isAudience)return;const slide=deck.slides[current];noteDrafts.set(slide.id,{notes:value,expected:noteDrafts.get(slide.id)?.expected??expectedNotes.get(slide.id),version:noteDrafts.get(slide.id)?.version??String(expectedNoteVersions.get(slide.id)),pending:noteDrafts.get(slide.id)?.pending});persistNotes();noteStatus('Saving…');clearTimeout(noteTimer);noteTimer=setTimeout(()=>saveNotes(slide.id),700);}
   /** Save a captured slide ID, retaining failed or concurrently edited drafts. */
   function saveNotes(id=deck.slides[current].id){
     if(isAudience||!noteDrafts.has(id))return Promise.resolve();
     if(saving.has(id))return saving.get(id);
     const task=Promise.resolve().then(async()=>{
-      const draft={...noteDrafts.get(id)};let saved=false;
+      const draft={...noteDrafts.get(id)};let saved=false,version=expectedNoteVersions.get(id);
+      noteDrafts.get(id).pending=draft.notes;persistNotes();
       if(deck.slides[current].id===id)noteStatus('Saving…');
       try{
-        if(workspaceDeck){const response=await fetch(`/api/decks/${workspaceDeck}/slides/${id}/notes`,{method:'POST',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:draft.notes,expected_notes:draft.expected})});if(!response.ok){const error=await response.json();throw new Error(error.detail||'Notes could not be saved.');}}
+        if(workspaceDeck){const body=JSON.stringify({notes:draft.notes,expected_notes:draft.expected,expected_revision:draft.version===undefined?undefined:Number(draft.version)});const response=await fetch(`/api/decks/${workspaceDeck}/slides/${id}/notes`,{method:'POST',keepalive:new TextEncoder().encode(body).length<60000,headers:{'Content-Type':'application/json'},body});const receipt=await response.json();if(!response.ok)throw new Error(receipt.detail||'Notes could not be saved.');version=receipt.notes_revision;}
         else{const stored=JSON.parse(localStorage.getItem(`slide-notes-${deck.id}`)||'{}');stored[id]=draft.notes;localStorage.setItem(`slide-notes-${deck.id}`,JSON.stringify(stored));}
-        deck.slides.find(slide=>slide.id===id).notes=draft.notes;expectedNotes.set(id,draft.notes);saved=true;
-        if(noteDrafts.get(id)?.notes===draft.notes)noteDrafts.delete(id);else if(noteDrafts.has(id))noteDrafts.get(id).expected=draft.notes;
+        const slide=deck.slides.find(slide=>slide.id===id);slide.notes=draft.notes;slide.notes_revision=version;expectedNotes.set(id,draft.notes);expectedNoteVersions.set(id,version);saved=true;
+        if(noteDrafts.get(id)?.notes===draft.notes)noteDrafts.delete(id);else if(noteDrafts.has(id)){const pending=noteDrafts.get(id);pending.expected=draft.notes;pending.version=String(version);delete pending.pending;}
         persistNotes();if(deck.slides[current].id===id)noteStatus(noteDrafts.has(id)?'Unsaved':'Saved');
       }catch(error){if(deck.slides[current].id===id)noteStatus(`Not saved: ${error.message}`);}
       finally{saving.delete(id);}

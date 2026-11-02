@@ -1,5 +1,11 @@
 # Verification
 
+## Automatic notes and storage review · 2 November 2026
+
+Notes now autosave with per-slide queues, durable drafts and revision guards. Real-browser checks cover switching/reloading, inactive-slide recovery, Unicode notes larger than the keepalive budget, conflict choices and a second edit during conflict review, immediate project save/open, immediate presentation startup, presenter draft recovery, and delete/restore. The note comparison was also checked at a 390-pixel viewport. Automatic backup checks use real disposable Git remotes for retries after a lost push acknowledgement, restart recovery, reverted edits, normal file removals, remote conflicts and opt-in boundaries. Backup-status browser states use explicit API fixtures, without enabling a live destination.
+
+The app environment's GitHub CLI authentication and private-repository access were checked read-only. No presentation files were uploaded to a real repository. This cloud workspace has no GitHub backup destination enabled. GitHub backup remains one-way and excludes private review state; full handoff uses project save/open. Physical laptop filesystem providers and two-device continuous synchronization are outside these checks.
+
 ## Reviewed file client · 30 October 2026
 
 The file-input client uses the existing MCP mutation surface, preserves caller-supplied concurrency/retry tokens, and can verify a batch with one outline read per deck. Tests cover file changes after review, local-only destinations, partial conflicts, duplicate targets, source/design drift, changed rules, stateless protocol serialization and repeat execution without duplicate revisions. The current suite passes **126 Python tests** (seven optional browser tests skipped), strict basedpyright and Ruff checks/formatting. The run uses an isolated default collection/database.

@@ -77,6 +77,7 @@ class Slide(StrictModel):
         ),
     )
     notes: str = Field(default="", max_length=20_000)
+    notes_revision: int = Field(default=0, ge=0)
     sources: list[Source] = Field(default_factory=list)
     revision: int = Field(default=1, ge=1)
     hidden: bool = Field(default=False, strict=True)
@@ -432,6 +433,7 @@ class NotesInput(StrictModel):
 
     notes: str = Field(max_length=20_000)
     expected_notes: str
+    expected_revision: int | None = Field(default=None, ge=0)
 
 
 class ModeInput(StrictModel):
