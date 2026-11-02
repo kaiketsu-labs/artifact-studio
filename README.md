@@ -16,7 +16,7 @@
   <a href="docs/GETTING-STARTED.md">Full guide</a>
 </p>
 
-![Slide Studio workspace: slide thumbnails and red/green approval states on the left, a visual slide in the centre, and the feedback conversation on the right.](docs/assets/workspace.png)
+![Slide Studio workspace with grouped slides on the left, the slide and expanded speaker notes in the centre, and a Markdown conversation with user and robot icons on the right.](docs/assets/workspace.png)
 
 **Local HTML slides · Stateless MCP · Human approval · Private presenter notes**
 
@@ -93,7 +93,9 @@ The **Menu → Connect an agent → Copy agent prompt** resumes work on the sele
 2. **Give it context.** Choose the design, enter a title and brief, and attach reference files with the paperclip. Up to five files, 25 MB each and 50 MB total.
 3. **Draft together.** Create the presentation, then use the copyable agent prompt to ask for a draft. Creation starts with one branded cover; the agent builds the rest from your brief.
 
-To add a PowerPoint master to an existing design, choose **New presentation → Manage references** or **Menu → Design references**. Attach any file type, including PowerPoint, PDF, images, documents and data: up to five files per batch, 25 MB each and 50 MB total. Use **Remove** beside a saved file to delete its stored copy and exclude it from future agent context. Removal notifies active agents to refresh their source list; it cannot erase an existing conversation or change earlier exports. Start a new agent chat when you need a conversation without the previously read source. References are shared by presentations using the design. Ask your agent to inspect them; attaching a file does not automatically apply its template or slides. Original design references are excluded from newly created deck exports and project files, but an explicitly enabled workspace-wide private sync includes them.
+To add a PowerPoint master to an existing design, choose **New presentation → Manage references** or **Menu → Design references**. Attach any file type, including PowerPoint, PDF, images, documents and data: up to five files per batch, 25 MB each and 50 MB total. The paperclip attaches files; the trash icon removes a saved reference from storage and future agent context. [Reference controls](docs/screenshots/reference-files.png).
+
+References are shared by presentations using the design. Ask your agent to inspect them; attaching a file does not automatically apply its template or slides. Removal notifies active agents to refresh their source list, but cannot erase an existing conversation or change earlier exports. Start a new agent chat when you need a conversation without the previously read source. Original design references are excluded from newly created deck exports and project files, but an explicitly enabled workspace-wide private sync includes them.
 
 ## Point to the change
 
@@ -107,7 +109,9 @@ Several decks can share one instance. Use a separate tab and agent chat for each
 
 The project menu at the top left marks the current project and wraps long names to two lines. **+ New project** is its final option and opens the title, brief and design dialog. Arrow keys navigate the menu; Home/End jump to its ends, and Esc closes it.
 
-Select an element to edit text, drag its selection border, align it or rotate it using the round handle or degree field. The trash icon stages a deletion request. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide. Speaker notes are editable below the slide. Explanations and sources stay collapsed; questions remain visible.
+Select an element to edit text, drag its selection border, align it or rotate it using the round handle or degree field. The trash icon stages a deletion request. Use the check icon to send the suggestion or Esc to cancel; switching slides never sends an unfinished edit. For keyboard movement, focus the move icon and use arrows (Shift for larger steps), then Enter to send. The status icon distinguishes an unsent edit, a queued Batch request and a request saved for the agent. The agent applies suggestions to the canonical slide.
+
+**Speaker notes open by default** below the slide. Edit them and click the save icon; your saved panel preference is respected when reopening a project. Agent explanations and sources stay collapsed; open questions remain visible.
 
 Use **Slide objects** above the canvas to select overlapping text, diagrams or named groups. The picker highlights objects on hover and supports arrow-key navigation.
 
@@ -127,15 +131,25 @@ The slideshow’s right-edge position ticks expand slightly on hover. Click a ti
 
 In the slideshow, click the slide or press a normal key to advance. Arrows navigate, Home/End jump to the first/last slide, and **Esc** returns directly to the editor at the current slide. Notes and focused controls keep their normal keyboard behavior.
 
-An agent can ask a question in a slide’s chat with suggested answers and a written answer. A yellow question icon marks slides awaiting your response; the chat’s matching icon jumps to the open question. Choose or type an answer, then use the send icon. Batch answers stay queued until **Send batch**. Question history and unsent answer drafts are included in private project files.
+An agent can ask a compact question in a slide’s chat with suggested answers and a free-text answer. A yellow question icon marks slides awaiting your response, including inside collapsed sections; the chat’s matching icon jumps to the open question. Choose or type an answer, then use the send icon. Batch answers stay queued until **Send batch**. Question history and unsent answer drafts are included in private project files. [Question example](docs/screenshots/slide-question-light.png).
+
+## Organize the deck
+
+Group slides into **sections**, like in PowerPoint. The section icon above the thumbnails starts a section at the active slide; at an existing boundary it renames the section. Fold a group with its chevron, or use its menu to rename, move or remove it. Removing a section keeps its slides. New and recovered active slides reveal their section automatically. Section names and order travel with the deck; fold preferences travel with saved projects.
+
+![Two named sections in the slide rail, with one collapsed and a pending question in the active slide's chat.](docs/assets/slide-sections.png)
 
 Right-click a thumbnail for **Hide Slide / Unhide Slide**, or click its eye icon directly. An open eye means shown; a crossed-out eye and slide number mean hidden. Hidden slides stay editable and keep their notes and approval. Normal slideshow navigation and the next-slide preview skip them. Use **See all slides** or the private presenter filmstrip to show one deliberately, following [PowerPoint's interaction](https://support.microsoft.com/en-us/powerpoint/hide-or-show-a-slide).
 
-Click the grid icon in the bottom bar, or zoom below 55%, to see the slide sorter. A single click selects; double-click or Enter returns to editing. The fit icon sizes the overview for the deck, and Esc returns to the previous editor zoom. Arrow keys follow the grid.
+Click the grid icon in the bottom bar, or zoom below 55%, to see the slide sorter. A single click selects; double-click or Enter returns to editing. The fit icon sizes the overview for the deck, and Esc returns to the previous editor zoom. Arrow keys follow visible rows across sections, including uneven rows and folded groups.
+
+In the editor, **Ctrl/Cmd + scroll** zooms toward the cursor. The slider and +/− controls zoom around the visible centre. Fit slide returns to 100%.
 
 ![Multiple selected slides in the zoomed-out overview](docs/assets/slide-sorter.png)
 
-Drag thumbnails to reorder slides. **Shift-click** selects a range; **Cmd/Ctrl-click** selects individual slides to move together. The insertion line marks the destination, and dragging near the rail's edge scrolls longer decks. Right-click for move commands, or use **Cmd/Ctrl + Up/Down** and add **Shift** for beginning/end, matching [PowerPoint's shortcuts](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations). **Undo** in the confirmation or **Cmd/Ctrl+Z** with a thumbnail focused reverses a move; **Cmd/Ctrl+Shift+Z** redoes it. Notes, conversations, approvals and hidden states stay with their slides.
+Drag thumbnails to reorder slides, including between sections. **Shift-click** selects a range; **Cmd/Ctrl-click** selects individual slides to move together. The insertion line marks the destination, and dragging near the rail's edge scrolls longer decks. Right-click for move commands, or use **Cmd/Ctrl + Up/Down** and add **Shift** for beginning/end, matching [PowerPoint's shortcuts](https://support.microsoft.com/en-us/accessibility/powerpoint/use-keyboard-shortcuts-to-create-powerpoint-presentations).
+
+**Undo** in the confirmation or **Cmd/Ctrl+Z** with a thumbnail or section header focused reverses slide moves and section changes. **Cmd/Ctrl+Shift+Z**, or **Ctrl+Y**, redoes them. If another editor has changed the layout, undo reports the conflict instead of replacing their work. Notes, conversations, approvals and hidden states stay with their slides.
 
 The **slide +** below the presentation selector inserts a blank slide after the active one. Right-click thumbnails to duplicate or delete the selection; Cmd/Ctrl+D and Delete/Backspace work while a thumbnail has focus. Deleted slides keep their notes and history: use **Undo**, Cmd/Ctrl+Z immediately after deletion, or the **trash icon** to recover them later. Project files carry this recovery history too. Hide/Unhide in the menu applies to the whole selection.
 
@@ -158,7 +172,7 @@ Plain MCP cannot wake a closed chat. Keep the review session open, or resume the
 
 Agents can inspect slides directly through MCP, including completed slides, reveal steps, animation timing and reduced motion. [Visual-review tools](docs/VISUAL-REVIEW.md) return actual images, version/dependency hashes and diagnostics. A contact sheet provides the overview; full-size captures provide the detail. Host access restrictions still apply.
 
-![A local MCP contact sheet of four fictional slides, with slide titles and the hidden-slide marker.](docs/assets/visual-review.png)
+![Locally rendered contact sheet of four fictional slides, with slide titles and a hidden-slide marker.](docs/assets/visual-review.png)
 
 ![Private presenter view showing the current slide, next slide, editable notes, elapsed timer, clock, navigation and slide filmstrip.](docs/assets/presenter.png)
 
@@ -230,6 +244,8 @@ node --test tests/*.cjs
 ```
 
 Node.js is needed only for frontend behavior tests. Test fixtures and README screenshots use original fictional designs; no personal decks or corporate assets are bundled.
+
+Refresh every documentation screenshot with `uv run python -m scripts.capture_screenshots`. The command starts an isolated temporary collection and exercises the real UI through Playwright. [Capture details and image inventory](docs/screenshots/README.md).
 
 </details>
 
