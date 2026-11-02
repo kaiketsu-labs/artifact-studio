@@ -27,7 +27,7 @@ from .artifact_models import (
     ArtifactView,
     ProjectView,
 )
-from .models import Feedback, FeedbackFile, FeedbackWorkflow
+from .models import ElementGroupTarget, Feedback, FeedbackFile, FeedbackWorkflow
 from .storage import SAFE_ID, ConflictError, Store, decode_attachments, digest, replace_text
 
 LEGACY_PROJECT = "legacy-presentations"
@@ -915,16 +915,29 @@ class ArtifactStore:
         """Preserve legacy event IDs and targets in the common review envelope."""
         target = ArtifactTarget(kind="slide", slide_id=event.slide_id) if event.slide_id else None
         if event.target:
-            target = ArtifactTarget(
-                kind="element",
-                slide_id=event.slide_id,
-                selector=event.target.selector,
-                label=event.target.label,
-                quote=event.target.quote,
-                x=event.target.x,
-                y=event.target.y,
-                width=event.target.width,
-                height=event.target.height,
+            anchors = (
+                event.target.elements
+                if isinstance(event.target, ElementGroupTarget)
+                else [event.target]
+            )
+            elements = [
+                ArtifactTarget(
+                    kind="element",
+                    slide_id=event.slide_id,
+                    selector=anchor.selector,
+                    label=anchor.label,
+                    quote=anchor.quote,
+                    x=anchor.x,
+                    y=anchor.y,
+                    width=anchor.width,
+                    height=anchor.height,
+                )
+                for anchor in anchors
+            ]
+            target = (
+                ArtifactTarget(kind="group", label=event.target.label, elements=elements)
+                if isinstance(event.target, ElementGroupTarget)
+                else elements[0]
             )
         return ArtifactFeedback(
             event_id=event.event_id,

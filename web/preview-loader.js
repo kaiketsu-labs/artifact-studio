@@ -44,10 +44,10 @@
           if(!current()||!state.pending)return;
           if([...document.fonts].some(font=>font.status==='error')){fail();return;}
           frame.dataset.loadToken=version+'-ready';
+          frame.style.visibility='visible';
           onReady(frame,document);
           if(!current())return;
           cancel(state.timer);state.ready=true;state.pending=false;frame.onload=null;
-          frame.style.visibility='visible';
         }catch{fail();}
       };
       frame.dataset.loadToken=version;frame.style.visibility='hidden';

@@ -275,7 +275,7 @@
         previewRotation((keyboardMove?.rotation||0)+sign*(event.shiftKey?15:1));
       });
     }
-    return {bind,select,cancel,finish,reflow,sync:update,isEditing:()=>textEditing||!!keyboardMove||pendingDelete,isBusy:()=>busy,consumeClick:()=>suppressClick};
+    return {bind,select,cancel,finish,reflow,sync:update,isEditing:()=>textEditing||!!drag||!!rotationDrag||!!keyboardMove||pendingDelete,isBusy:()=>busy,consumeClick:()=>suppressClick};
   }
   /** Add a moveable selection border and an accessible rotation handle. */
   function createSelectionControls(box){

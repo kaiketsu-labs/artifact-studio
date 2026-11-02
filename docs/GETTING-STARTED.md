@@ -135,7 +135,9 @@ Write feedback in the artifact's conversation. **Enter** sends and **Shift+Enter
 
 **Live** releases a message immediately. **Batch** keeps messages and attachments private until **Send batch**. Automatic host continuation currently supports presentation review only; generic artifact agents read released feedback through `read_artifact_feedback`. The Live availability dot's tooltip reports this limitation. An ordinary MCP connection cannot wake a closed chat.
 
-**Updated** marks a new revision until opened. **Approve** records the displayed version, independently of the update marker. If another revision arrives while reviewing, open it explicitly; an existing draft retains its earlier targets and hash. The preview and its local dependencies are pinned to the displayed revision.
+**Auto-update** is on by default and remembered in this browser. Incoming previews keep your feedback draft and its original target/version context. Slide updates wait for direct element edits, moves and animation playback; HTML previews wait while you interact inside them. Turn Auto-update off to open revisions manually. Generic viewers check periodically, so changes can take a few seconds.
+
+**Updated** marks a new revision until opened. **Approve** records the displayed version, independently of the update marker. The preview and its local dependencies are pinned to the displayed revision. In the slide editor, click objects directly and hold **Cmd, Ctrl or Shift** to add or remove them; the **Objects** picker also supports multiple targets. Individual context chips remove objects without discarding the message. Direct text editing and positioning remain single-object actions.
 
 Open **Sources & files** for downloads, canonical source path and content hash. The **Agent context** inspector shows applicable source paths, scopes, hashes and the latest recorded delivery. Available pointers are not read receipts. Matching retention hashes are useful only while the agent actually retains that guidance.
 

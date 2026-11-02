@@ -1,9 +1,10 @@
 /* Durable, local drafts shared by the workspace and its reload-recovery checks. */
 ((root) => {
   'use strict';
+  const {validTarget}=typeof module!=='undefined'?require('./selection.js'):root.SlideSelection;
   const validEntries=(entries,valid)=>Array.isArray(entries)?entries.filter(entry=>Array.isArray(entry)&&entry.length===2&&typeof entry[0]==='string'&&valid(entry[1])):[];
   const validNotes=value=>value&&typeof value==='object'&&(value.notes===undefined||typeof value.notes==='string')&&(value.expected_notes===undefined||typeof value.expected_notes==='string');
-  const validFeedback=value=>value&&typeof value.feedback==='string'&&(!value.target||(typeof value.target==='object'&&typeof value.target.selector==='string'&&typeof value.target.label==='string'));
+  const validFeedback=value=>value&&typeof value.feedback==='string'&&(!value.target||validTarget(value.target));
   /** Recover drafts without allowing corrupt browser storage to prevent startup. */
   function create(storage,key='slide-studio:drafts:v1'){
     const prefix=key.replace(/:v1$/,':v2')+':';

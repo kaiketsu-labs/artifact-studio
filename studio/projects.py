@@ -22,7 +22,7 @@ from urllib.parse import unquote, urlsplit
 from pydantic import Field, TypeAdapter
 
 from .libraries import LibraryFile, inventory
-from .models import Deck, EditIntent, ElementTarget, Feedback, FeedbackFile, StrictModel
+from .models import Deck, EditIntent, Feedback, FeedbackFile, SlideTarget, StrictModel
 from .slide_actions import SlideActionRecord, SlideActionResult, recover_pending
 from .storage import ConflictError, SlideMarkup, Store
 
@@ -45,7 +45,7 @@ class FeedbackDraft(StrictModel):
     """An unsent comment with its original slide and element context."""
 
     feedback: str = Field(max_length=10_000)
-    target: ElementTarget | None = None
+    target: SlideTarget | None = None
     slide_id: str
     context_slide_id: str | None = None
     content_hash: str

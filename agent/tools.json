@@ -715,6 +715,38 @@
             "title": "EditIntent",
             "type": "object"
           },
+          "ElementGroupTarget": {
+            "additionalProperties": false,
+            "description": "A flat collection of original element snapshots from one reviewed slide version.",
+            "properties": {
+              "kind": {
+                "const": "group",
+                "default": "group",
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 200,
+                "title": "Label",
+                "type": "string"
+              },
+              "elements": {
+                "items": {
+                  "$ref": "#/$defs/ElementTarget"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Elements",
+                "type": "array"
+              }
+            },
+            "required": [
+              "label",
+              "elements"
+            ],
+            "title": "ElementGroupTarget",
+            "type": "object"
+          },
           "ElementTarget": {
             "additionalProperties": false,
             "description": "An element snapshot anchored to the slide version the human reviewed.",
@@ -831,7 +863,7 @@
               "target": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/ElementTarget"
+                    "$ref": "#/$defs/SlideTarget"
                   },
                   {
                     "type": "null"
@@ -1061,6 +1093,16 @@
             },
             "title": "QuestionPrompt",
             "type": "object"
+          },
+          "SlideTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ElementTarget"
+              },
+              {
+                "$ref": "#/$defs/ElementGroupTarget"
+              }
+            ]
           },
           "SlideView": {
             "additionalProperties": false,
@@ -1411,6 +1453,38 @@
             "title": "EditIntent",
             "type": "object"
           },
+          "ElementGroupTarget": {
+            "additionalProperties": false,
+            "description": "A flat collection of original element snapshots from one reviewed slide version.",
+            "properties": {
+              "kind": {
+                "const": "group",
+                "default": "group",
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 200,
+                "title": "Label",
+                "type": "string"
+              },
+              "elements": {
+                "items": {
+                  "$ref": "#/$defs/ElementTarget"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Elements",
+                "type": "array"
+              }
+            },
+            "required": [
+              "label",
+              "elements"
+            ],
+            "title": "ElementGroupTarget",
+            "type": "object"
+          },
           "ElementTarget": {
             "additionalProperties": false,
             "description": "An element snapshot anchored to the slide version the human reviewed.",
@@ -1527,7 +1601,7 @@
               "target": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/ElementTarget"
+                    "$ref": "#/$defs/SlideTarget"
                   },
                   {
                     "type": "null"
@@ -1689,6 +1763,16 @@
             },
             "title": "QuestionPrompt",
             "type": "object"
+          },
+          "SlideTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ElementTarget"
+              },
+              {
+                "$ref": "#/$defs/ElementGroupTarget"
+              }
+            ]
           },
           "Source": {
             "additionalProperties": false,
@@ -3643,6 +3727,38 @@
             "title": "EditIntent",
             "type": "object"
           },
+          "ElementGroupTarget": {
+            "additionalProperties": false,
+            "description": "A flat collection of original element snapshots from one reviewed slide version.",
+            "properties": {
+              "kind": {
+                "const": "group",
+                "default": "group",
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 200,
+                "title": "Label",
+                "type": "string"
+              },
+              "elements": {
+                "items": {
+                  "$ref": "#/$defs/ElementTarget"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Elements",
+                "type": "array"
+              }
+            },
+            "required": [
+              "label",
+              "elements"
+            ],
+            "title": "ElementGroupTarget",
+            "type": "object"
+          },
           "ElementTarget": {
             "additionalProperties": false,
             "description": "An element snapshot anchored to the slide version the human reviewed.",
@@ -3759,7 +3875,7 @@
               "target": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/ElementTarget"
+                    "$ref": "#/$defs/SlideTarget"
                   },
                   {
                     "type": "null"
@@ -3976,6 +4092,16 @@
             ],
             "title": "SlideReceipt",
             "type": "object"
+          },
+          "SlideTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ElementTarget"
+              },
+              {
+                "$ref": "#/$defs/ElementGroupTarget"
+              }
+            ]
           },
           "SlideView": {
             "additionalProperties": false,
@@ -4381,6 +4507,38 @@
             "title": "EditIntent",
             "type": "object"
           },
+          "ElementGroupTarget": {
+            "additionalProperties": false,
+            "description": "A flat collection of original element snapshots from one reviewed slide version.",
+            "properties": {
+              "kind": {
+                "const": "group",
+                "default": "group",
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 200,
+                "title": "Label",
+                "type": "string"
+              },
+              "elements": {
+                "items": {
+                  "$ref": "#/$defs/ElementTarget"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Elements",
+                "type": "array"
+              }
+            },
+            "required": [
+              "label",
+              "elements"
+            ],
+            "title": "ElementGroupTarget",
+            "type": "object"
+          },
           "ElementTarget": {
             "additionalProperties": false,
             "description": "An element snapshot anchored to the slide version the human reviewed.",
@@ -4497,7 +4655,7 @@
               "target": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/ElementTarget"
+                    "$ref": "#/$defs/SlideTarget"
                   },
                   {
                     "type": "null"
@@ -4714,6 +4872,16 @@
             ],
             "title": "SlideReceipt",
             "type": "object"
+          },
+          "SlideTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ElementTarget"
+              },
+              {
+                "$ref": "#/$defs/ElementGroupTarget"
+              }
+            ]
           },
           "SlideView": {
             "additionalProperties": false,
@@ -5034,6 +5202,38 @@
             "title": "EditIntent",
             "type": "object"
           },
+          "ElementGroupTarget": {
+            "additionalProperties": false,
+            "description": "A flat collection of original element snapshots from one reviewed slide version.",
+            "properties": {
+              "kind": {
+                "const": "group",
+                "default": "group",
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 200,
+                "title": "Label",
+                "type": "string"
+              },
+              "elements": {
+                "items": {
+                  "$ref": "#/$defs/ElementTarget"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Elements",
+                "type": "array"
+              }
+            },
+            "required": [
+              "label",
+              "elements"
+            ],
+            "title": "ElementGroupTarget",
+            "type": "object"
+          },
           "ElementTarget": {
             "additionalProperties": false,
             "description": "An element snapshot anchored to the slide version the human reviewed.",
@@ -5150,7 +5350,7 @@
               "target": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/ElementTarget"
+                    "$ref": "#/$defs/SlideTarget"
                   },
                   {
                     "type": "null"
@@ -5312,6 +5512,16 @@
             },
             "title": "QuestionPrompt",
             "type": "object"
+          },
+          "SlideTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ElementTarget"
+              },
+              {
+                "$ref": "#/$defs/ElementGroupTarget"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -5621,6 +5831,38 @@
             "title": "EditIntent",
             "type": "object"
           },
+          "ElementGroupTarget": {
+            "additionalProperties": false,
+            "description": "A flat collection of original element snapshots from one reviewed slide version.",
+            "properties": {
+              "kind": {
+                "const": "group",
+                "default": "group",
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "maxLength": 200,
+                "title": "Label",
+                "type": "string"
+              },
+              "elements": {
+                "items": {
+                  "$ref": "#/$defs/ElementTarget"
+                },
+                "maxItems": 100,
+                "minItems": 1,
+                "title": "Elements",
+                "type": "array"
+              }
+            },
+            "required": [
+              "label",
+              "elements"
+            ],
+            "title": "ElementGroupTarget",
+            "type": "object"
+          },
           "ElementTarget": {
             "additionalProperties": false,
             "description": "An element snapshot anchored to the slide version the human reviewed.",
@@ -5737,7 +5979,7 @@
               "target": {
                 "anyOf": [
                   {
-                    "$ref": "#/$defs/ElementTarget"
+                    "$ref": "#/$defs/SlideTarget"
                   },
                   {
                     "type": "null"
@@ -5899,6 +6141,16 @@
             },
             "title": "QuestionPrompt",
             "type": "object"
+          },
+          "SlideTarget": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ElementTarget"
+              },
+              {
+                "$ref": "#/$defs/ElementGroupTarget"
+              }
+            ]
           }
         },
         "additionalProperties": false,

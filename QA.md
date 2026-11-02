@@ -1,5 +1,13 @@
 # Verification
 
+## Automatic previews and multi-object feedback · 2 November 2026
+
+Auto-update defaults on and shares a saved browser preference across the slide editor and artifact viewers. CUA checks in the fictional 8797 workspace verified incoming slide and HTML revisions without clicking Show update, preservation of draft text/focus and original targets, manual mode holding the old preview, and re-enabling auto-update applying the pending version. An active direct text edit retained the old slide until cancelled, then loaded the pending revision automatically.
+
+Actual modifier-click selection showed two outlines and removable chips, single-object editing returned after removing one member, and Shift-click in the Objects picker retained multiple checked items. A submitted two-object comment retained both original HTML snapshots and the earlier content hash after the preview changed. Visual inspection exposed an empty Objects picker caused by collecting while the preview was still hidden; ready callbacks now observe a visible frame, with a regression assertion for fresh and reused documents. The decorative cursor hint was removed.
+
+Checks passed: 282 Python tests, 84 optional checks skipped, 145 Node tests, strict basedpyright, Ruff and formatting. Two additional opt-in browser journeys were authored but not run; the interaction evidence above comes from CUA. No physical-display or Microsoft 365 integration check is claimed. Screenshots and mutations used fictional QA artifacts; personal presentation content was unchanged.
+
 ## Separate design library · 2 November 2026
 
 Registered design examples now appear under Designs, outside artifact discovery and project counts. The API regression preserves template bytes and direct editing links, keeps normally branded decks in work listings, and covers a collection containing only designs. The live UI was visually checked for both libraries, design search, the default marker and a refreshed Designs URL. Integrated the upstream notes and backup update before verification: 280 Python tests passed (82 optional checks skipped), 140 JavaScript tests passed, and strict basedpyright and Ruff passed. Personal preview screenshots remain local and untracked.

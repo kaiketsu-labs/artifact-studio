@@ -21,6 +21,7 @@
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
   <script src="/web/preview-loader.js" defer></script>
+  <script src="/web/selection.js" defer></script>
   <script src="/web/drafts.js" defer></script>
   <script src="/web/notes-autosave.js" defer></script>
   <script src="/web/conversations.js" defer></script>
@@ -42,6 +43,7 @@
   <script src="/web/chat-resize.js" defer></script>
   <script src="/web/presentation-launcher.js" defer></script>
   <script src="/web/updates.js" defer></script>
+  <script src="/web/preview-updates.js" defer></script>
   <script src="/web/workspace-menu.js" defer></script>
   <script src="/web/design-references.js" defer></script>
   <script src="/web/hub-rail.js" defer></script>
@@ -94,14 +96,15 @@
       <div class="slide-heading-actions"><button id="hide-slide" type="button" aria-label="Hide slide"></button><button id="approve-button" class="approve"></button></div>
     </header>
     <div class="canvas-tools">
-      <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" disabled></button><span id="hover-hint"></span></div>
-      <div class="preview-controls"><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
+      <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
+      <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
     </div>
     <div class="preview-wrap" id="preview-wrap">
       <iframe id="preview" title="Slide preview — click an element to give feedback" sandbox="allow-same-origin"></iframe>
       <div id="preview-status" class="preview-status" role="status" hidden><span id="preview-message">Loading design…</span><button id="retry-preview" type="button" hidden aria-label="Retry loading design"></button></div>
       <div id="hover-box" class="element-box hover" hidden><span></span></div>
       <div id="selection-box" class="element-box selected" hidden></div>
+      <div id="group-selection-boxes" aria-hidden="true"></div>
       <div id="element-tools" class="element-tools" role="toolbar" aria-label="Selected element" hidden>
         <button id="edit-element-text" type="button" aria-label="Edit text"></button>
         <button id="move-element" type="button" aria-label="Move element" aria-pressed="false"></button>
@@ -137,6 +140,7 @@
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
       <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
+      <div id="target-members" class="target-members" aria-label="Selected objects" hidden></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>
       <textarea id="feedback-text" placeholder="Message your agent…" maxlength="10000"></textarea>

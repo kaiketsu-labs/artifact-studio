@@ -77,6 +77,7 @@
   const icon=name => extraIcons[name]?`<svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${extraIcons[name]}"/>${name==='updated'?'<circle cx="20" cy="17" r="2" fill="currentColor" stroke="none"/>':''}</svg>`:root.SlideIcons.svg(name);
   const sizeLabel=size => root.SlideChatComposer.sizeLabel(Number(size) || 0);
   const state={projects:[],artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
+  const previewUpdates=root.SlidePreviewUpdates.create({onChange:()=>{syncAutoUpdate();if(previewUpdates.enabled)void refresh();}});
   const drafts=new Map(), attachments=new Map(), sending=new Set();
   let importFiles=[],toastTimer,refreshing=false,regionStart=null;
   try {
@@ -153,9 +154,13 @@
     if(kind==='image')return `<div class="hub-image-canvas" id="hub-image-canvas"><div class="hub-image-wrap ${state.selecting?'is-selecting':''}" id="hub-image-wrap"><img id="hub-image" src="${escape(filePath(item))}" alt="${escape(item.title)}" draggable="false"><div id="hub-region" class="hub-region" hidden></div></div></div><p id="hub-image-meta" class="hub-image-meta">${escape(item.entrypoint)}</p>`;
     return `<section class="hub-file-view">${icon(kinds[kind].icon)}<h2>${escape(item.entrypoint || item.title)}</h2><p>This file is stored in its original format. A dedicated preview is not available.</p><a class="hub-download hub-primary" href="${escape(filePath(item))}" download>${icon('down')}Download file</a></section>`;
   }
+  function autoUpdateControl() {
+    return button('auto-update','Auto-update','refresh',`id="hub-auto-update" aria-label="Auto-update preview" aria-pressed="${previewUpdates.enabled}" title="${previewUpdates.enabled?'Auto-update on · incoming revisions appear automatically':'Auto-update off · open updated versions manually'}"`);
+  }
+  function syncAutoUpdate() {const control=doc.getElementById('hub-auto-update');if(control)control.outerHTML=autoUpdateControl();}
   function viewerToolbar(item) {
     const kind=kindOf(item);
-    return `<div class="hub-view-toolbar"><div>${['html','markdown','image'].includes(kind)?button('select',state.selecting?'Selecting':'Select','cursor',`aria-pressed="${state.selecting}" title="Select targets · hold ⌘, Ctrl or Shift to add more"`):''}${kind==='markdown'?button('source',state.sourceView?'Preview':'Source',state.sourceView?'eye':'code',`aria-pressed="${state.sourceView}"`):''}</div><div>${kind==='html'?`<label class="sr-only" for="hub-viewport">Preview width</label><select id="hub-viewport" aria-label="Preview width"><option value="fluid" ${state.viewport==='fluid'?'selected':''}>Responsive</option><option value="1280" ${state.viewport==='1280'?'selected':''}>Desktop · 1280</option><option value="768" ${state.viewport==='768'?'selected':''}>Tablet · 768</option><option value="390" ${state.viewport==='390'?'selected':''}>Mobile · 390</option></select>${button('replay','','refresh','aria-label="Reload page preview" title="Reload page preview"')}`:kind==='image'?`${button('zoom-out','','minus','aria-label="Zoom out" title="Zoom out"')}<span id="hub-zoom-label" class="hub-muted">Fit</span>${button('zoom-in','','plus','aria-label="Zoom in" title="Zoom in"')}${button('fit','','fit','aria-label="Fit image" title="Fit image"')}`:''}</div></div>`;
+    return `<div class="hub-view-toolbar"><div>${autoUpdateControl()}${['html','markdown','image'].includes(kind)?button('select',state.selecting?'Selecting':'Select','cursor',`aria-pressed="${state.selecting}" title="Select targets · hold ⌘, Ctrl or Shift to add more"`):''}${kind==='markdown'?button('source',state.sourceView?'Preview':'Source',state.sourceView?'eye':'code',`aria-pressed="${state.sourceView}"`):''}</div><div>${kind==='html'?`<label class="sr-only" for="hub-viewport">Preview width</label><select id="hub-viewport" aria-label="Preview width"><option value="fluid" ${state.viewport==='fluid'?'selected':''}>Responsive</option><option value="1280" ${state.viewport==='1280'?'selected':''}>Desktop · 1280</option><option value="768" ${state.viewport==='768'?'selected':''}>Tablet · 768</option><option value="390" ${state.viewport==='390'?'selected':''}>Mobile · 390</option></select>${button('replay','','refresh','aria-label="Reload page preview" title="Reload page preview"')}`:kind==='image'?`${button('zoom-out','','minus','aria-label="Zoom out" title="Zoom out"')}<span id="hub-zoom-label" class="hub-muted">Fit</span>${button('zoom-in','','plus','aria-label="Zoom in" title="Zoom in"')}${button('fit','','fit','aria-label="Fit image" title="Fit image"')}`:''}</div></div>`;
   }
   function pendingCount(item) {return (item.feedback || []).filter(message=>message.released===false && (message.author || message.role || 'user')==='user').length;}
   function messageMarkup(message,item) {
@@ -192,8 +197,8 @@
     const value=draft(),targetNode=doc.getElementById('hub-targets');if(targetNode)targetNode.innerHTML=targetsMarkup(value,state.detail);
     const frame=doc.getElementById('hub-html-preview');
     frame?.contentWindow?.postMessage({type:'artifact:select',enabled:state.selecting},'*');
-    frame?.contentWindow?.postMessage({type:'artifact:selection',selectors:value.targets.map(target=>target.selector).filter(Boolean)},'*');
-    for(const block of doc.querySelectorAll('#hub-markdown [data-target-index]'))block.classList.toggle('hub-selected-block',value.targets.some(target=>target.block_index===Number(block.dataset.targetIndex)));
+    frame?.contentWindow?.postMessage({type:'artifact:selection',selectors:value.content_hash===state.detail.content_hash?value.targets.map(target=>target.selector).filter(Boolean):[]},'*');
+    for(const block of doc.querySelectorAll('#hub-markdown [data-target-index]'))block.classList.toggle('hub-selected-block',value.content_hash===state.detail.content_hash && value.targets.some(target=>target.block_index===Number(block.dataset.targetIndex)));
     doc.getElementById('hub-markdown')?.classList.toggle('is-selecting',state.selecting);
     doc.getElementById('hub-image-wrap')?.classList.toggle('is-selecting',state.selecting);
     renderImageRegions();persist();
@@ -219,6 +224,7 @@
   function renderImageRegions() {
     const wrap=doc.getElementById('hub-image-wrap');if(!wrap || !state.detail)return;
     for(const node of wrap.querySelectorAll('.hub-saved-region'))node.remove();
+    if(draft().content_hash!==state.detail.content_hash)return;
     for(const target of draft().targets.filter(target=>target.kind==='region')){
       const region=target.region || target,image=doc.getElementById('hub-image'),width=region.image_width || image.naturalWidth,height=region.image_height || image.naturalHeight,node=doc.createElement('div');node.className='hub-region hub-saved-region';node.style.cssText=`left:${region.x*width*state.zoom}px;top:${region.y*height*state.zoom}px;width:${region.width*width*state.zoom}px;height:${region.height*height*state.zoom}px`;wrap.append(node);
     }
@@ -303,6 +309,7 @@
     attachments.set(state.active,selected);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);
   }
   async function action(name,node) {
+    if(name==='auto-update'){previewUpdates.set(!previewUpdates.enabled);return;}
     if(name==='home')return home();
     if(name==='retry-library'){await loadRegistry();return library();}
     if(name==='new-project')return projectDialog();
@@ -401,6 +408,27 @@
   });
   root.addEventListener('popstate',()=>{const query=new URL(root.location.href).searchParams,id=query.get('artifact');id?openArtifact(id,false):home(query.get('view')==='designs'?'designs':'all',false);});
   root.addEventListener('resize',()=>{if(state.detail && kindOf(state.detail)==='image')renderImageRegions();});
+  function artifactPreviewBusy() {
+    return !!regionStart || sending.has(state.active) || !!doc.activeElement?.closest('#hub-viewer') && (doc.activeElement.tagName==='IFRAME' || doc.activeElement.matches('input,textarea,select,[contenteditable]'));
+  }
+  /** Apply a new preview while retaining draft anchors, attachment choices and typing focus. */
+  async function applyArtifactUpdate(detail) {
+    const id=state.active,token=state.loading;
+    let source='';
+    if(kindOf(detail)==='markdown'){const response=await fetch(filePath(detail));if(!response.ok)throw new Error('The updated document could not be loaded.');source=await response.text();}
+    if(state.active!==id || state.loading!==token || !previewUpdates.enabled || artifactPreviewBusy())return false;
+    const focused=doc.activeElement,focusId=focused?.id,selection=focusId==='hub-feedback-text'?[focused.selectionStart,focused.selectionEnd]:null,thread=doc.getElementById('hub-thread'),scroll=thread?.scrollTop;
+    const value=draft();
+    state.detail=detail;state.source=source;state.newRevision=null;
+    if(!value.message && !value.targets.length && !(attachments.get(id)||[]).length){value.content_hash=detail.content_hash;value.revision=detail.revision;}
+    workspace();
+    const restored=focusId && doc.getElementById(focusId);if(restored){restored.focus({preventScroll:true});if(selection)restored.setSelectionRange(...selection);}
+    if(scroll!==undefined)doc.getElementById('hub-thread').scrollTop=scroll;
+    if(detail.status==='updated')void api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).catch(()=>{});
+    return true;
+  }
+  doc.addEventListener('focusin',()=>{if(state.newRevision && previewUpdates.enabled)void refresh();});
+  doc.addEventListener('pointerup',()=>{if(state.newRevision && previewUpdates.enabled)queueMicrotask(()=>void refresh());});
   async function refresh() {
     if(refreshing || doc.hidden || dialog.open)return;refreshing=true;
     try {
@@ -408,8 +436,13 @@
       await loadRegistry();
       if(state.detail && state.active===id){
         const latest=state.artifacts.find(item=>item.id===id);
-        if(latest && latest.content_hash!==state.detail.content_hash){state.newRevision=latest;const banner=doc.getElementById('hub-new-revision');if(banner)banner.hidden=false;}
         const detail=await api(artifactPath(id));
+        if(state.active!==id || !state.detail)return;
+        if(detail.content_hash!==state.detail.content_hash){
+          state.newRevision=latest || detail;
+          const banner=doc.getElementById('hub-new-revision');if(banner)banner.hidden=false;
+          if(previewUpdates.enabled && !artifactPreviewBusy() && await applyArtifactUpdate(detail))return;
+        }
         if(state.active===id && JSON.stringify(detail.feedback)!==JSON.stringify(state.detail.feedback)){
           const thread=doc.getElementById('hub-thread'),atBottom=thread.scrollHeight-thread.scrollTop-thread.clientHeight<50;
           state.detail.feedback=detail.feedback;thread.innerHTML=detail.feedback.map(message=>messageMarkup(message,state.detail)).join('');

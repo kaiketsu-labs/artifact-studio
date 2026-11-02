@@ -41,11 +41,13 @@ from .models import (
     QuestionPrompt,
     Slide,
     SlidePatch,
+    SlideTarget,
     SlideView,
 )
 
 DATA = re.compile(r'(<script id="deck-data" type="application/json">)(.*?)(</script>)', re.S)
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
+SLIDE_TARGET = TypeAdapter(SlideTarget)
 DESIGN_FILES = (
     "index.html",
     "theme.css",
@@ -412,7 +414,7 @@ class Store:
                 released=bool(row["released"]),
                 delivery_id=cast("int | None", row["delivery_id"]),
                 batch_id=cast("str | None", row["batch_id"]),
-                target=ElementTarget.model_validate_json(cast(str, row["target"]))
+                target=SLIDE_TARGET.validate_json(cast(str, row["target"]))
                 if row["target"]
                 else None,
                 files=self.feedback_files(deck_id, cast(int, row["id"]), cast(str, row["files"])),
@@ -822,7 +824,7 @@ class Store:
         request_id: str,
         *,
         reply_to: int | None = None,
-        target: ElementTarget | None = None,
+        target: SlideTarget | None = None,
         context_slide_id: str | None = None,
         files: list[FileInput] | None = None,
         edit_intent: EditIntent | None = None,
@@ -834,8 +836,8 @@ class Store:
         author = "agent" if reply_to is not None else "user"
         target_json = target.model_dump_json() if target else None
         intent_json = edit_intent.model_dump_json() if edit_intent else None
-        if edit_intent is not None and target is None:
-            raise ValueError("Element edit requests need a target.")
+        if edit_intent is not None and not isinstance(target, ElementTarget):
+            raise ValueError("Element edit requests need exactly one element target.")
         payload_hash = digest(
             json.dumps(
                 [slide_id, message, content_hash, reply_to, target_json]

@@ -8,11 +8,11 @@ function documentFor(item,{fonts=Promise.resolve(),images=[],styled=true}={}){
   return {body:{dataset:{previewKey:item.content_hash},innerHTML:item.html,offsetWidth:1600},images,fonts:Object.assign(new Set(),{ready:fonts}),querySelector:()=>styled?{sheet:{cssRules:[{}]}}:null,querySelectorAll:()=>[]};
 }
 function fixture(){
-  const timers=new Map(),ready=[],failures=[],starts=[];let serial=0;
+  const timers=new Map(),ready=[],visibleAtReady=[],failures=[],starts=[];let serial=0;
   const frame={isConnected:true,dataset:{},style:{},contentDocument:null,onload:null,srcdoc:''};
-  const loader=create({documentFor:(item,deck,design)=>`${deck}/${design}/${item.id}`,onStart:(_frame,reused)=>starts.push(reused),onReady:(_frame,doc)=>ready.push(doc.body.dataset.previewKey),onFailure:()=>failures.push(true),schedule:callback=>{timers.set(++serial,callback);return serial;},cancel:id=>timers.delete(id)});
+  const loader=create({documentFor:(item,deck,design)=>`${deck}/${design}/${item.id}`,onStart:(_frame,reused)=>starts.push(reused),onReady:(frame,doc)=>{ready.push(doc.body.dataset.previewKey);visibleAtReady.push(frame.style.visibility);},onFailure:()=>failures.push(true),schedule:callback=>{timers.set(++serial,callback);return serial;},cancel:id=>timers.delete(id)});
   async function loaded(item,options){frame.contentDocument=documentFor(item,options);await frame.onload();await settle();}
-  return {loader,frame,ready,failures,starts,timers,loaded};
+  return {loader,frame,ready,visibleAtReady,failures,starts,timers,loaded};
 }
 
 test('switching slides reuses the loaded design document and unchanged thumbnails stay ready',async()=>{
@@ -23,6 +23,7 @@ test('switching slides reuses the loaded design document and unchanged thumbnail
   assert.equal(check.frame.contentDocument,doc);assert.equal(check.frame.srcdoc,source);
   assert.equal(doc.body.innerHTML,second.html);assert.deepEqual(check.starts,[false,true]);
   assert.deepEqual(check.ready,['first','second']);assert.equal(check.frame.style.visibility,'visible');
+  assert.deepEqual(check.visibleAtReady,['visible','visible']);
   check.loader.load(check.frame,second,'deck','design-v1');await settle();
   assert.deepEqual(check.ready,['first','second']);assert.equal(check.timers.size,0);
 });

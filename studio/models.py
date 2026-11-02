@@ -151,6 +151,17 @@ class ElementTarget(StrictModel):
     height: float = Field(ge=0, le=1)
 
 
+class ElementGroupTarget(StrictModel):
+    """A flat collection of original element snapshots from one reviewed slide version."""
+
+    kind: Literal["group"] = "group"
+    label: str = Field(max_length=200)
+    elements: list[ElementTarget] = Field(min_length=1, max_length=100)
+
+
+type SlideTarget = ElementTarget | ElementGroupTarget
+
+
 class EditIntent(StrictModel):
     """A pending element edit whose target and revision live in its feedback envelope."""
 
@@ -209,7 +220,7 @@ class Feedback(StrictModel):
     created_at: str
     content_hash: str
     reply_to: int | None = None
-    target: ElementTarget | None = None
+    target: SlideTarget | None = None
     released: bool = True
     delivery_id: int | None = None
     batch_id: str | None = None
@@ -388,7 +399,7 @@ class CommentInput(StrictModel):
     message: str = Field(default="", max_length=10_000)
     content_hash: str
     request_id: str = Field(min_length=8, max_length=100)
-    target: ElementTarget | None = None
+    target: SlideTarget | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
     edit_intent: EditIntent | None = None
 

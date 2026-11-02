@@ -55,7 +55,7 @@
   }
   /** Create a keyboard-accessible object picker for the current preview frame. */
   function create({button,panel,frame,onSelect,onHover}){
-    let entries=[],selected=null;
+    let entries=[],selected=[];
     panel.classList.add('object-picker');
     panel.setAttribute('role','menu');panel.setAttribute('aria-label','Slide objects');
     button.setAttribute('aria-controls',panel.id);button.setAttribute('aria-haspopup','menu');button.setAttribute('aria-expanded','false');
@@ -63,16 +63,17 @@
     const rows=()=>[...panel.querySelectorAll('button[data-object-index]')];
     function refresh(){
       const hadFocus=panel.contains(document.activeElement);
-      close();entries=frame.style.visibility==='hidden'?[]:collect(frame.contentDocument);selected=null;panel.replaceChildren();
+      close();entries=frame.style.visibility==='hidden'?[]:collect(frame.contentDocument);selected=selected.filter(element=>element.isConnected&&element.ownerDocument===frame.contentDocument);panel.replaceChildren();
       entries.forEach((entry,index)=>{
-        const row=document.createElement('button');row.type='button';row.dataset.objectIndex=String(index);row.setAttribute('role','menuitemradio');row.setAttribute('aria-checked','false');row.style.setProperty('--object-depth',Math.min(entry.depth,5));
+        const row=document.createElement('button');row.type='button';row.dataset.objectIndex=String(index);row.setAttribute('role','menuitemcheckbox');row.setAttribute('aria-checked','false');row.title='Select object · Cmd/Ctrl/Shift-click to add or remove';row.style.setProperty('--object-depth',Math.min(entry.depth,5));
         const icon=document.createElement('span');icon.className='object-picker-icon';icon.innerHTML=root.SlideIcons?.svg(entry.type==='Group'?'group':entry.type==='Image'||entry.type==='Diagram'?'slides':'edit')||'';
         const label=document.createElement('span');label.className='object-picker-label';label.textContent=entry.label;row.append(icon,label);panel.append(row);
       });
       button.disabled=!entries.length;
+      sync(selected);
       if(hadFocus)(button.disabled?frame:button).focus();
     }
-    function sync(element){selected=element;for(const row of rows()){const active=entries[Number(row.dataset.objectIndex)]?.element===selected;row.classList.toggle('is-selected',active);row.setAttribute('aria-checked',String(active));}}
+    function sync(elements){selected=Array.isArray(elements)?elements:elements?[elements]:[];for(const row of rows()){const active=selected.includes(entries[Number(row.dataset.objectIndex)]?.element);row.classList.toggle('is-selected',active);row.setAttribute('aria-checked',String(active));}}
     button.addEventListener('click',()=>{
       if(panel.matches(':popover-open')){close();return;}
       if(!entries.length)return;
@@ -86,10 +87,11 @@
     panel.addEventListener('click',async event=>{
       const row=event.target.closest('button[data-object-index]'),entry=row&&entries[Number(row.dataset.objectIndex)];
       if(!entry||!entry.element.isConnected||entry.element.ownerDocument!==frame.contentDocument){refresh();return;}
-      close();
-      try{const result=await onSelect(entry.element);if(result!==false&&entry.element.isConnected&&entry.element.ownerDocument===frame.contentDocument)selected=entry.element;}
+      const additive=!!(event.metaKey||event.ctrlKey||event.shiftKey);
+      if(!additive)close();
+      try{await onSelect(entry.element,additive);}
       catch{ /* Selection remains unchanged when the editor rejects the request. */ }
-      finally{if(!button.disabled)button.focus();else frame.focus();}
+      finally{if(additive&&panel.matches(':popover-open'))row.focus();else if(!button.disabled)button.focus();else frame.focus();}
     });
     const highlight=event=>{const row=event.target.closest('button[data-object-index]');onHover(row?entries[Number(row.dataset.objectIndex)]?.element||null:null);};
     panel.addEventListener('pointerover',highlight);panel.addEventListener('pointerleave',()=>onHover(null));panel.addEventListener('focusin',highlight);

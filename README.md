@@ -93,11 +93,13 @@ For a presentation, open the hub's **… → New presentation**. Bring a PPTX, P
 
 ![Artifact review with fictional content, selected elements and a conversation beside the preview.](docs/assets/artifact-review.png)
 
-Choose **Select**, then point to an element, document text or image region. Hold **⌘, Ctrl or Shift** to add targets. Remove individual targets or clear the group. One message can refer to all selected elements, with their original version and coordinates or text anchors retained.
+In the slide editor, click an object directly. In other viewers, choose **Select**, then point to an element, document text or image region. Hold **⌘, Ctrl or Shift** to add or remove targets. Each selected object has an outline and a removable context chip. The slide's **Objects** picker also reaches overlapping elements. One message can refer to all selected elements, with their original version and coordinates or text anchors retained. Direct text editing and positioning apply to one object at a time.
 
 The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds a line. Attach files through the paperclip, drag-and-drop or paste, including file-only messages. Limits are five files, 25 MB each and 50 MB together. Unsent file selections stay in browser memory; sent attachments are stored locally. Draft text and targets stay with their artifact.
 
-**Updated** is an orange revision marker until you open that version. **Approve** records the exact version you reviewed. Incoming revisions offer an explicit update while preserving earlier draft targets. Source files, the content hash and context are available in **Sources & files**. The **Agent context** inspector shows scope, canonical paths, hashes and recorded delivery; an available pointer is never labelled as proof that an agent read it.
+**Auto-update** is on by default: incoming revisions appear while preserving feedback drafts and their original targets. Direct element edits, moves and animation previews finish before the slide changes. Turn it off to load new versions manually; the choice is remembered in this browser. General artifact viewers check for changes periodically, so updates can take a few seconds.
+
+**Updated** is an orange revision marker until you open that version. **Approve** records the exact version you reviewed. Source files, the content hash and context are available in **Sources & files**. The **Agent context** inspector shows scope, canonical paths, hashes and recorded delivery; an available pointer is never labelled as proof that an agent read it.
 
 `capture_artifact` returns an actual rendered image with revision and viewport metadata. It can sample elapsed animation time in a fresh offline runtime. Use a browser for user-driven interaction states; use the existing slide capture tools for presentations. Preview cards use cached images, not a running iframe per artifact.
 
