@@ -149,7 +149,6 @@ def test_inline_dictation_preserves_markup_and_sends_only_an_explicit_text_propo
     comments = live_app.store.comments(DECK_ID)
     assert len(comments) == 1 and comments[0].edit_intent is not None
     assert comments[0].edit_intent.values["text"] == "Review carefully <b>literal</b> together"
-    assert isinstance(comments[0].target, ElementTarget)
     target = comments[0].target
     assert isinstance(target, ElementTarget)
     assert "voice-input" not in target.html
@@ -208,4 +207,6 @@ def test_property_text_dictation_is_a_reviewable_element_edit(
     comments = live_app.store.comments(DECK_ID)
     assert len(comments) == 1 and comments[0].edit_intent is not None
     assert comments[0].edit_intent.values["text"] == "Review together with care"
-    assert "voice-input" not in comments[0].target.html
+    target = comments[0].target
+    assert isinstance(target, ElementTarget)
+    assert "voice-input" not in target.html
