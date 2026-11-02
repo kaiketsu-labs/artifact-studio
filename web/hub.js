@@ -92,6 +92,7 @@
   const drafts=new Map(), attachments=new Map(), sending=new Set();
   let importFiles=[],toastTimer,refreshing=false,regionStart=null,exportUrl=null,previewImport=null,properties=null,inspectorSelector=null;
   const workspacePanels=root.WorkspacePanels.create({doc,view:root,storage:root.localStorage,kind:'hub',onViewChange:()=>syncSelection()});
+  const sharing=root.ArtifactSharing.create({doc,view:root});
   const artifactEditor=root.ArtifactEditor.create({
     getFrame:()=>doc.getElementById('hub-html-preview'),getArtifact:()=>state.detail,
     onInspector:data=>{if(inspectorSelector!==data.selector || !artifactEditor.isEditing()){properties?.setSelection(data);inspectorSelector=data.selector;}},
@@ -130,6 +131,26 @@
   const isAdditive=event=>event.metaKey || event.ctrlKey || event.shiftKey;
   const button=(action,label,name,extra='')=>`<button type="button" data-action="${action}" ${extra}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
   const status=item=>`<span class="hub-status ${item.status || 'draft'}">${icon(item.status==='approved'?'check':item.status==='updated'?'updated':'clock')}${item.status==='approved'?'Approved':item.status==='updated'?'Updated':'To review'}</span>`;
+
+  /** Put Share beside the item it exports, keeping library navigation unchanged. */
+  function mountSharing(cardsOnly=false) {
+    const control=(label,key,id,css='')=>{const node=doc.createElement('button');node.type='button';node.dataset[key]=id;node.className=css;node.innerHTML=icon('share');node.setAttribute('aria-label',label);node.title=label;return node;};
+    for(const card of content.querySelectorAll('.hub-card[data-drag-artifact]'))card.append(control(`Share ${state.artifacts.find(item=>item.id===card.dataset.dragArtifact)?.title || 'artifact'}`,'shareArtifact',card.dataset.dragArtifact,'hub-card-share'));
+    if(cardsOnly)return;
+    const project=selectedProject(state.project);
+    if(!state.active && project){const header=content.querySelector('.hub-heading'),search=header.querySelector('.hub-search'),actions=doc.createElement('div');actions.className='hub-heading-actions';actions.append(control('Share project','shareProject',project.id),search);header.append(actions);}
+    if(state.active){const heading=content.querySelector('.hub-edit-heading'),approve=heading.querySelector('.hub-approve'),actions=doc.createElement('div');actions.className='hub-artifact-actions';actions.append(control('Share artifact','shareArtifact',state.active),approve);heading.append(actions);}
+  }
+  async function shareArtifact(id) {
+    if(id===state.active && !artifactEditor.finish())return;
+    const item=id===state.active?state.detail:state.artifacts.find(item=>item.id===id);
+    if(!item)return;
+    await sharing.open({scope:'artifact',id:item.id,title:item.title,kind:kindOf(item),presentation:!!item.legacy_deck_id,expected_hash:item.content_hash,bundle:fileRecords(item).length>1});
+  }
+  async function shareProject(id) {
+    const item=selectedProject(id),children=state.artifacts.filter(item=>item.project_id===id);
+    if(item)await sharing.open({scope:'project',id,title:item.title,count:children.length,presentation:children.some(item=>item.legacy_deck_id)});
+  }
 
   async function api(path, body) {
     const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
@@ -175,7 +196,7 @@
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
     for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
     content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
-    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();
+    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();
   }
   function fileList(item) {
     return `<ul class="hub-file-list">${fileRecords(item).map(file=>`<li><a href="${escape(filePath(item,file.path || file.name))}" download>${icon('notes')}<span>${escape(file.path || file.name)}</span></a>${file.size!==undefined?`<small>${sizeLabel(file.size)}</small>`:''}</li>`).join('')}</ul>`;
@@ -219,7 +240,7 @@
     content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-element-properties" hidden></div><div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
     doc.title=`${item.title} · Artifact Studio`;
     properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),onPreview:values=>artifactEditor.preview(values),onSend:()=>artifactEditor.send(),onCancel:()=>artifactEditor.cancel()});
-    inspectorSelector=null;bindViewer();syncSelection();lockComposer();workspacePanels.refresh();
+    inspectorSelector=null;bindViewer();syncSelection();lockComposer();workspacePanels.refresh();mountSharing();
   }
   function renderChat() {
     const node=doc.getElementById('hub-chat');if(!node || !state.detail)return;
@@ -418,6 +439,8 @@
       if(node.dataset.action)return action(node.dataset.action,node);
       if(node.dataset.openDesign)return openDesign(node.dataset.openDesign);
       if(node.dataset.artifact)return openArtifact(node.dataset.artifact);
+      if(node.dataset.shareArtifact)return shareArtifact(node.dataset.shareArtifact);
+      if(node.dataset.shareProject)return shareProject(node.dataset.shareProject);
       if(node.dataset.moveArtifact)return moveDialog(node.dataset.moveArtifact);
       if(node.dataset.project)return home(node.dataset.project);
       if(node.dataset.kind){state.kind=node.dataset.kind;library();return;}
@@ -427,7 +450,7 @@
     };run().catch(error=>toast(error.message,true));
   });
   doc.addEventListener('input',event=>{
-    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();}
+    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);}
     if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
   });
   doc.addEventListener('change',event=>{

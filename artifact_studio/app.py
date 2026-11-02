@@ -94,6 +94,7 @@ from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, sav
 from .questions import Questions
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .sections import Sections, sections_hash
+from .share_api import sharing_routes
 from .slide_actions import SlideActionResult, SlideActions
 from .storage import ConflictError, Store, digest
 from .visuals import CaptureOptions, VisualResult, capture
@@ -1817,6 +1818,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 
 
 app.include_router(artifact_routes(lambda: store))
+app.include_router(sharing_routes(lambda: store))
 
 
 app.mount("/runtime", StaticFiles(directory=PROJECT / "runtime"), name="runtime")

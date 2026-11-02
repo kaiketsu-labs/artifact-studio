@@ -6,7 +6,7 @@ function fixture() {
   const listeners={};
   function element() {
     const handlers={}, styles=new Map(), classes=new Set();
-    return {handlers,hidden:false,style:{setProperty:(k,v)=>styles.set(k,v),getPropertyValue:k=>styles.get(k)||'',removeProperty:k=>styles.delete(k)},classList:{add:k=>classes.add(k),remove:k=>classes.delete(k),toggle:(k,v)=>v?classes.add(k):classes.delete(k),contains:k=>classes.has(k)},setAttribute(k,v){this[k]=v},addEventListener(k,v){handlers[k]=v},append(){},getBoundingClientRect(){return {width:200,left:600,right:200}},setPointerCapture(){}};
+    return {handlers,hidden:false,style:{setProperty:(k,v)=>styles.set(k,v),getPropertyValue:k=>styles.get(k)||'',removeProperty:k=>styles.delete(k)},classList:{add:k=>classes.add(k),remove:k=>classes.delete(k),toggle:(k,v)=>v?classes.add(k):classes.delete(k),contains:k=>classes.has(k)},setAttribute(k,v){this[k]=v},addEventListener(k,v){handlers[k]=v},append(e){this.child=e},getBoundingClientRect(){return {width:200,left:600,right:200}},setPointerCapture(){}};
   }
   const left=element(),right=element(),workspace=element(),body=element(), children=[];
   workspace.querySelector=s=>s.includes('sidebar')?left:right;
@@ -92,4 +92,27 @@ test('view change callback only runs when focus changes',()=>{
   const f=fixture(), changes=[], panels=create({...f,kind:'hub',onViewChange:value=>changes.push(value)});
   panels.refresh(); panels.enterView(); panels.enterView(); panels.refresh(); panels.exitView(); panels.exitView();
   assert.deepEqual(changes,[true,false]);
+});
+
+
+test('clean view exposes a labelled restore control and restores on click',()=>{
+  const f=fixture(), panels=create({...f,kind:'hub'}); panels.refresh();
+  const area=f.children[4], exit=area.child;
+  assert.equal(area.hidden,true);
+  panels.enterView();
+  assert.equal(area.hidden,false);
+  assert.equal(exit['aria-label'],'Exit view');
+  exit.handlers.click();
+  assert.equal(area.hidden,true);
+  assert.equal(f.body.classList.contains('workspace-clean-view'),false);
+});
+
+
+test('slide workspace enters and exits clean view without replacing its preview',()=>{
+  const f=fixture(), panels=create({...f,kind:'slides'}); panels.refresh();
+  const workspace=f.workspace; panels.enterView();
+  assert.equal(f.body.classList.contains('workspace-clean-view'),true);
+  panels.exitView();
+  assert.equal(f.body.classList.contains('workspace-clean-view'),false);
+  assert.equal(f.workspace,workspace);
 });

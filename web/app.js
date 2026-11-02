@@ -10,6 +10,7 @@
   const {svg,brand,button:iconButton}=window.SlideIcons;
   for(const [id,icon,label,show] of [
     ['instructions-button','rules','Instructions',true],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
+    ['share-artifact','share','Share presentation',false],['view-artifact','eye','Focus view',false],
     ['hide-slide','eye','Hide slide',false],['objects-button','group','Slide objects',false],
     ['delete-element','trash','Remove element',false],['attach-feedback','attach','Attach files',false],
     ['edit-element-text','edit','Edit text',false],['move-element','move','Move element',false],['align-element','align','Align to slide',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
@@ -49,6 +50,9 @@
   const properties=window.ElementProperties.create({container:$('element-properties'),onPreview:values=>elementEditor.previewProperties(values),onSend:()=>elementEditor.commit(),onCancel:()=>elementEditor.cancel()});
   const workspacePanels=window.WorkspacePanels.create({doc:document,view:window,storage:window.localStorage,kind:'slides'});
   workspacePanels.refresh();
+  const sharing=window.ArtifactSharing.create();
+  $('share-artifact').addEventListener('click',async()=>{if(!deck || !await elementEditor.finish())return;void sharing.open({scope:'artifact',id:deck.id,title:deck.title,presentation:true});});
+  $('view-artifact').addEventListener('click',async()=>{if(!deck || !await elementEditor.finish())return;animationPreview.stop();workspacePanels.enterView();});
   elementEditor=window.SlideEdits.create({
     properties,
     tools:$('element-tools'),selectionBox:$('selection-box'),deleteButton:$('delete-element'),rotationInput:$('rotate-element'),editButton:$('edit-element-text'),moveButton:$('move-element'),alignButton:$('align-element'),alignMenu:$('element-align-menu'),commitButton:$('commit-element-text'),cancelButton:$('cancel-element-edit'),sentBadge:$('element-proposal-sent'),
@@ -187,6 +191,8 @@
   function bindKeyboardSelection(doc,bindEvents=true){
     for(const element of doc.querySelectorAll('h1,h2,h3,h4,h5,h6,p,img,svg,[data-element-id]')){if(element.hasAttribute('tabindex')||element.closest('svg')!==null&&element.tagName.toLowerCase()!=='svg')continue;element.tabIndex=0;element.dataset.reviewFocus='';}
     if(!bindEvents)return;
+    for(const type of ['pointerdown','pointermove','click','dblclick','wheel'])doc.addEventListener(type,event=>{if(document.body.classList.contains('workspace-clean-view'))event.stopImmediatePropagation();},true);
+    doc.addEventListener('keydown',event=>{if(document.body.classList.contains('workspace-clean-view') && event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();workspacePanels.exitView();}},true);
     workspaceMenu?.bindDocument(doc);
     doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||event.defaultPrevented||event.altKey||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false,isAdditive(event));if(selectedElement)($('edit-element-text').disabled?$('move-element'):$('edit-element-text')).focus();});
   }
@@ -303,7 +309,7 @@
     const nextKey=`${deck.id}/${item.id}/${item.content_hash}/${deck.design_hash||item.content_hash}`;currentTarget=commentDraft?.target||null;if(previewKey!==nextKey){elementEditor.select(null);if(draft?.notes!==undefined)$('notes-panel').open=true;selectedElement=null;selectedElements=[];$('group-selection-boxes').replaceChildren();$('selection-box').hidden=true;$('hover-box').hidden=true;if(!sorter.isOpen()){previewKey=nextKey;loadPreview($('preview'),item,deck.id);}}
     const note=noteAutosave.observe(key(),item.notes,draft,item.notes_revision);noteBaseline=note.expected;if($('notes').value!==note.value)$('notes').value=note.value;if($('feedback-text').value!==(commentDraft?.feedback||''))$('feedback-text').value=commentDraft?.feedback||'';notesDirty();renderVisibility();renderTarget();renderAgentContext(item);$('source-count').textContent=item.sources.length;$('sources').innerHTML=item.sources.map(source=>source.url?`<a href="${escape(sourceURL(source.url))}" target="_blank" rel="noopener">${escape(source.label)} ↗</a>`:`<p>${escape(source.label)}</p>`).join('')||'<p>No sources.</p>';renderComments(item);renderWorkflow();renderStart();updateComposer();document.title=`${deck.title} · Artifact Studio`;history.replaceState(null,'',`?deck=${encodeURIComponent(deck.id)}#${encodeURIComponent(selectedId)}`);}
   /** Keep visibility separate from review state and content drafts. */
-  function renderVisibility(){const item=slide();iconButton($('hide-slide'),item?.hidden?'eyeOff':'eye',item?.hidden?'Unhide slide':'Hide slide');$('hide-slide').classList.toggle('is-hidden',!!item?.hidden);$('hide-slide').disabled=visibilityBusy||slideActions.isBusy()||!item;}
+  function renderVisibility(){const item=slide();$('share-artifact').disabled=!item;$('view-artifact').disabled=!item;iconButton($('hide-slide'),item?.hidden?'eyeOff':'eye',item?.hidden?'Unhide slide':'Hide slide');$('hide-slide').classList.toggle('is-hidden',!!item?.hidden);$('hide-slide').disabled=visibilityBusy||slideActions.isBusy()||!item;}
   async function setHidden(id,ids=[id]){
     if(visibilityBusy||slideActions.isBusy()||!deck)return;
     const deckId=deck.id,items=(pendingDeck||deck).slides.filter(item=>ids.includes(item.id));if(!items.length)return;

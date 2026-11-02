@@ -49,6 +49,8 @@
   <script src="/web/updates.js" defer></script>
   <script src="/web/preview-updates.js" defer></script>
   <script src="/web/workspace-menu.js" defer></script>
+  <link rel="stylesheet" href="/web/sharing.css">
+  <script src="/web/sharing.js" defer></script>
   <script src="/web/design-references.js" defer></script>
   <script src="/web/hub-rail.js" defer></script>
   <script src="/web/app.js" defer></script>
@@ -58,6 +60,7 @@
   <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span>Artifact Studio</a>
   <div class="top-actions">
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
+    <button id="share-artifact" class="quiet" type="button" aria-label="Share presentation" title="Share presentation" disabled></button>
     <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
     <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Artifact Studio">
       <div role="group" aria-label="Files">
@@ -100,7 +103,7 @@
       <div class="slide-heading-actions"><button id="hide-slide" type="button" aria-label="Hide slide"></button><button id="approve-button" class="approve"></button></div>
     </header>
     <div class="canvas-tools">
-      <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
+      <div class="object-tools"><button id="view-artifact" type="button" aria-label="Focus view" title="Focus view" disabled></button><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
       <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
     </div>
     <div id="element-properties" hidden></div>

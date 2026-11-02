@@ -14,10 +14,13 @@
 .workspace-panel-resize.panel-right{right:calc(var(--panel-right-position,335px) - 4px)}
 .workspace-panel-resize:hover,.workspace-panel-resize:focus-visible,.workspace-panel-resize.is-closing{background:var(--hub-soft,#315fce33)}
 .workspace-panel-dragging,.workspace-panel-dragging *{cursor:col-resize!important;user-select:none!important}.workspace-panel-dragging iframe{pointer-events:none}
-.workspace-clean-exit{position:fixed;z-index:100;top:10px;right:10px;border:1px solid var(--hub-line);background:var(--hub-panel);color:var(--hub-ink);box-shadow:0 2px 10px #0002}
+.workspace-clean-exit-area{position:fixed;z-index:100;top:0;right:0;width:54px;height:54px;display:flex;justify-content:flex-end;align-items:flex-start;padding:10px}
+.workspace-clean-exit{width:34px;height:34px;padding:0;border:1px solid var(--hub-line,var(--line));border-radius:8px;background:var(--hub-panel,var(--surface,#fff));color:var(--hub-ink,var(--ink));box-shadow:0 2px 10px #0002;font-size:22px;opacity:0;pointer-events:none;transition:opacity .15s}
+.workspace-clean-exit-area:hover .workspace-clean-exit,.workspace-clean-exit-area:focus-within .workspace-clean-exit{opacity:1;pointer-events:auto}
+@media(hover:none){.workspace-clean-exit{opacity:1;pointer-events:auto}}
 .workspace-clean-view .hub-top,.workspace-clean-view .hub-sidebar,.workspace-clean-view .hub-chat,.workspace-clean-view .hub-edit-area>:not(#hub-viewer){display:none!important}
 .workspace-clean-view .hub-layout,.workspace-clean-view .hub-workspace{display:block;min-height:100dvh}
-.workspace-clean-view .hub-edit-area{padding:0}.workspace-clean-view #hub-viewer,.workspace-clean-view .hub-preview-scroll{height:100dvh;max-width:none}
+.workspace-clean-view .hub-edit-area{padding:0}.workspace-clean-view .hub-preview-scroll{padding:0}.workspace-clean-view #hub-viewer,.workspace-clean-view .hub-preview-scroll{height:100dvh;max-width:none}
 .workspace-clean-view .hub-html-frame{height:100dvh!important;width:100%!important;border:0;border-radius:0;box-shadow:none}
 .workspace-clean-view .hub-markdown{box-shadow:none;border:0}
 @media(max-width:950px){.workspace-panel-resize{display:none}.hub-layout .hub-workspace,.hub-layout.panels-right-closed .hub-workspace{grid-template-columns:minmax(0,1fr)}.hub-layout.panels-right-closed .hub-chat{display:none}}
@@ -25,3 +28,19 @@
 @media(max-width:650px){.hub-layout.panels-left-closed>.hub-sidebar{display:none}}
 
 .workspace-panel-toggle .ui-icon{width:16px;height:16px}
+
+/* Keep navigation compact and reserve a separate place for the sidebar control. */
+@media(min-width:651px){.hub-sidebar{padding-top:35px}.hub-sidebar>button[data-project]{margin:1px 0;padding:8px 9px;border:0;border-radius:6px;background:transparent}.hub-sidebar>button[data-project][aria-current=true]{background:var(--hub-soft)}}
+body:has(.hub-layout) .workspace-panel-toggle.panel-left{top:69px;width:26px;height:26px;border:0;background:transparent;color:var(--hub-muted)}
+body:has(.hub-layout) .workspace-panel-toggle.panel-left:hover{background:var(--hub-hover);color:var(--hub-ink)}
+
+/* Show the existing slide preview without moving or reloading its iframe. */
+.workspace-clean-view .topbar,.workspace-clean-view .workspace>.rail,.workspace-clean-view .workspace>.discussion,.workspace-clean-view .workspace>.chat-resizer,.workspace-clean-view .canvas-area>:not(.preview-wrap){display:none!important}
+.workspace-clean-view .workspace:not(.is-sorter){display:block;height:100dvh}
+.workspace-clean-view .canvas-area{height:100dvh;padding:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.workspace-clean-view .preview-wrap{width:min(100vw,177.7778dvh);max-height:100dvh;border:0;box-shadow:none}
+.workspace-clean-view .preview-wrap>:not(iframe):not(.preview-status){display:none!important}
+.workspace-clean-view>.view-toolbar{display:none!important}
+.workspace-clean-view .preview-wrap iframe{cursor:default}
+:root[data-theme] .hub-sidebar>.hub-library-link,:root[data-theme] .hub-project-artifacts>button,:root[data-theme] .hub-sidebar>button[data-project]{border:0;box-shadow:none;background:transparent}
+:root[data-theme] .hub-project-artifacts>button[aria-current=true],:root[data-theme] .hub-sidebar>button[data-project][aria-current=true]{background:var(--hub-soft);color:var(--hub-blue)}

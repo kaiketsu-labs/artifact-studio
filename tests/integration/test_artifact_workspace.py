@@ -207,6 +207,7 @@ def test_responsive_workspace_clean_view(
     assert exit_box is not None and exit_box["x"] >= 0
     assert exit_box["x"] + exit_box["width"] <= width
     _ = page.screenshot(path=str(tmp_path / f"clean-view-{width}.png"))
+    page.locator(".workspace-clean-exit-area").hover()
     page.get_by_role("button", name="Exit view").click()
     expect(page.locator("body")).not_to_have_class(re.compile("workspace-clean-view"))
 
@@ -245,6 +246,7 @@ def test_clean_view_clears_selection_and_edge_drag_restores_width(
     assert (113, 100, 223) not in {
         color for _, color in image.getcolors(image.width * image.height) or []
     }
+    page.locator(".workspace-clean-exit-area").hover()
     page.get_by_role("button", name="Exit view").click()
     expect(page.get_by_role("button", name="Select", exact=True)).to_have_attribute(
         "aria-pressed", "false"
