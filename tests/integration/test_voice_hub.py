@@ -404,6 +404,31 @@ def test_hub_property_voice_selection_change_retires_old_callbacks(
     assert ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True) == []
 
 
+@pytest.mark.parametrize("close_with", ["alignment", "escape"])
+def test_closing_property_text_panel_stops_voice_and_keeps_confirmed_draft(
+    page: Page, live_app: RunningApp, close_with: str
+) -> None:
+    """A hidden panel must not keep recording or lose its confirmed edit."""
+    artifact_id = open_voice_property(page, live_app)
+    panel = page.locator("#hub-element-properties")
+    panel.get_by_label("Text", exact=True).fill("Draft heading")
+    panel.locator(".voice-input-button").click()
+    voice_result(page, "confirmed words")
+    expect(panel.get_by_label("Text", exact=True)).to_have_value("Draft heading confirmed words")
+    voice_result(page, "Unfinished words", final=False)
+    if close_with == "alignment":
+        panel.get_by_role("button", name="Text alignment", exact=True).click()
+    else:
+        panel.get_by_label("Text", exact=True).press("Escape")
+    expect(panel.get_by_label("Text", exact=True)).to_be_hidden()
+    assert page.evaluate("window.__speech.sessions[0].aborts") == 1
+    voice_result(page, "Late hidden words")
+    panel.get_by_role("button", name="Edit text", exact=True).click()
+    expect(panel.get_by_label("Text", exact=True)).to_have_value("Draft heading confirmed words")
+    expect(panel.locator(".voice-input-button")).to_have_attribute("aria-pressed", "false")
+    assert ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True) == []
+
+
 def test_hub_property_cancel_aborts_recording_and_restores_original(
     page: Page, live_app: RunningApp
 ) -> None:

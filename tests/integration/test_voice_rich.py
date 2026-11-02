@@ -150,8 +150,9 @@ def test_inline_dictation_preserves_markup_and_sends_only_an_explicit_text_propo
     assert len(comments) == 1 and comments[0].edit_intent is not None
     assert comments[0].edit_intent.values["text"] == "Review carefully <b>literal</b> together"
     assert isinstance(comments[0].target, ElementTarget)
-    assert isinstance(comments[0].target, ElementTarget)
-    assert "voice-input" not in comments[0].target.html
+    target = comments[0].target
+    assert isinstance(target, ElementTarget)
+    assert "voice-input" not in target.html
     assert live_app.store.read(DECK_ID).slides[0].html == source
 
 
