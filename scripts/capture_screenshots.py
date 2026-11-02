@@ -345,11 +345,9 @@ class Capture:
         self.visual_review(self.app.store.read(DECK_ID))
         if self.errors:
             raise RuntimeError(self.errors)
-        expected = {
-            str(path.relative_to(PROJECT))
-            for folder in (PROJECT / "docs/assets", PROJECT / "docs/screenshots")
-            for path in folder.glob("*.png")
-        }
+        expected = set(
+            json.loads((PROJECT / "docs/screenshots/captures.json").read_text())["screenshots"]
+        )
         generated = {
             str(path.relative_to(self.output))
             for folder in (self.output / "docs/assets", self.output / "docs/screenshots")

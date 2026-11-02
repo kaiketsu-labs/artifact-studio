@@ -81,7 +81,15 @@ Use `get_working_context(artifact_id=...)` for selected work or `project_id=...`
 
 **Microsoft 365 Copilot:** use a Copilot Studio agent with the optional [authenticated gateway](docs/MICROSOFT-COPILOT.md). Select one project or explicitly allow the workspace. The gateway needs an approved HTTPS endpoint; the local editor stays private. Start from **Connect an agent → Microsoft 365 Copilot**, or the hub menu. Microsoft sign-in, connector policies and an actual Copilot tool call must be verified separately. Automatic Copilot wake-up is not included.
 
-Reusable design examples live under **Designs**, separate from project artifacts. Normal presentations using a design remain in the library. Open a design card to inspect or edit its example; the workspace default is marked.
+Open **Designs → Add design** to collect guidelines, PDFs, images, fonts, PowerPoint masters or other reference files. A design can be a file collection without any slides. Click its card to see the context files, add more, download a source or remove an attachment. Registered slide design packs also offer **Open example slides**; the workspace default is marked. Normal presentations using a design remain in the artifact library.
+
+![Design library with slide design packs and reference file collections.](docs/assets/design-library.png)
+
+The trash icon removes a design from the library; **Deleted designs** restores it. Existing presentations and source files are preserved. Agents discover designs with `list_design_contexts` and inspect their file inventory with `get_design_context`. For project work, pass `design_id` to `get_working_context` alongside the project or artifact ID. File pointers show what is available; the agent must open the actual files. Attaching references does not automatically apply their styling.
+
+Cards preview a pack's example slide or an attached image/SVG. File collections without a visual source show a compact document cover. Previews are read-only; clicking still opens the context file inventory.
+
+![A design's context files, with add, download and remove controls.](docs/assets/design-context.png)
 
 ### Your first project
 

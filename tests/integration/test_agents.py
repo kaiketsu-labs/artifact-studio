@@ -16,6 +16,7 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 
 from studio.agent_client import object_value
+from studio.design_library import DesignDetail
 from studio.hook_client import configure
 from studio.models import DesignRequestInput, Slide
 from tests.design_factory import make_design
@@ -43,6 +44,8 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
             names = {tool.name for tool in tools.tools}
             assert {
                 "get_working_context",
+                "list_design_contexts",
+                "get_design_context",
                 "ask_slide_question",
                 "get_slide_questions",
                 "cancel_slide_question",
@@ -99,6 +102,38 @@ def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
             assert not layout.is_error
 
     asyncio.run(connect())
+
+
+def test_file_design_context_over_mcp(live_app: RunningApp) -> None:
+    """The agent receives the same selected files as the UI and sees their removal."""
+    design = DesignDetail.model_validate(
+        live_app.post(
+            "/api/design-library",
+            {
+                "name": "Product design",
+                "files": [
+                    {
+                        "name": "layout.fig",
+                        "data_base64": base64.b64encode(b"Fictional source").decode(),
+                    }
+                ],
+            },
+        )
+    )
+    project = live_app.call("create_project", title="Product launch", context="Keep it clear.")
+    assert live_app.call("get_design_context", design_id=design.id) == design.model_dump()
+    context = live_app.call("get_working_context", project_id=project["id"], design_id=design.id)
+    assert context["design_context"] == design.model_dump()
+    assert "pointer returned" in json.dumps(context["sources"])
+    presentation = live_app.call("get_working_context", artifact_id=DECK_ID, design_id=design.id)
+    assert presentation["design_context"] == design.model_dump()
+    assert '"selected_design_id": "test-brand"' in json.dumps(presentation["presentation_context"])
+    file = design.files[0]
+    _ = live_app.post(
+        f"/api/design-library/{design.id}/files/remove",
+        {"path": file.path, "expected_version": file.version},
+    )
+    assert live_app.call("get_design_context", design_id=design.id)["files"] == []
 
 
 def test_create_and_resume_with_two_designs(live_app: RunningApp, artifacts: Path) -> None:

@@ -8,17 +8,21 @@
   <link rel="icon" type="image/png" href="/web/brand/mark.png">
   <link rel="stylesheet" href="/web/appearance.css">
   <link rel="stylesheet" href="/web/hub.css">
+  <link rel="stylesheet" href="/web/design-library.css">
   <script src="/web/icons.js" defer></script>
   <script src="/web/vendor/marked-18.1.2.js" defer></script>
   <script src="/web/chat-markdown.js" defer></script>
   <script src="/web/chat-composer.js" defer></script>
   <script src="/web/preview-updates.js" defer></script>
+  <script src="/web/design-library.js" defer></script>
   <script src="/web/hub.js" defer></script>
 </head>
 <body>
   <header class="hub-top">
     <a class="hub-brand" href="/" aria-label="Artifact Hub library"><img src="/web/brand/mark.png" width="30" height="30" alt=""><span>Artifact Hub</span></a>
     <div class="hub-top-actions">
+      <button type="button" data-design-action="deleted" aria-label="Deleted designs" title="Deleted designs" class="hub-icon-only" data-icon="restore" hidden></button>
+      <button type="button" data-design-action="new" data-icon="plus" class="hub-primary" hidden>Add design</button>
       <button type="button" data-action="context" title="Inspect agent context" aria-label="Inspect agent context" data-icon="code" class="hub-icon-only"></button>
       <button id="appearance-button" type="button" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
       <button type="button" id="hub-tools-button" popovertarget="hub-tools-menu" data-icon="more" aria-label="Presentation tools" title="Presentation tools" class="hub-icon-only"></button>

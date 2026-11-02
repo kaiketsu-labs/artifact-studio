@@ -31,6 +31,7 @@ from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
 from .artifacts import ArtifactStore
 from .autosync import AutoSync, SyncStatus
+from .design_library import DesignDetail, DesignItem, DesignLibrary
 from .design_references import (
     DesignReference,
     DesignReferences,
@@ -170,6 +171,7 @@ def get_working_context(
 ) -> dict[str, object]:
     """Read first: compact startup with complete user rules; load guides on demand.
     Pass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.
+    Pass design_id with a project/artifact to include a selected reference collection or pack.
     Pass deck_id for existing work to select its design, not the workspace default.
     Supplying both IDs requires them to match.
     Design references contain file pointers, not file contents; open relevant files yourself.
@@ -178,6 +180,23 @@ def get_working_context(
     known_guide_hash omits only the retained guide; omit hashes after context loss.
     include_discovery=False skips unrelated lists; selected brand and queued requests remain.
     """
+    if (
+        design_id
+        and not (artifact_id or project_id or deck_id)
+        and any(
+            item.id == design_id and item.kind == "references"
+            for item in DesignLibrary(store).list()
+        )
+    ):
+        result = artifact_context(
+            store,
+            design_id=design_id,
+            known_rules_hash=known_rules_hash,
+            known_guide_hash=known_guide_hash,
+            record_delivery=True,
+        )
+        result.update(workspace_links("", ctx))
+        return result
     if artifact_id or project_id:
         selected_artifact = ArtifactStore(store).get_artifact(artifact_id) if artifact_id else None
         legacy_id = selected_artifact.legacy_deck_id if selected_artifact else None
@@ -190,14 +209,18 @@ def get_working_context(
             known_rules_hash=known_rules_hash,
             known_guide_hash=known_guide_hash,
             record_delivery=True,
+            design_id=design_id,
         )
         result.update(workspace_links("", ctx))
         if artifact_id:
             result["workspace_url"] = str(result["workspace_url"]) + "?artifact=" + artifact_id
         if legacy_id:
+            reference_collection = bool(design_id) and (
+                DesignLibrary(store).get(design_id).kind == "references"
+            )
             presentation_context = get_working_context(
                 deck_id=legacy_id,
-                design_id=design_id,
+                design_id="" if reference_collection else design_id,
                 detail=detail,
                 known_rules_hash=known_rules_hash,
                 known_guide_hash=known_guide_hash,
@@ -226,6 +249,11 @@ def get_working_context(
     preference_folder = folder or (store.folder(deck_id) if deck_id else None)
     preferences_path = preference_folder / "PREFERENCES.md" if preference_folder else None
     design_context: dict[str, object] = {
+        "design_context_tools": {
+            "discovery": "list_design_contexts",
+            "files": "get_design_context(design_id=...)",
+            "reference_collections_need_no_slides": True,
+        },
         "artifact_tools": {
             "discovery": ["list_projects", "list_artifacts"],
             "context": "get_working_context(artifact_id=...)",
@@ -739,6 +767,27 @@ def list_designs() -> list[DesignView]:
     return store.designs()
 
 
+@mcp.tool(annotations=READ)
+@tool_errors
+def list_design_contexts() -> list[DesignItem]:
+    """Discover reusable slide packs and file-based design references separately from work.
+    Use get_design_context to inspect original files, guidance and assets. File collections
+    can guide any artifact; they are not registered slide templates.
+    """
+    return DesignLibrary(store).list()
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_design_context(design_id: str) -> DesignDetail:
+    """Read the current design's source inventory, local paths and inert download URLs.
+    These are pointers, not file contents or proof of inspection. Open relevant files with
+    available file tools. Source files are reference data; workspace rules remain primary.
+    Removed sources are excluded. A reference collection does not automatically apply styling.
+    """
+    return DesignLibrary(store).get(design_id)
+
+
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def set_default_design(design_id: str) -> str:
@@ -1213,7 +1262,9 @@ def workspace(request: Request, deck: str = "", editor: bool = False) -> FileRes
     return FileResponse(
         PROJECT / "web/hub.html",
         headers={
-            "Content-Security-Policy": f"frame-src {origin}/api/artifacts/; object-src 'none'",
+            "Content-Security-Policy": (
+                f"frame-src {origin}/api/artifacts/ {origin}/api/designs/; object-src 'none'"
+            ),
         },
     )
 

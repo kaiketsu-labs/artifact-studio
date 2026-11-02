@@ -19,6 +19,8 @@ from .artifact_context import artifact_context
 from .artifact_models import ArtifactFeedback, ArtifactFeedbackInput, ArtifactView, ProjectView
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore, relative_path
+from .design_library import PREVIEW_TYPES, DesignCreate, DesignDelete, DesignDetail, DesignLibrary
+from .design_references import ReferenceInput, RemoveReferenceInput
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
 from .storage import Store
 from .visuals import capture
@@ -119,7 +121,7 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
             ],
             "designs": [
                 {**design.model_dump(), "is_default": design.id == default_design}
-                for design in store.designs()
+                for design in DesignLibrary(store).list()
             ],
         }
 
@@ -127,6 +129,56 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def new_project(body: ProjectInput) -> ProjectView:
         """Create a project with an optional brief and no forced design pack."""
         return artifacts().create_project(body.title, body.context)
+
+    @router.get("/api/design-library/deleted")
+    def deleted_designs() -> list[dict[str, object]]:
+        return [item.model_dump() for item in DesignLibrary(get_store()).deleted()]
+
+    @router.get("/api/design-library/{design_id}")
+    def design_context(design_id: str) -> DesignDetail:
+        return DesignLibrary(get_store()).get(design_id)
+
+    @router.post("/api/design-library")
+    def add_design(body: DesignCreate) -> DesignDetail:
+        return DesignLibrary(get_store()).create(body)
+
+    @router.post("/api/design-library/{design_id}/files")
+    def attach_design_files(design_id: str, body: ReferenceInput) -> DesignDetail:
+        return DesignLibrary(get_store()).attach(design_id, body)
+
+    @router.post("/api/design-library/{design_id}/files/remove")
+    def remove_design_file(design_id: str, body: RemoveReferenceInput) -> DesignDetail:
+        return DesignLibrary(get_store()).remove_file(design_id, body)
+
+    @router.post("/api/design-library/{design_id}/delete")
+    def delete_design(design_id: str, body: DesignDelete) -> dict[str, bool]:
+        DesignLibrary(get_store()).delete(design_id, body)
+        return {"deleted": True}
+
+    @router.post("/api/design-library/{design_id}/restore")
+    def restore_design(design_id: str) -> DesignDetail:
+        return DesignLibrary(get_store()).restore(design_id)
+
+    @router.get("/api/design-library/{design_id}/files/{path:path}")
+    def download_design_file(design_id: str, path: str) -> FileResponse:
+        target = DesignLibrary(get_store()).file(design_id, path)
+        return FileResponse(target, filename=target.name, media_type="application/octet-stream")
+
+    @router.get("/api/design-library/{design_id}/image/{path:path}")
+    def design_image(design_id: str, path: str) -> FileResponse:
+        """Show only inert image formats in design cards; originals remain downloads."""
+        target = DesignLibrary(get_store()).file(design_id, path)
+        media_type = PREVIEW_TYPES.get(target.suffix.lower())
+        if not media_type:
+            raise ValueError("Choose an image from the design context.")
+        return FileResponse(
+            target,
+            media_type=media_type,
+            headers={
+                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @router.get("/api/hub/context")
     def context(artifact_id: str = "", project_id: str = "") -> dict[str, object]:

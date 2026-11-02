@@ -19,6 +19,7 @@ from mcp.client.streamable_http import streamable_http_client
 from studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView
 from studio.artifacts import ArtifactStore
 from studio.copilot import KEY_HEADER, GatewayConfig, create_gateway, initialize_key, read_key
+from studio.design_library import DesignDelete, DesignLibrary
 from studio.models import Slide, SlidePatch
 from studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -438,6 +439,20 @@ def test_key_permissions_explicit_scope_and_whole_workspace(
         client.headers.update(dict(gateway.client.headers))
         result = data(call(client, "list_artifacts"))
         assert gateway.unrelated.id in json.dumps(result)
+
+
+def test_deleted_design_examples_stay_out_of_gateway_artifacts(gateway: GatewayFixture) -> None:
+    library = DesignLibrary(gateway.store)
+    pack = library.get("test-brand")
+    library.delete(pack.id, DesignDelete(expected_version=pack.version))
+    config = replace(gateway.config, project_id="", whole_workspace=True)
+    with TestClient(
+        create_gateway(config, store=gateway.store), base_url=f"https://{HOST}"
+    ) as client:
+        client.headers.update(dict(gateway.client.headers))
+        assert TEMPLATE_ID not in json.dumps(data(call(client, "list_artifacts")))
+        assert call(client, "get_artifact", {"artifact_id": TEMPLATE_ID}).get("isError") is True
+    assert gateway.store.read(DECK).title == "Scoped legacy deck"
 
 
 def test_released_feedback_does_not_leak_prior_project_membership(gateway: GatewayFixture) -> None:

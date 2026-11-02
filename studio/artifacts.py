@@ -235,7 +235,7 @@ class ArtifactStore:
 
     def _presentations(self) -> list[dict[str, str]]:
         """Keep registered design examples out of work listings without moving their files."""
-        designs = {design.folder_id for design in self.store.designs()}
+        designs = {design.folder_id for design in self.store.designs(include_archived=True)}
         return [deck for deck in self.store.list_decks() if deck["id"] not in designs]
 
     def list_projects(self) -> list[ProjectView]:
