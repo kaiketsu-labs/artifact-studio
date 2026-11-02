@@ -32,7 +32,11 @@ def test_initial_batch_explains_queueing_and_releases_only_on_send(
     page.set_viewport_size({"width": width, "height": 800})
     page.emulate_media(color_scheme=theme)
     open_editor(page, live_app)
-    page.get_by_role("separator", name="Resize chat panel").press("Home")
+    open_chat = page.get_by_role("button", name="Open chat", exact=True)
+    if open_chat.is_visible():
+        open_chat.click()
+    else:
+        page.get_by_role("separator", name="Resize chat panel").press("Home")
     expect(page.locator("html")).to_have_attribute("data-theme", theme)
     expect(page.locator("#mode-batch")).to_have_attribute("aria-pressed", "true")
 

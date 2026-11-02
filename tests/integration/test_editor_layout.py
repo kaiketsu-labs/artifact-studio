@@ -94,9 +94,7 @@ def test_chat_remains_reachable_and_preserves_editor(
 
 
 @pytest.mark.parametrize("width", [390, 850, 1000, 1280])
-def test_element_toolbar_does_not_move_slide(
-    live_app: RunningApp, page: Page, width: int
-) -> None:
+def test_element_toolbar_does_not_move_slide(live_app: RunningApp, page: Page, width: int) -> None:
     """Opening element controls does not shift the slide being edited."""
     page.set_viewport_size({"width": width, "height": 844})
     open_editor(page, live_app)
