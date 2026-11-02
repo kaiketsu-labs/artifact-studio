@@ -339,6 +339,72 @@ def test_recording_send_button_waits_for_final_words_then_sends_explicitly(
     assert comments[0].target.quote == "Review together"
 
 
+def test_navigation_during_recording_send_cannot_submit_the_next_slides_draft(
+    page: Page, live_app: RunningApp
+) -> None:
+    """Navigation and Send share a drain, but no newly selected draft may be submitted."""
+    install_voice(page)
+    open_editor(page, live_app)
+    page.locator('.slide-thumb[data-id="next"]').click()
+    page.locator("#feedback-text").fill("Unsent next-slide draft")
+    page.locator('.slide-thumb[data-id="cover"]').click()
+    page.locator("#feedback-text").fill("Unsent cover draft")
+    page.locator(FEEDBACK_MIC).click()
+    voice_result(page, "Cover voice draft.")
+    page.evaluate(
+        """async () => {
+          document.querySelector('#send-feedback-voice').click();
+          document.querySelector('.slide-thumb[data-id="next"]').click();
+          await Promise.resolve();
+          window.__speech.sessions.at(-1).end();
+        }"""
+    )
+    expect(page.locator("#chat-slide-title")).to_have_text("Next steps")
+    expect(page.locator("#feedback-text")).to_have_value("Unsent next-slide draft")
+    assert live_app.store.comments(DECK_ID) == []
+    page.locator('.slide-thumb[data-id="cover"]').click()
+    expect(page.locator("#feedback-text")).to_have_value("Unsent cover draft")
+    expect(page.locator(f"{SEGMENTS} textarea")).to_have_value("Cover voice draft.")
+
+
+@pytest.mark.parametrize("ending", ["cancel", "error", "timeout", "unfinished"])
+def test_interrupted_recording_send_keeps_drafts_unsent(
+    page: Page, live_app: RunningApp, ending: str
+) -> None:
+    """An interrupted Send drain cannot send typed or previously confirmed feedback."""
+    install_voice(page)
+    open_editor(page, live_app)
+    page.locator("#feedback-text").fill("Typed draft stays")
+    page.locator(FEEDBACK_MIC).click()
+    voice_result(page, "Confirmed voice draft.")
+    voice_result(page, "Unfinished words", final=False)
+    # Keep interruption and Send in one browser turn, before the bounded drain timer.
+    page.evaluate(
+        """ending => {
+          document.querySelector('#send-feedback-voice').click();
+          if (ending === 'cancel') document.querySelector('#cancel-feedback-voice').click();
+          if (ending === 'error') window.__speech.sessions.at(-1).fail('network');
+          if (ending === 'unfinished') window.__speech.sessions.at(-1).end();
+        }""",
+        ending,
+    )
+    expect(page.locator("#feedback-recording")).to_be_hidden()
+    expect(page.locator("#toast")).to_contain_text("without sending")
+    expect(page.locator("#feedback-text")).to_have_value("Typed draft stays")
+    expect(page.locator(SEGMENTS)).to_have_count(0 if ending == "cancel" else 1)
+    assert live_app.store.comments(DECK_ID) == []
+    voice_result(page, "Late retired words")
+    assert live_app.store.comments(DECK_ID) == []
+    # A later, explicit ordinary send remains available after review.
+    page.locator("#send-feedback").click()
+    expect(page.locator("#feedback-text")).to_have_value("")
+    expected = [] if ending == "cancel" else ["Confirmed voice draft."]
+    assert [item.message for item in live_app.store.comments(DECK_ID)] == [
+        *expected,
+        "Typed draft stays",
+    ]
+
+
 def test_generic_dictation_preserves_caret_and_dynamic_question_fields(
     page: Page, live_app: RunningApp
 ) -> None:

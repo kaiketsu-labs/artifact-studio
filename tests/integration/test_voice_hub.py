@@ -242,6 +242,7 @@ def test_hub_voice_capture_uses_visible_revision_except_for_retained_selected_ta
     expect(page.locator(".voice-segment-context")).to_contain_text(f"Version {expected_revision}")
     page.locator("#hub-send").click()
     expect(page.locator("textarea[data-hub-voice-segment]")).to_have_count(0)
+    expect(feedback).to_have_value("")
     messages = ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True)
     assert [message.message for message in messages] == [
         "New spoken feedback",
@@ -331,4 +332,44 @@ def test_hub_recording_send_drains_final_words_before_adding_batch(
         "Typed feedback alongside",
     ]
     assert all(not message.released for message in messages)
+    assert store.feedback_feed(artifact_id).events == []
+
+
+@pytest.mark.parametrize("ending", ["cancel", "error", "timeout", "unfinished"])
+def test_hub_interrupted_recording_send_keeps_drafts_unsent(
+    page: Page, live_app: RunningApp, ending: str
+) -> None:
+    """Cancel, failed recognition and incomplete drains cannot silently submit prior drafts."""
+    install_voice(page)
+    artifact_id = open_voice_artifact(page, live_app, "markdown")
+    page.locator("#hub-feedback-text").fill("Typed draft stays")
+    page.locator(".voice-input-button[data-voice-for='hub-feedback-text']").click()
+    voice_result(page, "Confirmed voice draft.")
+    voice_result(page, "Unfinished words", final=False)
+    page.evaluate(
+        """ending => {
+          document.querySelector('#hub-send-voice').click();
+          if (ending === 'cancel') document.querySelector('#hub-cancel-voice').click();
+          if (ending === 'error') window.__speech.sessions.at(-1).fail('network');
+          if (ending === 'unfinished') window.__speech.sessions.at(-1).end();
+        }""",
+        ending,
+    )
+    expect(page.locator("#hub-feedback-recording")).to_be_hidden()
+    expect(page.locator("#hub-toast")).to_contain_text("without sending")
+    expect(page.locator("#hub-feedback-text")).to_have_value("Typed draft stays")
+    expect(page.locator("textarea[data-hub-voice-segment]")).to_have_count(
+        0 if ending == "cancel" else 1
+    )
+    store = ArtifactStore(live_app.store)
+    assert store.feedback(artifact_id, include_pending=True) == []
+    voice_result(page, "Late retired words")
+    assert store.feedback(artifact_id, include_pending=True) == []
+    page.locator("#hub-send").click()
+    expect(page.locator("#hub-feedback-text")).to_have_value("")
+    expected = [] if ending == "cancel" else ["Confirmed voice draft."]
+    assert [item.message for item in store.feedback(artifact_id, include_pending=True)] == [
+        *expected,
+        "Typed draft stays",
+    ]
     assert store.feedback_feed(artifact_id).events == []

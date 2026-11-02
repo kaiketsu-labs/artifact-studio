@@ -67,11 +67,29 @@ test('rapid selection changes keep the newest pending context and retire old cal
 test('explicit stop remains active through the final drain, then resolves without restarting',async()=>{
   const check=fixture(),target=field();check.recorder.start(target.handle);
   const speech=check.instances[0];let settled=false;
-  const stopped=check.recorder.stop().then(()=>{settled=true;});
+  const stopped=check.recorder.stop().then(completed=>{settled=true;return completed;});
   assert.equal(settled,false);assert.equal(check.recorder.isActive(),true);
-  speech.emit(result('Final words.'));speech.end();await stopped;
+  speech.emit(result('Final words.'));speech.end();assert.equal(await stopped,true);
   assert.equal(check.recorder.isActive(),false);assert.equal(check.instances.length,1);
   assert.equal(target.received[0].text,'Final words.');assert.equal(check.idle,1);
+});
+
+test('cancel, errors, timeouts and unfinished speech never authorize a pending send',async()=>{
+  for(const ending of ['cancel','error','timeout','unfinished','stop-error']){
+    const check=fixture(),target=field();check.recorder.start(target.handle);
+    const speech=check.instances[0];speech.emit(result('Confirmed draft.'));
+    if(ending==='unfinished')speech.emit(result('Confirmed draft.'),result('Unfinished words',false));
+    if(ending==='stop-error')speech.stop=()=>{throw Error('Recognition failed to stop');};
+    const stopped=check.recorder.stop();
+    if(ending==='cancel')check.recorder.cancel();
+    if(ending==='error')speech.error('network');
+    if(ending==='timeout')check.drain();
+    if(ending==='unfinished')speech.end();
+    assert.equal(await stopped,false,ending);
+    assert.equal(check.recorder.isActive(),false,ending);
+    assert.deepEqual(target.received.map(item=>item.text),['Confirmed draft.']);
+  }
+  const check=fixture();assert.equal(await check.recorder.stop(),false);
 });
 
 test('a stop timeout aborts and never promotes unfinished interim text',async()=>{
@@ -81,6 +99,23 @@ test('a stop timeout aborts and never promotes unfinished interim text',async()=
   assert.equal(speech.aborts,1);assert.equal(check.recorder.isActive(),false);
   assert.match(check.states.at(-1).message,/unfinished speech was not inserted/i);
   late({results:[result('Late words')],resultIndex:0});assert.deepEqual(target.received,[]);
+});
+
+test('selection changes cannot restart recording once an explicit stop is draining',async()=>{
+  const check=fixture(),target=field();check.recorder.start(target.handle);
+  const stopped=check.recorder.stop();target.context.target='body';
+  assert.equal(check.recorder.boundary(target.handle),false);
+  check.instances[0].emit(result('Original heading.'));check.instances[0].end();
+  assert.equal(await stopped,true);assert.equal(check.instances.length,1);
+  assert.deepEqual(target.received,[{text:'Original heading.',context:{target:'heading'}}]);
+});
+
+test('a newly requested field prevents a pending send from authorizing submission',async()=>{
+  const check=fixture(),first=field(),second=field({target:'notes'});
+  check.recorder.start(first.handle);const stopped=check.recorder.stop();
+  check.recorder.start(second.handle);check.instances[0].end();
+  assert.equal(await stopped,false);assert.equal(check.recorder.isActive(second.handle),true);
+  check.recorder.cancel();
 });
 
 test('permission and service errors release the microphone and cancel a queued restart',()=>{

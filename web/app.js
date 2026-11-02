@@ -116,7 +116,10 @@
     renderVoiceFeedback();syncVoiceChrome();
   });
   $('send-feedback-voice').addEventListener('click',async()=>{
-    await feedbackVoice.stop();syncVoiceChrome();$('feedback-form').requestSubmit();
+    const draftKey=key(),completed=await feedbackVoice.stop();syncVoiceChrome();
+    if(draftKey!==key())return;
+    if(!completed){toast('Recording ended without sending. Review your draft before sending.');return;}
+    $('feedback-form').requestSubmit();
   });
   /** Each dictated section is editable, with its original selection and revision retained. */
   function renderVoiceFeedback(){
@@ -627,7 +630,8 @@
   $('feedback-form').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!deck||feedbackSending||voice.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().some(item=>item.message.trim())))return;
-    if(!await elementEditor.finish()||feedbackSending||voice.isActive())return;
+    const submittingKey=key();
+    if(!await elementEditor.finish()||!deck||submittingKey!==key()||feedbackSending||voice.isActive())return;
     retainDraft();
     const button=$('send-feedback'),sendingDeck=deck.id,sendingKey=key(),context=structuredClone(feedbackDraft()),message=$('feedback-text').value;
     feedbackSending=true;updateComposer();renderVoiceFeedback();$('feedback-text').disabled=true;

@@ -470,8 +470,10 @@
         syncVoiceChrome();return;
       }
       if(node.id==='hub-send-voice'){
-        const id=state.active,form=doc.getElementById('hub-feedback-form');await feedbackVoiceHandle?.stop();syncVoiceChrome();
-        if(id===state.active && form.isConnected)form.requestSubmit();return;
+        const id=state.active,form=doc.getElementById('hub-feedback-form'),completed=await feedbackVoiceHandle?.stop();syncVoiceChrome();
+        if(id!==state.active || !form.isConnected)return;
+        if(!completed){toast('Recording ended without sending. Review your draft before sending.');return;}
+        form.requestSubmit();return;
       }
       if(node.dataset.action)return action(node.dataset.action,node);
       if(node.dataset.openDesign)return openDesign(node.dataset.openDesign);

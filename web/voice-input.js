@@ -34,7 +34,9 @@
       const recognition=segment.recognition;
       recognition.onstart=null;recognition.onresult=null;recognition.onerror=null;recognition.onend=null;
       if(abort)try{recognition.abort();}catch{}
-      for(const resolve of segment.waiters)resolve();
+      // Sending requires a clean recognition end; cancellation, errors and drain
+      // timeouts must only release callers, never authorize submitting a draft.
+      for(const resolve of segment.waiters)resolve(!abort&&!segment.interim&&!pending);
     }
     function finish(segment,message='Dictation stopped.',abort=false){
       if(current!==segment)return;
@@ -106,17 +108,18 @@
       return launch(destination);
     }
     function boundary(handle){
-      if(!isActive(handle)||!current)return false;
+      if(!isActive(handle)||!current||current.stopping)return false;
       const destination=capture(handle);if(!destination)return false;
       pending=destination;close();return true;
     }
     function stop(handle=null){
-      if(handle&&!isActive(handle))return Promise.resolve();
+      if(handle&&!isActive(handle))return Promise.resolve(false);
       if(pending&&(!handle||pending.handle===handle)){
         const queued=pending;pending=null;
         if(queued.handle!==current?.handle)notify(queued.handle,'idle','Dictation stopped.');
       }
-      if(!current||handle&&current.handle!==handle)return Promise.resolve();
+      if(!current||handle&&current.handle!==handle)return Promise.resolve(false);
+      current.stopping=true;
       const result=new Promise(resolve=>current.waiters.push(resolve));close();return result;
     }
     function cancel(handle=null){

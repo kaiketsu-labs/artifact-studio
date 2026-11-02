@@ -2,6 +2,8 @@
 
 Use the microphone beside an editable text field to dictate with your browser's speech service. Start explicitly. While recording, use Cancel to discard that recording, Stop to keep its text as a draft, or Send to finish recognition and submit deliberately. Speech results alone never submit a form. Speech recognition availability varies by browser, device, language and microphone permissions. Unsupported browsers keep ordinary typing available. Slide Studio requires no transcription API key and receives text, not microphone audio; the browser's provider may process audio remotely. This is not an offline-transcription guarantee.
 
+Send waits for a clean recognition end. Cancelling during that wait prevents sending; a speech error, shutdown timeout or unfinished transcript also leaves the draft unsent for review. Confirmed text is retained unless you explicitly cancel that recording.
+
 Microphones cover feedback, speaker notes, hosted presenter notes, presentation titles/briefs, design requests, project/artifact forms, search, question answers, and editable workspace rules. Rich rules use the editor's text API; inline slide text editing keeps its existing explicit Send/Cancel flow. Read-only fields do not offer editing controls. Permission, microphone and speech-service errors stop recording and explain how to continue. Dictation uses the browser's language setting.
 
 ## Speak while selecting
