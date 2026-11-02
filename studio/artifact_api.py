@@ -109,7 +109,13 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def library() -> dict[str, object]:
         """Discover artifacts without loading discussion or binary source bodies."""
         service = artifacts()
-        return {"projects": service.list_projects(), "artifacts": service.list_artifacts()}
+        return {
+            "projects": [item.model_dump(exclude={"context"}) for item in service.list_projects()],
+            "artifacts": [
+                item.model_dump(exclude={"files", "context", "original_source_path"})
+                for item in service.list_artifacts()
+            ],
+        }
 
     @router.post("/api/hub/projects")
     def new_project(body: ProjectInput) -> ProjectView:

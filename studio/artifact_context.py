@@ -99,7 +99,13 @@ def artifact_context(
         **rules,
         **guide,
         "project": project.model_dump() if project else None,
-        "artifact": artifact.model_dump() if artifact else None,
+        "artifact": {
+            **artifact.model_dump(exclude={"files"}),
+            "file_count": len(artifact.files),
+            "file_inventory_tool": "get_artifact",
+        }
+        if artifact
+        else None,
         "sources": sources,
         "related_artifacts": [
             {"id": item.id, "title": item.title, "kind": item.kind}

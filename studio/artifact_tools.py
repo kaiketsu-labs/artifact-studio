@@ -85,8 +85,11 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
     @mcp.tool(annotations=read)
     @tool_errors
     def list_projects() -> list[dict[str, object]]:
-        """Discover project identities and briefs; no artifact file bodies are loaded."""
-        return [item.model_dump() for item in ArtifactStore(get_store()).list_projects()]
+        """Discover project identities; load the selected brief through get_working_context."""
+        return [
+            item.model_dump(exclude={"context"})
+            for item in ArtifactStore(get_store()).list_projects()
+        ]
 
     @mcp.tool(annotations=read)
     @tool_errors

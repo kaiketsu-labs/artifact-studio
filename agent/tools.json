@@ -6569,7 +6569,7 @@
     },
     {
       "name": "list_projects",
-      "description": "Discover project identities and briefs; no artifact file bodies are loaded.",
+      "description": "Discover project identities; load the selected brief through get_working_context.",
       "input_schema": {
         "properties": {},
         "title": "list_projectsArguments",
