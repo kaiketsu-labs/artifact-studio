@@ -116,3 +116,26 @@ test('slide workspace enters and exits clean view without replacing its preview'
   assert.equal(f.body.classList.contains('workspace-clean-view'),false);
   assert.equal(f.workspace,workspace);
 });
+
+test('compact slide panels open independently of the desktop preference',()=>{
+  const f=fixture();f.view.innerWidth=850;
+  const panels=create({...f,kind:'slides'});panels.refresh();
+  assert.equal(f.workspace.classList.contains('panels-right-closed'),true);
+  f.children[2].handlers.click();
+  assert.equal(f.workspace.classList.contains('panels-right-closed'),false);
+  assert.equal(f.store.size,0);
+  f.view.innerWidth=1280;panels.refresh();
+  assert.equal(f.workspace.classList.contains('panels-right-closed'),false);
+});
+
+test('phone opens only one drawer at a time and retains the canvas',()=>{
+  const f=fixture();f.view.innerWidth=390;
+  const panels=create({...f,kind:'slides'});panels.refresh();
+  assert.equal(f.workspace.classList.contains('panels-left-closed'),true);
+  assert.equal(f.workspace.classList.contains('panels-right-closed'),true);
+  f.children[0].handlers.click();
+  assert.equal(f.workspace.classList.contains('panels-left-closed'),false);
+  f.children[2].handlers.click();
+  assert.equal(f.workspace.classList.contains('panels-left-closed'),true);
+  assert.equal(f.workspace.classList.contains('panels-right-closed'),false);
+});

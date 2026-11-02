@@ -136,6 +136,8 @@ Existing decks keep the full slide workflow: sections, sorter, hidden slides, mu
 
 **Speaker notes save automatically**, including when switching slides. Failed saves retain a browser draft; conflicting edits offer **Review changes**. Present and project export wait for pending saves.
 
+The editor keeps tools in one row. Top-bar icons toggle the slide list and conversation; in narrower windows, chat opens as a drawer instead of moving below the slide. Notes start collapsed and remember your choice. Slide navigation sits beside the position count at the bottom.
+
 The hub's **… → Presentation tools** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
 
 ## Your files stay local

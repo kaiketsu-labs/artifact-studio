@@ -10,7 +10,7 @@
   const {svg,brand,button:iconButton}=window.SlideIcons;
   for(const [id,icon,label,show] of [
     ['instructions-button','rules','Instructions',true],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
-    ['share-artifact','share','Share presentation',false],['view-artifact','eye','Focus view',false],
+    ['share-artifact','share','Share presentation',false],['view-artifact','fullscreen','Focus view',false],
     ['hide-slide','eye','Hide slide',false],['objects-button','group','Slide objects',false],
     ['delete-element','trash','Remove element',false],['attach-feedback','attach','Attach files',false],
     ['edit-element-text','edit','Edit text on slide',false],['move-element','move','Move element',false],['align-element','align','Align to slide',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
@@ -33,7 +33,7 @@
   let currentTarget=null, noteBaseline='', previewKey='', railSignature='', agentNotesKey='', commentsKey='', commentsSignature='', isLoading=false, feedbackSending=false, draftWarning=false, switchingDeck=false;
   let refreshQueued=false;
   const previewUpdates=window.SlidePreviewUpdates.create({onChange:()=>{syncPreviewUpdates();if(previewUpdates.enabled)void refresh();}});
-  function syncPreviewUpdates(){const control=$('auto-update-preview');iconButton(control,'refresh','Auto-update',true);control.setAttribute('aria-label','Auto-update preview');control.setAttribute('aria-pressed',String(previewUpdates.enabled));control.title=previewUpdates.enabled?'Auto-update on · incoming revisions appear automatically':'Auto-update off · choose Show update to load revisions';}
+  function syncPreviewUpdates(){const control=$('auto-update-preview');iconButton(control,'refresh','Auto-update preview');control.setAttribute('aria-pressed',String(previewUpdates.enabled));control.title=previewUpdates.enabled?'Auto-update on · incoming revisions appear automatically':'Auto-update off · choose Show update to load revisions';}
   function previewBusy(){return elementEditor.isEditing()||elementEditor.isBusy()||animationPreview.isPlaying();}
   function resumePreviewUpdates(){if(pendingDeck&&previewUpdates.enabled&&!previewBusy())void refresh();}
   $('auto-update-preview').addEventListener('click',()=>previewUpdates.set(!previewUpdates.enabled));
@@ -50,6 +50,8 @@
   const properties=window.ElementProperties.create({container:$('element-properties'),extraControls:$('element-tools'),getAnchor:()=>selectedElement?window.ElementProperties.frameAnchor(selectedElement.getBoundingClientRect(),$('preview')):null,onPreview:values=>elementEditor.previewProperties(values),onSend:()=>elementEditor.commit(),onCancel:()=>elementEditor.cancel()});
   const workspacePanels=window.WorkspacePanels.create({doc:document,view:window,storage:window.localStorage,kind:'slides'});
   workspacePanels.refresh();
+  try{$('notes-panel').open=localStorage.getItem('artifact-studio:notes-open')==='true';}catch{}
+  $('notes-panel').addEventListener('toggle',()=>{try{localStorage.setItem('artifact-studio:notes-open',String($('notes-panel').open));}catch{}});
   const sharing=window.ArtifactSharing.create();
   $('share-artifact').addEventListener('click',async()=>{if(!deck || !await elementEditor.finish())return;void sharing.open({scope:'artifact',id:deck.id,title:deck.title,presentation:true});});
   $('view-artifact').addEventListener('click',async()=>{if(!deck || !await elementEditor.finish())return;animationPreview.stop();workspacePanels.enterView();});

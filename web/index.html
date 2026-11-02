@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="/web/design-references.css">
   <link rel="stylesheet" href="/web/slide-sections.css">
   <link rel="stylesheet" href="/web/storage-status.css">
+  <link rel="stylesheet" href="/web/editor-layout.css">
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
@@ -57,7 +58,7 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span>Artifact Studio</a>
+  <a class="identity" href="/" aria-label="Artifact Studio"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span><span class="identity-name">Artifact Studio</span></a>
   <div class="top-actions">
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
     <button id="share-artifact" class="quiet" type="button" aria-label="Share presentation" title="Share presentation" disabled></button>
@@ -98,13 +99,15 @@
     <div class="rail-foot"><span class="dot red"></span>To review<span class="dot green"></span>Approved</div>
   </aside>
   <section class="canvas-area" aria-label="Selected slide">
+    <div class="canvas-header">
     <header class="slide-heading">
-      <div class="slide-label"><span id="slide-eyebrow"></span><h1 id="slide-title"></h1></div>
+      <div class="slide-label"><span id="slide-eyebrow" class="sr-only"></span><h1 id="slide-title"></h1></div>
       <div class="slide-heading-actions"><button id="hide-slide" type="button" aria-label="Hide slide"></button><button id="approve-button" class="approve"></button></div>
     </header>
     <div class="canvas-tools">
       <div class="object-tools"><button id="view-artifact" type="button" aria-label="Focus view" title="Focus view" disabled></button><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
-      <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
+      <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button></div>
+    </div>
     </div>
     <div id="element-properties" hidden></div>
     <div class="preview-wrap" id="preview-wrap">
@@ -125,7 +128,7 @@
       </div>
     </div>
     <div id="update-banner" class="update-banner" hidden>New version available.<button id="load-update">Show update</button></div>
-    <details id="notes-panel" class="notes-panel" open>
+    <details id="notes-panel" class="notes-panel">
       <summary><span>Notes</span><span id="notes-state" role="status" aria-live="polite"></span></summary>
       <textarea id="notes" aria-label="Speaker notes" placeholder="Add notes…" maxlength="20000"></textarea>
       <div id="notes-error-panel" class="notes-footer" hidden><p id="notes-error" class="inline-error" role="alert"></p><button id="review-notes" type="button" class="quiet" hidden>Review changes</button><button id="save-notes" type="button" class="quiet" aria-label="Retry saving notes" hidden></button></div>
@@ -161,7 +164,7 @@
   </aside>
 </main>
 <footer id="view-toolbar" class="view-toolbar" aria-label="Slide view and zoom">
-  <span id="view-status"></span>
+  <div class="view-navigation"><button id="prev-slide" type="button" aria-label="Previous slide"></button><span id="view-status"></span><button id="next-slide" type="button" aria-label="Next slide"></button></div>
   <div class="view-controls">
     <div class="view-switch" role="group" aria-label="Slide view"><button id="edit-view" type="button" aria-label="Edit view" aria-pressed="true"></button><button id="sorter-view" type="button" aria-label="Slide sorter" aria-pressed="false"></button></div>
     <button id="zoom-out" type="button" aria-label="Zoom out"></button>

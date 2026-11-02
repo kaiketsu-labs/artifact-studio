@@ -9,6 +9,10 @@
     const state = {left: !!saved.left, right: !!saved.right, focus: false};
     const controls = {}, handles = {};
     let workspace = null, left = null, right = null, drag = null, lastFocus = false, focusTrigger = null;
+    let compactChatOpen = false, compactSidebarOpen = false;
+    const compact = () => kind === 'slides' && view.innerWidth <= 1050;
+    const narrow = () => kind === 'slides' && view.innerWidth <= 600;
+    const closed = side => side === 'right' && compact() ? !compactChatOpen : side === 'left' && narrow() ? !compactSidebarOpen : state[side];
     const persist = () => { try { storage?.setItem(key, JSON.stringify({left:state.left,right:state.right})); } catch {} };
     const positionHandles = () => {
       if (!workspace) return;
@@ -23,9 +27,9 @@
     };
     const apply = () => {
       if (!workspace) return;
-      workspace.classList.toggle('panels-left-closed', state.left);
-      if (kind === 'slides') { if (state.left) workspace.style.setProperty('--chat-rail-width','0px'); else if (workspace.style.getPropertyValue('--panel-left-width')) workspace.style.setProperty('--chat-rail-width',workspace.style.getPropertyValue('--panel-left-width')); else workspace.style.removeProperty('--chat-rail-width'); }
-      workspace.classList.toggle('panels-right-closed', state.right);
+      workspace.classList.toggle('panels-left-closed', closed('left'));
+      if (kind === 'slides') { if (closed('left')) workspace.style.setProperty('--chat-rail-width','0px'); else if (workspace.style.getPropertyValue('--panel-left-width')) workspace.style.setProperty('--chat-rail-width',workspace.style.getPropertyValue('--panel-left-width')); else workspace.style.removeProperty('--chat-rail-width'); }
+      workspace.classList.toggle('panels-right-closed', closed('right'));
       doc.body.classList.toggle('workspace-clean-view', state.focus);
       if (lastFocus !== state.focus) { if(state.focus)focusTrigger=doc.activeElement;else focusTrigger?.focus?.({preventScroll:true});lastFocus = state.focus; onViewChange(state.focus); }
       for (const side of ['left','right']) {
@@ -33,21 +37,35 @@
         const available = side === 'left' ? !!left : !!right;
         const sorting = kind === 'slides' && workspace.classList.contains('is-sorter');
         button.hidden = state.focus || !available || sorting;
-        const label = `${state[side] ? 'Open' : 'Close'} ${side === 'left' ? 'sidebar' : 'chat'}`;
+        const label = `${closed(side) ? 'Open' : 'Close'} ${side === 'left' ? 'sidebar' : 'chat'}`;
         button.setAttribute('aria-label', label); button.title = label;
-        button.setAttribute('aria-expanded', String(!state[side]));
+        button.setAttribute('aria-expanded', String(!closed(side)));
+        if (kind === 'slides') button.setAttribute('aria-controls',side === 'left' ? 'slides' : 'chat-panel');
         const direction = side === 'left' ? (state.left ? 'right' : 'left') : (state.right ? 'left' : 'right');
-        if (view.SlideIcons?.svg) button.innerHTML = view.SlideIcons.svg(direction);
+        if (view.SlideIcons?.svg) button.innerHTML = view.SlideIcons.svg(kind === 'slides' ? (side === 'left' ? 'panelLeft' : 'chat') : direction);
         else button.textContent = direction === 'left' ? '‹' : '›';
-        handles[side].hidden = state.focus || !available || sorting || state[side] || (kind === 'slides' && side === 'right');
+        handles[side].hidden = state.focus || !available || sorting || closed(side) || (kind === 'slides' && (side === 'right' || narrow()));
       }
       exit.hidden = !state.focus; exitArea.hidden = !state.focus;
       positionHandles();
     };
-    const toggle = side => { state[side] = !state[side]; persist(); apply(); };
+    const toggle = side => {
+      if (side === 'right' && compact()) { compactChatOpen = !compactChatOpen; if (compactChatOpen && narrow()) compactSidebarOpen = false; }
+      else if (side === 'left' && narrow()) { compactSidebarOpen = !compactSidebarOpen; if (compactSidebarOpen) compactChatOpen = false; }
+      else { state[side] = !state[side]; persist(); }
+      apply();
+      if (kind === 'slides' && !closed(side)) {
+        const target = side === 'right' ? right?.querySelector?.('textarea') : left?.querySelector?.('.slide-thumb[aria-current=true]');
+        target?.focus?.({preventScroll:true});
+      }
+    };
     for (const side of ['left','right']) {
       const button = doc.createElement('button'); button.type = 'button'; button.hidden = true; button.className = `workspace-panel-toggle panel-${side}`;
-      button.addEventListener('click', () => toggle(side)); doc.body.append(button); controls[side] = button;
+      button.addEventListener('click', () => toggle(side));
+      const topbar = kind === 'slides' ? doc.querySelector('.topbar') : null;
+      if (topbar?.insertBefore) topbar.insertBefore(button,doc.querySelector('.top-actions'));
+      else doc.body.append(button);
+      controls[side] = button;
       const handle = doc.createElement('div'); handle.hidden = true; handle.className = `workspace-panel-resize panel-${side}`;
       handle.setAttribute('role','separator'); handle.setAttribute('aria-orientation','vertical'); handle.setAttribute('aria-label',`Resize ${side === 'left' ? 'sidebar' : 'chat'}`); handle.tabIndex = 0;
       handle.addEventListener('pointerdown', event => {
@@ -95,10 +113,15 @@
     const exitArea = doc.createElement('div'); exitArea.className = 'workspace-clean-exit-area'; exitArea.hidden = true;
     const exit = doc.createElement('button'); exit.type = 'button'; exit.className = 'workspace-clean-exit'; exit.textContent = '×'; exit.title = 'Exit view (Esc)'; exit.setAttribute('aria-label','Exit view'); exit.hidden = true;
     exit.addEventListener('click', () => { state.focus = false; apply(); }); exitArea.append(exit); doc.body.append(exitArea);
-    doc.addEventListener('keydown', event => { if (event.key === 'Escape' && state.focus) { event.preventDefault(); state.focus = false; apply(); } });
-    view.addEventListener('resize', positionHandles);
+    doc.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (state.focus) { event.preventDefault(); state.focus = false; apply(); }
+      else if (compact() && compactChatOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactChatOpen = false; apply(); controls.right.focus?.(); }
+      else if (narrow() && compactSidebarOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactSidebarOpen = false; apply(); controls.left.focus?.(); }
+    });
+    view.addEventListener('resize', apply);
     view.addEventListener('scroll', positionHandles, true);
-    doc.addEventListener('workspace-collapse-chat', () => { state.right = true; persist(); apply(); });
+    doc.addEventListener('workspace-collapse-chat', () => { compactChatOpen = false; state.right = true; persist(); apply(); });
     /** Rebind to newly rendered hub elements without touching their contents. */
     function refresh() {
       workspace = doc.querySelector(kind === 'hub' ? '.hub-layout' : '.workspace');

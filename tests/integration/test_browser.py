@@ -24,6 +24,12 @@ def open_editor(page: Page, live_app: RunningApp) -> None:
     )
 
 
+def open_notes(page: Page) -> None:
+    """Expand editor notes if they are collapsed."""
+    if not page.get_by_label("Speaker notes", exact=True).is_visible():
+        page.locator("#notes-panel summary").click()
+
+
 @pytest.mark.parametrize("selected", [True, False])
 def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
     page: Page, live_app: RunningApp, selected: bool
@@ -132,6 +138,7 @@ def test_feedback_notes_and_guarded_agent_revision(page: Page, live_app: Running
     feed = live_app.call("read_feedback", deck_id=DECK_ID)
     assert "Make the title clearer." in str(feed["events"])
 
+    open_notes(page)
     expect(page.get_by_label("Speaker notes", exact=True)).to_be_visible()
     page.get_by_label("Speaker notes", exact=True).fill("Human notes preserved by the agent")
     expect(page.locator("#notes-state")).to_have_text("Saved")

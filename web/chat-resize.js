@@ -21,7 +21,7 @@
         default: number('--chat-default-width')
       };
     }
-    const available = () => view.matchMedia('(min-width: 901px)').matches
+    const available = () => view.matchMedia('(min-width: 1051px)').matches
       && !workspace.classList.contains('is-empty') && !workspace.classList.contains('is-sorter');
     function apply() {
       const bounds = limits();
