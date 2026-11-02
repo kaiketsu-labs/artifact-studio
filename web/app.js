@@ -90,6 +90,7 @@
   function applyLayout(saved){for(const snapshot of [deck,pendingDeck]){if(!snapshot)continue;const lookup=new Map(snapshot.slides.map(item=>[item.id,item]));if(lookup.size===saved.slide_ids.length&&saved.slide_ids.every(id=>lookup.has(id)))snapshot.slides=saved.slide_ids.map(id=>lookup.get(id));snapshot.sections=saved.sections;snapshot.sections_hash=saved.sections_hash;}}
   /** Render approval and unread revisions independently, without reloading stable thumbnails. */
   function renderRail(snapshot=pendingDeck||deck){
+    void window.ArtifactRail?.show(snapshot.id);
     const approved=snapshot.slides.filter(item=>item.approved).length;
     const progress=$('progress-text'),label=`${approved} of ${snapshot.slides.length} slide${snapshot.slides.length===1?'':'s'} approved`;
     progress.innerHTML=svg('check')+`<span>${approved} / ${snapshot.slides.length}</span>`;progress.title=label;progress.setAttribute('aria-label',label);$('progress-bar').style.width=`${approved/snapshot.slides.length*100}%`;
@@ -579,5 +580,6 @@
   });
   workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
-  start().catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
+  const createOnOpen=new URLSearchParams(location.search).get('new')==='1';
+  start().then(()=>{if(createOnOpen)$('new-button').click();}).catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the local presentation.';});presentationActions.refresh().catch(error=>toast(error.message,true));
 })();

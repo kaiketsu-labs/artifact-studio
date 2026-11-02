@@ -1,0 +1,54 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const marked=require('../web/vendor/marked-18.1.2.js');
+const {filterArtifacts,groupTargets,selectTargets,bundlePath,renderDocument,feedbackTarget,filePath}=require('../web/hub.js');
+
+test('library combines project, format and case-insensitive search',()=>{
+  const items=[
+    {id:'a',project_id:'launch',project_title:'Launch',title:'Speaker deck',kind:'presentation',entrypoint:'deck.html'},
+    {id:'b',project_id:'launch',project_title:'Launch',title:'Handout',kind:'markdown',entrypoint:'notes.md'},
+    {id:'c',project_id:'other',project_title:'Other',title:'Cover',kind:'svg',entrypoint:'cover.svg'},
+  ];
+  assert.deepEqual(filterArtifacts(items,{project:'launch',kind:'markdown',search:'HAND'}).map(item=>item.id),['b']);
+  assert.deepEqual(filterArtifacts(items,{kind:'image'}).map(item=>item.id),['c']);
+  assert.deepEqual(filterArtifacts(items,{search:'notes.md'}).map(item=>item.id),['b']);
+  assert.equal(filterArtifacts(items,{project:'missing'}).length,0);
+});
+
+test('additive selection toggles each anchor and creates a flat group',()=>{
+  const first={kind:'element',selector:'#title',label:'Title'},second={kind:'element',selector:'#body',label:'Body'};
+  const selected=selectTargets([first],second,true);
+  assert.deepEqual(groupTargets(selected),{kind:'group',elements:[first,second]});
+  assert.deepEqual(selectTargets(selected,first,true),[second]);
+  assert.deepEqual(selectTargets(selected,first),[first]);
+  assert.equal(groupTargets([]),null);
+  assert.deepEqual(groupTargets([first]),first);
+  const many=Array.from({length:100},(_,index)=>({kind:'element',selector:`#element-${index}`}));
+  assert.equal(selectTargets(many,second,true).length,100);
+});
+
+test('strict feedback payload removes UI-only Markdown positions without mutating drafts',()=>{
+  const text={kind:'text',quote:'Review this',block_index:2,start:12,end:23};
+  const group={kind:'group',elements:[text,{kind:'region',region:{x:.1,y:.2,width:.3,height:.4,image_width:1000,image_height:500}}]};
+  assert.deepEqual(feedbackTarget(group).elements[0],{kind:'text',quote:'Review this',start:12,end:23});
+  assert.equal(text.block_index,2);
+  assert.equal(feedbackTarget(null),null);
+});
+
+test('bundle links cannot escape the artifact or request arbitrary protocols',()=>{
+  assert.equal(bundlePath('docs/guide.md','../images/cover.svg'),'images/cover.svg');
+  assert.equal(bundlePath('docs/guide.md','./chart.png?size=2'),'docs/chart.png');
+  for(const url of ['../../secret','%2e%2e/%2e%2e/private','https://external.test/x','//external.test/x','javascript:alert(1)','/api/hub','folder%2fsecret','..\\secret'])assert.equal(bundlePath('docs/guide.md',url),null,url);
+});
+
+test('Markdown keeps authored HTML literal and uses immutable owned image resources',()=>{
+  const item={id:'guide',entrypoint:'docs/guide.md',revision:3};
+  const html=renderDocument(marked,item,'# Guide\n\n<script>secret()</script>\n\n![Cover](../cover.svg)\n\n![Remote](https://remote.test/pixel.png)\n\n[Unsafe](javascript:alert(1))\n\n[Docs](https://example.com)');
+  assert.match(html,/<h1>Guide<\/h1>/);
+  assert.ok(!html.includes('<script>'));
+  assert.match(html,/src="\/api\/artifacts\/guide\/files\/cover.svg\?revision=3"/);
+  assert.ok(!html.includes('src="https://'));
+  assert.ok(!html.includes('href="javascript:'));
+  assert.match(html,/rel="noopener noreferrer"/);
+  assert.equal(filePath(item,'images/space name.png'),'/api/artifacts/guide/files/images/space%20name.png?revision=3');
+});

@@ -3,7 +3,6 @@
 import json
 import shlex
 from pathlib import Path
-from typing import cast
 
 import pytest
 
@@ -119,19 +118,22 @@ def test_normalize_cursors_and_failures() -> None:
     assert client.normalize("codex", "PostToolUse", "slide-studio", payload) == {}
 
 
-def test_stop_polling(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Continue for feedback and release unbound sessions immediately."""
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
+    """Keep quiet polls local, forward one wake-up and release unbound sessions."""
+    reason = "Slide Studio feedback: call read_feedback(deck_id='d', after_delivery_id=7)."
     results = iter(
         [
             {"listening": True, "feedback_available": False, "reason": "waiting"},
-            {"listening": True, "feedback_available": True, "reason": "new feedback"},
+            {"listening": True, "feedback_available": False, "reason": "waiting"},
+            {"listening": True, "feedback_available": True, "reason": reason},
         ]
     )
     monkeypatch.setattr(client, "_post", lambda *_: next(results))  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     monkeypatch.setattr(client.time, "sleep", lambda _: None)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     assert client.handle_event(
-        "codex", "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
-    ) == {"decision": "block", "reason": "new feedback"}
+        harness, "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
+    ) == {"decision": "block", "reason": reason}
     monkeypatch.setattr(
         client,
         "_post",
@@ -139,25 +141,27 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert (
         client.handle_event(
-            "codex", "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
+            harness, "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
         )
         == {}
     )
 
 
-def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Return the server reason when a long idle review must be renewed."""
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
+    """Forward one compact renewal after the bounded local idle wait."""
+    reason = "Slide Studio idle renewal: call read_design_requests(after_event_id=3)."
     times = iter([0.0, 541.0])
     monkeypatch.setattr(client.time, "monotonic", lambda: next(times))
     monkeypatch.setattr(
         client,
         "_post",
-        lambda *_: {"listening": True, "feedback_available": False, "reason": "renew"},  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+        lambda *_: {"listening": True, "feedback_available": False, "reason": reason},  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     )
     result = client.handle_event(
-        "codex", "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
+        harness, "Stop", "http://localhost", "slide-studio", {"session_id": "s"}
     )
-    assert cast("str", result["reason"]) == "renew"
+    assert result == {"decision": "block", "reason": reason}
 
 
 def test_conflicting_reviewer_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:

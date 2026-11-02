@@ -52,6 +52,8 @@ Read `read_feedback(deck_id, after_delivery_id=...)` before revising. Carry `nex
 
 Use fresh slide/context hashes, preserve human notes, visually verify affected slides and answer in the app's feedback conversation. A host continuation is a request to read the tools, not evidence that a revision is complete. On a quiet renewal, **call the read tools**, then leave the review open. Do not repeatedly announce that nothing changed. Do not bypass the host's continuation limits.
 
+Read this guidance when starting review. Later hook messages contain only the needed read calls and their delivery cursors. A **feedback** message names the queues with pending work; an **idle renewal** message checks both queues (only the design inbox for a design-only session). Neither message includes comment content or acknowledges delivery. These messages are tool instructions, not text to repeat in the chat.
+
 One active hook reviewer owns a presentation at a time; another session is refused while its lease is active. End the old review before transferring it. An already running revision may finish after End review; the button ends further listening rather than cancelling a model's in-flight tool call.
 
 ## How it works and limitations

@@ -110,8 +110,67 @@ def test_repeated_feedback_after_agent_response(
     _ = reviews.bind(post.model_copy(update={"start_review": False, "seen_cursor": cursor}))
     assert not reviews.pending(stop).feedback_available
     comment(store, "Use a diagram.")
-    assert reviews.pending(stop).feedback_available
+    pending = reviews.pending(stop)
+    assert pending.feedback_available
+    assert pending.reason == (
+        f"Slide Studio feedback: call read_feedback(deck_id={DECK!r}, after_delivery_id={cursor})."
+    )
     assert store.workflow(DECK).review_connected
+
+
+@pytest.mark.parametrize(
+    ("deck_id", "feedback", "design", "expected_reason"),
+    [
+        (
+            DECK,
+            False,
+            False,
+            f"Slide Studio idle renewal: call read_feedback(deck_id={DECK!r}, "
+            "after_delivery_id=0); read_design_requests(after_event_id=0).",
+        ),
+        (
+            "",
+            False,
+            False,
+            "Slide Studio idle renewal: call read_design_requests(after_event_id=0).",
+        ),
+        (
+            DECK,
+            True,
+            False,
+            f"Slide Studio feedback: call read_feedback(deck_id={DECK!r}, after_delivery_id=0).",
+        ),
+        (DECK, False, True, "Slide Studio feedback: call read_design_requests(after_event_id=0)."),
+        (
+            DECK,
+            True,
+            True,
+            f"Slide Studio feedback: call read_feedback(deck_id={DECK!r}, "
+            "after_delivery_id=0); read_design_requests(after_event_id=0).",
+        ),
+        ("", False, True, "Slide Studio feedback: call read_design_requests(after_event_id=0)."),
+    ],
+)
+def test_compact_continuation_reads(
+    store: Store, deck_id: str, feedback: bool, design: bool, expected_reason: str
+) -> None:
+    """Wake only for pending queues and retain both cursor checks on idle renewal."""
+    reviews = Reviews(store)
+    body = ReviewHookInput(
+        harness="codex", session_id="s", event="PostToolUse", deck_id=deck_id, start_review=True
+    )
+    _ = reviews.bind(body)
+    comment(store, "Withheld private feedback", released=False)
+    if feedback:
+        comment(store, "Released feedback")
+    if design:
+        _ = store.post_design_request(
+            DesignRequestInput(message="New design", request_id="design-request")
+        )
+    pending = reviews.pending(body)
+    assert pending.listening and pending.feedback_available == (feedback or design)
+    assert pending.reason == expected_reason
+    assert reviews.pending(body) == pending
 
 
 def test_batch_release_and_design_inbox(store: Store) -> None:

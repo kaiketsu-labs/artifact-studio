@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Artifact Hub · Slide Studio</title>
+  <script src="/web/appearance.js"></script>
+  <link rel="icon" type="image/png" href="/web/brand/mark.png">
+  <link rel="stylesheet" href="/web/appearance.css">
+  <link rel="stylesheet" href="/web/hub.css">
+  <script src="/web/icons.js" defer></script>
+  <script src="/web/vendor/marked-18.1.2.js" defer></script>
+  <script src="/web/chat-markdown.js" defer></script>
+  <script src="/web/chat-composer.js" defer></script>
+  <script src="/web/hub.js" defer></script>
+</head>
+<body>
+  <header class="hub-top">
+    <a class="hub-brand" href="/" aria-label="Artifact Hub library"><img src="/web/brand/mark.png" width="30" height="30" alt=""><span>Artifact Hub</span></a>
+    <div class="hub-top-actions">
+      <button type="button" data-action="context" title="Inspect agent context" aria-label="Inspect agent context" data-icon="code" class="hub-icon-only"></button>
+      <button id="appearance-button" type="button" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
+      <button type="button" id="hub-tools-button" popovertarget="hub-tools-menu" data-icon="more" aria-label="Presentation tools" title="Presentation tools" class="hub-icon-only"></button>
+      <button type="button" data-action="new-project" data-icon="plus">New project</button>
+      <button type="button" data-action="import" data-icon="upload" class="hub-primary">Import</button>
+    </div>
+    <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
+    <div id="hub-tools-menu" class="hub-tools-menu" popover><a href="/?editor=1&amp;new=1" data-icon="slideAdd">New presentation</a><a href="/?editor=1" data-icon="slides">Presentation tools</a></div>
+  </header>
+  <div id="hub-content"><main class="hub-loading" role="status">Loading your artifacts…</main></div>
+  <div id="hub-toast" class="hub-toast" role="status" hidden></div>
+  <dialog id="hub-dialog" aria-labelledby="hub-dialog-title"></dialog>
+</body>
+</html>

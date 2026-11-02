@@ -256,7 +256,7 @@ def _post(url: str, message: dict[str, object], timeout: int) -> dict[str, objec
 def handle_event(
     harness: str, event: str, url: str, server_name: str, payload: dict[str, object]
 ) -> dict[str, object]:
-    """Report an event and wait for feedback only for an active Stop."""
+    """Keep idle polling local; continue only for feedback or a bounded review renewal."""
     try:
         _validate_url(url)
     except ValueError:

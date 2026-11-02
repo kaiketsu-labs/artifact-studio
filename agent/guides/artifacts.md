@@ -1,0 +1,10 @@
+# Artifact authoring
+
+- Read `get_working_context(artifact_id=...)` and current artifact metadata. Project brief and artifact context are scoped; related artifacts are references, not automatic edit targets.
+- Author any file or browser bundle. Register existing local files with `register_artifact`; use `revise_artifact` for atomic changed-file sets with the current revision/hash and a unique request ID. Original files remain intact; owned copies and immutable revisions live in the workspace.
+- Type selects a viewer, not an authoring schema. HTML/CSS/SVG/JavaScript, Markdown, images and arbitrary files are supported. No fixed components or branding are required. Bundle local dependencies; declare external dependencies explicitly. Opening a preview never runs build/install scripts.
+- Read `read_artifact_feedback` from the last delivery cursor. Batch comments remain private until released. A group target contains the individually selected elements. Targets belong to their original revision; never silently apply an obsolete selector to a new version.
+- Inspect actual rendered output and interactions. Use the browser or supported capture tools; source inspection is not visual verification. Use fresh reviewers with distinct aspects when the workspace requires them. Keep agent notes brief.
+- Reply with `reply_to_artifact_feedback`. Human approval is available only in the UI. Suggest changes to related artifacts first.
+
+Presentation operations remain specialized: use slide tools, per-slide discussion, notes, reveal captures and presenter checks. A generic image or document has no speaker notes or slide dimensions.

@@ -1,8 +1,8 @@
 # Set up and use Slide Studio
 
-Create and review presentations together with an existing AI agent. Slides stay in local HTML files; the browser provides a slide overview, element-specific feedback, approvals, speaker notes and presentation mode. Agents connect through **stateless Streamable HTTP MCP**. Presentation files and review history persist between connections.
+Create and review related artifacts with an existing AI agent. The home page is the **Artifact Hub**: a visual library of presentations, HTML pages, Markdown documents, images and other files, grouped by project. Each artifact opens with its own preview and conversation. Agents connect through **stateless Streamable HTTP MCP**; local files and review history persist between connections.
 
-The app includes a neutral viewer runtime. **Design packs and example presentations are not bundled.** You or your agent add a design from a PPTX, website, PDF or reference images. PowerPoint files are design/reference inputs; the current app creates HTML presentations and does not export PPTX.
+General artifacts need no design pack or fixed template. The viewer supports authored HTML/CSS/JavaScript bundles, safe Markdown rendering and images at their original proportions. **Design packs and example presentations are not bundled.** For presentations, add a design from a PPTX, website, PDF or reference images. PowerPoint files remain reference inputs; the app creates HTML presentations and does not export PPTX.
 
 ## Guided setup
 
@@ -61,7 +61,7 @@ Keep that Terminal running, then open [Slide Studio](http://127.0.0.1:8790/). St
 
 ### Storage locations
 
-By default, presentations go in `~/Documents/Presentations` and review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
+By default, presentations, project briefs and owned artifact bundles go in `~/Documents/Presentations`; review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
 
 ```sh
 SLIDE_STUDIO_COLLECTION="$HOME/Documents/My Slides" \
@@ -92,19 +92,56 @@ For [Claude Code](https://code.claude.com/docs/en/mcp), run from the project whe
 claude mcp add --transport http slide-studio http://127.0.0.1:8790/mcp
 ```
 
-Use a new agent session if the newly added server is not visible in the current one. **Menu → Connect an agent** in Slide Studio provides a copyable prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
+Use a new agent session if the newly added server is not visible in the current one. From the hub, **… → Presentation tools** opens the existing editor. Its **Menu → Connect an agent** provides a copyable presentation prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
+
+For general work, ask the agent to call `list_projects` and `list_artifacts`, then `get_working_context(project_id=..., artifact_id=...)` for the selected scope. It receives applicable rules, project/artifact context, source pointers and a delivery receipt. Read source files with `read_artifact_files`; load the generic guide through `get_authoring_guide(topic="artifacts")`.
 
 Ask the connected agent to call `get_working_context(deck_id=...)` when resuming an existing deck, so it receives that deck's design preferences. For a new deck, use `get_working_context(design_id=...)` for the chosen brand, or omit the ID for the default, then call `create_presentation` with a brief. The compact context contains complete workspace rules and preferences, a short quickstart, available designs/presentations, reference libraries, local paths and workspace/MCP URLs. Load specific guides with `get_authoring_guide(topic=...)`. Read the full saved brief and relevant attachments through `get_presentation_outline(deck_id=..., include_context=True)` before drafting. Each tool call uses explicit presentation/slide IDs; there is no hidden active presentation.
 
-Open **Menu → Instructions** to edit **Workspace rules** with rich text. Expand **Learned preferences** for secondary guidance. Click **Save** to write the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`; conflicts with another editor are reported without replacing either document. These rules apply to every deck, and learned guidance never overrides explicit workspace rules. Both are included in subsequent MCP context and feedback reads. Enabled GitHub auto-sync includes the saved files; reference-only connections do not upload them. Each presentation keeps its audience, client, content and brief in its own README. Advanced Markdown uses a source editor when needed to preserve formatting.
+In the presentation editor, open **Menu → Instructions** to edit **Workspace rules** with rich text. Expand **Learned preferences** for secondary guidance. Click **Save** to write the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`; conflicts with another editor are reported without replacing either document. Applicable rules guide projects and artifacts, and learned guidance never overrides explicit workspace rules. Presentation-only requirements remain specific to presentations. Both are included in subsequent MCP context and feedback reads. Enabled GitHub auto-sync includes the saved files; reference-only connections do not upload them. Each presentation keeps its audience, client, content and brief in its own README. Advanced Markdown uses a source editor when needed to preserve formatting.
 
 The bundled `$slide-studio-learn` skill can review relevant human transcripts and released feedback weekly. Scheduling belongs to your agent harness; installing Slide Studio does not create a schedule automatically. Explicit rules stay primary, and each learned preference records its evidence and scope. [Invocation and weekly setup](PREFERENCE-LEARNING.md).
+
+## Create and review an artifact project
+
+The library shows all existing artifacts. Use project filters, format tabs and search to find work. Preview cards contain cached rendered images; unavailable captures use a format fallback. Existing decks open in their established slide editor, and direct `/?deck=...` links remain valid.
+
+![Artifact Hub with fictional projects and rendered preview cards.](assets/artifact-hub.png)
+
+Choose **New project** to save a title and optional shared brief. Choose **Import**, select the project, and add files or a folder. **Open first** selects the entrypoint; type detection chooses a viewer. Browser import currently accepts up to 1,000 files and 100 MB at once. Sources can include arbitrary HTML, CSS, JavaScript, SVG, images, fonts, data and native files. Importing never executes build or installation scripts.
+
+An agent can instead author files using its preferred tools, then call `register_artifact` with the project ID, local source path and entrypoint. The hub creates an owned copy and preserves the original. Subsequent `revise_artifact` calls publish changed files with an expected revision/hash and an idempotency request ID.
+
+A card's folder action or **Sources & files → Move to project** changes membership without relocating the canonical source. Related artifacts share the project brief, but retain their own purpose, review state and conversation. Ask for related changes explicitly; grouping is not permission to rewrite every artifact.
+
+### Adaptive viewers
+
+| Format | Available controls |
+| --- | --- |
+| HTML | Natural page preview, responsive/desktop/tablet/mobile widths, replay and element selection. Authored JavaScript runs in an opaque-origin sandbox with scoped local resources. External services are not automatically available. |
+| Markdown | Rendered document or original source. Raw HTML stays literal; owned images use revision-pinned resources. |
+| Image/SVG | Original aspect ratio, fit/zoom, and drag a region while Select is active. |
+| Other files | Original download, file inventory and artifact-level feedback. A dedicated preview may be unavailable. |
+
+Choose **Select**, then click an element or text block, select document text, or drag an image rectangle. Hold **Cmd, Ctrl or Shift** to add targets. Remove a target with its × or clear the group. Image regions retain the original image dimensions; text and element targets retain quoted content. Dynamic anchors are best-effort and stay attached to their original revision.
+
+![Artifact review with fictional content and multiple selected targets.](assets/artifact-review.png)
+
+Write feedback in the artifact's conversation. **Enter** sends and **Shift+Enter** adds a line. Use the paperclip, drop files or paste an image; a file-only message is supported. Limits are five files, 25 MB each and 50 MB combined. Remove an unsent file with its ×; sent files can be downloaded from the message. Text and target drafts persist in browser storage; unsent file selections remain in browser memory.
+
+**Live** releases a message immediately. **Batch** keeps messages and attachments private until **Send batch**. Automatic host continuation currently supports presentation review only; generic artifact agents read released feedback through `read_artifact_feedback`. The Live availability dot's tooltip reports this limitation. An ordinary MCP connection cannot wake a closed chat.
+
+**Updated** marks a new revision until opened. **Approve** records the displayed version, independently of the update marker. If another revision arrives while reviewing, open it explicitly; an existing draft retains its earlier targets and hash. The preview and its local dependencies are pinned to the displayed revision.
+
+Open **Sources & files** for downloads, canonical source path and content hash. The **Agent context** inspector shows applicable source paths, scopes, hashes and the latest recorded delivery. Available pointers are not read receipts. Matching retention hashes are useful only while the agent actually retains that guidance.
+
+For visual inspection, agents can call `capture_artifact` with viewport dimensions, a revision, elapsed animation time and optional full-page capture. It returns actual rendered evidence from a fresh offline runtime. Browser inspection is still needed for user-driven interaction states. Use the specialized slide capture tools for existing decks.
 
 ## Make your first presentation
 
 An empty workspace on first launch is expected.
 
-1. Open **Menu → New presentation**, or choose **+ New project** at the bottom of the project selector.
+1. From the hub, open **… → New presentation**. The existing editor also has **Menu → New presentation**. The hub's separate **New project** action creates a shared artifact project.
 2. Click **+** beside **Design library**. Send a PPTX, URL or reference files through the design chat. Then tell your connected agent: **“Read my pending design request in Slide Studio, inspect the reference, and build and register the design.”** If the request stays **Queued**, resume the agent with that prompt; connecting an agent alone does not keep it listening. You can also provide the reference directly in the agent's chat. [Design import details](DESIGN-PACKS.md).
 3. Once the design appears, select it. Enter a title and a brief: audience, intended takeaway and key material. The **paperclip beside Brief** attaches reference files, up to five files, 25 MB each and 50 MB total.
 4. Click **Create presentation**. This creates one branded draft cover and saves the brief and files for the agent; it does not generate the rest of the presentation automatically.
@@ -114,7 +151,7 @@ Designs define a visual language, not locked layouts or a required slide count. 
 
 ## Review and present
 
-The top-right **Menu** groups file actions, workspace settings and the agent connection; **Present** stays beside it. Open the menu with **F10** or focus it and press Up/Down. Use arrows, Home/End, Enter or type an action's name; Escape returns focus to the menu button. Appearance opens a submenu with Right; Left returns.
+The following controls apply to the presentation editor. Its top-right **Menu** groups file actions, workspace settings and the agent connection; **Present** stays beside it. Return through the library to open related non-slide artifacts. Open the menu with **F10** or focus it and press Up/Down. Use arrows, Home/End, Enter or type an action's name; Escape returns focus to the menu button. Appearance opens a submenu with Right; Left returns.
 
 | Action | Mac | Windows/Linux |
 | --- | --- | --- |
@@ -157,16 +194,22 @@ Present requests browser fullscreen directly from your click, without opening an
 
 On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check. [Verification scope](../QA.md).
 
-## Work on several decks
+## Work on several artifacts or decks
+
+Use separate browser tabs and explicit artifact IDs for parallel general work. Each artifact keeps its own draft, conversation and approval. Project context is shared; sources and feedback from related artifacts are loaded only when requested.
 
 Open each deck in its own browser tab and use a separate agent chat with that deck's copied prompt. They share one server and MCP URL. Slides, feedback, notes and approvals stay with their deck; workspace rules, learned preferences, design libraries and the design inbox are shared. Agents use explicit deck IDs, and one live reviewer owns each deck at a time. [Parallel work and conflict handling](MACOS.md#parallel-decks).
 
 ## Files, persistence and backups
 
-Use **Menu → Project files** for **Save project**, **Open project**, **Export HTML** and **Export PDF**. Project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
+In the presentation editor, use **Menu → Project files** for **Save project**, **Open project**, **Export HTML** and **Export PDF**. These are presentation formats; complete multi-artifact project archives are not implemented. Project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
 
 | Location | Contents |
 | --- | --- |
+| `<collection>/projects/<project-id>/README.md` | Shared artifact project brief. |
+| `<collection>/projects/<project-id>/artifacts/<artifact-id>/files/` | Canonical owned artifact source files. Membership changes preserve this path. |
+| The artifact's `revisions/<revision>/` | Immutable source snapshot and manifest for that revision. |
+| The artifact's `artifact.json` | Readable manifest; the review database publishes the current revision pointer atomically. |
 | `<collection>/YYYY-MM-DD-short-title/index.html` | Canonical presentation, slide HTML, notes, sources and agent context. |
 | The same folder's `README.md` | Brief, sources, user preferences and continuation context. |
 | `brief-files.json` and `brief-attachments/` | Original brief attachments and their metadata. |
@@ -177,9 +220,11 @@ Back up **both the collection and the state folder**. If you override `SLIDE_STU
 
 ## Optional reference libraries and private sync
 
-Open **Menu → Reference libraries**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
+From **… → Presentation tools**, open **Menu → Reference libraries**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
 
 GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login` and `gh auth setup-git`. New connections are **reference only**: agents can use earlier presentations for tone, design and context. Enable **Back up all presentations** beside the repository, or **Back up automatically** when connecting it, to upload saved workspace files to a **private** repository. Changes are grouped after eight quiet seconds while Slide Studio is running; delivery resumes on the next launch. The storage icon beside Menu shows delivery status even with the dialog closed; open it for the destination timestamp and retry control. Existing manual destinations retain their current-deck and collection upload buttons until you change the setting. Local files remain the working copy. This is one-way versioned storage; private review state is excluded. See [reference and sync behavior](REPOSITORY-SYNC.md) for conflicts, exclusions and recovery.
+
+The Artifact Hub does not broaden this established presentation backup scope to new multi-artifact projects.
 
 ## Update an existing installation
 
@@ -204,7 +249,10 @@ Restart the server from the Mac menu, or stop the Terminal server with Ctrl+C an
 | Mac app fails to start | Choose Show Logs. Confirm the checkout and `.venv` still exist and dependencies are installed. [Mac setup](MACOS.md). |
 | Empty design library | Add a reference through the design `+` and have your connected agent build/register the pack. No corporate assets ship with the app. |
 | Only one cover appears | Resume the agent with the copyable prompt and ask it to draft the slides from the saved brief. |
-| Live is unavailable / a request stays queued | Keep the server and agent session open. Check that the configured hooks are loaded/trusted, then ask the agent to call `start_live_review` and read saved feedback. Plain MCP connection alone cannot start an idle chat. |
+| Presentation Live is unavailable / a request stays queued | Keep the server and agent session open. Check that the configured hooks are loaded/trusted, then ask the agent to call `start_live_review` and read saved feedback. Plain MCP connection alone cannot start an idle chat. |
+| Generic artifact feedback does not wake the agent | Live means immediate release. Resume the agent and ask it to read released artifact feedback; generic host hooks are not implemented. |
+| Artifact preview is unavailable | Check the entrypoint and owned local dependencies. External services are not automatically enabled; unsupported files can still be downloaded. Capture requires local Chromium. |
+| An artifact revision reports a conflict | Reload its metadata and review the intervening changes before submitting a new expected revision/hash. Do not overwrite retained snapshots. |
 | Design could not load | Use the retry icon; ask the agent to check local `theme.css`, font and image paths in the design pack. |
 | A removed presentation is missing | Use the restore icon below the top-left selector. Keep the same state database across launches. |
 | Slides or comments seem to have disappeared | Check the collection and database environment variables before creating new data; saved content may be in your previous locations. |
@@ -222,4 +270,4 @@ node --test tests/*.cjs
 
 Node.js is needed only for the optional frontend behavior tests. Tests generate fictional designs; no corporate masters, fonts, logos or personal decks are included. [QA](../QA.md) records fresh-install and browser checks and the remaining display/application limitations.
 
-Agents should read [AGENT-GUIDE.md](AGENT-GUIDE.md), [DESIGN-PACKS.md](DESIGN-PACKS.md) and, for explicit private uploads, [REPOSITORY-SYNC.md](REPOSITORY-SYNC.md). The same workflow guidance is available through `get_working_context` over MCP.
+Agents should start with the [contract map](../agent/README.md) and [artifact authoring guide](../agent/guides/artifacts.md). Presentation work also uses [AGENT-GUIDE.md](AGENT-GUIDE.md) and [DESIGN-PACKS.md](DESIGN-PACKS.md); explicit private presentation uploads use [REPOSITORY-SYNC.md](REPOSITORY-SYNC.md). The canonical MCP bootstrap is [agent/bootstrap.md](../agent/bootstrap.md).

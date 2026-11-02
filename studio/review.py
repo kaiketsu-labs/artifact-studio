@@ -141,20 +141,13 @@ class Reviews:
         inbox = self.store.design_inbox(design_cursor)
         designs = any(item.author == "user" and item.status == "queued" for item in inbox.messages)
         events = bool(self.store.feedback_feed(deck_id, cursor).events) if deck_id else False
-        target = f"presentation {deck_id}" if deck_id else "the design library"
-        reason = (
-            f"Slide Studio review remains open for {target}. "
-            f"Read design requests after_event_id={design_cursor}"
-            + (
-                f" and read_feedback(deck_id={deck_id!r}, after_delivery_id={cursor})"
-                if deck_id
-                else ""
-            )
-            + ". Address released human feedback using fresh context/hashes, preserve human notes, "
-            "verify the result visually, and reply in Slide Studio. "
-            "If there is no new feedback, leave the review open; the lifecycle hook waits locally. "
-            "Use End review in Slide Studio when finished."
-        )
+        reads: list[str] = []
+        if deck_id and (events or not designs):
+            reads.append(f"read_feedback(deck_id={deck_id!r}, after_delivery_id={cursor})")
+        if designs or not events:
+            reads.append(f"read_design_requests(after_event_id={design_cursor})")
+        status = "feedback" if events or designs else "idle renewal"
+        reason = f"Slide Studio {status}: call {'; '.join(reads)}."
         return ReviewHookReply(listening=True, feedback_available=events or designs, reason=reason)
 
     async def handle(self, body: ReviewHookInput, timeout: float = 25) -> ReviewHookReply:
