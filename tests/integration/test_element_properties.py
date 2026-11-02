@@ -1,8 +1,17 @@
 """Exercise the shared property inspector in a real browser."""
 
+import os
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import Page, expect
+
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
 
 
 def test_inspector_emits_changed_values_and_cancel(page: Page) -> None:

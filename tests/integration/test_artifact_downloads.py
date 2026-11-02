@@ -1,12 +1,21 @@
 """Browser-managed downloads from isolated authored artifact previews."""
 
+import os
 from hashlib import sha256
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from artifact_studio.artifacts import ArtifactStore
 from tests.integration.support import RunningApp
+
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
 
 
 def test_preview_downloads_preserve_contents_and_sources(

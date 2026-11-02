@@ -1,8 +1,17 @@
 """Exercise the sandboxed element preview and its message boundary."""
 
+import os
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import sync_playwright
+
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
 
 
 def test_preview_is_bounded_and_cancel_restores_original() -> None:
