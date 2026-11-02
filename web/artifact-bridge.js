@@ -55,7 +55,7 @@
     send({type: 'artifact:inspector', request_id: requestId, selector, label: (element.getAttribute('aria-label') || element.localName).slice(0, 500),
       text: element.childElementCount === 0 ? (element.textContent || '').slice(0, 9000) : '',
       canText: element.childElementCount === 0 && (element.textContent || '').length <= 9000 && !['script','style','input','textarea','img','br','hr'].includes(element.localName),
-      typography: {font_size: size ? Number(size[1]) : 16, font_size_unit: size ? size[2] : 'px', font_weight: computed.fontWeight,
+      typography: {font_size: size ? Number(size[1]) : 16, font_size_unit: size ? size[2] : 'px', font_size_px: Number.parseFloat(computed.fontSize) || 16, font_weight: computed.fontWeight,
         font_style: computed.fontStyle === 'italic' ? 'italic' : 'normal', text_align: computed.textAlign,
         color},
       rect: {left: rect.left, top: rect.top, width: rect.width, height: rect.height},

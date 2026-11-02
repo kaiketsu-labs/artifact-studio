@@ -57,7 +57,7 @@ def test_direct_edit_and_clean_view(live_app: RunningApp, page: Page, tmp_path: 
     _ = page.screenshot(path=str(tmp_path / "workspace-review.png"))
     inspector.get_by_label("Text", exact=True).fill("Revised heading")
     inspector.get_by_label("Font size", exact=True).fill("30")
-    expect(frame.locator("#title")).to_have_css("font-size", "30px")
+    expect(frame.locator("#title")).to_have_css("font-size", "40px")
     expect(frame.locator("#title")).to_have_text("Revised heading")
     with page.expect_response(
         lambda response: (
@@ -74,7 +74,7 @@ def test_direct_edit_and_clean_view(live_app: RunningApp, page: Page, tmp_path: 
     assert feedback[0].edit_intent.action == "update"
     assert feedback[0].edit_intent.values == {
         "text": "Revised heading",
-        "font_size": 30,
+        "font_size": 40,
         "font_size_unit": "px",
     }
     assert feedback[0].target is not None and feedback[0].target.selector == "#title"
@@ -145,15 +145,21 @@ def test_slide_inspector_preserves_original_until_agent_applies_feedback(
     heading.click()
     properties = page.locator("#element-properties")
     expect(properties).to_be_visible()
-    expect(properties.get_by_label("Font size unit")).to_have_value("cqw")
+    expect(properties.locator(".ep-label")).to_have_text("Heading")
+    expect(properties.locator("select")).to_have_count(0)
+    expect(properties.get_by_label("Font size", exact=True)).to_have_value("38.3")
+    page.get_by_role("button", name="Close sidebar").click()
+    heading.click()
+    expect(properties.get_by_label("Font size", exact=True)).to_have_value("38.3")
+    page.get_by_role("button", name="Open sidebar").click()
     properties.get_by_label("Text", exact=True).fill("Draft heading")
-    properties.get_by_label("Font size", exact=True).fill("5")
+    properties.get_by_label("Font size", exact=True).fill("48")
     expect(heading).to_have_text("Draft heading")
     properties.get_by_role("button", name="Cancel edit").click()
     expect(heading).to_have_text("Review together")
-    expect(properties.get_by_label("Font size", exact=True)).to_have_value("4.625")
+    expect(properties.get_by_label("Font size", exact=True)).to_have_value("38.3")
     properties.get_by_label("Text", exact=True).fill("New slide heading")
-    properties.get_by_label("Font size", exact=True).fill("5")
+    properties.get_by_label("Font size", exact=True).fill("48")
     with page.expect_response(
         lambda response: "/feedback" in response.url and response.request.method == "POST"
     ) as response:
@@ -163,11 +169,9 @@ def test_slide_inspector_preserves_original_until_agent_applies_feedback(
     assert feedback.content_hash == original.content_hash
     assert feedback.edit_intent is not None
     assert feedback.edit_intent.action == "update"
-    assert feedback.edit_intent.values == {
-        "text": "New slide heading",
-        "font_size": 5,
-        "font_size_unit": "cqw",
-    }
+    assert feedback.edit_intent.values["text"] == "New slide heading"
+    assert feedback.edit_intent.values["font_size_unit"] == "cqw"
+    assert feedback.edit_intent.values["font_size"] == pytest.approx(5.797101449, abs=0.001)
     assert live_app.store.read(DECK_ID).slides[0].html == original.html
     page.get_by_role("button", name="Close sidebar").click()
     page.get_by_role("button", name="Open sidebar").click()

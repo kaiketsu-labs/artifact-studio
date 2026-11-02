@@ -25,19 +25,28 @@ def test_inspector_emits_changed_values_and_cancel(page: Page) -> None:
       window.inspector = ElementProperties.create({container: document.querySelector('#inspector'),
         onPreview: patch => window.patches.push(patch), onSend: () => window.sent++,
         onCancel: () => window.cancelled++});
-      window.inspector.setSelection({label:'text',text:'Hello',canText:true,typography:{
-        font_size:2,font_size_unit:'cqw',font_weight:'400',font_style:'normal',
+      window.inspector.setSelection({label:'h2',text:'Hello',canText:true,typography:{
+        font_size:2,font_size_unit:'cqw',font_size_px:32,font_weight:'400',font_style:'normal',
         text_align:'left',color:'#123456'}});
     }""")
-    expect(page.get_by_label("Font size unit")).to_have_value("cqw")
+    expect(page.locator(".ep-label")).to_have_text("Heading")
+    expect(page.locator("select")).to_have_count(0)
+    expect(page.get_by_label("Font size", exact=True)).to_have_value("24")
     page.get_by_label("Text", exact=True).fill("Changed")
-    page.get_by_label("Increase font size").click()
-    assert page.evaluate("window.patches.at(-1)") == {"font_size": 3, "font_size_unit": "cqw"}
+    page.get_by_label("Larger text").click()
+    assert page.evaluate("window.patches.at(-1)") == {
+        "font_size": 2.16666666667,
+        "font_size_unit": "cqw",
+    }
     assert page.evaluate("ArtifactEditor.validPatch(window.patches.at(-1))") is True
-    page.get_by_label("Decrease font size").click()
+    page.get_by_label("Smaller text").click()
     assert page.evaluate("window.patches.at(-1)") == {"font_size": 2, "font_size_unit": "cqw"}
     page.get_by_label("Text", exact=True).fill("Hello")
     assert page.evaluate("window.patches.at(-1)") == {"text": "Hello"}
+    page.get_by_label("Align right", exact=True).click()
+    assert page.evaluate("window.patches.at(-1)") == {"text_align": "right"}
+    page.get_by_label("Font size", exact=True).fill("30")
+    assert page.evaluate("window.patches.at(-1)") == {"font_size": 2.5, "font_size_unit": "cqw"}
     page.get_by_label("Text color").fill("#abcdef")
     page.get_by_label("Text color").fill("#123456")
     assert page.evaluate("window.patches.at(-1)") == {"color": "#123456"}

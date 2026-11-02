@@ -86,3 +86,17 @@ test('rapid edits are acknowledged in order and send waits for the final preview
   assert.equal(await sending,true);
   assert.equal(f.sent[0].edit_intent.values.text,'AB');
 });
+
+test('cancel restores the original displayed size and accepted edits establish the new size',async()=>{
+  const f=fixture();f.editor.inspect({kind:'element',selector:'#title'});
+  f.reply('artifact:inspector',f.messages.at(-1).request_id,{typography:{font_size:2,font_size_unit:'rem',font_size_px:32}});
+  f.editor.preview({font_size:3,font_size_unit:'rem'});
+  f.reply('artifact:inspector',f.messages.at(-1).request_id,{typography:{font_size:3,font_size_unit:'rem',font_size_px:48}});
+  f.editor.cancel();
+  assert.equal(f.inspections.at(-1).typography.font_size_px,32);
+  f.editor.preview({font_size:3,font_size_unit:'rem'});
+  f.reply('artifact:inspector',f.messages.at(-1).request_id,{typography:{font_size:3,font_size_unit:'rem',font_size_px:48}});
+  assert.equal(await f.editor.send(),true);
+  assert.equal(f.inspections.at(-1).typography.font_size_px,48);
+  assert.equal(f.sent[0].edit_intent.values.font_size_px,undefined);
+});

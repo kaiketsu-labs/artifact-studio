@@ -19,12 +19,12 @@
   }
   /** Keep edits local until an acknowledged, revision-anchored feedback submission. */
   function create({getFrame,getArtifact,onInspector,onState,onSend,onError}) {
-    let selection=null,changes={},baseline=null,descriptor=null,inspectId=null,inspectTimer=null,busy=false,sent=false,sequence=0,generation=0,requestId=null;
+    let selection=null,changes={},baseline=null,baselinePixels=null,descriptor=null,inspectId=null,inspectTimer=null,busy=false,sent=false,sequence=0,generation=0,requestId=null;
     const pending=new Map();
     const dirty=()=>Object.keys(changes).length>0 || pending.size>0;
     const state=()=>onState({dirty:dirty(),busy,sent});
     function post(message) {const frame=getFrame();if(!frame?.contentWindow) return false;frame.contentWindow.postMessage(message,'*');return true;}
-    function baselineDescriptor(data) {const {text,...typography}=baseline;return {...data,text,typography:{...data.typography,...typography}};}
+    function baselineDescriptor(data) {const {text,...typography}=baseline;return {...data,text,typography:{...data.typography,...typography,...(baselinePixels?{font_size_px:baselinePixels}:{})}};}
     function settle() {if (!pending.size) for (const resolve of waiters.splice(0)) resolve();}
     const waiters=[];
     function waitPending(){return pending.size?new Promise(resolve=>waiters.push(resolve)):Promise.resolve();}
@@ -34,7 +34,7 @@
       const artifact=getArtifact();
       if(!artifact || typeof artifact.content_hash!=='string' || !artifact.id)return false;
       selection={target:JSON.parse(JSON.stringify(target)),content_hash:artifact.content_hash,revision:artifact.revision,artifact_id:artifact.id};
-      changes={};baseline=null;descriptor=null;sent=false;requestId=null;generation++;
+      changes={};baseline=null;baselinePixels=null;descriptor=null;sent=false;requestId=null;generation++;
       clearTimeout(inspectTimer);inspectId=++sequence;
       if(!post({type:'artifact:inspect',selector:target.selector,request_id:inspectId})){selection=null;inspectId=null;state();return false;}
       const current=inspectId;
@@ -67,6 +67,7 @@
         const typography={};
         for(const key of properties){const value=data.typography[key];if(key!=='text' && ((typeof value==='string' && value.length<=100) || (typeof value==='number' && Number.isFinite(value))))typography[key]=value;}
         baseline={text:data.text,...typography};
+        baselinePixels=Number.isFinite(data.typography.font_size_px) && data.typography.font_size_px>0?data.typography.font_size_px:null;
         selection.target.state=JSON.stringify({typography});
       } else {
         pending.delete(data.request_id);
@@ -95,7 +96,7 @@
         if(!requestId)requestId=root.crypto.randomUUID();
         const body={message:action==='replace_text'?'Replace text.':action==='style'?'Update element style.':'Update element text and style.',request_id:requestId,content_hash:selection.content_hash,target:selection.target,edit_intent:{action,values:{...changes}}};
         await onSend(body);
-        post({type:'artifact:edit-accept'});Object.assign(baseline,changes);changes={};requestId=null;sent=true;
+        post({type:'artifact:edit-accept'});Object.assign(baseline,changes);baselinePixels=descriptor?.typography.font_size_px||baselinePixels;changes={};requestId=null;sent=true;
         if(descriptor)onInspector(baselineDescriptor(descriptor));return true;
       }catch(error){onError(error?.message || 'Could not send the edit.');return false;}
       finally{busy=false;state();}
@@ -105,7 +106,7 @@
       generation++;pending.clear();settle();changes={};requestId=null;sent=false;
       post({type:'artifact:edit-cancel'});if(descriptor && baseline)onInspector(baselineDescriptor(descriptor));state();return true;
     }
-    function reset(){if(!finish())return false;clearTimeout(inspectTimer);inspectId=null;selection=null;baseline=null;descriptor=null;changes={};sent=false;requestId=null;generation++;state();return true;}
+    function reset(){if(!finish())return false;clearTimeout(inspectTimer);inspectId=null;selection=null;baseline=null;baselinePixels=null;descriptor=null;changes={};sent=false;requestId=null;generation++;state();return true;}
     return {inspect,preview,send,cancel,receive,finish,isEditing:dirty,isBusy:()=>busy,reset};
   }
   const api={create,validPatch};

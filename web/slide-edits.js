@@ -83,7 +83,10 @@
     function inspect(){
       if(!properties||!element){properties?.clear();return;}
       const computed=doc.defaultView.getComputedStyle(element),raw=element.style.fontSize||computed.fontSize,match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw),rgb=/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/.exec(computed.color),color=rgb?'#'+rgb.slice(1,4).map(value=>Number(value).toString(16).padStart(2,'0')).join(''):(/^#[0-9a-f]{6}$/i.test(computed.color)?computed.color:'#000000');
-      const typography={font_size:match?Number(match[1]):16,font_size_unit:match?.[2]||'px',font_weight:computed.fontWeight||'normal',font_style:computed.fontStyle||'normal',text_align:['left','center','right','justify'].includes(computed.textAlign)?computed.textAlign:'left',color};
+      // Keep viewport-based slide sizes stable while the editing canvas is resized or zoomed.
+      const unit=match?.[2]||'px',scale=['cqw','vw'].includes(unit)?1280/doc.documentElement.clientWidth:['cqh','vh'].includes(unit)?720/doc.documentElement.clientHeight:1;
+      const pixels=Math.round((Number.parseFloat(computed.fontSize)||16)*scale*1000)/1000;
+      const typography={font_size:match?Number(match[1]):16,font_size_unit:unit,font_size_px:pixels,font_weight:computed.fontWeight||'normal',font_style:computed.fontStyle||'normal',text_align:['left','center','right','justify'].includes(computed.textAlign)?computed.textAlign:'left',color};
       propertyBaseline={text:element.textContent||'',...typography};
       properties.setSelection({label:element.tagName.toLowerCase(),text:propertyBaseline.text,canText:canPropertyText(),typography});
     }
