@@ -25,7 +25,7 @@ test('structured intent is compact and does not duplicate anchored HTML',()=>{
 });
 
 /** Supply the DOM surface used by the editor without changing canonical slide content. */
-function fixture({sendError=false}={}){
+function fixture({sendError=false,properties=null}={}){
   class Control{
     constructor(){this.listeners={};this.dataset={};this.style={};this.attrs=new Map();this.hidden=false;this.children=[];this.classList={toggle(){},add(){}};this.ownerDocument=outer;}
     addEventListener(type,listener){(this.listeners[type]??=[]).push(listener);}
@@ -42,7 +42,7 @@ function fixture({sendError=false}={}){
     getBoundingClientRect(){const match=/translate\(([-.\d]+)px,([-.\d]+)px\)/.exec(this.style.transform||''),rotation=/rotate\(([-.\d]+)deg\)/.exec(this.style.transform||''),angle=Number(rotation?.[1]||0)*Math.PI/180,width=200*Math.abs(Math.cos(angle))+100*Math.abs(Math.sin(angle)),height=200*Math.abs(Math.sin(angle))+100*Math.abs(Math.cos(angle));return {left:100+Number(match?.[1]||0)+(200-width)/2,top:50+Number(match?.[2]||0)+(100-height)/2,width,height};}
   }
   const outer={activeElement:null,createElement:()=>new Control()};
-  const doc={addEventListener(){},querySelector:()=>({getBoundingClientRect:()=>({left:0,top:0,width:800,height:450})}),defaultView:{getComputedStyle:element=>({perspective:'none',transform:element.style.transform||'none'}),DOMMatrixReadOnly:class{constructor(){this.is2D=true;}}}};
+  const doc={addEventListener(){},querySelector:()=>({getBoundingClientRect:()=>({left:0,top:0,width:800,height:450})}),defaultView:{getComputedStyle:element=>({perspective:'none',transform:element.style.transform||'none',fontSize:'16px',fontWeight:'400',fontStyle:'normal',textAlign:'left',color:'rgb(0, 0, 0)'}),DOMMatrixReadOnly:class{constructor(){this.is2D=true;}}}};
   const sandbox={window:{SlideIcons:{svg:()=>''}},document:outer,crypto:{randomUUID:()=>`request-${Math.random()}`},setTimeout};
   vm.runInNewContext(fs.readFileSync(require.resolve('../web/slide-edits.js'),'utf8'),sandbox);
   const controls=Object.fromEntries(['tools','editButton','moveButton','alignButton','alignMenu','commitButton','cancelButton','sentBadge','deleteButton','rotationInput'].map(key=>[key,new Control()]));
@@ -50,7 +50,7 @@ function fixture({sendError=false}={}){
   const element=new Control();Object.assign(element,{namespaceURI:'http://www.w3.org/1999/xhtml',tagName:'P',textContent:'Original',innerText:'Original',innerHTML:'Original'});
   let currentAnchor={deck_id:'deck',slide_id:'slide',content_hash:'original-hash',target:{selector:'p',html:'<p>Original</p>'}},fail=sendError;
   const submissions=[],errors=[];
-  const editor=sandbox.window.SlideEdits.create({...controls,anchor:()=>structuredClone(currentAnchor),onSend:async request=>{submissions.push(request);if(fail){fail=false;throw new Error('offline');}return {event_id:3};},onChange(){},onError:message=>errors.push(message)});
+  const editor=sandbox.window.SlideEdits.create({...controls,properties,anchor:()=>structuredClone(currentAnchor),onSend:async request=>{submissions.push(request);if(fail){fail=false;throw new Error('offline');}return {event_id:3};},onChange(){},onError:message=>errors.push(message)});
   editor.bind(doc);editor.select(element);
   return {editor,controls,element,submissions,errors,changeAnchor:()=>{currentAnchor={...currentAnchor,content_hash:'new-hash'};}};
 }
@@ -113,4 +113,48 @@ test('cancelling a rotation restores the element and numeric control',()=>{
   assert.equal(controls.rotationInput.value,'0');
   assert.equal(editor.isEditing(),false);
   assert.equal(submissions.length,0);
+});
+
+test('property patches stay provisional, retain the original anchor and guard geometry',async()=>{
+  const {editor,controls,element,submissions,changeAnchor}=fixture();
+  editor.previewProperties({text:'Changed',color:'#ff0000',font_size:24,font_size_unit:'px'});
+  assert.equal(editor.isEditing(),true);
+  assert.equal(element.textContent,'Changed');
+  assert.equal(element.style.color,'#ff0000');
+  assert.equal(element.style.fontSize,'24px');
+  controls.moveButton.fire('keydown',{key:'ArrowRight'});
+  assert.equal(element.style.transform,undefined);
+  assert.equal(await editor.finish(),false);
+  changeAnchor();
+  assert.equal(await editor.commit(),true);
+  assert.equal(submissions[0].content_hash,'original-hash');
+  assert.equal(submissions[0].edit_intent.action,'update');
+  assert.equal(JSON.stringify(submissions[0].edit_intent.values),JSON.stringify({text:'Changed',color:'#ff0000',font_size:24,font_size_unit:'px'}));
+});
+
+test('property cancellation restores the original and style-only requests are distinct',async()=>{
+  const {editor,element,submissions}=fixture();
+  editor.previewProperties({color:'#ff0000'});
+  editor.cancel();
+  assert.equal(element.innerHTML,'Original');
+  assert.equal(element.style.color,undefined);
+  editor.previewProperties({font_weight:'bold'});
+  await editor.commit();
+  assert.equal(submissions[0].edit_intent.action,'style');
+});
+
+
+test('reverting property patches restores the original preview and clears the draft',()=>{
+  const properties={setSelection(){},setState(){},clear(){}};
+  const {editor,element}=fixture({properties});
+  editor.previewProperties({text:'Changed'});
+  editor.previewProperties({color:'#ff0000'});
+  editor.previewProperties({font_size:24,font_size_unit:'px'});
+  editor.previewProperties({text:'Original'});
+  editor.previewProperties({color:'#000000'});
+  editor.previewProperties({font_size:16,font_size_unit:'px'});
+  assert.equal(element.innerHTML,'Original');
+  assert.equal(element.style.color,undefined);
+  assert.equal(element.style.fontSize,undefined);
+  assert.equal(editor.isEditing(),false);
 });

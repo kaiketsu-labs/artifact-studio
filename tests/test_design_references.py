@@ -13,12 +13,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.design_references import DesignReferences, ReferenceInput, validate_powerpoint
-from studio.libraries import Libraries
-from studio.models import FileInput
-from studio.projects import ClientState, audience_html, save_project
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.design_references import DesignReferences, ReferenceInput, validate_powerpoint
+from artifact_studio.libraries import Libraries
+from artifact_studio.models import FileInput
+from artifact_studio.projects import ClientState, audience_html, save_project
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design, powerpoint_source
 
 
@@ -328,7 +328,7 @@ def test_remove_excludes_sources_from_context_downloads_and_snapshots(store: Sto
 
 def test_remove_legacy_master_and_clear_old_upload_notices(store: Store) -> None:
     """Existing masters can leave active context without retaining stale inbox instructions."""
-    from studio.models import DesignRequestInput
+    from artifact_studio.models import DesignRequestInput
 
     _ = store.post_design_request(
         DesignRequestInput(

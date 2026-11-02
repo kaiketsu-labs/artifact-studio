@@ -70,7 +70,7 @@
       if(layer){stop();return;}
       if(!available)return;
       const content=interactiveContent();
-      if(content){frame.inert=true;frame.setAttribute('aria-hidden','true');const overlay=document.createElement('div');overlay.className='animation-preview is-interactive';layer=overlay;wrap.append(overlay);wrap.classList.add('is-playing');const mounted=root.SlideStudioInteractive.mount(overlay,content,{mode:'preview',onKey:event=>{if(event.key==='Escape')stop();}});playback={stop:mounted.dispose};mounted.ready.catch(error=>{if(layer===overlay){stop();onError(error.message);}});render();return;}
+      if(content){frame.inert=true;frame.setAttribute('aria-hidden','true');const overlay=document.createElement('div');overlay.className='animation-preview is-interactive';layer=overlay;wrap.append(overlay);wrap.classList.add('is-playing');const mounted=root.ArtifactStudioInteractive.mount(overlay,content,{mode:'preview',onKey:event=>{if(event.key==='Escape')stop();}});playback={stop:mounted.dispose};mounted.ready.catch(error=>{if(layer===overlay){stop();onError(error.message);}});render();return;}
       const slide=frame.contentDocument?.querySelector('.slide');if(!slide)return;
       const token=++epoch,overlay=document.createElement('div'),copy=document.createElement('iframe');
       overlay.className='animation-preview';overlay.inert=true;overlay.setAttribute('aria-hidden','true');overlay.hidden=true;
@@ -82,7 +82,7 @@
           const doc=copy.contentDocument;await doc.fonts.ready;if(epoch!==token)return;
           if(!doc.querySelector('link[rel=stylesheet]')?.sheet?.cssRules.length){fail();return;}
           clearTimeout(timeout);
-          const target=doc.querySelector('.slide'),{BuildAnimations,buildCount}=root.SlideStudioBuilds;
+          const target=doc.querySelector('.slide'),{BuildAnimations,buildCount}=root.ArtifactStudioBuilds;
           const motion=new BuildAnimations(target,{reducedMotion:()=>root.matchMedia('(prefers-reduced-motion: reduce)').matches});
           const css=new CSSPlayback(doc);
           overlay.hidden=false;wrap.classList.add('is-playing');

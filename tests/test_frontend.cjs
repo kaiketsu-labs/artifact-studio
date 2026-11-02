@@ -47,9 +47,9 @@ test('a reload restores targeted feedback with the original slide and revision',
 });
 
 test('corrupt or unavailable storage cannot prevent the workspace from opening',()=>{
-  const local=storage();local.setItem('slide-studio:drafts:v1','invalid JSON');
+  const local=storage();local.setItem('artifact-studio:drafts:v1','invalid JSON');
   assert.equal(create(local).feedback.size,0);
-  local.setItem('slide-studio:drafts:v1',JSON.stringify({version:1,notes:[['x',{notes:4}]],feedback:[['x',{feedback:7}]]}));
+  local.setItem('artifact-studio:drafts:v1',JSON.stringify({version:1,notes:[['x',{notes:4}]],feedback:[['x',{feedback:7}]]}));
   assert.equal(create(local).notes.size,0);assert.equal(create(local).feedback.size,0);
   const unavailable=create({getItem(){throw new Error('Denied');},setItem(){throw new Error('Denied');},removeItem(){throw new Error('Denied');}});
   assert.equal(unavailable.persist(),false);
@@ -83,10 +83,10 @@ test('stale tabs never restore another tabs deleted drafts',()=>{
 
 test('existing drafts migrate once and retain revision and element context',()=>{
   const local=storage(),value={feedback:'Keep me',content_hash:'version-1',target:{selector:'h1',label:'Heading'}};
-  local.setItem('slide-studio:drafts:v1',JSON.stringify({version:1,feedback:[['deck/cover',value]],notes:[]}));
+  local.setItem('artifact-studio:drafts:v1',JSON.stringify({version:1,feedback:[['deck/cover',value]],notes:[]}));
   const migrated=create(local);
   assert.deepEqual(migrated.feedback.get('deck/cover'),value);
-  assert.equal(local.getItem('slide-studio:drafts:v1'),null);
+  assert.equal(local.getItem('artifact-studio:drafts:v1'),null);
   assert.deepEqual(create(local).feedback.get('deck/cover'),value);
   migrated.feedback.delete('deck/cover');migrated.persist();
   assert.equal(create(local).feedback.size,0);

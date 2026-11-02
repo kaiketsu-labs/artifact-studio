@@ -5,9 +5,9 @@ Requires Playwright Chromium. No agent CLI, AI connection or user data is used.
 """
 
 import argparse
+import base64
 import hashlib
 import json
-import re
 import shutil
 import struct
 import tempfile
@@ -15,10 +15,10 @@ from pathlib import Path
 
 from playwright.sync_api import Browser, Page, expect, sync_playwright
 
+from artifact_studio.agent_client import Invocation
+from artifact_studio.models import Deck
+from artifact_studio.visuals import CaptureOptions, Diagnostics, contact_sheet, snapshot
 from scripts.screenshot_fixture import seed
-from studio.agent_client import Invocation
-from studio.models import Deck
-from studio.visuals import CaptureOptions, Diagnostics, contact_sheet, snapshot
 from tests.integration.support import DECK_ID, PROJECT, RunningApp, running_app
 
 
@@ -245,9 +245,10 @@ class Capture:
         expect(page.locator("#presenter-view")).to_be_visible()
         page.locator("#pause-timer").click()
         page.locator("#reset-timer").click()
-        expect(page.locator("#presenter-notes")).to_have_value(
-            re.compile("Start with the brief\\.")
+        workflow = next(
+            slide for slide in self.app.store.read(DECK_ID).slides if slide.id == "workflow"
         )
+        expect(page.locator("#presenter-notes")).to_have_value(workflow.notes)
         self.save("docs/assets/presenter.png", page)
         page.close()
 
@@ -268,7 +269,7 @@ class Capture:
             )
             page.set_content(item.document, wait_until="load")
             diagnostics = Diagnostics.model_validate(
-                page.evaluate("() => window.SlideStudioCaptureReady")
+                page.evaluate("() => window.ArtifactStudioCaptureReady")
             )
             if (
                 diagnostics.failed_images
@@ -282,7 +283,7 @@ class Capture:
         name = "docs/assets/visual-review.png"
         _ = (self.output / name).write_bytes(contact_sheet(images, frames))
         self.images[name] = {
-            "renderer": "studio.visuals.snapshot + Playwright + contact_sheet",
+            "renderer": "artifact_studio.visuals.snapshot + Playwright + contact_sheet",
             "diagnostics": observations,
         }
         print(f"Captured {name}", flush=True)
@@ -343,6 +344,7 @@ class Capture:
         self.notes_and_storage()
         self.references()
         self.visual_review(self.app.store.read(DECK_ID))
+        self.library()
         if self.errors:
             raise RuntimeError(self.errors)
         expected = set(
@@ -375,6 +377,44 @@ class Capture:
         )
         self.context.close()
 
+    def library(self) -> None:
+        """Capture the artifact library and an authored page using fictional project data."""
+        project = self.app.post(
+            "/api/hub/projects", {"title": "Team launch", "context": "A fictional product launch."}
+        )
+        source = """<!doctype html><html><head><meta name="viewport" content="width=device-width">
+<style>body{margin:0;padding:64px;background:#edf2ff;color:#172b4d;font-family:system-ui}
+small{color:#405fd8}h1{font-size:56px;letter-spacing:-2px;max-width:600px;line-height:1.05}
+p{font-size:20px;max-width:480px;line-height:1.6}.cards{display:flex;gap:16px;margin-top:48px}
+.cards div{background:white;border-radius:16px;padding:24px;flex:1}strong{font-size:30px}</style>
+</head><body><small>TEAM LAUNCH</small><h1>Make room for your next idea.</h1>
+<p>One project. A presentation, a page and the supporting material to bring it to life.</p>
+<div class="cards"><div><strong>01</strong><p>Shape the idea</p></div>
+<div><strong>02</strong><p>Review together</p></div><div><strong>03</strong><p>Share the work</p>
+</div></div></body></html>"""
+        artifact = self.app.post(
+            "/api/artifacts/import",
+            {
+                "project_id": project["id"],
+                "title": "Launch page",
+                "entrypoint": "index.html",
+                "files": [
+                    {
+                        "name": "index.html",
+                        "data_base64": base64.b64encode(source.encode()).decode(),
+                    }
+                ],
+            },
+        )
+        self.page.goto(self.app.url + "/", wait_until="networkidle")
+        expect(self.page.get_by_role("heading", name="All artifacts", exact=True)).to_be_visible()
+        self.save("docs/assets/artifact-hub.png")
+        self.page.locator(f'[data-artifact="{artifact["id"]}"]').click()
+        expect(self.page.frame_locator("#hub-html-preview").get_by_role("heading")).to_have_text(
+            "Make room for your next idea."
+        )
+        self.save("docs/assets/artifact-review.png")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -382,7 +422,7 @@ def main() -> None:
         "--output", type=Path, default=PROJECT, help="Root for docs/assets and docs/screenshots"
     )
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory(prefix="slide-studio-docs-") as directory:
+    with tempfile.TemporaryDirectory(prefix="artifact-studio-docs-") as directory:
         root = Path(directory)
         staging = root / "captures"
         with running_app(root, root / "server.log") as app, sync_playwright() as playwright:

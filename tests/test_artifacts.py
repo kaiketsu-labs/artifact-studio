@@ -9,11 +9,11 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from studio import artifacts as artifact_module
-from studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactTarget
-from studio.artifacts import ArtifactStore
-from studio.models import FileInput
-from studio.storage import ConflictError, Store
+from artifact_studio import artifacts as artifact_module
+from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactTarget
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.models import FileInput
+from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
@@ -427,3 +427,31 @@ def test_failed_revision_restores_working_files_and_manifest(
         artifacts.revise_artifact(initial.id, changes, initial.revision, "revision-failure")
         == updated
     )
+
+
+def test_structured_edit_intent_round_trips_with_revision(
+    artifacts: ArtifactStore, tmp_path: Path
+) -> None:
+    """Persist edit proposals with their original target and return them through the feed."""
+    from artifact_studio.models import EditIntent
+
+    project = artifacts.create_project("Project")
+    artifact = artifacts.register_artifact(project.id, "Page", bundle(tmp_path), "index.html")
+    intent = EditIntent(action="replace_text", values={"text": "Updated"})
+    request = ArtifactFeedbackInput(
+        message="Replace text.",
+        request_id="edit-proposal-001",
+        content_hash=artifact.content_hash,
+        target=ArtifactTarget(kind="element", selector="h1"),
+        edit_intent=intent,
+    )
+    saved = artifacts.add_feedback(artifact.id, request)
+    assert saved.edit_intent == intent
+    assert artifacts.add_feedback(artifact.id, request) == saved
+    event = artifacts.feedback_feed(artifact.id).events[0]
+    assert event.edit_intent == intent
+    assert event.target == request.target and event.content_hash == artifact.content_hash
+    old_request = ArtifactFeedbackInput(
+        message="Ordinary feedback", request_id="ordinary-001", content_hash=artifact.content_hash
+    )
+    assert artifacts.add_feedback(artifact.id, old_request).edit_intent is None

@@ -8,7 +8,7 @@ window.SlideProjects={
     ])button($(id),icon,label,show);
     for(const [id,icon,label,detail,format] of [
       ['save-project','save','Save project','Slides, notes & feedback','project'],
-      ['open-project','folder','Open project','.slide-studio.zip','open'],
+      ['open-project','folder','Open project','.artifact-studio.zip','open'],
       ['export-html','code','HTML','Images & animations','html'],
       ['export-pdf','pdf','PDF','Print or save as PDF','pdf']
     ]){
@@ -24,7 +24,7 @@ window.SlideProjects={
     $('close-project').addEventListener('click',()=>dialog.close());
     $('save-project').addEventListener('click',async()=>{
       const deck=read();if(!deck||busy)return;busy=true;update();$('project-error').textContent='';
-      try{const state=await capture();if(read()?.id!==deck.id)throw new Error('The presentation changed. Save the current project again.');const response=await responseData(await fetch(`/api/decks/${encodeURIComponent(deck.id)}/project`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)}));download(await response.blob(),`${deck.id}.slide-studio.zip`);toast('Project saved.');dialog.close();}
+      try{const state=await capture();if(read()?.id!==deck.id)throw new Error('The presentation changed. Save the current project again.');const response=await responseData(await fetch(`/api/decks/${encodeURIComponent(deck.id)}/project`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)}));download(await response.blob(),`${deck.id}.artifact-studio.zip`);toast('Project saved.');dialog.close();}
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();}
     });

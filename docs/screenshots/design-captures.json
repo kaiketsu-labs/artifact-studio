@@ -6,28 +6,64 @@
         "width": 1440,
         "height": 1000
       },
-      "sha256": "a968dca217fffb7eee162ec5198ce7eeb589924c82410fa15dd7e2f47aa2f59e"
+      "sha256": "b2d6cf3cadc87ef6909facf1b25e82eca53e24194fbdcdd2334a843675151632"
+    },
+    "docs/assets/add-design.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "9b3a237594627d8d7fa304c21d2a043227fcb8798963b606b9448cff1e59cf47"
+    },
+    "docs/screenshots/add-design-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "8e4a318248f7c24ce79febe3892ff5826bdb7c2f93812eb5c53b2685e7ff1180"
     },
     "docs/assets/design-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "b5241932eda45db2774a62186bd54d1d506eb95a6eaa319b9aa8e15a2a5cd4a5"
+      "sha256": "c3e720ede808426d71d9db0b6881a9f9d09358a378d9d1970462d6a04c34d2bd"
+    },
+    "docs/screenshots/design-context-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "5318358a603e78dd1a6ae47195146966c3690ef2375caf6ccb94be12bde2d8a4"
+    },
+    "docs/screenshots/design-file-preview.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "51441942b256466f5d71584f4dc4682020826958b3cf066f7c5734dc9c146693"
+    },
+    "docs/screenshots/design-use-agent.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "sha256": "e5a595d7959e78c1064ad61406589256d57a38e4a149b03330f66d5b56002b6f"
     },
     "docs/screenshots/design-context-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "sha256": "6da2d90906a88c6840801049f372b936b6b629f3cdc5cb68a369006eff2bed90"
+      "sha256": "5c447fc2429ee70ad02fc6ec00e77c909f8f8830357ea5724aa7f3dcdc6e0cd4"
     },
     "docs/screenshots/design-pack-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "eb5bea6a303cd61a80a3a0bf071f9bef37a4a9816e2da0ad273b06c11dc127e9"
+      "sha256": "78ae73b6ed25104244d146f72ea8f3e1d3a13770133141797deaba6adb71beaa"
     }
-  }
+  },
+  "native_share": "Simulated native API for the agent message"
 }

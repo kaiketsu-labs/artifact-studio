@@ -9,14 +9,15 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
-from studio.models import AgentContext, Slide, SlidePatch
-from studio.storage import Store, digest
-from studio.visuals import CaptureOptions, VisualResult, capture, snapshot
+from artifact_studio.models import AgentContext, Slide, SlidePatch
+from artifact_studio.storage import Store, digest
+from artifact_studio.visuals import CaptureOptions, VisualResult, capture, snapshot
 from tests.design_factory import TEMPLATE_ID, make_design
 
 DECK = "2026-10-30-visual-check"
 RENDER = pytest.mark.skipif(
-    os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in local Chromium integration"
+    os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1",
+    reason="Opt-in local Chromium integration",
 )
 
 
@@ -153,7 +154,7 @@ def test_real_contact_sheet_pagination_and_inline_mcp(
     store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Include hidden slides, bound overview pages and expose real MCP image blocks."""
-    from studio import app as service
+    from artifact_studio import app as service
 
     first = capture(store, DECK, tmp_path / "captures", limit=1)
     assert first.next_offset == 1
@@ -193,7 +194,7 @@ def test_capture_dependency_budget_and_busy_preparation(
     store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Reject oversized reads and concurrent preparation before entering a browser."""
-    from studio import visuals
+    from artifact_studio import visuals
 
     monkeypatch.setattr(visuals, "MAX_ASSET_BYTES", 1)
     with pytest.raises(ValueError, match="size limit"):
@@ -207,7 +208,7 @@ def test_reduced_motion_and_dependency_change_detection(
     store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Skip motion on request and mark frozen images stale when imported CSS changes."""
-    from studio import visuals
+    from artifact_studio import visuals
 
     reduced = capture(
         store,
@@ -249,7 +250,7 @@ def test_missing_renderer_reports_setup_and_releases_slot(
 
     from playwright.sync_api import Error
 
-    from studio import visuals
+    from artifact_studio import visuals
 
     def missing() -> Never:
         raise Error("Executable doesn't exist")
@@ -266,7 +267,7 @@ def test_repeated_assets_are_bounded_during_embedding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Reject repeated substitutions before joining an oversized expanded document."""
-    from studio import visuals
+    from artifact_studio import visuals
 
     (tmp_path / "small.png").write_bytes(b"x" * 60)
     monkeypatch.setattr(visuals, "MAX_PAGE_BYTES", 200)

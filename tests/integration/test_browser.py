@@ -11,7 +11,7 @@ from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -22,6 +22,12 @@ def open_editor(page: Page, live_app: RunningApp) -> None:
     expect(page.frame_locator("#preview").get_by_role("heading", level=1)).to_have_text(
         "Review together"
     )
+
+
+def open_notes(page: Page) -> None:
+    """Expand editor notes if they are collapsed."""
+    if not page.get_by_label("Speaker notes", exact=True).is_visible():
+        page.locator("#notes-panel summary").click()
 
 
 @pytest.mark.parametrize("selected", [True, False])
@@ -132,6 +138,7 @@ def test_feedback_notes_and_guarded_agent_revision(page: Page, live_app: Running
     feed = live_app.call("read_feedback", deck_id=DECK_ID)
     assert "Make the title clearer." in str(feed["events"])
 
+    open_notes(page)
     expect(page.get_by_label("Speaker notes", exact=True)).to_be_visible()
     page.get_by_label("Speaker notes", exact=True).fill("Human notes preserved by the agent")
     expect(page.locator("#notes-state")).to_have_text("Saved")
@@ -170,7 +177,7 @@ def test_keyboard_navigation_and_recovered_draft(page: Page, live_app: RunningAp
     expect(page.get_by_label("Your feedback", exact=True)).to_have_value("Unsent cover draft")
     assert not live_app.call("read_feedback", deck_id=DECK_ID)["events"]
     page.keyboard.press("F10")
-    expect(page.get_by_role("menu", name="Slide Studio", exact=True)).to_be_visible()
+    expect(page.get_by_role("menu", name="Artifact Studio", exact=True)).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.get_by_role("button", name="Menu", exact=True)).to_be_focused()
 

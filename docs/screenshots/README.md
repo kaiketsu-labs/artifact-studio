@@ -1,6 +1,6 @@
 # Documentation screenshots
 
-All screenshots use the original fictional **Studio Blue** design and **A clearer way to work** presentation. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
+Screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
 
 From the repository root, after the normal development installation:
 
@@ -8,22 +8,29 @@ From the repository root, after the normal development installation:
 uv run playwright install chromium --only-shell
 uv run python -m scripts.capture_screenshots
 uv run python -m scripts.capture_design_library
+uv run python -m scripts.capture_sharing
 ```
 
-The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/slide-studio-docs`.
+The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/artifact-studio-docs`.
 
-The editor screenshot source is [capture_screenshots.py](../../scripts/capture_screenshots.py); the fictional slide content is [screenshot_fixture.py](../../scripts/screenshot_fixture.py). Its generated [capture inventory](captures.json) records 26 editor outputs, pixel sizes, viewports and SHA-256 hashes. Captures use a 1440 × 1000 viewport, light or dark appearance, reduced motion and a fixed browser clock. Chat timestamps come from the temporary server's real clock. The command checks its own inventory before copying the finished set to the destination.
+The editor screenshot source is [capture_screenshots.py](../../scripts/capture_screenshots.py); the fictional slide content is [screenshot_fixture.py](../../scripts/screenshot_fixture.py). Its generated [capture inventory](captures.json) records 28 editor and library outputs, pixel sizes, viewports and SHA-256 hashes. Captures use a 1440 × 1000 viewport, light or dark appearance, reduced motion and a fixed browser clock. Chat timestamps come from the temporary server's real clock. The command checks its own inventory before copying the finished set to the destination.
 
-[capture_design_library.py](../../scripts/capture_design_library.py) captures the dedicated design overview, reference context, mobile context and slide pack context, using isolated fictional Markdown, SVG, CSV and JSON sources. Its [inventory](design-captures.json) records the viewports and hashes. Reference file collections do not contain synthetic slide decks. Existing Artifact Hub captures are maintained separately.
+[capture_design_library.py](../../scripts/capture_design_library.py) captures the dedicated design overview, add dialog, agent handoff and reference context on desktop and mobile, using isolated fictional Markdown, SVG, CSV and JSON sources. Its [inventory](design-captures.json) records the viewports and hashes. Reference file collections do not contain synthetic slide decks. Existing library captures are maintained separately.
 
 | Design library view | Screenshot |
 | --- | --- |
 | File-first overview with add and delete controls | [Overview](../assets/design-library.png) |
-| Context file inventory with add, download and remove controls | [Context](../assets/design-context.png), [mobile](design-context-mobile.png) |
+| Name, reference files and optional description | [Add design](../assets/add-design.png), [mobile](add-design-mobile.png) |
+| Copyable message for the connected agent | [Use with agent](design-use-agent.png) |
+| Context file inventory with add, download and remove controls | [Context](../assets/design-context.png), [dark](design-context-dark.png), [mobile](design-context-mobile.png) |
+| Image and PowerPoint cover previews | [Enlarged cover](design-file-preview.png) |
 | Slide design pack with separate example action | [Pack context](design-pack-context.png) |
+
+[capture_sharing.py](../../scripts/capture_sharing.py) captures the real web Share panel on [desktop](../assets/sharing.png), [mobile](sharing-mobile.png), and with the [download fallback](sharing-fallback.png). Its [inventory](sharing-captures.json) records viewports and hashes. These captures and the design handoff simulate native API availability at the OS boundary; exports, files and web controls are real. They do not show or verify a native app picker. Installed destinations and an actual iPhone/macOS share require device testing.
 
 | Images | Shows |
 | --- | --- |
+| [Library](../assets/artifact-hub.png), [artifact review](../assets/artifact-review.png) | Related artifacts, a project brief and an authored HTML page with its own conversation. |
 | [Workspace](../assets/workspace.png) | Sections, approvals, Markdown chat and expanded speaker notes. |
 | [Element review](../assets/element-review.png) | Selected slide element, contextual controls and a Batch draft. |
 | [Slide chat](../assets/slide-chat.png), [light](chat-sender-icons-light.png), [dark](chat-sender-icons-dark.png) | Wider chat, user/robot icons, a file attachment and a Markdown agent reply. |

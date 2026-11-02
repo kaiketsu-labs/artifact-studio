@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from studio.agent_client import object_value
+from artifact_studio.agent_client import object_value
 from tests.integration.support import RunningApp
 
 pytestmark = [
     pytest.mark.native_clients,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_NATIVE_CLIENT_TESTS") != "1",
+        os.environ.get("ARTIFACT_STUDIO_NATIVE_CLIENT_TESTS") != "1",
         reason="Opt-in native Codex/Claude CLIs",
     ),
 ]
@@ -23,9 +23,9 @@ pytestmark = [
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_native_mcp_configuration(live_app: RunningApp, artifacts: Path, harness: str) -> None:
     """Use official CLI commands with isolated or invocation-local configuration."""
-    selected = os.environ.get("SLIDE_STUDIO_NATIVE_CLIENT", "")
+    selected = os.environ.get("ARTIFACT_STUDIO_NATIVE_CLIENT", "")
     assert selected in {"", "codex", "claude-code"}, (
-        "SLIDE_STUDIO_NATIVE_CLIENT must be codex or claude-code, or unset for both"
+        "ARTIFACT_STUDIO_NATIVE_CLIENT must be codex or claude-code, or unset for both"
     )
     if selected and selected != harness:
         pytest.skip("Other native client runs in its own matrix job")
@@ -66,10 +66,10 @@ def test_native_mcp_configuration(live_app: RunningApp, artifacts: Path, harness
             json.loads(
                 run(
                     "-c",
-                    f'mcp_servers.slide-studio-ci.url="{url}"',
+                    f'mcp_servers.artifact-studio-ci.url="{url}"',
                     "mcp",
                     "get",
-                    "slide-studio-ci",
+                    "artifact-studio-ci",
                     "--json",
                 )
             )
@@ -79,8 +79,8 @@ def test_native_mcp_configuration(live_app: RunningApp, artifacts: Path, harness
         assert transport["type"] == "streamable_http"
         assert transport["url"] == url
     else:
-        _ = run("mcp", "add", "--transport", "http", "--scope", "local", "slide-studio-ci", url)
-        details = run("mcp", "get", "slide-studio-ci")
+        _ = run("mcp", "add", "--transport", "http", "--scope", "local", "artifact-studio-ci", url)
+        details = run("mcp", "get", "artifact-studio-ci")
         _ = (artifacts / "mcp-status.txt").write_text(details)
         assert url in details
         assert "Connected" in details, details

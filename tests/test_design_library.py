@@ -7,13 +7,13 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter
 
-from studio import app as service
-from studio.artifact_context import artifact_context
-from studio.artifacts import ArtifactStore
-from studio.design_library import DesignCreate, DesignDelete, DesignLibrary
-from studio.design_references import ReferenceInput, RemoveReferenceInput
-from studio.models import DesignManifest, FileInput
-from studio.storage import ConflictError, Store
+from artifact_studio import app as service
+from artifact_studio.artifact_context import artifact_context
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.design_library import DesignCreate, DesignDelete, DesignLibrary
+from artifact_studio.design_references import ReferenceInput, RemoveReferenceInput
+from artifact_studio.models import DesignManifest, FileInput
+from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

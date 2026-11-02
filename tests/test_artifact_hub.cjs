@@ -1,7 +1,17 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const marked=require('../web/vendor/marked-18.1.2.js');
-const {filterArtifacts,groupTargets,selectTargets,bundlePath,renderDocument,feedbackTarget,filePath}=require('../web/hub.js');
+const {filterArtifacts,groupTargets,selectTargets,bundlePath,renderDocument,feedbackTarget,filePath,exportFile}=require('../web/hub.js');
+
+test('generated exports accept portable text and reject unsafe paths, formats and payloads',()=>{
+  for(const [name,type] of [['benchmark.html','text/html'],['data.json','application/json'],['results.csv','text/csv']]){
+    assert.deepEqual(exportFile({name,type:type+';charset=utf-8',content:'<literal text>'}),{name,type:type+';charset=utf-8',content:'<literal text>'});
+  }
+  for(const name of ['../data.json','folder/data.json','folder\\data.json','.hidden.json','bad\nname.json','run.js','run.exe','constructor','x.constructor','html']){
+    assert.equal(exportFile({name,type:'application/json',content:'{}'}),null,name);
+  }
+  for(const value of [null,'text',{}, {name:'data.json',type:'text/html',content:'{}'}, {name:'data.json',type:'application/json',content:{secret:true}}, {name:'data.json',type:'application/json',content:'x'.repeat(20*1024*1024+1)}])assert.equal(exportFile(value),null);
+});
 
 test('library combines project, format and case-insensitive search',()=>{
   const items=[

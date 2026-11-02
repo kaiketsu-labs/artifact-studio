@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from studio.copilot_capture import audience_clone
-from studio.copilot_tools import ScopedTools
-from studio.models import AgentContext, SlidePatch
-from studio.storage import Store, digest
+from artifact_studio.copilot_capture import audience_clone
+from artifact_studio.copilot_tools import ScopedTools
+from artifact_studio.models import AgentContext, SlidePatch
+from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 DECK = "2026-11-02-cloud-capture"
 RENDER = pytest.mark.skipif(
-    os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in local Chromium rendering"
+    os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1", reason="Opt-in local Chromium rendering"
 )
 
 

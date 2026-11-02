@@ -17,9 +17,9 @@ test('system appearance applies before paint and follows operating-system change
 });
 test('an explicit choice persists and wins over system changes; other tabs stay in sync',()=>{
   const check=fixture('light',{dark:true});assert.equal(check.doc.documentElement.dataset.theme,'light');
-  check.appearance.choose('dark');assert.deepEqual(check.writes,[['slide-studio:appearance','dark']]);
+  check.appearance.choose('dark');assert.deepEqual(check.writes,[['artifact-studio:appearance','dark']]);
   check.media.matches=false;check.events.media();assert.equal(check.doc.documentElement.dataset.theme,'dark');
-  check.events.storage({key:'slide-studio:appearance',newValue:'light'});assert.equal(check.doc.documentElement.dataset.theme,'light');
+  check.events.storage({key:'artifact-studio:appearance',newValue:'light'});assert.equal(check.doc.documentElement.dataset.theme,'light');
   check.events.storage({key:'unrelated',newValue:'dark'});assert.equal(check.doc.documentElement.dataset.theme,'light');
   check.events.storage({key:null,newValue:null});assert.equal(check.appearance.preference(),'system');
 });

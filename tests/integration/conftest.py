@@ -14,7 +14,7 @@ from tests.integration.support import RunningApp, running_app
 @pytest.fixture
 def artifacts(tmp_path: Path, request: pytest.FixtureRequest) -> Path:
     """Keep screenshots, traces and server logs separate for each test."""
-    root = Path(os.environ.get("SLIDE_STUDIO_ARTIFACTS", str(tmp_path / "artifacts")))
+    root = Path(os.environ.get("ARTIFACT_STUDIO_ARTIFACTS", str(tmp_path / "artifacts")))
     path = root / re.sub(r"[^A-Za-z0-9_-]", "_", request.node.name)
     path.mkdir(parents=True, exist_ok=True)
     return path

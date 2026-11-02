@@ -6,7 +6,7 @@
     let session=null;
     const currentFullscreen=()=>doc.fullscreenElement||doc.webkitFullscreenElement;
     const supported=()=>!!(doc.documentElement.requestFullscreen||doc.documentElement.webkitRequestFullscreen);
-    function notify(){session?.frame.contentWindow?.postMessage({type:'slide-studio:host',action:'fullscreen-state',available:supported(),active:!!currentFullscreen()},view.location.origin);}
+    function notify(){session?.frame.contentWindow?.postMessage({type:'artifact-studio:host',action:'fullscreen-state',available:supported(),active:!!currentFullscreen()},view.location.origin);}
     async function fullscreen(action='enter'){
       const current=session;if(!current)return;
       const active=currentFullscreen();
@@ -29,7 +29,7 @@
       for(const [element,inert] of current.siblings)element.inert=inert;
       current.trigger.focus();onReturn(current.slideId);
     }
-    function end(){if(!session)return;if(session.ready)session.frame.contentWindow?.postMessage({type:'slide-studio:host',action:'end'},view.location.origin);else void close();}
+    function end(){if(!session)return;if(session.ready)session.frame.contentWindow?.postMessage({type:'artifact-studio:host',action:'end'},view.location.origin);else void close();}
     function changed(){
       if(!session)return;
       if(currentFullscreen()===session.layer)session.native=true;
@@ -57,7 +57,7 @@
       frame.addEventListener('load',()=>{if(session?.frame!==frame)return;try{if(frame.contentWindow.location.pathname==='/'&&new URL(frame.contentWindow.location.href).searchParams.has('deck')){void close();return;}}catch{}frame.focus();notify();});
     }
     view.addEventListener('message',event=>{
-      if(!session||event.source!==session.frame.contentWindow||event.origin!==view.location.origin||event.data?.type!=='slide-studio:presentation')return;
+      if(!session||event.source!==session.frame.contentWindow||event.origin!==view.location.origin||event.data?.type!=='artifact-studio:presentation')return;
       const data=event.data;
       if(typeof data.slide_id==='string')session.slideId=data.slide_id;
       if(data.action==='end')void close();

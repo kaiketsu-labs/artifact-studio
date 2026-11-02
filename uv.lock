@@ -814,7 +814,7 @@ wheels = [
 ]
 
 [[package]]
-name = "slide-studio"
+name = "artifact-studio"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -93,7 +93,18 @@
     };
     return new markdown.Marked({renderer,gfm:true,breaks:false}).parse(source,{async:false});
   }
-  const exports = {filterArtifacts,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath,validVoiceSegment,appendVoiceSegment};
+  /** Accept bounded text exports without paths, executable suffixes or caller-owned URLs. */
+  function exportFile(value) {
+    if (!value || typeof value !== 'object') return null;
+    const {name,type,content}=value;
+    if (typeof name !== 'string' || !name.length || name.length > 120 || /[\\/\x00-\x1f\x7f]/.test(name) || name.startsWith('.')) return null;
+    const formats={html:'text/html',json:'application/json',csv:'text/csv',txt:'text/plain'};
+    const extension=/\.([a-z]+)$/i.exec(name)?.[1].toLowerCase();
+    const mime=extension && Object.hasOwn(formats,extension) ? formats[extension] : null;
+    if (!mime || typeof type !== 'string' || type.split(';')[0] !== mime || typeof content !== 'string' || content.length > 20*1024*1024) return null;
+    return {name,type:mime+';charset=utf-8',content};
+  }
+  const exports = {filterArtifacts,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath,exportFile,validVoiceSegment,appendVoiceSegment};
   if (typeof module !== 'undefined' && module.exports) { module.exports=exports; return; }
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
@@ -103,10 +114,35 @@
   const state={designActive:null,projects:[],artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
   const previewUpdates=root.SlidePreviewUpdates.create({onChange:()=>{syncAutoUpdate();if(previewUpdates.enabled)void refresh();}});
   const drafts=new Map(), attachments=new Map(), sending=new Set(),discardedVoiceSegments=new Set();
-  let importFiles=[],toastTimer,refreshing=false,regionStart=null,voiceRecordingBase=null,feedbackVoiceHandle=null;
+  let importFiles=[],toastTimer,refreshing=false,regionStart=null,exportUrl=null,previewImport=null,properties=null,inspectorSelector=null,inspectorRect=null,voiceRecordingBase=null,feedbackVoiceHandle=null;
   const voice=root.SlideVoice.create({onIdle:input=>{if(input?.id==='hub-feedback-text')voiceRecordingBase=null;lockComposer();if(state.newRevision && previewUpdates.enabled)void refresh();}});
+  const workspacePanels=root.WorkspacePanels.create({doc,view:root,storage:root.localStorage,kind:'hub',onViewChange:()=>syncSelection()});
+  const sharing=root.ArtifactSharing.create({doc,view:root});
+  const artifactEditor=root.ArtifactEditor.create({
+    getFrame:()=>doc.getElementById('hub-html-preview'),getArtifact:()=>state.detail,
+    onInspector:data=>{inspectorRect=data.rect;inspectorSelector=data.selector;if(!artifactEditor.isEditing())properties?.setSelection(data);properties?.reposition();},
+    onState:next=>{properties?.setState(next);if(!next.dirty && !next.busy && state.newRevision && previewUpdates.enabled)queueMicrotask(()=>void refresh());},
+    onSend:async body=>{
+      const item=state.detail;
+      await api(artifactPath(item.id,'/feedback'),body);
+      const detail=await api(artifactPath(item.id));
+      if(state.active===item.id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();}
+      toast(item.mode==='batch'?'Added to batch.':'Saved for agent.');
+    },onError:message=>toast(message,true)
+  });
+  root.ProjectFolders.create({content,getArtifacts:()=>state.artifacts,getProjects:()=>state.projects,
+    onMove:async(id,projectId)=>{await api(artifactPath(id,'/project'),{project_id:projectId});await loadRegistry();library();toast('Artifact moved.');},
+    onError:error=>toast(error.message,true)
+  });
+  function resetEditor(){if(!artifactEditor.reset())return false;properties?.clear();inspectorSelector=null;return true;}
+  function syncInspector(){
+    const value=state.detail && draft(),single=value?.targets.length===1 && value.targets[0];
+    if(state.selecting && kindOf(state.detail || {})==='html' && value.content_hash===state.detail.content_hash && single?.kind==='element'){
+      if(inspectorSelector!==single.selector)artifactEditor.inspect(single);
+    }else if(!artifactEditor.isEditing() && !artifactEditor.isBusy()){resetEditor();}
+  }
   try {
-    const saved=JSON.parse(root.localStorage.getItem('artifact-hub:drafts:v1') || '{}');
+    const saved=JSON.parse(root.localStorage.getItem('artifact-studio:artifact-drafts:v1') || '{}');
     for (const [id,value] of Object.entries(saved)) if (value && typeof value.message === 'string') {
       const seen=new Set(),segments=Array.isArray(value.voice_segments)?value.voice_segments.filter(segment=>validVoiceSegment(segment) && !seen.has(segment.request_id) && seen.add(segment.request_id)).slice(0,100):[];
       drafts.set(id,{...value,targets:Array.isArray(value.targets) ? value.targets : [],voice_segments:segments});
@@ -119,10 +155,30 @@
     if (!drafts.has(item.id)) drafts.set(item.id,{message:'',targets:[],revision:item.revision,content_hash:item.content_hash,request_id:null});
     return drafts.get(item.id);
   };
-  const persist=()=>{try{root.localStorage.setItem('artifact-hub:drafts:v1',JSON.stringify(Object.fromEntries([...drafts].filter(([,value])=>value.message || value.targets.length || value.voice_segments?.length))));}catch{}};
+  const persist=()=>{try{root.localStorage.setItem('artifact-studio:artifact-drafts:v1',JSON.stringify(Object.fromEntries([...drafts].filter(([,value])=>value.message || value.targets.length || value.voice_segments?.length))));}catch{}};
   const isAdditive=event=>event.metaKey || event.ctrlKey || event.shiftKey;
   const button=(action,label,name,extra='')=>`<button type="button" data-action="${action}" ${extra}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
   const status=item=>`<span class="hub-status ${item.status || 'draft'}">${icon(item.status==='approved'?'check':item.status==='updated'?'updated':'clock')}${item.status==='approved'?'Approved':item.status==='updated'?'Updated':'To review'}</span>`;
+
+  /** Put Share beside the item it exports, keeping library navigation unchanged. */
+  function mountSharing(cardsOnly=false) {
+    const control=(label,key,id,css='')=>{const node=doc.createElement('button');node.type='button';node.dataset[key]=id;node.className=css;node.innerHTML=icon('share');node.setAttribute('aria-label',label);node.title=label;return node;};
+    for(const card of content.querySelectorAll('.hub-card[data-drag-artifact]'))card.append(control(`Share ${state.artifacts.find(item=>item.id===card.dataset.dragArtifact)?.title || 'artifact'}`,'shareArtifact',card.dataset.dragArtifact,'hub-card-share'));
+    if(cardsOnly)return;
+    const project=selectedProject(state.project);
+    if(!state.active && project){const header=content.querySelector('.hub-heading'),search=header.querySelector('.hub-search'),actions=doc.createElement('div');actions.className='hub-heading-actions';actions.append(control('Share project','shareProject',project.id),search);header.append(actions);}
+    if(state.active){const heading=content.querySelector('.hub-edit-heading'),approve=heading.querySelector('.hub-approve'),actions=doc.createElement('div');actions.className='hub-artifact-actions';actions.append(control('Share artifact','shareArtifact',state.active),approve);heading.append(actions);}
+  }
+  async function shareArtifact(id) {
+    if(id===state.active && !artifactEditor.finish())return;
+    const item=id===state.active?state.detail:state.artifacts.find(item=>item.id===id);
+    if(!item)return;
+    await sharing.open({scope:'artifact',id:item.id,title:item.title,kind:kindOf(item),presentation:!!item.legacy_deck_id,expected_hash:item.content_hash,bundle:fileRecords(item).length>1});
+  }
+  async function shareProject(id) {
+    const item=selectedProject(id),children=state.artifacts.filter(item=>item.project_id===id);
+    if(item)await sharing.open({scope:'project',id,title:item.title,count:children.length,presentation:children.some(item=>item.legacy_deck_id)});
+  }
 
   async function api(path, body) {
     const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
@@ -143,7 +199,7 @@
       const item=state.detail;
       return `<aside class="hub-sidebar" aria-label="Project artifacts">${button('home','Library','grid','class="hub-library-link"')}<label class="hub-project-picker">${icon('folder')}<select id="hub-project-picker" aria-label="Choose project">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><nav class="hub-project-artifacts" aria-label="Related artifacts">${state.artifacts.filter(other=>other.project_id===item.project_id).map(other=>`<button type="button" data-artifact="${escape(other.id)}" aria-current="${other.id===item.id}" title="${escape(other.title)}">${icon(kinds[kindOf(other)].icon)}<span>${escape(other.title)}</span>${other.status==='updated'?`<span class="hub-status updated" title="Updated">${icon('updated')}</span>`:''}</button>`).join('')}</nav></aside>`;
     }
-    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><div class="hub-sidebar-label">Projects${button('new-project','','plus','aria-label="New project" title="New project"')}</div>${state.projects.map(project=>`<button type="button" data-project="${escape(project.id)}" aria-current="${state.project===project.id}" title="${escape(project.title)}">${icon('folder')}<span>${escape(project.title)}</span><span class="hub-count">${state.artifacts.filter(item=>item.project_id===project.id).length}</span></button>`).join('')}</aside>`;
+    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><div class="hub-sidebar-label">Projects${button('new-project','','plus','aria-label="New project" title="New project"')}</div>${state.projects.map(project=>`<button type="button" data-project="${escape(project.id)}" data-project-folder="${escape(project.id)}" aria-current="${state.project===project.id}" title="${escape(project.title)}">${icon('folder')}<span>${escape(project.title)}</span><span class="hub-count">${state.artifacts.filter(item=>item.project_id===project.id).length}</span></button>`).join('')}</aside>`;
   }
   function visibleItems() {
     return state.project==='designs'?filterDesigns(state.designs,state.search):filterArtifacts(state.artifacts,state);
@@ -160,23 +216,24 @@
     return items.map(item=>{
       const kind=kinds[kindOf(item)], preview=item.preview_url || (kindOf(item)==='image'?filePath(item):kindOf(item)==='file'?'':`/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
       const safePreview=typeof preview==='string' && preview.startsWith('/api/') && !preview.startsWith('//')?preview:'';
-      return `<article class="hub-card"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img src="${escape(safePreview)}" alt="" loading="lazy" decoding="async" data-preview-image>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button><button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
+      return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img src="${escape(safePreview)}" alt="" draggable="false" loading="lazy" decoding="async" data-preview-image>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button><button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
     }).join('');
   }
   function library() {
     void voice.stop();
+    properties?.destroy();properties=null;
     const designs=state.project==='designs';
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
     for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
     content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
-    doc.title=`${projectTitle(state.project)} · Artifact Hub`;
+    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();
   }
   function fileList(item) {
     return `<ul class="hub-file-list">${fileRecords(item).map(file=>`<li><a href="${escape(filePath(item,file.path || file.name))}" download>${icon('notes')}<span>${escape(file.path || file.name)}</span></a>${file.size!==undefined?`<small>${sizeLabel(file.size)}</small>`:''}</li>`).join('')}</ul>`;
   }
   function viewer(item) {
     const kind=kindOf(item), sourceView=kind==='markdown' && state.sourceView;
-    if(kind==='html')return `<div class="hub-preview-scroll"><iframe id="hub-html-preview" class="hub-html-frame" title="${escape(item.title)} preview" sandbox="allow-scripts" referrerpolicy="no-referrer" src="${escape(artifactPath(item.id,'/preview'))}?revision=${encodeURIComponent(item.revision)}" style="width:${state.viewport==='fluid'?'100%':state.viewport+'px'}"></iframe></div>`;
+    if(kind==='html')return `<div class="hub-preview-scroll"><iframe id="hub-html-preview" class="hub-html-frame" title="${escape(item.title)} preview" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" src="${escape(artifactPath(item.id,'/preview'))}?revision=${encodeURIComponent(item.revision)}" style="width:${state.viewport==='fluid'?'100%':state.viewport+'px'}"></iframe></div>`;
     if(kind==='markdown')return sourceView?`<pre id="hub-markdown-source" class="hub-source">${escape(state.source)}</pre>`:`<article id="hub-markdown" class="hub-markdown ${state.selecting?'is-selecting':''}">${renderDocument(root.marked,item,state.source)}</article>`;
     if(kind==='image')return `<div class="hub-image-canvas" id="hub-image-canvas"><div class="hub-image-wrap ${state.selecting?'is-selecting':''}" id="hub-image-wrap"><img id="hub-image" src="${escape(filePath(item))}" alt="${escape(item.title)}" draggable="false"><div id="hub-region" class="hub-region" hidden></div></div></div><p id="hub-image-meta" class="hub-image-meta">${escape(item.entrypoint)}</p>`;
     return `<section class="hub-file-view">${icon(kinds[kind].icon)}<h2>${escape(item.entrypoint || item.title)}</h2><p>This file is stored in its original format. A dedicated preview is not available.</p><a class="hub-download hub-primary" href="${escape(filePath(item))}" download>${icon('down')}Download file</a></section>`;
@@ -187,7 +244,7 @@
   function syncAutoUpdate() {const control=doc.getElementById('hub-auto-update');if(control)control.outerHTML=autoUpdateControl();}
   function viewerToolbar(item) {
     const kind=kindOf(item);
-    return `<div class="hub-view-toolbar"><div>${autoUpdateControl()}${['html','markdown','image'].includes(kind)?button('select',state.selecting?'Selecting':'Select','cursor',`aria-pressed="${state.selecting}" title="Select targets · hold ⌘, Ctrl or Shift to add more"`):''}${kind==='markdown'?button('source',state.sourceView?'Preview':'Source',state.sourceView?'eye':'code',`aria-pressed="${state.sourceView}"`):''}</div><div>${kind==='html'?`<label class="sr-only" for="hub-viewport">Preview width</label><select id="hub-viewport" aria-label="Preview width"><option value="fluid" ${state.viewport==='fluid'?'selected':''}>Responsive</option><option value="1280" ${state.viewport==='1280'?'selected':''}>Desktop · 1280</option><option value="768" ${state.viewport==='768'?'selected':''}>Tablet · 768</option><option value="390" ${state.viewport==='390'?'selected':''}>Mobile · 390</option></select>${button('replay','','refresh','aria-label="Reload page preview" title="Reload page preview"')}`:kind==='image'?`${button('zoom-out','','minus','aria-label="Zoom out" title="Zoom out"')}<span id="hub-zoom-label" class="hub-muted">Fit</span>${button('zoom-in','','plus','aria-label="Zoom in" title="Zoom in"')}${button('fit','','fit','aria-label="Fit image" title="Fit image"')}`:''}</div></div>`;
+    return `<div class="hub-view-toolbar"><div>${button('clean-view','View','present','title="View artifact without panels"')}${autoUpdateControl()}${['html','markdown','image'].includes(kind)?button('select',state.selecting?'Selecting':'Select','cursor',`aria-pressed="${state.selecting}" title="Select targets · hold ⌘, Ctrl or Shift to add more"`):''}${kind==='markdown'?button('source',state.sourceView?'Preview':'Source',state.sourceView?'eye':'code',`aria-pressed="${state.sourceView}"`):''}</div><div>${kind==='html'?`<label class="sr-only" for="hub-viewport">Preview width</label><select id="hub-viewport" aria-label="Preview width"><option value="fluid" ${state.viewport==='fluid'?'selected':''}>Responsive</option><option value="1280" ${state.viewport==='1280'?'selected':''}>Desktop · 1280</option><option value="768" ${state.viewport==='768'?'selected':''}>Tablet · 768</option><option value="390" ${state.viewport==='390'?'selected':''}>Mobile · 390</option></select>${button('replay','','refresh','aria-label="Reload page preview" title="Reload page preview"')}`:kind==='image'?`${button('zoom-out','','minus','aria-label="Zoom out" title="Zoom out"')}<span id="hub-zoom-label" class="hub-muted">Fit</span>${button('zoom-in','','plus','aria-label="Zoom in" title="Zoom in"')}${button('fit','','fit','aria-label="Fit image" title="Fit image"')}`:''}</div></div>`;
   }
   function pendingCount(item) {return (item.feedback || []).filter(message=>message.released===false && (message.author || message.role || 'user')==='user').length;}
   function messageMarkup(message,item) {
@@ -197,7 +254,7 @@
       const url=file.download_url;
       return typeof url==='string' && /^\/api\/artifacts\//.test(url)?`<a class="hub-attachment" href="${escape(url)}" download>${icon('attach')}<span>${escape(file.name || file.path)}</span></a>`:`<span class="hub-attachment">${icon('attach')}<span>${escape(file.name || file.path)}</span></span>`;
     }).join('');
-    return `<article class="hub-message ${user?'is-user':''}"><div class="hub-message-head">${icon(user?'user':'robot')}<span>${user?'You':'Agent'}</span>${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Private batch · not released</div>':''}</article>`;
+    return `<article class="hub-message ${user?'is-user':''}"><div class="hub-message-head">${icon(user?'user':'robot')}<span>${user?'You':'Agent'}</span>${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}${root.ElementProperties.summary(message.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Private batch · not released</div>':''}</article>`;
   }
   function chatMarkup(item) {
     const value=draft(item), mode=item.mode || 'batch', count=pendingCount(item), live=item.delivery?.live_available===true;
@@ -210,10 +267,12 @@
   }
   function workspace() {
     void voice.stop();
+    properties?.destroy();
     const item=state.detail;
-    content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
-    doc.title=`${item.title} · Artifact Hub`;
-    bindViewer();syncSelection();bindVoiceFeedback();lockComposer();
+    content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-element-properties" hidden></div><div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
+    doc.title=`${item.title} · Artifact Studio`;
+    properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:()=>artifactEditor.send(),onCancel:()=>artifactEditor.cancel()});
+    inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();
   }
   function renderChat() {
     const node=doc.getElementById('hub-chat');if(!node || !state.detail)return;
@@ -286,17 +345,20 @@
   });
   function syncSelection() {
     if(!state.detail)return;
+    const selectionButton=doc.querySelector('[data-action="select"]');
+    if(selectionButton){selectionButton.setAttribute('aria-pressed',String(state.selecting));selectionButton.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;}
     const value=draft(),targetNode=doc.getElementById('hub-targets');if(targetNode)targetNode.innerHTML=targetsMarkup(value,state.detail);
     const frame=doc.getElementById('hub-html-preview');
     frame?.contentWindow?.postMessage({type:'artifact:select',enabled:state.selecting},'*');
-    frame?.contentWindow?.postMessage({type:'artifact:selection',selectors:value.content_hash===state.detail.content_hash?value.targets.map(target=>target.selector).filter(Boolean):[]},'*');
-    for(const block of doc.querySelectorAll('#hub-markdown [data-target-index]'))block.classList.toggle('hub-selected-block',value.content_hash===state.detail.content_hash && value.targets.some(target=>target.block_index===Number(block.dataset.targetIndex)));
+    const showTargets=!doc.body.classList.contains('workspace-clean-view') && value.content_hash===state.detail.content_hash;
+    frame?.contentWindow?.postMessage({type:'artifact:selection',selectors:showTargets?value.targets.map(target=>target.selector).filter(Boolean):[]},'*');
+    for(const block of doc.querySelectorAll('#hub-markdown [data-target-index]'))block.classList.toggle('hub-selected-block',showTargets && value.targets.some(target=>target.block_index===Number(block.dataset.targetIndex)));
     doc.getElementById('hub-markdown')?.classList.toggle('is-selecting',state.selecting);
     doc.getElementById('hub-image-wrap')?.classList.toggle('is-selecting',state.selecting);
-    renderImageRegions();persist();
+    renderImageRegions();syncInspector();persist();
   }
   function setTarget(target,additive) {
-    if(sending.has(state.active))return;
+    if(sending.has(state.active) || !artifactEditor.finish())return;
     const value=draft();
     if(value.content_hash!==state.detail.content_hash && (value.message || value.targets.length)){toast('Send or clear the earlier-version draft before selecting this version.',true);return;}
     value.content_hash=state.detail.content_hash;value.revision=state.detail.revision;value.targets=selectTargets(value.targets,target,additive);value.request_id=null;syncSelection();voiceBoundary();
@@ -317,7 +379,7 @@
     const wrap=doc.getElementById('hub-image-wrap');if(!wrap || !state.detail)return;
     for(const node of wrap.querySelectorAll('.hub-saved-region'))node.remove();
     if(draft().content_hash!==state.detail.content_hash)return;
-    for(const target of draft().targets.filter(target=>target.kind==='region')){
+    for(const target of draft().targets.filter(target=>target.kind==='region' && !doc.body.classList.contains('workspace-clean-view'))){
       const region=target.region || target,image=doc.getElementById('hub-image'),width=region.image_width || image.naturalWidth,height=region.image_height || image.naturalHeight,node=doc.createElement('div');node.className='hub-region hub-saved-region';node.style.cssText=`left:${region.x*width*state.zoom}px;top:${region.y*height*state.zoom}px;width:${region.width*width*state.zoom}px;height:${region.height*height*state.zoom}px`;wrap.append(node);
     }
   }
@@ -327,6 +389,7 @@
   }
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
+    if(!resetEditor())return;workspacePanels.exitView();
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
@@ -346,12 +409,35 @@
       if(detail.status==='updated')api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).then(()=>{const card=state.artifacts.find(item=>item.id===id);if(card)card.status='draft';if(state.detail===detail){detail.status='draft';const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(detail);}}).catch(()=>{});
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
-  function home(project='all',push=true) {void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
+  function home(project='all',push=true) {if(!resetEditor())return;workspacePanels.exitView();void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
   function modal(title,body,wide=false) {void voice.stop();dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();voice.refresh();}
+  /** Retain the explicit parent export handoff used by authored dashboards. */
+  function exportDialog(file) {
+    exportUrl=URL.createObjectURL(new Blob([file.content],{type:file.type}));
+    modal('Export file',`<p>${escape(state.detail.title)}</p><p class="hub-muted">${escape(file.name)} · ${sizeLabel(new Blob([file.content]).size)}</p><div class="hub-form-actions"><a class="hub-download hub-primary" href="${escape(exportUrl)}" download="${escape(file.name)}">${icon('down')}Download ${escape(file.name)}</a></div>`);
+  }
+  dialog.addEventListener('close',()=>{if(exportUrl){URL.revokeObjectURL(exportUrl);exportUrl=null;}previewImport=null;});
+  /** Let the human choose JSON for the current isolated preview without uploading it. */
+  function previewImportDialog(frame) {
+    previewImport={window:frame.contentWindow,artifact:state.active,revision:state.detail.revision};
+    modal('Import data',`<label class="hub-field"><span>JSON file for ${escape(state.detail.title)}</span><input id="hub-preview-import" type="file" accept=".json,application/json"></label><p id="hub-preview-import-error" role="alert"></p>`);
+  }
+  dialog.addEventListener('change',async event=>{
+    if(event.target.id!=='hub-preview-import')return;
+    const file=event.target.files?.[0],pending=previewImport;if(!file || !pending)return;
+    try{
+      if(file.size>20*1024*1024 || !/\.json$/i.test(file.name))throw new Error('Choose a JSON file smaller than 20 MB.');
+      const content=await file.text(),frame=doc.getElementById('hub-html-preview');
+      if(!dialog.open || previewImport!==pending)return;
+      if(!frame || frame.contentWindow!==pending.window || state.active!==pending.artifact || state.detail.revision!==pending.revision)throw new Error('The preview changed. Open import again in the current version.');
+      pending.window.postMessage({type:'artifact:import-result',content},'*');dialog.close();
+    }catch(error){if(previewImport===pending)doc.getElementById('hub-preview-import-error').textContent=error.message;}
+  });
   const designLibrary=root.SlideDesignLibrary.create({api,icon,escape,sizeLabel,toast,modal,changed:async id=>{
     await loadRegistry();if(id)return openDesign(id,false);home('designs');
   }});
   async function openDesign(id,push=true){
+    if(!resetEditor())return;workspacePanels.exitView();
     void voice.stop();const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
     try{
       const item=await api(`/api/design-library/${encodeURIComponent(id)}`);if(token!==state.loading)return;
@@ -402,7 +488,7 @@
   async function sendFeedback(form) {
     const item=state.detail,value=draft(item),files=attachments.get(item.id) || [];
     if(voice.isActive()){toast('Stop dictation before sending feedback.');return;}
-    if(sending.has(item.id) || !value.message.trim() && !files.length && !value.voice_segments?.some(segment=>segment.message.trim()))return;
+    if(sending.has(item.id) || !artifactEditor.finish() || !value.message.trim() && !files.length && !value.voice_segments?.some(segment=>segment.message.trim()))return;
     sending.add(item.id);
     const controls=[...form.querySelectorAll('button,textarea,input')],error=form.querySelector('[role=alert]');for(const control of controls)control.disabled=true;error.textContent='';
     lockComposer();persist();
@@ -429,6 +515,7 @@
     attachments.set(state.active,selected);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);
   }
   async function action(name,node) {
+    if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
     if(name==='auto-update'){previewUpdates.set(!previewUpdates.enabled);return;}
     if(name==='home')return home();
     if(name==='retry-library'){await loadRegistry();return library();}
@@ -440,14 +527,15 @@
     if(name==='choose-folder')return doc.getElementById('hub-import-folder').click();
     if(name==='move')return moveDialog();
     if(name==='attach')return doc.getElementById('hub-feedback-files').click();
-    if(name==='clear-targets'){draft().targets=[];draft().request_id=null;syncSelection();voiceBoundary();return;}
+    if(name==='clear-targets'){if(!resetEditor())return;draft().targets=[];draft().request_id=null;syncSelection();voiceBoundary();return;}
     if(name==='reload')return openArtifact(state.active,false);
-    if(name==='select'){state.selecting=!state.selecting;node.setAttribute('aria-pressed',String(state.selecting));node.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;syncSelection();return;}
-    if(name==='source'){state.sourceView=!state.sourceView;doc.getElementById('hub-viewer').innerHTML=viewer(state.detail);node.setAttribute('aria-pressed',String(state.sourceView));node.innerHTML=icon(state.sourceView?'eye':'code')+`<span>${state.sourceView?'Preview':'Source'}</span>`;bindViewer();syncSelection();return;}
-    if(name==='replay'){const frame=doc.getElementById('hub-html-preview');frame.src=frame.src;return;}
+    if(name==='select'){if(!resetEditor())return;state.selecting=!state.selecting;node.setAttribute('aria-pressed',String(state.selecting));node.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;syncSelection();return;}
+    if(name==='source'){if(!resetEditor())return;state.sourceView=!state.sourceView;doc.getElementById('hub-viewer').innerHTML=viewer(state.detail);node.setAttribute('aria-pressed',String(state.sourceView));node.innerHTML=icon(state.sourceView?'eye':'code')+`<span>${state.sourceView?'Preview':'Source'}</span>`;bindViewer();syncSelection();return;}
+    if(name==='replay'){if(!resetEditor())return;const frame=doc.getElementById('hub-html-preview');frame.src=frame.src;return;}
     if(name==='fit')return fitImage();
     if(name==='zoom-in' || name==='zoom-out'){state.zoom=Math.max(.05,Math.min(8,state.zoom*(name==='zoom-in'?1.25:.8)));applyZoom();return;}
     if(name==='approve'){
+      if(!artifactEditor.finish())return;
       const item=state.detail;node.disabled=true;
       try{await api(artifactPath(item.id,'/approve'),{content_hash:item.content_hash});item.status='approved';item.approved=true;const card=state.artifacts.find(card=>card.id===item.id);if(card)card.status='approved';node.innerHTML=icon('check')+'<span>Approved</span>';node.classList.add('is-approved');const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(item);toast(`Approved version ${item.revision}.`);}catch(error){node.disabled=false;throw error;}return;
     }
@@ -478,17 +566,19 @@
       if(node.dataset.action)return action(node.dataset.action,node);
       if(node.dataset.openDesign)return openDesign(node.dataset.openDesign);
       if(node.dataset.artifact)return openArtifact(node.dataset.artifact);
+      if(node.dataset.shareArtifact)return shareArtifact(node.dataset.shareArtifact);
+      if(node.dataset.shareProject)return shareProject(node.dataset.shareProject);
       if(node.dataset.moveArtifact)return moveDialog(node.dataset.moveArtifact);
       if(node.dataset.project)return home(node.dataset.project);
       if(node.dataset.kind){state.kind=node.dataset.kind;library();return;}
-      if(node.dataset.removeTarget!==undefined){draft().targets.splice(Number(node.dataset.removeTarget),1);draft().request_id=null;syncSelection();voiceBoundary();return;}
+      if(node.dataset.removeTarget!==undefined){if(!resetEditor())return;draft().targets.splice(Number(node.dataset.removeTarget),1);draft().request_id=null;syncSelection();voiceBoundary();return;}
       if(node.dataset.removeVoiceSegment!==undefined){if(sending.has(state.active))return;discardedVoiceSegments.add(node.dataset.removeVoiceSegment);draft().voice_segments=(draft().voice_segments || []).filter(segment=>(segment.id || segment.request_id)!==node.dataset.removeVoiceSegment);persist();renderVoiceSegments();voiceBoundary();return;}
       if(node.dataset.removeFile!==undefined){attachments.get(state.active)?.splice(Number(node.dataset.removeFile),1);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);return;}
       if(node.dataset.mode){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/mode'),{mode:node.dataset.mode});const detail=await api(artifactPath(id));if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();}}finally{node.disabled=false;}}
     };run().catch(error=>toast(error.message,true));
   });
   doc.addEventListener('input',event=>{
-    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();}
+    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);}
     if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
     if(event.target.dataset.hubVoiceSegment){const segment=draft().voice_segments?.find(segment=>(segment.id || segment.request_id)===event.target.dataset.hubVoiceSegment);if(segment){segment.id ||= segment.request_id;segment.message=event.target.value;segment.request_id=root.crypto.randomUUID();persist();}}
   });
@@ -546,14 +636,25 @@
   content.addEventListener('paste',event=>{if(event.target.id==='hub-feedback-text' && event.clipboardData?.files.length){if(!event.clipboardData.getData('text/plain'))event.preventDefault();addAttachments([...event.clipboardData.files]);}});
   root.addEventListener('message',event=>{
     const frame=doc.getElementById('hub-html-preview');if(!frame || event.source!==frame.contentWindow || event.origin!=='null' || !event.data || typeof event.data!=='object')return;
-    if(event.data.type==='artifact:height' && Number.isFinite(event.data.height))frame.style.height=`${Math.min(30000,Math.max(500,event.data.height))}px`;
+    artifactEditor.receive(event);
+    if(event.data.type==='artifact:geometry' && event.data.selector===inspectorSelector){inspectorRect=event.data.rect;properties?.reposition();}
+    if(event.data.type==='artifact:escape')workspacePanels.exitView();
+    if(event.data.type==='artifact:import' && !state.selecting && !dialog.open)previewImportDialog(frame);
+    if(event.data.type==='artifact:export'){
+      const file=exportFile(event.data.file);
+      const message=state.selecting?'Finish selecting before exporting.':dialog.open?'Close the Studio dialog and try exporting again.':!file?'Export rejected: use a supported text format and filename with at most 20 Mi characters.':'';
+      if(!message)exportDialog(file);
+      frame.contentWindow.postMessage({type:'artifact:export-result',ok:!message,message},'*');
+    }
+    if(event.data.type==='artifact:height' && Number.isFinite(event.data.height))frame.style.height=`${Math.min(30000,Math.max(500,event.data.height+frame.offsetHeight-frame.clientHeight))}px`;
     if(event.data.type==='artifact:target' && state.selecting){const target=event.data.target;if(target && target.kind==='element' && typeof target.selector==='string' && target.selector.length<=2000)setTarget({kind:'element',selector:target.selector,label:String(target.label || target.quote || target.selector).slice(0,200),quote:String(target.quote || '').slice(0,2000),...(target.viewport && Number.isFinite(target.viewport.width) && Number.isFinite(target.viewport.height)?{viewport:{width:target.viewport.width,height:target.viewport.height}}:{})},event.data.additive===true);}
   });
+  root.addEventListener('beforeunload',event=>{if(artifactEditor.isEditing() || artifactEditor.isBusy()){event.preventDefault();event.returnValue='';}});
   root.addEventListener('popstate',()=>{const query=new URL(root.location.href).searchParams,id=query.get('artifact');query.get('design')?openDesign(query.get('design'),false):id?openArtifact(id,false):home(query.get('view')==='designs'?'designs':'all',false);});
   root.addEventListener('resize',()=>{if(state.detail && kindOf(state.detail)==='image')renderImageRegions();});
   root.addEventListener('beforeunload',event=>{if(voice.isActive() || [...drafts.values()].some(value=>value.message.trim() || value.voice_segments?.length)){event.preventDefault();event.returnValue='';}});
   function artifactPreviewBusy() {
-    return voice.isActive() || !!regionStart || sending.has(state.active) || !!doc.activeElement?.closest('#hub-viewer') && (doc.activeElement.tagName==='IFRAME' || doc.activeElement.matches('input,textarea,select,[contenteditable]'));
+    return voice.isActive() || artifactEditor.isEditing() || artifactEditor.isBusy() || doc.body.classList.contains('workspace-clean-view') || !!regionStart || sending.has(state.active) || !!doc.activeElement?.closest('#hub-viewer') && (doc.activeElement.tagName==='IFRAME' || doc.activeElement.matches('input,textarea,select,[contenteditable]'));
   }
   /** Apply a new preview while retaining draft anchors, attachment choices and typing focus. */
   async function applyArtifactUpdate(detail) {
@@ -563,6 +664,7 @@
     if(state.active!==id || state.loading!==token || !previewUpdates.enabled || artifactPreviewBusy())return false;
     const focused=doc.activeElement,focusId=focused?.id,selection=focusId==='hub-feedback-text'?[focused.selectionStart,focused.selectionEnd]:null,thread=doc.getElementById('hub-thread'),scroll=thread?.scrollTop;
     const value=draft();
+    if(!resetEditor())return false;
     state.detail=detail;state.source=source;state.newRevision=null;
     if(!value.message && !value.targets.length && !(attachments.get(id)||[]).length){value.content_hash=detail.content_hash;value.revision=detail.revision;}
     workspace();
@@ -602,6 +704,8 @@
       }
     }catch{}finally{refreshing=false;}
   }
+  const libraryControls=root.SlideLibraries.init({api,toast,escape,currentDeck:()=>null});
+  if(new URL(root.location.href).searchParams.get('settings')==='backup')void libraryControls.open();
   headerIcons();
   loadRegistry().then(()=>{const query=new URL(root.location.href).searchParams;const id=query.get('artifact');const project=query.get('project');if(state.projects.some(item=>item.id===project))state.project=project;if(query.get('view')==='designs')state.project='designs';return query.get('design')?openDesign(query.get('design'),false):id?openArtifact(id,false):library();}).catch(error=>{content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;toast(error.message,true);});
   setInterval(refresh,12000);

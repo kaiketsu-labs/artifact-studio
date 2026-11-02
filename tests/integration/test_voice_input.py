@@ -8,11 +8,11 @@ from zipfile import ZipFile
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from studio.agent_client import object_value
-from studio.models import ElementGroupTarget, ElementTarget
-from studio.projects import ProjectBundle
+from artifact_studio.agent_client import object_value
+from artifact_studio.models import ElementGroupTarget, ElementTarget
+from artifact_studio.projects import ProjectBundle
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp
-from tests.integration.test_browser import open_editor
+from tests.integration.test_browser import open_editor, open_notes
 from tests.integration.test_questions import ask
 from tests.integration.voice_support import (
     install_voice,
@@ -25,7 +25,7 @@ from tests.integration.voice_support import (
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -282,6 +282,7 @@ def test_cancel_recording_preserves_typed_text_and_earlier_dictation(
     field.fill("Keep the typed draft.")
     page.locator(FEEDBACK_MIC).click()
     voice_result(page, "Keep the earlier dictation.")
+    open_notes(page)
     notes = page.get_by_label("Speaker notes", exact=True)
     notes.evaluate(
         "element => element.setSelectionRange(element.value.length,element.value.length)"
@@ -428,6 +429,7 @@ def test_generic_dictation_preserves_caret_and_dynamic_question_fields(
     voice_end(page)
     expect(brief).to_have_value("Brief from dictation.")
     page.locator("#close-new").click()
+    open_notes(page)
     notes = page.get_by_label("Speaker notes", exact=True)
     notes.evaluate(
         "element => element.setSelectionRange(element.value.length,element.value.length)"

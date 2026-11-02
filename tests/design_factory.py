@@ -6,13 +6,13 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from studio.models import Deck, DesignManifest, Slide, Source
+from artifact_studio.models import Deck, DesignManifest, Slide, Source
 
 TEMPLATE_ID = "2026-10-28-test-design"
 PROJECT = Path(__file__).resolve().parents[1]
 
 
-def powerpoint_source(label: str = "Fictional master") -> bytes:
+def powerpoint_source(label: str = "Fictional master", *, thumbnail: bytes | None = None) -> bytes:
     """Generate a tiny Office reference container without proprietary source material."""
     output = io.BytesIO()
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:
@@ -40,6 +40,8 @@ def powerpoint_source(label: str = "Fictional master") -> bytes:
             '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>',
         )
         archive.writestr("docProps/source.txt", escape(label))
+        if thumbnail is not None:
+            archive.writestr("docProps/thumbnail.png", thumbnail)
     return output.getvalue()
 
 

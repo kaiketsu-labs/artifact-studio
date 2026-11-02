@@ -1,6 +1,6 @@
 # Microsoft 365 Copilot
 
-Use a **Copilot Studio agent** with Slide Studio's separate, authenticated MCP gateway. The ordinary editor stays at `http://127.0.0.1:8790`; never expose that port or its unrestricted local MCP endpoint through a tunnel.
+Use a **Copilot Studio agent** with Artifact Studio's separate, authenticated MCP gateway. The ordinary editor stays at `http://127.0.0.1:8790`; never expose that port or its unrestricted local MCP endpoint through a tunnel.
 
 You can chat with the configured agent in the Microsoft 365 Copilot desktop app, including on Mac. Copilot Studio is the setup surface: add the MCP connection there, test it, then make the agent available to yourself through the Microsoft 365 channel. Signing into the desktop app does not necessarily sign into Copilot Studio in a separate browser.
 
@@ -20,7 +20,7 @@ Create a private key outside the collection:
 
 ```sh
 mkdir -p .state/copilot
-uv run python -m studio.copilot init-key --key-file .state/copilot/key
+uv run python -m artifact_studio.copilot init-key --key-file .state/copilot/key
 ```
 
 The key is generated with 256 bits of randomness, saved with owner-only permissions and never printed. Existing keys are not overwritten. Do not commit the key, paste it into agent chats, or put it in a URL.
@@ -28,7 +28,7 @@ The key is generated with 256 bits of randomness, saved with owner-only permissi
 Start the gateway with explicit paths and the selected project ID:
 
 ```sh
-uv run python -m studio.copilot serve \
+uv run python -m artifact_studio.copilot serve \
   --collection /absolute/path/to/collection \
   --database /absolute/path/to/review.sqlite3 \
   --key-file .state/copilot/key \
@@ -59,12 +59,12 @@ In **Tools → Add a tool → New tool → Model Context Protocol**, enter:
 
 | Field | Value |
 | --- | --- |
-| Name | Slide Studio |
-| Description | Create and revise the artifacts in the connected Slide Studio scope; read released feedback and visually review changes. |
+| Name | Artifact Studio |
+| Description | Create and revise the artifacts in the connected Artifact Studio scope; read released feedback and visually review changes. |
 | Server URL | `https://your-gateway.example.com/mcp` |
 | Authentication | API key |
 | Key type | Header |
-| Header name | `X-Slide-Studio-Key` |
+| Header name | `X-Artifact-Studio-Key` |
 
 Create the connection and enter the private key in Microsoft's credential field. It is a credential, not an agent instruction. Check the discovered tools. Do not treat a saved URL or a successful HTTP health check as proof that Copilot can call them.
 
@@ -89,9 +89,9 @@ Slide captures use the trusted viewer with `theme.css` and regular files under `
 
 Use fictional content and a concrete request, for example:
 
-> Read the connected Slide Studio context and find the Copilot connection test artifact. Change its headline to “Hello from Microsoft 365”, keeping the rest intact. Read back the saved version and visually inspect it. Reply briefly inside Slide Studio.
+> Read the connected Artifact Studio context and find the Copilot connection test artifact. Change its headline to “Hello from Microsoft 365”, keeping the rest intact. Read back the saved version and visually inspect it. Reply briefly inside Artifact Studio.
 
-Check the actual Copilot activity trace, MCP tool result, saved artifact revision and Slide Studio preview. Then submit a comment in Slide Studio and ask Copilot to read and address the new released feedback. A withheld Batch comment must stay unavailable until released. Confirm that unrelated projects and unauthenticated requests are rejected.
+Check the actual Copilot activity trace, MCP tool result, saved artifact revision and Artifact Studio preview. Then submit a comment in Artifact Studio and ask Copilot to read and address the new released feedback. A withheld Batch comment must stay unavailable until released. Confirm that unrelated projects and unauthenticated requests are rejected.
 
 Record server, transport, Copilot invocation, source readback and visual checks separately. If sign-in, licensing, connector policy or capture support prevents a check, report that specific gap; local tests do not establish Microsoft acceptance.
 

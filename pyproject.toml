@@ -1,7 +1,7 @@
 [project]
-name = "slide-studio"
+name = "artifact-studio"
 version = "0.1.0"
-description = "Local slide review workspace with stateless MCP tools."
+description = "Local artifact workspace for agents and human review through stateless MCP."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115,<1",
@@ -15,12 +15,12 @@ dependencies = [
 dev = ["basedpyright>=1.28", "ruff>=0.11", "pytest>=8.3", "httpx>=0.28"]
 
 [tool.fastapi]
-entrypoint = "studio.app:app"
+entrypoint = "artifact_studio.app:app"
 
 [tool.basedpyright]
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
-include = ["studio", "tests"]
+include = ["artifact_studio", "tests"]
 venvPath = "."
 venv = ".venv"
 

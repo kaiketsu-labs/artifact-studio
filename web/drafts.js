@@ -7,7 +7,7 @@
   const validNotes=value=>value&&typeof value==='object'&&(value.notes===undefined||typeof value.notes==='string')&&(value.expected_notes===undefined||typeof value.expected_notes==='string');
   const validFeedback=value=>value&&typeof value.feedback==='string'&&(!value.target||validTarget(value.target))&&(value.voice_segments===undefined||validSegments(value.voice_segments));
   /** Recover drafts without allowing corrupt browser storage to prevent startup. */
-  function create(storage,key='slide-studio:drafts:v1'){
+  function create(storage,key='artifact-studio:drafts:v1'){
     const prefix=key.replace(/:v1$/,':v2')+':';
     const notes=new Map(),feedback=new Map();
     const groups={notes,feedback},validators={notes:validNotes,feedback:validFeedback};

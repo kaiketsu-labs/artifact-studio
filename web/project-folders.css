@@ -1,0 +1,4 @@
+/* The folder remains recognisable while providing a clear drop target. */
+.hub-card[data-drag-artifact]{cursor:grab}
+.hub-card.is-dragging{opacity:.5;cursor:grabbing}
+.hub-sidebar [data-project-folder].is-drop-target{background:var(--hub-soft);color:var(--hub-blue);outline:2px solid var(--hub-blue);outline-offset:-2px}

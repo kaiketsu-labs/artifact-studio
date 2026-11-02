@@ -1,0 +1,113 @@
+/* The slide stays central; utility controls and conversations share a quiet shell. */
+body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
+.topbar{gap:8px;padding-inline:18px}
+.topbar .identity{margin-right:18px;font-size:15px;letter-spacing:-.3px}
+.topbar .studio-icon img{width:28px;height:28px}
+.topbar .top-actions{gap:6px}
+.topbar .top-actions>.quiet{border-color:transparent;background:transparent}
+.topbar .workspace-panel-toggle{position:relative;inset:auto;flex:none;width:34px;height:34px;padding:7px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--subtle);transition:background .12s,border-color .12s,color .12s}
+.topbar .workspace-panel-toggle:hover{background:var(--hover,#eef1f6);color:var(--ink,#25324a)}
+.topbar .workspace-panel-toggle[aria-expanded=true]{background:color-mix(in srgb,var(--blue),transparent 90%);border-color:color-mix(in srgb,var(--blue),transparent 78%);color:var(--link,#3456a7)}
+.topbar .workspace-panel-toggle:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+.topbar .workspace-panel-toggle .ui-icon{width:18px;height:18px}
+.topbar .workspace-panel-toggle.panel-right{margin-left:10px}
+.topbar .workspace-panel-toggle.panel-right::before{content:'';position:absolute;left:-9px;top:8px;bottom:8px;width:1px;background:var(--line);pointer-events:none}
+.workspace{--chat-rail-width:176px;--chat-canvas-min:400px;--chat-default-width:320px;height:calc(100dvh - 96px)}
+.workspace:not(.is-sorter){grid-template-columns:min(var(--chat-rail-width),26vw) minmax(0,1fr) 8px var(--chat-width,var(--chat-default-width))}
+.workspace.panels-right-closed:not(.is-sorter){grid-template-columns:min(var(--chat-rail-width),26vw) minmax(0,1fr) 0 0}
+.workspace:not(.is-sorter)>.rail{position:relative;grid-row:1;height:auto;min-height:0;background:var(--surface,#fafbfc)}
+.rail-heading{padding:10px 12px 12px}
+.artifact-library-back{margin:10px 8px 4px;padding:8px;font-size:11px}
+.deck-picker-row{margin-bottom:10px;gap:3px;padding:0}
+.deck-picker-trigger{background:transparent;border:0;padding:5px 2px;line-height:1.4}
+.rail nav{padding:0 10px 12px;scroll-padding:12px}
+.progress-label{align-items:center;flex-wrap:wrap;gap:6px}
+.progress-track{margin-top:9px;height:2px}
+.rail-foot{padding:10px 4px;font-size:9px;gap:4px}
+.workspace:not(.is-sorter)>.rail>.rail-foot{display:none}
+.slide-thumb{padding:5px;margin-bottom:10px;border-radius:6px}
+.slide-thumb.is-selected[aria-current=true]{box-shadow:inset 0 0 0 1px var(--blue);border-color:var(--blue)}
+.slide-thumb[aria-current=true]::before{display:none}
+.thumb-caption{margin:6px 1px 1px;font-size:10px;line-height:1.3}
+.slide-visibility{opacity:0;pointer-events:none;transition:opacity .12s}
+.slide-entry:hover>.slide-visibility,.slide-entry:focus-within>.slide-visibility,.slide-entry:has(.is-hidden)>.slide-visibility{opacity:1;pointer-events:auto}
+@media(hover:none){.slide-visibility{opacity:1;pointer-events:auto}}
+.canvas-area{padding:16px 22px 28px;overflow:auto;min-height:0;scrollbar-width:thin}
+.workspace:not(.is-sorter)>.canvas-area{grid-column:2}
+.canvas-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;min-height:36px}
+.canvas-header .slide-heading{flex:1;min-width:0;gap:8px;margin:0;display:contents}
+.canvas-header .slide-label{flex:1;min-width:0;display:block;order:0}
+.canvas-header .slide-heading h1{max-width:none;font-size:13px;font-weight:600;letter-spacing:-.1px}
+.canvas-header .slide-heading-actions{order:2;gap:3px;padding-left:8px;border-left:1px solid var(--line)}
+.canvas-header .canvas-tools{order:1;flex:none;margin:0;gap:2px;min-height:32px}
+.canvas-header .object-tools,.canvas-header .preview-controls{gap:2px}
+.canvas-header button{border-radius:6px}
+.canvas-header .canvas-tools button,.canvas-header #hide-slide{width:30px!important;min-height:30px!important;padding:6px!important}
+.canvas-header .canvas-tools button:hover,.canvas-header #hide-slide:hover{background:var(--hover,#e8edf5)}
+.canvas-header #auto-update-preview{margin:0;background:transparent}
+.canvas-header #auto-update-preview[aria-pressed=true]{color:var(--link,#3456a7);background:var(--selected,#e9eef9)}
+.canvas-header #play-animations{margin:0}
+.canvas-header .approve{height:30px;padding:5px 8px;font-size:11px;gap:4px;background:var(--surface,#fff)}
+.canvas-header .approve .ui-icon{width:15px;height:15px}
+.preview-wrap{box-shadow:0 3px 14px #172c4110;border-color:#d8dfe8}
+.notes-panel{margin-top:16px}
+.notes-panel,.sources-panel{font-size:11px}
+.notes-panel>summary,.sources-panel>summary{padding:12px 2px;gap:8px}
+.notes-panel:not([open]) #notes-state[data-phase=saved]{visibility:hidden}
+.notes-panel textarea{min-height:80px;height:88px;padding:10px 12px;line-height:1.55;border-radius:7px}
+.view-toolbar{padding:0 12px;background:var(--surface,#fff)}
+.view-navigation{display:flex;align-items:center;gap:6px;min-width:0}
+.view-navigation button{display:grid;place-items:center;width:28px;min-height:28px;padding:5px;border:0;background:transparent;color:var(--subtle)}
+.view-navigation .ui-icon{width:15px;height:15px}
+#view-status{min-width:44px;text-align:center;font-variant-numeric:tabular-nums}
+.view-controls .ui-icon{width:17px;height:17px}
+.workspace.is-empty .canvas-area{grid-column:2/-1}
+.workspace.is-empty .canvas-header{display:block}
+.workspace.is-empty .view-navigation button{visibility:hidden}
+:root[data-theme=dark] body:has(>.workspace){background:#1a1d23}
+:root[data-theme=dark] .workspace>.rail{background:#22262e}
+:root[data-theme=dark] .discussion .agent-panel{background:transparent;border-color:var(--line)}
+:root[data-theme=dark] .topbar .top-actions>.quiet,:root[data-theme=dark] .deck-picker-trigger{background:transparent}
+@media(min-width:1600px){.workspace{--chat-rail-width:208px;--chat-canvas-min:500px;--chat-default-width:350px}.canvas-area{padding:20px 36px 30px}}
+@media(max-width:1050px){
+  .workspace{--chat-rail-width:156px}
+  .workspace:not(.is-sorter),.workspace.panels-right-closed:not(.is-sorter){height:calc(100dvh - 96px);padding-bottom:0;grid-template-columns:min(var(--chat-rail-width),26vw) minmax(0,1fr)}
+  .workspace:not(.is-sorter)>.rail{height:auto;grid-row:1}
+  .workspace>.chat-resizer{display:none}
+  .workspace:not(.is-sorter)>.discussion{position:fixed;inset:58px 0 38px auto;z-index:50;width:min(360px,calc(100vw - 12px));height:auto;min-height:0;grid-column:auto;border:0;border-left:1px solid var(--line);box-shadow:-14px 0 40px #13243c20;overflow:hidden}
+  .workspace:not(.is-sorter).panels-right-closed>.discussion{display:none}
+  .canvas-area{padding:16px 20px 24px;overflow:auto}
+  .thumb-title{display:block}
+  .rail-heading{padding:8px 10px 12px}
+  .rail nav{padding-inline:8px}
+  .workspace-panel-resize.panel-left{display:block}
+}
+@media(max-width:600px){
+  .topbar{padding-inline:10px;gap:3px}
+  .topbar .identity{margin-right:6px}
+  .topbar .identity-name{display:none}
+  .topbar .workspace-panel-toggle{width:44px;height:44px;padding:11px}
+  .topbar .workspace-panel-toggle.panel-right{margin-left:6px}
+  .topbar .top-actions{gap:2px}
+  .topbar .top-actions>.quiet{width:32px;padding:6px}
+  .workspace:not(.is-sorter),.workspace.panels-right-closed:not(.is-sorter){grid-template-columns:0 minmax(0,1fr)}
+  .workspace:not(.is-sorter)>.rail{position:fixed;z-index:49;inset:58px auto 38px 0;width:min(224px,80vw);height:auto;box-shadow:12px 0 32px #13243c20}
+  .workspace:not(.is-sorter).panels-left-closed>.rail{display:none}
+  .workspace-panel-resize.panel-left{display:none}
+  .canvas-area{padding:12px 12px 20px}
+  .canvas-header{flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .canvas-header .slide-label{flex-basis:100%;padding:3px 0 4px}
+  .canvas-header .slide-heading-actions{margin-left:auto}
+  .canvas-header .canvas-tools button,.canvas-header #hide-slide{width:34px!important;min-height:34px!important}
+  .canvas-header .approve{height:34px}
+  .view-toolbar{padding-inline:5px}
+  .view-navigation{gap:1px;flex:none}
+  .view-switch{padding-right:3px;margin-right:0}
+  #view-zoom{display:none}
+  .view-controls{gap:1px;flex:none}
+  .view-controls button{width:26px}
+  #zoom-value{min-width:34px;font-size:11px}
+}
+@media(pointer:coarse){
+  .topbar .workspace-panel-toggle{width:44px;height:44px;padding:11px}
+}

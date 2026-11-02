@@ -7,14 +7,14 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from studio.artifacts import ArtifactStore
+from artifact_studio.artifacts import ArtifactStore
 from tests.integration.support import RunningApp
 from tests.integration.voice_support import install_voice, voice_end, voice_result
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -136,7 +136,7 @@ def test_hub_lost_second_response_retains_original_retry_id_without_resending_pr
     page.get_by_role("button", name="Stop recording", exact=True).click()
     voice_end(page, session=1)
     original_ids = page.evaluate(
-        "id => JSON.parse(localStorage.getItem('artifact-hub:drafts:v1'))[id]"
+        "id => JSON.parse(localStorage.getItem('artifact-studio:artifact-drafts:v1'))[id]"
         ".voice_segments.map(segment => segment.request_id)",
         artifact_id,
     )
@@ -154,7 +154,7 @@ def test_hub_lost_second_response_retains_original_retry_id_without_resending_pr
     expect(page.locator("#hub-feedback-error")).to_contain_text("response lost")
     expect(page.locator("textarea[data-hub-voice-segment]")).to_have_count(1)
     retained = page.evaluate(
-        "id => JSON.parse(localStorage.getItem('artifact-hub:drafts:v1'))[id]"
+        "id => JSON.parse(localStorage.getItem('artifact-studio:artifact-drafts:v1'))[id]"
         ".voice_segments.map(segment => segment.request_id)",
         artifact_id,
     )

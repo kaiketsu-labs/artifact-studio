@@ -1,6 +1,6 @@
 # Voice input and selection context
 
-Use the microphone beside an editable text field to dictate with your browser's speech service. Start explicitly. While recording, use Cancel to discard that recording, Stop to keep its text as a draft, or Send to finish recognition and submit deliberately. Speech results alone never submit a form. Speech recognition availability varies by browser, device, language and microphone permissions. Unsupported browsers keep ordinary typing available. Slide Studio requires no transcription API key and receives text, not microphone audio; the browser's provider may process audio remotely. This is not an offline-transcription guarantee.
+Use the microphone beside an editable text field to dictate with your browser's speech service. Start explicitly. While recording, use Cancel to discard that recording, Stop to keep its text as a draft, or Send to finish recognition and submit deliberately. Speech results alone never submit a form. Speech recognition availability varies by browser, device, language and microphone permissions. Unsupported browsers keep ordinary typing available. Artifact Studio requires no transcription API key and receives text, not microphone audio; the browser's provider may process audio remotely. This is not an offline-transcription guarantee.
 
 Send waits for a clean recognition end. Cancelling during that wait prevents sending; a speech error, shutdown timeout or unfinished transcript also leaves the draft unsent for review. Confirmed text is retained unless you explicitly cancel that recording.
 
@@ -18,7 +18,7 @@ Slide drafts survive browser reload and portable-project save/open; artifact dra
 
 ## Reference and verification
 
-The reference is [David-Sat/lux-edit's voice recorder](https://github.com/David-Sat/lux-edit/blob/3670e3b516a19988281a61ccc6f43997ce3af18b/packages/overlay/src/inspector/voice-recorder.ts). Its browser API and target-pinning approach informed this implementation. Slide Studio uses independent context sections, bounded session shutdown, explicit error handling and its existing feedback envelopes.
+The reference is [David-Sat/lux-edit's voice recorder](https://github.com/David-Sat/lux-edit/blob/3670e3b516a19988281a61ccc6f43997ce3af18b/packages/overlay/src/inspector/voice-recorder.ts). Its browser API and target-pinning approach informed this implementation. Artifact Studio uses independent context sections, bounded session shutdown, explicit error handling and its existing feedback envelopes.
 
 Browser tests simulate `SpeechRecognition` events against the real server: interim/final results, late results across selection changes, multiple selected objects, slide/artifact navigation, reload recovery, lost feedback responses, Batch release, caret insertion, rich editor changes, unsupported browsers and denied permission. They also exercise the existing multi-object picker and inspect microphone/section layout in both themes. These tests verify application behavior; they do not establish real microphone accuracy or a provider's availability on every browser.
 

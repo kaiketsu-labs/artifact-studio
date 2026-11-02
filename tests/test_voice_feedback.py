@@ -5,15 +5,15 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from studio.models import ElementGroupTarget, ElementTarget
-from studio.projects import (
+from artifact_studio.models import ElementGroupTarget, ElementTarget
+from artifact_studio.projects import (
     ClientState,
     FeedbackDraft,
     VoiceFeedbackDraft,
     open_project,
     save_project,
 )
-from studio.storage import Store
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

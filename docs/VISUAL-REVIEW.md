@@ -1,6 +1,6 @@
 # Visual review through MCP
 
-Slide Studio can return actual slide pixels directly through MCP. This is a local content-rendering feature, independent of a browser tab or agent harness. It does not grant access to a deck or override a host's browser, file or visual-access restrictions. If a policy has denied inspecting a deck, stop and resolve that restriction; do not call this as an alternative route.
+Artifact Studio can return actual slide pixels directly through MCP. This is a local content-rendering feature, independent of a browser tab or agent harness. It does not grant access to a deck or override a host's browser, file or visual-access restrictions. If a policy has denied inspecting a deck, stop and resolve that restriction; do not call this as an alternative route.
 
 Install the renderer once, alongside the normal `uv sync --locked` setup:
 
@@ -47,4 +47,4 @@ This verifies slide content in Chromium. It does not verify presenter controls, 
 
 ## Custom interactive documents
 
-Slides with `interactive_html` are captured from their actual isolated custom document, not their static fallback. Provide `window.slideStudioCapture` for reproducible time/final states and `window.slideStudioReady` when local preparation is asynchronous. The diagnostics explicitly indicate that sandbox DOM inspection is unavailable. Inspect the image itself. See [custom HTML and interaction hooks](INTERACTIVE-HTML.md).
+Slides with `interactive_html` are captured from their actual isolated custom document, not their static fallback. Provide `window.artifactStudioCapture` for reproducible time/final states and `window.artifactStudioReady` when local preparation is asynchronous. The diagnostics explicitly indicate that sandbox DOM inspection is unavailable. Inspect the image itself. See [custom HTML and interaction hooks](INTERACTIVE-HTML.md).

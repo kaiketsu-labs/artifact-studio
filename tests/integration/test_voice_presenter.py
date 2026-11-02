@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
-from studio.projects import audience_html
+from artifact_studio.projects import audience_html
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp
 from tests.integration.voice_support import install_voice, voice_end, voice_result
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 

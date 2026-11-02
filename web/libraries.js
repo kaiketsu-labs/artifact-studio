@@ -42,13 +42,13 @@
         return `<article class="library-row"><span class="library-symbol">${svg(item.kind==='github'?'github':'folder')}</span>
           <div class="library-description"><strong>${escape(collection?'On this device':item.location)}</strong><small>${type}</small>
           ${collection?`<small class="library-path">${escape(item.location)}</small><small>${localLabel}</small>`:''}
-          ${item.kind==='github'?`<label class="library-auto"><input type="checkbox" data-auto-sync="${escape(item.id)}" ${item.auto_sync_enabled?'checked':''}><span>Back up all presentations</span></label>`:''}
+          ${item.kind==='github'?`<label class="library-auto"><input type="checkbox" data-auto-sync="${escape(item.id)}" ${item.auto_sync_enabled?'checked':''}><span>Back up all artifacts</span></label>`:''}
           ${item.auto_sync_enabled?`<small class="sync-state sync-${escape(state?.phase||'pending')}">${({pending:'Waiting to back up',syncing:'Backing up…',synced:'Backed up',error:'Backup needs attention'})[state?.phase]||'Waiting to back up'}</small>
             ${state?.last_synced_at?`<small>Last backup · <time datetime="${escape(state.last_synced_at)}">${escape(timestamp(state.last_synced_at))}</time></small>`:''}
             ${state?.error?`<small class="sync-error" role="alert">${escape(state.error)}</small>`:''}`:''}</div>
           <div class="library-actions">${collection?`<button type="button" data-library="collection" data-action="copy" aria-label="Copy working folder path" title="Copy working folder path">${svg('copy')}</button>${localState==='error'?`<button type="button" data-library="collection" data-action="notes" aria-label="Review unsaved notes" title="Review unsaved notes">${svg('info')}</button>`:''}`:''}
           ${item.kind==='github'?`<a class="icon-control icon-only" data-library="${escape(item.id)}" data-action="open" href="https://github.com/${escape(item.location)}" target="_blank" rel="noopener" aria-label="Open repository" title="Open repository">${svg('external')}</a><button type="button" data-library="${escape(item.id)}" data-action="refresh" aria-label="Refresh references" title="Refresh references">${svg('refresh')}</button>`:''}
-          ${item.auto_sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="retry" aria-label="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}" title="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}">${svg(state?.phase==='error'?'refresh':'upload')}</button>`:item.sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="current" aria-label="Back up current presentation" title="Back up current presentation" ${currentDeck()?'':'disabled'}>${svg('upload')}</button><button type="button" data-library="${escape(item.id)}" data-action="all" aria-label="Back up all presentations" title="Back up all presentations">${svg('batch')}</button>`:''}</div></article>`;
+          ${item.auto_sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="retry" aria-label="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}" title="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}">${svg(state?.phase==='error'?'refresh':'upload')}</button>`:item.sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="current" aria-label="Back up current presentation" title="Back up current presentation" ${currentDeck()?'':'disabled'}>${svg('upload')}</button><button type="button" data-library="${escape(item.id)}" data-action="all" aria-label="Back up all artifacts" title="Back up all artifacts">${svg('batch')}</button>`:''}</div></article>`;
       }).join('');
       if(markup===rendered)return;
       const list=$('library-list'),focused=document.activeElement,focus=list.contains(focused)?focused?.dataset:null;
@@ -117,7 +117,7 @@
     window.addEventListener('pageshow',()=>{if(timer===null)timer=setInterval(()=>void poll(),3000);void poll();});
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void poll();});
     window.addEventListener('online',()=>void poll());
-    return {setLocalState(value){localState=value;summary();if($('library-dialog').open)renderRows();}};
+    return {open,setLocalState(value){localState=value;summary();if($('library-dialog').open)renderRows();}};
   }
   const api={init,backupSummary};if(typeof module!=='undefined')module.exports=api;else root.SlideLibraries=api;
 })(typeof window==='undefined'?{}:window);

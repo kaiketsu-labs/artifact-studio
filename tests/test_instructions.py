@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.storage import Store, digest
+from artifact_studio import app as service
+from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

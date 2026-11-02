@@ -5,8 +5,8 @@ import os
 import pytest
 from playwright.sync_api import Page, expect
 
-from studio.models import ElementTarget
-from studio.storage import digest
+from artifact_studio.models import ElementTarget
+from artifact_studio.storage import digest
 from tests.integration.support import DECK_ID, RunningApp
 from tests.integration.test_browser import open_editor
 from tests.integration.voice_support import install_voice, voice_end, voice_result
@@ -14,7 +14,7 @@ from tests.integration.voice_support import install_voice, voice_end, voice_resu
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -123,6 +123,7 @@ def test_inline_dictation_preserves_markup_and_sends_only_an_explicit_text_propo
     preview = page.frame_locator("#preview")
     heading = preview.get_by_role("heading", level=1)
     heading.click(position={"x": 2, "y": 2})
+    page.locator("#element-properties [data-panel=objects]").click()
     page.locator("#edit-element-text").click()
     heading.evaluate(
         """element => {
@@ -162,12 +163,14 @@ def test_cancelled_inline_dictation_never_changes_a_new_element(
     preview = page.frame_locator("#preview")
     heading = preview.get_by_role("heading", level=1)
     heading.click()
+    page.locator("#element-properties [data-panel=objects]").click()
     page.locator("#edit-element-text").click()
     page.get_by_role("button", name="Dictate into selected element text", exact=True).click()
     voice_result(page, "Unfinished heading words", final=False)
     page.locator("#cancel-element-edit").click()
     body = preview.locator("p").last
     body.click()
+    page.locator("#element-properties [data-panel=objects]").click()
     page.locator("#edit-element-text").click()
     page.get_by_role("button", name="Dictate into selected element text", exact=True).click()
     voice_result(page, "Stale heading words", session=0)
@@ -177,3 +180,30 @@ def test_cancelled_inline_dictation_never_changes_a_new_element(
     expect(body).to_contain_text("Body addition")
     assert live_app.store.comments(DECK_ID) == []
     page.locator("#cancel-element-edit").click()
+
+
+def test_property_text_dictation_is_a_reviewable_element_edit(
+    page: Page, live_app: RunningApp
+) -> None:
+    """Dictation in the current text panel stays provisional until the edit is sent."""
+    install_voice(page)
+    open_editor(page, live_app)
+    page.frame_locator("#preview").get_by_role("heading", level=1).click()
+    page.locator("#element-properties [data-panel=text]").click()
+    text = page.locator("#element-properties textarea")
+    text.evaluate(
+        "element => element.setSelectionRange(element.value.length, element.value.length)"
+    )
+    mic = page.locator("#element-properties .ep-text-panel .voice-input-button")
+    mic.click()
+    voice_result(page, "with care")
+    expect(text).to_have_value("Review together with care")
+    assert live_app.store.comments(DECK_ID) == []
+    mic.click()
+    voice_end(page)
+    page.get_by_label("Send edit").click()
+    expect(page.locator("#feedback-list")).to_contain_text("Update element properties.")
+    comments = live_app.store.comments(DECK_ID)
+    assert len(comments) == 1 and comments[0].edit_intent is not None
+    assert comments[0].edit_intent.values["text"] == "Review together with care"
+    assert "voice-input" not in comments[0].target.html

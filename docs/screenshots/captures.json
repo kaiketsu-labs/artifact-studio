@@ -11,7 +11,7 @@
         1440,
         1000
       ],
-      "sha256": "ee846ca97d2b7f192dfb5c0355318e5b9fe842c61b609d7ab02bbcadbb99d024"
+      "sha256": "4d714811b29d1b2eca40ead72af380377f23cb39c116d80efe2e8fade6955dbf"
     },
     "docs/assets/slide-chat.png": {
       "viewport": {
@@ -23,7 +23,7 @@
         1440,
         1000
       ],
-      "sha256": "f7c350dc493a3466d96e8f21c79d065b51e0ee17914a79268fd4c98f49905e61"
+      "sha256": "25500c282e4466e1d04f3cb932e2abc490473783b242624c353b64c65c9ffe4f"
     },
     "docs/screenshots/chat-sender-icons-light.png": {
       "viewport": {
@@ -35,7 +35,7 @@
         1440,
         1000
       ],
-      "sha256": "f7c350dc493a3466d96e8f21c79d065b51e0ee17914a79268fd4c98f49905e61"
+      "sha256": "25500c282e4466e1d04f3cb932e2abc490473783b242624c353b64c65c9ffe4f"
     },
     "docs/screenshots/chat-sender-icons-dark.png": {
       "viewport": {
@@ -47,7 +47,7 @@
         1440,
         1000
       ],
-      "sha256": "4bbb39237a4e62a219fbc413b459fcac50ad14dcb2f2d37d3fa155022f7ac62a"
+      "sha256": "ee4ae03f803aa0f2be0b2332c91b05471b6b037fc81c684974b97429aa39454f"
     },
     "docs/assets/element-review.png": {
       "viewport": {
@@ -59,7 +59,7 @@
         1440,
         1000
       ],
-      "sha256": "c342dfbf0c77063adcf25e329a097c0154fb5c0cc4673bc1001ff1ca868b472f"
+      "sha256": "1d618a5fccc6134e5259b7e02c9bc42a158287ef834bf85308811891d2d89852"
     },
     "docs/assets/slide-sorter.png": {
       "viewport": {
@@ -71,7 +71,7 @@
         1440,
         1000
       ],
-      "sha256": "bce3c3b3dbf759639f1321d7ee7265957c06044885edc353fccbad7852d1cc00"
+      "sha256": "834a66853b4885d16dcb154be6551a9a3c0e8606f7daf66695c9ad30c86e8b16"
     },
     "docs/screenshots/section-sorter-navigation.png": {
       "viewport": {
@@ -83,7 +83,7 @@
         1440,
         1000
       ],
-      "sha256": "2c294b8d15c21c515bf5e7c7b787cdcb20c5227df4e0f28d01fc8004fc3d6c26"
+      "sha256": "77df4dd33c59b170aa59c37c97c0076a7a95d7263050df089b655a29351acd82"
     },
     "docs/assets/slide-management.png": {
       "viewport": {
@@ -95,7 +95,7 @@
         1440,
         1000
       ],
-      "sha256": "0b0fe0f63caaeccd49c107244542f6792e3420f4436d9344c3d5a1d4fdeeb7c7"
+      "sha256": "d2288db8cf2dae6c683eecb2e7b67f5c4110964ef7374f996e8d2e0e704e0ed4"
     },
     "docs/assets/projects.png": {
       "viewport": {
@@ -107,7 +107,7 @@
         1440,
         1000
       ],
-      "sha256": "0fde795076a5cce462566254f10eb21d04989c37aec72c91ca09e039a9c9091d"
+      "sha256": "9ef47e25a94d0341947113a1ee319090083d77fce2bc546ca303bb0e86545d7f"
     },
     "docs/assets/interactive-slide.png": {
       "viewport": {
@@ -119,7 +119,7 @@
         1440,
         1000
       ],
-      "sha256": "0ab8d3926ada8dd2dd35df2007a2bfcbb08ee5b7d65a465c6a446a6839da0266"
+      "sha256": "34110155d60cb39bfbb4613b773e5a9c6a0bdbef40e5054a55ba62dfc144b458"
     },
     "docs/assets/presenter.png": {
       "viewport": {
@@ -131,7 +131,7 @@
         1440,
         1000
       ],
-      "sha256": "9db64c1aaa2705700c472b7ff4f55eced2830cff001f9fef1c8bfff70118f02c"
+      "sha256": "77341b10387303caae1cbf5d9ae19f70fbf9c624369f8301f673d2affb026c7f"
     },
     "docs/screenshots/slide-question-light.png": {
       "viewport": {
@@ -143,7 +143,7 @@
         1440,
         1000
       ],
-      "sha256": "150363f19ef811ce45058c34a55cdddc1add5119e6d2b63f720ae3bcab88730b"
+      "sha256": "44f0747c390eb1032ea282653eadc61a4db0385eb8af0c85353ca5aadf987aee"
     },
     "docs/screenshots/slide-question-dark.png": {
       "viewport": {
@@ -155,7 +155,7 @@
         1440,
         1000
       ],
-      "sha256": "a9dde65c0e0369c3358cd36038aaa2ee150d86059d776679d949b41f0cc5fd42"
+      "sha256": "cbf0d1b8849904ddd184165b037b520d98d4c1cef5b3fbdb21b8e041d09c19e5"
     },
     "docs/screenshots/slide-sections-dark.png": {
       "viewport": {
@@ -167,7 +167,7 @@
         1440,
         1000
       ],
-      "sha256": "118b3c2faf33e15020c6d23ef6424bb27a12f32ebc1f90f7284759988ebd35d6"
+      "sha256": "87c0768f5d2de86f4ac2d3753f6279c1f90899dc1ccc6ba3c47329f111adf2b6"
     },
     "docs/screenshots/slide-sections-light.png": {
       "viewport": {
@@ -179,7 +179,7 @@
         1440,
         1000
       ],
-      "sha256": "75b43ab49d5f6966ff019ebdbb31b68b65252886a4d0ad3ee9ab124660e10635"
+      "sha256": "e2bd4a995d9f57e779bd4a7f5a18e0d85c757fc1027d0defe9f8980975392909"
     },
     "docs/assets/slide-sections.png": {
       "viewport": {
@@ -191,7 +191,7 @@
         1440,
         1000
       ],
-      "sha256": "75b43ab49d5f6966ff019ebdbb31b68b65252886a4d0ad3ee9ab124660e10635"
+      "sha256": "e2bd4a995d9f57e779bd4a7f5a18e0d85c757fc1027d0defe9f8980975392909"
     },
     "docs/screenshots/section-active-slide.png": {
       "viewport": {
@@ -203,7 +203,7 @@
         1440,
         1000
       ],
-      "sha256": "efb5b80448e88c662d2a66914ee941c14deb014fcdc33cbd70c6a6ecb05b390d"
+      "sha256": "d2f3a01c87285d6c60cbd3ae6f90d2c069dc99267609db951cf2c9f01fb77133"
     },
     "docs/screenshots/notes-conflict.png": {
       "viewport": {
@@ -215,7 +215,7 @@
         1440,
         1000
       ],
-      "sha256": "6cf84afee32e7c0b4ee4c7c5e366e1eb052ec176babdca6638270b3912b4fc07"
+      "sha256": "cdd585cd917273c0ba67714b7e615a373b7fbc64e11a60a0be43f3297eb089bd"
     },
     "docs/screenshots/notes-retry.png": {
       "viewport": {
@@ -227,7 +227,7 @@
         1440,
         1000
       ],
-      "sha256": "3b42995b21922e1b9487fcd0ad8fdf399fe66fed50718eaf752c9f9f20d64488"
+      "sha256": "6e6229150416f659f411d3985372d10528803c3d46c4c6a8af45bb90c9e88342"
     },
     "docs/screenshots/storage-backup.png": {
       "viewport": {
@@ -239,7 +239,7 @@
         1440,
         1000
       ],
-      "sha256": "d1b65c0ba63ac7baf5455105ad88469745be5620e551b2a856e68b760a66bfef"
+      "sha256": "0fbb9c3eb3e187484f67a954694cf5f8f696b9191b7246eb2dd1c86edc979e8b"
     },
     "docs/screenshots/design-references.png": {
       "viewport": {
@@ -251,7 +251,7 @@
         1440,
         1000
       ],
-      "sha256": "5ebda3f21566c058c546ef9d76327d80ce0028a7de3e317015ff08f195b204a1"
+      "sha256": "d581a10ec687d91c6cc684fbb1e2a51c90d943406b1b3c1b2dd89ecba62d5d0d"
     },
     "docs/screenshots/reference-controls.png": {
       "viewport": {
@@ -263,7 +263,7 @@
         1440,
         1000
       ],
-      "sha256": "d51df96f375d371bcffc6f2f8530a4ee7f64c0e0d41908710a67c8d0b8b4b8d1"
+      "sha256": "1b50d36f26f8b02fe15105c5f7bd667acfcbe737a8c93bd226a06d1b7a4a4afd"
     },
     "docs/screenshots/reference-files.png": {
       "viewport": {
@@ -275,7 +275,7 @@
         1440,
         1000
       ],
-      "sha256": "0a97c84932833a9839ef77da7d030fac501ae18e2195427dcf86a98009ef9d8a"
+      "sha256": "aeff2680114f4a4a5a0a15f5e5bc0990bd17a3f0c4c1a7ebe208ca4bd8de6f6f"
     },
     "docs/screenshots/reference-removed.png": {
       "viewport": {
@@ -287,7 +287,7 @@
         1440,
         1000
       ],
-      "sha256": "4d11719f89627f4aeb6a8a30d714d69b3233495fc81acd7f13fe37d977d81171"
+      "sha256": "be10db9e46340acbfe89901697bc1fd269e9bcbf7db2fe35f8aa2180577b237a"
     },
     "docs/screenshots/new-presentation-references.png": {
       "viewport": {
@@ -299,10 +299,10 @@
         1440,
         1000
       ],
-      "sha256": "35a30f3e9a3cbc35e824c00c6cd0e7414280b23a63195397af11950db1fc64f2"
+      "sha256": "f7665c294adc43885a392c9126c5ea2cf7cbca961b6ec8fb95a193cf9b5f625c"
     },
     "docs/assets/visual-review.png": {
-      "renderer": "studio.visuals.snapshot + Playwright + contact_sheet",
+      "renderer": "artifact_studio.visuals.snapshot + Playwright + contact_sheet",
       "diagnostics": {
         "cover": {
           "reveal_steps": 0,
@@ -345,7 +345,31 @@
         1008,
         652
       ],
-      "sha256": "17f4e7449626347d5a6096ca8751f69630543246afb22a4409b8a12523f6a279"
+      "sha256": "88f3a2ccc75a56aa44f46a643057acb9b109130d8f229df59a2ebba63168a243"
+    },
+    "docs/assets/artifact-hub.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "d503e40eec6691985ebfeb7ae8109cbe2b5b5047850712d8c128b927b4fffa24"
+    },
+    "docs/assets/artifact-review.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "f77cedb66d14dc3654a9f43d08eb0a8d3efebbacf31490790d4d1dfb7b1818d1"
     }
   }
 }

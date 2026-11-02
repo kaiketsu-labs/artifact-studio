@@ -1,5 +1,15 @@
 # Verification
 
+## Whole-workflow and token-efficiency audit · 2 November 2026
+
+The isolated full run passed 414 Python checks with browser/rendering and real MCP/generated-hook checks enabled; two installed-native-client checks were skipped. All 145 frontend checks passed. After integration, 68 focused context, rule-retention, queue-privacy and hook tests passed; strict basedpyright, Ruff and formatting passed. A fresh Terra reviewer found no confirmed issue in the final diff. The existing fresh-install check remains applicable: dependencies and setup commands were unchanged.
+
+General artifact/project and reference-only startup now honors `include_discovery=False`. Selected design sources, complete rules and scoped related-artifact pointers remain. A presentation opened through its artifact ID can retain the artifact and presentation guides separately. MCP source metadata appears once, while the full HTTP context receipt remains available to the UI. Controlled real-transport measurements show 21–35% smaller first context reads and 42–58% smaller retained reads for the documented fixture; these are byte counts, not billed tokens. [Reproduction and limits](docs/TOKEN-EFFICIENCY.md#scoped-artifact-context--2-november-2026).
+
+Idle review polling uses queue-existence queries without loading feedback bodies, private attachments, full inboxes or guidance. A 100-poll simulated fixture reduced lease writes from 100 to one. Late Batch release, wrong-deck suppression, current design status, cursor replay and interruption remain covered. The bounded host continuation is unchanged.
+
+The pixel app mark and native template icon were visually checked at small/large sizes and on light/dark backgrounds. The template retains filled/outlined running/stopped indicators. The signed native app was built and installed with its previous storage paths and login setting preserved; the restarted service returned ready. Library/design navigation and live file previews were inspected. Personal content and approval states were not changed. Physical second-display placement, the actual menu-bar appearance and a live Microsoft tenant call were not re-tested.
+
 ## Automatic previews and multi-object feedback · 2 November 2026
 
 Auto-update defaults on and shares a saved browser preference across the slide editor and artifact viewers. CUA checks in the fictional 8797 workspace verified incoming slide and HTML revisions without clicking Show update, preservation of draft text/focus and original targets, manual mode holding the old preview, and re-enabling auto-update applying the pending version. An active direct text edit retained the old slide until cancelled, then loaded the pending revision automatically.
@@ -82,7 +92,7 @@ An optional daily learning heartbeat was configured in the maintainer's agent ha
 
 ## Bundled learning skill · 29 October 2026
 
-The `slide-studio-learn` skill passed the Skill Creator frontmatter/scaffold validator, and all local documentation links resolve. An independent fresh-context agent ran it twice against isolated synthetic chat exports and released feedback. It learned one explicit general preference, kept brand treatment design-specific, excluded assistant/quoted/application suggestions, counted mirrored feedback once and recorded a conflict with primary rules. The primary rules and both deck READMEs stayed byte-identical. The second pass reported zero writes with unchanged artifact hashes; the resulting evidence and scope decisions were inspected separately. This validates the fixture workflow, not access to every real harness's transcript history.
+The `artifact-studio-learn` skill passed the Skill Creator frontmatter/scaffold validator, and all local documentation links resolve. An independent fresh-context agent ran it twice against isolated synthetic chat exports and released feedback. It learned one explicit general preference, kept brand treatment design-specific, excluded assistant/quoted/application suggestions, counted mirrored feedback once and recorded a conflict with primary rules. The primary rules and both deck READMEs stayed byte-identical. The second pass reported zero writes with unchanged artifact hashes; the resulting evidence and scope decisions were inspected separately. This validates the fixture workflow, not access to every real harness's transcript history.
 
 The existing maintainer heartbeat was updated rather than duplicated: Tuesdays at 10:00 Europe/Berlin. It reads the bundled skill on each run and retains the prior released-feedback cursor file. Scheduled execution at the new time has not yet occurred. Runtime and slide code were unchanged by this documentation/skill addition.
 
@@ -250,7 +260,7 @@ Healthy push connections now poll only lightweight availability between real cha
 Final checks passed 139 Python tests (seven optional browser checks skipped), 107 Node tests, Ruff and strict basedpyright. The installed controller was restarted with unchanged configuration; its new Python child owns port 8790. The active main server advertises the new workflow route and returns status-only data (173 bytes in the verified response). The original collection and enabled login registration were verified without reading or rendering personal slides. Existing browser pages need a reload to adopt the new frontend.
 
 
-### Artifact Hub and compact continuation · 2 November 2026
+### Artifact Studio and compact continuation · 2 November 2026
 
 The home screen now lists projects and artifacts while preserving deck deep links and the existing editor. Fictional QA on 8797 verified actual HTML/Markdown/image previews, custom JavaScript interaction, Command-click HTML groups, Shift-click Markdown groups, image regions, Enter-to-send, an attached reference, Batch withholding/release, cross-artifact navigation, and the related-artifact rail in the slide editor. The layout was visually inspected at desktop and 390px width without horizontal page overflow, in light and soft-charcoal themes. Documentation screenshots use only fictional QA artifacts.
 
@@ -258,4 +268,18 @@ Fresh Terra reviews found a failed-write rollback issue and missing generic prev
 
 Checks: 273 Python tests passed with 68 optional checks skipped; 125 frontend tests passed. Strict basedpyright, Ruff and formatting checks passed. An additional opt-in Chromium renderer regression passed, exercising local ES modules and JSON fetches while workspace/remote requests and local storage remained unavailable. Browser checks did not re-verify physical second-display placement. General-artifact automatic host continuation, full multi-artifact archives and expanded repository sync remain explicitly unavailable.
 
-The main review database was backed up before restart. The Mac controller started the updated server, which returned a healthy hub with seven existing artifacts and 49 tools in a fresh MCP handshake. Existing cover previews were inspected locally; no personal presentation source or screenshot was added to the repository. Long live-review bootstrap paragraphs were replaced with concise queue/cursor calls; bounded idle renewals remain necessary for the current host-hook lifecycle.
+The main review database was backed up before restart. The Mac controller started the updated server, which returned a healthy hub with seven existing artifacts and 49 tools in a fresh MCP handshake. Existing cover previews were inspected locally; no personal presentation source or screenshot was added to the repository. Long live-review bootstrap paragraphs were replaced with concise queue/cursor calls. Bounded idle renewals remain in the current host-hook lifecycle; changing that lifecycle requires verifying the host timeout behavior.
+
+## Artifact Studio rebrand · 2 November 2026
+
+The product, Python package, MCP identity, runtime namespaces, native controller and agent guides now use Artifact Studio. The maintainer's projects and client settings were converted once with local backups; no rebrand compatibility layer ships. Verification preserved 134 speaker-note entries and 399 feedback messages, authors and release states. The existing local collection remains configured, and the renamed Mac controller serves port 8790 with launch at login enabled.
+
+A recreated Python 3.14 environment passed 312 Python tests (91 optional tests skipped), 145 Node checks, Ruff and strict basedpyright after integrating the latest design-library changes from main. Focused design-library browser, agent and Copilot checks passed 31 tests (one optional test skipped); earlier recovery, native-client and Copilot capture checks passed 24 tests. The browser/render suite passed 70 tests initially; its two macOS shortcut assumptions were corrected to use ControlOrMeta and both affected journeys then passed. Fresh-context source and visual reviewers checked the rebrand. The 28 editor/library and seven design-library documentation captures were regenerated using fictional content. Actual second-display placement was not retested.
+
+The pushed rebrand passed all four GitHub CI jobs. A separate shallow clone from the renamed repository installed its locked environment and passed 51 workspace, artifact, design and real MCP tests with an isolated collection.
+
+## Design file previews · 2 November 2026
+
+Design context rows now show lazy image thumbnails, embedded PowerPoint covers and colored file-type icons. Preview buttons open a larger view while file names retain original downloads. Raster decoding has file, archive, member and pixel bounds; it preserves transparency and camera orientation and uses the first animation frame. SVG previews retain the existing image-only sandbox. Files with absent or unsupported previews retain their icon; PowerPoint slides are not rendered when no embedded cover exists.
+
+The 23 focused thumbnail, library and browser checks passed. Both desktop/mobile journeys were rerun after adding keyboard activation and dark-mode checks; two icon regressions, Ruff and strict basedpyright also passed. A fresh Terra reviewer checked desktop, mobile and expanded previews. Updated fictional captures include the expanded PowerPoint cover and dark appearance.

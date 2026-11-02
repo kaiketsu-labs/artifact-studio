@@ -1,1 +1,1 @@
-"""Slide Studio behavior checks."""
+"""Artifact Studio behavior checks."""

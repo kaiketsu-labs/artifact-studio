@@ -4,7 +4,7 @@ Reviewed on 30 October 2026. Three fresh Terra research passes covered slide man
 
 Updated on 2 November 2026 for sections, layout undo/redo, cursor-centred zoom and expanded notes. [Current UI screenshots](screenshots/README.md).
 
-| Area | Slide Studio now | Remaining gap |
+| Area | Artifact Studio now | Remaining gap |
 | --- | --- | --- |
 | Slide management | Add after active slide, duplicate a selection, delete with Undo and durable recovery. Shift range and Cmd/Ctrl individual selection; grouped dragging and movement commands in the thumbnail list and zoomable slide sorter. | Text outline view. |
 | Sections | Named, collapsible groups in the rail and sorter. Rename, move and remove groups; move slides between them. Shared layout undo/redo checks for conflicts. | No nested sections. |
@@ -29,6 +29,6 @@ Deletion keeps slide IDs, source, notes and review history. Recovery places slid
 
 ## Reference behaviour
 
-Microsoft documents inserting after the active slide, contextual duplicate/delete and grouped rearranging in [slide management](https://support.microsoft.com/en-gb/powerpoint/training/add-rearrange-duplicate-and-delete-slides-in-powerpoint?nochrome=true). Its [Selection pane](https://support.microsoft.com/en-gb/powerpoint/use-the-selection-pane-to-manage-objects-in-documents) also controls stacking, grouping and visibility; Slide Studio's current object picker only helps select objects.
+Microsoft documents inserting after the active slide, contextual duplicate/delete and grouped rearranging in [slide management](https://support.microsoft.com/en-gb/powerpoint/training/add-rearrange-duplicate-and-delete-slides-in-powerpoint?nochrome=true). Its [Selection pane](https://support.microsoft.com/en-gb/powerpoint/use-the-selection-pane-to-manage-objects-in-documents) also controls stacking, grouping and visibility; Artifact Studio's current object picker only helps select objects.
 
 See [QA evidence](../QA.md), [usage](GETTING-STARTED.md) and [project format](PROJECTS.md) for tested behaviour and verification boundaries.

@@ -1,9 +1,13 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    share:'M12 15V3m-4 4 4-4 4 4M5 11H3v10h18V11h-2',
+    mail:'M3 5h18v14H3zM3 6l9 7 9-7',
     sectionAdd:'M3 5h18M3 10h11M3 15h8M17 13v8M13 17h8',
     more:'M5 12h.01M12 12h.01M19 12h.01',
     menu:'M4 6h16M4 12h16M4 18h16',
+    panelLeft:'M3 4h18v16H3zM8 4v16',
+    chat:'M21 11a8 8 0 0 1-8 8H8l-5 3V6a3 3 0 0 1 3-3h7a8 8 0 0 1 8 8ZM7 8h10M7 12h7',
     question:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM9.1 8a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4M12 17h.01',
     clock:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2',
     info:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 11v6M12 7h.01',
@@ -29,6 +33,11 @@
     folder:'M3 6h7l2 3h9v11H3zM3 6V4h7l2 2h8v3',
     github:'M9 19c-4 1-4-2-6-2m12 5v-4a3 3 0 0 0-1-2c4-.5 6-2 6-6a5 5 0 0 0-1-3 5 5 0 0 0 0-4s-2-.5-4 1a13 13 0 0 0-6 0C7 2.5 5 3 5 3a5 5 0 0 0 0 4 5 5 0 0 0-1 3c0 4 2 5.5 6 6a3 3 0 0 0-1 2v4',
     upload:'M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6',
+    download:'M12 3v13m-5-5 5 5 5-5M4 16v5h16v-5',
+    image:'M3 3h18v18H3zM3 16l5-5 5 5 3-3 5 5M15 7h.01',
+    table:'M3 4h18v16H3zM3 9h18M3 14h18M9 4v16M15 9v11',
+    font:'m4 20 7-16h2l7 16M7 14h10',
+    file:'M5 3h9l5 5v13H5zM14 3v6h5',
     external:'M14 3h7v7m0-7L10 14M10 3H3v18h18v-7',
     swap:'M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4',
     pause:'M8 4v16M16 4v16',play:'m7 4 13 8-13 8V4Z',stop:'M6 6h12v12H6z',

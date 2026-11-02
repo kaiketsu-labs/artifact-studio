@@ -1,18 +1,17 @@
 /* The conversation keeps the active slide, history and composer in a familiar chat layout. */
-.discussion{background:#fbfcfe;padding:20px 16px 14px;overflow:hidden;gap:0}
+.discussion{background:var(--surface,#fbfcfe);padding:18px 16px 14px;overflow:hidden;min-height:0;gap:0}
 .discussion-top{flex-shrink:0;margin-bottom:12px;padding:0 3px}
 .discussion-top h2{font-size:13px;font-weight:650;letter-spacing:-.15px}
 .chat-slide-number{width:29px;height:29px;border-color:#dce5f1;background:#fff;color:#59708e;font-size:11px;border-radius:8px}
-.discussion .delivery-panel{flex-shrink:0;margin-bottom:12px}
-.discussion .mode-switch{background:#edf1f6;border-radius:9px;padding:3px}
-.discussion .mode-switch button{min-height:35px;border-radius:6px}
-.discussion .agent-panel{flex-shrink:0;max-height:24vh;overflow:auto;margin-bottom:12px}
-.discussion .agent-panel{border:1px solid #e4e9f1;background:#fff;border-radius:8px;padding:9px 10px}
-.discussion>#feedback-list{min-height:60px;flex:1 1 180px;overflow:auto;overscroll-behavior:contain;padding:12px 2px 9px;scroll-padding:12px;display:flex;flex-direction:column;gap:14px}
-.discussion .comment{flex-shrink:0;align-self:flex-start;max-width:94%;padding:10px 12px;margin:0;border:1px solid #e5eaf2;background:#fff;border-radius:13px 13px 13px 4px;box-shadow:0 1px 2px #22365203}
-.discussion .comment.user{align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:13px 13px 4px 13px}
+.discussion .delivery-panel{flex-shrink:0;margin-bottom:10px}
+.discussion .mode-switch{background:var(--raised,#edf1f6);border-radius:7px;padding:2px}
+.discussion .mode-switch button{min-height:32px;border-radius:5px;font-size:12px}
+.discussion .agent-panel{flex-shrink:0;max-height:24vh;overflow:auto;margin-bottom:8px;padding:8px 2px;border:0;border-bottom:1px solid var(--line,#e4e9f1);border-radius:0;background:transparent;font-size:12px}
+.discussion>#feedback-list{min-height:60px;max-height:none;flex:1 1 180px;overflow:auto;overscroll-behavior:contain;padding:10px 2px;scroll-padding:10px;display:flex;flex-direction:column;gap:12px}
+.discussion .comment{flex-shrink:0;align-self:flex-start;max-width:94%;padding:9px 11px;margin:0;border:1px solid var(--line,#e5eaf2);background:var(--surface,#fff);border-radius:10px 10px 10px 3px;box-shadow:none}
+.discussion .comment.user{align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:10px 10px 3px 10px}
 .discussion .comment.agent{padding-left:12px;border-left:1px solid #e5eaf2}
-.discussion .comment-header{gap:18px;margin-bottom:6px;font-size:9px;color:#7a899e}
+.discussion .comment-header{gap:18px;margin-bottom:6px;font-size:11px;color:var(--subtle,#7a899e)}
 .discussion .comment.user .comment-header{flex-direction:row-reverse}
 .chat-sender{display:inline-flex;align-items:center;gap:6px}
 .chat-reply{display:inline-flex;color:var(--subtle,#718096)}
@@ -22,10 +21,10 @@
 .chat-avatar .ui-icon{width:17px;height:17px}
 .design-message-header{display:flex;align-items:center;margin-bottom:6px}
 .design-message.user .design-message-header{justify-content:flex-end}
-.discussion .comment p{font-size:12px;line-height:1.6;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.discussion .comment p{font-size:13px;line-height:1.55;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .discussion .comment p:empty{display:none}
 .discussion .comment{min-width:0;overflow-wrap:anywhere}
-.chat-markdown{font-size:12px;line-height:1.6;min-width:0;overflow-wrap:anywhere}
+.chat-markdown{font-size:13px;line-height:1.55;min-width:0;overflow-wrap:anywhere}
 .discussion .comment .chat-markdown p{font-size:inherit;line-height:inherit;white-space:normal;margin:0 0 .7em}
 .chat-markdown>:first-child{margin-top:0}
 .chat-markdown>:last-child{margin-bottom:0!important}
@@ -49,7 +48,7 @@
 .discussion .comment-pending,.discussion .old-version{display:inline-block;margin-top:7px;font-size:9px}
 .discussion .comment-pending{padding:2px 5px;border-radius:4px;background:#fff6e4;color:#946c33}
 .discussion .start-help{flex-shrink:0;padding:10px 2px;margin:0;border:0}
-.discussion .feedback-compose{position:relative;flex-shrink:0;margin-top:9px;padding:10px 10px 8px;background:#fff;border:1px solid #d9e1ed;border-radius:14px;box-shadow:0 3px 12px #1f355907;transition:border-color .15s,box-shadow .15s}
+.discussion .feedback-compose{position:relative;flex-shrink:0;margin-top:8px;padding:9px 10px 8px;background:var(--surface,#fff);border:1px solid var(--line,#d9e1ed);border-radius:10px;box-shadow:none;transition:border-color .15s,box-shadow .15s}
 .discussion .feedback-compose:focus-within{border-color:#8eadd8;box-shadow:0 0 0 3px #e8effb,0 3px 12px #1f355907}
 .discussion .feedback-compose.is-file-drop{border-color:#4d79b7;box-shadow:0 0 0 3px #dceaff;background:#f5f9ff}
 .discussion .compose-context{min-height:23px;gap:5px;margin-bottom:6px;flex-wrap:wrap}
@@ -57,7 +56,7 @@
 .discussion .feedback-slide-context .ui-icon{width:12px;height:12px}
 .discussion .target-chip{font-size:10px;min-width:65px}
 .discussion .target-chip.has-target{padding:3px 5px;border-radius:6px}
-.discussion .feedback-compose textarea{min-height:64px;max-height:180px;field-sizing:content;resize:none;border:0!important;outline:none!important;box-shadow:none!important;background:transparent;padding:5px 3px;font-size:12px;line-height:1.6;border-radius:0}
+.discussion .feedback-compose textarea{min-height:64px;max-height:180px;field-sizing:content;resize:none;border:0!important;outline:none!important;box-shadow:none!important;background:transparent;padding:5px 3px;font-size:13px;line-height:1.5;border-radius:0}
 .discussion .feedback-compose textarea::placeholder{color:#8b98aa}
 .discussion .compose-actions{margin-top:7px;gap:6px;justify-content:space-between}
 .discussion #attach-feedback{display:grid;place-items:center;width:31px;min-height:31px;padding:6px;border:0;background:transparent;border-radius:8px;color:#718098}
@@ -85,5 +84,5 @@
 #feedback-upload-status{color:#6f829d}
 #feedback-error:empty,#feedback-upload-status:empty{display:none}
 @media(min-width:1600px){.discussion{padding:23px 18px 16px}.discussion .comment p,.chat-markdown{font-size:13px}}
-@media(max-width:900px){.discussion{overflow:visible;padding:18px;min-height:350px}.discussion>#feedback-list{max-height:340px;min-height:80px;flex:1 1 auto}.discussion .agent-panel{max-height:180px}.discussion .feedback-compose{margin-top:8px}.discussion .comment{max-width:88%}}
+@media(max-width:900px){.discussion{min-height:0;overflow:hidden}.discussion>#feedback-list{min-height:0;flex:1 1 auto;overflow:auto}.discussion .agent-panel{max-height:180px}.discussion .comment{max-width:96%}}
 @media(max-width:600px){.discussion{padding:15px 12px}.chat-file-name{max-width:135px}.discussion .comment{max-width:96%}}

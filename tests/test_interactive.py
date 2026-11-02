@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from studio.models import SlidePatch
-from studio.projects import audience_html
-from studio.storage import Store, digest
-from studio.visuals import CaptureOptions, capture, snapshot
+from artifact_studio.models import SlidePatch
+from artifact_studio.projects import audience_html
+from artifact_studio.storage import Store, digest
+from artifact_studio.visuals import CaptureOptions, capture, snapshot
 from tests.design_factory import TEMPLATE_ID, make_design
 
 CUSTOM = """<style>
 body{background:rgb(25,140,70);color:white;font:60px system-ui}button{font:inherit}
 </style><h1 id="result">Interactive</h1>
 <button onclick="document.getElementById('result').textContent='Clicked'">Try it</button>
-<script>window.slideStudioCapture=({elapsed_ms,final})=>{
+<script>window.artifactStudioCapture=({elapsed_ms,final})=>{
 document.getElementById('result').textContent=final?'Final state':String(elapsed_ms);
 };</script>"""
 
@@ -36,12 +36,12 @@ def test_custom_content_roundtrip_versions_and_export(tmp_path: Path) -> None:
     assert store.content_hash(TEMPLATE_ID, before) != store.content_hash(TEMPLATE_ID, revised)
     assert store.read(TEMPLATE_ID).slides[0].interactive_html == CUSTOM
     exported = audience_html(store, TEMPLATE_ID)
-    assert "slideStudioCapture" in exported and "interactive_html" in exported
+    assert "artifactStudioCapture" in exported and "interactive_html" in exported
     assert "allow-scripts" in exported and "allow-same-origin" not in exported
     printed = audience_html(store, TEMPLATE_ID, printing=True)
-    assert "interactive-data" in printed and "slideStudioCapture" in printed
+    assert "interactive-data" in printed and "artifactStudioCapture" in printed
     prepared = snapshot(store, TEMPLATE_ID, revised, 1, CaptureOptions(elapsed_ms=500))
-    assert "interactive-data" in prepared.document and "slideStudioCapture" in prepared.document
+    assert "interactive-data" in prepared.document and "artifactStudioCapture" in prepared.document
     with pytest.raises(ValueError, match="stage 0"):
         snapshot(store, TEMPLATE_ID, revised, 1, CaptureOptions(stage=7))
     cleared = store.revise(
@@ -54,7 +54,7 @@ def test_custom_content_roundtrip_versions_and_export(tmp_path: Path) -> None:
     assert not cleared.interactive_html
 
 
-@pytest.mark.skipif(os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
+@pytest.mark.skipif(os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
 def test_custom_capture_is_sandboxed_and_renders(tmp_path: Path) -> None:
     """Render actual custom scripts while blocking parent access and all outgoing requests."""
     make_design(tmp_path / TEMPLATE_ID)
@@ -64,7 +64,7 @@ def test_custom_capture_is_sandboxed_and_renders(tmp_path: Path) -> None:
         CUSTOM
         + """<script>
 let parentBlocked=false;try{parent.document.body.innerHTML='ESCAPED'}catch{parentBlocked=true}
-window.slideStudioReady=Promise.resolve().then(()=>{if(!parentBlocked)throw Error('escaped');});
+window.artifactStudioReady=Promise.resolve().then(()=>{if(!parentBlocked)throw Error('escaped');});
 fetch('https://test.invalid/api/decks').catch(()=>{});
 </script>"""
     )
@@ -91,7 +91,7 @@ fetch('https://test.invalid/api/decks').catch(()=>{});
 
 def test_prepare_custom_assets_and_preserve_static_fallback(tmp_path: Path) -> None:
     """Embed brand resources once and keep independent static edits after interactive updates."""
-    from studio.interactive import prepare_document
+    from artifact_studio.interactive import prepare_document
 
     make_design(tmp_path / TEMPLATE_ID)
     store = Store(tmp_path, tmp_path / "review.sqlite3")
@@ -133,7 +133,7 @@ def test_prepare_custom_assets_and_preserve_static_fallback(tmp_path: Path) -> N
     assert revised.interactive_html == document and revised.html == fallback
 
 
-@pytest.mark.skipif(os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
+@pytest.mark.skipif(os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
 def test_custom_interaction_network_boundaries_and_print_final(tmp_path: Path) -> None:
     """Exercise actual clicks, time hooks, final PDF state and blocked network/navigation."""
     from playwright.sync_api import Route, sync_playwright
@@ -171,7 +171,7 @@ window.attemptNavigation=()=>{location.href='https://test.invalid/navigate'};
 
             page.route("**/*", outgoing)
             page.set_content(prepared.document, wait_until="load")
-            page.evaluate("() => window.SlideStudioCaptureReady")
+            page.evaluate("() => window.ArtifactStudioCaptureReady")
             child = page.frames[-1]
             assert child.locator("#result").inner_text() == "375"
             child.get_by_role("button", name="Try it").click()
@@ -195,15 +195,15 @@ window.attemptNavigation=()=>{location.href='https://test.invalid/navigate'};
             assert len(page.pdf()) > 1000
             assert page.evaluate("""async()=>{
 const host=document.createElement('div');document.body.append(host);
-const mounted=window.SlideStudioInteractive.mount(host,
-  '<script>window.slideStudioReady=new Promise(()=>{})<'+'/script>');
+const mounted=window.ArtifactStudioInteractive.mount(host,
+  '<script>window.artifactStudioReady=new Promise(()=>{})<'+'/script>');
 const settled=mounted.ready.then(()=>false,()=>true);mounted.dispose();return await settled;
 }""")
         finally:
             browser.close()
 
 
-@pytest.mark.skipif(os.environ.get("SLIDE_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
+@pytest.mark.skipif(os.environ.get("ARTIFACT_STUDIO_RENDER_TESTS") != "1", reason="Opt-in Chromium")
 def test_custom_slideshow_keys_state_mirroring_and_disposal(tmp_path: Path) -> None:
     """Mirror declared public state and retain slideshow control from a focused custom frame."""
     from playwright.sync_api import Route, sync_playwright
@@ -214,10 +214,10 @@ def test_custom_slideshow_keys_state_mirroring_and_disposal(tmp_path: Path) -> N
     content = """<style>body{font:60px system-ui;background:#194b99;color:white}</style>
 <h1 id="state">0</h1><button id="increment">Add</button><input aria-label="Text">
 <script>
-let value=0;window.slideStudioSetState=state=>{
+let value=0;window.artifactStudioSetState=state=>{
 value=state.value;document.getElementById('state').textContent=value;};
 document.getElementById('increment').onclick=()=>{value++;
-document.getElementById('state').textContent=value;window.slideStudio.emitState({value});};
+document.getElementById('state').textContent=value;window.artifactStudio.emitState({value});};
 </script>"""
     store.revise(
         TEMPLATE_ID,

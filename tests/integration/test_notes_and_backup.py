@@ -8,15 +8,15 @@ from zipfile import ZipFile
 import pytest
 from playwright.sync_api import Browser, Page, Route, expect
 
-from studio.agent_client import object_value
-from studio.libraries import Libraries, Library
+from artifact_studio.agent_client import object_value
+from artifact_studio.libraries import Libraries, Library
 from tests.integration.support import DECK_ID, RunningApp
-from tests.integration.test_browser import open_editor
+from tests.integration.test_browser import open_editor, open_notes
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -24,6 +24,7 @@ pytestmark = [
 def test_notes_save_on_pause_switch_and_reload(page: Page, live_app: RunningApp) -> None:
     """Persist notes in canonical files while preserving slide context and approval."""
     open_editor(page, live_app)
+    open_notes(page)
     page.get_by_role("button", name="Approve", exact=True).click()
     page.get_by_label("Speaker notes", exact=True).fill("Saved without a button")
     expect(page.locator("#notes-state")).to_have_text("Saved")
@@ -53,9 +54,10 @@ def test_notes_save_on_pause_switch_and_reload(page: Page, live_app: RunningApp)
 def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: RunningApp) -> None:
     """A handoff archive waits for note persistence instead of racing the debounce timer."""
     open_editor(page, live_app)
+    open_notes(page)
     page.get_by_label("Speaker notes", exact=True).fill("Carry these notes to the next workspace")
     with page.expect_download() as downloaded:
-        page.keyboard.press("Control+s")
+        page.keyboard.press("ControlOrMeta+s")
     with ZipFile(downloaded.value.path()) as archive:
         sources = [name for name in archive.namelist() if name.endswith("index.html")]
         assert sources
@@ -83,6 +85,7 @@ def test_deleted_slide_recovery_carries_its_latest_autosaved_notes(
         lambda route: route.fulfill(content_type="text/event-stream", body=": reconnect later\n\n"),
     )
     open_editor(page, live_app)
+    open_notes(page)
     page.get_by_label("Speaker notes", exact=True).fill("Keep these notes with the deleted slide")
     page.locator('.slide-thumb[data-id="cover"]').click(button="right")
     page.get_by_role("menuitem", name="Delete slide", exact=True).click()
@@ -119,6 +122,7 @@ def test_conflicting_notes_require_a_reviewed_choice(
     try:
         page.route("**/slides/cover/notes", competing_editor)
         open_editor(page, live_app)
+        open_notes(page)
         page.get_by_label("Speaker notes", exact=True).fill("My private draft")
         expect(page.locator("#notes-state")).to_have_text("Needs review")
         assert live_app.store.read(DECK_ID).slides[0].notes == "Saved by another editor"
@@ -165,6 +169,7 @@ def test_failed_save_survives_reload_and_retries(
     try:
         page.route("**/slides/cover/notes", lambda route: route.abort("connectionfailed"))
         open_editor(page, live_app)
+        open_notes(page)
         original = live_app.store.read(DECK_ID).slides[0].notes
         page.get_by_label("Speaker notes", exact=True).fill(
             "Recover this after a connection failure"
@@ -200,6 +205,7 @@ def test_reload_recovers_other_slides_without_visiting_them(
     try:
         page.route("**/slides/next/notes", lambda route: route.abort("connectionfailed"))
         open_editor(page, live_app)
+        open_notes(page)
         page.locator('.slide-thumb[data-id="next"]').click()
         page.get_by_label("Speaker notes", exact=True).fill("Recover this inactive slide's notes")
         expect(page.locator("#notes-state")).to_have_text("Not saved")
@@ -230,6 +236,7 @@ def test_reload_after_reverting_fences_the_previous_pending_write(
     try:
         page.route("**/slides/cover/notes", hold_first_write)
         open_editor(page, live_app)
+        open_notes(page)
         original = live_app.store.read(DECK_ID).slides[0]
         with page.expect_request("**/slides/cover/notes"):
             page.get_by_label("Speaker notes", exact=True).fill("An older request still in flight")
@@ -251,6 +258,7 @@ def test_present_flushes_editor_notes_before_loading_the_private_view(
 ) -> None:
     """The Present click keeps fullscreen activation and carries the newest notes."""
     open_editor(page, live_app)
+    open_notes(page)
     page.get_by_label("Speaker notes", exact=True).fill("Notes ready for this presentation")
     page.locator("#present-link").click()
     viewer = page.frame_locator('iframe[title="Presentation"]')
@@ -279,6 +287,7 @@ def test_failed_presenter_notes_return_to_the_editor(
         expect(viewer.locator("#presenter-note-status")).to_contain_text("Not saved")
         viewer.locator("#end-presentation").click()
         expect(page.locator('iframe[title="Presentation"]')).not_to_be_visible()
+        open_notes(page)
         expect(page.get_by_label("Speaker notes", exact=True)).to_have_value(
             "Keep this interrupted presenter draft"
         )
@@ -351,7 +360,7 @@ def test_local_storage_controls_and_live_backup_status(
         "datetime", "2026-11-02T10:30:00+01:00"
     )
     _ = page.screenshot(path=str(artifacts / "backup-status-ui-fixture.png"))
-    page.get_by_role("checkbox", name="Back up all presentations", exact=True).uncheck()
+    page.get_by_role("checkbox", name="Back up all artifacts", exact=True).uncheck()
     expect(page.locator("#storage-status")).to_have_attribute("data-phase", "local")
     expect(page.locator("#library-list")).to_contain_text("GitHub reference · read-only")
     assert posts == ["retry", "disable"]
@@ -374,9 +383,9 @@ def test_local_reference_folder_stays_read_only(
     libraries = Libraries(live_app.store)
     connected = next(item for item in libraries.list() if item.location == str(reference))
     assert not connected.sync_enabled and not connected.auto_sync_enabled
-    _ = source.write_text("A later edit made outside Slide Studio.")
+    _ = source.write_text("A later edit made outside Artifact Studio.")
     assert libraries.files(connected.id)[0].local_path == str(source)
-    assert source.read_text() == "A later edit made outside Slide Studio."
+    assert source.read_text() == "A later edit made outside Artifact Studio."
     assert sorted(path.name for path in reference.iterdir()) == ["story.md"]
 
 

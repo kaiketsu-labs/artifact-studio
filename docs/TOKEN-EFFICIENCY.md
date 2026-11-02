@@ -6,6 +6,7 @@ MCP is stateless at the transport level. Agents can still retain context between
 
 | Need | Call |
 | --- | --- |
+| Resume an artifact/project | `get_working_context(artifact_id=... or project_id=..., include_discovery=False)`. Retain exact rules/guide hashes for repeat reads; selected design and scoped context remain. |
 | Resume a deck | `get_working_context(deck_id=..., include_discovery=False)` — complete rules, selected brand, source references and short workflow. Fetch discovery lists separately when needed. |
 | Create a deck | `get_working_context(design_id=...)`, then `create_presentation` with the selected design and brief. Omit design_id to use the default. |
 | Detailed instructions | `get_authoring_guide(topic=...)` — load a topic once; reuse its `hash` as `known_hash` only while retaining that exact text. |
@@ -40,6 +41,10 @@ Working context returns `guide_hash` and `guide_included`. Supply `known_guide_h
 
 `include_discovery=False` omits unrelated presentation, design and library lists and sets `discovery_included=false`. It preserves the selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages. Use `list_presentations`, `list_designs` or `list_libraries` when discovering new work. The default remains `True` for existing integrations.
 
+This also applies to general artifact/project and reference-only context. Related artifacts within the selected project remain as short pointers. For a presentation selected with `artifact_id`, the outer artifact guide and nested presentation guide are distinct: retain `guide_hash` with `known_guide_hash`, and `presentation_context.guide_hash` with `known_presentation_guide_hash`. A missing, unknown or changed hash returns the corresponding complete guide.
+
+The MCP artifact context sends its source list once, with `receipt_sources="sources"` linking the compact delivery receipt. The complete receipt is still persisted and available through the HTTP context inspector.
+
 Feedback reads and waits return `design_requests_hash` and `design_requests_included`. Supply `known_design_requests_hash` only while retaining that exact queued-request snapshot. The unchanged list is then omitted; additions, edits or removals return a new snapshot, including an empty list when the queue clears. An unchanged retained queue no longer makes a wait return immediately. This is not an acknowledgement: reply with `status="working"` when taking up a request. Never compare design event IDs with feedback delivery cursors. Feedback and design retention are independent of rule retention.
 
 ## Keep binaries out of model text
@@ -62,7 +67,33 @@ Compact JSON often helps structured coordinates, but it is not always smaller th
 
 The test suite checks compact/full responses, transport serialization, exact rule-version handling, withheld feedback, safe context appends and embedded-asset retries. Performance audits should record aggregate counts without committing presentation content or private review data.
 
+## Idle review work
+
+The hook waits locally; each short server poll checks only whether a released delivery or queued design request exists. It does not load feedback bodies, attachments, full inboxes or workspace rules. Live leases renew near expiry instead of on every 0.2-second poll. The bounded 540-second host continuation remains: removing it without verifying host timeouts could silently end review. This improves local work without claiming fewer model wakeups or billed tokens.
+
+The raw MCP tool catalogue does not repeat the bootstrap. Some hosts append the server's initialization instructions to every exposed tool description; the shorter canonical [bootstrap](../agent/bootstrap.md) reduces that repeated guidance. How much enters a prompt depends on the host's tool selection and caching.
+
 ## Measured authoring exchange
+
+### Scoped artifact context · 2 November 2026
+
+A second isolated benchmark compares `2b2fd53` with the scoped-context changes. Both runs use five selected design files, twelve unrelated designs, one HTML artifact and one two-slide deck, with equal-length checkout paths. Counts include the text and structured copies in serialized MCP results; they are not model tokens or billed savings.
+
+| Context read | Before | After | Reduction |
+| --- | ---: | ---: | ---: |
+| Selected HTML artifact | 50,595 B | 33,744 B | 33.3% |
+| Same artifact, retained rules/guide | 39,950 B | 23,003 B | 42.4% |
+| Reference collection only | 44,361 B | 29,032 B | 34.6% |
+| Presentation opened through the hub | 52,990 B | 41,650 B | 21.4% |
+| Same presentation, both guides retained | 42,347 B | 17,971 B | 57.6% |
+
+The tool catalogue grows from 107,332 to 107,643 bytes to advertise the separate nested-guide hash. The initialization bootstrap shrinks from 1,817 to 1,393 bytes while retaining instruction authority, free HTML/CSS/SVG/JavaScript authoring and review boundaries. Host-added copies depend on tool exposure and caching.
+
+In a separate controlled fixture with 100 released comments and one withheld comment, 100 idle polls over 19.8 simulated seconds made 100 lease updates before and one after. Full feedback/guidance loads are avoided. This measures local database work, not fewer model turns; the bounded idle continuation remains.
+
+Run `uv run --no-sync python -m scripts.measure_artifact_context --output test-results/artifact-context.json`. For the old source, run the same script from a neutral directory with that checkout on `PYTHONPATH`, use its locked dependencies and add `--baseline` to omit the newly introduced nested-guide argument. The reports contain aggregate counts only.
+
+### Earlier presentation exchange
 
 The November 2026 audit compared main commit `dc4dbbf` with token-efficiency commit `e17043e` using disposable data: two extra designs, 30 reference decks, a 14-slide target, 18 released discussion messages and one queued design request. This is a synthetic stress fixture, not a claim about typical decks or billed tokens. Counts below are UTF-8 bytes of serialized MCP result JSON, including the compatible text and structured copies. Equal-length checkout paths avoid path-length bias. Each before/after pair uses the same operation and state; the retained-feedback pair uses the same delivery cursor and retained rules in both versions.
 
@@ -79,4 +110,4 @@ The November 2026 audit compared main commit `dc4dbbf` with token-efficiency com
 
 For this scripted sequence, including call parameter JSON and one tool catalog but excluding the diagnostic full-context read, combined exchange size fell from 476,744 to 175,749 bytes (63.1%). Hashes add a small request cost that is included in this total. The tool catalog grew from 73,838 to 77,190 bytes (4.5%) because the safe controls and inclusion metadata are advertised. Full-detail context and first feedback reads remain complete; their metadata adds a small cost. Slide revision receipts were already compact and stayed at 780 bytes. Do not translate these byte reductions directly into token or billing percentages: tokenization, host selection of content copies and caching differ.
 
-Run the development benchmark with `uv run --no-sync python -m scripts.measure_agent_io --phase after`. It starts a temporary local server and collection and emits aggregate counts under `test-results/`; it never reads a user's collection. To reproduce the baseline, change to a neutral directory (outside both checkouts), then invoke the candidate benchmark script by absolute path with the baseline checkout on `PYTHONPATH` and `--phase before --output /path/to/before.json`. Use an environment with the project's locked dependencies and verify that `studio.__file__` resolves inside the baseline checkout, so you do not accidentally benchmark the candidate twice. Use equal-length checkout paths for strict byte comparisons. The real MCP integration test also records compact/full result sizes and checks that text and structured results agree.
+Run the development benchmark with `uv run --no-sync python -m scripts.measure_agent_io --phase after`. It starts a temporary local server and collection and emits aggregate counts under `test-results/`; it never reads a user's collection. To reproduce the baseline, change to a neutral directory (outside both checkouts), then invoke the candidate benchmark script by absolute path with the baseline checkout on `PYTHONPATH` and `--phase before --output /path/to/before.json`. Use an environment with the project's locked dependencies and verify that `artifact_studio.__file__` resolves inside the baseline checkout, so you do not accidentally benchmark the candidate twice. Use equal-length checkout paths for strict byte comparisons. The real MCP integration test also records compact/full result sizes and checks that text and structured results agree.

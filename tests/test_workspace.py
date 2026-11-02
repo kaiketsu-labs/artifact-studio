@@ -10,10 +10,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import agent_client
-from studio import app as service
-from studio.models import AgentContext, ElementTarget, FileInput, Slide, SlidePatch, Source
-from studio.storage import ConflictError, Store, digest
+from artifact_studio import agent_client
+from artifact_studio import app as service
+from artifact_studio.models import AgentContext, ElementTarget, FileInput, Slide, SlidePatch, Source
+from artifact_studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
@@ -599,7 +599,7 @@ def test_design_chat_files_and_agent_delivery(store: Store) -> None:
     """Persist file handoffs, wake the normal feedback loop and show the agent's response."""
     import base64
 
-    from studio.models import DesignRequestInput, FileInput
+    from artifact_studio.models import DesignRequestInput, FileInput
 
     content = b"Reference design: blue, spacious, diagrams rather than paragraphs."
     body = DesignRequestInput(
@@ -629,7 +629,7 @@ def test_design_chat_files_and_agent_delivery(store: Store) -> None:
 
 def test_design_chat_validation_and_presence(store: Store) -> None:
     """Reject unusable files and unknown completed designs, and expire live availability."""
-    from studio.models import DesignRequestInput, FileInput
+    from artifact_studio.models import DesignRequestInput, FileInput
 
     with pytest.raises(ValueError, match="message"):
         _ = store.post_design_request(DesignRequestInput(request_id="empty-request"))
@@ -656,7 +656,7 @@ def test_design_chat_validation_and_presence(store: Store) -> None:
 
 def test_agent_registers_prepared_design(store: Store) -> None:
     """Make an agent-prepared bundle selectable without asking the user to configure it."""
-    from studio.models import DesignManifest
+    from artifact_studio.models import DesignManifest
 
     target = store.root / "2026-10-28-new-blue"
     make_design(target, "blue")
@@ -713,7 +713,7 @@ def test_design_request_wakes_active_slide_agent(
     """Deliver a design-chat handoff through an agent's existing slide-feedback wait."""
     import asyncio
 
-    from studio.models import DesignRequestInput
+    from artifact_studio.models import DesignRequestInput
 
     monkeypatch.setattr(service, "store", store)
 

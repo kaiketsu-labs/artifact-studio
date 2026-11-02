@@ -6,14 +6,14 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
-from studio.models import ElementGroupTarget, ElementTarget
+from artifact_studio.models import ElementGroupTarget, ElementTarget
 from tests.integration.support import DECK_ID, RunningApp, markup
 from tests.integration.test_browser import open_editor
 
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
-        os.environ.get("SLIDE_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
 
@@ -27,21 +27,25 @@ def test_multiple_objects_toggle_restore_and_deliver_as_original_context(
     heading = preview.get_by_role("heading", level=1)
     body = preview.get_by_text("Create, review and present.", exact=True)
     heading.click()
-    expect(page.locator("#element-tools")).to_be_visible()
+    expect(page.locator("#element-properties")).to_be_visible()
     expect(page.locator("#selection-box")).to_be_visible()
-    body.click(modifiers=["Meta"])
+    expect(page.locator("#element-tools")).to_be_hidden()
+    page.get_by_label("Object options").click()
+    expect(page.locator("#element-tools")).to_be_visible()
+    page.get_by_label("Object options").click()
+    body.click(modifiers=["ControlOrMeta"])
     expect(page.locator("#target-label")).to_have_text("2 objects")
     expect(page.locator("#target-members .target-member")).to_have_count(2)
     expect(page.locator("#group-selection-boxes .element-box")).to_have_count(2)
-    expect(page.locator("#element-tools")).to_be_hidden()
+    expect(page.locator("#element-properties")).to_be_hidden()
     expect(page.locator("#selection-box")).to_be_hidden()
     expect(page.locator("#hover-hint")).to_have_count(0)
     expect(page.locator("#objects-button")).to_have_attribute(
         "title", "Select slide objects · Cmd/Ctrl/Shift-click to add or remove"
     )
-    body.click(modifiers=["Control"])
+    body.click(modifiers=["ControlOrMeta"])
     expect(page.locator("#target-members")).to_be_hidden()
-    expect(page.locator("#element-tools")).to_be_visible()
+    expect(page.locator("#element-properties")).to_be_visible()
     body.click(modifiers=["Shift"])
     expect(page.locator("#target-label")).to_have_text("2 objects")
 
@@ -76,9 +80,9 @@ def test_multiple_objects_toggle_restore_and_deliver_as_original_context(
     ]
     page.locator("#feedback-list .comment-target").click()
     expect(page.locator("#group-selection-boxes .element-box")).to_have_count(2)
-    expect(page.locator("#element-tools")).to_be_hidden()
+    expect(page.locator("#element-properties")).to_be_hidden()
     body.click()
-    expect(page.locator("#element-tools")).to_be_visible()
+    expect(page.locator("#element-properties")).to_be_visible()
     expect(page.locator("#group-selection-boxes .element-box")).to_have_count(0)
 
 
@@ -105,13 +109,13 @@ def test_revision_keeps_group_draft_and_chip_removal_on_original_version(
     _ = page.reload(wait_until="networkidle")
     expect(page.locator("#target-label")).to_have_text("2 objects · earlier version")
     expect(page.locator("#group-selection-boxes .element-box")).to_have_count(0)
-    expect(page.locator("#element-tools")).to_be_hidden()
+    expect(page.locator("#element-properties")).to_be_hidden()
     preview.get_by_role("heading", level=1).click(modifiers=["Shift"])
     expect(page.locator("#toast")).to_contain_text("earlier version")
     expect(page.locator("#target-label")).to_have_text("2 objects · earlier version")
     page.locator("#target-members [data-remove-target='1']").click()
     expect(page.locator("#target-label")).to_contain_text("Review together · earlier version")
-    expect(page.locator("#element-tools")).to_be_hidden()
+    expect(page.locator("#element-properties")).to_be_hidden()
     feedback.press("Enter")
     expect(feedback).to_have_value("")
     sent = live_app.store.feedback_feed(DECK_ID).events[0]

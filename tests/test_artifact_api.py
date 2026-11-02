@@ -1,4 +1,4 @@
-"""End-to-end local HTTP boundaries and scoped agent context for Artifact Hub."""
+"""End-to-end local HTTP boundaries and scoped agent context for Artifact Studio."""
 
 import base64
 from pathlib import Path
@@ -8,10 +8,12 @@ import pytest
 from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
-from studio import app as service
-from studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
-from studio.artifacts import ArtifactStore
-from studio.storage import Store
+from artifact_studio import app as service
+from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.design_library import DesignCreate, DesignLibrary
+from artifact_studio.models import FileInput
+from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
@@ -200,9 +202,98 @@ def test_context_receipt_distinguishes_available_and_returned_sources(client: Te
     assert (
         cast(list[dict[str, str]], retained["sources"])[0]["delivery"] == "omitted because retained"
     )
-    assert client.get("/api/hub/context", params={"artifact_id": artifact.id}).json()["receipt"]
+    assert "sources" not in cast(dict[str, object], context["receipt"])
+    assert context["receipt_sources"] == "sources"
+    http_receipt = client.get("/api/hub/context", params={"artifact_id": artifact.id}).json()[
+        "receipt"
+    ]
+    assert http_receipt["sources"] == retained["sources"]
     with pytest.raises(ToolError):
         _ = service.get_working_context(artifact_id=artifact.id, project_id="different-project")
+
+
+def test_scoped_context_discovery_and_selected_reference(client: TestClient) -> None:
+    """Discovery can be skipped without losing scoped context or selected references."""
+    artifact = import_page(client)
+    design = DesignLibrary(service.store).create(
+        DesignCreate(
+            name="Reference",
+            files=[
+                FileInput(name="guide.txt", data_base64=base64.b64encode(b"reference").decode())
+            ],
+        )
+    )
+    for artifact_id, project_id in ((artifact.id, ""), ("", artifact.project_id), ("", "")):
+        selected = service.get_working_context(
+            artifact_id=artifact_id,
+            project_id=project_id,
+            design_id=design.id,
+            include_discovery=False,
+        )
+        assert selected["discovery_included"] is False and selected["available_designs"] == []
+        assert selected["design_context"] == design.model_dump()
+        assert selected["rules_included"] and selected["guide_included"]
+        assert "pointer returned" in str(selected["sources"])
+        if artifact_id or project_id:
+            assert (
+                cast(dict[str, object], selected["project"])["context"] == "Project private brief"
+            )
+        if artifact_id:
+            assert (
+                cast(dict[str, object], selected["artifact"])["context"]
+                == "Artifact private context"
+            )
+    discovery = service.get_working_context(project_id=artifact.project_id)
+    assert discovery["discovery_included"] is True
+    assert all(
+        "files" not in item
+        for item in cast(list[dict[str, object]], discovery["available_designs"])
+    )
+    assert service.get_working_context(project_id=artifact.project_id, include_discovery=False)[
+        "related_artifacts"
+    ]
+
+
+def test_legacy_artifact_retains_distinct_guides(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retained artifact guide never suppresses a different nested presentation guide."""
+    make_design(service.store.root / TEMPLATE_ID)
+    deck = service.store.create("2026-11-02-guides", "Legacy")
+    first = service.get_working_context(artifact_id=deck.id, include_discovery=False)
+    nested = cast(dict[str, object], first["presentation_context"])
+    assert first["guide_included"] and nested["guide_included"]
+    retained = service.get_working_context(
+        artifact_id=deck.id,
+        known_guide_hash=str(first["guide_hash"]),
+        known_presentation_guide_hash=str(nested["guide_hash"]),
+        known_rules_hash=str(first["rules_hash"]),
+        include_discovery=False,
+    )
+    assert not retained["guide_included"]
+    assert not cast(dict[str, object], retained["presentation_context"])["guide_included"]
+    unknown = service.get_working_context(
+        artifact_id=deck.id, known_guide_hash="unknown", known_presentation_guide_hash="unknown"
+    )
+    assert unknown["guide_included"]
+    assert cast(dict[str, object], unknown["presentation_context"])["guide_included"]
+    lost = service.get_working_context(artifact_id=deck.id)
+    assert lost["guide"] == first["guide"]
+    assert cast(dict[str, object], lost["presentation_context"])["guide"] == nested["guide"]
+    docs = tmp_path / "app" / "docs"
+    docs.mkdir(parents=True)
+    (docs / "AGENT-QUICKSTART.md").write_text("Updated presentation guide")
+    monkeypatch.setattr(service, "PROJECT", docs.parent)
+    changed = service.get_working_context(
+        artifact_id=deck.id,
+        known_guide_hash=str(first["guide_hash"]),
+        known_presentation_guide_hash=str(nested["guide_hash"]),
+    )
+    assert not changed["guide_included"]
+    assert (
+        cast(dict[str, object], changed["presentation_context"])["guide"]
+        == "Updated presentation guide"
+    )
 
 
 def test_legacy_deep_links_and_project_assignment_remain_compatible(client: TestClient) -> None:

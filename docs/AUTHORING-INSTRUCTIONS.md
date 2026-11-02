@@ -21,4 +21,4 @@
 
 ## Free composition
 
-Design examples, helper classes and animation attributes are optional hints, not fixed layouts or a feature catalogue. Compose HTML, CSS, SVG, canvas, media and custom interactions freely. Slide Studio supports self-contained custom JavaScript through `interactive_html` in an offline sandbox. Keep a meaningful static `html` fallback aligned for selection and preview; use the current authoring capability guide rather than legacy design-guide restrictions.
+Design examples, helper classes and animation attributes are optional hints, not fixed layouts or a feature catalogue. Compose HTML, CSS, SVG, canvas, media and custom interactions freely. Artifact Studio supports self-contained custom JavaScript through `interactive_html` in an offline sandbox. Keep a meaningful static `html` fallback aligned for selection and preview; use the current authoring capability guide rather than legacy design-guide restrictions.

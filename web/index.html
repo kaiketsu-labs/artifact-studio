@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Slide Studio</title>
+  <title>Artifact Studio</title>
   <script src="/web/appearance.js"></script>
-  <link rel="icon" type="image/png" href="/web/brand/mark.png">
+  <link rel="icon" type="image/svg+xml" href="/web/brand/mark.svg">
   <link rel="stylesheet" href="/web/style.css">
   <link rel="stylesheet" href="/web/hub-rail.css">
   <link rel="stylesheet" href="/web/objects.css">
@@ -13,10 +13,13 @@
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/slide-questions.css">
   <link rel="stylesheet" href="/web/element-controls.css">
+  <link rel="stylesheet" href="/web/element-properties.css">
+  <link rel="stylesheet" href="/web/workspace-panels.css">
   <link rel="stylesheet" href="/web/appearance.css">
   <link rel="stylesheet" href="/web/design-references.css">
   <link rel="stylesheet" href="/web/slide-sections.css">
   <link rel="stylesheet" href="/web/storage-status.css">
+  <link rel="stylesheet" href="/web/editor-layout.css">
   <link rel="stylesheet" href="/web/voice-input.css">
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
@@ -30,6 +33,8 @@
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-questions.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
+  <script src="/web/element-properties.js" defer></script>
+  <script src="/web/workspace-panels.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
   <script src="/web/slide-sections.js" defer></script>
   <script src="/web/slide-sorter.js" defer></script>
@@ -48,17 +53,20 @@
   <script src="/web/updates.js" defer></script>
   <script src="/web/preview-updates.js" defer></script>
   <script src="/web/workspace-menu.js" defer></script>
+  <link rel="stylesheet" href="/web/sharing.css">
+  <script src="/web/sharing.js" defer></script>
   <script src="/web/design-references.js" defer></script>
   <script src="/web/hub-rail.js" defer></script>
   <script src="/web/app.js" defer></script>
 </head>
 <body>
 <header class="topbar">
-  <a class="identity" href="/"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.png" alt="" width="30" height="30"></span>Slide Studio</a>
+  <a class="identity" href="/" aria-label="Artifact Studio"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span><span class="identity-name">Artifact Studio</span></a>
   <div class="top-actions">
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
+    <button id="share-artifact" class="quiet" type="button" aria-label="Share presentation" title="Share presentation" disabled></button>
     <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
-    <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Slide Studio">
+    <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Artifact Studio">
       <div role="group" aria-label="Files">
         <button id="new-button" type="button" role="menuitem" tabindex="-1" aria-label="New presentation"></button>
         <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Open project"></button>
@@ -94,14 +102,17 @@
     <div class="rail-foot"><span class="dot red"></span>To review<span class="dot green"></span>Approved</div>
   </aside>
   <section class="canvas-area" aria-label="Selected slide">
+    <div class="canvas-header">
     <header class="slide-heading">
-      <div class="slide-label"><span id="slide-eyebrow"></span><h1 id="slide-title"></h1></div>
+      <div class="slide-label"><span id="slide-eyebrow" class="sr-only"></span><h1 id="slide-title"></h1></div>
       <div class="slide-heading-actions"><button id="hide-slide" type="button" aria-label="Hide slide"></button><button id="approve-button" class="approve"></button></div>
     </header>
     <div class="canvas-tools">
-      <div class="object-tools"><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
-      <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button><button id="prev-slide" aria-label="Previous slide"></button><button id="next-slide" aria-label="Next slide"></button></div>
+      <div class="object-tools"><button id="view-artifact" type="button" aria-label="Focus view" title="Focus view" disabled></button><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
+      <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button></div>
     </div>
+    </div>
+    <div id="element-properties" hidden></div>
     <div class="preview-wrap" id="preview-wrap">
       <iframe id="preview" title="Slide preview — click an element to give feedback" sandbox="allow-same-origin"></iframe>
       <div id="preview-status" class="preview-status" role="status" hidden><span id="preview-message">Loading design…</span><button id="retry-preview" type="button" hidden aria-label="Retry loading design"></button></div>
@@ -120,7 +131,7 @@
       </div>
     </div>
     <div id="update-banner" class="update-banner" hidden>New version available.<button id="load-update">Show update</button></div>
-    <details id="notes-panel" class="notes-panel" open>
+    <details id="notes-panel" class="notes-panel">
       <summary><span>Notes</span><span id="notes-state" role="status" aria-live="polite"></span></summary>
       <textarea id="notes" aria-label="Speaker notes" placeholder="Add notes…" maxlength="20000"></textarea>
       <div id="notes-error-panel" class="notes-footer" hidden><p id="notes-error" class="inline-error" role="alert"></p><button id="review-notes" type="button" class="quiet" hidden>Review changes</button><button id="save-notes" type="button" class="quiet" aria-label="Retry saving notes" hidden></button></div>
@@ -163,7 +174,7 @@
   </aside>
 </main>
 <footer id="view-toolbar" class="view-toolbar" aria-label="Slide view and zoom">
-  <span id="view-status"></span>
+  <div class="view-navigation"><button id="prev-slide" type="button" aria-label="Previous slide"></button><span id="view-status"></span><button id="next-slide" type="button" aria-label="Next slide"></button></div>
   <div class="view-controls">
     <div class="view-switch" role="group" aria-label="Slide view"><button id="edit-view" type="button" aria-label="Edit view" aria-pressed="true"></button><button id="sorter-view" type="button" aria-label="Slide sorter" aria-pressed="false"></button></div>
     <button id="zoom-out" type="button" aria-label="Zoom out"></button>
@@ -220,7 +231,7 @@
   <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button></div>
   <h3 class="project-group-label">Export</h3>
   <div class="project-actions"><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
-  <input id="project-file" type="file" accept=".slide-studio.zip,.zip" hidden>
+  <input id="project-file" type="file" accept=".artifact-studio.zip,.zip" hidden>
   <p id="project-error" class="inline-error" role="alert"></p>
 </dialog>
 <dialog id="instructions-dialog">
@@ -239,7 +250,7 @@
 <dialog id="connect-dialog">
   <header><h2>Connect an agent</h2><button id="close-connect" aria-label="Close"></button></header>
   <details class="connection-details"><summary>Guided setup</summary>
-    <p>Open the Slide Studio checkout in your agent.</p>
+    <p>Open the Artifact Studio checkout in your agent.</p>
     <p><strong>Claude Code</strong> <code>/setup</code> · <strong>Codex</strong> <code>$setup</code></p>
   </details>
   <details class="connection-details"><summary>MCP setup</summary>
@@ -303,16 +314,16 @@
 </dialog>
 <dialog id="library-dialog" aria-labelledby="library-dialog-title">
   <header><h2 id="library-dialog-title">Storage and backup</h2><button id="close-libraries" aria-label="Close"></button></header>
-  <p>Slides and notes save on this device. GitHub backup uploads saved files; it does not pull changes into your working folder.</p>
+  <p>Artifacts and notes save on this device. GitHub backup uploads saved files; it does not pull changes into your working folder.</p>
   <div id="library-list"></div>
   <form id="library-form">
     <label for="library-location">Add a GitHub repository or local folder</label>
     <div class="copy-row"><input id="library-location" placeholder="https://github.com/you/presentations or /Users/…" required><button id="add-library" type="submit"></button></div>
-    <label id="library-sync-setting" class="library-checkbox" hidden><input id="library-sync" type="checkbox"><span>Back up automatically<small>All presentations, notes and design references · private repository</small></span></label>
+    <label id="library-sync-setting" class="library-checkbox" hidden><input id="library-sync" type="checkbox"><span>Back up automatically<small>All saved artifacts, notes and design references · private repository</small></span></label>
   </form>
   <p id="library-status" role="status" aria-live="polite"></p>
   <p id="library-error" class="inline-error" role="alert"></p>
-  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives saved slides, notes, assets and design references. Review chat, approvals and browser drafts stay here. For a complete workspace handoff, save and open a project file.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
+  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. A GitHub snapshot alone does not restore the Studio review database.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
 </dialog>
 </body>
 </html>

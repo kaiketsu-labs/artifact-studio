@@ -221,14 +221,14 @@
     'use strict';
     const send=(type,values={})=>parent.postMessage({type,token,...values},'*');
     let pendingState=context.state;
-    window.slideStudio={
+    window.artifactStudio={
       emitState(value){try{const text=JSON.stringify(value);if(text.length<=65536)send('interactive-state',{state:JSON.parse(text)});}catch{}},
       context:Object.freeze({...context,state:undefined})
     };
     window.addEventListener('message',event=>{
       if(event.source!==parent||event.data?.token!==token||event.data.type!=='interactive-apply-state')return;
       pendingState=event.data.state;
-      if(typeof window.slideStudioSetState==='function')void window.slideStudioSetState(pendingState);
+      if(typeof window.artifactStudioSetState==='function')void window.artifactStudioSetState(pendingState);
     });
     window.addEventListener('keydown',event=>{
       const editing=!!event.target.closest?.('textarea,input,select,[contenteditable]'),control=!!event.target.closest?.('button,a,[role="button"]');
@@ -243,9 +243,9 @@
       try{
         await document.fonts.ready;
         await Promise.all([...document.images].map(image=>image.decode().catch(()=>{})));
-        if(window.slideStudioReady)await window.slideStudioReady;
-        if(pendingState!==undefined&&typeof window.slideStudioSetState==='function')await window.slideStudioSetState(pendingState);
-        if(typeof window.slideStudioCapture==='function'&&(context.mode==='capture'||context.mode==='print'))await window.slideStudioCapture(context);
+        if(window.artifactStudioReady)await window.artifactStudioReady;
+        if(pendingState!==undefined&&typeof window.artifactStudioSetState==='function')await window.artifactStudioSetState(pendingState);
+        if(typeof window.artifactStudioCapture==='function'&&(context.mode==='capture'||context.mode==='print'))await window.artifactStudioCapture(context);
         send('interactive-ready');
       }catch{send('interactive-error');}
     },{once:true});
@@ -299,9 +299,9 @@
   }
   if(typeof module!=='undefined')module.exports={interactiveDocument,interactiveMessage,PresentationClock,nextState,nextBuildState,buildCount,shownIndices,updateProgressRail,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
   if(typeof document==='undefined')return;
-  window.SlideStudioInteractive={interactiveDocument,interactiveMessage,mount:mountInteractive};
+  window.ArtifactStudioInteractive={interactiveDocument,interactiveMessage,mount:mountInteractive};
   if(document.documentElement.dataset.capture==='slide'||document.currentScript?.hasAttribute('data-builds-only')){
-    window.SlideStudioBuilds={BuildAnimations,buildCount};
+    window.ArtifactStudioBuilds={BuildAnimations,buildCount};
     return;
   }
 
@@ -314,7 +314,7 @@
   const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const query=new URLSearchParams(location.search),isAudience=query.get('audience')==='1';
   const embedded=query.get('workspace')==='1'&&window.parent!==window&&!isAudience;
-  const hostMessage=(action,extra={})=>{if(embedded)window.parent.postMessage({type:'slide-studio:presentation',action,slide_id:deck.slides[current]?.id,...extra},location.origin);};
+  const hostMessage=(action,extra={})=>{if(embedded)window.parent.postMessage({type:'artifact-studio:presentation',action,slide_id:deck.slides[current]?.id,...extra},location.origin);};
   const direct=query.get('present')==='1'||isAudience||document.documentElement.dataset.export==='audience';
   const channelName=query.get('channel')||`slides-${crypto.randomUUID()}`;
   const channel=typeof BroadcastChannel==='function'?new BroadcastChannel(channelName):null;
@@ -323,7 +323,7 @@
   const expectedNotes=new Map(deck.slides.map(slide=>[slide.id,slide.notes]));
   const expectedNoteVersions=new Map(deck.slides.map(slide=>[slide.id,slide.notes_revision??0]));
   const noteDrafts=new Map(),saving=new Map();
-  const noteKey=`slide-studio:presenter-notes:${deck.id}`;
+  const noteKey=`artifact-studio:presenter-notes:${deck.id}`;
   const requested=deck.slides.findIndex(slide=>slide.id===decodeURIComponent(location.hash.slice(1)));
   const initial=startIndex(deck.slides,Math.max(0,requested));
   let current=isAudience&&requested>=0?requested:direct?Math.max(0,initial):Math.max(0,requested);
@@ -567,7 +567,7 @@
   });
   function fullscreenChanged(){if(embedded||fullscreenElement())return;if(leavingFullscreen){leavingFullscreen=false;return;}if(active&&!ending&&!isAudience)void endPresentation();}
   document.addEventListener('fullscreenchange',fullscreenChanged);document.addEventListener('webkitfullscreenchange',fullscreenChanged);
-  if(embedded)window.addEventListener('message',event=>{if(event.source!==window.parent||event.origin!==location.origin||event.data?.type!=='slide-studio:host')return;if(event.data.action==='end')void endPresentation();if(event.data.action==='fullscreen-state')for(const id of ['single-fullscreen','presenter-fullscreen']){$(id).disabled=!event.data.available;$(id).title=event.data.available?'Fullscreen':'Fullscreen unavailable in this browser';}});
+  if(embedded)window.addEventListener('message',event=>{if(event.source!==window.parent||event.origin!==location.origin||event.data?.type!=='artifact-studio:host')return;if(event.data.action==='end')void endPresentation();if(event.data.action==='fullscreen-state')for(const id of ['single-fullscreen','presenter-fullscreen']){$(id).disabled=!event.data.available;$(id).title=event.data.available?'Fullscreen':'Fullscreen unavailable in this browser';}});
   $('normal-view').addEventListener('wheel',event=>{if(Math.abs(event.deltaY)<18||performance.now()-lastWheel<650)return;event.preventDefault();lastWheel=performance.now();navigate(event.deltaY>0?'next':'previous');},{passive:false});
   if(!workspaceDeck&&!isAudience){try{const saved=JSON.parse(localStorage.getItem(`slide-notes-${deck.id}`)||'{}');for(const slide of deck.slides)if(typeof saved[slide.id]==='string')slide.notes=saved[slide.id];}catch{}}
   if(channel)channel.onmessage=event=>{

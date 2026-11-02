@@ -6,12 +6,12 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from studio import app as service
-from studio.models import DeckSection
-from studio.projects import ClientState, audience_html, open_project, save_project
-from studio.sections import Sections, sections_hash
-from studio.slide_actions import SlideActions
-from studio.storage import ConflictError, Store, digest
+from artifact_studio import app as service
+from artifact_studio.models import DeckSection
+from artifact_studio.projects import ClientState, audience_html, open_project, save_project
+from artifact_studio.sections import Sections, sections_hash
+from artifact_studio.slide_actions import SlideActions
+from artifact_studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

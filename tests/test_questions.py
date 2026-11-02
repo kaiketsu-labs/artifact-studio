@@ -5,11 +5,17 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from studio import app as service
-from studio.models import QuestionAnswerInput
-from studio.projects import ClientState, QuestionDraft, audience_html, open_project, save_project
-from studio.questions import Questions
-from studio.storage import ConflictError, Store, digest
+from artifact_studio import app as service
+from artifact_studio.models import QuestionAnswerInput
+from artifact_studio.projects import (
+    ClientState,
+    QuestionDraft,
+    audience_html,
+    open_project,
+    save_project,
+)
+from artifact_studio.questions import Questions
+from artifact_studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 

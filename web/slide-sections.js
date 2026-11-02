@@ -29,8 +29,8 @@
   function create({rail,read,active,prepare,blocked,save,onBusy,escape,svg,toast}){
     const doc=rail.ownerDocument,$=id=>doc.getElementById(id),dialog=$('section-dialog'),menu=$('section-menu');
     const folded=new Map();let busy=false,pending=null,menuId=null;
-    function collapsed(deckId){if(!folded.has(deckId)){let saved=[];try{saved=JSON.parse(root.localStorage.getItem('slide-studio:sections:'+deckId)||'[]');}catch{}folded.set(deckId,new Set(Array.isArray(saved)?saved:[]));}return folded.get(deckId);}
-    function persist(deckId){try{root.localStorage.setItem('slide-studio:sections:'+deckId,JSON.stringify([...collapsed(deckId)]));}catch{}}
+    function collapsed(deckId){if(!folded.has(deckId)){let saved=[];try{saved=JSON.parse(root.localStorage.getItem('artifact-studio:sections:'+deckId)||'[]');}catch{}folded.set(deckId,new Set(Array.isArray(saved)?saved:[]));}return folded.get(deckId);}
+    function persist(deckId){try{root.localStorage.setItem('artifact-studio:sections:'+deckId,JSON.stringify([...collapsed(deckId)]));}catch{}}
     function applyFold(){const state=read();if(!state)return;for(const group of rail.querySelectorAll('.slide-section')){const closed=collapsed(state.id).has(group.dataset.sectionId),button=group.querySelector('.section-toggle');group.querySelector('.section-slides').hidden=closed;button.setAttribute('aria-expanded',String(!closed));}}
     function toggle(id,closed){const state=read();if(!state)return;const values=collapsed(state.id);if(closed??!values.has(id))values.add(id);else values.delete(id);persist(state.id);applyFold();}
     function render(state,entries){

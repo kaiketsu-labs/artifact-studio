@@ -36,33 +36,37 @@
   /** Describe an exact placement while leaving layout implementation to the agent. */
   function moveMessage(position){return `Move to ${(position.x*100).toFixed(2)}% from the left and ${(position.y*100).toFixed(2)}% from the top.`;}
   /** Preview edits locally and submit their original element/version as ordinary feedback. */
-  function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,anchor,onSend,onChange,onError,deliveryStatus=()=> 'released',blocked=()=>false}){
-    let element=null,original=null,textEditing=false,dragEnabled=true,drag=null,doc=null,busy=false,suppressClick=false,sent=false,keyboardMove=null,submission=null,positionPreview=null,rotationPreview=0,pendingDelete=false,rotationDrag=null;
+  function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,properties=null,anchor,onSend,onChange,onError,deliveryStatus=()=> 'released',blocked=()=>false}){
+    let element=null,original=null,textEditing=false,dragEnabled=true,drag=null,doc=null,busy=false,suppressClick=false,sent=false,keyboardMove=null,submission=null,positionPreview=null,rotationPreview=0,pendingDelete=false,rotationDrag=null,propertyValues={},propertyBaseline={};
     const requests=new Map();
     let textVoice=null,textGeneration=0;
     function cancelTextVoice(){textGeneration++;textVoice?.cancel();if(textVoice)textVoice.controls.hidden=true;}
     const canText=()=>!!element&&element.namespaceURI==='http://www.w3.org/1999/xhtml'&&/^(H[1-6]|P|SPAN|LI|DIV|LABEL)$/.test(element.tagName)&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol')&&!!element.textContent.trim();
+    const canPropertyText=()=>!!element&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol,text,tspan')&&!!element.textContent?.trim();
+    const propertyDraft=()=>Object.keys(propertyValues).length>0;
     const canMove=()=>!!element&&(element.namespaceURI==='http://www.w3.org/1999/xhtml'||element.tagName.toLowerCase()==='svg');
     const controls=selectionBox?createSelectionControls(selectionBox):null;
     function update(){
       if(textVoice)textVoice.controls.hidden=!textEditing||busy||blocked();
       const draftGeometry=!!keyboardMove||pendingDelete;
+      const editingProperties=propertyDraft();
       tools.hidden=!element;editButton.hidden=textEditing||draftGeometry;moveButton.hidden=textEditing||pendingDelete;commitButton.hidden=!textEditing&&!draftGeometry;cancelButton.hidden=!textEditing&&!draftGeometry;
-      alignButton.hidden=textEditing||pendingDelete;alignButton.disabled=busy||blocked()||!canMove();
+      alignButton.hidden=textEditing||pendingDelete;alignButton.disabled=busy||blocked()||editingProperties||!canMove();
       if(!element||alignButton.hidden||alignButton.disabled)closeAlign();
-      editButton.disabled=busy||blocked()||!canText();moveButton.disabled=busy||blocked()||!canMove();commitButton.disabled=busy||blocked();cancelButton.disabled=busy||blocked();
+      editButton.disabled=busy||blocked()||!canText();moveButton.disabled=busy||blocked()||editingProperties||!canMove();commitButton.disabled=busy||blocked();cancelButton.disabled=busy||blocked();
       moveButton.setAttribute('aria-pressed',String(dragEnabled));moveButton.title=canMove()?'Drag selected element · arrow keys to position':'Select the surrounding group to move it';
       const commitLabel=pendingDelete?'Send deletion request':keyboardMove?'Send element change':'Send text change';
       commitButton.setAttribute('aria-label',commitLabel);commitButton.title=commitLabel;
-      if(deleteButton){deleteButton.hidden=textEditing||!!keyboardMove||pendingDelete;deleteButton.disabled=busy||blocked()||!element;}
-      if(rotationInput){rotationInput.closest('label').hidden=textEditing||pendingDelete;rotationInput.disabled=busy||blocked()||!canMove();if(rotationInput!==rotationInput.ownerDocument.activeElement)rotationInput.value=String(keyboardMove?.rotation??rotationPreview);}
-      if(selectionBox){selectionBox.classList.toggle('deletion-proposal',pendingDelete);selectionBox.classList.toggle('element-manipulation-disabled',busy||blocked()||textEditing||pendingDelete||!canMove()||!dragEnabled);selectionBox.setAttribute('aria-label',pendingDelete?'Selected element · deletion requested':'Selected element · drag border or use arrow keys to move');}
+      if(deleteButton){deleteButton.hidden=textEditing||!!keyboardMove||pendingDelete;deleteButton.disabled=busy||blocked()||editingProperties||!element;}
+      if(rotationInput){rotationInput.closest('label').hidden=textEditing||pendingDelete;rotationInput.disabled=busy||blocked()||editingProperties||!canMove();if(rotationInput!==rotationInput.ownerDocument.activeElement)rotationInput.value=String(keyboardMove?.rotation??rotationPreview);}
+      if(selectionBox){selectionBox.classList.toggle('deletion-proposal',pendingDelete);selectionBox.classList.toggle('element-manipulation-disabled',busy||blocked()||textEditing||pendingDelete||editingProperties||!canMove()||!dragEnabled);selectionBox.setAttribute('aria-label',pendingDelete?'Selected element · deletion requested':'Selected element · drag border or use arrow keys to move');}
 
-      const draft=draftGeometry||textEditing&&original&&(element.innerText??element.textContent)!==original.text;
+      const draft=draftGeometry||editingProperties||textEditing&&original&&(element.innerText??element.textContent)!==original.text;
       const status=draft?'draft':deliveryStatus(submission),label=({draft:'Unsent edit',queued:'Queued in Batch',released:'Saved for agent',answered:'Agent replied'})[status]||'Saved for agent';
       sentBadge.hidden=(!sent&&!draft)||busy;
       if(sentBadge.dataset.state!==status){sentBadge.dataset.state=status;sentBadge.title=label;sentBadge.setAttribute('aria-label',label);sentBadge.innerHTML=root.SlideIcons.svg(({draft:'edit',queued:'batch',released:'send',answered:'notes'})[status]||'send');const text=document.createElement('span');text.className='sr-only';text.textContent=label;sentBadge.append(text);}
       tools.classList.toggle('has-suggestion',!!(sent||draft));
+      properties?.setState({dirty:editingProperties,busy,sent,disabled:blocked()||draftGeometry||textEditing,objectDraft:draftGeometry||textEditing});
       if(element)onChange(element);
     }
     function remember(){
@@ -71,6 +75,7 @@
     }
     function restore(){
       cancelTextVoice();
+      properties?.cancelVoice?.();
       if(!original||!element)return;
       element.innerHTML=original.html;
       for(const [name,value] of [['style',original.style],['contenteditable',original.editable]]){if(value===null)element.removeAttribute(name);else element.setAttribute(name,value);}
@@ -79,10 +84,21 @@
       rotationPreview=0;
       pendingDelete=false;
     }
-    function select(next){closeAlign();restore();element=next;textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;dragEnabled=true;sent=false;submission=null;if(rotationInput)rotationInput.value='0';update();}
-    function cancel(){closeAlign();restore();textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;sent=false;submission=null;if(rotationInput)rotationInput.value='0';update();}
+    /** Read the authored size unit when possible and computed values otherwise. */
+    function inspect(){
+      if(!properties||!element){properties?.clear();return;}
+      const computed=doc.defaultView.getComputedStyle(element),raw=element.style.fontSize||computed.fontSize,match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw),rgb=/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/.exec(computed.color),color=rgb?'#'+rgb.slice(1,4).map(value=>Number(value).toString(16).padStart(2,'0')).join(''):(/^#[0-9a-f]{6}$/i.test(computed.color)?computed.color:'#000000');
+      // Keep viewport-based slide sizes stable while the editing canvas is resized or zoomed.
+      const unit=match?.[2]||'px',scale=['cqw','vw'].includes(unit)?1280/doc.documentElement.clientWidth:['cqh','vh'].includes(unit)?720/doc.documentElement.clientHeight:1;
+      const pixels=Math.round((Number.parseFloat(computed.fontSize)||16)*scale*1000)/1000;
+      const typography={font_size:match?Number(match[1]):16,font_size_unit:unit,font_size_px:pixels,font_weight:computed.fontWeight||'normal',font_style:computed.fontStyle||'normal',text_align:['left','center','right','justify'].includes(computed.textAlign)?computed.textAlign:'left',color};
+      propertyBaseline={text:element.textContent||'',...typography};
+      properties.setSelection({key:element,label:element.tagName.toLowerCase(),text:propertyBaseline.text,canText:canPropertyText(),typography});
+    }
+    function select(next){closeAlign();restore();propertyValues={};element=next;textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;dragEnabled=true;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
+    function cancel(){closeAlign();restore();propertyValues={};textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
     function startText(){
-      if(busy||blocked()||keyboardMove||pendingDelete||!canText())return;
+      if(busy||blocked()||keyboardMove||pendingDelete||propertyDraft()||!canText())return;
       restore();remember();sent=false;textEditing=true;element.setAttribute('contenteditable','plaintext-only');element.style.cursor='text';element.style.outline='none';element.focus();
       bindTextVoice();update();
     }
@@ -116,6 +132,7 @@
           target.dispatchEvent(new doc.defaultView.InputEvent('input',{bubbles:true,inputType:'insertText',data:insertion}));return true;
         }
       });
+
     }
     async function send(message,captured,intent){
       const signature=JSON.stringify([captured,message,intent]);
@@ -127,8 +144,10 @@
     }
     async function commitText(){
       if(busy)return false;
-      await textVoice?.stop();
-      if(busy)return false;
+      const editing=element;
+      if(textVoice && root.slideVoice?.isActive(textVoice.input) && !await textVoice.stop()){onError('Recording ended without sending. Review your edit before sending.');return false;}
+      if(properties?.stopVoice && !await properties.stopVoice()){onError('Recording ended without sending. Review your edit before sending.');return false;}
+      if(busy||element!==editing)return false;
       if(pendingDelete){if(await send('Delete this element.',original.anchor,editIntent('delete',{}))){pendingDelete=false;sent=true;update();return true;}return false;}
       if(keyboardMove){
         const {position,rotation=0}=keyboardMove,values={},parts=[];
@@ -137,6 +156,12 @@
         if(!parts.length){cancel();return true;}
         const action=position&&rotation?'transform':rotation?'rotate':'move';
         if(await send(parts.join(' '),original.anchor,editIntent(action,values))){keyboardMove=null;sent=true;update();return true;}return false;
+      }
+      if(propertyDraft()&&original){
+        const values={...propertyValues};
+        if('text' in values&&(!values.text.trim()||values.text.length>9000)){onError('Keep replacement text between 1 and 9,000 characters.');return false;}
+        const hasText='text' in values,hasStyle=Object.keys(values).some(key=>key!=='text'),action=hasText?(hasStyle?'update':'replace_text'):'style';
+        if(await send('Update element properties.',original.anchor,editIntent(action,values))){propertyValues={};sent=true;inspect();update();return true;}return false;
       }
       if(!textEditing||!original)return true;
       const edited=element,value=element.innerText??element.textContent,captured=original.anchor;
@@ -155,7 +180,7 @@
     async function finish(){
       if(busy)return false;
       if(textEditing&&(element.innerText??element.textContent)===original?.text){cancel();return true;}
-      if(textEditing||keyboardMove||pendingDelete){onError('Send or cancel the edit first.');commitButton.focus({preventScroll:true});return false;}
+      if(textEditing||keyboardMove||pendingDelete||propertyDraft()){onError('Send or cancel the edit first.');commitButton.focus({preventScroll:true});return false;}
       return true;
     }
     function closeAlign(){if(alignMenu.matches(':popover-open'))alignMenu.hidePopover();}
@@ -179,7 +204,7 @@
       return {x:(event.clientX-rect.left)*doc.documentElement.clientWidth/rect.width,y:(event.clientY-rect.top)*doc.documentElement.clientHeight/rect.height};
     }
     function beginMove(event,outer=false){
-      if(busy||blocked()||textEditing||pendingDelete||!dragEnabled||!canMove()||event.button!==0||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
+      if(busy||blocked()||textEditing||pendingDelete||propertyDraft()||!dragEnabled||!canMove()||event.button!==0||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
       const point=pointerPoint(event,outer),capture=outer?event.currentTarget:element;
       drag={startRect:element.getBoundingClientRect(),x:point.x,y:point.y,moved:false,pointer:event.pointerId,outer,capture};
       capture.setPointerCapture(event.pointerId);
@@ -240,14 +265,14 @@
     editButton.addEventListener('click',startText);commitButton.addEventListener('click',()=>void commitText());cancelButton.addEventListener('click',cancel);
     moveButton.addEventListener('click',()=>{dragEnabled=!dragEnabled;update();});
     alignButton.addEventListener('click',()=>{
-      if(busy||blocked()||!canMove())return;
+      if(busy||blocked()||propertyDraft()||!canMove())return;
       if(alignMenu.matches(':popover-open')){closeAlign();return;}
       alignMenu.showPopover();const rect=alignButton.getBoundingClientRect(),box=alignMenu.getBoundingClientRect();
       alignMenu.style.left=`${Math.max(8,Math.min(rect.left,innerWidth-box.width-8))}px`;alignMenu.style.top=`${Math.max(8,Math.min(rect.bottom+4,innerHeight-box.height-8))}px`;alignMenu.querySelector('button').focus();
     });
     alignMenu.addEventListener('toggle',event=>alignButton.setAttribute('aria-expanded',String(event.newState==='open')));
     alignMenu.addEventListener('click',event=>{
-      const button=event.target.closest('[data-align]');if(!button||busy||blocked()||!canMove())return;
+      const button=event.target.closest('[data-align]');if(!button||busy||blocked()||propertyDraft()||!canMove())return;
       closeAlign();keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
       previewMove(keyboardMove,alignPosition(element.getBoundingClientRect(),keyboardMove.canvas,button.dataset.align));commitButton.focus();
     });
@@ -259,7 +284,7 @@
     });
     tools.addEventListener('keydown',event=>{if(event.key==='Escape'&&!busy){event.preventDefault();cancel();}});
     function positionKey(event){
-      if(event.ctrlKey||event.metaKey||event.altKey||busy||blocked()||textEditing||pendingDelete||!canMove())return;
+      if(event.ctrlKey||event.metaKey||event.altKey||busy||blocked()||textEditing||pendingDelete||propertyDraft()||!canMove())return;
       if(event.key==='Escape'&&keyboardMove){event.preventDefault();cancel();return;}
       if(event.key==='Enter'&&keyboardMove){event.preventDefault();void commitText();return;}
       const directions={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
@@ -271,11 +296,11 @@
     moveButton.addEventListener('keydown',positionKey);
     selectionBox?.addEventListener('keydown',event=>{if(event.target===selectionBox)positionKey(event);});
     deleteButton?.addEventListener('click',()=>{
-      if(busy||blocked()||!element||textEditing||keyboardMove)return;
+      if(busy||blocked()||!element||textEditing||keyboardMove||propertyDraft())return;
       restore();remember();pendingDelete=true;sent=false;update();commitButton.focus({preventScroll:true});
     });
     function previewRotation(value){
-      if(busy||blocked()||textEditing||pendingDelete||!canMove()||!Number.isFinite(value))return;
+      if(busy||blocked()||textEditing||pendingDelete||propertyDraft()||!canMove()||!Number.isFinite(value))return;
       keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
       keyboardMove.rotation=rotationDegrees(value);rotationPreview=keyboardMove.rotation;sent=false;renderTransform(keyboardMove);update();
     }
@@ -284,7 +309,7 @@
     if(controls){
       for(const edge of controls.edges){edge.addEventListener('pointerdown',event=>{event.preventDefault();beginMove(event,true);});edge.addEventListener('pointermove',motion);edge.addEventListener('pointerup',up);edge.addEventListener('pointercancel',cancel);}
       controls.rotation.addEventListener('pointerdown',event=>{
-        if(event.button!==0||busy||blocked()||textEditing||pendingDelete||!canMove())return;
+        if(event.button!==0||busy||blocked()||textEditing||pendingDelete||propertyDraft()||!canMove())return;
         event.preventDefault();keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
         const view=doc.defaultView,matrix=new view.DOMMatrixReadOnly(view.getComputedStyle(element).transform),rect=element.getBoundingClientRect(),transform=element.style.transform;
         let opposite;
@@ -313,7 +338,20 @@
         previewRotation((keyboardMove?.rotation||0)+sign*(event.shiftKey?15:1));
       });
     }
-    return {bind,select,cancel,finish,reflow,sync:update,isEditing:()=>textEditing||!!drag||!!rotationDrag||!!keyboardMove||pendingDelete,isBusy:()=>busy,consumeClick:()=>suppressClick};
+    /** Apply only the current property patch to the provisional DOM. */
+    function previewProperties(values){
+      if(!element||busy||blocked()||textEditing||keyboardMove||pendingDelete)return;
+      remember();Object.assign(propertyValues,values);
+      for(const key of Object.keys(propertyValues))if(propertyValues[key]===propertyBaseline[key])delete propertyValues[key];
+      if(('font_size' in propertyValues||'font_size_unit' in propertyValues)){propertyValues.font_size=values.font_size??propertyValues.font_size??propertyBaseline.font_size;propertyValues.font_size_unit=values.font_size_unit??propertyValues.font_size_unit??propertyBaseline.font_size_unit;}
+      element.innerHTML=original.html;
+      if(original.style===null)element.removeAttribute('style');else element.setAttribute('style',original.style);
+      if('text' in propertyValues)element.textContent=propertyValues.text;
+      for(const [key,css] of Object.entries({font_weight:'fontWeight',font_style:'fontStyle',text_align:'textAlign',color:'color'}))if(key in propertyValues)element.style[css]=propertyValues[key];
+      if('font_size' in propertyValues||'font_size_unit' in propertyValues){const computed=doc.defaultView.getComputedStyle(element),raw=element.style.fontSize||computed.fontSize,match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw);element.style.fontSize=`${propertyValues.font_size??Number(match?.[1]||16)}${propertyValues.font_size_unit??match?.[2]??'px'}`;}
+      sent=false;update();
+    }
+    return {bind,select,cancel,finish,reflow,previewProperties,commit:commitText,sync:update,isEditing:()=>textEditing||propertyDraft()||!!drag||!!rotationDrag||!!keyboardMove||pendingDelete,isBusy:()=>busy,consumeClick:()=>suppressClick};
   }
   /** Add a moveable selection border and an accessible rotation handle. */
   function createSelectionControls(box){

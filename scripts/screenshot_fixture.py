@@ -3,7 +3,7 @@
 import json
 import shutil
 
-from studio.models import AgentContext, Deck, DeckSection, Slide, Source
+from artifact_studio.models import AgentContext, Deck, DeckSection, Slide, Source
 from tests.design_factory import TEMPLATE_ID, powerpoint_source
 from tests.integration.support import DECK_ID, PROJECT, RunningApp
 
@@ -22,7 +22,7 @@ STYLE = """
 .slide .cards{display:flex;gap:1.3cqw;margin-top:4cqw}
 .slide .card{flex:1;padding:2.3cqw;border-radius:1.5cqw;background:#e8eef7;min-height:19cqw}
 .slide .card strong{display:block;font-size:2.2cqw;margin:2.4cqw 0 .8cqw}
-.slide .card p{font-size:1.22cqw;line-height:1.5}
+.slide .card p{font-size:1.65cqw;line-height:1.4}
 .slide .num{font-size:1.05cqw;font-weight:700;opacity:.75}
 .slide .blue{background:#315bea;color:#fff}.slide .mint{background:#c1efdd;color:#173c38}
 .slide.cover{background:#132944;color:#fff}
@@ -55,7 +55,7 @@ def article(body: str, number: int, kind: str = "") -> str:
     """Keep content consistent in editor, thumbnails, captures and presenter view."""
     return (
         f'<article class="slide {kind}">{body}'
-        '<footer class="foot"><span>Slide Studio / A clearer way to work</span>'
+        '<footer class="foot"><span>Artifact Studio / A clearer way to work</span>'
         f"<span>{number:02}</span></footer></article>"
     )
 
@@ -65,7 +65,7 @@ def seed(app: RunningApp) -> Deck:
     cover = article(
         '<p class="eyebrow">Ideas, made clear</p><h1>A clearer<br>way to work.</h1>'
         '<p class="sub">Draft together. Refine in context.<br>Present with confidence.</p>'
-        '<img class="brand-mark" src="assets/studio-mark.png" alt="Slide Studio">',
+        '<img class="brand-mark" src="assets/studio-mark.png" alt="Artifact Studio">',
         1,
         "cover",
     )
@@ -134,8 +134,8 @@ def seed(app: RunningApp) -> Deck:
                 id="workflow",
                 title="Good slides happen in the loop",
                 html=workflow,
-                notes="Start with the brief. Let the agent draft, then review the slide together.\n"
-                "Point to one change at a time; approve when the story feels right.",
+                notes="• Ask a teammate for one concrete change.\n"
+                "• Show that speaker notes stay private.",
                 agent=AgentContext(summary="Three steps keep the review loop visible."),
             ),
             Slide(

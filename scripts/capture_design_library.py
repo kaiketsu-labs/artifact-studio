@@ -6,21 +6,47 @@ Run: uv run python -m scripts.capture_design_library
 import argparse
 import base64
 import hashlib
+import io
 import json
 import shutil
 import tempfile
 from pathlib import Path
 
+from PIL import Image, ImageDraw, ImageFont
 from playwright.sync_api import expect, sync_playwright
 
+from artifact_studio.design_library import DesignCreate, DesignLibrary
+from artifact_studio.models import FileInput
 from scripts.screenshot_fixture import seed
-from studio.design_library import DesignCreate, DesignLibrary
-from studio.models import FileInput
+from tests.design_factory import powerpoint_source
+from tests.integration.native_sharing import install_native_share
 from tests.integration.support import PROJECT, running_app
 
 
 def upload(name: str, content: str) -> FileInput:
     return FileInput(name=name, data_base64=base64.b64encode(content.encode()).decode())
+
+
+def cover_image() -> bytes:
+    """Create an original fictional cover for image and PowerPoint reference previews."""
+    image = Image.new("RGB", (960, 540), "#f2efe9")
+    draw = ImageDraw.Draw(image)
+    draw.text((48, 36), "EDITORIAL / 01", fill="#142a43", font=ImageFont.load_default(size=17))
+    draw.multiline_text(
+        (48, 125),
+        "Clear ideas.\nRoom to breathe.",
+        fill="#142a43",
+        font=ImageFont.load_default(size=56),
+        spacing=9,
+    )
+    draw.rounded_rectangle((720, 90, 895, 350), radius=85, fill="#426bec")
+    draw.ellipse((733, 165, 881, 313), fill="#b7c8fc")
+    draw.polygon([(740, 300), (807, 164), (875, 300)], fill="#142a43")
+    for left, color in ((48, "#142a43"), (340, "#426bec"), (632, "#d8d2c7")):
+        draw.rectangle((left, 425, left + 280, 490), fill=color)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
 
 
 def main() -> None:
@@ -34,11 +60,19 @@ def main() -> None:
         with running_app(root, root / "server.log") as app, sync_playwright() as playwright:
             _ = seed(app)
             library = DesignLibrary(app.store)
+            cover = cover_image()
             editorial = library.create(
                 DesignCreate(
                     name="Editorial system",
                     description="Quiet typography, clear hierarchy and generous space.",
                     files=[
+                        FileInput(
+                            name="Master.pptx",
+                            data_base64=base64.b64encode(
+                                powerpoint_source(thumbnail=cover)
+                            ).decode(),
+                        ),
+                        FileInput(name="cover.png", data_base64=base64.b64encode(cover).decode()),
                         upload(
                             "design-guidelines.md",
                             "# Editorial system\n\nOriginal fictional design reference.\n"
@@ -94,6 +128,7 @@ def main() -> None:
                 timezone_id="Europe/Berlin",
             )
             page = context.new_page()
+            install_native_share(page)
             page.clock.set_fixed_time("2026-11-02T09:30:00Z")
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
@@ -111,7 +146,11 @@ def main() -> None:
                 _ = page.evaluate("document.fonts.ready")
                 target = staging / name
                 target.parent.mkdir(parents=True, exist_ok=True)
-                data = page.screenshot(path=target, animations="disabled", full_page=True)
+                data = page.screenshot(
+                    path=target,
+                    animations="disabled",
+                    full_page=not page.locator("dialog[open]").count(),
+                )
                 captures[name] = {
                     "viewport": page.viewport_size,
                     "sha256": hashlib.sha256(data).hexdigest(),
@@ -125,22 +164,54 @@ def main() -> None:
                 ).to_be_visible()
                 expect(page.locator(".design-card-art img")).to_have_js_property("complete", True)
                 capture("docs/assets/design-library.png")
+                page.get_by_role("button", name="Add design", exact=True).click()
+                add_dialog = page.get_by_role("dialog", name="Add design", exact=True)
+                add_dialog.get_by_role("textbox", name="Name", exact=True).fill("Editorial system")
+                source = library.get(editorial.id)
+                page.locator("#design-library-input").set_input_files(
+                    [file.local_path for file in source.files if file.name != "palette.csv"]
+                )
+                capture("docs/assets/add-design.png")
+                page.set_viewport_size({"width": 390, "height": 844})
+                capture("docs/screenshots/add-design-mobile.png")
+                add_dialog.get_by_role("button", name="Close dialog").click()
+                page.set_viewport_size({"width": 1440, "height": 1000})
                 page.get_by_role("button", name="Open Editorial system design", exact=True).click()
-                expect(page.locator(".design-file-group li")).to_have_count(3)
+                expect(page.locator(".design-file-group li")).to_have_count(5)
+                expect(
+                    page.get_by_role("button", name="Preview Master.pptx").locator("img")
+                ).to_have_js_property("naturalWidth", 640)
                 capture("docs/assets/design-context.png")
+                page.locator("#appearance-button").click()
+                page.locator('[data-appearance="dark"]').click()
+                capture("docs/screenshots/design-context-dark.png")
+                page.locator("#appearance-button").click()
+                page.locator('[data-appearance="light"]').click()
+                page.get_by_role("button", name="Preview Master.pptx").click()
+                expect(page.get_by_role("dialog", name="Master.pptx")).to_be_visible()
+                capture("docs/screenshots/design-file-preview.png")
+                page.get_by_role("dialog").get_by_role("button", name="Close dialog").click()
+                page.get_by_role("button", name="Use with agent", exact=True).click()
+                expect(page.get_by_role("dialog", name="Use with agent")).to_be_visible()
+                capture("docs/screenshots/design-use-agent.png")
+                page.get_by_role("dialog").get_by_role("button", name="Close dialog").click()
                 page.set_viewport_size({"width": 390, "height": 844})
                 capture("docs/screenshots/design-context-mobile.png")
                 page.set_viewport_size({"width": 1440, "height": 1000})
                 _ = page.goto(app.url + "/?view=designs&design=studio-blue")
                 expect(page.get_by_role("link", name="Open example slides")).to_be_visible()
                 capture("docs/screenshots/design-pack-context.png")
-                assert library.get(editorial.id).file_count == 3
+                assert library.get(editorial.id).file_count == 5
                 if errors:
                     raise RuntimeError("\n".join(errors))
                 manifest = staging / "docs/screenshots/design-captures.json"
                 _ = manifest.write_text(
                     json.dumps(
-                        {"fixture": "Original fictional design library", "screenshots": captures},
+                        {
+                            "fixture": "Original fictional design library",
+                            "native_share": "Simulated native API for the agent message",
+                            "screenshots": captures,
+                        },
                         indent=2,
                     )
                     + "\n"

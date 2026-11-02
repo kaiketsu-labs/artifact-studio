@@ -1,7 +1,7 @@
 /* A local width preference for the desktop conversation pane. */
 ((root) => {
   'use strict';
-  const key = 'slide-studio:chat-width:v1';
+  const key = 'artifact-studio:chat-width:v1';
   const minimum = 280, maximum = 800;
 
   function create({workspace, handle, view, storage}) {
@@ -21,7 +21,7 @@
         default: number('--chat-default-width')
       };
     }
-    const available = () => view.matchMedia('(min-width: 901px)').matches
+    const available = () => view.matchMedia('(min-width: 1051px)').matches
       && !workspace.classList.contains('is-empty') && !workspace.classList.contains('is-sorter');
     function apply() {
       const bounds = limits();
@@ -43,11 +43,14 @@
       if (!drag) return;
       const previous = drag;
       drag = null;
-      if (!commit) preferred = previous.preferred;
+      if (!commit || previous.rawWidth < 100) preferred = previous.preferred;
       workspace.classList.remove('is-resizing-chat');
       if (handle.hasPointerCapture(previous.id)) handle.releasePointerCapture(previous.id);
       apply();
-      if (commit) save();
+      if (commit) {
+        save();
+        if (previous.rawWidth < 100) view.document.dispatchEvent(new view.CustomEvent('workspace-collapse-chat'));
+      }
     }
     handle.addEventListener('pointerdown', event => {
       if (!available() || event.button !== 0 || drag) return;
@@ -60,7 +63,8 @@
     handle.addEventListener('pointermove', event => {
       if (!drag || event.pointerId !== drag.id) return;
       const bounds = limits();
-      preferred = Math.max(bounds.min, Math.min(bounds.max, drag.width + drag.x - event.clientX));
+      drag.rawWidth = drag.width + drag.x - event.clientX;
+      preferred = Math.max(bounds.min, Math.min(bounds.max, drag.rawWidth));
       apply();
     });
     handle.addEventListener('pointerup', event => {
