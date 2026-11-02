@@ -1,6 +1,7 @@
 """Browser regressions for responsive slide editing."""
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,23 @@ pytestmark = [
 ]
 
 
+def panel_positions(page: Page) -> tuple[float, float]:
+    """Keep panel controls at their corresponding edges without obscuring other actions."""
+    left = page.get_by_role("button", name=re.compile(r"^(Open|Close) sidebar$")).bounding_box()
+    right = page.get_by_role("button", name=re.compile(r"^(Open|Close) chat$")).bounding_box()
+    brand = page.get_by_role("link", name="Artifact Studio", exact=True).bounding_box()
+    present = page.get_by_role("link", name="Present", exact=True).bounding_box()
+    assert left is not None and right is not None and brand is not None and present is not None
+    assert left["x"] + left["width"] <= brand["x"]
+    assert present["x"] + present["width"] <= right["x"]
+    viewport = page.viewport_size
+    assert viewport is not None and right["x"] + right["width"] <= viewport["width"]
+    minimum = 44 if viewport["width"] <= 600 else 34
+    assert left["width"] >= minimum and left["height"] >= minimum
+    assert right["width"] >= minimum and right["height"] >= minimum
+    return left["x"], right["x"]
+
+
 @pytest.mark.parametrize("width", [375, 390, 850, 901, 1000, 1280])
 def test_chat_remains_reachable_and_preserves_editor(
     live_app: RunningApp, page: Page, artifacts: Path, width: int
@@ -24,6 +42,7 @@ def test_chat_remains_reachable_and_preserves_editor(
     """Keep the slide and chat usable without losing the iframe or a draft."""
     page.set_viewport_size({"width": width, "height": 844})
     open_editor(page, live_app)
+    positions = panel_positions(page)
     preview = page.locator("#preview")
     expect(preview).to_be_visible()
     expect(page.get_by_label("Speaker notes", exact=True)).to_be_hidden()
@@ -62,6 +81,7 @@ def test_chat_remains_reachable_and_preserves_editor(
     open_chat.focus()
     page.keyboard.press("Enter")
     expect(composer).to_have_value("A draft that must survive panel changes")
+    assert panel_positions(page) == positions
     assert preview.evaluate("element => element === window.__layoutTestFrame")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
     if width <= 1050:

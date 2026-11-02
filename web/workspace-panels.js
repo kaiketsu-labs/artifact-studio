@@ -63,7 +63,10 @@
       const button = doc.createElement('button'); button.type = 'button'; button.hidden = true; button.className = `workspace-panel-toggle panel-${side}`;
       button.addEventListener('click', () => toggle(side));
       const topbar = kind === 'slides' ? doc.querySelector('.topbar') : null;
-      if (topbar?.insertBefore) topbar.insertBefore(button,doc.querySelector('.top-actions'));
+      if (topbar?.insertBefore) {
+        if (side === 'left') topbar.insertBefore(button,doc.querySelector('.identity'));
+        else doc.querySelector('.top-actions').append(button);
+      }
       else doc.body.append(button);
       controls[side] = button;
       const handle = doc.createElement('div'); handle.hidden = true; handle.className = `workspace-panel-resize panel-${side}`;
