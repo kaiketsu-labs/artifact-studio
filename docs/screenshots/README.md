@@ -21,7 +21,8 @@ The editor screenshot source is [capture_screenshots.py](../../scripts/capture_s
 | File-first overview with add and delete controls | [Overview](../assets/design-library.png) |
 | Name, reference files and optional description | [Add design](../assets/add-design.png), [mobile](add-design-mobile.png) |
 | Copyable message for the connected agent | [Use with agent](design-use-agent.png) |
-| Context file inventory with add, download and remove controls | [Context](../assets/design-context.png), [mobile](design-context-mobile.png) |
+| Context file inventory with add, download and remove controls | [Context](../assets/design-context.png), [dark](design-context-dark.png), [mobile](design-context-mobile.png) |
+| Image and PowerPoint cover previews | [Enlarged cover](design-file-preview.png) |
 | Slide design pack with separate example action | [Pack context](design-pack-context.png) |
 
 | Images | Shows |

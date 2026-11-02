@@ -8,6 +8,21 @@
     const control=(action,label,name,attrs='')=>`<button type="button" data-design-action="${action}" ${attrs}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
     const type=file=>file.name.includes('.')?file.name.split('.').at(-1).toUpperCase().slice(0,8):'FILE';
     const fileLabel=file=>file.path.startsWith('reference/uploads/')?'Uploaded reference':file.path;
+    const imageTypes=new Set(['SVG','PNG','JPG','JPEG','WEBP','GIF','AVIF','BMP','TIF','TIFF','ICO']);
+    const fileKinds={PPTX:'slides',POTX:'slides',PPT:'slides',PDF:'pdf',DOC:'document',DOCX:'document',MD:'document',TXT:'document',RTF:'document',CSV:'data',XLS:'data',XLSX:'data',JSON:'code',CSS:'code',JS:'code',TS:'code',HTML:'code',XML:'code',ZIP:'archive',TTF:'font',OTF:'font',WOFF:'font',WOFF2:'font',EMF:'image',WMF:'image',WDP:'image',TIFF:'image',TIF:'image',BMP:'image',ICO:'image'};
+    const fileIcons={slides:'slides',pdf:'pdf',document:'notes',data:'table',code:'code',archive:'archive',font:'font',image:'image',file:'file'};
+    function filePreview(file){
+      const extension=type(file),endpoint=extension==='SVG'?'image':imageTypes.has(extension)||['PPTX','POTX'].includes(extension)?'thumbnail':'';
+      return endpoint?`${file.url.replace('/files/',`/${endpoint}/`)}?v=${encodeURIComponent(file.version)}`:'';
+    }
+    function fileVisual(file){
+      const extension=type(file),kind=imageTypes.has(extension)?'image':fileKinds[extension]||'file',preview=filePreview(file);
+      const badge=`<span class="design-file-badge is-${kind}" aria-hidden="true">${icon(fileIcons[kind])}<b>${escape(extension)}</b></span>`;
+      return preview?`<button type="button" class="design-file-visual has-preview" data-design-action="preview-file" data-file-path="${escape(file.path)}" aria-label="Preview ${escape(file.name)}" title="Preview ${escape(file.name)}">${badge}<img src="${escape(preview)}" alt="" loading="lazy" decoding="async" data-design-file-image></button>`:`<span class="design-file-visual">${badge}</span>`;
+    }
+    function fileRow(file){
+      return `<li>${fileVisual(file)}<a href="${escape(file.url)}" title="${escape(file.path)}" download><strong>${escape(file.name)}</strong><small>${escape(fileLabel(file))}</small></a><small class="design-file-size">${sizeLabel(file.size)}</small>${file.removable?control('remove-file','','trash',`data-file-path="${escape(file.path)}" class="hub-icon-only" aria-label="Remove ${escape(file.name)} from design context" title="Remove from context"`):''}</li>`;
+    }
     function cover(item){
       const formats=(item.formats||[]).filter(format=>!['CSS','HTML','JS'].includes(format)).slice(0,3);
       const fallback=`<span class="design-cover-sheet"><b>${escape(formats[0]||'DESIGN')}</b><span>${escape(item.name)}</span><i></i><i></i><i></i></span><span class="design-cover-formats">${formats.map(format=>`<b>${escape(format)}</b>`).join('')}</span>`;
@@ -22,7 +37,7 @@
       selected=item;
       const order=['References','Guidance','Assets & styling','Examples & player'];
       const groups=[...new Set(item.files.map(file=>file.group))].sort((a,b)=>order.indexOf(a)-order.indexOf(b));
-      return `<nav class="hub-crumbs" aria-label="Breadcrumb">${control('back','Designs','palette')}${icon('right')}<span>${escape(item.name)}</span></nav><header class="design-detail-heading"><div><p class="design-eyebrow">${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</p><h1>${escape(item.name)}</h1><p class="design-description">${escape(item.description)}</p></div><div class="design-detail-actions">${control('use','Use with agent','robot',`class="hub-primary" ${!item.files.length&&!item.description.trim()?'disabled title="Add reference files or a description first"':''}`)}${control('attach','Add files','attach')}${control('refresh','','refresh','aria-label="Refresh design context" title="Refresh context"')}${control('delete','','trash',`data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</div></header><section class="design-context"><header><div><h2>Context files <span class="hub-count">${item.files.length}</span></h2><p>Available to your agent as references. Adding files does not apply their styling automatically.</p></div></header>${groups.length?groups.map(group=>`<section class="design-file-group"><h3>${escape(group)}</h3><ul>${item.files.filter(file=>file.group===group).map(file=>`<li><span class="design-file-type" aria-hidden="true">${escape(type(file))}</span><a href="${escape(file.url)}" title="${escape(file.path)}" download><strong>${escape(file.name)}</strong><small>${escape(fileLabel(file))}</small></a><small class="design-file-size">${sizeLabel(file.size)}</small>${file.removable?control('remove-file','','trash',`data-file-path="${escape(file.path)}" class="hub-icon-only" aria-label="Remove ${escape(file.name)} from design context" title="Remove from context"`):''}</li>`).join('')}</ul></section>`).join(''):`<div class="design-empty-files">${icon('attach')}<p>No context files yet.</p>${control('attach','Add files','plus')}</div>`}</section>${item.kind==='slide_pack'?`<a class="design-example-link" href="/?deck=${encodeURIComponent(item.folder_id)}">${icon('slides')}Open example slides${icon('external')}</a>`:''}`;
+      return `<nav class="hub-crumbs" aria-label="Breadcrumb">${control('back','Designs','palette')}${icon('right')}<span>${escape(item.name)}</span></nav><header class="design-detail-heading"><div><p class="design-eyebrow">${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</p><h1>${escape(item.name)}</h1><p class="design-description">${escape(item.description)}</p></div><div class="design-detail-actions">${control('use','Use with agent','robot',`class="hub-primary" ${!item.files.length&&!item.description.trim()?'disabled title="Add reference files or a description first"':''}`)}${control('attach','Add files','attach')}${control('refresh','','refresh','aria-label="Refresh design context" title="Refresh context"')}${control('delete','','trash',`data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</div></header><section class="design-context"><header><div><h2>Context files <span class="hub-count">${item.files.length}</span></h2><p>Available to your agent as references. Adding files does not apply their styling automatically.</p></div></header>${groups.length?groups.map(group=>`<section class="design-file-group"><h3>${escape(group)}</h3><ul>${item.files.filter(file=>file.group===group).map(fileRow).join('')}</ul></section>`).join(''):`<div class="design-empty-files">${icon('attach')}<p>No context files yet.</p>${control('attach','Add files','plus')}</div>`}</section>${item.kind==='slide_pack'?`<a class="design-example-link" href="/?deck=${encodeURIComponent(item.folder_id)}">${icon('slides')}Open example slides${icon('external')}</a>`:''}`;
     }
     function filesForm(creating){
       pending=[];
@@ -89,6 +104,10 @@ ${link}`;
         if(action==='new')return filesForm(true);
         if(action==='attach')return filesForm(false);
         if(action==='use')return useDialog();
+        if(action==='preview-file'){
+          const file=selected.files.find(file=>file.path===node.dataset.filePath);
+          modal(file.name,`<div class="design-preview-dialog"><img src="${escape(filePreview(file))}" alt="${escape(file.name)}" decoding="async"><a href="${escape(file.url)}" download>${icon('download')}Download original</a></div>`);return;
+        }
         if(action==='copy-message'){
           const field=doc.getElementById('design-agent-message');node.disabled=true;
           try{await root.navigator.clipboard.writeText(field.value);dialog.close();toast('Message copied. Paste it into your agent’s chat.');}
@@ -110,7 +129,15 @@ ${link}`;
         }
       };run().catch(error=>toast(error.message,true));
     });
-    doc.addEventListener('error',event=>{if(event.target.matches?.('[data-design-preview]'))event.target.remove();},true);
+    doc.addEventListener('error',event=>{
+      const image=event.target;
+      if(image.matches?.('[data-design-preview]'))image.remove();
+      if(image.matches?.('[data-design-file-image]')){
+        const button=image.parentElement;
+        image.remove();button.classList.remove('has-preview');button.disabled=true;
+        button.removeAttribute('title');button.setAttribute('aria-label',button.getAttribute('aria-label').replace(/^Preview /,''));
+      }
+    },true);
     doc.addEventListener('input',event=>{if(event.target.matches('#design-library-form [name=name]'))updateSubmit();});
     doc.addEventListener('change',event=>{
       if(event.target.id!=='design-library-input')return;

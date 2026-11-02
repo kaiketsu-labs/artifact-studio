@@ -10,6 +10,8 @@ Use **Use with agent → Copy message**, then paste into your connected agent's 
 
 **Add files** adds references, file trash icons remove attachments from future context, and file names download the originals. Uploads accept up to five files per batch, 25 MB each and 50 MB total. Removing an attachment cannot erase content an agent already read.
 
+Images and saved PowerPoint covers appear as thumbnails. Click a thumbnail to enlarge it; the file name still downloads the original. Raster previews use a bounded, upright first frame. PowerPoint previews use the file's embedded cover rather than rendering its slides. Missing or unsupported previews fall back to colored file-type icons.
+
 The design's trash icon removes it from the library while preserving source files and existing presentations. Use **Deleted designs** in the toolbar to restore it. Registered slide packs also expose **Open example slides** as a separate action. Reference collections are not automatically available as presentation templates or workspace defaults.
 
 To turn supplied material into a reusable slide pack, ask the connected agent to inspect it, build and visually check the example slides, and register a pack with its own ID. Say which pack you want as the default. You can also supply references in the agent's own chat or through the existing presentation editor. You do not need to edit a manifest or choose from fixed layouts.

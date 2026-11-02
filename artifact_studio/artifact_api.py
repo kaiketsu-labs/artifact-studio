@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import Field
 
 from .artifact_capture import capture_artifact_image
@@ -21,6 +21,8 @@ from .artifact_preview import artifact_file_headers, preview_document, preview_h
 from .artifacts import ArtifactStore, relative_path
 from .design_library import PREVIEW_TYPES, DesignCreate, DesignDelete, DesignDetail, DesignLibrary
 from .design_references import ReferenceInput, RemoveReferenceInput
+from .design_thumbnails import THUMBNAIL_SUFFIXES
+from .design_thumbnails import design_thumbnail as make_design_thumbnail
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
 from .storage import Store
 from .visuals import capture
@@ -163,6 +165,23 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def download_design_file(design_id: str, path: str) -> FileResponse:
         target = DesignLibrary(get_store()).file(design_id, path)
         return FileResponse(target, filename=target.name, media_type="application/octet-stream")
+
+    @router.get("/api/design-library/{design_id}/thumbnail/{path:path}")
+    def design_thumbnail(design_id: str, path: str) -> Response:
+        """Serve a bounded raster preview for an inventoried image or PowerPoint."""
+        target = DesignLibrary(get_store()).file(design_id, path)
+        if target.suffix.lower() not in THUMBNAIL_SUFFIXES:
+            raise FileNotFoundError("No thumbnail available.")
+        headers = {
+            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        }
+        try:
+            data = make_design_thumbnail(target)
+        except FileNotFoundError:
+            return Response(status_code=204, headers=headers)
+        return Response(data, media_type="image/png", headers=headers)
 
     @router.get("/api/design-library/{design_id}/image/{path:path}")
     def design_image(design_id: str, path: str) -> FileResponse:

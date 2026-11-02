@@ -1,11 +1,17 @@
 """Exercise the dedicated Designs overview, file context and recoverable removal."""
 
+import base64
+import io
 import os
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from playwright.sync_api import Page, expect
 
+from artifact_studio.design_library import DesignCreate, DesignLibrary
+from artifact_studio.models import FileInput
+from tests.design_factory import powerpoint_source
 from tests.integration.support import DECK_ID, RunningApp
 
 pytestmark = [
@@ -14,6 +20,58 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_design_image_and_powerpoint_thumbnails(
+    page: Page, live_app: RunningApp, artifacts: Path, width: int
+) -> None:
+    """Show real previews, retain file icons on missing covers and expand without downloading."""
+    raster = io.BytesIO()
+    Image.new("RGB", (960, 540), (35, 80, 130)).save(raster, format="PNG")
+    picture = raster.getvalue()
+    files = {
+        "moodboard.png": picture,
+        "brand-master.pptx": powerpoint_source(thumbnail=picture),
+        "without-cover.pptx": powerpoint_source(),
+        "guidelines.pdf": b"Fictional reference",
+        "tokens.json": b'{"accent":"#426bec"}',
+    }
+    item = DesignLibrary(live_app.store).create(
+        DesignCreate(
+            name="Visual references",
+            files=[
+                FileInput(name=name, data_base64=base64.b64encode(data).decode())
+                for name, data in files.items()
+            ],
+        )
+    )
+    page.set_viewport_size({"width": width, "height": 1000 if width > 700 else 844})
+    _ = page.goto(live_app.url + f"/?view=designs&design={item.id}")
+    for name in ("moodboard.png", "brand-master.pptx"):
+        preview = page.get_by_role("button", name=f"Preview {name}", exact=True)
+        expect(preview.locator("img")).to_have_js_property("naturalWidth", 640)
+        preview.focus()
+        page.keyboard.press("Enter")
+        dialog = page.get_by_role("dialog", name=name, exact=True)
+        expect(dialog.locator("img")).to_have_js_property("naturalWidth", 640)
+        original = next(file for file in item.files if file.name == name)
+        expect(dialog.get_by_role("link", name="Download original")).to_have_attribute(
+            "href", original.url
+        )
+        page.keyboard.press("Escape")
+        expect(dialog).not_to_be_visible()
+    missing = page.get_by_role("button", name="without-cover.pptx", exact=True)
+    expect(missing).to_be_disabled()
+    expect(missing.locator("img")).to_have_count(0)
+    expect(page.locator(".design-file-badge.is-pdf .ui-icon")).to_be_visible()
+    expect(page.locator(".design-file-badge.is-code .ui-icon")).to_be_visible()
+    assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+    _ = page.screenshot(path=str(artifacts / "design-file-previews.png"), full_page=True)
+    page.locator("#appearance-button").click()
+    page.locator('[data-appearance="dark"]').click()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    _ = page.screenshot(path=str(artifacts / "design-file-previews-dark.png"), full_page=True)
 
 
 @pytest.mark.parametrize("width", [1440, 390])
