@@ -37,10 +37,13 @@ def history_routes(current_store: Callable[[], Store]) -> APIRouter:
         deck_id: str,
         slide_id: str,
         cursor: str | None = None,
+        include_all: bool = False,
         limit: Annotated[int, Query(ge=1, le=100)] = 30,
     ) -> HistoryPage:
         """Page through small save summaries without returning slide source."""
-        return history().list_slide(deck_id, slide_id, cursor=cursor, limit=limit)
+        return history().list_slide(
+            deck_id, slide_id, cursor=cursor, limit=limit, include_all=include_all
+        )
 
     @router.get("/api/decks/{deck_id}/slides/{slide_id}/history/preview")
     def slide_preview(deck_id: str, slide_id: str, version_id: str) -> HTMLResponse:
@@ -70,10 +73,13 @@ def history_routes(current_store: Callable[[], Store]) -> APIRouter:
     def artifact_history(
         artifact_id: str,
         cursor: str | None = None,
+        include_all: bool = False,
         limit: Annotated[int, Query(ge=1, le=100)] = 30,
     ) -> HistoryPage:
         """Read a source-free, cursor-paginated bundle timeline."""
-        return history().list_artifact(artifact_id, cursor=cursor, limit=limit)
+        return history().list_artifact(
+            artifact_id, cursor=cursor, limit=limit, include_all=include_all
+        )
 
     @router.post("/api/artifacts/{artifact_id}/history/restore")
     def restore_artifact(artifact_id: str, body: VersionRestore) -> ArtifactView:

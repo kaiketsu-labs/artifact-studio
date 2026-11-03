@@ -30,7 +30,10 @@ def save_slide(history: VersionHistory, number: int) -> None:
         "cover",
         digest(slide.model_dump_json()),
         f"history-save-{number}",
-        SlidePatch(title=f"Fictional version {number}"),
+        SlidePatch(
+            title=f"Fictional version {number}",
+            html=f'<article class="slide">Version {number}</article>',
+        ),
     )
 
 
@@ -103,7 +106,7 @@ def test_slide_save_groups_split_after_idle_time(history: VersionHistory) -> Non
             capture_slide_version(db, TEMPLATE_ID, slide, saved_at=saved_at)
             deck.slides[0] = slide
     history.store.write(TEMPLATE_ID, deck)
-    page = history.list_slide(TEMPLATE_ID, "cover")
+    page = history.list_slide(TEMPLATE_ID, "cover", include_all=True)
     assert len(page.items) == 3 and len(page.groups) == 2
     assert page.items[1].group_id == page.items[2].group_id != page.items[0].group_id
     assert [group.count for group in page.groups] == [1, 2]
@@ -306,3 +309,98 @@ def test_invalid_artifact_versions_are_rejected(history: VersionHistory, version
     """Version IDs cannot alias revisions or become file paths."""
     with pytest.raises(ValueError, match="version ID"):
         _ = history.restore_artifact("artifact-nonexistent", version_id, "", "invalid-version-id")
+
+
+def test_content_changes_hide_metadata_only_saves_without_deleting_history(
+    history: VersionHistory,
+) -> None:
+    """Distinct slide states retain the newest save, while all original saves remain accessible."""
+    from artifact_studio.models import Source
+
+    original = history.store.locate(history.store.read(TEMPLATE_ID), "cover")
+    for number, patch in enumerate(
+        (
+            SlidePatch(title="Internal title only"),
+            SlidePatch(sources=[Source(label="Source panel only")]),
+            SlidePatch(html='<article class="slide">A real content change</article>'),
+            SlidePatch(sources=[Source(label="A revised source")]),
+            SlidePatch(interactive_html="<button>Interactive content</button>"),
+        ),
+        start=1,
+    ):
+        current = history.store.locate(history.store.read(TEMPLATE_ID), "cover")
+        _ = history.store.revise(
+            TEMPLATE_ID,
+            "cover",
+            digest(current.model_dump_json()),
+            f"content-filter-{number}",
+            patch,
+        )
+    document = (history.store.folder(TEMPLATE_ID) / "index.html").read_bytes()
+    page = history.list_slide(TEMPLATE_ID, "cover")
+    assert [item.revision for item in page.items] == [6, 5, 3]
+    assert page.items[0].is_current and page.hidden_saves == 3 and page.total_saves == 6
+    all_saves = history.list_slide(TEMPLATE_ID, "cover", include_all=True)
+    assert [item.revision for item in all_saves.items] == [6, 5, 4, 3, 2, 1]
+    assert [item.revision for item in all_saves.items if not item.content_changed] == [5, 3, 2]
+    oldest = history.get_slide_version(TEMPLATE_ID, "cover", all_saves.items[-1].version_id)
+    assert oldest.slide.html == original.html
+    assert (history.store.folder(TEMPLATE_ID) / "index.html").read_bytes() == document
+
+
+def test_distinct_state_pagination_keeps_returns_to_earlier_content(
+    history: VersionHistory,
+) -> None:
+    """A→B→A remains three states; metadata runs collapse consistently across page boundaries."""
+    original = history.store.locate(history.store.read(TEMPLATE_ID), "cover")
+    for number, patch in enumerate(
+        (
+            SlidePatch(title="Metadata on A"),
+            SlidePatch(html='<article class="slide">State B</article>'),
+            SlidePatch(title="Metadata on B"),
+            SlidePatch(html=original.html),
+            SlidePatch(title="Metadata on returned A"),
+        ),
+        start=1,
+    ):
+        current = history.store.locate(history.store.read(TEMPLATE_ID), "cover")
+        _ = history.store.revise(
+            TEMPLATE_ID, "cover", digest(current.model_dump_json()), f"state-run-{number}", patch
+        )
+    pages: list[int] = []
+    cursor = None
+    while True:
+        page = history.list_slide(TEMPLATE_ID, "cover", cursor=cursor, limit=1)
+        pages.extend(item.revision for item in page.items)
+        assert page.total_saves == 6 and page.hidden_saves == 3
+        cursor = page.next_cursor
+        if cursor is None:
+            break
+    assert pages == [6, 4, 2]
+
+
+def test_artifact_identical_restores_collapse_but_asset_changes_remain(
+    history: VersionHistory,
+    tmp_path: Path,
+) -> None:
+    """Repeated bundle states stay restorable, while changed media is a content version."""
+    artifact_id = register_bundle(history, tmp_path)
+    before = history.list_artifact(artifact_id)
+    restored = history.restore_artifact(
+        artifact_id, "artifact:1", before.expected_hash, "identical-content-restore"
+    )
+    page = history.list_artifact(artifact_id)
+    assert [item.revision for item in page.items] == [2]
+    assert page.items[0].is_current and page.hidden_saves == 1
+    all_saves = history.list_artifact(artifact_id, include_all=True)
+    assert [item.revision for item in all_saves.items] == [2, 1]
+    assert not all_saves.items[0].content_changed
+    _ = history.artifacts.revise_artifact(
+        artifact_id,
+        [ArtifactFileInput(path="asset.bin", text="A changed image or other dependency")],
+        restored.revision,
+        "changed-media-state",
+    )
+    page = history.list_artifact(artifact_id)
+    assert [item.revision for item in page.items] == [3, 2]
+    assert page.items[0].content_changed

@@ -1,10 +1,11 @@
 """Compact version timelines and explicit restores of retained local source."""
 
+import json
 import re
 import sqlite3
 from collections import defaultdict
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import Field
 
@@ -37,6 +38,7 @@ class VersionSummary(StrictModel):
     is_current: bool = False
     size_bytes: int = 0
     file_count: int = 1
+    content_changed: bool = True
 
 
 class HistoryGroup(StrictModel):
@@ -59,6 +61,8 @@ class HistoryPage(StrictModel):
     expected_hash: str
     continues_group: str | None = None
     fidelity_warning: str
+    total_saves: int = 0
+    hidden_saves: int = 0
 
 
 class SlideVersion(StrictModel):
@@ -67,6 +71,30 @@ class SlideVersion(StrictModel):
     version: VersionSummary
     slide: Slide
     fidelity_warning: str = SLIDE_FIDELITY
+
+
+def _content_column(db: sqlite3.Connection, table: str) -> None:
+    """Add a small signature cache and index uncached rows without duplicating source."""
+
+    def missing() -> bool:
+        """Check schema again after acquiring the lock if another process initialized it."""
+        return "content_key" not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+
+    if missing():
+        if not db.in_transaction:
+            _ = db.execute("BEGIN IMMEDIATE")
+        if missing():
+            _ = db.execute(f"ALTER TABLE {table} ADD COLUMN content_key TEXT")
+    columns = "deck,slide" if table == "slide_version_metadata" else "artifact_id"
+    _ = db.execute(
+        f"CREATE INDEX IF NOT EXISTS {table}_missing_content ON {table}({columns}) "
+        "WHERE content_key IS NULL"
+    )
+
+
+def _slide_content_key(slide: Slide) -> str:
+    """Identify authored audience content, excluding private and source-panel metadata."""
+    return digest(json.dumps([slide.html, slide.interactive_html], ensure_ascii=False))
 
 
 def install_slide_history(db: sqlite3.Connection) -> None:
@@ -103,6 +131,7 @@ def install_slide_history(db: sqlite3.Connection) -> None:
             FROM revisions ORDER BY rowid
         """)
         _ = db.execute("UPDATE slide_version_metadata SET group_id=id WHERE group_id=0")
+    _content_column(db, "slide_version_metadata")
 
 
 def capture_slide_version(
@@ -114,6 +143,11 @@ def capture_slide_version(
     _ = db.execute(
         "INSERT OR IGNORE INTO revisions VALUES (?,?,?,?)",
         (deck_id, slide.id, source_hash, document),
+    )
+    _ = db.execute(
+        "UPDATE slide_version_metadata SET content_key=? WHERE deck=? AND slide=? "
+        "AND revision=? AND content_key IS NULL",
+        (_slide_content_key(slide), deck_id, slide.id, slide.revision),
     )
     if saved_at is None:
         return
@@ -203,6 +237,7 @@ def install_artifact_history(db: sqlite3.Connection) -> None:
             UPDATE artifact_version_metadata SET group_id=
                 (SELECT group_id FROM identities WHERE identities.id=artifact_version_metadata.id)
         """)
+    _content_column(db, "artifact_version_metadata")
 
 
 class VersionHistory:
@@ -235,6 +270,7 @@ class VersionHistory:
             group_id="slide-group-" + str(row["group_id"]),
             is_current=row["revision"] == current_revision,
             size_bytes=cast(int, row["size_bytes"]),
+            content_changed=bool(dict(row).get("content_changed", True)),
         )
 
     @staticmethod
@@ -256,10 +292,90 @@ class VersionHistory:
             for group_id, saves in grouped.items()
         ]
 
+    @staticmethod
+    def _slide_keys(db: sqlite3.Connection, deck_id: str, slide_id: str) -> None:
+        """Backfill old signatures one source at a time; subsequent reads use only the index."""
+        rows = db.execute(
+            "SELECT m.id,r.document FROM slide_version_metadata m JOIN revisions r "
+            "ON r.deck=m.deck AND r.slide=m.slide AND r.hash=m.hash "
+            "WHERE m.deck=? AND m.slide=? AND m.content_key IS NULL ORDER BY m.id",
+            (deck_id, slide_id),
+        )
+        for row in rows:
+            slide = Slide.model_validate_json(cast(str, row["document"]))
+            _ = db.execute(
+                "UPDATE slide_version_metadata SET content_key=? WHERE id=?",
+                (_slide_content_key(slide), row["id"]),
+            )
+
+    @staticmethod
+    def _rows(
+        db: sqlite3.Connection,
+        kind: Literal["slide", "artifact"],
+        owner: tuple[str, ...],
+        current_revision: int,
+        before_id: int,
+        limit: int,
+        include_all: bool,
+    ) -> tuple[list[sqlite3.Row], dict[str, int], int, int]:
+        """Page indexed states, keeping the newest save in each consecutive identical run."""
+        table = kind + "_version_metadata"
+        columns = ("deck", "slide") if kind == "slide" else ("artifact_id",)
+        identity = " AND ".join(f"m.{column}=?" for column in columns)
+        related = " AND ".join(f"n.{column}=m.{column}" for column in columns)
+        neighbor = (
+            f"SELECT n.content_key FROM {table} n WHERE {related} AND n.id>m.id "
+            "ORDER BY n.id LIMIT 1"
+        )
+        distinct = f"(m.revision=? OR m.content_key IS NOT ({neighbor}))"
+        previous = (
+            f"SELECT n.content_key FROM {table} n WHERE {related} AND n.id<m.id "
+            "ORDER BY n.id DESC LIMIT 1"
+        )
+        condition = identity if include_all else identity + " AND " + distinct
+        parameters = owner if include_all else (*owner, current_revision)
+        rows = db.execute(
+            f"SELECT m.*,m.content_key IS NOT ({previous}) AS content_changed "
+            f"FROM {table} m WHERE {condition} AND m.id<? ORDER BY m.id DESC LIMIT ?",
+            (*parameters, before_id, limit + 1),
+        ).fetchall()
+        group_ids = {cast(int, row["group_id"]) for row in rows[:limit]}
+        counts = {
+            f"{kind}-group-{group_id}": cast(
+                int,
+                db.execute(
+                    f"SELECT COUNT(*) FROM {table} m WHERE {condition} AND m.group_id=?",
+                    (*parameters, group_id),
+                ).fetchone()[0],
+            )
+            for group_id in group_ids
+        }
+        total = cast(
+            int,
+            db.execute(
+                f"SELECT COUNT(*) FROM {table} m WHERE {identity}",
+                owner,
+            ).fetchone()[0],
+        )
+        visible = cast(
+            int,
+            db.execute(
+                f"SELECT COUNT(*) FROM {table} m WHERE {identity} AND {distinct}",
+                (*owner, current_revision),
+            ).fetchone()[0],
+        )
+        return rows, counts, total, total - visible
+
     def list_slide(
-        self, deck_id: str, slide_id: str, *, cursor: str | None = None, limit: int = 30
+        self,
+        deck_id: str,
+        slide_id: str,
+        *,
+        cursor: str | None = None,
+        limit: int = 30,
+        include_all: bool = False,
     ) -> HistoryPage:
-        """List visual revisions, coalescing notes and agent-context-only saves."""
+        """List distinct audience states by default while retaining every saved revision."""
         before_id = self._page_bounds(cursor, limit)
         with self.store.editing(deck_id) as db:
             current = self.store.locate(self.store.read(deck_id), slide_id)
@@ -274,24 +390,17 @@ class VersionHistory:
                     "WHERE deck=? AND slide=? AND revision=?",
                     (deck_id, slide_id, current.revision),
                 ).fetchone()
-            rows = db.execute(
-                "SELECT * FROM slide_version_metadata WHERE deck=? AND slide=? AND id<? "
-                "ORDER BY id DESC LIMIT ?",
-                (deck_id, slide_id, before_id, limit + 1),
-            ).fetchall()
+            self._slide_keys(db, deck_id, slide_id)
+            rows, counts, total, hidden = self._rows(
+                db,
+                "slide",
+                (deck_id, slide_id),
+                current.revision,
+                before_id,
+                limit,
+                include_all,
+            )
             items = [self._slide_summary(row, current.revision) for row in rows[:limit]]
-            group_ids = {cast(int, row["group_id"]) for row in rows[:limit]}
-            counts = {
-                "slide-group-" + str(group_id): cast(
-                    int,
-                    db.execute(
-                        "SELECT COUNT(*) FROM slide_version_metadata WHERE deck=? AND slide=? "
-                        "AND group_id=?",
-                        (deck_id, slide_id, group_id),
-                    ).fetchone()[0],
-                )
-                for group_id in group_ids
-            }
         return HistoryPage(
             items=items,
             groups=self._groups(items, counts),
@@ -302,6 +411,8 @@ class VersionHistory:
             if len(rows) > limit and rows[limit]["group_id"] == rows[limit - 1]["group_id"]
             else None,
             fidelity_warning=SLIDE_FIDELITY,
+            total_saves=total,
+            hidden_saves=hidden,
         )
 
     def get_slide_version(self, deck_id: str, slide_id: str, version_id: str) -> SlideVersion:
@@ -388,7 +499,12 @@ class VersionHistory:
         return revision
 
     def list_artifact(
-        self, artifact_id: str, *, cursor: str | None = None, limit: int = 30
+        self,
+        artifact_id: str,
+        *,
+        cursor: str | None = None,
+        limit: int = 30,
+        include_all: bool = False,
     ) -> HistoryPage:
         """Read compact manifest fields in SQLite without opening any snapshot files."""
         from .artifacts import artifact_revision_hash
@@ -397,6 +513,7 @@ class VersionHistory:
         if not SAFE_ID.fullmatch(artifact_id):
             raise ValueError("Invalid artifact ID.")
         with self.store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
             current = db.execute(
                 "SELECT json_extract(document,'$.revision'),"
                 "json_extract(document,'$.content_hash') FROM artifact_items WHERE id=?",
@@ -406,23 +523,22 @@ class VersionHistory:
                 raise FileNotFoundError(
                     "Owned artifact does not exist. Use slide history for decks."
                 )
-            rows = db.execute(
-                "SELECT * FROM artifact_version_metadata WHERE artifact_id=? AND id<? "
-                "ORDER BY id DESC LIMIT ?",
-                (artifact_id, before_id, limit + 1),
-            ).fetchall()
-            group_ids = {cast(int, row["group_id"]) for row in rows[:limit]}
-            counts = {
-                "artifact-group-" + str(group_id): cast(
-                    int,
-                    db.execute(
-                        "SELECT COUNT(*) FROM artifact_version_metadata WHERE artifact_id=? "
-                        "AND group_id=?",
-                        (artifact_id, group_id),
-                    ).fetchone()[0],
-                )
-                for group_id in group_ids
-            }
+            _ = db.execute(
+                "UPDATE artifact_version_metadata AS m SET content_key=(SELECT "
+                "json_extract(r.document,'$.content_hash') FROM artifact_revisions r "
+                "WHERE r.artifact_id=m.artifact_id AND r.revision=m.revision) "
+                "WHERE m.artifact_id=? AND m.content_key IS NULL",
+                (artifact_id,),
+            )
+            rows, counts, total, hidden = self._rows(
+                db,
+                "artifact",
+                (artifact_id,),
+                cast(int, current[0]),
+                before_id,
+                limit,
+                include_all,
+            )
         current_revision = cast(int, current[0])
         items = [
             VersionSummary(
@@ -434,6 +550,7 @@ class VersionHistory:
                 is_current=row["revision"] == current_revision,
                 size_bytes=cast(int, row["size_bytes"]),
                 file_count=cast(int, row["file_count"]),
+                content_changed=bool(row["content_changed"]),
             )
             for row in rows[:limit]
         ]
@@ -449,6 +566,8 @@ class VersionHistory:
             if len(rows) > limit and rows[limit]["group_id"] == rows[limit - 1]["group_id"]
             else None,
             fidelity_warning=ARTIFACT_FIDELITY,
+            total_saves=total,
+            hidden_saves=hidden,
         )
 
     def restore_artifact(

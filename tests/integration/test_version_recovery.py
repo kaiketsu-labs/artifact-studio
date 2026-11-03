@@ -37,7 +37,7 @@ def test_artifact_timeline_preview_restore_and_one_frame(
     page.get_by_role("button", name="Version history", exact=True).click()
     timeline = page.locator("dialog.version-history")
     expect(timeline).to_be_visible()
-    expect(timeline.locator("summary small")).to_have_text("2 saves")
+    expect(timeline.locator("summary small")).to_have_text("2 versions")
     expect(timeline.locator("iframe")).to_have_count(1)
     expect(page.frame_locator(".version-preview iframe").locator("#title")).to_have_text(
         "Revised heading"
@@ -82,10 +82,23 @@ def test_slide_timeline_fits_preview_and_preserves_notes(
         "browser-history-slide-two",
         SlidePatch(html=markup("Current message")),
     )
+    latest = store.revise(
+        DECK_ID,
+        "cover",
+        digest(latest.model_dump_json()),
+        "browser-history-metadata-only",
+        SlidePatch(title="An internal slide label"),
+    )
     page.goto(f"{live_app.url}/?editor=1&deck={DECK_ID}#cover")
     page.get_by_role("button", name="Version history", exact=True).click()
     timeline = page.locator("dialog.version-history")
     expect(timeline).to_be_visible()
+    expect(timeline.locator("[data-version]")).to_have_count(4)
+    timeline.get_by_label("Version filter").select_option("all")
+    expect(timeline.locator("[data-version]")).to_have_count(5)
+    expect(timeline.get_by_text("Current · Same content", exact=True)).to_be_visible()
+    timeline.get_by_label("Version filter").select_option("content")
+    expect(timeline.locator("[data-version]")).to_have_count(4)
     history = live_app.get(f"/api/decks/{DECK_ID}/slides/cover/history")
     versions = HistoryPage.model_validate(history).items
     selected = next(item for item in versions if item.revision == previous.revision)
