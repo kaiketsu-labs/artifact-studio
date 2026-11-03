@@ -4,11 +4,12 @@ from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import APIRouter, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import Field
 
 from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
+from .history_thumbnails import history_thumbnail
 from .models import SlideView, StrictModel
 from .storage import Store
 from .version_history import HistoryPage, VersionHistory
@@ -69,6 +70,14 @@ def history_routes(current_store: Callable[[], Store]) -> APIRouter:
             deck_id, slide_id, body.version_id, body.expected_hash, body.request_id
         )
 
+    @router.get("/api/decks/{deck_id}/slides/{slide_id}/history/thumbnail")
+    def slide_thumbnail(deck_id: str, slide_id: str, version_id: str) -> FileResponse:
+        """Return a cached thumbnail of retained slide content using the current shared design."""
+        path = history_thumbnail(
+            history(), deck_id=deck_id, slide_id=slide_id, version_id=version_id
+        )
+        return FileResponse(path, media_type="image/png")
+
     @router.get("/api/artifacts/{artifact_id}/history")
     def artifact_history(
         artifact_id: str,
@@ -87,5 +96,11 @@ def history_routes(current_store: Callable[[], Store]) -> APIRouter:
         return history().restore_artifact(
             artifact_id, body.version_id, body.expected_hash, body.request_id
         )
+
+    @router.get("/api/artifacts/{artifact_id}/history/thumbnail")
+    def artifact_thumbnail(artifact_id: str, version_id: str) -> FileResponse:
+        """Return a small image of an exact retained visual bundle."""
+        path = history_thumbnail(history(), artifact_id=artifact_id, version_id=version_id)
+        return FileResponse(path, media_type="image/png")
 
     return router

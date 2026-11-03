@@ -259,6 +259,52 @@ def contact_sheet(images: list[bytes], frames: list[Frame]) -> bytes:
     return output.getvalue()
 
 
+def _render_images(prepared: list[Snapshot], options: CaptureOptions) -> list[bytes]:
+    """Render prepared audience documents through the shared offline browser boundary."""
+    images: list[bytes] = []
+    try:
+        with sync_playwright() as renderer:
+            browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
+            try:
+                context = browser.new_context(
+                    viewport={"width": WIDTH, "height": HEIGHT},
+                    device_scale_factor=1,
+                    reduced_motion="reduce" if options.reduced_motion else "no-preference",
+                    offline=True,
+                    service_workers="block",
+                    accept_downloads=False,
+                )
+                context.route("**/*", lambda route: route.abort())
+                for item in prepared:
+                    tab = context.new_page()
+                    try:
+                        tab.set_default_timeout(15_000)
+                        tab.set_content(item.document, wait_until="load", timeout=15_000)
+                        item.frame.diagnostics = Diagnostics.model_validate(
+                            tab.evaluate("() => window.ArtifactStudioCaptureReady")
+                        )
+                        images.append(
+                            tab.screenshot(type="png", animations="allow", timeout=15_000)
+                        )
+                    finally:
+                        tab.close()
+            finally:
+                browser.close()
+    except BrowserError as error:
+        if "Executable doesn't exist" in str(error):
+            raise ValueError(
+                "Install the local renderer: uv run playwright install chromium --only-shell"
+            ) from error
+        raise ValueError(f"Visual capture failed: {str(error)[:500]}") from error
+    return images
+
+
+def capture_snapshot(prepared: Snapshot, options: CaptureOptions) -> bytes:
+    """Capture one prepared saved slide without changing the current presentation."""
+    with render_slot():
+        return _render_images([prepared], options)[0]
+
+
 def capture(
     store: Store,
     deck_id: str,
@@ -295,41 +341,7 @@ def capture(
                     "Review page exceeds 96 MiB. Retry with a smaller contact-sheet limit."
                 )
             prepared.append(item)
-        images: list[bytes] = []
-        try:
-            with sync_playwright() as renderer:
-                browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
-                try:
-                    context = browser.new_context(
-                        viewport={"width": WIDTH, "height": HEIGHT},
-                        device_scale_factor=1,
-                        reduced_motion="reduce" if options.reduced_motion else "no-preference",
-                        offline=True,
-                        service_workers="block",
-                        accept_downloads=False,
-                    )
-                    context.route("**/*", lambda route: route.abort())
-                    for item in prepared:
-                        tab = context.new_page()
-                        try:
-                            tab.set_default_timeout(15_000)
-                            tab.set_content(item.document, wait_until="load", timeout=15_000)
-                            item.frame.diagnostics = Diagnostics.model_validate(
-                                tab.evaluate("() => window.ArtifactStudioCaptureReady")
-                            )
-                            images.append(
-                                tab.screenshot(type="png", animations="allow", timeout=15_000)
-                            )
-                        finally:
-                            tab.close()
-                finally:
-                    browser.close()
-        except BrowserError as error:
-            if "Executable doesn't exist" in str(error):
-                raise ValueError(
-                    "Install the local renderer: uv run playwright install chromium --only-shell"
-                ) from error
-            raise ValueError(f"Visual capture failed: {str(error)[:500]}") from error
+        images = _render_images(prepared, options)
         capture_id = uuid.uuid4().hex
         folder = output / capture_id
         folder.mkdir(parents=True)
