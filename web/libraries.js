@@ -14,11 +14,17 @@
     if(phases.some(phase=>phase!=='synced'))return {phase:'pending',icon:'upload',text:'Saved on this device. GitHub backup is pending.'};
     return {phase:'synced',icon:'check',text:'Saved on this device. Last GitHub backup succeeded.'};
   }
-  function init({api,toast,escape,currentDeck,onNotesError=()=>{}}){
+  function init({api,toast,escape,currentDeck,onNotesError=()=>{},beforeSaveWorkspace=async()=>true}){
     const $=id=>document.getElementById(id),{svg,button}=window.SlideIcons;
     button($('libraries-button'),'folder','Reference libraries',true);
     button($('close-libraries'),'close','Close');button($('add-library'),'plus','Connect library');
     let busy=false,rendered='',revision=0,libraries=null,statuses=[],localState='saved',unavailable=false,polling=false;
+    const recovery=root.WorkspaceRecoveryUI.create({api,getLibraries:()=>libraries||[]});
+    const archiveActions=document.createElement('div');archiveActions.className='workspace-archive-actions';
+    archiveActions.innerHTML=`<button type="button" data-save-workspace>${svg('archive')}Save workspace</button><button type="button" data-restore-workspace>${svg('restore')}Restore workspace</button>`;
+    $('library-list').after(archiveActions);
+    archiveActions.querySelector('[data-save-workspace]').addEventListener('click',async()=>{try{if(await beforeSaveWorkspace())recovery.save();}catch(error){toast(error.message,true);}});
+    archiveActions.querySelector('[data-restore-workspace]').addEventListener('click',()=>recovery.open());
     function syncOption(){
       const github=/^(?:https:\/\/github\.com\/)?[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?\/?$/.test($('library-location').value.trim());
       $('library-sync-setting').hidden=!github;if(!github)$('library-sync').checked=false;

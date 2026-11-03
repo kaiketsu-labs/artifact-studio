@@ -203,6 +203,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS design_presence (
                     singleton INTEGER PRIMARY KEY CHECK(singleton=1), waiting_until REAL NOT NULL);
             """)
+            from .version_history import install_slide_history
+
+            install_slide_history(db)
             columns = {row[1] for row in db.execute("PRAGMA table_info(feedback)")}
             if "target" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN target TEXT")
@@ -673,6 +676,8 @@ class Store:
         prepare_interactive: Callable[[str], str] | None = None,
     ) -> Slide:
         """Share the locked write/replay path with source-only and receipt-aware callers."""
+        from .version_history import capture_slide_version
+
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
         payload = slide_id + expected_hash + patch.model_dump_json()
@@ -719,12 +724,11 @@ class Store:
                 or revised.sources != slide.sources
             ):
                 revised.revision = slide.revision + 1
-            _ = db.execute(
-                "INSERT OR IGNORE INTO revisions VALUES (?,?,?,?)",
-                (deck_id, slide_id, expected_hash, slide.model_dump_json()),
-            )
+            capture_slide_version(db, deck_id, slide)
             deck.slides[deck.slides.index(slide)] = revised
             self.write(deck_id, deck)
+            if revised.revision != slide.revision:
+                capture_slide_version(db, deck_id, revised, saved_at=datetime.now(UTC).isoformat())
             result = self._write_view(db, deck_id, revised)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",

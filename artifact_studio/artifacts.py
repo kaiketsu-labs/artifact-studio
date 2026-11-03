@@ -5,6 +5,7 @@ import binascii
 import hashlib
 import json
 import mimetypes
+import os
 import re
 import shutil
 import sqlite3
@@ -108,6 +109,11 @@ def bundle_hash(files: list[ArtifactFile], entrypoint: str, kind: str) -> str:
     )
 
 
+def artifact_revision_hash(artifact_id: str, revision: int, content_hash: str) -> str:
+    """Bind restore concurrency to a distinct save even when bundle bytes repeat."""
+    return digest(json.dumps(["artifact-revision", artifact_id, revision, content_hash]))
+
+
 def read_tree(folder: Path) -> dict[str, bytes]:
     """Capture a bounded bundle without following symlinks or accepting special files."""
     if folder.is_symlink() or not folder.is_dir():
@@ -181,6 +187,9 @@ class ArtifactStore:
                 CREATE TABLE IF NOT EXISTS artifact_delivery (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER UNIQUE NOT NULL);
             """)
+            from .version_history import install_artifact_history
+
+            install_artifact_history(db)
 
     def _owned(self, path: Path) -> Path:
         """Reject redirected registry directories before reading or writing owned state."""
@@ -374,13 +383,29 @@ class ArtifactStore:
         )
 
     def _save_snapshot(self, manifest: ArtifactManifest, files: dict[str, bytes]) -> None:
-        """Stage a complete immutable revision before publishing its database pointer."""
+        """Share verified immutable files while keeping working sources on separate inodes."""
         destination = self._snapshot(manifest)
         destination.parent.parent.mkdir(parents=True, exist_ok=True)
+        previous = destination.parent.parent / str(manifest.revision - 1) / "files"
         with tempfile.TemporaryDirectory(dir=destination.parent.parent) as temporary:
             staged = Path(temporary) / "revision"
             staged.mkdir()
-            write_tree(staged / "files", files)
+            (staged / "files").mkdir()
+            for item in manifest.files:
+                target = staged / "files" / relative_path(item.path)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                candidate = self._owned(previous / item.path)
+                if candidate.is_file() and not candidate.is_symlink():
+                    with candidate.open("rb") as source:
+                        unchanged = hashlib.file_digest(source, "sha256").hexdigest() == item.sha256
+                    if unchanged:
+                        try:
+                            os.link(candidate, target, follow_symlinks=False)
+                        except OSError:
+                            pass
+                        else:
+                            continue
+                _ = target.write_bytes(files[item.path])
             _ = (staged / "artifact.json").write_text(
                 manifest.model_dump_json(indent=2), encoding="utf-8"
             )
@@ -690,14 +715,43 @@ class ArtifactStore:
         request_id: str,
     ) -> ArtifactView:
         """Publish a complete changed-file set with optimistic concurrency and exact retries."""
-        if not 8 <= len(request_id) <= 100 or not files or len(files) > MAX_FILES:
+        return self._revise_artifact(artifact_id, files, expected_revision, request_id)
+
+    def restore_artifact(
+        self, artifact_id: str, revision: int, expected_hash: str, request_id: str
+    ) -> ArtifactView:
+        """Publish retained source as a new revision without recovering old approval state."""
+        if revision < 1:
+            raise ValueError("Choose an existing positive artifact revision.")
+        return self._revise_artifact(
+            artifact_id, [], expected_hash, request_id, restore_revision=revision
+        )
+
+    def _revise_artifact(
+        self,
+        artifact_id: str,
+        files: list[ArtifactFileInput],
+        expected_revision: int | str,
+        request_id: str,
+        *,
+        restore_revision: int | None = None,
+    ) -> ArtifactView:
+        """Share locked snapshot publication, rollback and idempotency for edits and restores."""
+        if (
+            not 8 <= len(request_id) <= 100
+            or (not files and restore_revision is None)
+            or len(files) > MAX_FILES
+        ):
             raise ValueError("Provide changed files and a request ID of 8–100 characters.")
         names = [relative_path(file.path) for file in files]
         if len(set(names)) != len(names):
             raise ValueError("Each changed file path must occur once.")
         payload_hash = digest(
             json.dumps(
-                ["revise", expected_revision, [file.model_dump() for file in files]], sort_keys=True
+                ["restore", expected_revision, restore_revision]
+                if restore_revision is not None
+                else ["revise", expected_revision, [file.model_dump() for file in files]],
+                sort_keys=True,
             )
         )
         with self.store.connect() as db:
@@ -727,11 +781,28 @@ class ArtifactStore:
                 if row is None:
                     raise FileNotFoundError("Artifact does not exist.")
                 current = self._view(db, self._synchronize(db, row))
-                if expected_revision not in (current.revision, current.content_hash):
+                accepted: tuple[int | str, ...] = (
+                    (current.revision, current.content_hash)
+                    if restore_revision is None
+                    else (
+                        artifact_revision_hash(current.id, current.revision, current.content_hash),
+                    )
+                )
+                if expected_revision not in accepted:
                     raise ConflictError(
                         "Artifact changed. Read its current revision before editing."
                     )
-                contents = read_tree(self._snapshot(current))
+                selected: ArtifactManifest = current
+                if restore_revision is not None:
+                    retained = db.execute(
+                        "SELECT document FROM artifact_revisions "
+                        "WHERE artifact_id=? AND revision=?",
+                        (artifact_id, restore_revision),
+                    ).fetchone()
+                    if retained is None:
+                        raise FileNotFoundError("Artifact revision does not exist.")
+                    selected = ArtifactManifest.model_validate_json(cast(str, retained[0]))
+                contents = self._snapshot_contents(selected)
                 for file in files:
                     if file.delete:
                         if file.path not in contents:
@@ -746,7 +817,7 @@ class ArtifactStore:
                             )
                         except (binascii.Error, ValueError) as error:
                             raise ValueError("Artifact binary data is not valid base64.") from error
-                if current.entrypoint not in contents:
+                if selected.entrypoint not in contents:
                     raise ValueError("The artifact entrypoint cannot be deleted.")
                 if (
                     any(len(data) > MAX_FILE_SIZE for data in contents.values())
@@ -758,15 +829,15 @@ class ArtifactStore:
                     artifact_id=current.id,
                     project_id=current.project_id,
                     title=current.title,
-                    kind=current.kind,
-                    entrypoint=current.entrypoint,
+                    kind=selected.kind,
+                    entrypoint=selected.entrypoint,
                     revision=current.revision + 1,
                     files=contents,
                     context=current.context,
                     original_source_path=current.original_source_path,
                     storage_project_id=current.storage_project_id,
                 )
-                if manifest.content_hash != current.content_hash:
+                if manifest.content_hash != current.content_hash or restore_revision is not None:
                     self._save_snapshot(manifest, contents)
                     folder = self._folder(manifest)
                     temporary = Path(tempfile.mkdtemp(dir=folder))
@@ -777,6 +848,10 @@ class ArtifactStore:
                     working = folder / "files"
                     staged.replace(working)
                     self._record(db, manifest)
+                    if restore_revision is not None:
+                        _ = db.execute(
+                            "UPDATE artifact_items SET approved_hash='' WHERE id=?", (artifact_id,)
+                        )
                     self._mirror(manifest)
                     current = self._view(db, manifest)
                 _ = db.execute(

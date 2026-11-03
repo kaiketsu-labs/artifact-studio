@@ -165,6 +165,10 @@ Presentation **Save/Open project** remains the portable editing archive, includi
 
 The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way backup to a selected private repository; review chat, approvals and revision history stay local. The Mac menu’s **GitHub Backup** submenu exposes the same setting, last delivery, Sync Now and recovery controls.
 
+In **Storage and backup**, **Save workspace** downloads a full local archive with projects, folders, sources, review chats, approvals and retained versions. **Restore workspace** previews a connected backup or local archive and restores files into a new sibling folder. The running workspace stays unchanged. GitHub recovery rebuilds current content and folder structure; private review history requires a local archive. [Recovery guide](docs/WORKSPACE-RECOVERY.md).
+
+The **history icon** above a slide or artifact opens a visual timeline. Rapid saves are grouped and expand to individual versions. Choose a version to preview it, then **Restore version** to create a new save; current speaker notes and slide placement stay intact. Lists are paginated, only one preview loads, and unchanged bundle files reuse immutable storage. Historical slides use current shared theme/assets, so their appearance may differ from the original.
+
 Workspace rules remain primary; learned preferences are secondary. Project and artifact context refine the work within that scope. The app ships without corporate designs or assets. [Preference learning](docs/PREFERENCE-LEARNING.md).
 
 ## Documentation
