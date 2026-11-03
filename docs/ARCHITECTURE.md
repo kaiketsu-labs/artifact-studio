@@ -1,22 +1,26 @@
 # Artifact Studio — architecture and implementation status
 
-Status: **first implementation available, 2 November 2026**. The visual library, project/artifact foundation, adaptive viewers, generic MCP tools and versioned review workflow are implemented. The original clickable concept is a design reference; it is no longer the only available artifact interface.
+Status: **implementation available, 3 November 2026**. The visual library, project folders, adaptive viewers, generic MCP tools, retained-version timeline and workspace recovery are implemented. The original clickable concept remains a design reference.
 
-The hub preserves existing presentation locations, editor links and review history. Opening the hub does not migrate personal sources or broaden repository uploads. Whole multi-artifact archives, expanded sync and general artifact host hooks remain subsequent work.
+The hub preserves existing presentation locations, editor links and review history. Opening it does not migrate personal sources or enable uploads. Local full workspace archives and explicitly enabled current-source GitHub backup are available. General artifact host hooks remain outside the implemented scope.
 
 ## Implemented surface
 
 | Area | Available now | Boundary |
 | --- | --- | --- |
 | Library | All-artifact grid, project/search/format filters, cached real previews and format fallbacks | Cards use images, not one running iframe per artifact. |
-| Projects | Shared brief, related artifact rows, project creation and membership changes | Moving membership preserves canonical source paths. Related content is not edited automatically. |
+| Projects and folders | Shared briefs, related artifact rows, project membership and ordered navigation folders | Navigation and membership changes preserve canonical source paths. Related content is not edited automatically. |
 | File bundles | Import files/folders; register an agent-authored local file or tree; automatic kind detection and an entrypoint | No fixed templates, design pack requirement or automatic build/install execution. |
 | HTML | Responsive page preview, authored JavaScript and element multiselection | Opaque-origin sandbox with scoped local assets. External services are not automatically enabled. |
 | Markdown | Rendered document and original source, text/block selections | Raw HTML is escaped. Owned image resources retain revision identity. |
 | Images/SVG | Original proportions, zoom and region multiselection | Regions retain normalized coordinates and original dimensions. |
 | Other files | Original storage, file downloads and artifact-level discussion | Native editing/rendering is not promised for arbitrary binary formats. |
 | Review | Per-artifact drafts, grouped targets, attachments, Live/Batch release, replies and human approval | Generic feedback release is implemented; automatic Codex/Claude host continuation remains presentation-only. |
+| Context menus and element edits | Contextual library/project/folder, slide and object actions; local unsent previews with explicit Send | HTML direct edits remain single-object. Slide groups submit one version-anchored feedback request; unsupported arrangement layouts and group alignment have no final-layout preview. |
 | Revisions | Immutable snapshots, expected-version writes, idempotent retries and out-of-band source reconciliation | SQLite publishes the current revision pointer; the adjacent manifest is a readable mirror. Arbitrary external file writes are not a multi-file transaction. |
+| Version timeline | Paginated metadata, isolated selected-version preview, Content changes/All saves and restore as a new revision | Filters preserve every retained save. Historical slide previews reuse current shared theme/assets. |
+| Workspace archive and recovery | Local full archives; previewed recovery from an archive or connected current-source backup into a new folder | Recovery writes a separate collection/database and leaves the running workspace active. It does not restore connected sessions or upload permissions. |
+| Repository backup | Explicitly opted-in, one-way current-source snapshots including artifacts, projects and navigation | Connections default to reference only. Review state and retained artifact revision directories remain local. |
 | Context | Scoped paths/hashes, available sources and latest recorded delivery | A returned pointer is not proof of reading or retention. |
 | Visual inspection | `capture_artifact` with exact revision, viewport, elapsed time and optional full-page output | A fresh offline capture does not reproduce every user interaction. Inspect those states in a browser. |
 | Existing decks | Original editor, slide tools, design guidance, presenter, archives and audience exports | Keep specialized presentation operations for presentation changes. |
@@ -30,6 +34,7 @@ An artifact is a named, versioned file or bundle with an entrypoint. Its type se
 ```text
 Workspace
   Explicit rules, secondary preferences, designs and connections
+  Navigation folders and project order
   Project
     Shared brief and related artifact references
     Presentation → slides → elements
@@ -40,6 +45,8 @@ Workspace
 ```
 
 Project context supplies defaults. Artifact-specific audience, purpose and instructions refine those defaults within applicable explicit rules. Related artifacts are references rather than automatic prompt content or edit targets. Suggest related updates before applying them.
+
+Navigation folders group projects and retain sibling order in `project-tree.json`. They are independent of physical source directories and instruction scope. Moving or removing a navigation folder preserves its projects and artifact files.
 
 ### Architectural choice
 
@@ -55,11 +62,13 @@ The third approach is implemented. There is no global Slides/Documents/Image mod
 
 The home page is a visual library with cached previews, title, project, kind and review status. An orange circular revision marker identifies updated work; approval is a separate state. A format fallback remains useful when capture is unavailable.
 
-Inside an artifact, a compact left rail has one project selector and related artifact rows. The central viewer keeps the artifact's natural format. Conversation stays on the right, or below the preview on narrow screens. Sources, paths, context and receipt details are available in disclosures and the Agent context inspector. The existing presentation editor retains slide thumbnails and its specialized controls.
+Inside a general artifact, a compact left rail has one project selector and related artifact rows. The central viewer keeps the artifact's natural format. Conversation stays on the right and stacks below the preview at widths up to 950 px. The presentation editor instead opens chat as a drawer at widths up to 1050 px. Collapsed panels remain mounted to preserve drafts and live previews. Sources, paths, context and receipt details are available in disclosures and the Agent context inspector.
 
 The Import action accepts arbitrary files or a folder and an entrypoint. **… → New presentation** reaches the existing deck-creation flow; **Presentation tools** reaches its workspace menus. New generic artifacts do not require a corporate design or conversion into slide HTML.
 
 Select an element, text block/range or image region. Cmd/Ctrl/Shift adds targets to a group; each target can be removed independently. A message records the originating artifact, source hash and selection group. HTML selections use a scoped bridge across the iframe boundary; authored code does not receive the parent workspace's privileges.
+
+Right-click menus use the invoked card, project/folder row, slide thumbnail, object or blank workspace as their context. Slide menus include comments, history and selection commands; object menus keep element edits provisional. Single-object text/geometry edits use `edit_intent`. Slide-group operations use one JSON feedback message with original targets/hash: deletion and supported layer changes preview locally, while other arrangements and group alignment are labeled requests without a final-layout preview. Send/Cancel resolves pending edits before navigation; undo does not retract submitted feedback. HTML groups remain feedback targets with single-object direct editing. Native text fields retain their context menus. [Controls](KEYBOARD-CONTROLS.md).
 
 ## Authoring and agent flow
 
@@ -93,6 +102,14 @@ Writes return compact identity/version/destination receipts. They do not echo co
 
 Plain MCP is stateless and does not wake a closed agent chat. Generic Live means immediate release; Batch requires explicit release. Existing presentation lifecycle hooks remain supported without claiming equivalent generic host continuation.
 
+## History, backups and recovery
+
+The history timeline reads small, paginated save summaries and loads one selected preview. **Content changes** filters consecutive identical-content saves; **All saves** includes internal-title/source-only saves and repeated restores. Filtering deletes no versions. Restore creates a new revision with a concurrency check, clears approval and preserves current human notes, visibility/order and artifact project context. Artifact revisions retain their local dependencies; historical slides reuse current shared theme/assets. A current-only backup cannot supply missing earlier revisions.
+
+**Save workspace** streams a local archive containing collection sources, retained revisions, saved private review state and app-owned attachments. **Restore workspace** previews a local archive or connected current-source backup and writes recovered files/database into a new sibling folder. It refuses an existing destination and leaves the active server unchanged. Running the recovered workspace requires explicit collection/database configuration; repositories, upload permissions and agent sessions must be reconnected. Browser-only unfinished edits remain separate. [Recovery guarantees](WORKSPACE-RECOVERY.md).
+
+GitHub backup requires explicit opt-in to a private destination. It includes current owned bundles, project manifests/briefs, presentations and navigation metadata, including `workspace-recovery.json`. Review databases, private chats/approvals and retained artifact revision directories are excluded. Connections remain reference-only until enabled, and backup never publishes a website or merges remote changes into local working files. [Backup scope](REPOSITORY-SYNC.md).
+
 ## Review identity and source ownership
 
 Feedback carries project/artifact identity, source revision/hash and optional anchors. A grouped target contains individual anchors, rather than concatenated HTML. Image regions include the original dimensions; text anchors retain quoted content. Targets are best-effort and remain attached to their recorded version. The UI does not silently relabel old targets as current.
@@ -123,9 +140,16 @@ artifact_studio/
   artifact_context.py             Scoped context receipts
   artifact_preview.py             Isolated previews and resource policy
   artifact_capture.py             Offline rendered evidence
+  project_tree.py                 Navigation folders and project order
+  version_history.py, history_api.py   Retained-save metadata, previews and restores
+  workspace_recovery.py, recovery_api.py   Local archives and separate-folder recovery
+  autosync.py, libraries.py        Opted-in current-source repository backup
 web/
   hub.html, hub.js, hub.css        Library and adaptive workspace
   artifact-bridge.js              Scoped selection bridge
+  project-tree.js                  Project/folder navigation and movement
+  element-commands.js              Shared contextual menu and keyboard controls
+  multi-element-edits.js           Provisional slide-selection requests
 ```
 
 This is the implemented structure. Presentation guides and existing modules retain their established paths. A larger package refactor and separate HTML/document/image guide files remain optional future changes; they are not prerequisites for the current runtime.
@@ -136,6 +160,8 @@ Workspace files remain separate from the tool repository:
 <collection>/
   INSTRUCTIONS.md
   LEARNED-PREFERENCES.md
+  project-tree.json
+  workspace-recovery.json         Generated portable current-source metadata
   <existing presentation/design folders>
   projects/<project-id>/
     project.json
@@ -160,11 +186,9 @@ Resolve applicability before precedence. Direct user instructions and applicable
 
 | Follow-up | Required boundary |
 | --- | --- |
-| Complete multi-artifact archives and restore | Include owned files, relationships, revisions and review state; stage restores and handle ID collisions without silent replacement. Existing presentation archives continue to work. |
-| Expanded repository sync | Preserve existing presentation scope by default. New artifact types need an explicit opt-in, with private review state and source ownership handled deliberately. |
 | Generic automatic host continuation | Add supported lifecycle delivery adapters; do not equate immediate feedback release with waking an agent. |
 | Shared assets and external capabilities | Track dependencies and ownership explicitly, invalidate affected reviews, and report unavailable or mutable inputs. |
 | Richer interaction evidence | Capture meaningful user-driven states where supported; report unresolved replay/anchor limitations. |
 | Large collection refinements | Extend pagination, preview scheduling and navigation based on measured behavior. |
 
-Verification should continue to cover unchanged legacy deck links and exports; freeform HTML/JS without a design; safe long Markdown and SVG/image proportions; multiselection and draft isolation; immutable revision previews; conflicting writes; Batch privacy and attachment downloads; real captures and interactive behavior. Browser checks do not substitute for physical multi-display or native-host checks. Current verification evidence belongs in [QA.md](../QA.md).
+Verification should continue to cover unchanged legacy deck links and exports; freeform HTML/JS without a design; safe long Markdown and SVG/image proportions; contextual menus and provisional edits; navigation folders; multiselection and draft isolation; retained-version filters/previews; separate-folder recovery; conflicting writes; Batch privacy and attachment downloads; real captures and interactive behavior. Browser checks do not substitute for physical multi-display or native-host checks. Current verification evidence belongs in [QA.md](../QA.md).

@@ -138,3 +138,19 @@ def test_user_text_fields_keep_native_context_menus(page: Page, live_app: Runnin
         expect(page.get_by_role("menu", name="Slide options", exact=True)).not_to_be_visible()
     assert live_app.store.comments(DECK_ID) == []
     assert live_app.store.read(DECK_ID).slides[0].notes == PRIVATE_NOTE
+
+
+def test_object_menu_scrolls_in_a_short_window(page: Page, live_app: RunningApp) -> None:
+    """Keep the last object action reachable in short landscape windows."""
+    page.set_viewport_size({"width": 800, "height": 400})
+    open_editor(page, live_app)
+    page.frame_locator("#preview").get_by_role("heading", level=1).click(button="right")
+    menu = page.get_by_role("menu", name="Object actions", exact=True)
+    expect(menu).to_be_visible()
+    bounds = menu.bounding_box()
+    assert bounds is not None and bounds["y"] >= 0
+    assert bounds["y"] + bounds["height"] <= 400
+    page.keyboard.press("End")
+    last = menu.get_by_role("menuitem", name="Clear selection", exact=True)
+    expect(last).to_be_focused()
+    expect(last).to_be_in_viewport()
