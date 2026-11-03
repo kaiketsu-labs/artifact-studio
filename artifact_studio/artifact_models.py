@@ -135,6 +135,7 @@ class ArtifactFeedbackInput(StrictModel):
 
     message: str = Field(default="", max_length=10_000)
     request_id: str = Field(min_length=8, max_length=100)
+    expected_mode: Literal["live", "batch"] | None = None
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     target: ArtifactTarget | None = None
     edit_intent: EditIntent | None = None

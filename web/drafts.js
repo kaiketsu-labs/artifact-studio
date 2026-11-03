@@ -41,7 +41,12 @@
           for(const id of new Set([...baseline[kind].keys(),...current.keys()])){
             const value=current.get(id);
             if(value===baseline[kind].get(id))continue;
-            if(value===undefined){storage.removeItem(itemKey(kind,id));baseline[kind].delete(id);}
+            if(value===undefined){
+              // A save acknowledgement must not erase a newer draft from another tab.
+              let stored=null;try{stored=JSON.parse(storage.getItem(itemKey(kind,id))||'null');}catch{}
+              if(stored?.kind===kind&&stored.id===id&&JSON.stringify(stored.value)===baseline[kind].get(id))storage.removeItem(itemKey(kind,id));
+              baseline[kind].delete(id);
+            }
             else{storage.setItem(itemKey(kind,id),JSON.stringify({kind,id,value:JSON.parse(value)}));baseline[kind].set(id,value);}
           }
         }

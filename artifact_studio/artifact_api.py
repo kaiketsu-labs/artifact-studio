@@ -225,7 +225,7 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         workflow = service.workflow(artifact_id)
         return {
             **view.model_dump(),
-            "feedback": service.feedback(artifact_id, include_pending=True),
+            "feedback": service.feedback_for(view, include_pending=True),
             "mode": workflow.mode,
             "workflow": workflow,
             "delivery": {"live_available": workflow.review_connected},

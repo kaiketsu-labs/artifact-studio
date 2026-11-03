@@ -833,6 +833,7 @@ class Store:
         context_slide_id: str | None = None,
         files: list[FileInput] | None = None,
         edit_intent: EditIntent | None = None,
+        expected_mode: Literal["live", "batch"] | None = None,
     ) -> str:
         """Save a comment or reply exactly once, retaining its original slide context."""
         decoded = decode_attachments(files or [])
@@ -879,7 +880,14 @@ class Store:
                 is None
             ):
                 raise ValueError("Reply must reference feedback in the same presentation context.")
-            released = author == "agent" or self.workflow(deck_id).mode == "live"
+            mode_row = db.execute("SELECT mode FROM workflow WHERE deck=?", (deck_id,)).fetchone()
+            mode = cast(Literal["live", "batch"], mode_row["mode"]) if mode_row else "live"
+            if expected_mode is not None and mode != expected_mode:
+                raise ConflictError(
+                    "Feedback mode changed. "
+                    "Review the current Live or Batch setting before sending."
+                )
+            released = author == "agent" or mode == "live"
             attachments = self.save_feedback_files(deck_id, decoded)
             result = self.append_feedback(
                 db,

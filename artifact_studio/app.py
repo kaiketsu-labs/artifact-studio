@@ -1783,6 +1783,7 @@ def feedback(deck_id: DeckID, slide_id: SlideID, body: CommentInput) -> dict[str
         target=body.target,
         files=body.files,
         edit_intent=body.edit_intent,
+        expected_mode=body.expected_mode,
     )
     return {"event_id": event_id}
 
@@ -1798,6 +1799,7 @@ def presentation_feedback(deck_id: DeckID, body: PresentationCommentInput) -> di
         body.request_id,
         context_slide_id=body.context_slide_id,
         files=body.files,
+        expected_mode=body.expected_mode,
     )
     return {"event_id": event_id}
 

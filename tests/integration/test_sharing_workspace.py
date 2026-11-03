@@ -41,7 +41,7 @@ def test_share_formats_download_and_project(
     expect(share).to_be_focused()
     page.goto(f"{live_app.url}/?artifact={item.id}")
     page.get_by_role("button", name="Back to library", exact=True).click()
-    page.locator(".hub-sidebar").get_by_role("button", name="Fictional source", exact=False).click()
+    page.locator(".hub-sidebar").get_by_role("button", name="Fictional source", exact=True).click()
     page.get_by_role("button", name="Share project", exact=True).click()
     expect(dialog.get_by_text("2 artifacts · ZIP", exact=True)).to_be_visible()
     expect(dialog.get_by_role("radio")).to_have_count(0)

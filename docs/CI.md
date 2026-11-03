@@ -16,9 +16,8 @@ corporate packs and model credentials are not required.
 | Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
 
 The two browser suites run in parallel with `fail-fast: false` and independent
-15-minute timeouts. Their test-file sets are disjoint and together preserve all
-30 paths from the previous single browser job. Collection on 3 November 2026
-found 97 cases in `editor-review` and 96 in `artifacts-runtime`; voice checks run
+15-minute timeouts. Their test-file sets are disjoint and together preserve all previously covered paths and add the audit regressions. Collection on 3 November 2026
+found 38 disjoint paths: 116 cases in `editor-review` and 107 in `artifacts-runtime`; voice checks run
 in both suites. These counts guide the split, not a measured runtime guarantee.
 Each suite installs the same locked dependencies and Chromium with OS support.
 
@@ -35,6 +34,8 @@ skipping every native check.
 Hook tests exercise each adapter's result envelope and generated command,
 including the durable acknowledged feedback cursor;
 they do not simulate host trust or claim an authenticated model session has run.
+
+The [UI review](UI-REVIEW-2026-11-03.md) adds rendered numerical contrast checks in both themes, narrow-layout and focus regressions, and transactional feedback-mode races.
 
 Model-driven changes, host hook approval/loading, automatic continuation inside a
 signed-in desktop/CLI session, physical displays and the macOS controller still

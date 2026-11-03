@@ -342,6 +342,28 @@ class Capture:
         self.save("docs/screenshots/storage-backup.png")
         self.page.locator("#close-libraries").click()
 
+    def mobile_chat(self) -> None:
+        """Capture the real narrow drawer with its own appearance and panel preferences."""
+        context = self.browser.new_context(
+            viewport={"width": 1440, "height": 1000},
+            color_scheme="dark",
+            reduced_motion="reduce",
+            locale="en-GB",
+            timezone_id="Europe/Berlin",
+        )
+        try:
+            page = context.new_page()
+            page.on("pageerror", lambda error: self.errors.append(str(error)))
+            page.clock.set_fixed_time("2026-11-03T09:30:00Z")
+            page.goto(self.app.url + "/?deck=" + DECK_ID)
+            page.locator('.slide-thumb[data-id="workflow"]').click()
+            page.set_viewport_size({"width": 320, "height": 568})
+            page.get_by_role("button", name="Open chat", exact=True).click()
+            expect(page.locator("#feedback-text")).to_be_visible()
+            self.save("docs/screenshots/chat-mobile-dark.png", page=page)
+        finally:
+            context.close()
+
     def run(self, deck: Deck) -> None:
         self.workspace()
         self.overview()
@@ -356,6 +378,7 @@ class Capture:
         self.references()
         self.visual_review(self.app.store.read(DECK_ID))
         self.library()
+        self.mobile_chat()
         if self.errors:
             raise RuntimeError(self.errors)
         expected = set(

@@ -65,8 +65,9 @@
     properties,
     tools:$('element-tools'),selectionBox:$('selection-box'),deleteButton:$('delete-element'),rotationInput:$('rotate-element'),editButton:$('edit-element-text'),moveButton:$('move-element'),alignButton:$('align-element'),alignMenu:$('element-align-menu'),commitButton:$('commit-element-text'),cancelButton:$('cancel-element-edit'),sentBadge:$('element-proposal-sent'),
     anchor:()=>({deck_id:deck.id,slide_id:selectedId,content_hash:slide().content_hash,target:structuredClone(currentTarget)}),
-    onSend:async({deck_id,slide_id,content_hash,target,message,request_id,edit_intent})=>{
-      const result=await api(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/feedback`,{message,content_hash,target,request_id,edit_intent});
+    getFeedbackMode:()=>deck?.workflow?.mode,
+    onSend:async({deck_id,slide_id,content_hash,target,message,request_id,edit_intent,expected_mode})=>{
+      const result=await postFeedback(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/feedback`,{message,content_hash,target,request_id,edit_intent},expected_mode);
       const released=deck.workflow?.mode!=='batch';
       await refresh();toast(deck?.workflow?.mode==='batch'?'Added to batch.':deck?.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
       return {deck_id,slide_id,event_id:Number(result.event_id),released};
@@ -131,8 +132,9 @@
     renderVoiceFeedback();syncVoiceChrome();
   });
   $('send-feedback-voice').addEventListener('click',async()=>{
-    const draftKey=key(),completed=await feedbackVoice.stop();syncVoiceChrome();
+    const draftKey=key(),mode=deck?.workflow?.mode,completed=await feedbackVoice.stop();syncVoiceChrome();
     if(draftKey!==key())return;
+    if(deck?.workflow?.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return;}
     if(!completed){toast('Recording ended without sending. Review your draft before sending.');return;}
     $('feedback-form').requestSubmit();
   });
@@ -176,6 +178,12 @@
   function toast(message,error=false,action=null){clearTimeout(toastTimer);$('toast').textContent=message;if(action){const button=document.createElement('button');button.type='button';button.textContent=action.label;button.addEventListener('click',async()=>{button.disabled=true;try{await action.run();}catch(error){toast(error.message,true);}});$('toast').append(button);}$('toast').classList.toggle('error',error);$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,error||action?8000:3500);}
   /** Exchange JSON with the local server and surface actionable error messages. */
   async function api(url,body,options={}){const response=await fetch(url,body===undefined?options:{...options,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok){const error=new Error(typeof result.detail==='string'?result.detail:JSON.stringify(result.detail));error.status=response.status;throw error;}return result;}
+  /** Guard the delivery mode shown for a feedback action without discarding an uncertain retry. */
+  async function postFeedback(url,body,expectedMode=deck?.workflow?.mode){
+    const id=deck?.id;
+    try{return await api(url,{...body,expected_mode:expectedMode});}
+    catch(error){if(error.status===409 && id)try{await refreshWorkflow(id);}catch{}throw error;}
+  }
   /** Retain unsent per-slide feedback and notes when switching between slides. */
   function retainDraft(){
     if(!deck||!selectedId)return;
@@ -320,7 +328,7 @@
   }
   groupEditor=window.MultiElementEdits.create({doc:document,getElements:()=>selectedElements,getContext:groupContext,onError:message=>toast(message,true),onChange:state=>{$('element-properties').inert=state.dirty||state.canRedo||state.sent;$('element-tools').inert=state.dirty||state.canRedo||state.sent;queueMicrotask(resumePreviewUpdates);},onSend:async({context,message})=>{
     if(!deck||context.deck_id!==deck.id||context.slide_id!==selectedId||context.content_hash!==slide().content_hash)throw Error('The slide changed. Reselect the objects before sending.');
-    await api(`/api/decks/${encodeURIComponent(context.deck_id)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,target:context.target,content_hash:context.content_hash,request_id:context.request_id});await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':'Sent to agent.');
+    await postFeedback(`/api/decks/${encodeURIComponent(context.deck_id)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,target:context.target,content_hash:context.content_hash,request_id:context.request_id});await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':'Sent to agent.');
   }});
   groupEditor.toolbar.addEventListener('click',()=>{if(groupEditor.toolbar.hidden)$('preview').focus({preventScroll:true});});
   async function previewSelection(action){if(feedbackSending)return;if(voice.isActive()){toast('Stop dictation before editing the selection.');return;}if(!await elementEditor.finish())return;groupEditor.preview(action);}
@@ -400,7 +408,7 @@
     $('mode-live').setAttribute('aria-pressed',String(live));$('mode-batch').setAttribute('aria-pressed',String(!live));
     $('mode-live').innerHTML=(brand(state.review_harness)||svg('live'))+'<span>Live <small class="live-availability '+(available?'available':'')+'">'+(available?(harness||'Available'):'Unavailable')+'</small></span>';
     $('mode-live').title='Live feedback · '+(available?(harness||'agent')+session+' available':'agent unavailable');
-    $('mode-live').setAttribute('aria-label','Live feedback: '+(available?(harness||'agent')+' available':'agent unavailable'));
+    $('mode-live').setAttribute('aria-label','Live '+(available?(harness||'Available'):'Unavailable'));
     $('end-review').hidden=!state.review_connected;
     $('send-batch').hidden=!state.pending;iconButton($('send-batch'),'send',(live?'Send queued comments':'Send batch')+' ('+state.pending+')',true);
     $('batch-delivery-help').hidden=live;$('send-feedback').classList.toggle('is-batch',!live);
@@ -758,7 +766,7 @@
   $('feedback-form').addEventListener('submit',async event=>{
     event.preventDefault();
     if(!deck||feedbackSending||voice.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().some(item=>item.message.trim())))return;
-    const submittingKey=key();
+    const submittingKey=key(),expectedMode=deck.workflow?.mode;
     if(!await finishEdits()||!deck||submittingKey!==key()||feedbackSending||voice.isActive())return;
     retainDraft();
     const button=$('send-feedback'),sendingDeck=deck.id,sendingKey=key(),context=structuredClone(feedbackDraft()),message=$('feedback-text').value;
@@ -766,10 +774,10 @@
     try{
       const files=await chatComposer.payload(sendingKey);
       for(const segment of voiceFeedback.segments(sendingKey).filter(item=>item.message.trim())){
-        await api(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(segment.slide_id)}/feedback`,{message:segment.message,content_hash:segment.content_hash,target:segment.target,request_id:segment.request_id});
+        await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(segment.slide_id)}/feedback`,{message:segment.message,content_hash:segment.content_hash,target:segment.target,request_id:segment.request_id},expectedMode);
         voiceFeedback.acknowledge(segment.request_id,sendingKey);
       }
-      if(message.trim()||files.length)await api(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,request_id:context.request_id});
+      if(message.trim()||files.length)await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,request_id:context.request_id},expectedMode);
       chatComposer.clear(sendingKey);voiceFeedback.clear(sendingKey);feedbackDrafts.delete(sendingKey);draftStore.persist();
       if(key()===sendingKey){$('feedback-text').value='';setTarget(null);renderVoiceFeedback();}
       await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');

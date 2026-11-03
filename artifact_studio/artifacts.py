@@ -1037,6 +1037,13 @@ class ArtifactStore:
     ) -> list[ArtifactFeedback]:
         """Read discussion; pending human drafts require an explicit human-only call path."""
         artifact = self.get_artifact(artifact_id)
+        return self.feedback_for(artifact, include_pending=include_pending)
+
+    def feedback_for(
+        self, artifact: ArtifactView, *, include_pending: bool = False
+    ) -> list[ArtifactFeedback]:
+        """Read discussion against a just-validated view without rescanning its source trees."""
+        artifact_id = artifact.id
         if artifact.legacy_deck_id:
             return [
                 self._legacy_feedback(artifact, event)
@@ -1091,7 +1098,8 @@ class ArtifactStore:
         decoded = decode_attachments(body.files)
         if not body.message.strip() and not decoded:
             raise ValueError("Add a message or attach a file.")
-        payload_hash = digest(json.dumps(["feedback", author, body.model_dump()], sort_keys=True))
+        payload = body.model_dump(exclude={"expected_mode"})
+        payload_hash = digest(json.dumps(["feedback", author, payload], sort_keys=True))
         with self.store.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             prior = self._operation(db, artifact_id, body.request_id, payload_hash)
@@ -1100,6 +1108,11 @@ class ArtifactStore:
             row = self._row(db, artifact_id)
             if row is None:
                 raise FileNotFoundError("Artifact does not exist.")
+            if body.expected_mode is not None and row["mode"] != body.expected_mode:
+                raise ConflictError(
+                    "Feedback mode changed. "
+                    "Review the current Live or Batch setting before sending."
+                )
             revision_row = db.execute(
                 "SELECT document FROM artifact_revisions WHERE artifact_id=? "
                 "AND json_extract(document,'$.content_hash')=? ORDER BY revision DESC LIMIT 1",

@@ -1,6 +1,7 @@
 """End-to-end local HTTP boundaries and scoped agent context for Artifact Studio."""
 
 import base64
+import os
 from pathlib import Path
 from typing import cast
 
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
 from artifact_studio import app as service
+from artifact_studio import artifacts as artifact_module
 from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.design_library import DesignCreate, DesignLibrary
@@ -132,6 +134,65 @@ def test_cross_origin_writes_and_unsafe_upload_paths_are_rejected(client: TestCl
         ).status_code
         == 403
     )
+
+
+def test_detail_reads_each_bundle_once_and_preserves_pending_feedback(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Build a consistent review response without loading its source trees for chat again."""
+    artifact = import_page(client)
+    assert client.post(f"/api/artifacts/{artifact.id}/mode", json={"mode": "batch"}).is_success
+    assert client.post(
+        f"/api/artifacts/{artifact.id}/feedback",
+        json={
+            "message": "Private review draft",
+            "content_hash": artifact.content_hash,
+            "request_id": "detail-scan-feedback",
+        },
+    ).is_success
+    original_read = artifact_module.read_tree
+    reads: list[Path] = []
+
+    def tracked_read(folder: Path) -> dict[str, bytes]:
+        """Count whole-bundle reads independently of file size or filesystem speed."""
+        reads.append(folder)
+        return original_read(folder)
+
+    monkeypatch.setattr(artifact_module, "read_tree", tracked_read)
+    response = client.get(f"/api/artifacts/{artifact.id}")
+    assert response.is_success
+    assert reads == [
+        Path(artifact.source_path).parent / "revisions" / "1" / "files",
+        Path(artifact.source_path),
+    ]
+    detail = response.json()
+    assert detail["revision"] == artifact.revision
+    assert detail["workflow"]["pending"] == 1
+    assert detail["mode"] == "batch"
+    assert detail["feedback"][0]["message"] == "Private review draft"
+    assert not detail["feedback"][0]["released"]
+
+
+def test_detail_rechecks_same_size_edits_with_restored_mtime(client: TestClient) -> None:
+    """Repeated reads still reconcile external edits and reject tampered immutable bytes."""
+    artifact = import_page(client)
+    path = f"/api/artifacts/{artifact.id}"
+    assert client.get(path).json()["revision"] == 1
+    working = Path(artifact.source_path) / "app.js"
+    original_stat = working.stat()
+    _ = working.write_text("window.example = 2")
+    os.utime(working, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+    changed = client.get(path)
+    assert changed.is_success
+    assert changed.json()["revision"] == 2
+    assert changed.json()["content_hash"] != artifact.content_hash
+
+    snapshot = working.parent.parent / "revisions" / "2" / "files" / "app.js"
+    snapshot_stat = snapshot.stat()
+    _ = snapshot.write_text("window.example = 3")
+    os.utime(snapshot, ns=(snapshot_stat.st_atime_ns, snapshot_stat.st_mtime_ns))
+    assert client.get(path).status_code == 409
+    assert client.get(f"{path}/revisions/2/files/app.js").status_code == 409
 
 
 def test_http_batch_groups_and_private_attachment_downloads(client: TestClient) -> None:

@@ -36,7 +36,7 @@
   /** Describe an exact placement while leaving layout implementation to the agent. */
   function moveMessage(position){return `Move to ${(position.x*100).toFixed(2)}% from the left and ${(position.y*100).toFixed(2)}% from the top.`;}
   /** Preview edits locally and submit their original element/version as ordinary feedback. */
-  function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,properties=null,anchor,onSend,onChange,onError,deliveryStatus=()=> 'released',blocked=()=>false}){
+  function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,properties=null,anchor,onSend,onChange,onError,getFeedbackMode=()=>undefined,deliveryStatus=()=> 'released',blocked=()=>false}){
     let element=null,original=null,textEditing=false,dragEnabled=true,drag=null,doc=null,busy=false,suppressClick=false,sent=false,keyboardMove=null,submission=null,positionPreview=null,rotationPreview=0,pendingDelete=false,rotationDrag=null,propertyValues={},propertyBaseline={};
     const requests=new Map();
     const history=root.ElementCommands?.history()||{record(){},clear(){},undo(){},redo(){},canUndo:()=>false,canRedo:()=>false};
@@ -152,41 +152,42 @@
       });
 
     }
-    async function send(message,captured,intent){
+    async function send(message,captured,intent,expectedMode){
       const signature=JSON.stringify([captured,message,intent]);
       if(!requests.has(signature))requests.set(signature,crypto.randomUUID());
       busy=true;update();
-      try{submission=await onSend({...captured,message,edit_intent:intent,request_id:requests.get(signature)});history.clear();return true;}
+      try{submission=await onSend({...captured,message,edit_intent:intent,request_id:requests.get(signature),expected_mode:expectedMode});history.clear();return true;}
       catch(error){onError(error.message);return false;}
       finally{busy=false;update();}
     }
     async function commitText(){
       if(busy)return false;
-      const editing=element;
+      const editing=element,expectedMode=getFeedbackMode();
       if(textVoice && root.slideVoice?.isActive(textVoice.input) && !await textVoice.stop()){onError('Recording ended without sending. Review your edit before sending.');return false;}
       if(properties?.stopVoice && !await properties.stopVoice()){onError('Recording ended without sending. Review your edit before sending.');return false;}
       if(busy||element!==editing)return false;
-      if(pendingDelete){if(await send('Delete this element.',original.anchor,editIntent('delete',{}))){pendingDelete=false;sent=true;update();return true;}return false;}
+      if(getFeedbackMode()!==expectedMode){onError('Feedback mode changed. Review the current setting before sending.');return false;}
+      if(pendingDelete){if(await send('Delete this element.',original.anchor,editIntent('delete',{}),expectedMode)){pendingDelete=false;sent=true;update();return true;}return false;}
       if(keyboardMove){
         const {position,rotation=0}=keyboardMove,values={},parts=[];
         if(position){const rect=element.getBoundingClientRect(),actual={x:(rect.left-keyboardMove.canvas.left)/keyboardMove.canvas.width,y:(rect.top-keyboardMove.canvas.top)/keyboardMove.canvas.height};Object.assign(values,{x:actual.x,y:actual.y,position_reference:'visual_top_left'});parts.push(moveMessage(actual));}
         if(rotation){Object.assign(values,{rotation_degrees:rotation,rotation_reference:'original_element_local',rotation_origin:'existing_transform_origin'});parts.push(`Rotate ${rotation}° clockwise from original.`);}
         if(!parts.length){cancel();return true;}
         const action=position&&rotation?'transform':rotation?'rotate':'move';
-        if(await send(parts.join(' '),original.anchor,editIntent(action,values))){keyboardMove=null;sent=true;update();return true;}return false;
+        if(await send(parts.join(' '),original.anchor,editIntent(action,values),expectedMode)){keyboardMove=null;sent=true;update();return true;}return false;
       }
       if(propertyDraft()&&original){
         const values={...propertyValues};
         if('text' in values&&(!values.text.trim()||values.text.length>9000)){onError('Keep replacement text between 1 and 9,000 characters.');return false;}
         const hasText='text' in values,hasStyle=Object.keys(values).some(key=>key!=='text'),action=hasText?(hasStyle?'update':'replace_text'):'style';
-        if(await send('Update element properties.',original.anchor,editIntent(action,values))){propertyValues={};sent=true;inspect();update();return true;}return false;
+        if(await send('Update element properties.',original.anchor,editIntent(action,values),expectedMode)){propertyValues={};sent=true;inspect();update();return true;}return false;
       }
       if(!textEditing||!original)return true;
       const edited=element,value=element.innerText??element.textContent,captured=original.anchor;
       if(value===original.text){cancel();return true;}
       if(!value.trim()){onError('Use the chat to request removing this element.');return false;}
       if(value.length>9000){onError('Keep the replacement under 9,000 characters.');return false;}
-      if(await send('Replace text.',captured,editIntent('replace_text',{text:value}))){
+      if(await send('Replace text.',captured,editIntent('replace_text',{text:value}),expectedMode)){
         if(element!==edited||!original)return true;
         textEditing=false;sent=true;
         if(original.editable===null)element.removeAttribute('contenteditable');else element.setAttribute('contenteditable',original.editable);

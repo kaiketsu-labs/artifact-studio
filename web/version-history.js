@@ -6,7 +6,7 @@
     const dialog=doc.createElement('dialog');dialog.className='version-history';dialog.setAttribute('aria-labelledby','version-history-title');
     dialog.innerHTML=`<header><div><h2 id="version-history-title">Version history</h2><p class="version-subtitle"></p></div><div class="version-actions"><select aria-label="Version filter"><option value="content">Content changes</option><option value="all">All saves</option></select><button type="button" data-history-close aria-label="Close version history">${icon('close')}</button></div></header><div class="version-layout"><nav class="version-list" aria-label="Saved versions"></nav><section class="version-detail"><div class="version-preview-heading"><strong class="version-name"></strong><span class="version-current"></span></div><div class="version-preview" aria-label="Saved version preview"></div><div class="version-footer"><details><summary>About this preview</summary><p class="version-fidelity"></p></details><button type="button" class="version-restore">${icon('restore')}<span>Restore version</span></button></div><p class="version-confirm" hidden>Restore as a new version? Current notes stay unchanged. <button type="button" data-confirm-restore>Restore</button> <button type="button" data-cancel-restore>Cancel</button></p><p class="version-error" role="alert"></p><p class="version-status" role="status"></p></section></div>`;
     doc.body.append(dialog);
-    const $=selector=>dialog.querySelector(selector);let target=null,items=[],counts=new Map(),next=null,selected=null,expected='',epoch=0,busy=false,opener=null,loadBusy=false,restoreRequest=null,includeAll=false;
+    const $=selector=>dialog.querySelector(selector);let target=null,items=[],counts=new Map(),next=null,selected=null,expected='',epoch=0,busy=false,opener=null,openedLocation='',restoreCompleted=false,loadBusy=false,restoreRequest=null,includeAll=false;
     const date=value=>value?new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Earlier save';
     const thumbnails=new Map();let thumbnailObserver=null,thumbnailQueue=[],thumbnailBusy=false,thumbnailEpoch=0;
     function clearThumbnails(){thumbnailEpoch++;thumbnailObserver?.disconnect();thumbnailQueue=[];for(const value of thumbnails.values())if(value)root.URL.revokeObjectURL(value);thumbnails.clear();}
@@ -51,23 +51,32 @@
       catch(error){if(current===epoch){$('.version-error').textContent=error.message;$('.version-status').textContent='';}}
       finally{if(current===epoch)loadBusy=false;}
     }
+    function cancelRestore(){ $('.version-confirm').hidden=true;$('.version-restore').focus({preventScroll:true}); }
+    function restoreFocus(){
+      if(restoreCompleted||root.location.href!==openedLocation)return;
+      const active=doc.activeElement;
+      if(active&&active!==doc.body&&active!==doc.documentElement&&!dialog.contains(active))return;
+      const visible=element=>element?.isConnected&&!element.closest('[inert]')&&element.getClientRects().length&&root.getComputedStyle(element).visibility!=='hidden';
+      const trigger=visible(opener)?opener:doc.querySelector(target?.kind==='slide'?'#version-history':'.hub-view-toolbar [data-action="history"]');
+      if(visible(trigger))trigger.focus({preventScroll:true});
+    }
     dialog.addEventListener('click',async event=>{
       if(event.target.closest('[data-history-close]')){if(!busy)dialog.close();return;}
       const choice=event.target.closest('[data-version]');if(choice&&!busy){select(items.find(item=>item.version_id===choice.dataset.version));return;}
       if(event.target.closest('.version-earlier')){void load();return;}
       if(event.target.closest('.version-restore')){$('.version-confirm').hidden=false;$('[data-confirm-restore]').focus();return;}
-      if(event.target.closest('[data-cancel-restore]')){$('.version-confirm').hidden=true;return;}
+      if(event.target.closest('[data-cancel-restore]')){cancelRestore();return;}
       if(!event.target.closest('[data-confirm-restore]')||busy)return;
       busy=true;dialog.setAttribute('aria-busy','true');dialog.querySelectorAll('button,select').forEach(button=>button.disabled=true);$('.version-error').textContent='';
-      try{await api(target.path+'/restore',{version_id:selected.version_id,expected_hash:expected,request_id:restoreRequest||(restoreRequest=root.crypto.randomUUID())});await onRestored(target);dialog.close();}
+      try{await api(target.path+'/restore',{version_id:selected.version_id,expected_hash:expected,request_id:restoreRequest||(restoreRequest=root.crypto.randomUUID())});await onRestored(target);restoreCompleted=true;dialog.close();}
       catch(error){$('.version-error').textContent=error.message;$('.version-confirm').hidden=true;}
       finally{busy=false;dialog.removeAttribute('aria-busy');dialog.querySelectorAll('button,select').forEach(button=>button.disabled=false);$('.version-restore').disabled=selected?.is_current;}
     });
     $('.version-actions select').addEventListener('change',()=>{if(busy)return;clearThumbnails();includeAll=$('.version-actions select').value==='all';epoch++;items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-restore').disabled=true;$('.version-confirm').hidden=true;void load();});
     $('.version-list').addEventListener('keydown',event=>{if(busy||!event.target.closest('[data-version]')||!['ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();const index=items.findIndex(item=>item.version_id===selected?.version_id),next=items[index+(event.key==='ArrowDown'?1:-1)];if(next)select(next);});
-    dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
-    dialog.addEventListener('close',()=>{epoch++;loadBusy=false;clearThumbnails();$('.version-preview').replaceChildren();opener?.focus();});
-    return {open(value){if(busy)return;epoch++;clearThumbnails();target={...value,path:value.kind==='slide'?`/api/decks/${encodeURIComponent(value.deckId)}/slides/${encodeURIComponent(value.slideId)}/history`:`/api/artifacts/${encodeURIComponent(value.artifactId)}/history`};includeAll=false;$('.version-actions select').value='content';items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-error').textContent='';$('.version-confirm').hidden=true;$('.version-subtitle').textContent=value.title;$('.version-restore').disabled=true;opener=doc.activeElement;dialog.showModal();void load();}};
+    dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();else if(!$('.version-confirm').hidden){event.preventDefault();cancelRestore();}});
+    dialog.addEventListener('close',()=>{epoch++;loadBusy=false;clearThumbnails();$('.version-preview').replaceChildren();restoreFocus();});
+    return {open(value){if(busy)return;epoch++;clearThumbnails();target={...value,path:value.kind==='slide'?`/api/decks/${encodeURIComponent(value.deckId)}/slides/${encodeURIComponent(value.slideId)}/history`:`/api/artifacts/${encodeURIComponent(value.artifactId)}/history`};includeAll=false;$('.version-actions select').value='content';items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-error').textContent='';$('.version-confirm').hidden=true;$('.version-subtitle').textContent=value.title;$('.version-restore').disabled=true;opener=doc.activeElement;openedLocation=root.location.href;restoreCompleted=false;dialog.showModal();void load();}};
   }
   root.VersionTimeline={create};
 })(window);
