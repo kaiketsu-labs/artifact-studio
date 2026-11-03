@@ -19,6 +19,8 @@
 .presenter-filmstrip .is-hidden>span,#all-slides-grid .is-hidden>span{position:relative;display:inline-block;min-width:18px;border:1px solid currentColor;padding:1px 3px}
 .presenter-filmstrip .is-hidden>span::after,#all-slides-grid .is-hidden>span::after{content:'';position:absolute;width:130%;height:1px;left:-15%;top:50%;background:currentColor;transform:rotate(-43deg)}
 .runtime-empty{display:grid;place-items:center;background:#fff;color:#334155;font:24px system-ui}
+/* Scale the complete authored canvas, including fixed-size text, SVG and spacing. */
+.stage-slot,.film-slide{position:relative}.stage-slot>.runtime-slide-canvas,.film-slide>.runtime-slide-canvas{position:absolute;top:50%;left:50%;width:1600px;height:900px;container-type:inline-size;transform:translate(-50%,-50%) scale(var(--slide-scale,0));transform-origin:center;text-align:start}
 #all-slides-dialog{width:min(1000px,94vw);max-width:none;max-height:90dvh;border:1px solid #475569;border-radius:10px;padding:18px;background:#1c2230;color:#e2e8f0}
 #all-slides-dialog::backdrop{background:#0009}
 #all-slides-dialog>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}

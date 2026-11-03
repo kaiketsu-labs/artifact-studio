@@ -13,7 +13,8 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
   <a href="#live-or-batch">Live &amp; Batch</a> ·
-  <a href="docs/GETTING-STARTED.md">Full guide</a>
+  <a href="docs/GETTING-STARTED.md">Full guide</a> ·
+  <a href="docs/KEYBOARD-CONTROLS.md">Keyboard shortcuts</a>
 </p>
 
 ![Artifact Studio library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
@@ -143,6 +144,8 @@ For a deck, open the editor's **Menu → Connect an agent → Automatic feedback
 ![Private presenter view showing current and next slides, notes, timer, clock and filmstrip.](docs/assets/presenter.png)
 
 Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. Where browser support, permissions and hardware allow, use a second display for audience slides and keep current/next slides, notes, timer and navigation private. [Editor controls](docs/GETTING-STARTED.md#review-and-present) · [Verification limits](QA.md).
+
+The self-contained HTML export scales the complete slide canvas in audience/presenter views and **All slides**, keeping fixed-size text, SVG and spacing proportional. Re-export an older file to include runtime fixes. [All keyboard shortcuts](docs/KEYBOARD-CONTROLS.md).
 
 Right-click slide thumbnails for new, duplicate, hide/unhide, delete and movement actions; section menus manage their groups. These structural controls are separate from the selected object's unsent edit history.
 

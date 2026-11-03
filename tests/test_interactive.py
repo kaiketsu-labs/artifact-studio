@@ -239,14 +239,20 @@ document.getElementById('state').textContent=value;window.artifactStudio.emitSta
 
             page.route("https://fiction.invalid/**", document)
             page.goto("https://fiction.invalid/export?channel=fictional-state-check")
-            current = page.frame_locator("#stage > iframe").frame_locator("iframe")
-            private = page.frame_locator("#presenter-current > iframe").frame_locator("iframe")
+            current = page.frame_locator("#stage > .runtime-slide-canvas > iframe").frame_locator(
+                "iframe"
+            )
+            private = page.frame_locator(
+                "#presenter-current > .runtime-slide-canvas > iframe"
+            ).frame_locator("iframe")
             current.locator("#increment").click()
             private.locator("#state").get_by_text("1", exact=True).wait_for(state="attached")
             audience = page.context.new_page()
             audience.route("https://fiction.invalid/**", document)
             audience.goto("https://fiction.invalid/export?channel=fictional-state-check&audience=1")
-            audience_view = audience.frame_locator("#stage > iframe").frame_locator("iframe")
+            audience_view = audience.frame_locator(
+                "#stage > .runtime-slide-canvas > iframe"
+            ).frame_locator("iframe")
             audience_view.locator("#state").get_by_text("1", exact=True).wait_for()
             current.get_by_label("Text").fill("A")
             current.get_by_label("Text").press("x")
@@ -255,7 +261,7 @@ document.getElementById('state').textContent=value;window.artifactStudio.emitSta
             page.wait_for_function(
                 "() => document.getElementById('single-counter').textContent==='2 / 2'"
             )
-            assert page.locator("#stage > iframe").count() == 0
+            assert page.locator("#stage > .runtime-slide-canvas > iframe").count() == 0
             page.keyboard.press("ArrowLeft")
             current.locator("#state").get_by_text("1", exact=True).wait_for()
             current.locator("#increment").press("Escape")

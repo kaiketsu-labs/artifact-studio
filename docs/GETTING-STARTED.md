@@ -167,6 +167,8 @@ Designs define a visual language, not locked layouts or a required slide count. 
 
 ## Review and present
 
+The [keyboard shortcut reference](KEYBOARD-CONTROLS.md) lists the available file, slide, object, chat, slideshow, project, panel and version-history controls.
+
 The following controls apply to the presentation editor. Its top-right **Menu** groups file actions, workspace settings and the agent connection; **Present** stays beside it. Return through the library to open related non-slide artifacts. Open the menu with **F10** or focus it and press Up/Down. Use arrows, Home/End, Enter or type an action's name; Escape returns focus to the menu button. Appearance opens a submenu with Right; Left returns.
 
 | Action | Mac | Windows/Linux |

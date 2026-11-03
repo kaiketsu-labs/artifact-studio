@@ -1,4 +1,55 @@
-# Element keyboard controls
+# Keyboard shortcuts
+
+Shortcuts act on the focused area. Click a slide thumbnail, selected object, chat field or divider first. **⌘** means Command on Mac; **Ctrl** is Control on Windows/Linux. Function keys may require **Fn**. Browser-reserved keys may need the equivalent menu action.
+
+[Files and presentation](#files-and-presentation) · [Slides](#slide-list-and-sorter) · [Objects](#element-keyboard-controls) · [Chat](#chat-notes-and-text) · [Slideshow](#during-a-slideshow) · [Navigation](#menus-projects-and-panels)
+
+## Files and presentation
+
+These shortcuts apply in the presentation editor, outside text entry and modal dialogs. Save can include an unfinished text draft.
+
+| Action | Mac | Windows/Linux |
+| --- | --- | --- |
+| New presentation | ⌘N | Ctrl+N |
+| Open a saved project | ⌘O | Ctrl+O |
+| Save a portable project | ⌘S | Ctrl+S |
+| Project files / choose export format | ⇧⌘S | Ctrl+Shift+S |
+| Present from current slide | ⌘Return | Shift+F5 |
+| Present from beginning | ⇧⌘Return or F5 | F5 |
+| Open the workspace menu | F10 | F10 |
+
+Save downloads a portable project; normal slide edits already persist locally. In a selected object's controls, ⌘/Ctrl+Enter sends its edit instead of starting a show.
+
+## Slide list and sorter
+
+Focus a slide thumbnail first. The sorter is the grid reached through its icon or by zooming out to 50% or below.
+
+| Shortcut | Action |
+| --- | --- |
+| ↑ / ↓ | Previous/next visible thumbnail; in the sorter, move between rows |
+| ← / → in the sorter | Previous/next thumbnail |
+| Home / End | First/last visible thumbnail |
+| Shift + navigation keys | Extend the selected range |
+| ⌘/Ctrl+A | Select all slides |
+| ⌘/Ctrl + click | Add/remove an individual slide from selection |
+| Shift + click | Select a range |
+| ⌘Shift+N or Ctrl+M | Add a slide after the active slide |
+| ⌘/Ctrl+D, also with Shift | Duplicate selected slides |
+| Delete / Backspace | Delete selected slides; keep at least one slide |
+| ⌘/Ctrl+↑ / ↓ | Move selected slides up/down |
+| ⌘/Ctrl+Shift+↑ / ↓ | Move selected slides to the beginning/end |
+| ⌘/Ctrl+Z | Undo available slide-structure changes or recover a deleted slide |
+| ⌘/Ctrl+Shift+Z or Ctrl+Y | Redo available slide-structure changes |
+| Shift+F10 / Menu key | Open the selected slides' context menu |
+| Enter in the sorter | Open the selected slide for editing |
+| Escape in the sorter | Return to editing |
+| Escape while dragging | Cancel the move |
+
+With the editor canvas focused and no object edit active, ←/→ switches slides. ⌘/Ctrl + mouse wheel changes zoom. Undo for adding/duplicating slides is not available; restoring a deletion does not create a redo entry.
+
+Focus a **section header** for ←/→ to collapse/expand it, **F2** to rename it, or **Shift+F10 / Menu** for section actions.
+
+## Element keyboard controls
 
 Select an object on a slide, or enable **Select** in an HTML artifact and click an element. Right-click opens element actions. **Shift+F10** or the keyboard Menu key also opens the menu; arrows, Home/End and Enter navigate it, and Escape closes it.
 
@@ -13,6 +64,8 @@ Select an object on a slide, or enable **Select** in an HTML artifact and click 
 | Escape | Cancel the unsent edit; otherwise clear the selection |
 | Ctrl+Enter / ⌘Enter in workspace controls | Send the edit explicitly |
 
+While a slide's **rotation handle** is focused, arrows rotate by 1°; Shift+arrows rotate by 15°. In movement/rotation mode, Enter sends the edit and Escape cancels it. Hold ⌘, Ctrl or Shift while clicking slide objects to add/remove selection targets.
+
 The single-element editor supports text, movement and deletion. For multiple selected slide objects, the context menu also offers **Delete selection**, alignment and layer-order actions. Delete and supported layer changes have local previews. Layer previews require positioned sibling objects with automatic layer order; other arrangements record a clearly labeled request without moving the objects. Alignment always records a request without previewing the final layout. Group text editing and keyboard nudging are unavailable.
 
 HTML artifacts keep single-object direct editing; their multi-selection is for group feedback. Markdown text and image regions retain their format-specific selection tools. Text fields and interactive artifacts outside selection mode keep their native context menu.
@@ -26,3 +79,55 @@ The single-object editor retains forty changes in the current unsent edit. Undo/
 Text inputs, notes, chat and contenteditable text keep native text undo, caret movement and deletion. Enter still activates a focused toolbar button. Stop dictation before undoing or deleting an element. While selecting an HTML artifact, the workspace-owned canvas handles keyboard events. Messages from authored frames cannot invoke undo, cancellation, target clearing or submission.
 
 Slides nudge by 0.1% of the canvas (1% with Shift), independent of preview zoom. HTML artifacts nudge by one document CSS pixel (ten with Shift), converting through a measured 2D transform. HTML move requests include the document canvas dimensions and identify that document as their coordinate reference. Unsupported 3D positioning is refused; page-root elements cannot be moved or deleted.
+
+## Chat, notes and text
+
+| Shortcut | Context and action |
+| --- | --- |
+| Enter, ⌘Enter or Ctrl+Enter | Send a slide/artifact/design chat message; answer an agent's text question |
+| Shift+Enter | Add a line break in chat |
+| Escape while recording | Stop dictation |
+| ⌘/Ctrl+Z; ⌘/Ctrl+Shift+Z | Native undo/redo while typing, separate from object or slide history |
+| ⌘/Ctrl+B / I | Bold/italic in the rich-text rules editor |
+| ⌘/Ctrl+K | Add/edit a link in the rich-text rules editor |
+
+Enter adds a normal line break in notes and other text fields. Sending in Batch mode adds a message to the local batch; use **Send batch** to release it to the agent. Text selection, copy, paste, caret movement and field editing retain their normal browser shortcuts.
+
+## During a slideshow
+
+These controls also work in the self-contained HTML export. Navigation advances/reverses one reveal before moving between slides; normal navigation skips hidden slides.
+
+| Shortcut | Action |
+| --- | --- |
+| → / ↓ / Page Down | Next reveal or slide |
+| ← / ↑ / Page Up / Backspace / Delete | Previous reveal or slide |
+| Space / Enter or another ordinary character key | Next reveal or slide |
+| Home / End | First/last visible slide |
+| Escape | End the show; a hosted show returns to the editor at the current slide |
+| Tab, then Enter/Space | Focus and activate presentation controls |
+
+Clicking the slide background also advances. Buttons, links, text entry, open dialogs and system/browser modifier shortcuts retain their own behavior. In an exported file, ending returns to that file's preview view. There, **F** toggles fullscreen, **N** opens notes and **S** opens sources; these letters advance during an active show. Audience-only windows omit private note/source commands. Exports contain no private speaker notes.
+
+## Menus, projects and panels
+
+| Focused area | Shortcut | Action |
+| --- | --- | --- |
+| Library artifact, project/folder, slide or object | Shift+F10 / Menu key | Open its context menu |
+| Menu or project/deck picker | ↑ / ↓, Home / End | Move between available items |
+| Menu or picker button | ↑ / ↓ | Open its list |
+| Workspace menu or deck picker | Type a name's first letters | Jump to a matching action/item |
+| Appearance menu | → / ← | Open the submenu / return |
+| Menu, picker or dialog | Escape | Close; return focus where supported |
+| Project/folder row | Alt+↑ / ↓ | Move before/after its sibling |
+| Nested project/folder row | Alt+← | Move out one level, after its parent |
+| Version-history thumbnail | ↑ / ↓ | Select the previous/next saved version; scroll it into view |
+| Side-panel edge handle | ← / → | Resize; collapse when moved past its limit |
+| Side-panel edge handle | Enter | Collapse/reopen the panel |
+| Chat-width divider | ← / →, with Shift for larger changes | Resize the conversation panel |
+| Chat-width divider | Home / End | Smallest/largest allowed width |
+| Chat-width divider | Enter | Reset the preferred width |
+| Clean View | Escape | Restore the surrounding workspace |
+| Compact chat/sidebar drawer | Escape | Close the drawer |
+| Animation preview | Escape | Stop playback |
+
+Use Tab/Shift+Tab to move between controls and Enter/Space to activate buttons. Arrow-key actions depend on focus; typing in a field does not rearrange slides or delete objects.
