@@ -457,3 +457,31 @@ def test_portable_metadata_captures_out_of_band_current_edits(tmp_path: Path) ->
         ArtifactStore(recovery.store).snapshot_files(artifact_id)["index.html"]
         == b"<h1>Saved externally</h1>"
     )
+
+
+def test_local_archive_excludes_generated_dependencies_but_keeps_authoring_source(
+    tmp_path: Path,
+) -> None:
+    """A local authoring cache's executable links do not block complete source recovery."""
+    store = workspace(tmp_path / "original")
+    _ = populate(store, tmp_path)
+    authoring = store.root / ".studio-authoring" / "demo-video"
+    binaries = authoring / "node_modules" / ".bin"
+    binaries.mkdir(parents=True)
+    _ = (authoring / "video.tsx").write_text("export const Video = () => null;")
+    (binaries / "compiler").symlink_to("../compiler/bin.js")
+    archive = tmp_path / "workspace.artifact-studio.zip"
+    _ = WorkspaceRecovery(store).export_archive(archive)
+    with ZipFile(archive) as content:
+        manifest = WorkspaceArchive.model_validate_json(content.read(ARCHIVE_MANIFEST))
+    assert any(item.path.endswith("video.tsx") for item in manifest.files)
+    assert not any("node_modules" in item.path for item in manifest.files)
+    assert not any("node_modules" in folder for folder in manifest.directories)
+    recovery = WorkspaceRecovery(workspace(tmp_path / "recovered"))
+    preview = recovery.preview(archive, mode="archive")
+    _ = recovery.restore(archive, preview.content_hash, mode="archive")
+    assert (recovery.store.root / ".studio-authoring/demo-video/video.tsx").is_file()
+    assert not (recovery.store.root / ".studio-authoring/demo-video/node_modules").exists()
+    (authoring / "external.html").symlink_to(tmp_path / "outside.html")
+    with pytest.raises(ValueError, match="symbolic links"):
+        _ = WorkspaceRecovery(store).export_archive(tmp_path / "unsafe.zip")

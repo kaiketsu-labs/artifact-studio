@@ -48,7 +48,7 @@ Archive objects are streamed in 1 MB chunks and verified by declared size and SH
 
 Restoration rebases registry and attachment path fields from the old collection/state roots to the destination. Authored artifact files retain their exact bytes and content hashes, even when user-authored JSON contains an old path. File modes and nanosecond modification times are retained; legacy slide approval identities depend on asset timestamps. Host sessions, library registrations and upload permissions are reset. Reference-library source data outside the collection remains external and must be reconnected explicitly.
 
-The full archive stores the review database and `feedback-files`/`design-inbox` directories beside it. Artifact feedback stored under the collection's `.state/artifact-feedback` is included as collection data. Other state caches, Git internals, `.ssh`, `.aws`, and conventional credential files are excluded. Owned artifact source files retain their full bundle, including arbitrary file extensions. Archives do not include arbitrary files elsewhere on the host.
+The full archive stores the review database and `feedback-files`/`design-inbox` directories beside it. Artifact feedback stored under the collection's `.state/artifact-feedback` is included as collection data. Other state caches, Git internals, `.ssh`, `.aws`, and conventional credential files are excluded. Owned artifact source files retain their full bundle, including arbitrary file extensions. Archives do not include arbitrary files elsewhere on the host. Generated `node_modules` and `.venv` directories outside owned artifact bundles are omitted; the authoring source and dependency manifests remain available to rebuild them.
 
 ## Portable current-source metadata
 

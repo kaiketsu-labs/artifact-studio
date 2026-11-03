@@ -119,7 +119,9 @@ def _identifier(value: str) -> str:
     return value
 
 
-def _regular_files(root: Path, excluded: frozenset[Path] = frozenset()) -> Iterator[Path]:
+def _regular_files(
+    root: Path, excluded: frozenset[Path] = frozenset(), directories_out: list[str] | None = None
+) -> Iterator[Path]:
     """Walk an owned tree without following links, sockets, credentials or Git state."""
     if root.is_symlink() or not root.is_dir():
         raise ValueError("Recovery source must be an ordinary directory.")
@@ -129,7 +131,15 @@ def _regular_files(root: Path, excluded: frozenset[Path] = frozenset()) -> Itera
             for name in directories
             if name.casefold() not in {".git", ".ssh", ".aws", "__pycache__"}
             and folder / name not in excluded
+            and (
+                name not in {"node_modules", ".venv"}
+                or artifact_source((folder / name).relative_to(root))
+            )
         )
+        if directories_out is not None and folder != root:
+            relative = folder.relative_to(root)
+            if not any(part.startswith(".") for part in relative.parts):
+                directories_out.append(relative.as_posix())
         for name in [*directories, *sorted(names)]:
             path = folder / name
             if path in excluded:
@@ -901,7 +911,8 @@ class WorkspaceRecovery:
                 excluded.update(
                     path for path in local_state.iterdir() if path.name != "artifact-feedback"
                 )
-            for path in _regular_files(self.store.root, frozenset(excluded)):
+            directories: list[str] = []
+            for path in _regular_files(self.store.root, frozenset(excluded), directories):
                 relative = path.relative_to(self.store.root)
                 if path.is_relative_to(state):
                     state_relative = path.relative_to(state)
@@ -929,16 +940,6 @@ class WorkspaceRecovery:
             sources.append((_entry("database", "review.sqlite3", database), database))
             files = [item for item, _ in sources]
             _bound(files)
-            directories = [
-                path.relative_to(self.store.root).as_posix()
-                for path in self.store.root.rglob("*")
-                if path.is_dir()
-                and not path.is_symlink()
-                and not any(
-                    part.startswith(".") for part in path.relative_to(self.store.root).parts
-                )
-                and not path.is_relative_to(state)
-            ]
             manifest = WorkspaceArchive(
                 created_at=datetime.now(UTC).isoformat(),
                 source_root=str(self.store.root),
