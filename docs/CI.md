@@ -11,8 +11,16 @@ corporate packs and model credentials are not required.
 | Check | What it verifies |
 | --- | --- |
 | Ruff, types and unit tests | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests and JavaScript syntax. |
-| Playwright user journeys and rendering | Readable slides and thumbnails at two laptop sizes; feedback from UI to MCP; saved notes; approval invalidation after agent edits; keyboard navigation and draft recovery; resizable/persistent chat; Markdown agent replies in both themes with inert HTML; sorter; presentation entry/navigation/exit; private notes hidden from the audience. Existing opt-in sandboxed renderer, interactive-content and DOM tests also run. |
+| Playwright user journeys and rendering (editor-review) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation and drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus and rich-text/presenter voice input. |
+| Playwright user journeys and rendering (artifacts-runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, general/hub voice input, sandboxed renderer, interactive-content and DOM checks. |
 | Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
+
+The two browser suites run in parallel with `fail-fast: false` and independent
+15-minute timeouts. Their test-file sets are disjoint and together preserve all
+30 paths from the previous single browser job. Collection on 3 November 2026
+found 97 cases in `editor-review` and 96 in `artifacts-runtime`; voice checks run
+in both suites. These counts guide the split, not a measured runtime guarantee.
+Each suite installs the same locked dependencies and Chromium with OS support.
 
 The native Codex CLI must accept the HTTP MCP configuration using its invocation
 override. The native Claude Code CLI must register its project-local connection
@@ -58,11 +66,11 @@ ARTIFACT_STUDIO_AGENT_TESTS=1 uv run pytest tests/integration/test_agents.py
 ARTIFACT_STUDIO_RENDER_TESTS=1 uv run pytest tests/test_visuals.py tests/test_interactive.py tests/test_element_rotation_dom.py
 ```
 
-The renderer requires an OS that supports Chromium's sandbox. The browser CI job
-uses an Ubuntu runner and installs Chromium's OS dependencies; renderer failures
+The renderer requires an OS that supports Chromium's sandbox. The browser CI jobs
+use Ubuntu runners and install Chromium's OS dependencies; renderer failures
 are reported as failures rather than skipped or retried without the sandbox.
-The current managed development container can run the browser user journeys but
-cannot launch the sandbox-required renderer.
+When a managed environment blocks sandbox-required rendering, report that check
+as unavailable locally; keep the sandbox enabled in CI.
 
 For the native checks, install the two exact package versions from the workflow,
 then run `ARTIFACT_STUDIO_NATIVE_CLIENT_TESTS=1 uv run pytest
@@ -72,7 +80,10 @@ an enabled native check; they are not silently skipped.
 
 Set `ARTIFACT_STUDIO_ARTIFACTS=test-results/integration` to retain per-test server logs,
 browser screenshots, Playwright traces and native client versions. CI uploads
-these and JUnit reports even after a failure, with seven-day retention. View a
+these and JUnit reports even after a failure, with seven-day retention. Browser
+artifacts are named `browser-results-editor-review` and
+`browser-results-artifacts-runtime`; their JUnit files are
+`browser-editor-review.xml` and `browser-artifacts-runtime.xml`. View a
 trace with `uv run playwright show-trace path/to/trace.zip`.
 
 ## Before committing
@@ -85,5 +96,5 @@ uvx pre-commit run --all-files
 ```
 
 Adding a workflow does not change GitHub branch protection. To require these
-checks before merge, select the four CI job names in the repository's branch
+checks before merge, select the five expanded CI job names in the repository's branch
 rules after their first successful run.
