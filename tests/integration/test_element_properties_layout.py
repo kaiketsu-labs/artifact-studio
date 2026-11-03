@@ -8,6 +8,7 @@ from playwright.sync_api import Page, expect
 
 from tests.integration.support import RunningApp
 from tests.integration.test_browser import open_editor
+from tests.integration.voice_support import install_voice
 
 pytestmark = [
     pytest.mark.browser,
@@ -18,6 +19,7 @@ pytestmark = [
 
 
 def open_text(page: Page, live_app: RunningApp) -> None:
+    install_voice(page)
     open_editor(page, live_app)
     page.frame_locator("#preview").get_by_role("heading", level=1).click()
     page.get_by_role("button", name="Edit text", exact=True).click()
@@ -32,6 +34,8 @@ def test_text_actions_follow_editor_and_restore_focus(page: Page, live_app: Runn
     expect(text).to_be_focused()
     assert text.evaluate("el => [el.selectionStart, el.selectionEnd]") == [3, 7]
     page.keyboard.press("Tab")
+    expect(page.get_by_role("button", name="Dictate into Text", exact=True)).to_be_focused()
+    page.keyboard.press("Tab")
     expect(page.get_by_role("button", name="Send edit", exact=True)).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.get_by_role("button", name="Cancel edit", exact=True)).to_be_focused()
@@ -40,6 +44,9 @@ def test_text_actions_follow_editor_and_restore_focus(page: Page, live_app: Runn
     expect(text).to_have_value("Review together")
     text.fill("Another heading")
     page.keyboard.press("Tab")
+    expect(page.get_by_role("button", name="Dictate into Text", exact=True)).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("button", name="Send edit", exact=True)).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.get_by_role("button", name="Edit text", exact=True)).to_be_focused()
     expect(page.get_by_role("button", name="Send edit", exact=True)).to_be_hidden()
@@ -56,6 +63,8 @@ def test_mobile_text_controls_fit_below_slide(page: Page, live_app: RunningApp) 
     assert slide is not None and controls is not None and footer is not None
     assert controls["y"] >= slide["y"] + slide["height"]
     assert controls["y"] + controls["height"] <= footer["y"]
+    page.keyboard.press("Tab")
+    expect(page.get_by_role("button", name="Dictate into Text", exact=True)).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.get_by_role("button", name="Send edit", exact=True)).to_be_focused()
     page.keyboard.press("Tab")
