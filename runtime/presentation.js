@@ -345,6 +345,7 @@
     <nav id="presenter-filmstrip" class="presenter-filmstrip" aria-label="All slides"></nav>`;
   const controls=document.createElement('div');controls.className='single-controls';controls.innerHTML='<button id="single-previous"></button><span id="single-counter"></span><button id="single-next"></button><button id="all-slides-button"></button><button id="single-blackout"></button><button id="show-presenter"></button><button id="single-fullscreen"></button><button id="exit-slideshow"></button>';document.body.append(controls);
   const overview=document.createElement('dialog');overview.id='all-slides-dialog';overview.innerHTML='<header><h2>All slides</h2><button id="close-all-slides"></button></header><div id="all-slides-grid"></div>';document.body.append(overview);
+  const canvasObserver=new ResizeObserver(entries=>{for(const entry of entries)entry.target.style.setProperty('--slide-scale',String(Math.min(entry.contentRect.width/1600,entry.contentRect.height/900)));});
   const pointer=document.createElement('div');pointer.className='laser-pointer';pointer.hidden=true;$('stage').append(pointer);
   for(const [id,icon,label,show] of [
     ['previous','left','Previous slide',false],['next','right','Next slide',false],['notes-button','notes','Notes',false],['sources-button','sources','Sources',false],['present-button','present','Present',true],['audience-fullscreen','fullscreen','Fullscreen',false],
@@ -432,8 +433,8 @@
   function putSlide(element,index,build=true){
     const html=deck.slides[index]?.html||`<article class="slide runtime-empty"><h1>${emptyShow?'No slides to present.':'End.'}</h1></article>`;
     const source=slideSources.get(element),changed=source?.html!==html||source?.index!==index||source?.interactive!==deck.slides[index]?.interactive_html;
-    if(changed){interactiveInstances.get(element)?.dispose();interactiveInstances.delete(element);slideAnimations.get(element)?.dispose();slideAnimations.delete(element);element.innerHTML=html;slideSources.set(element,{html,index,interactive:deck.slides[index]?.interactive_html});
-      if(deck.slides[index]?.interactive_html&&build){const item=deck.slides[index],mounted=mountInteractive(element,item.interactive_html,{state:interactiveStates.get(item.id),onKey:interactiveKey,onClick:()=>{if(active&&!laser)navigate('next');},onState:state=>interactiveState(item.id,state,element)});mounted.ready.then(()=>{if(interactiveStates.has(item.id))mounted.updateState(interactiveStates.get(item.id));}).catch(()=>{});interactiveInstances.set(element,mounted);}}
+    if(changed){interactiveInstances.get(element)?.dispose();interactiveInstances.delete(element);slideAnimations.get(element)?.dispose();slideAnimations.delete(element);element.innerHTML=`<div class="runtime-slide-canvas">${html}</div>`;slideSources.set(element,{html,index,interactive:deck.slides[index]?.interactive_html});
+      if(deck.slides[index]?.interactive_html&&build){const item=deck.slides[index],mounted=mountInteractive(element.firstElementChild,item.interactive_html,{state:interactiveStates.get(item.id),onKey:interactiveKey,onClick:()=>{if(active&&!laser)navigate('next');},onState:state=>interactiveState(item.id,state,element)});mounted.ready.then(()=>{if(interactiveStates.has(item.id))mounted.updateState(interactiveStates.get(item.id));}).catch(()=>{});interactiveInstances.set(element,mounted);}}
     const slide=element.querySelector('.slide');if(!slide)return;
     if(!slideAnimations.has(element))slideAnimations.set(element,new BuildAnimations(slide,{reducedMotion:()=>!!motionPreference?.matches}));
     slideAnimations.get(element).update(revealed,{build});
@@ -459,7 +460,7 @@
     for(const id of ['blackout-button','single-blackout'])$(id).setAttribute('aria-pressed',String(blackout));
     $('laser-button').setAttribute('aria-pressed',String(laser));
     const film=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
-    if(film!==filmSignature){filmSignature=film;const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide">${slide.html}</div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;const shown=shownIndices(deck.slides);$('dots').style.setProperty('--slide-count',Math.max(1,shown.length));$('dots').innerHTML=shown.map((index,position)=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${position+1} / ${shown.length} · ${escape(deck.slides[index].title)}" data-index="${index}"></button>`).join('');}
+    if(film!==filmSignature){filmSignature=film;canvasObserver.disconnect();const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide"><div class="runtime-slide-canvas">${slide.html}</div></div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;for(const slot of document.querySelectorAll('.stage-slot,.film-slide'))canvasObserver.observe(slot);const shown=shownIndices(deck.slides);$('dots').style.setProperty('--slide-count',Math.max(1,shown.length));$('dots').innerHTML=shown.map((index,position)=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${position+1} / ${shown.length} · ${escape(deck.slides[index].title)}" data-index="${index}"></button>`).join('');}
     $('presenter-filmstrip').querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));
     updateProgressRail($('dots'),current);
     history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
@@ -586,7 +587,7 @@
   motionPreference?.addEventListener('change',()=>{for(const animation of slideAnimations.values())animation.update(revealed,{build:animation.build});});
   window.addEventListener('beforeprint',()=>{for(const animation of slideAnimations.values())animation.beforePrint();});
   window.addEventListener('afterprint',()=>{for(const animation of slideAnimations.values())animation.afterPrint();});
-  window.addEventListener('beforeunload',()=>{presenterVoice?.destroy();for(const mounted of interactiveInstances.values())mounted.dispose();for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
+  window.addEventListener('beforeunload',()=>{canvasObserver.disconnect();presenterVoice?.destroy();for(const mounted of interactiveInstances.values())mounted.dispose();for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});
   render();tick();
   hostMessage('ready');
   if(query.get('presenter')==='1'&&!isAudience)showPresenter();
