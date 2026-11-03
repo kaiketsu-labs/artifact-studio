@@ -298,7 +298,7 @@
   }
   function elementCommand(command){
     if(!selectedElements.length||feedbackSending||elementEditor.isBusy()||groupEditor?.state().busy)return false;
-    if(selectedElements.length>1||groupEditor?.state().dirty||groupEditor?.state().canRedo||groupEditor?.state().sent){if(command==='delete'){void previewSelection('delete');return true;}if(command==='undo'||command==='redo'){groupEditor[command]();return true;}if(command==='send'){void groupEditor.send();return true;}if(command==='cancel'){if(groupEditor.state().dirty||groupEditor.state().canRedo||groupEditor.state().sent)groupEditor.cancel();else void selectElement(null,false);return true;}return false;}
+    if(selectedElements.length>1||groupEditor?.state().dirty||groupEditor?.state().canRedo||groupEditor?.state().sent){if(command==='delete'){void previewSelection('delete');return true;}if(command==='undo'||command==='redo'){groupEditor[command]();return true;}if(command==='send'){void groupEditor.send();return true;}if(command==='cancel'){if(groupEditor.state().dirty||groupEditor.state().canRedo||groupEditor.state().sent){groupEditor.cancel();$('preview').focus({preventScroll:true});}else void selectElement(null,false);return true;}return false;}
     if(typeof command==='object'){elementEditor.nudge(command.key,command.step);return true;}
     if(command==='undo'||command==='redo'){elementEditor[command]();return true;}
     if(command==='delete'){elementEditor.delete();return true;}
@@ -322,6 +322,7 @@
     if(!deck||context.deck_id!==deck.id||context.slide_id!==selectedId||context.content_hash!==slide().content_hash)throw Error('The slide changed. Reselect the objects before sending.');
     await api(`/api/decks/${encodeURIComponent(context.deck_id)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,target:context.target,content_hash:context.content_hash,request_id:context.request_id});await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':'Sent to agent.');
   }});
+  groupEditor.toolbar.addEventListener('click',()=>{if(groupEditor.toolbar.hidden)$('preview').focus({preventScroll:true});});
   async function previewSelection(action){if(feedbackSending)return;if(voice.isActive()){toast('Stop dictation before editing the selection.');return;}if(!await elementEditor.finish())return;groupEditor.preview(action);}
   function showElementMenu(point){
     if(!deck||!selectedElements.length||feedbackSending||elementEditor.isBusy()||groupEditor.state().busy)return;
@@ -330,7 +331,7 @@
     const entry=(label,glyph,execute,extra={})=>({label,icon:svg(glyph),run:execute,...extra});
     const pending=groupEditor.state(),guard=action=>()=>{if(JSON.stringify(context)===JSON.stringify([deck?.id,selectedId,slide()?.content_hash,currentTarget]))void previewSelection(action);};
     elementMenu.panel.setAttribute('aria-label',single?'Object actions':'Selected objects');
-    elementMenu.show({...point,focus:$('selection-box'),commands:[
+    elementMenu.show({...point,focus:$('preview'),commands:[
       entry('Undo','restore',pending.canUndo?()=>groupEditor.undo():run('undo'),{keys:primary+'Z',disabled:!pending.canUndo&&(!single||!elementEditor.canUndo())}),
       entry('Redo','refresh',pending.canRedo?()=>groupEditor.redo():run('redo'),{keys:primary+'Shift+Z',disabled:!pending.canRedo&&(!single||!elementEditor.canRedo())}),
       {separator:true},...(single?[entry('Edit text','edit',run('edit'),{keys:'F2',disabled:!elementEditor.canEdit()||pending.dirty||pending.sent}),entry('Format object…','palette',()=>{$('element-properties').querySelector('input:not(:disabled),textarea:not(:disabled),button:not(:disabled)')?.focus();},{disabled:pending.dirty||pending.sent})]:[]),
@@ -345,7 +346,7 @@
   }
   function showArrangeMenu(point,context){
     if(JSON.stringify(context)!==JSON.stringify([deck?.id,selectedId,slide()?.content_hash,currentTarget]))return;
-    elementMenu.show({...point,focus:$('selection-box'),commands:[
+    elementMenu.show({...point,focus:$('preview'),commands:[
       {label:'Back',icon:svg('left'),run:()=>showElementMenu(point)},{separator:true},
       ...[['front','Bring to front','first'],['forward','Bring forward','up'],['backward','Send backward','down'],['back','Send to back','last']].map(([action,label,glyph])=>({label,icon:svg(glyph),run:()=>void previewSelection(action)}))
     ]});
@@ -353,7 +354,7 @@
   function showAlignContext(point,context){
     if(JSON.stringify(context)!==JSON.stringify([deck?.id,selectedId,slide()?.content_hash,currentTarget]))return;
     const single=!!selectedElement;
-    elementMenu.show({...point,focus:$('selection-box'),commands:[{label:'Back',icon:svg('left'),run:()=>showElementMenu(point)},{separator:true},
+    elementMenu.show({...point,focus:$('preview'),commands:[{label:'Back',icon:svg('left'),run:()=>showElementMenu(point)},{separator:true},
       ...[['left','Align left'],['center','Center horizontally'],['right','Align right'],['top','Align top'],['middle','Center vertically'],['bottom','Align bottom']].map(([action,label])=>({label,icon:svg('align'),run:()=>{if(single){$('element-align-menu').querySelector(`[data-align="${action}"]`)?.click();}else void previewSelection(action);}}))
     ]});
   }
