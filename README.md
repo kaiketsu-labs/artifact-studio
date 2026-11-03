@@ -53,7 +53,7 @@ Choose **one** way to run it:
 | Mac menu-bar app | Terminal |
 | --- | --- |
 | On macOS 13+ with Apple's Command Line Tools, run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Artifact Studio.app`. | Run `uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
-| Status, Open, Start/Stop/Restart and launch at login. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
+| Status, Open, Start/Stop/Restart, Update, and Settings for launch at login and backup. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
 
 Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before switching to the Mac controller. Chromium enables cached rendered previews and agent capture tools; the library can show format fallbacks when no preview is available.
 
@@ -102,6 +102,8 @@ Cards preview a pack's example slide or an attached image/SVG. File collections 
 Choose **New project** and save its name and optional shared brief. **Import** accepts files or a folder; choose the entrypoint the viewer should open first. Alternatively, ask the agent to author local files and call `register_artifact` with the project ID. The hub keeps an owned copy and leaves the originals intact.
 
 Use a card's folder action to **Move to project**. This groups related work while preserving stable source paths. Changes to one artifact do not implicitly authorize changes to its neighbours.
+
+The sidebar **+ → New folder** creates groups such as Allianz; folder menus can add nested folders. Folder icons identify groups, briefcase icons identify projects. Drag a project or folder onto a folder to move it inside, or between rows to reorder. **… → Move to…** provides the same organization without dragging. **Option/Alt + ↑/↓** reorders a focused item; **Option/Alt + ←** moves it out. Selecting a folder shows artifacts from every project inside it. Removing a folder keeps its contents. Navigation is saved in the collection's readable `project-tree.json`; project briefs, artifact paths and agent context stay unchanged.
 
 For a presentation, open the hub's **… → New presentation**. Bring a PPTX, POTX, website or image as a design reference and let the agent create the design. PowerPoint files are reference inputs; PPTX export is not currently available. The existing editor exports HTML/PDF and saves editable presentation projects. [First presentation](docs/GETTING-STARTED.md#make-your-first-presentation).
 
@@ -162,6 +164,10 @@ Select a slide or HTML element to open a compact floating toolbar without moving
 Presentation **Save/Open project** remains the portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Opted-in repository backup includes current artifact bundles, project briefs and manifests alongside presentations; creating a project does not opt it into uploads. Repository connections default to reference only. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
 
 The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way backup to a selected private repository; review chat, approvals and revision history stay local. The Mac menu’s **GitHub Backup** submenu exposes the same setting, last delivery, Sync Now and recovery controls.
+
+In **Storage and backup**, **Save workspace** downloads a full local archive with projects, folders, sources, review chats, approvals and retained versions. **Restore workspace** previews a connected backup or local archive and restores files into a new sibling folder. The running workspace stays unchanged. GitHub recovery rebuilds current content and folder structure; private review history requires a local archive. [Recovery guide](docs/WORKSPACE-RECOVERY.md).
+
+The **history icon** above a slide or artifact opens a visual timeline. **Content changes** hides consecutive identical slide/bundle states by default; **All saves** includes title/source-only revisions and repeated restores. Rapid saves are grouped and expand to individual versions. Choose a version to preview it, then **Restore version** to create a new save; current speaker notes and slide placement stay intact. Lists are paginated, only one preview loads, and unchanged bundle files reuse immutable storage. Historical slides use current shared theme/assets, so their appearance may differ from the original.
 
 Workspace rules remain primary; learned preferences are secondary. Project and artifact context refine the work within that scope. The app ships without corporate designs or assets. [Preference learning](docs/PREFERENCE-LEARNING.md).
 

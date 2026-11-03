@@ -47,7 +47,7 @@ uv run --no-sync python scripts/install_macos.py --launch-at-login
 
 If you already started the server in Terminal, stop it with **Ctrl+C** first. Open `~/Applications/Artifact Studio.app` in Finder, then choose **Open Artifact Studio** from the artifact icon beside the clock. The app starts the server and registers login startup; approve it in System Settings if macOS asks.
 
-A green status dot means the server is responding. Start, Stop and Restart control the server owned by this app. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
+A filled status square means the server is responding. Start/Stop and Restart control its server. **Update…** installs GitHub main; it warns before stopping a running server. **Settings** contains Launch at Login and GitHub Backup. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
 
 ### Terminal
 
@@ -236,7 +236,9 @@ The Artifact Studio does not broaden this established presentation backup scope 
 
 ## Update an existing installation
 
-Save your work and back up the collection and state folder. From a checkout without uncommitted changes:
+In the Mac menu, choose **Update…**. A running server asks for confirmation before updating and restarting; a stopped server stays stopped. Commit or move unfinished source edits first. The menu-bar app also updates itself. Refresh the browser and resume agent review afterward.
+
+For a Terminal installation, save your work and back up the collection and state folder. From a checkout without uncommitted changes:
 
 ```sh
 git pull --ff-only
@@ -244,7 +246,7 @@ uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
 ```
 
-Restart the server from the Mac menu, or stop the Terminal server with Ctrl+C and start it again. Refresh the browser and resume live review in your agent. Keep the same collection and database paths. Do not delete `.state` or replace it with a new checkout's empty state. Native menu-bar code changes also require [reinstalling the controller](MACOS.md#existing-workspaces-and-updates).
+Stop the Terminal server with Ctrl+C and start it again. Refresh the browser and resume live review in your agent. Keep the same collection and database paths. Do not delete `.state` or replace it with a new checkout's empty state. [Native controller details](MACOS.md#existing-workspaces-and-updates).
 
 ## Troubleshooting
 

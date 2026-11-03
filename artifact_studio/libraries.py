@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections import defaultdict
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -15,6 +16,8 @@ from typing import Literal
 
 from pydantic import Field, TypeAdapter
 
+from .artifact_models import ArtifactManifest
+from .artifacts import bundle_hash, relative_path
 from .models import StrictModel
 from .storage import Store
 
@@ -188,6 +191,8 @@ def artifact_source(relative: Path) -> bool:
 
 def snapshot_allowed(relative: Path) -> bool:
     """Include arbitrary owned source types while excluding hidden state and credentials."""
+    if relative.name.casefold().endswith(".artifact-studio.zip"):
+        return False
     if relative.parts and relative.parts[0] == "projects":
         if re.search(r"\.(?:db|sqlite|sqlite3)(?:-wal|-shm|-journal)?$", relative.name, re.I):
             return False
@@ -266,6 +271,36 @@ def file_hash(path: Path) -> str:
     """Hash a file incrementally so large presentation media does not fill memory."""
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _verify_snapshot_artifacts(files: list[LibraryFile], hashes: dict[str, str]) -> None:
+    """Abort mixed owned bundles when direct file saves bypass the application's database lock."""
+    sources: defaultdict[tuple[str, ...], dict[str, tuple[str, int]]] = defaultdict(dict)
+    manifests: list[LibraryFile] = []
+    for item in files:
+        parts = Path(item.path).parts
+        if artifact_source(Path(item.path)):
+            sources[parts[:4]]["/".join(parts[5:])] = (hashes[item.path], item.size)
+        elif (
+            len(parts) == 5
+            and parts[0] == "projects"
+            and parts[2] == "artifacts"
+            and parts[4] == "artifact.json"
+        ):
+            manifests.append(item)
+    for item in manifests:
+        manifest = ArtifactManifest.model_validate_json(Path(item.local_path).read_bytes())
+        expected = {
+            relative_path(entry.path): (entry.sha256, entry.size)
+            for entry in manifest.files
+            if snapshot_allowed(Path(item.path).parent / "files" / relative_path(entry.path))
+        }
+        if (
+            sources[Path(item.path).parts[:4]] != expected
+            or bundle_hash(manifest.files, manifest.entrypoint, manifest.kind)
+            != manifest.content_hash
+        ):
+            raise ValueError("Artifact files are changing during sync; retry when saved.")
 
 
 class Libraries:
@@ -413,6 +448,14 @@ class Libraries:
 
     def snapshot_files(self, deck_id: str | None = None) -> list[LibraryFile]:
         """Select canonical files without recursively including a configured reference cache."""
+        if deck_id is None:
+            from .workspace_recovery import WorkspaceRecovery
+
+            _ = WorkspaceRecovery(self.store).write_portable_metadata(synchronize=False)
+        return self._snapshot_inventory(deck_id)
+
+    def _snapshot_inventory(self, deck_id: str | None) -> list[LibraryFile]:
+        """Select local sources without synchronizing artifact state inside a write transaction."""
         source = self.store.folder(deck_id) if deck_id else self.store.root
         if not source.is_dir():
             raise ValueError("The presentation folder does not exist.")
@@ -422,6 +465,51 @@ class Libraries:
             if not Path(item.local_path).is_relative_to(self.cache)
         ]
 
+    @contextmanager
+    def _frozen_snapshot(self, deck_id: str | None) -> Generator[list[LibraryFile]]:
+        """Freeze complete local source under the database lock before any network operation."""
+        from .workspace_recovery import WorkspaceRecovery
+
+        recovery = WorkspaceRecovery(self.store)
+        if deck_id is None:
+            _ = recovery.write_portable_metadata()
+        with tempfile.TemporaryDirectory(prefix=".snapshot-", dir=self.cache) as temporary:
+            frozen: list[LibraryFile] = []
+            hashes: dict[str, str] = {}
+            with self.store.connect() as db:
+                _ = db.execute("BEGIN IMMEDIATE")
+                if deck_id is None:
+                    _ = recovery.write_portable_metadata(synchronize=False)
+                files = self._snapshot_inventory(deck_id)
+                if any(item.size >= 100_000_000 for item in files):
+                    raise ValueError(
+                        "A file exceeds the 100 MB sync limit; use smaller media before syncing."
+                    )
+                for item in files:
+                    original = Path(item.local_path)
+                    relative = original.relative_to(self.store.root).as_posix()
+                    snapshot = Path(temporary) / relative
+                    snapshot.parent.mkdir(parents=True, exist_ok=True)
+                    for _ in range(3):
+                        expected = file_hash(original)
+                        _ = shutil.copy2(original, snapshot)
+                        if snapshot.stat().st_size >= 100_000_000:
+                            raise ValueError(f"File exceeds the 100 MB sync limit: {relative}")
+                        if file_hash(snapshot) == expected:
+                            break
+                    else:
+                        raise ValueError(
+                            f"File is changing during sync; retry when saved: {relative}"
+                        )
+                    frozen.append(
+                        LibraryFile(
+                            path=relative, local_path=str(snapshot), size=snapshot.stat().st_size
+                        )
+                    )
+                    hashes[relative] = expected
+                _verify_snapshot_artifacts(frozen, hashes)
+            yield frozen
+
     def sync(
         self, identifier: str, deck_id: str | None = None, *, automatic: bool = False
     ) -> SyncResult:
@@ -429,13 +517,7 @@ class Libraries:
         library = self.get(identifier)
         if library.kind != "github" or not library.sync_enabled:
             raise ValueError("Enable sync on a private GitHub library first.")
-        root = self.store.root
-        files = self.snapshot_files(deck_id)
-        if any(item.size >= 100_000_000 for item in files):
-            raise ValueError(
-                "A file exceeds the 100 MB sync limit; use smaller media before syncing."
-            )
-        with self.locked():
+        with self.locked(), self._frozen_snapshot(deck_id) as files:
             library = self.get(identifier)
             if not library.sync_enabled or automatic and not library.auto_sync_enabled:
                 raise ValueError("Repository sync is disabled.")
@@ -452,7 +534,7 @@ class Libraries:
                 )
             if not files and not previous:
                 raise ValueError("No presentation files were found to sync.")
-            current_paths = {Path(item.local_path).relative_to(root).as_posix() for item in files}
+            current_paths = {item.path for item in files}
             removals: list[tuple[Path, str]] = []
             if automatic:
                 for relative in previous.keys() - current_paths:
@@ -473,7 +555,7 @@ class Libraries:
             updates: list[tuple[Path, Path, str, str]] = []
             for item in files:
                 original = Path(item.local_path)
-                relative = original.relative_to(root).as_posix()
+                relative = item.path
                 target = snapshot_target(destination, relative)
                 current_hash = file_hash(original)
                 remote_hash = file_hash(target) if target.is_file() else None
@@ -482,29 +564,11 @@ class Libraries:
                         raise ValueError(f"Remote changes need review before syncing: {relative}")
                     updates.append((original, target, relative, current_hash))
                 previous[relative] = current_hash
-            with tempfile.TemporaryDirectory(prefix=".snapshot-", dir=self.cache) as temporary:
-                staged: list[tuple[Path, Path]] = []
-                for original, target, relative, _ in updates:
-                    snapshot = Path(temporary) / relative
-                    snapshot.parent.mkdir(parents=True, exist_ok=True)
-                    for _ in range(3):
-                        expected = file_hash(original)
-                        _ = shutil.copy2(original, snapshot)
-                        if snapshot.stat().st_size >= 100_000_000:
-                            raise ValueError(f"File exceeds the 100 MB sync limit: {relative}")
-                        if file_hash(snapshot) == expected:
-                            previous[relative] = expected
-                            break
-                    else:
-                        raise ValueError(
-                            f"File is changing during sync; retry when saved: {relative}"
-                        )
-                    staged.append((snapshot, target))
-                for snapshot, target in staged:
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    _ = shutil.copy2(snapshot, target)
-                for target, _ in removals:
-                    target.unlink()
+            for original, target, _, _ in updates:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                _ = shutil.copy2(original, target)
+            for target, _ in removals:
+                target.unlink()
             manifest.write_text(json.dumps(previous, indent=2, sort_keys=True) + "\n")
             paths = [relative for _, _, relative, _ in updates] + [path for _, path in removals]
             git(destination, "add", "--", *paths, manifest.name)

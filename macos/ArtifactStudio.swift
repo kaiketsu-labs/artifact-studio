@@ -1,13 +1,21 @@
 import AppKit
 import ServiceManagement
 
-struct Configuration: Decodable {
+struct Configuration: Decodable, Sendable {
     let project: String
     let python: String
     let collection: String
     let database: String
     let port: Int
     let launchAtLogin: Bool
+}
+
+private struct UpdateReply: Decodable, Sendable {
+    let current: String?
+    let target: String?
+    let commits: Int?
+    let error: String?
+    let restart_safe: Bool?
 }
 
 private struct BackupLibrary: Decodable {
@@ -87,8 +95,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var restartPending = false
     private var quitting = false
     private var external = false
+    private var updating = false
+    private var updateLabel = ""
     private var errorMessage = ""
     private let menu = NSMenu()
+    private let settingsMenu = NSMenu(title: "Settings")
     private let backupItem = NSMenuItem(title: "GitHub Backup", action: nil, keyEquivalent: "")
     private let backupMenu = NSMenu(title: "GitHub Backup")
     private var backupLibraries: [BackupLibrary] = []
@@ -99,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let startItem = NSMenuItem(title: "Start", action: #selector(start), keyEquivalent: "")
     private let stopItem = NSMenuItem(title: "Stop", action: #selector(stop), keyEquivalent: "")
     private let restartItem = NSMenuItem(title: "Restart", action: #selector(restart), keyEquivalent: "")
+    private let updateItem = NSMenuItem(title: "Update…", action: #selector(updateApplication), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let approvalItem = NSMenuItem(title: "Allow in System Settings…", action: #selector(loginSettings), keyEquivalent: "")
 
@@ -106,6 +118,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var logURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs/\(Bundle.main.bundleIdentifier!)/server.log")
+    }
+    private var updateLogURL: URL { logURL.deletingLastPathComponent().appendingPathComponent("update.log") }
+    private var childEnvironment: [String: String] {
+        var environment = ProcessInfo.processInfo.environment
+        environment["ARTIFACT_STUDIO_COLLECTION"] = configuration.collection
+        environment["ARTIFACT_STUDIO_DATABASE"] = configuration.database
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        environment["PATH"] = "\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (environment["PATH"] ?? "")
+        return environment
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -121,6 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.setAccessibilityLabel("Artifact Studio")
         menu.autoenablesItems = false
+        settingsMenu.autoenablesItems = false
         menu.delegate = self
         backupMenu.autoenablesItems = false
         backupItem.image = NSImage(systemSymbolName: "externaldrive.badge.icloud", accessibilityDescription: nil)
@@ -134,12 +156,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             menu.addItem(item)
         }
-        menu.addItem(backupItem)
+        updateItem.target = self
+        updateItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
+        menu.addItem(updateItem)
         menu.addItem(.separator())
+        let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
+        settings.submenu = settingsMenu
+        menu.addItem(settings)
         loginItem.target = self
-        menu.addItem(loginItem)
+        loginItem.image = NSImage(systemSymbolName: "power", accessibilityDescription: nil)
+        settingsMenu.addItem(loginItem)
         approvalItem.target = self
-        menu.addItem(approvalItem)
+        settingsMenu.addItem(approvalItem)
+        settingsMenu.addItem(.separator())
+        settingsMenu.addItem(backupItem)
         add("Show Logs", symbol: "doc.text", action: #selector(showLogs))
         menu.addItem(.separator())
         add("Quit Artifact Studio", symbol: "power", action: #selector(quit), key: "q")
@@ -156,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 showError("Launch at Login could not be enabled: \(error.localizedDescription)")
             }
         }
-        start()
+        if !CommandLine.arguments.contains("--keep-stopped") { start() }
     }
 
     private func add(_ title: String, symbol: String, action: Selector, key: String = "") {
@@ -167,17 +198,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateMenu() {
-        status.title = external ? "Running · started elsewhere" : state.rawValue
+        status.title = updating ? updateLabel : external ? "Running · started elsewhere" : state.rawValue
         status.toolTip = errorMessage.isEmpty ? workspaceURL.absoluteString : errorMessage
         statusItem.button?.toolTip = "Artifact Studio · \(status.title)"
         statusItem.button?.setAccessibilityValue(status.title)
-        statusItem.button?.image = menuBarImage(state: state)
-        backupItem.isEnabled = state == .running
+        statusItem.button?.image = menuBarImage(state: updating ? .starting : state)
+        backupItem.isEnabled = !updating && state == .running
         if state != .running { backupLibraries = []; backupStatuses = []; backupError = "" }
         renderBackupMenu()
-        startItem.isEnabled = state == .stopped || state == .failed
-        stopItem.isEnabled = process?.isRunning == true && state != .stopping
-        restartItem.isEnabled = process?.isRunning == true && state == .running
+        startItem.isEnabled = !updating && (state == .stopped || state == .failed)
+        stopItem.isEnabled = !updating && process?.isRunning == true && state != .stopping
+        restartItem.isEnabled = !updating && process?.isRunning == true && state == .running
+        let hasServer = process?.isRunning == true || state == .running || state == .starting
+        startItem.isHidden = hasServer
+        stopItem.isHidden = !hasServer
+        updateItem.isEnabled = !updating && state != .starting && state != .stopping
+        updateItem.title = updating ? updateLabel : "Update…"
         let login = SMAppService.mainApp.status
         loginItem.state = login == .enabled ? .on : login == .requiresApproval ? .mixed : .off
         approvalItem.isHidden = login != .requiresApproval
@@ -338,11 +374,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func poll() async {
-        guard !polling, state != .stopping else { return }
+        guard !updating, !polling, state != .stopping else { return }
         polling = true
         let ready = await isReady()
         polling = false
-        guard state != .stopping else { return }
+        guard !updating, state != .stopping else { return }
         if ready {
             state = .running
             external = process == nil
@@ -381,13 +417,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let child = Process()
             child.executableURL = URL(fileURLWithPath: configuration.python)
             child.currentDirectoryURL = URL(fileURLWithPath: configuration.project)
-            child.arguments = ["-m", "uvicorn", "artifact_studio.app:app", "--host", "127.0.0.1", "--port", String(configuration.port), "--no-access-log"]
-            var environment = ProcessInfo.processInfo.environment
-            environment["ARTIFACT_STUDIO_COLLECTION"] = configuration.collection
-            environment["ARTIFACT_STUDIO_DATABASE"] = configuration.database
-            let home = FileManager.default.homeDirectoryForCurrentUser.path
-            environment["PATH"] = "\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:" + (environment["PATH"] ?? "")
-            child.environment = environment
+            child.arguments = ["-m", "uvicorn", "artifact_studio.app:app", "--host", "127.0.0.1", "--port", String(configuration.port), "--no-access-log", "--timeout-graceful-shutdown", "10"]
+            child.environment = childEnvironment
             child.standardInput = FileHandle.nullDevice
             child.standardOutput = log
             child.standardError = log
@@ -427,8 +458,136 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func restart() { restartPending = true; stop() }
+
+    @objc private func updateApplication() {
+        guard !updating, state != .starting, state != .stopping else { return }
+        updating = true
+        updateLabel = "Checking for updates…"
+        updateMenu()
+        Task {
+            var restoreRunning = false
+            do {
+                if await isReady(), process?.isRunning != true {
+                    throw BackupRequestError.response("This server was started elsewhere. Stop it there before updating.")
+                }
+                let plan = try await runUpdater(["check"])
+                if let error = plan.error { throw BackupRequestError.response(error) }
+                guard let current = plan.current, let target = plan.target else {
+                    throw BackupRequestError.response("The update check returned no version. See Show Logs.")
+                }
+                guard current != target else {
+                    showInformation("You’re up to date", "Artifact Studio is on the latest main version (\(current.prefix(8))).")
+                    updating = false; updateMenu(); return
+                }
+                restoreRunning = process?.isRunning == true
+                if restoreRunning {
+                    let alert = NSAlert()
+                    alert.messageText = "Update Artifact Studio?"
+                    alert.informativeText = "The server will stop, update and restart. Active agent connections will be interrupted. Save your work and finish active tasks before continuing."
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "Update and Restart")
+                    alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+                    guard alert.runModal() == .alertFirstButtonReturn else {
+                        updating = false; updateMenu(); return
+                    }
+                }
+                updateLabel = restoreRunning ? "Stopping for update…" : "Updating…"
+                updateMenu()
+                if restoreRunning {
+                    stop()
+                    let deadline = ContinuousClock.now.advanced(by: .seconds(25))
+                    while process?.isRunning == true && ContinuousClock.now < deadline {
+                        try await Task.sleep(for: .milliseconds(100))
+                    }
+                    guard process?.isRunning != true else {
+                        restoreRunning = false
+                        throw BackupRequestError.response("The server is still stopping. No update was installed. Try Update after it stops.")
+                    }
+                }
+                guard await isReady() == false else {
+                    restoreRunning = false
+                    throw BackupRequestError.response("The server port is still in use. No update was installed.")
+                }
+                updateLabel = "Updating…"; updateMenu()
+                var arguments = ["apply", "--current", current, "--target", target,
+                    "--application", Bundle.main.bundleURL.path,
+                    "--collection", configuration.collection, "--database", configuration.database,
+                    "--port", String(configuration.port)]
+                if configuration.launchAtLogin { arguments.append("--launch-at-login") }
+                if Bundle.main.bundleIdentifier?.hasSuffix(".qa") == true { arguments.append("--qa") }
+                let shouldRestart = restoreRunning
+                restoreRunning = false
+                let result = try await runUpdater(arguments)
+                if let error = result.error {
+                    restoreRunning = result.restart_safe == true && shouldRestart
+                    throw BackupRequestError.response(error)
+                }
+                try relaunchAfterUpdate(running: shouldRestart)
+                updating = false
+                NSApp.terminate(nil)
+            } catch {
+                updating = false; updateMenu()
+                if restoreRunning && process?.isRunning != true { start() }
+                showError("Could not update Artifact Studio: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func runUpdater(_ arguments: [String]) async throws -> UpdateReply {
+        let python = configuration.python, project = configuration.project
+        let environment = childEnvironment, log = updateLogURL
+        return try await Task.detached {
+            try Self.executeUpdater(python: python, project: project, arguments: arguments, environment: environment, log: log)
+        }.value
+    }
+
+    nonisolated private static func executeUpdater(python: String, project: String, arguments: [String], environment: [String: String], log: URL) throws -> UpdateReply {
+        try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
+        let output = Pipe(), errors = try FileHandle(forWritingTo: log)
+        defer { try? errors.close() }
+        try errors.seekToEnd()
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: python)
+        child.currentDirectoryURL = URL(fileURLWithPath: project)
+        child.arguments = ["-m", "artifact_studio.updater"] + arguments
+        child.environment = environment
+        child.standardInput = FileHandle.nullDevice
+        child.standardOutput = output
+        child.standardError = errors
+        try child.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        child.waitUntilExit()
+        guard let reply = try? JSONDecoder().decode(UpdateReply.self, from: data) else {
+            throw BackupRequestError.response("The updater could not finish. See update.log beside the server log.")
+        }
+        return reply
+    }
+
+    private func relaunchAfterUpdate(running: Bool) throws {
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: configuration.python)
+        child.currentDirectoryURL = URL(fileURLWithPath: configuration.project)
+        child.environment = childEnvironment
+        child.arguments = ["-c", """
+import os, subprocess, sys, time
+pid = int(sys.argv[1])
+for _ in range(200):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        subprocess.run(['/usr/bin/open', '-n', sys.argv[2], '--args'] + sys.argv[3:], check=True)
+        break
+    time.sleep(0.1)
+""", String(ProcessInfo.processInfo.processIdentifier), Bundle.main.bundleURL.path] + (running ? [] : ["--keep-stopped"])
+        child.standardInput = FileHandle.nullDevice
+        child.standardOutput = FileHandle.nullDevice
+        child.standardError = FileHandle.nullDevice
+        try child.run()
+    }
+
     @objc private func openWorkspace() { NSWorkspace.shared.open(workspaceURL) }
-    @objc private func showLogs() { NSWorkspace.shared.activateFileViewerSelecting([logURL]) }
+    @objc private func showLogs() { NSWorkspace.shared.activateFileViewerSelecting([logURL, updateLogURL].filter { FileManager.default.fileExists(atPath: $0.path) }) }
     @objc private func loginSettings() { SMAppService.openSystemSettingsLoginItems() }
     @objc private func quit() { NSApp.terminate(nil) }
 
@@ -447,6 +606,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if updating { showInformation("Update in progress", "Wait for the update to finish before quitting."); return .terminateCancel }
         guard process?.isRunning == true else { return .terminateNow }
         quitting = true
         restartPending = false
@@ -459,6 +619,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.messageText = "Artifact Studio"
         alert.informativeText = message
         alert.alertStyle = .warning
+        alert.runModal()
+    }
+
+    private func showInformation(_ title: String, _ message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
         alert.runModal()
     }
 }

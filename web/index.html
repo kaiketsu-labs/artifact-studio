@@ -23,6 +23,9 @@
   <link rel="stylesheet" href="/web/voice-input.css">
   <link rel="stylesheet" href="/web/element-commands.css">
   <script src="/web/element-commands.js" defer></script>
+  <link rel="stylesheet" href="/web/version-history.css">
+  <script src="/web/version-history.js" defer></script>
+  <script src="/web/workspace-recovery.js" defer></script>
   <script src="/web/icons.js" defer></script>
   <script src="/runtime/presentation.js" data-builds-only defer></script>
   <script src="/web/animation-preview.js" defer></script>
@@ -111,7 +114,7 @@
     </header>
     <div class="canvas-tools">
       <div class="object-tools"><button id="view-artifact" type="button" aria-label="Focus view" title="Focus view" disabled></button><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
-      <div class="preview-controls"><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button></div>
+      <div class="preview-controls"><button id="version-history" type="button" aria-label="Version history" title="Version history"></button><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button></div>
     </div>
     </div>
     <div id="element-properties" hidden></div>
@@ -325,7 +328,7 @@
   </form>
   <p id="library-status" role="status" aria-live="polite"></p>
   <p id="library-error" class="inline-error" role="alert"></p>
-  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. A GitHub snapshot alone does not restore the Studio review database.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
+  <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. Restore workspace rebuilds the current content and folder structure. For chats, approvals and history, save a local workspace archive.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
 </dialog>
 </body>
 </html>

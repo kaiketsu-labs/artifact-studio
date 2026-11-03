@@ -46,6 +46,7 @@ from .design_references import (
     RemoveReferenceInput,
 )
 from .events import deck_events
+from .history_api import history_routes
 from .interactive import prepare_document
 from .libraries import (
     Libraries,
@@ -99,6 +100,7 @@ from .models import (
 )
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
+from .recovery_api import recovery_routes
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .sections import Sections, sections_hash
 from .share_api import sharing_routes
@@ -1833,6 +1835,8 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 
 app.include_router(artifact_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
+app.include_router(history_routes(lambda: store))
+app.include_router(recovery_routes(lambda: store))
 
 
 app.mount("/runtime", StaticFiles(directory=PROJECT / "runtime"), name="runtime")

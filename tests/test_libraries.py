@@ -21,6 +21,7 @@ from artifact_studio.libraries import (
     safe_file,
 )
 from artifact_studio.storage import Store
+from artifact_studio.workspace_recovery import PORTABLE_METADATA, PortableWorkspace
 
 
 @pytest.fixture
@@ -69,11 +70,16 @@ def test_repeat_sync_and_remote_conflict(library_setup: tuple[Libraries, Path]) 
         LibraryInput(location="https://github.com/test/slides", sync_enabled=True)
     )
     first = libraries.sync(library.id)
-    assert first.files_changed == 2
+    assert first.files_changed == 3
     assert command("git", "--git-dir", str(remote), "rev-parse", "main") == first.commit
     tracked = command("git", "--git-dir", str(remote), "ls-tree", "-r", "--name-only", "main")
     assert ".env" not in tracked and "review.sqlite3" not in tracked
     assert "notes.md" in tracked
+    assert PORTABLE_METADATA in tracked
+    recovered_metadata = PortableWorkspace.model_validate_json(
+        command("git", "--git-dir", str(remote), "show", f"main:{PORTABLE_METADATA}")
+    )
+    assert recovered_metadata.source_root == str(libraries.store.root)
     second = libraries.sync(library.id)
     assert second.files_changed == 0 and second.commit == first.commit
     local = libraries.store.root / "2026-10-28-example/index.html"

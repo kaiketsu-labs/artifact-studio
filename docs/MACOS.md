@@ -17,7 +17,9 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 | Pixel status square | Filled: responding. Small: starting/stopping. Outline: stopped or failed; open the menu for the exact status. The icon follows the menu bar's light/dark appearance. |
 | Open Artifact Studio | Opens the workspace in your default browser. |
 | Start / Stop / Restart | Controls the server started by this menu-bar app. Stop waits for a graceful shutdown. |
-| GitHub Backup | Repository delivery status, last successful backup, Automatic Backup, Sync Now/Retry, and Open Backup Settings. Uses the server’s shared settings. |
+| Update… | Checks GitHub main, installs an available update and rebuilds the controller. A running server requires confirmation before it stops and restarts. A stopped server stays stopped. |
+| Settings → Launch at Login | Toggles automatic startup; a checkmark means enabled. If macOS needs approval, the same submenu opens Login Items. |
+| Settings → GitHub Backup | Repository delivery status, last successful backup, Automatic Backup, Sync Now/Retry, and Open Backup Settings. Uses the server’s shared settings. |
 | Show Logs | Reveals the local server log in Finder. |
 | Quit Artifact Studio | Gracefully stops its server and closes the menu-bar app. Launch at Login remains configured. |
 
@@ -29,7 +31,11 @@ Closing a browser tab does not stop the server. Stopping or restarting the serve
 
 The defaults are `~/Documents/Artifacts`, this checkout's `.state/review.sqlite3`, and port 8790. Override them at installation with `--collection`, `--database` and `--port`. App configuration lives in `Contents/Resources/configuration.json`; logs live in `~/Library/Logs/labs.kaiketsu.artifact-studio/server.log`.
 
-Keep this checkout and its `.venv` in place. The controller uses them directly, so source updates need only a server Restart; it is not yet a self-contained, notarized distribution. To update the native controller, quit it, move the old `.app` aside, and rerun the installer. The installer refuses to overwrite an existing app. Removing the app does not delete presentations; turn Launch at Login off before removal.
+Keep this checkout and its `.venv` in place. Choose **Update…** in the Mac menu to update the server, browser interface and native controller together. It fetches `origin/main` and accepts a clean fast-forward on `main`; commit or move unfinished source edits first. It does not auto-commit, discard edits, reconcile divergent branches or change your collection/database paths. Active server and agent connections are interrupted only after you confirm **Update and Restart**. Refresh browser tabs and resume agent review afterward.
+
+The updater preserves the previous environment while installing locked dependencies and Chromium, and builds the new controller before replacing the app. Installation failures restore the previous source and environment; a concurrent source edit is preserved and requires manual recovery instead of being reset. **Show Logs** reveals server and update logs. Updating a server started elsewhere is refused; stop it in its original controller first.
+
+The controller relaunches after a successful update and restores the prior running/stopped state. It remains a local source installation requiring `uv` and Apple's Command Line Tools, rather than a self-contained, notarized distribution. To rebuild a controller manually, quit it, move the old `.app` aside, and rerun the installer. Removing the app does not delete artifacts; turn Launch at Login off before removal.
 
 ## Parallel decks
 

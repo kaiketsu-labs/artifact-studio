@@ -1,0 +1,31 @@
+/* Local full archives and current-source GitHub recovery are deliberately separate. */
+((root)=>{
+  'use strict';
+  function create({api,getLibraries}){
+    const doc=root.document,icon=name=>root.SlideIcons.svg(name),dialog=doc.createElement('dialog');dialog.className='workspace-recovery';dialog.setAttribute('aria-labelledby','recovery-title');
+    dialog.innerHTML=`<header><h2 id="recovery-title">Restore workspace</h2><button type="button" data-recovery-close aria-label="Close recovery">${icon('close')}</button></header><form><label for="recovery-name">New folder name</label><input id="recovery-name" name="name" value="Recovered workspace" required maxlength="100"><div class="recovery-sources"><label class="recovery-file">${icon('archive')}<strong>Local archive</strong><small>Content, chats, approvals and history</small><input type="file" accept=".zip,application/zip" aria-label="Choose workspace archive"></label><div class="recovery-repository">${icon('github')}<strong>Connected backup</strong><small>Current content and folder structure</small><select aria-label="Backup source"></select><button type="submit" data-recovery-repository>Preview backup</button></div></div></form><section class="recovery-preview" hidden></section><p class="recovery-status" role="status"></p><p class="recovery-error" role="alert"></p><footer><button type="button" data-recovery-back hidden>Choose another backup</button><button type="button" data-recovery-restore hidden>${icon('restore')}Restore files</button></footer>`;
+    doc.body.append(dialog);const $=selector=>dialog.querySelector(selector);let candidate=null,busy=false,opener=null;
+    function working(value,text=''){busy=value;dialog.setAttribute('aria-busy',String(value));dialog.querySelectorAll('button,input,select').forEach(element=>element.disabled=value);$('[data-recovery-repository]').disabled=value||!$('select').options.length;$('.recovery-status').textContent=text;}
+    async function discard(){if(!candidate)return;const token=candidate.token;candidate=null;try{await root.fetch('/api/workspace/recovery/'+token,{method:'DELETE'});}catch{}}
+    function display(prepared){candidate=prepared;const info=prepared.preview,section=$('.recovery-preview');section.replaceChildren();const strong=doc.createElement('strong');strong.textContent=`${info.projects} projects · ${info.artifacts+info.presentations} artifacts · ${info.folders} folders`;section.append(strong);const path=doc.createElement('p');path.className='recovery-path';path.textContent=prepared.destination;section.append(path);for(const message of [...info.warnings,...info.conflicts]){const p=doc.createElement('p');p.textContent=message==='Repository registrations, upload permissions and agent sessions are reset.'?'Reconnect repositories and agents after recovery.':message;section.append(p);}section.hidden=false;$('form').hidden=true;$('[data-recovery-restore]').hidden=!info.can_restore;$('[data-recovery-back]').hidden=false;}
+    async function prepare(mode,file){
+      if(busy)return;$('.recovery-error').textContent='';working(true,'Checking backup…');
+      try{const name=$('#recovery-name').value.trim();if(!name)throw new Error('Choose a name for the new workspace folder.');let result;if(mode==='archive'){const response=await root.fetch('/api/workspace/recovery/upload?name='+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/zip'},body:file});result=await response.json();if(!response.ok)throw new Error(result.error||result.detail||'Could not read this archive.');}else result=await api('/api/workspace/recovery/library',{library_id:$('select').value,name});display(result);working(false);}
+      catch(error){working(false);$('.recovery-error').textContent=error.message;}
+    }
+    $('form').addEventListener('submit',event=>{event.preventDefault();void prepare('current');});
+    $('input[type=file]').addEventListener('change',event=>{const file=event.target.files[0];if(file)void prepare('archive',file);});
+    dialog.addEventListener('click',async event=>{
+      if(event.target.closest('[data-recovery-close]')){if(!busy)dialog.close();return;}
+      if(event.target.closest('[data-recovery-back]')){await discard();reset();return;}
+      if(!event.target.closest('[data-recovery-restore]')||busy||!candidate)return;
+      working(true,'Restoring files…');$('.recovery-error').textContent='';
+      try{const restored=await api('/api/workspace/recovery/'+candidate.token+'/restore',{content_hash:candidate.preview.content_hash});working(false,'Restored. Your current workspace is unchanged.');$('.recovery-preview').replaceChildren();const title=doc.createElement('strong');title.textContent='Workspace restored';const path=doc.createElement('p');path.className='recovery-path';path.textContent=restored.destination;const copy=doc.createElement('button');copy.type='button';copy.innerHTML=icon('copy')+'Copy folder path';copy.addEventListener('click',async()=>{try{await root.navigator.clipboard.writeText(restored.destination);copy.textContent='Copied';}catch{path.tabIndex=0;path.focus();}});$('.recovery-preview').append(title,path,copy);$('[data-recovery-restore]').hidden=true;$('[data-recovery-back]').hidden=true;}
+      catch(error){working(false);$('.recovery-error').textContent=error.message;}
+    });
+    function reset(){$('form').hidden=false;$('.recovery-preview').hidden=true;$('.recovery-error').textContent='';$('.recovery-status').textContent='';$('[data-recovery-restore]').hidden=true;$('[data-recovery-back]').hidden=true;$('input[type=file]').value='';}
+    dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});dialog.addEventListener('close',()=>{void discard();opener?.focus();});
+    return {open(){if(busy)return;reset();const sources=getLibraries().filter(item=>item.id!=='collection');$('select').replaceChildren(...sources.map(item=>{const option=doc.createElement('option');option.value=item.id;option.textContent=item.location;return option;}));$('[data-recovery-repository]').disabled=!sources.length;opener=doc.activeElement;dialog.showModal();},save(){const link=doc.createElement('a');link.href='/api/workspace/archive';link.download='workspace.artifact-studio.zip';doc.body.append(link);link.click();link.remove();}};
+  }
+  root.WorkspaceRecoveryUI={create};
+})(window);
