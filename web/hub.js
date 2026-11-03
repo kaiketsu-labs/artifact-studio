@@ -114,16 +114,16 @@
   const state={designActive:null,projects:[],projectTree:{nodes:[],content_hash:''},artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
   const collapsedFolders=new Set();
   try{for(const id of JSON.parse(root.localStorage.getItem('artifact-studio:collapsed-folders') || '[]'))if(typeof id==='string')collapsedFolders.add(id);}catch{}
-  let treeMenu=null,treeMenuAnchor=null,treeBusy=false;
+  let treeBusy=false;
   const previewUpdates=root.SlidePreviewUpdates.create({onChange:()=>{syncAutoUpdate();if(previewUpdates.enabled)void refresh();}});
   const drafts=new Map(), attachments=new Map(), sending=new Set(),discardedVoiceSegments=new Set();
-  let importFiles=[],toastTimer,refreshing=false,regionStart=null,exportUrl=null,previewImport=null,properties=null,inspectorSelector=null,inspectorRect=null,voiceRecordingBase=null,feedbackVoiceHandle=null;
+  let importFiles=[],toastTimer,refreshing=false,regionStart=null,exportUrl=null,previewImport=null,properties=null,inspectorSelector=null,inspectorRect=null,voiceRecordingBase=null,feedbackVoiceHandle=null,modalEpoch=0;
   const voice=root.SlideVoice.create({onIdle:input=>{if(input?.id==='hub-feedback-text')voiceRecordingBase=null;lockComposer();if(state.newRevision && previewUpdates.enabled)void refresh();}});
   const workspacePanels=root.WorkspacePanels.create({doc,view:root,storage:root.localStorage,kind:'hub',onViewChange:()=>syncSelection()});
   const sharing=root.ArtifactSharing.create({doc,view:root});
   const artifactEditor=root.ArtifactEditor.create({
     getFrame:()=>doc.getElementById('hub-html-preview'),getArtifact:()=>state.detail,
-    onInspector:data=>{inspectorRect=data.rect;inspectorSelector=data.selector;if(!artifactEditor.isEditing())properties?.setSelection(data);properties?.reposition();},
+    onInspector:data=>{inspectorRect=data.rect;inspectorSelector=data.selector;if(data.restoreControls||!artifactEditor.isEditing())properties?.setSelection(data);properties?.reposition();},
     onState:next=>{properties?.setState(next);if(!next.dirty && !next.busy && state.newRevision && previewUpdates.enabled)queueMicrotask(()=>void refresh());},
     onSend:async body=>{
       const item=state.detail;
@@ -132,6 +132,61 @@
       if(state.active===item.id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();}
       toast(item.mode==='batch'?'Added to batch.':'Saved for agent.');
     },onError:message=>toast(message,true)
+  });
+  const elementMenu=root.ElementCommands.menu({doc,onError:message=>toast(message,true)});
+  const hubMenu=root.ElementCommands.menu({doc,id:'hub-context-menu',onError:message=>toast(message,true)});
+  let elementMenuEpoch=0;
+  function singleElement(){const targets=state.detail&&draft().targets;return !!(state.selecting&&kindOf(state.detail)==='html'&&targets?.length===1&&targets[0].kind==='element'&&draft().content_hash===state.detail.content_hash);}
+  function runElementCommand(command){
+    if(!singleElement()||artifactEditor.isBusy()||sending.has(state.active))return false;
+    if(command==='undo'||command==='redo'){
+      if(voice.isActive()){toast('Stop dictation before undoing an element edit.');return true;}
+      void artifactEditor[command]();return true;
+    }
+    if(typeof command==='object'){artifactEditor.nudge(command.key,command.step);return true;}
+    if(command==='delete'){if(voice.isActive()){toast('Stop dictation before deleting an element.');return true;}artifactEditor.delete();return true;}
+    if(command==='edit'){void focusElementText();return true;}
+    if(command==='send'){doc.querySelector('#hub-element-properties [data-action=send]')?.click();return true;}
+    if(command==='cancel'){properties?.cancelVoice();if(artifactEditor.isEditing())artifactEditor.cancel();else{draft().targets=[];syncSelection();voiceBoundary();}return true;}
+    return false;
+  }
+  async function focusElementText(){
+    const id=state.active,loading=state.loading;await new Promise(resolve=>root.requestAnimationFrame(resolve));if(id!==state.active||loading!==state.loading)return;const selector=draft().targets[0]?.selector;
+    for(let count=0;count<40&&!artifactEditor.ready();count++){await new Promise(resolve=>setTimeout(resolve,16));if(id!==state.active||loading!==state.loading||selector!==draft().targets[0]?.selector)return;}
+    if(id===state.active&&loading===state.loading&&selector===draft().targets[0]?.selector&&artifactEditor.ready())properties?.focusText();
+  }
+  async function showElementMenu(point){
+    if(!state.detail||!state.selecting||!draft().targets.length)return;
+    const id=state.active,loading=state.loading,selector=draft().targets[0]?.selector,epoch=++elementMenuEpoch;
+    if(singleElement())for(let count=0;count<40&&!artifactEditor.ready();count++){await new Promise(resolve=>setTimeout(resolve,16));if(id!==state.active||loading!==state.loading||epoch!==elementMenuEpoch)return;}
+    if(id!==state.active||loading!==state.loading||epoch!==elementMenuEpoch)return;
+    const editable=singleElement()&&artifactEditor.ready(),primary=/Mac|iPhone|iPad/.test(root.navigator.platform)?'⌘':'Ctrl+';
+    const run=command=>()=>{if(state.active===id&&state.loading===loading&&draft().targets[0]?.selector===selector)runElementCommand(command);};
+    const entry=(label,glyph,execute,extra={})=>({label,icon:icon(glyph),run:execute,...extra});
+    elementMenu.show({...point,focus:doc.getElementById('hub-viewer'),commands:[
+      entry('Undo','restore',run('undo'),{keys:primary+'Z',disabled:!editable||!artifactEditor.canUndo()}),
+      entry('Redo','refresh',run('redo'),{keys:primary+'Shift+Z',disabled:!editable||!artifactEditor.canRedo()}),
+      {separator:true},entry('Edit text','edit',run('edit'),{keys:'F2 / Enter',disabled:!editable||!artifactEditor.canEdit()}),
+      entry('Delete element','trash',run('delete'),{keys:'Delete',disabled:!editable,danger:true}),
+      {separator:true},entry('Send edit','send',run('send'),{keys:primary+'Enter',disabled:!editable||!artifactEditor.isEditing()}),
+      entry('Cancel edit','close',run('cancel'),{keys:'Esc',disabled:!editable||!artifactEditor.isEditing()}),
+      {separator:true},entry('Comment on selection','chat',()=>doc.getElementById('hub-feedback-text')?.focus()),
+      entry('Clear selection','cursor',()=>{if(state.active===id){draft().targets=[];syncSelection();voiceBoundary();}},{disabled:artifactEditor.isEditing()})
+    ]});
+  }
+  doc.addEventListener('keydown',event=>{
+    if(elementMenu.isOpen()||dialog.open||!event.target.closest('#hub-viewer,#hub-element-properties'))return;
+    const command=root.ElementCommands.shortcut(event);if(!command||!state.selecting)return;
+    if(command==='menu'&&draft().targets.length){event.preventDefault();event.stopPropagation();const rect=doc.getElementById('hub-viewer').getBoundingClientRect();void showElementMenu({x:rect.left+16,y:rect.top+16});return;}
+    if(command==='edit'&&event.target.id==='hub-viewer'){event.preventDefault();void focusElementText();return;}
+    if(!singleElement()){if(command==='cancel'&&draft().targets.length&&!artifactEditor.isEditing()){event.preventDefault();draft().targets=[];syncSelection();voiceBoundary();}return;}
+    event.preventDefault();event.stopPropagation();runElementCommand(command);
+  });
+  doc.addEventListener('contextmenu',event=>{
+    if(!state.selecting||root.ElementCommands.typing(event.target)||!event.target.closest('#hub-markdown,#hub-image-wrap,#hub-element-properties'))return;
+    const block=event.target.closest('#hub-markdown [data-target-index]');
+    if(block&&!draft().targets.some(target=>target.block_index===Number(block.dataset.targetIndex))){const quote=block.textContent.trim().slice(0,2000),start=state.source.indexOf(quote),unique=start>=0&&start===state.source.lastIndexOf(quote);setTarget({kind:'text',label:quote.slice(0,80),quote,selector:`[data-target-index="${block.dataset.targetIndex}"]`,block_index:Number(block.dataset.targetIndex),...(unique?{start,end:start+quote.length}:{})},false);}
+    if(!draft().targets.length)return;event.preventDefault();void showElementMenu({x:event.clientX,y:event.clientY});
   });
   root.ProjectFolders.create({content,getArtifacts:()=>state.artifacts,getProjects:()=>state.projects,
     onMove:async(id,projectId)=>{await api(artifactPath(id,'/project'),{project_id:projectId});await loadRegistry();library();toast('Artifact moved.');},
@@ -162,7 +217,7 @@
   const projectTitle=id => id==='designs'?'Designs':state.projectTree.nodes.find(node=>'folder:'+node.id===id)?.title || selectedProject(id)?.title || (id === 'all' ? 'All artifacts' : 'Project');
   const selectedFolder=()=>state.project.startsWith('folder:')?state.project.slice(7):state.projectTree.nodes.find(node=>node.id===state.project)?.parent_id ?? null;
   function rememberFolders(){try{root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));}catch{}}
-  function closeTreeMenu(restore=false){treeMenu?.remove();treeMenu=null;treeMenuAnchor?.setAttribute('aria-expanded','false');if(restore&&treeMenuAnchor?.isConnected)treeMenuAnchor.focus();treeMenuAnchor=null;}
+  function closeTreeMenu(){hubMenu.close();}
   function toggleFolder(id){collapsedFolders.has(id)?collapsedFolders.delete(id):collapsedFolders.add(id);rememberFolders();renderProjectSidebar();doc.querySelector(`[data-toggle-folder="${id}"]`)?.focus({preventScroll:true});}
   function renderProjectSidebar(){const aside=doc.querySelector('aside.hub-sidebar[aria-label="Projects"]');if(aside)aside.outerHTML=sidebar();}
   async function changeTree(change){
@@ -186,14 +241,58 @@
     const path=folder=>[...root.ProjectNavigation.ancestors(tree,folder.id).reverse().map(id=>tree.nodes.find(node=>node.id===id).title),folder.title].join(' / ');
     modal('Move '+(node.kind==='folder'?'folder':'project'),`<form id="hub-tree-move-form" class="hub-form" data-id="${escape(id)}"><label class="hub-field"><span>Folder</span><select name="parent_id"><option value="">Top level</option>${folders.map(folder=>`<option value="${escape(folder.id)}" ${node.parent_id===folder.id?'selected':''}>${escape(path(folder))}</option>`).join('')}</select></label><p class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Move</button></div></form>`);
   }
+  /** Share one menu's focus, positioning and keyboard behavior across library contexts. */
+  function showHubMenu(anchor,label,commands,point=null){
+    elementMenuEpoch++;elementMenu.close();
+    const bounds=anchor.getBoundingClientRect(),background=anchor.matches('.hub-main,aside.hub-sidebar'),focus=anchor.matches('button,[tabindex]')?anchor:anchor.querySelector('.hub-card-open,.project-tree-open,button') || anchor;
+    hubMenu.panel.setAttribute('aria-label',label);
+    hubMenu.show({x:point?.x ?? bounds.left+(background?16:0),y:point?.y ?? (background?bounds.top+16:bounds.bottom+4),commands,focus});
+  }
+  const menuCommand=(label,glyph,run,options={})=>({label,icon:icon(glyph),run,...options});
+  const newPresentation=()=>{if(artifactEditor.finish())root.location.href='/?editor=1&new=1';};
+  function creationCommands(project=state.project,parent=selectedFolder()){
+    return [menuCommand('New project','project',()=>projectDialog(false,parent)),menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),menuCommand('Import artifact','upload',()=>importDialog(project)),menuCommand('New presentation','slideAdd',newPresentation)];
+  }
+  /** Resolve tree changes when invoked, retaining the row captured when the menu opened. */
+  async function treeAction(action,id){
+    const tree=state.projectTree,item=tree.nodes.find(item=>item.id===id);if(!item)return;
+    if(action==='rename')return folderDialog('rename',id);
+    if(action==='move')return treeMoveDialog(id);
+    if(action==='remove'){await changeTree({action:'remove',id});toast('Folder removed. Projects kept.');return;}
+    const siblings=root.ProjectNavigation.children(tree,item.parent_id),index=siblings.findIndex(item=>item.id===id);
+    const plan=action==='out'?root.ProjectNavigation.placement(tree,id,item.parent_id,'after'):root.ProjectNavigation.placement(tree,id,siblings[index+(action==='up'?-1:1)]?.id,action==='up'?'before':'after');
+    if(plan)await changeTree(plan);
+  }
   function projectTreeMenu(anchor,id=null,point=null){
-    closeTreeMenu();const tree=state.projectTree,node=tree.nodes.find(item=>item.id===id),folder=node?.kind==='folder';
-    const siblings=node?root.ProjectNavigation.children(tree,node.parent_id):[],index=siblings.findIndex(item=>item.id===id);
-    treeMenuAnchor=anchor.matches('button')?anchor:anchor.querySelector('.project-tree-options');treeMenuAnchor?.setAttribute('aria-expanded','true');
-    treeMenu=doc.createElement('div');treeMenu.className='project-tree-menu';treeMenu.setAttribute('role','menu');treeMenu.setAttribute('aria-label',node?'Project and folder actions':'Add to projects');
-    const entry=(action,label,glyph,extra='',disabled=false)=>`<button type="button" role="menuitem" data-tree-action="${action}" data-tree-id="${escape(id || '')}" ${disabled?'disabled':''}>${icon(glyph)}<span>${label}</span>${extra}</button>`;
-    treeMenu.innerHTML=(folder||!node?entry('new-project','New project','project')+entry('new-folder','New folder','folderPlus'):'')+(node?`${folder?'<hr>':''}${entry('move','Move to…','folder')}${entry('up','Move up','up','<kbd>⌥ ↑</kbd>',index===0)}${entry('down','Move down','down','<kbd>⌥ ↓</kbd>',index===siblings.length-1)}${node.parent_id?entry('out','Move out','left','<kbd>⌥ ←</kbd>'):''}${folder?`<hr>${entry('rename','Rename','edit')}${entry('remove','Remove folder','trash')}`:''}`:'');
-    doc.body.append(treeMenu);const bounds=anchor.getBoundingClientRect();treeMenu.style.left=`${Math.min(point?.x ?? bounds.right-218,root.innerWidth-230)}px`;treeMenu.style.top=`${Math.min(point?.y ?? bounds.bottom+4,root.innerHeight-treeMenu.offsetHeight-12)}px`;treeMenu.style.left=`${Math.max(8,parseFloat(treeMenu.style.left))}px`;treeMenu.querySelector('button:not(:disabled)')?.focus();
+    const tree=state.projectTree,node=tree.nodes.find(item=>item.id===id),folder=node?.kind==='folder';
+    if(!node){showHubMenu(anchor,'Add to projects',creationCommands('all',null),point);return;}
+    const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
+    const commands=[menuCommand('Open','folderOpen',()=>home(key))];
+    if(folder)commands.push(menuCommand(collapsedFolders.has(id)?'Expand folder':'Collapse folder','folder',()=>toggleFolder(id)));
+    else commands.push(menuCommand('Project brief','notes',()=>contextDialog({projectId:id})),menuCommand('Share project','share',()=>shareProject(id)));
+    commands.push({separator:true},...creationCommands(key,folder?id:node.parent_id).filter(command=>command.label!=='Import artifact'||folder||!project?.legacy),{separator:true},menuCommand('Move to…','folder',()=>treeAction('move',id)),menuCommand('Move up','up',()=>treeAction('up',id),{keys:'Alt+↑',disabled:index===0}),menuCommand('Move down','down',()=>treeAction('down',id),{keys:'Alt+↓',disabled:index===siblings.length-1}));
+    if(node.parent_id)commands.push(menuCommand('Move out','left',()=>treeAction('out',id),{keys:'Alt+←'}));
+    if(folder)commands.push({separator:true},menuCommand('Rename','edit',()=>treeAction('rename',id)),menuCommand('Remove folder','trash',()=>treeAction('remove',id),{danger:true}));
+    showHubMenu(anchor,folder?'Folder actions':'Project actions',commands,point);
+  }
+  /** Keep navigation, dialogs and copied links bound to the right-clicked artifact. */
+  async function openArtifactCommand(id,mode='open'){
+    if(state.active!==id)await openArtifact(id);
+    if(state.active!==id || !state.detail)return;
+    if(mode==='view')return action('clean-view');
+    if(mode==='comment'){workspacePanels.exitView();doc.getElementById('hub-feedback-text')?.focus();}
+  }
+  async function copyArtifactLink(item){
+    const url=new URL('/',root.location.href);url.searchParams.set(item.legacy_deck_id?'deck':'artifact',item.legacy_deck_id || item.id);
+    await root.navigator.clipboard.writeText(url.href);toast('Artifact link copied.');
+  }
+  function artifactMenu(anchor,id,point=null){
+    const item=state.artifacts.find(item=>item.id===id);if(!item)return;
+    const commands=[menuCommand('Open','folderOpen',()=>openArtifactCommand(id))];
+    if(item.legacy_deck_id)commands.push(menuCommand('Present','present',()=>{if(artifactEditor.finish())root.location.href=`/decks/${encodeURIComponent(item.legacy_deck_id)}/index.html?present=1`;}));
+    else commands.push(menuCommand('View','eye',()=>openArtifactCommand(id,'view')),menuCommand('Comment','chat',()=>openArtifactCommand(id,'comment')),menuCommand('Version history','history',()=>{if(artifactEditor.finish())versions.open({kind:'artifact',artifactId:id,title:item.title});}));
+    commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)),menuCommand('Share','share',()=>shareArtifact(id)),menuCommand('Copy link','copy',()=>copyArtifactLink(item)),{separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
+    showHubMenu(anchor,'Artifact actions',commands,point);
   }
   const fileRecords=item => (item.files || []).map(file=>typeof file==='string'?{path:file}:file);
   const draft = (item=state.detail) => {
@@ -271,7 +370,7 @@
     const designs=state.project==='designs';
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
     for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
-    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
+    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
     doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();
   }
   function fileList(item) {
@@ -312,6 +411,7 @@
     return `${value.targets.length>1?`<div class="hub-target-row"><span class="hub-muted">${value.targets.length} selected</span>${button('clear-targets','','close','aria-label="Clear all targets" title="Clear all targets"')}</div>`:''}${value.targets.map((target,index)=>`<div class="hub-target-row"><span class="hub-target">${escape(targetLabel(target))}</span><button type="button" data-remove-target="${index}" aria-label="Remove ${escape(targetLabel(target))}" title="Remove target">${icon('close')}</button></div>`).join('')}`;
   }
   function workspace() {
+    elementMenuEpoch++;elementMenu.close();
     void voice.stop();
     properties?.destroy();
     const item=state.detail;
@@ -395,6 +495,7 @@
     if(selectionButton){selectionButton.setAttribute('aria-pressed',String(state.selecting));selectionButton.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;}
     const value=draft(),targetNode=doc.getElementById('hub-targets');if(targetNode)targetNode.innerHTML=targetsMarkup(value,state.detail);
     const frame=doc.getElementById('hub-html-preview');
+    if(frame)frame.tabIndex=state.selecting?-1:0;
     frame?.contentWindow?.postMessage({type:'artifact:select',enabled:state.selecting},'*');
     const showTargets=!doc.body.classList.contains('workspace-clean-view') && value.content_hash===state.detail.content_hash;
     frame?.contentWindow?.postMessage({type:'artifact:selection',selectors:showTargets?value.targets.map(target=>target.selector).filter(Boolean):[]},'*');
@@ -404,13 +505,15 @@
     renderImageRegions();syncInspector();persist();
   }
   function setTarget(target,additive) {
+    elementMenuEpoch++;elementMenu.close();
     if(sending.has(state.active) || !artifactEditor.finish())return;
     const value=draft();
     if(value.content_hash!==state.detail.content_hash && (value.message || value.targets.length)){toast('Send or clear the earlier-version draft before selecting this version.',true);return;}
-    value.content_hash=state.detail.content_hash;value.revision=state.detail.revision;value.targets=selectTargets(value.targets,target,additive);value.request_id=null;syncSelection();voiceBoundary();
+    value.content_hash=state.detail.content_hash;value.revision=state.detail.revision;value.targets=selectTargets(value.targets,target,additive);value.request_id=null;syncSelection();voiceBoundary();if(singleElement())doc.getElementById('hub-viewer')?.focus({preventScroll:true});
   }
   function bindViewer() {
-    const frame=doc.getElementById('hub-html-preview');frame?.addEventListener('load',syncSelection);
+    const canvas=doc.getElementById('hub-viewer');if(canvas){canvas.tabIndex=0;canvas.setAttribute('role','group');canvas.setAttribute('aria-label','Artifact canvas');}
+    const frame=doc.getElementById('hub-html-preview');frame?.addEventListener('load',syncSelection);frame?.addEventListener('focus',()=>{if(state.selecting)canvas?.focus({preventScroll:true});});
     const markdown=doc.getElementById('hub-markdown');
     if(markdown)for(const [index,block] of [...markdown.querySelectorAll('h1,h2,h3,h4,h5,h6,p,li,pre,blockquote')].entries())block.dataset.targetIndex=String(index);
     const image=doc.getElementById('hub-image');
@@ -435,7 +538,7 @@
   }
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');!id&&!['all','designs'].includes(state.project)?url.searchParams.set('project',state.project):url.searchParams.delete('project');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
-    if(!resetEditor())return;workspacePanels.exitView();
+    if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
@@ -456,7 +559,7 @@
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
   function home(project='all',push=true) {if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
-  function modal(title,body,wide=false) {void voice.stop();dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();voice.refresh();}
+  function modal(title,body,wide=false) {modalEpoch++;closeTreeMenu();void voice.stop();dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();voice.refresh();}
   /** Retain the explicit parent export handoff used by authored dashboards. */
   function exportDialog(file) {
     exportUrl=URL.createObjectURL(new Blob([file.content],{type:file.type}));
@@ -499,11 +602,12 @@
     closeTreeMenu();modal('New project',`<form id="hub-project-form" class="hub-form" data-parent="${escape(parent || '')}" data-then-import="${thenImport}"><label class="hub-field"><span>Project name</span><input name="title" required maxlength="200" autofocus placeholder="Name your project"></label><label class="hub-field"><span>Shared brief <span class="hub-muted">· optional</span></span><textarea name="context" placeholder="Purpose, audience and source context"></textarea></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Create project</button></div></form>`);
     dialog.querySelector('input').focus();
   }
-  function importDialog() {
-    const projects=state.projects.filter(project=>!project.legacy);
-    if(!projects.length){projectDialog(true);return;}
+  function importDialog(projectId=state.project) {
+    const folder=projectId.startsWith('folder:')?projectId.slice(7):null,ids=folder?root.ProjectNavigation.projectsIn(state.projectTree,folder):null;
+    const projects=state.projects.filter(project=>!project.legacy && (!ids || ids.includes(project.id)));
+    if(!projects.length){projectDialog(true,folder);return;}
     importFiles=[];
-    modal('Import artifact',`<form id="hub-import-form" class="hub-form"><label class="hub-field"><span>Project</span><select name="project_id">${projects.map(project=>`<option value="${escape(project.id)}" ${project.id===state.project?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><label class="hub-field"><span>Title</span><input name="title" required maxlength="200" placeholder="Artifact title"></label><div class="hub-field"><span>Files</span><div class="hub-import-choices">${button('choose-files','Choose files','upload')}${button('choose-folder','Choose folder','folder')}</div><input id="hub-import-files" type="file" multiple hidden><input id="hub-import-folder" type="file" webkitdirectory multiple hidden><ul id="hub-import-list" class="hub-import-list"></ul></div><label class="hub-field" id="hub-entrypoint-field" hidden><span>Open first</span><select name="entrypoint" id="hub-entrypoint"></select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Import artifact</button></div></form>`);
+    modal('Import artifact',`<form id="hub-import-form" class="hub-form"><label class="hub-field"><span>Project</span><select name="project_id">${projects.map(project=>`<option value="${escape(project.id)}" ${project.id===projectId?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><label class="hub-field"><span>Title</span><input name="title" required maxlength="200" placeholder="Artifact title"></label><div class="hub-field"><span>Files</span><div class="hub-import-choices">${button('choose-files','Choose files','upload')}${button('choose-folder','Choose folder','folder')}</div><input id="hub-import-files" type="file" multiple hidden><input id="hub-import-folder" type="file" webkitdirectory multiple hidden><ul id="hub-import-list" class="hub-import-list"></ul></div><label class="hub-field" id="hub-entrypoint-field" hidden><span>Open first</span><select name="entrypoint" id="hub-entrypoint"></select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Import artifact</button></div></form>`);
   }
   function setImportFiles(files) {
     importFiles=files;
@@ -519,15 +623,17 @@
     for(const file of files){const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error(`Could not read ${file.name}.`));reader.readAsDataURL(file);});result.push({name:usePaths?(file.webkitRelativePath || file.name):file.name,data_base64:data});}
     return result;
   }
-  async function contextDialog() {
-    modal('Agent context','<p class="hub-muted" role="status">Loading context…</p>',true);
-    const data=await api(`/api/hub/context${state.detail?'?artifact_id='+encodeURIComponent(state.detail.id):!['all','designs'].includes(state.project)&&!state.project.startsWith('folder:')?'?project_id='+encodeURIComponent(state.project):''}`);
+  async function contextDialog(target=null) {
+    const artifactId=target?target.artifactId:state.detail?.id,projectId=target?target.projectId:!['all','designs'].includes(state.project)&&!state.project.startsWith('folder:')?state.project:null,title=target?.projectId?'Project brief':'Agent context';
+    modal(title,'<p class="hub-muted" role="status">Loading context…</p>',true);
+    const epoch=modalEpoch;
+    const data=await api(`/api/hub/context${artifactId?'?artifact_id='+encodeURIComponent(artifactId):projectId?'?project_id='+encodeURIComponent(projectId):''}`);
     const sources=Array.isArray(data.sources)?data.sources:Array.isArray(data.context?.sources)?data.context.sources:[];
-    if(!dialog.open)return;
-    modal('Agent context',`<div class="hub-context-grid"><section><h3>Sources & delivery</h3><ul class="hub-context-list">${sources.length?sources.map(source=>`<li class="hub-context-source"><strong><span>${escape(source.title || source.name || source.kind || 'Context source')}</span><span class="hub-context-delivery">${escape(source.delivery || source.delivery_state || source.status || 'Available')}</span></strong><code>${escape(source.path || source.canonical_path || '')}</code><span class="hub-scope">Scope: ${escape(typeof source.scope==='object'?JSON.stringify(source.scope):source.scope || 'workspace')}</span>${source.hash || source.content_hash?`<code title="Content hash">${escape(source.hash || source.content_hash)}</code>`:''}</li>`).join(''):'<li class="hub-context-source">No source receipt was returned.</li>'}</ul></section><section><h3 style="margin-bottom:12px">${data.receipt?'Latest recorded delivery':'Available context'}</h3><pre class="hub-context-receipt">${escape(JSON.stringify(data.receipt || data,null,2))}</pre></section></div><p class="hub-context-note">Delivery records what the server returned. Available sources are not proof that an agent opened or retained them.</p>`,true);
+    if(!dialog.open || epoch!==modalEpoch)return;
+    modal(title,`<div class="hub-context-grid"><section><h3>Sources & delivery</h3><ul class="hub-context-list">${sources.length?sources.map(source=>`<li class="hub-context-source"><strong><span>${escape(source.title || source.name || source.kind || 'Context source')}</span><span class="hub-context-delivery">${escape(source.delivery || source.delivery_state || source.status || 'Available')}</span></strong><code>${escape(source.path || source.canonical_path || '')}</code><span class="hub-scope">Scope: ${escape(typeof source.scope==='object'?JSON.stringify(source.scope):source.scope || 'workspace')}</span>${source.hash || source.content_hash?`<code title="Content hash">${escape(source.hash || source.content_hash)}</code>`:''}</li>`).join(''):'<li class="hub-context-source">No source receipt was returned.</li>'}</ul></section><section><h3 style="margin-bottom:12px">${data.receipt?'Latest recorded delivery':'Available context'}</h3><pre class="hub-context-receipt">${escape(JSON.stringify(data.receipt || data,null,2))}</pre></section></div><p class="hub-context-note">Delivery records what the server returned. Available sources are not proof that an agent opened or retained them.</p>`,true);
   }
   function moveDialog(id=state.active) {
-    const item=state.artifacts.find(item=>item.id===id) || state.detail;
+    const item=id===state.active?state.detail:state.artifacts.find(item=>item.id===id);if(!item || id===state.active && !artifactEditor.finish())return;
     if(!state.projects.some(project=>!project.legacy)){projectDialog();return;}
     modal('Move to project',`<form id="hub-move-form" class="hub-form" data-artifact-id="${escape(item.id)}"><label class="hub-field"><span>Project for ${escape(item.title)}</span><select name="project_id">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Move artifact</button></div></form>`);
   }
@@ -595,17 +701,6 @@
     const run=async()=>{
       if(node.dataset.toggleFolder)return toggleFolder(node.dataset.toggleFolder);
       if(node.dataset.treeMenu)return projectTreeMenu(node,node.dataset.treeMenu);
-      if(node.dataset.treeAction){
-        const action=node.dataset.treeAction,id=node.dataset.treeId || null,item=state.projectTree.nodes.find(item=>item.id===id);closeTreeMenu();
-        if(action==='new-folder')return folderDialog('create',null,id);
-        if(action==='new-project')return projectDialog(false,id);
-        if(action==='rename')return folderDialog('rename',id);
-        if(action==='move')return treeMoveDialog(id);
-        if(action==='remove'){await changeTree({action:'remove',id});toast('Folder removed. Projects kept.');return;}
-        const siblings=root.ProjectNavigation.children(state.projectTree,item.parent_id),index=siblings.findIndex(item=>item.id===id);
-        const plan=action==='out'?root.ProjectNavigation.placement(state.projectTree,id,item.parent_id,'after'):root.ProjectNavigation.placement(state.projectTree,id,siblings[index+(action==='up'?-1:1)]?.id,action==='up'?'before':'after');
-        if(plan)await changeTree(plan);return;
-      }
       if(node.id==='hub-stop-voice'){await feedbackVoiceHandle?.stop();syncVoiceChrome();return;}
       if(node.id==='hub-cancel-voice'){
         const recording=voiceRecordingBase;feedbackVoiceHandle?.cancel();voiceRecordingBase=null;
@@ -639,16 +734,18 @@
       if(node.dataset.mode){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/mode'),{mode:node.dataset.mode});const detail=await api(artifactPath(id));if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();}}finally{node.disabled=false;}}
     };run().catch(error=>toast(error.message,true));
   });
-  doc.addEventListener('pointerdown',event=>{if(treeMenu&&!treeMenu.contains(event.target)&&!event.target.closest('[data-tree-menu],[data-action=project-add]'))closeTreeMenu();});
-  content.addEventListener('contextmenu',event=>{const row=event.target.closest('[data-tree-node]');if(row){event.preventDefault();projectTreeMenu(row,row.dataset.treeNode,{x:event.clientX,y:event.clientY});}});
-  doc.addEventListener('keydown',event=>{
-    if(!treeMenu)return;
-    if(event.key==='Escape'){event.preventDefault();closeTreeMenu(true);return;}
-    if(['ArrowUp','ArrowDown','Home','End'].includes(event.key)){
-      event.preventDefault();const buttons=[...treeMenu.querySelectorAll('button:not(:disabled)')],index=buttons.indexOf(doc.activeElement);
-      buttons[event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length]?.focus();
-    }
-  });
+  /** Keep browser menus on editable fields, links and authored content outside selection mode. */
+  function libraryContextMenu(event,point=null){
+    const target=event.target;if(event.defaultPrevented || dialog.open || root.ElementCommands.typing(target) || target.closest('a[href]'))return false;
+    const card=target.closest('[data-drag-artifact],[data-artifact]'),id=card?.dataset.dragArtifact || card?.dataset.artifact;
+    if(id){artifactMenu(card,id,point);return true;}
+    const row=target.closest('[data-tree-node]');
+    if(row){projectTreeMenu(target.closest('button') || row,row.dataset.treeNode,point);return true;}
+    if(state.active || state.designActive || state.project==='designs' || !target.closest('.hub-main,aside.hub-sidebar[aria-label="Projects"]') || target.closest('button,summary,[role="button"]'))return false;
+    showHubMenu(target.closest('.hub-main,aside.hub-sidebar'), 'Library actions',creationCommands(),point);return true;
+  }
+  content.addEventListener('contextmenu',event=>{if(libraryContextMenu(event,{x:event.clientX,y:event.clientY})){event.preventDefault();event.stopPropagation();}else closeTreeMenu();});
+  content.addEventListener('keydown',event=>{if(root.ElementCommands.shortcut(event)==='menu' && libraryContextMenu(event)){event.preventDefault();event.stopPropagation();}});
   doc.addEventListener('input',event=>{
     if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);}
     if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
@@ -682,7 +779,7 @@
         const paths=importFiles.map(file=>file.webkitRelativePath || file.name);if(new Set(paths).size!==paths.length)throw new Error('The selection contains duplicate filenames. Choose a folder to preserve file paths.');
         submit.textContent='Importing…';const item=await api('/api/artifacts/import',{project_id:String(fields.get('project_id')),title:String(fields.get('title')).trim(),entrypoint:String(fields.get('entrypoint')),kind:'auto',files:await encodeFiles(importFiles,true)});await loadRegistry();dialog.close();await openArtifact(item.id || item.artifact?.id);
       }
-      if(form.id==='hub-move-form'){const id=form.dataset.artifactId;await api(artifactPath(id,'/project'),{project_id:String(fields.get('project_id'))});await loadRegistry();dialog.close();if(state.active===id)await openArtifact(id,false);else library();toast('Artifact moved to the selected project.');}
+      if(form.id==='hub-move-form'){const id=form.dataset.artifactId;await api(artifactPath(id,'/project'),{project_id:String(fields.get('project_id'))});await loadRegistry();dialog.close();if(state.active===id)await openArtifact(id,false);else if(state.active){const aside=content.querySelector('aside.hub-sidebar');if(aside)aside.outerHTML=sidebar(true);}else library();toast('Artifact moved to the selected project.');}
     })().catch(reason=>{error.textContent=reason.message;submit.textContent=form.id==='hub-import-form'?'Import artifact':submit.textContent;}).finally(()=>{submit.disabled=false;});
   });
   content.addEventListener('error',event=>{if(event.target.matches?.('[data-preview-image]'))event.target.remove();},true);
@@ -725,6 +822,7 @@
       frame.contentWindow.postMessage({type:'artifact:export-result',ok:!message,message},'*');
     }
     if(event.data.type==='artifact:height' && Number.isFinite(event.data.height))frame.style.height=`${Math.min(30000,Math.max(500,event.data.height+frame.offsetHeight-frame.clientHeight))}px`;
+    if(event.data.type==='artifact:contextmenu'&&state.selecting&&draft().targets.some(target=>target.selector===event.data.selector)){const point=root.ElementCommands.framePoint(frame,event.data.x,event.data.y,event.data.viewport);if(point)void showElementMenu(point);return;}
     if(event.data.type==='artifact:target' && state.selecting){const target=event.data.target;if(target && target.kind==='element' && typeof target.selector==='string' && target.selector.length<=2000)setTarget({kind:'element',selector:target.selector,label:String(target.label || target.quote || target.selector).slice(0,200),quote:String(target.quote || '').slice(0,2000),...(target.viewport && Number.isFinite(target.viewport.width) && Number.isFinite(target.viewport.height)?{viewport:{width:target.viewport.width,height:target.viewport.height}}:{})},event.data.additive===true);}
   });
   root.addEventListener('beforeunload',event=>{if(artifactEditor.isEditing() || artifactEditor.isBusy()){event.preventDefault();event.returnValue='';}});

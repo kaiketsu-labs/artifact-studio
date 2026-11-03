@@ -11,13 +11,14 @@ import json
 import shutil
 import struct
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
-from playwright.sync_api import Browser, Page, expect, sync_playwright
+from playwright.sync_api import Browser, Page, Route, expect, sync_playwright
 
 from artifact_studio.agent_client import Invocation
 from artifact_studio.models import Deck
-from artifact_studio.visuals import CaptureOptions, Diagnostics, contact_sheet, snapshot
+from artifact_studio.visuals import CaptureOptions, Diagnostics, Frame, contact_sheet, snapshot
 from scripts.screenshot_fixture import seed
 from tests.integration.support import DECK_ID, PROJECT, RunningApp, running_app
 
@@ -43,12 +44,14 @@ class Capture:
             "page", lambda page: page.on("pageerror", lambda error: self.errors.append(str(error)))
         )
         self.page = self.context.new_page()
-        self.page.clock.set_fixed_time("2026-11-02T09:30:00Z")
+        self.page.clock.set_fixed_time("2026-11-03T09:30:00Z")
 
     def open(self, slide: str = "workflow") -> None:
-        """Wait for canonical slide context, fonts and the default-open notes."""
+        """Wait for canonical slide context and explicitly expand private notes."""
         self.page.goto(self.app.url + "/?deck=" + DECK_ID)
         self.page.locator(f'.slide-thumb[data-id="{slide}"]').click()
+        if self.page.locator("#notes-panel").get_attribute("open") != "":
+            self.page.locator("#notes-panel summary").click()
         expect(self.page.locator("#notes-panel")).to_have_attribute("open", "")
         expect(self.page.frame_locator("#preview").locator(".slide")).to_be_visible()
 
@@ -67,7 +70,11 @@ class Capture:
             _ = page.locator(region).screenshot(path=target, animations="disabled")
         else:
             _ = page.screenshot(path=target, animations="disabled")
-        self.images[name] = {"viewport": page.viewport_size, "region": region}
+        self.images[name] = {
+            "viewport": page.viewport_size,
+            "region": region,
+            "captured_at": datetime.now(UTC).isoformat(),
+        }
         print(f"Captured {name}", flush=True)
 
     def menu(self, label: str) -> None:
@@ -145,7 +152,9 @@ class Capture:
     def overview(self) -> None:
         self.page.locator("#sorter-view").click()
         self.page.locator('.slide-thumb[data-id="workflow"]').click()
-        self.page.locator('.slide-thumb[data-id="story"]').click(modifiers=["Control"])
+        self.page.locator('.slide-thumb[data-id="story"]').click(modifiers=["ControlOrMeta"])
+        expect(self.page.locator(".slide-thumb.is-selected")).to_have_count(2)
+        expect(self.page.locator("#slide-menu")).to_be_hidden()
         self.save("docs/assets/slide-sorter.png")
         self.page.locator('.slide-thumb[data-id="workflow"]').click()
         self.page.keyboard.press("ArrowDown")
@@ -239,7 +248,7 @@ class Capture:
 
     def presenter(self) -> None:
         page = self.context.new_page()
-        page.clock.set_fixed_time("2026-11-02T09:30:00Z")
+        page.clock.set_fixed_time("2026-11-03T09:30:00Z")
         page.goto(f"{self.app.url}/decks/{DECK_ID}/index.html?present=1#workflow")
         page.locator("#show-presenter").click()
         expect(page.locator("#presenter-view")).to_be_visible()
@@ -260,8 +269,8 @@ class Capture:
         """
         page = self.context.new_page()
         page.set_viewport_size({"width": 1600, "height": 900})
-        frames = []
-        images = []
+        frames: list[Frame] = []
+        images: list[bytes] = []
         observations = {}
         for index in (0, 1, 2, 5):
             item = snapshot(
@@ -285,6 +294,7 @@ class Capture:
         self.images[name] = {
             "renderer": "artifact_studio.visuals.snapshot + Playwright + contact_sheet",
             "diagnostics": observations,
+            "captured_at": datetime.now(UTC).isoformat(),
         }
         print(f"Captured {name}", flush=True)
         page.close()
@@ -295,7 +305,8 @@ class Capture:
             slide for slide in self.app.store.read(DECK_ID).slides if slide.id == "workflow"
         ).notes
 
-        def competing_editor(route):
+        def competing_editor(route: Route) -> None:
+            """Create a real competing note save before the pending browser request lands."""
             slide = next(
                 item for item in self.app.store.read(DECK_ID).slides if item.id == "workflow"
             )
@@ -370,7 +381,11 @@ class Capture:
             )
         _ = (self.output / "docs/screenshots/captures.json").write_text(
             json.dumps(
-                {"fixture": "Original fictional Studio Blue deck", "screenshots": self.images},
+                {
+                    "fixture": "Original fictional Studio Blue deck",
+                    "captured_at": datetime.now(UTC).isoformat(),
+                    "screenshots": self.images,
+                },
                 indent=2,
             )
             + "\n"
@@ -409,10 +424,18 @@ p{font-size:20px;max-width:480px;line-height:1.6}.cards{display:flex;gap:16px;ma
         self.page.goto(self.app.url + "/", wait_until="networkidle")
         expect(self.page.get_by_role("heading", name="All artifacts", exact=True)).to_be_visible()
         self.save("docs/assets/artifact-hub.png")
+        self.page.locator(f'[data-artifact="{artifact["id"]}"]').click(button="right")
+        expect(self.page.get_by_role("menu", name="Artifact actions")).to_be_visible()
+        self.save("docs/assets/context-menu.png")
+        self.page.keyboard.press("Escape")
         self.page.locator(f'[data-artifact="{artifact["id"]}"]').click()
         expect(self.page.frame_locator("#hub-html-preview").get_by_role("heading")).to_have_text(
             "Make room for your next idea."
         )
+        self.page.get_by_role("button", name="Select", exact=True).click()
+        self.page.frame_locator("#hub-html-preview").get_by_role("heading").click()
+        expect(self.page.locator("#hub-element-properties")).to_be_visible()
+        self.page.locator("#hub-feedback-text").fill("Give the headline a little more room.")
         self.save("docs/assets/artifact-review.png")
 
 

@@ -1,69 +1,79 @@
 {
   "fixture": "Original fictional design library",
+  "captured_at": "2026-11-03T11:10:54.394587+00:00",
+  "native_share": "Simulated native API for the agent message",
   "screenshots": {
     "docs/assets/design-library.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "b2d6cf3cadc87ef6909facf1b25e82eca53e24194fbdcdd2334a843675151632"
+      "captured_at": "2026-11-03T11:10:53.487862+00:00",
+      "sha256": "aaa716833f4b084cdc70bffd94563652f15e0b4c832b676e6d28621b24f2921c"
     },
     "docs/assets/add-design.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "9b3a237594627d8d7fa304c21d2a043227fcb8798963b606b9448cff1e59cf47"
+      "captured_at": "2026-11-03T11:10:53.627938+00:00",
+      "sha256": "7764e01e992fa42a2b68301c952faebc55b89acc4ebe8d931540d80b0baa19a8"
     },
     "docs/screenshots/add-design-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "sha256": "8e4a318248f7c24ce79febe3892ff5826bdb7c2f93812eb5c53b2685e7ff1180"
+      "captured_at": "2026-11-03T11:10:53.683819+00:00",
+      "sha256": "e767c4f4eade61f744c9131bb158b9da8080951bfeefe3902f32320bc478cb83"
     },
     "docs/assets/design-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "c3e720ede808426d71d9db0b6881a9f9d09358a378d9d1970462d6a04c34d2bd"
+      "captured_at": "2026-11-03T11:10:53.822184+00:00",
+      "sha256": "05aa16ac53c178802905911e29ae061de9745bbfee5c1747bf321383dfe6af34"
     },
     "docs/screenshots/design-context-dark.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "5318358a603e78dd1a6ae47195146966c3690ef2375caf6ccb94be12bde2d8a4"
+      "captured_at": "2026-11-03T11:10:53.925313+00:00",
+      "sha256": "ef3d650b69516e90d07cad93d920c691c4e14c4bc5c4c5dda7e6d8aaa18e5434"
     },
     "docs/screenshots/design-file-preview.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "51441942b256466f5d71584f4dc4682020826958b3cf066f7c5734dc9c146693"
+      "captured_at": "2026-11-03T11:10:54.084850+00:00",
+      "sha256": "c7c81a83d7a3640c12f1caa70f290c0a679623e2c59f61bfbbf322aabd15a771"
     },
     "docs/screenshots/design-use-agent.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "e5a595d7959e78c1064ad61406589256d57a38e4a149b03330f66d5b56002b6f"
+      "captured_at": "2026-11-03T11:10:54.181817+00:00",
+      "sha256": "d95162c20123e2b8a65b3d51f0fd8d9bec77de1d88ef1c8c6320491e93d61798"
     },
     "docs/screenshots/design-context-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "sha256": "5c447fc2429ee70ad02fc6ec00e77c909f8f8830357ea5724aa7f3dcdc6e0cd4"
+      "captured_at": "2026-11-03T11:10:54.264355+00:00",
+      "sha256": "3475f58f2966421b342e7796e0f699ce5214b98c73d613ed4951c9b4ce3b7ba4"
     },
     "docs/screenshots/design-pack-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "78ae73b6ed25104244d146f72ea8f3e1d3a13770133141797deaba6adb71beaa"
+      "captured_at": "2026-11-03T11:10:54.390707+00:00",
+      "sha256": "531cafd0e7a4b0ce8e56bd7922c6707d3602662a1464518bf71893a6d66fbcee"
     }
-  },
-  "native_share": "Simulated native API for the agent message"
+  }
 }

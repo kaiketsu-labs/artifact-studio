@@ -105,13 +105,19 @@ Use a card's folder action to **Move to project**. This groups related work whil
 
 The sidebar **+ → New folder** creates groups such as Allianz; folder menus can add nested folders. Folder icons identify groups, briefcase icons identify projects. Drag a project or folder onto a folder to move it inside, or between rows to reorder. **… → Move to…** provides the same organization without dragging. **Option/Alt + ↑/↓** reorders a focused item; **Option/Alt + ←** moves it out. Selecting a folder shows artifacts from every project inside it. Removing a folder keeps its contents. Navigation is saved in the collection's readable `project-tree.json`; project briefs, artifact paths and agent context stay unchanged.
 
+Right-click an artifact card or related-artifact row for open/view, comment, history, move, share, link and context actions. Presentations offer **Open** and **Present**. Project/folder menus organize work and create or import artifacts; blank library space offers creation actions. **Shift+F10** or the keyboard Menu key opens the focused item's menu. Text fields, links and authored controls retain their native menus outside element selection.
+
+![Artifact-card context menu with open, view, comment, history, move, share, link and agent context actions.](docs/assets/context-menu.png)
+
 For a presentation, open the hub's **… → New presentation**. Bring a PPTX, POTX, website or image as a design reference and let the agent create the design. PowerPoint files are reference inputs; PPTX export is not currently available. The existing editor exports HTML/PDF and saves editable presentation projects. [First presentation](docs/GETTING-STARTED.md#make-your-first-presentation).
 
 ## Point to the change
 
 ![Artifact review with fictional content, selected elements and a conversation beside the preview.](docs/assets/artifact-review.png)
 
-In the slide editor, click an object directly. In other viewers, choose **Select**, then point to an element, document text or image region. Hold **⌘, Ctrl or Shift** to add or remove targets. Each selected object has an outline and a removable context chip. The slide's **Objects** picker also reaches overlapping elements. One message can refer to all selected elements, with their original version and coordinates or text anchors retained. Direct text editing and positioning apply to one object at a time.
+In the slide editor, click an object directly. In other viewers, choose **Select**, then point to an element, document text or image region. Hold **⌘, Ctrl or Shift** to add or remove targets. Each selected object has an outline and a removable context chip. The slide's **Objects** picker also reaches overlapping elements. One message can refer to all selected elements, with their original version and coordinates or text anchors retained. Text editing, dragging and arrow-key positioning apply to one object at a time. Right-click a slide object for edit, format, arrange, alignment and feedback actions; HTML selection menus retain their edit/comment controls. [Keyboard controls](docs/KEYBOARD-CONTROLS.md) include Ctrl/⌘+Z, redo, Delete and F2 for text editing.
+
+For multiple slide objects, **Delete selection** and supported layer changes preview locally with Undo/Redo. Other arrangements and **Ask agent to align…** record labeled requests without previewing the final layout. **Send edit** submits one JSON group-feedback request with the original targets and content hash; it does not change source files directly. Cancel restores the local preview and cannot retract a sent request. HTML artifacts support single-object direct edits and group comments.
 
 The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds a line. Attach files through the paperclip, drag-and-drop or paste, including file-only messages. Limits are five files, 25 MB each and 50 MB together. Unsent file selections stay in browser memory; sent attachments are stored locally. Draft text and targets stay with their artifact.
 
@@ -138,6 +144,8 @@ For a deck, open the editor's **Menu → Connect an agent → Automatic feedback
 
 Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. Where browser support, permissions and hardware allow, use a second display for audience slides and keep current/next slides, notes, timer and navigation private. [Editor controls](docs/GETTING-STARTED.md#review-and-present) · [Verification limits](QA.md).
 
+Right-click slide thumbnails for new, duplicate, hide/unhide, delete and movement actions; section menus manage their groups. These structural controls are separate from the selected object's unsent edit history.
+
 **Speaker notes save automatically**, including when switching slides. Failed saves retain a browser draft; conflicting edits offer **Review changes**. Present and project export wait for pending saves.
 
 The editor keeps tools in one row. Top-bar icons toggle the slide list and conversation; in narrower windows, chat opens as a drawer instead of moving below the slide. Notes start collapsed and remember your choice. Slide navigation sits beside the position count at the bottom.
@@ -163,11 +171,11 @@ Select a slide or HTML element to open a compact floating toolbar without moving
 
 Presentation **Save/Open project** remains the portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Opted-in repository backup includes current artifact bundles, project briefs and manifests alongside presentations; creating a project does not opt it into uploads. Repository connections default to reference only. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
 
-The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way backup to a selected private repository; review chat, approvals and revision history stay local. The Mac menu’s **GitHub Backup** submenu exposes the same setting, last delivery, Sync Now and recovery controls.
+The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way backup to a selected private repository; review chat, approvals and revision history stay local. The Mac menu’s **GitHub Backup** submenu exposes the same setting, last delivery, Sync Now/Retry and backup settings.
 
 In **Storage and backup**, **Save workspace** downloads a full local archive with projects, folders, sources, review chats, approvals and retained versions. **Restore workspace** previews a connected backup or local archive and restores files into a new sibling folder. The running workspace stays unchanged. GitHub recovery rebuilds current content and folder structure; private review history requires a local archive. [Recovery guide](docs/WORKSPACE-RECOVERY.md).
 
-The **history icon** above a slide or artifact opens a visual timeline. **Content changes** hides consecutive identical slide/bundle states by default; **All saves** includes title/source-only revisions and repeated restores. Rapid saves are grouped and expand to individual versions. Choose a version to preview it, then **Restore version** to create a new save; current speaker notes and slide placement stay intact. Lists are paginated, only one preview loads, and unchanged bundle files reuse immutable storage. Historical slides use current shared theme/assets, so their appearance may differ from the original.
+The **history icon** above a slide or artifact opens a visual timeline. **Content changes** filters consecutive identical content by default; **All saves** includes internal-title/source-only saves and repeated restores. Filtering deletes no saved versions. Rapid saves are grouped and expand to individual versions. **Restore version** creates a new save while preserving current speaker notes and slide placement. Artifact revisions retain their local dependencies; historical slides reuse current shared theme/assets, so their appearance may differ from the original. Current-only GitHub backups cannot recover missing earlier revisions.
 
 Workspace rules remain primary; learned preferences are secondary. Project and artifact context refine the work within that scope. The app ships without corporate designs or assets. [Preference learning](docs/PREFERENCE-LEARNING.md).
 
@@ -177,6 +185,7 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | --- | --- |
 | [Getting started](docs/GETTING-STARTED.md) | Installation, projects, imports, review, presentations and troubleshooting. |
 | [What agents receive](agent/README.md) | Canonical bootstrap, tool catalogue, guides, skills and context receipts. |
+| [Agent instruction audit](docs/AGENT-INSTRUCTIONS-AUDIT.md) | Checked guidance, runtime boundaries and verification scope. |
 | [Artifact architecture and remaining scope](docs/ARCHITECTURE.md) | Implemented foundation and subsequent work. |
 | [Artifact authoring](agent/guides/artifacts.md) | Free file composition, versioned edits and scoped feedback. |
 | [Mac menu-bar app](docs/MACOS.md) | Server controls, startup and updates. |

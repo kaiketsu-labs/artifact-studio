@@ -39,6 +39,24 @@
   function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,properties=null,anchor,onSend,onChange,onError,deliveryStatus=()=> 'released',blocked=()=>false}){
     let element=null,original=null,textEditing=false,dragEnabled=true,drag=null,doc=null,busy=false,suppressClick=false,sent=false,keyboardMove=null,submission=null,positionPreview=null,rotationPreview=0,pendingDelete=false,rotationDrag=null,propertyValues={},propertyBaseline={};
     const requests=new Map();
+    const history=root.ElementCommands?.history()||{record(){},clear(){},undo(){},redo(){},canUndo:()=>false,canRedo:()=>false};
+    const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
+    function snapshot(){
+      if(!element)return null;
+      const move=keyboardMove?Object.fromEntries(['rect','canvas','transform','basis','dx','dy','rotation','position'].map(key=>[key,keyboardMove[key]])):null;
+      return clone({html:element.innerHTML,style:element.getAttribute('style'),editable:element.getAttribute('contenteditable'),original,propertyValues,propertyBaseline,move,positionPreview,rotationPreview,pendingDelete,sent,submission});
+    }
+    function changed(operation){const before=snapshot(),result=operation();if(before&&element)history.record(before,snapshot());return result;}
+    function stepHistory(redo=false){
+      if(!element||busy||blocked()||textEditing||drag||rotationDrag)return false;
+      if(root.slideVoice?.isActive()){onError('Stop dictation before undoing an element edit.');return false;}
+      const state=redo?history.redo():history.undo();if(!state)return false;
+      if(element.innerHTML!==state.html)element.innerHTML=state.html;
+      for(const [name,value] of [['style',state.style],['contenteditable',state.editable]]){if(value===null)element.removeAttribute(name);else element.setAttribute(name,value);}
+      original=state.original;propertyValues=state.propertyValues;keyboardMove=state.move;positionPreview=state.positionPreview;rotationPreview=state.rotationPreview;pendingDelete=state.pendingDelete;sent=state.sent;submission=state.submission;
+      inspect();propertyBaseline=state.propertyBaseline;if(positionPreview)reflow();update();return true;
+    }
+
     let textVoice=null,textGeneration=0;
     function cancelTextVoice(){textGeneration++;textVoice?.cancel();if(textVoice)textVoice.controls.hidden=true;}
     const canText=()=>!!element&&element.namespaceURI==='http://www.w3.org/1999/xhtml'&&/^(H[1-6]|P|SPAN|LI|DIV|LABEL)$/.test(element.tagName)&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol')&&!!element.textContent.trim();
@@ -77,7 +95,7 @@
       cancelTextVoice();
       properties?.cancelVoice?.();
       if(!original||!element)return;
-      element.innerHTML=original.html;
+      if(element.innerHTML!==original.html)element.innerHTML=original.html;
       for(const [name,value] of [['style',original.style],['contenteditable',original.editable]]){if(value===null)element.removeAttribute(name);else element.setAttribute(name,value);}
       original=null;
       positionPreview=null;
@@ -95,8 +113,8 @@
       propertyBaseline={text:element.textContent||'',...typography};
       properties.setSelection({key:element,label:element.tagName.toLowerCase(),text:propertyBaseline.text,canText:canPropertyText(),typography});
     }
-    function select(next){closeAlign();restore();propertyValues={};element=next;textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;dragEnabled=true;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
-    function cancel(){closeAlign();restore();propertyValues={};textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
+    function select(next){history.clear();closeAlign();restore();propertyValues={};element=next;textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;dragEnabled=true;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
+    function cancel(){history.clear();closeAlign();restore();propertyValues={};textEditing=false;drag=null;keyboardMove=null;pendingDelete=false;rotationDrag=null;sent=false;submission=null;if(rotationInput)rotationInput.value='0';inspect();update();}
     function startText(){
       if(busy||blocked()||keyboardMove||pendingDelete||propertyDraft()||!canText())return;
       restore();remember();sent=false;textEditing=true;element.setAttribute('contenteditable','plaintext-only');element.style.cursor='text';element.style.outline='none';element.focus();
@@ -138,7 +156,7 @@
       const signature=JSON.stringify([captured,message,intent]);
       if(!requests.has(signature))requests.set(signature,crypto.randomUUID());
       busy=true;update();
-      try{submission=await onSend({...captured,message,edit_intent:intent,request_id:requests.get(signature)});return true;}
+      try{submission=await onSend({...captured,message,edit_intent:intent,request_id:requests.get(signature)});history.clear();return true;}
       catch(error){onError(error.message);return false;}
       finally{busy=false;update();}
     }
@@ -206,7 +224,7 @@
     function beginMove(event,outer=false){
       if(busy||blocked()||textEditing||pendingDelete||propertyDraft()||!dragEnabled||!canMove()||event.button!==0||event.ctrlKey||event.metaKey||event.altKey||event.shiftKey)return;
       const point=pointerPoint(event,outer),capture=outer?event.currentTarget:element;
-      drag={startRect:element.getBoundingClientRect(),x:point.x,y:point.y,moved:false,pointer:event.pointerId,outer,capture};
+      drag={before:snapshot(),startRect:element.getBoundingClientRect(),x:point.x,y:point.y,moved:false,pointer:event.pointerId,outer,capture};
       capture.setPointerCapture(event.pointerId);
     }
     function down(event){
@@ -249,7 +267,7 @@
       if(finished.capture.hasPointerCapture(event.pointerId))finished.capture.releasePointerCapture(event.pointerId);
       if(!finished.moved)return;
       suppressClick=true;setTimeout(()=>{suppressClick=false;},0);
-      keyboardMove=finished;sent=false;update();commitButton.focus({preventScroll:true});
+      keyboardMove=finished;sent=false;update();history.record(finished.before,snapshot());commitButton.focus({preventScroll:true});
     }
     function bind(document){
       if(doc===document)return;select(null);doc=document;
@@ -273,8 +291,8 @@
     alignMenu.addEventListener('toggle',event=>alignButton.setAttribute('aria-expanded',String(event.newState==='open')));
     alignMenu.addEventListener('click',event=>{
       const button=event.target.closest('[data-align]');if(!button||busy||blocked()||propertyDraft()||!canMove())return;
-      closeAlign();keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
-      previewMove(keyboardMove,alignPosition(element.getBoundingClientRect(),keyboardMove.canvas,button.dataset.align));commitButton.focus();
+      changed(()=>{closeAlign();keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
+      previewMove(keyboardMove,alignPosition(element.getBoundingClientRect(),keyboardMove.canvas,button.dataset.align));commitButton.focus();});
     });
     alignMenu.addEventListener('keydown',event=>{
       if(event.key==='Escape'){event.preventDefault();closeAlign();alignButton.focus();return;}
@@ -283,7 +301,8 @@
       event.preventDefault();const buttons=[...alignMenu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);buttons[event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+offsets[event.key]+buttons.length)%buttons.length].focus();
     });
     tools.addEventListener('keydown',event=>{if(event.key==='Escape'&&!busy){event.preventDefault();cancel();}});
-    function positionKey(event){
+    function positionKey(event){if(event.defaultPrevented)return;return changed(()=>applyPositionKey(event));}
+    function applyPositionKey(event){
       if(event.ctrlKey||event.metaKey||event.altKey||busy||blocked()||textEditing||pendingDelete||propertyDraft()||!canMove())return;
       if(event.key==='Escape'&&keyboardMove){event.preventDefault();cancel();return;}
       if(event.key==='Enter'&&keyboardMove){event.preventDefault();void commitText();return;}
@@ -295,11 +314,14 @@
     }
     moveButton.addEventListener('keydown',positionKey);
     selectionBox?.addEventListener('keydown',event=>{if(event.target===selectionBox)positionKey(event);});
-    deleteButton?.addEventListener('click',()=>{
-      if(busy||blocked()||!element||textEditing||keyboardMove||propertyDraft())return;
-      restore();remember();pendingDelete=true;sent=false;update();commitButton.focus({preventScroll:true});
-    });
-    function previewRotation(value){
+    function stageDelete(){return changed(()=>{
+      if(busy||blocked()||!element||textEditing||pendingDelete)return false;
+      if(root.slideVoice?.isActive()){onError('Stop dictation before deleting an element.');return false;}
+      restore();propertyValues={};keyboardMove=null;remember();pendingDelete=true;sent=false;element.style.visibility='hidden';update();commitButton.focus({preventScroll:true});return true;
+    });}
+    deleteButton?.addEventListener('click',stageDelete);
+    function previewRotation(value){return rotationDrag?applyRotation(value):changed(()=>applyRotation(value));}
+    function applyRotation(value){
       if(busy||blocked()||textEditing||pendingDelete||propertyDraft()||!canMove()||!Number.isFinite(value))return;
       keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
       keyboardMove.rotation=rotationDegrees(value);rotationPreview=keyboardMove.rotation;sent=false;renderTransform(keyboardMove);update();
@@ -310,13 +332,13 @@
       for(const edge of controls.edges){edge.addEventListener('pointerdown',event=>{event.preventDefault();beginMove(event,true);});edge.addEventListener('pointermove',motion);edge.addEventListener('pointerup',up);edge.addEventListener('pointercancel',cancel);}
       controls.rotation.addEventListener('pointerdown',event=>{
         if(event.button!==0||busy||blocked()||textEditing||pendingDelete||propertyDraft()||!canMove())return;
-        event.preventDefault();keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
+        const before=snapshot();event.preventDefault();keyboardMove=keyboardMove||startPosition();if(!keyboardMove)return;
         const view=doc.defaultView,matrix=new view.DOMMatrixReadOnly(view.getComputedStyle(element).transform),rect=element.getBoundingClientRect(),transform=element.style.transform;
         let opposite;
         try{element.style.transform=`${transform} rotate(180deg)`;opposite=element.getBoundingClientRect();}
         finally{element.style.transform=transform;}
         const geometry=rotationGeometry(rect,opposite,keyboardMove.basis,matrix);
-        rotationDrag={pointer:event.pointerId,start:pointerPoint(event,true),...geometry,rotation:keyboardMove.rotation};
+        rotationDrag={before,pointer:event.pointerId,start:pointerPoint(event,true),...geometry,rotation:keyboardMove.rotation};
         controls.rotation.setPointerCapture(event.pointerId);
       });
       controls.rotation.addEventListener('pointermove',event=>{
@@ -327,7 +349,7 @@
       });
       controls.rotation.addEventListener('pointerup',event=>{
         if(!rotationDrag||event.pointerId!==rotationDrag.pointer)return;
-        rotationDrag=null;controls.rotation.releasePointerCapture(event.pointerId);update();commitButton.focus({preventScroll:true});
+        const before=rotationDrag.before;rotationDrag=null;history.record(before,snapshot());controls.rotation.releasePointerCapture(event.pointerId);update();commitButton.focus({preventScroll:true});
       });
       controls.rotation.addEventListener('pointercancel',cancel);
       controls.rotation.addEventListener('keydown',event=>{
@@ -339,19 +361,21 @@
       });
     }
     /** Apply only the current property patch to the provisional DOM. */
-    function previewProperties(values){
+    function previewProperties(values){return changed(()=>applyProperties(values));}
+    function applyProperties(values){
       if(!element||busy||blocked()||textEditing||keyboardMove||pendingDelete)return;
       remember();Object.assign(propertyValues,values);
       for(const key of Object.keys(propertyValues))if(propertyValues[key]===propertyBaseline[key])delete propertyValues[key];
       if(('font_size' in propertyValues||'font_size_unit' in propertyValues)){propertyValues.font_size=values.font_size??propertyValues.font_size??propertyBaseline.font_size;propertyValues.font_size_unit=values.font_size_unit??propertyValues.font_size_unit??propertyBaseline.font_size_unit;}
-      element.innerHTML=original.html;
+      if(element.innerHTML!==original.html)element.innerHTML=original.html;
       if(original.style===null)element.removeAttribute('style');else element.setAttribute('style',original.style);
       if('text' in propertyValues)element.textContent=propertyValues.text;
       for(const [key,css] of Object.entries({font_weight:'fontWeight',font_style:'fontStyle',text_align:'textAlign',color:'color'}))if(key in propertyValues)element.style[css]=propertyValues[key];
       if('font_size' in propertyValues||'font_size_unit' in propertyValues){const computed=doc.defaultView.getComputedStyle(element),raw=element.style.fontSize||computed.fontSize,match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw);element.style.fontSize=`${propertyValues.font_size??Number(match?.[1]||16)}${propertyValues.font_size_unit??match?.[2]??'px'}`;}
       sent=false;update();
     }
-    return {bind,select,cancel,finish,reflow,previewProperties,commit:commitText,sync:update,isEditing:()=>textEditing||propertyDraft()||!!drag||!!rotationDrag||!!keyboardMove||pendingDelete,isBusy:()=>busy,consumeClick:()=>suppressClick};
+    function nudge(key,step=1){return positionKey({key,shiftKey:step===10,preventDefault(){},ctrlKey:false,metaKey:false,altKey:false});}
+    return {undo:()=>stepHistory(),redo:()=>stepHistory(true),canUndo:history.canUndo,canRedo:history.canRedo,delete:stageDelete,nudge,edit:startText,canEdit:canPropertyText,hasSelection:()=>!!element,bind,select,cancel,finish,reflow,previewProperties,commit:commitText,sync:update,isEditing:()=>textEditing||propertyDraft()||!!drag||!!rotationDrag||!!keyboardMove||pendingDelete,isBusy:()=>busy,consumeClick:()=>suppressClick};
   }
   /** Add a moveable selection border and an accessible rotation handle. */
   function createSelectionControls(box){

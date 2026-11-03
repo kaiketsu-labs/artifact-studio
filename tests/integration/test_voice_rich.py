@@ -88,12 +88,14 @@ def test_rules_typing_during_dictation_does_not_reuse_a_stale_replacement_range(
     open_rules(page, live_app)
     editor = page.locator("#authoring-instructions .ql-editor")
     editor.click()
-    page.keyboard.press("ControlOrMeta+Home")
-    page.keyboard.press("ControlOrMeta+Shift+ArrowRight")
+    is_mac = bool(page.evaluate("/Mac|iPhone|iPad/.test(navigator.platform)"))
+    home = "Meta+ArrowUp" if is_mac else "Control+Home"
+    page.keyboard.press(home)
+    page.keyboard.press("Alt+Shift+ArrowRight" if is_mac else "Control+Shift+ArrowRight")
     page.get_by_role("button", name="Dictate into Workspace rules", exact=True).click()
     voice_result(page, "Unfinished replacement", final=False)
     editor.click()
-    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.press(home)
     page.keyboard.type("NEW ")
     expect(editor).to_have_text("NEW Keep source facts exact.")
     voice_result(page, "Stale replacement")
@@ -202,7 +204,7 @@ def test_property_text_dictation_is_a_reviewable_element_edit(
     assert live_app.store.comments(DECK_ID) == []
     mic.click()
     voice_end(page)
-    page.get_by_label("Send edit").click()
+    page.locator("#element-properties").get_by_role("button", name="Send edit", exact=True).click()
     expect(page.locator("#feedback-list")).to_contain_text("Update element properties.")
     comments = live_app.store.comments(DECK_ID)
     assert len(comments) == 1 and comments[0].edit_intent is not None

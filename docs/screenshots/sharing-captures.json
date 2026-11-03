@@ -1,5 +1,6 @@
 {
   "fixture": "Original fictional Studio Blue presentation",
+  "captured_at": "2026-11-03T11:09:21.473492+00:00",
   "native_share": "Simulated API availability; only web UI is captured",
   "screenshots": {
     "docs/assets/sharing.png": {
@@ -7,21 +8,24 @@
         "width": 1440,
         "height": 1000
       },
-      "sha256": "c26e64736d7119fd19387b869d1a0f158128da67976c8c11e06ecb9b1a493c8f"
+      "captured_at": "2026-11-03T11:09:21.224386+00:00",
+      "sha256": "caae26c82cd704ab780b2c655dcc2e500ce2cf24a2d0539e8b71fc203dc3c06b"
     },
     "docs/screenshots/sharing-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "sha256": "f2fda9e51dbe5e0c58afbf2c7c85a70041c3b6158e8c5e8a83675634e6f11970"
+      "captured_at": "2026-11-03T11:09:21.281740+00:00",
+      "sha256": "8756ce295663b8222a9c18c5ed2c7c7160d10bd8909872f0f8102c3d69b988c9"
     },
     "docs/screenshots/sharing-fallback.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "sha256": "940a48e2aa0a80242f598eeb7d6153139c6a665e53dc3d42d348f5fab435c98f"
+      "captured_at": "2026-11-03T11:09:21.473402+00:00",
+      "sha256": "9935f984cadd53551915cea203e0754efd5e4163d9626c39ee047f4aa551c8af"
     }
   }
 }
