@@ -103,6 +103,8 @@ Choose **New project** and save its name and optional shared brief. **Import** a
 
 Use a card's folder action to **Move to project**. This groups related work while preserving stable source paths. Changes to one artifact do not implicitly authorize changes to its neighbours.
 
+The sidebar **+ → New folder** creates groups such as Allianz; folder menus can add nested folders. Folder icons identify groups, briefcase icons identify projects. Drag a project or folder onto a folder to move it inside, or between rows to reorder. **… → Move to…** provides the same organization without dragging. **Option/Alt + ↑/↓** reorders a focused item; **Option/Alt + ←** moves it out. Selecting a folder shows artifacts from every project inside it. Removing a folder keeps its contents. Navigation is saved in the collection's readable `project-tree.json`; project briefs, artifact paths and agent context stay unchanged.
+
 For a presentation, open the hub's **… → New presentation**. Bring a PPTX, POTX, website or image as a design reference and let the agent create the design. PowerPoint files are reference inputs; PPTX export is not currently available. The existing editor exports HTML/PDF and saves editable presentation projects. [First presentation](docs/GETTING-STARTED.md#make-your-first-presentation).
 
 ## Point to the change

@@ -24,6 +24,7 @@ from .design_references import ReferenceInput, RemoveReferenceInput
 from .design_thumbnails import THUMBNAIL_SUFFIXES
 from .design_thumbnails import design_thumbnail as make_design_thumbnail
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
+from .project_tree import ProjectTree, TreeChange, TreeView
 from .storage import Store
 from .visuals import capture
 
@@ -115,8 +116,10 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         service = artifacts()
         store = get_store()
         default_design = store.default_design_id()
+        projects = service.list_projects()
         return {
-            "projects": [item.model_dump(exclude={"context"}) for item in service.list_projects()],
+            "projects": [item.model_dump(exclude={"context"}) for item in projects],
+            "project_tree": ProjectTree(store).view([item.id for item in projects]).model_dump(),
             "artifacts": [
                 item.model_dump(exclude={"files", "context", "original_source_path"})
                 for item in service.list_artifacts()
@@ -131,6 +134,11 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def new_project(body: ProjectInput) -> ProjectView:
         """Create a project with an optional brief and no forced design pack."""
         return artifacts().create_project(body.title, body.context)
+
+    @router.post("/api/hub/project-tree")
+    def change_project_tree(body: TreeChange) -> TreeView:
+        """Organize projects and nested folders without changing artifact membership."""
+        return ProjectTree(get_store()).change(body)
 
     @router.get("/api/design-library/deleted")
     def deleted_designs() -> list[dict[str, object]]:
