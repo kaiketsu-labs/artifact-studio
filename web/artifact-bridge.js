@@ -198,7 +198,7 @@
     const selector = selectorFor(element);
     if (!selector) return;
     if (draft && draft.selector !== selector) { send({type: 'artifact:edit-error', message: 'Send or cancel the edit first.'}); return; }
-    window.focus();
+    window.focus?.();
     const text = (element instanceof HTMLElement ? element.innerText : element.textContent) || '';
     const quote = text.replace(/\s+/g, ' ').trim().slice(0, 1000);
     const label = element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('title') || quote || element.localName;
