@@ -53,7 +53,7 @@ Choose **one** way to run it:
 | Mac menu-bar app | Terminal |
 | --- | --- |
 | On macOS 13+ with Apple's Command Line Tools, run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Artifact Studio.app`. | Run `uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
-| Status, Open, Start/Stop/Restart and launch at login. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
+| Status, Open, Start/Stop/Restart, Update, and Settings for launch at login and backup. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
 
 Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before switching to the Mac controller. Chromium enables cached rendered previews and agent capture tools; the library can show format fallbacks when no preview is available.
 
