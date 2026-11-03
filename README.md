@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="#how-it-works">How it works</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
   <a href="#live-or-batch">Live &amp; Batch</a> ·
@@ -34,6 +35,12 @@ The **Library** is the home screen. Browse all your work, filter by project or f
 | Other files | Original files and downloads, with artifact-level discussion. A native editor is not supplied for every format. |
 
 Agents choose their tools, code and layouts. Import a file or folder, or have the agent register an authored bundle. A type selects the viewer; it does not prescribe components or require a design pack. General HTML bundles can contain their own CSS, JavaScript, SVG, fonts and data. External services are not enabled automatically, and opening a preview never runs installation or build scripts.
+
+## How it works
+
+![Artifact Studio workflow: brief and sources → your agent creates or revises → preview and review → approve a version → present, export or share. Targeted feedback loops back to your agent, with Live or Batch release.](docs/assets/workflow-overview.png)
+
+Feedback stays linked to its artifact, selected objects and version. **Live** releases submitted comments immediately; **Batch** keeps them private until you choose **Send batch**. Approval records the exact version you reviewed.
 
 ## Quick start
 
