@@ -17,6 +17,8 @@ MCP is stateless at the transport level. Agents can still retain context between
 | Create or reorder | `create_presentation` / `reorder_slides` return deck identity and ordered `slide_ids`, without slide source. |
 | Start automatic review | Read the live_review topic once, then `start_live_review`; its default response contains status and a guide pointer. |
 | Continue reviewing | `read_feedback`/`wait_for_feedback` with `after_delivery_id=next_cursor`. |
+| Read general artifact feedback | `read_artifact_feedback` with its own `after_delivery_id=next_cursor`; generic artifacts have no automatic host hook. |
+| Edit an owned artifact | `get_artifact`, then `read_artifact_files` for relevant paths and `revise_artifact` for changed files with an expected revision/hash and unique request ID. |
 | Add continuation context | `append_presentation_context` with a short Markdown addition and current `context_hash`. |
 
 Read the full brief and relevant `brief_files` attachments before authoring. Attachment metadata remains available in the outline. Compact responses do not replace source inspection, factual checks or visual review. `get_presentation` still returns the complete presentation; `get_working_context(detail="full")` returns the expanded guides and inventory.
@@ -64,6 +66,8 @@ Use the [file-input client](FILE-CLIENT.md) when patches are already on disk. It
 Tokenization depends on the model. Use a named tokenizer as an estimate and compare like-for-like payloads; do not equate estimates with billed usage. Host prompt formatting, tool schemas, cache hits, image tokens and reasoning affect actual cost. MCP may expose both text and structured content; whether a host passes both copies to the model depends on that host.
 
 Compact JSON often helps structured coordinates, but it is not always smaller than prose: “Delete this element” can be shorter than an action object. Prefer clear structured edit intent for precision; remove repeated HTML, history, guides and binary text first. Small HTML edits may still require submitting the changed slide's full HTML field. There is no arbitrary HTML fragment patch protocol in this version.
+
+History and recovery are on-demand UI/HTTP workflows, not extra startup context. History pages contain metadata; opening one version loads its preview. **Content changes** and **All saves** change the displayed timeline, never retention. Local workspace archives stream to disk and include private state; do not load them as base64 or feedback context. GitHub backup contains current sources only. [Recovery and history](WORKSPACE-RECOVERY.md).
 
 The test suite checks compact/full responses, transport serialization, exact rule-version handling, withheld feedback, safe context appends and embedded-asset retries. Performance audits should record aggregate counts without committing presentation content or private review data.
 

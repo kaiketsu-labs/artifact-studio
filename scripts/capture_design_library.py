@@ -10,6 +10,7 @@ import io
 import json
 import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -129,7 +130,7 @@ def main() -> None:
             )
             page = context.new_page()
             install_native_share(page)
-            page.clock.set_fixed_time("2026-11-02T09:30:00Z")
+            page.clock.set_fixed_time("2026-11-03T09:30:00Z")
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.on(
@@ -153,6 +154,7 @@ def main() -> None:
                 )
                 captures[name] = {
                     "viewport": page.viewport_size,
+                    "captured_at": datetime.now(UTC).isoformat(),
                     "sha256": hashlib.sha256(data).hexdigest(),
                 }
 
@@ -173,6 +175,9 @@ def main() -> None:
                 )
                 capture("docs/assets/add-design.png")
                 page.set_viewport_size({"width": 390, "height": 844})
+                add_dialog.get_by_role(
+                    "button", name="Add design", exact=True
+                ).scroll_into_view_if_needed()
                 capture("docs/screenshots/add-design-mobile.png")
                 add_dialog.get_by_role("button", name="Close dialog").click()
                 page.set_viewport_size({"width": 1440, "height": 1000})
@@ -209,6 +214,7 @@ def main() -> None:
                     json.dumps(
                         {
                             "fixture": "Original fictional design library",
+                            "captured_at": datetime.now(UTC).isoformat(),
                             "native_share": "Simulated native API for the agent message",
                             "screenshots": captures,
                         },

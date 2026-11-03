@@ -14,6 +14,7 @@ This directory maps the implemented agent interface to its canonical files. It i
 | Parameter and result models | [artifact_studio/artifact_models.py](../artifact_studio/artifact_models.py) and [artifact_studio/models.py](../artifact_studio/models.py) |
 | Generated tool catalogue | [tools.json](tools.json), generated from registered runtime tools; never hand-maintained |
 | Guidance receipts | [artifact_studio/artifact_context.py](../artifact_studio/artifact_context.py) and [artifact_studio/agent_io.py](../artifact_studio/agent_io.py) |
+| Project navigation, retained versions and workspace recovery | [artifact_studio/project_tree.py](../artifact_studio/project_tree.py), [artifact_studio/version_history.py](../artifact_studio/version_history.py) and [artifact_studio/workspace_recovery.py](../artifact_studio/workspace_recovery.py); their browser controls are HTTP interfaces, not additional MCP tools |
 | Host-invoked workflows | [.agents/skills/](../.agents/skills/) |
 
 The running server's MCP initialization and `tools/list` responses are authoritative for the connected process. A checkout can be newer than that process. The host controls which discovered tools are exposed; connecting MCP does not automatically load skill bodies.
@@ -47,6 +48,8 @@ The browser's **Agent context** inspector shows available sources and the latest
 
 Create a project with `create_project`. Author local files using suitable tools, then call `register_artifact` with the source path and entrypoint. Registration keeps the originals intact and creates an owned bundle; no design pack or fixed component library is required. The browser's Import action provides the corresponding file/folder route.
 
+The Library's folders organize project navigation and sibling order. Moving a project or artifact does not relocate its canonical source. Folder selection includes descendant projects; it does not broaden an agent's editing scope. These navigation controls are separate from file-bundle directories.
+
 Designs are reusable file contexts, separate from work. Discover packs and reference collections with `list_design_contexts`, then inspect `get_design_context(design_id=...)`. Include a selected design in project or artifact guidance using `get_working_context(project_id=..., design_id=...)` or `artifact_id=...`. References may be any files and do not need example slides. Open the sources explicitly; inventories are pointers. Only registered slide packs can serve as presentation templates.
 
 Use `revise_artifact` for a changed-file set, passing the current revision or content hash as `expected_revision` and a unique `request_id`. Unrelated files remain intact. Exact retries return the original operation result; stale writes report conflicts. The response is a compact revision/destination receipt, not a repeated source tree or base64 inventory.
@@ -56,6 +59,10 @@ Call `capture_artifact` for an actual image of the exact revision and viewport. 
 Read `read_artifact_feedback` using the returned `next_cursor` as `after_delivery_id`. A multiselection is a flat group of individual element, text or image-region anchors. Those anchors belong to the recorded version. Reply with `reply_to_artifact_feedback`; only humans can approve through the review UI.
 
 Live releases generic feedback immediately and Batch releases it explicitly. Automatic host hooks still apply only to presentation review. Durable generic feedback does not itself wake an idle or closed agent chat.
+
+Direct element changes, including right-click commands and keyboard movement/deletion, remain provisional until **Send edit**. Undo/redo covers the current unsent edit only. A sent request retains the original target and revision; apply it through the normal read/merge/revise/review loop. [Controls and boundaries](../docs/KEYBOARD-CONTROLS.md).
+
+The UI's version history offers **Content changes** and **All saves**; filtering does not delete retained saves. Restore creates a new revision and preserves current human notes and presentation structure. Artifact bundles retain their revision's local dependencies; historical slide previews reuse current shared theme/assets. [History and fidelity](../docs/WORKSPACE-RECOVERY.md#version-timeline).
 
 ## Guides, not skills
 
@@ -108,4 +115,6 @@ The review database publishes the current revision atomically; the adjacent mani
 
 When the workspace instruction file is absent, storage checks the legacy saved setting and then [AUTHORING-INSTRUCTIONS.md](../docs/AUTHORING-INSTRUCTIONS.md). Explicit rules remain primary; learned preferences stay secondary. No corporate design is shipped.
 
-Back up both the collection and configured database/state folder. Existing presentation archives and sync remain available. Complete multi-artifact archives, expanded sync and generic automatic host hooks are outside the implemented scope. [Architecture and remaining work](../docs/ARCHITECTURE.md).
+Back up both the collection and configured database/state folder. **Save workspace** creates a local full archive with retained revisions and private review state. **Restore workspace** previews a local archive or connected current-source backup into a new folder; it does not switch the running server. Explicitly enabled GitHub backup includes current artifacts/projects and navigation metadata, excluding private review state and retained revision directories. It is one-way backup, not publishing. Presentation **Save/Open project** remains a separate format. Generic automatic host hooks are still unavailable. [Recovery and limits](../docs/WORKSPACE-RECOVERY.md), [backup scope](../docs/REPOSITORY-SYNC.md).
+
+[Instruction audit](../docs/AGENT-INSTRUCTIONS-AUDIT.md) records the checked surfaces and remaining gaps. Product UI changes require rendered UX review as well as behavior checks; presentation work keeps its stricter full-size, animation and independent-review requirements.

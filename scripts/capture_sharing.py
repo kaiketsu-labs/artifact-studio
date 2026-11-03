@@ -9,6 +9,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -48,6 +49,7 @@ def main() -> None:
                 data = page.screenshot(path=target, animations="disabled")
                 captures[name] = {
                     "viewport": page.viewport_size,
+                    "captured_at": datetime.now(UTC).isoformat(),
                     "sha256": hashlib.sha256(data).hexdigest(),
                 }
 
@@ -77,6 +79,7 @@ def main() -> None:
                     json.dumps(
                         {
                             "fixture": "Original fictional Studio Blue presentation",
+                            "captured_at": datetime.now(UTC).isoformat(),
                             "native_share": "Simulated API availability; only web UI is captured",
                             "screenshots": captures,
                         },

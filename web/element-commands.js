@@ -40,11 +40,12 @@
     const rows=()=>[...panel.querySelectorAll('button:not(:disabled)')];
     function close(focus=false){if(open())panel.hidePopover();if(focus&&returnFocus?.isConnected)returnFocus.focus({preventScroll:true});}
     function show({x,y,commands,focus=doc.activeElement}){
+      for(const other of doc.querySelectorAll('.element-context-menu:popover-open'))if(other!==panel)other.hidePopover();
       close();returnFocus=focus;panel.replaceChildren();
       for(const item of commands){
         if(item.separator){const divider=doc.createElement('hr');divider.setAttribute('role','separator');panel.append(divider);continue;}
         const button=doc.createElement('button');button.type='button';button.setAttribute('role','menuitem');button.setAttribute('aria-label',item.label);button.disabled=item.disabled===true;
-        const label=doc.createElement('span');label.textContent=item.label;button.append(label);
+        if(item.icon){const glyph=doc.createElement('span');glyph.className='context-action-icon';glyph.setAttribute('aria-hidden','true');glyph.innerHTML=item.icon;button.append(glyph);}const label=doc.createElement('span');label.className='context-action-label';label.textContent=item.label;button.append(label);
         if(item.keys){const keys=doc.createElement('kbd');keys.textContent=item.keys;button.append(keys);}
         if(item.danger)button.classList.add('is-danger');
         button.addEventListener('click',async()=>{if(button.disabled)return;close();try{await item.run();}catch(error){onError(error.message);}if(returnFocus?.isConnected&&[doc.body,button].includes(doc.activeElement))returnFocus.focus({preventScroll:true});});

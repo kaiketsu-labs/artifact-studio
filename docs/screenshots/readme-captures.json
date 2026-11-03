@@ -1,0 +1,122 @@
+{
+  "generated_at": "2026-11-03T12:26:03.080205+00:00",
+  "fixture": "Original fictional Studio Blue presentation and Team launch project",
+  "verification": "README PNG references resolve to captured files whose hashes match their inventories.",
+  "readme_screenshot_count": 7,
+  "existing_screenshots_refreshed": 6,
+  "documentation_screenshots_verified": 41,
+  "screenshots": {
+    "docs/assets/artifact-hub.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:51.130256+00:00",
+      "manifest": "docs/screenshots/captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "364efcfe197dcf07958cd1b3e4737a4c233397ce59295917e49b7f07213a40e3",
+      "previous_sha256": "d503e40eec6691985ebfeb7ae8109cbe2b5b5047850712d8c128b927b4fffa24",
+      "changed": true
+    },
+    "docs/assets/add-design.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:53.627938+00:00",
+      "manifest": "docs/screenshots/design-captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "7764e01e992fa42a2b68301c952faebc55b89acc4ebe8d931540d80b0baa19a8",
+      "previous_sha256": "9b3a237594627d8d7fa304c21d2a043227fcb8798963b606b9448cff1e59cf47",
+      "changed": true
+    },
+    "docs/assets/design-library.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:53.487862+00:00",
+      "manifest": "docs/screenshots/design-captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "aaa716833f4b084cdc70bffd94563652f15e0b4c832b676e6d28621b24f2921c",
+      "previous_sha256": "b2d6cf3cadc87ef6909facf1b25e82eca53e24194fbdcdd2334a843675151632",
+      "changed": true
+    },
+    "docs/assets/design-context.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:53.822184+00:00",
+      "manifest": "docs/screenshots/design-captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "05aa16ac53c178802905911e29ae061de9745bbfee5c1747bf321383dfe6af34",
+      "previous_sha256": "c3e720ede808426d71d9db0b6881a9f9d09358a378d9d1970462d6a04c34d2bd",
+      "changed": true
+    },
+    "docs/assets/artifact-review.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:51.461749+00:00",
+      "manifest": "docs/screenshots/captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "312669a7d67e13357e355d304a2f4ab3f74d6f5c2b2c4dd9e84399c32d82c7d2",
+      "previous_sha256": "f77cedb66d14dc3654a9f43d08eb0a8d3efebbacf31490790d4d1dfb7b1818d1",
+      "changed": true
+    },
+    "docs/assets/presenter.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:40.704063+00:00",
+      "manifest": "docs/screenshots/captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "337b7e6dd7602c09c7fbf7b71040589e3adb93ef33bc3e8585f38bd02bc36682",
+      "previous_sha256": "77341b10387303caae1cbf5d9ae19f70fbf9c624369f8301f673d2affb026c7f",
+      "changed": true
+    },
+    "docs/assets/context-menu.png": {
+      "readme_reference": true,
+      "captured_at": "2026-11-03T11:10:51.226701+00:00",
+      "manifest": "docs/screenshots/captures.json",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1cce62230726062a46690e06ca520e4cfdf738c10802591f485da4522bc00bac",
+      "previous_sha256": null,
+      "changed": true
+    }
+  }
+}

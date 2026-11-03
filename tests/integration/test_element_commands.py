@@ -55,7 +55,7 @@ def test_slide_menu_and_native_text_undo(page: Page, live_app: RunningApp, artif
     open_editor(page, live_app)
     heading = page.frame_locator("#preview").get_by_role("heading", level=1)
     heading.click(button="right")
-    menu = page.get_by_role("menu", name="Element actions")
+    menu = page.get_by_role("menu", name="Object actions")
     expect(menu).to_be_visible()
     _ = page.screenshot(path=str(artifacts / "slide-context-menu.png"))
     page.get_by_role("menuitem", name="Edit text", exact=True).click()
@@ -68,7 +68,7 @@ def test_slide_menu_and_native_text_undo(page: Page, live_app: RunningApp, artif
     text.fill("Review together")
     text.fill("A new heading")
     heading.click(button="right")
-    page.get_by_role("menuitem", name="Undo element edit", exact=True).click()
+    page.get_by_role("menuitem", name="Undo", exact=True).click()
     expect(heading).to_have_text("Review together")
     page.keyboard.press("ControlOrMeta+y")
     expect(heading).to_have_text("A new heading")
@@ -201,6 +201,7 @@ def test_enter_on_toolbar_buttons_stays_native(
         panel = page.locator("#hub-element-properties")
         original = "Original heading"
     heading.click()
+    expect(panel).to_be_visible()
     page.keyboard.press("F2")
     text = panel.get_by_role("textbox", name="Text", exact=True)
     expect(text).to_be_visible()
@@ -344,6 +345,7 @@ def test_artifact_movement_request_has_exact_canvas_context(
     original = source.read_text()
     heading = page.frame_locator("#hub-html-preview").locator("#title")
     heading.click()
+    expect(page.locator("#hub-element-properties")).to_be_visible()
     page.keyboard.press("Shift+ArrowDown")
     expect(heading).to_have_css("transform", "matrix(1, 0, 0, 1, 0, 10)")
     position = heading.evaluate(
