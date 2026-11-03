@@ -49,6 +49,7 @@
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
   const base=()=>`/api/decks/${encodeURIComponent(deck.id)}/slides/${encodeURIComponent(selectedId)}`;
   let elementEditor;
+  const elementMenu=window.ElementCommands.menu({doc:document,onError:message=>toast(message,true)});
   const properties=window.ElementProperties.create({container:$('element-properties'),extraControls:$('element-tools'),getAnchor:()=>selectedElement?window.ElementProperties.frameAnchor(selectedElement.getBoundingClientRect(),$('preview')):null,onPreview:values=>elementEditor.previewProperties(values),onSend:()=>elementEditor.commit(),onCancel:()=>elementEditor.cancel()});
   const workspacePanels=window.WorkspacePanels.create({doc:document,view:window,storage:window.localStorage,kind:'slides'});
   workspacePanels.refresh();
@@ -277,12 +278,60 @@
     if(!bindEvents)return;
     for(const type of ['pointerdown','pointermove','click','dblclick','wheel'])doc.addEventListener(type,event=>{if(document.body.classList.contains('workspace-clean-view'))event.stopImmediatePropagation();},true);
     doc.addEventListener('keydown',event=>{if(document.body.classList.contains('workspace-clean-view') && event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();workspacePanels.exitView();}},true);
-    workspaceMenu?.bindDocument(doc);
+    if(bindEvents){
+      doc.addEventListener('keydown',elementKey,true);workspaceMenu?.bindDocument(doc);
+      doc.addEventListener('pointerdown',()=>elementMenu.close(),true);
+      doc.addEventListener('contextmenu',async event=>{
+        if(window.ElementCommands.typing(event.target)||feedbackSending||elementEditor.isBusy())return;
+        const target=event.target.closest('svg')?.classList.contains('icon')?event.target.closest('svg'):event.target;
+        if(target.matches('html,body,.slide'))return;
+        event.preventDefault();
+        if(!selectedElements.some(element=>element===target||element.contains(target))&&!await selectElement(target,false))return;
+        const point=window.ElementCommands.framePoint($('preview'),event.clientX,event.clientY,{width:doc.documentElement.clientWidth,height:doc.documentElement.clientHeight});if(point)showElementMenu(point);
+      });
+    }
     doc.addEventListener('keydown',async event=>{if(!['Enter',' '].includes(event.key)||event.defaultPrevented||event.altKey||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;const element=event.target.closest('[data-review-focus]');if(!element)return;event.preventDefault();await selectElement(element,false,isAdditive(event));if(selectedElement){if($('edit-element-text').disabled)$('element-properties').querySelector('[data-panel=objects]')?.focus();else properties.focusText();}});
   }
+  function elementCommand(command){
+    if(!selectedElement||feedbackSending||elementEditor.isBusy())return false;
+    if(typeof command==='object'){elementEditor.nudge(command.key,command.step);return true;}
+    if(command==='undo'||command==='redo'){elementEditor[command]();return true;}
+    if(command==='delete'){elementEditor.delete();return true;}
+    if(command==='edit'){properties.focusText();return true;}
+    if(command==='send'){void elementEditor.commit();return true;}
+    if(command==='cancel'){if(elementEditor.isEditing())elementEditor.cancel();else void selectElement(null,false);return true;}
+    return false;
+  }
+  function showElementMenu(point){
+    if(!deck||!selectedElements.length||feedbackSending||elementEditor.isBusy())return;
+    const context=[deck.id,selectedId,slide().content_hash,currentTarget],single=!!selectedElement,primary=/Mac|iPhone|iPad/.test(navigator.platform)?'⌘':'Ctrl+';
+    const run=command=>()=>{if(!deck||JSON.stringify(context)!==JSON.stringify([deck.id,selectedId,slide().content_hash,currentTarget]))return;elementCommand(command);};
+    elementMenu.show({...point,focus:selectedElement||$('preview'),commands:[
+      {label:'Undo element edit',keys:primary+'Z',disabled:!single||!elementEditor.canUndo(),run:run('undo')},
+      {label:'Redo element edit',keys:primary+'Shift+Z',disabled:!single||!elementEditor.canRedo(),run:run('redo')},
+      {separator:true},{label:'Edit text',keys:'F2 / Enter',disabled:!single||!elementEditor.canEdit(),run:run('edit')},
+      {label:'Delete element',keys:'Delete',disabled:!single,danger:true,run:run('delete')},
+      {separator:true},{label:'Send edit',keys:primary+'Enter',disabled:!single||!elementEditor.isEditing(),run:run('send')},
+      {label:'Cancel edit',keys:'Esc',disabled:!single||!elementEditor.isEditing(),run:run('cancel')},
+      {separator:true},{label:'Comment on selection',run:()=>$('feedback-text').focus()},
+      {label:'Clear selection',disabled:elementEditor.isEditing(),run:()=>void selectElement(null,false)}
+    ]});
+  }
+  function elementKey(event){
+    if(!selectedElement||document.querySelector('dialog[open]')||elementMenu.isOpen())return;
+    const previewDoc=$('preview').contentDocument,inPreview=event.target.ownerDocument===previewDoc;
+    if(inPreview){if(event.target!==previewDoc.body&&!selectedElement.contains(event.target))return;}
+    else if(!event.target.closest('#preview-wrap,#element-properties,#element-tools'))return;
+    const command=window.ElementCommands.shortcut(event);if(!command)return;
+    event.preventDefault();event.stopPropagation();
+    if(command==='menu'){const rect=window.ElementProperties.frameAnchor(selectedElement.getBoundingClientRect(),$('preview'));showElementMenu({x:rect.left,y:rect.top+rect.height});}
+    else elementCommand(command);
+  }
+  document.addEventListener('keydown',elementKey,true);
+  document.addEventListener('contextmenu',event=>{if(!selectedElements.length||window.ElementCommands.typing(event.target)||!event.target.closest('#element-properties,#selection-box'))return;event.preventDefault();showElementMenu({x:event.clientX,y:event.clientY});});
   /** Store a selection without silently moving an existing draft to another revision. */
   function setTarget(target,{retarget=false,focus=false}={}){
-    elementEditor.select(null);currentTarget=target;hoverElement=null;$('hover-box').hidden=true;
+    elementMenu.close();elementEditor.select(null);currentTarget=target;hoverElement=null;$('hover-box').hidden=true;
     const previous=feedbackDraft()||{};
     feedbackDrafts.set(key(),{...previous,target,request_id:crypto.randomUUID(),...(retarget||!previous.content_hash?{slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash}:{})});
     retainDraft();voice?.boundary($('feedback-text'));restoreSelection();renderTarget();if(focus)$('feedback-text').focus();

@@ -60,6 +60,7 @@
         font_style: computed.fontStyle === 'italic' ? 'italic' : 'normal', text_align: computed.textAlign,
         color},
       rect: {left: rect.left, top: rect.top, width: rect.width, height: rect.height},
+      position: {x:(rect.left+scrollX)/(draft?.canvas?.width||document.documentElement.clientWidth),y:(rect.top+scrollY)/(draft?.canvas?.height||Math.max(document.documentElement.scrollHeight,innerHeight)),width:rect.width/(draft?.canvas?.width||document.documentElement.clientWidth),height:rect.height/(draft?.canvas?.height||Math.max(document.documentElement.scrollHeight,innerHeight)),canvas_width:draft?.canvas?.width||document.documentElement.clientWidth,canvas_height:draft?.canvas?.height||Math.max(document.documentElement.scrollHeight,innerHeight)},
       dirty: !!draft && draft.selector === selector && Object.keys(draft.changes).length > 0,
       changes: draft?.selector === selector ? {...draft.changes} : {}});
   }
@@ -86,7 +87,7 @@
     if (draft && draft.selector !== selector) throw Error('Send or cancel the edit first.');
     if (!values || typeof values !== 'object' || Array.isArray(values)) throw Error('Invalid edit.');
     const keys = Object.keys(values);
-    if (!keys.length || keys.some(key => !['text', 'font_size', 'font_size_unit', 'font_weight', 'font_style', 'color', 'text_align'].includes(key))) throw Error('Invalid edit property.');
+    if (!keys.length || keys.some(key => !['text', 'font_size', 'font_size_unit', 'font_weight', 'font_style', 'color', 'text_align', 'x', 'y', 'position_reference', 'canvas_reference', 'canvas_width', 'canvas_height', 'deleted'].includes(key))) throw Error('Invalid edit property.');
     const styles = {};
     if ('text' in values && (typeof values.text !== 'string' || values.text.length > 9000 || (element.textContent || '').length > 9000 || element.childElementCount || ['script','style','input','textarea','img','br','hr'].includes(element.localName))) throw Error('This element cannot be edited as plain text.');
     if ('font_size' in values || 'font_size_unit' in values) {
@@ -109,7 +110,32 @@
       if (typeof values.color !== 'string' || values.color.length > 100 || !CSS.supports('color', values.color) || /[;{}]/.test(values.color)) throw Error('Invalid color.');
       styles.color = values.color;
     }
+    for(const key of ['x','y'])if(key in values && (typeof values[key]!=='number'||!Number.isFinite(values[key])||values[key]<0||values[key]>1))throw Error('Invalid position.');
+    if('position_reference' in values&&values.position_reference!=='visual_top_left'||'canvas_reference' in values&&values.canvas_reference!=='artifact_document')throw Error('Invalid coordinate reference.');
+    if(('deleted' in values||'x' in values||'y' in values)&&(element===document.body||element===document.documentElement))throw Error('Select a specific element to move or delete.');
+    if('deleted' in values){if(!['true','false'].includes(values.deleted))throw Error('Invalid deletion.');styles.visibility=values.deleted==='true'?'hidden':getComputedStyle(element).visibility;}
+    let placement=draft?.placement,canvas=draft?.canvas;
+    if('x' in values||'y' in values){
+      if(!placement){
+        const computed=getComputedStyle(element),transform=computed.transform;
+        for(let node=element;node;node=node.parentElement){const style=getComputedStyle(node);if(!new DOMMatrixReadOnly(style.transform).is2D||style.perspective!=='none')throw Error('Use the conversation to position a 3D element.');}
+        const saved=['transform','transition'].map(name=>[name,element.style.getPropertyValue(name),element.style.getPropertyPriority(name)]);
+        try{
+          element.style.setProperty('transition','none','important');
+          const probe=(x,y)=>{element.style.setProperty('transform',`translate(${x}px,${y}px) ${transform==='none'?'':transform}`,'important');return element.getBoundingClientRect();};
+          const rect=probe(0,0),x=probe(10,0),y=probe(0,10);canvas={width:document.documentElement.clientWidth,height:Math.max(document.documentElement.scrollHeight,innerHeight)};
+          placement={left:rect.left+scrollX,top:rect.top+scrollY,transform,xx:(x.left-rect.left)/10,yx:(x.top-rect.top)/10,xy:(y.left-rect.left)/10,yy:(y.top-rect.top)/10};
+        }finally{for(const [name,value,priority]of saved){if(value)element.style.setProperty(name,value,priority);else element.style.removeProperty(name);}}
+      }
+      for(const key of ['width','height'])if(('canvas_'+key) in values && (!Number.isFinite(values['canvas_'+key])||Math.abs(values['canvas_'+key]-canvas[key])>.001))throw Error('The preview size changed. Select the element again before moving it.');
+      const determinant=placement.xx*placement.yy-placement.xy*placement.yx;
+      if(!Number.isFinite(determinant)||Math.abs(determinant)<1e-8)throw Error('This element cannot be positioned in the preview.');
+      const dx='x' in values?values.x*canvas.width-placement.left:0,dy='y' in values?values.y*canvas.height-placement.top:0;
+      styles.transform=`translate(${(dx*placement.yy-dy*placement.xy)/determinant}px,${(dy*placement.xx-dx*placement.yx)/determinant}px) ${placement.transform==='none'?'':placement.transform}`;
+      styles.transition='none';
+    }
     if (!draft) draft = {selector, element, original: {}, text: null, changes: {}};
+    if(placement){draft.placement=placement;draft.canvas=canvas;}
     for (const [name, value] of Object.entries(styles)) {
       if (!draft.original[name]) draft.original[name] = {value: element.style.getPropertyValue(name), priority: element.style.getPropertyPriority(name)};
       element.style.setProperty(name, value, 'important');
@@ -172,6 +198,7 @@
     const selector = selectorFor(element);
     if (!selector) return;
     if (draft && draft.selector !== selector) { send({type: 'artifact:edit-error', message: 'Send or cancel the edit first.'}); return; }
+    window.focus();
     const text = (element instanceof HTMLElement ? element.innerText : element.textContent) || '';
     const quote = text.replace(/\s+/g, ' ').trim().slice(0, 1000);
     const label = element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('title') || quote || element.localName;
@@ -184,18 +211,21 @@
 
   for (const name of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick', 'contextmenu', 'touchstart', 'touchend']) {
     window.addEventListener(name, event => {
-      if (!selecting) return;
+      if (!selecting || name==='contextmenu'&&event.target.closest?.('input,textarea,select,[contenteditable]')) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       if (name === 'click') choose(event);
+      if (name === 'contextmenu') {
+        const selected=selectors.find(selector=>{const element=selectedElement(selector);return element===event.target||element?.contains(event.target);});
+        if(!selected)choose({target:event.target});
+        send({type:'artifact:contextmenu',selector:selected||selectorFor(event.target),x:event.clientX,y:event.clientY,viewport:{width:innerWidth,height:innerHeight}});
+      }
     }, {capture: true, passive: false});
   }
   window.addEventListener('keydown', event => {
     if (event.key === 'Escape') send({type: 'artifact:escape'});
-    if (!selecting || !['Enter', ' '].includes(event.key)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    choose(event);
+    if (!selecting || event.isComposing || event.target.closest?.('input,textarea,select,[contenteditable]') || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();event.stopImmediatePropagation();choose(event);
   }, true);
   window.addEventListener('pointermove', event => {
     if (!selecting) return;
