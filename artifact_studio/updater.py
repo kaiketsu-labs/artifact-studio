@@ -45,7 +45,10 @@ class AppSettings:
 
 def command(project: Path, *arguments: str, timeout: int = 300) -> str:
     """Run a bounded noninteractive tool and keep its output out of the JSON protocol."""
-    environment = os.environ | {"GIT_TERMINAL_PROMPT": "0"}
+    environment = os.environ | {
+        "GIT_TERMINAL_PROMPT": "0",
+        "PLAYWRIGHT_SKIP_BROWSER_GC": "1",
+    }
     try:
         result = subprocess.run(
             arguments,
