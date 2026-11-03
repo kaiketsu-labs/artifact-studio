@@ -2,9 +2,10 @@
 ((root) => {
   'use strict';
   const {validTarget}=typeof module!=='undefined'?require('./selection.js'):root.SlideSelection;
+  const {validSegments}=typeof module!=='undefined'?require('./voice-feedback.js'):root.SlideVoiceFeedback;
   const validEntries=(entries,valid)=>Array.isArray(entries)?entries.filter(entry=>Array.isArray(entry)&&entry.length===2&&typeof entry[0]==='string'&&valid(entry[1])):[];
   const validNotes=value=>value&&typeof value==='object'&&(value.notes===undefined||typeof value.notes==='string')&&(value.expected_notes===undefined||typeof value.expected_notes==='string');
-  const validFeedback=value=>value&&typeof value.feedback==='string'&&(!value.target||validTarget(value.target));
+  const validFeedback=value=>value&&typeof value.feedback==='string'&&(!value.target||validTarget(value.target))&&(value.voice_segments===undefined||validSegments(value.voice_segments));
   /** Recover drafts without allowing corrupt browser storage to prevent startup. */
   function create(storage,key='artifact-studio:drafts:v1'){
     const prefix=key.replace(/:v1$/,':v2')+':';
@@ -36,7 +37,7 @@
       try{
         storage.getItem(key);
         for(const kind of ['notes','feedback']){
-          const current=new Map([...groups[kind]].filter(([,value])=>kind==='notes'?value.notes!==undefined:value.feedback.trim()||value.target).map(([id,value])=>[id,JSON.stringify(value)]));
+          const current=new Map([...groups[kind]].filter(([,value])=>kind==='notes'?value.notes!==undefined:value.feedback.trim()||value.target||value.voice_segments?.length).map(([id,value])=>[id,JSON.stringify(value)]));
           for(const id of new Set([...baseline[kind].keys(),...current.keys()])){
             const value=current.get(id);
             if(value===baseline[kind].get(id))continue;

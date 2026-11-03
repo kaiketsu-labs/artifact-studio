@@ -19,7 +19,7 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, cast
 from urllib.parse import unquote, urlsplit
 
-from pydantic import Field, TypeAdapter
+from pydantic import Field, TypeAdapter, field_validator
 
 from .libraries import LibraryFile, inventory
 from .models import Deck, EditIntent, Feedback, FeedbackFile, SlideTarget, StrictModel
@@ -41,6 +41,17 @@ class NoteDraft(StrictModel):
     pending_notes: str | None = Field(default=None, max_length=20_000)
 
 
+class VoiceFeedbackDraft(StrictModel):
+    """One unsent dictated comment pinned to its original reviewed selection."""
+
+    request_id: str = Field(min_length=8, max_length=100)
+    message: str = Field(max_length=10_000)
+    slide_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
+    context_slide_id: str | None = Field(default=None, pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
+    content_hash: str = Field(max_length=128)
+    target: SlideTarget | None = None
+
+
 class FeedbackDraft(StrictModel):
     """An unsent comment with its original slide and element context."""
 
@@ -51,6 +62,15 @@ class FeedbackDraft(StrictModel):
     content_hash: str
     request_id: str
     edit_intent: EditIntent | None = None
+    voice_segments: list[VoiceFeedbackDraft] = Field(default_factory=list, max_length=100)
+
+    @field_validator("voice_segments")
+    @classmethod
+    def distinct_voice_requests(cls, values: list[VoiceFeedbackDraft]) -> list[VoiceFeedbackDraft]:
+        """Keep a portable draft's retry identities unambiguous."""
+        if len({item.request_id for item in values}) != len(values):
+            raise ValueError("Dictated comments must have distinct request IDs.")
+        return values
 
 
 class QuestionDraft(StrictModel):
