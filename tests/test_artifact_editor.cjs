@@ -76,15 +76,18 @@ test('cancel ignores obsolete replies and successful send becomes the new local 
 
 test('rapid edits are acknowledged in order and send waits for the final preview',async()=>{
   const f=fixture();f.editor.inspect({kind:'element',selector:'#title'});
+  f.artifact.mode='batch';
   f.reply('artifact:inspector',f.messages.at(-1).request_id);
   f.editor.preview({text:'A'});const first=f.messages.at(-1).request_id;
   f.editor.preview({text:'AB'});const last=f.messages.at(-1).request_id;
   const sending=f.editor.send();
+  f.artifact.mode='live';
   f.reply('artifact:inspector',first,{text:'A'});
   assert.equal(f.sent.length,0);
   f.reply('artifact:inspector',last,{text:'AB'});
   assert.equal(await sending,true);
   assert.equal(f.sent[0].edit_intent.values.text,'AB');
+  assert.equal(f.sent[0].expected_mode,'batch');
 });
 
 test('cancel restores the original displayed size and accepted edits establish the new size',async()=>{

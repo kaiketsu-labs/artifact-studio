@@ -1,6 +1,6 @@
 {
   "fixture": "Original fictional Studio Blue deck",
-  "captured_at": "2026-11-03T11:10:51.472540+00:00",
+  "captured_at": "2026-11-03T22:30:24.779741+00:00",
   "screenshots": {
     "docs/assets/workspace.png": {
       "viewport": {
@@ -8,12 +8,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.007138+00:00",
+      "captured_at": "2026-11-03T22:30:10.051487+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "b96a2abf335bb776eeb09945fcdcb657ccf2778364687a26efa35e28ae98ee2c"
+      "sha256": "13966794cddcef1032f128ea6be8e32b8502034d319325bbb77515ee349cbdf5"
     },
     "docs/assets/slide-chat.png": {
       "viewport": {
@@ -21,12 +21,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.084202+00:00",
+      "captured_at": "2026-11-03T22:30:10.206673+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "a19134366655aaac9f7640b899fdfce061f6e7b1120dfbf54a0d60f1041a7ac5"
+      "sha256": "c15bee847d5c2b4560bab511c7ecb908cc00907b8d4f3ea6ca71e25b067fd0b2"
     },
     "docs/screenshots/chat-sender-icons-light.png": {
       "viewport": {
@@ -34,12 +34,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.152339+00:00",
+      "captured_at": "2026-11-03T22:30:10.314625+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "a19134366655aaac9f7640b899fdfce061f6e7b1120dfbf54a0d60f1041a7ac5"
+      "sha256": "c15bee847d5c2b4560bab511c7ecb908cc00907b8d4f3ea6ca71e25b067fd0b2"
     },
     "docs/screenshots/chat-sender-icons-dark.png": {
       "viewport": {
@@ -47,12 +47,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.337346+00:00",
+      "captured_at": "2026-11-03T22:30:10.560892+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "0f5e0a81c726de161a6f841ef35d5262d0141e529ebe49f27e7d988f9eeccc2c"
+      "sha256": "ac81d78dd1a32307b39baa28ebea0ca4ddc8914f34e821a2858569b10b106b5f"
     },
     "docs/assets/element-review.png": {
       "viewport": {
@@ -60,12 +60,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.585413+00:00",
+      "captured_at": "2026-11-03T22:30:10.911673+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "b5f354e9c2f283689de2f6c1d66da60c39cd748a6ad1c9a091cd0c6fe4fdbe7e"
+      "sha256": "0ec141c9a20abee5c01a768780c6f1dd5c2e8e77fd4e98c4f41c6ada9d6740ed"
     },
     "docs/assets/slide-sorter.png": {
       "viewport": {
@@ -73,12 +73,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.850600+00:00",
+      "captured_at": "2026-11-03T22:30:11.232368+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "11b3cba79d4efd336fc3d5f439bab200d2e302dc2e79d751afb0cdab07852d24"
+      "sha256": "5ef943c485c27bcfdaa0306f8762b2fcefd5148fe293d4f491205dd0ad8d0b15"
     },
     "docs/screenshots/section-sorter-navigation.png": {
       "viewport": {
@@ -86,12 +86,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:39.949482+00:00",
+      "captured_at": "2026-11-03T22:30:11.364757+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "a7ac20b0b2e52534d583d2b0de854bbf2e4337e64cf58241fe7b3c05b94e7f49"
+      "sha256": "a7023fa529da228a160d1c2098816c96af5b8058e041dc9a987b173e2809f835"
     },
     "docs/assets/slide-management.png": {
       "viewport": {
@@ -99,12 +99,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:40.090121+00:00",
+      "captured_at": "2026-11-03T22:30:11.582628+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "c895e2887bde48b1b4ff2c6b10af11125fdd39b52d56aaaae098506788dc8840"
+      "sha256": "17cd311ae272d54833520630cefbe93ca27bba7419d1c099165d2e232859c584"
     },
     "docs/assets/projects.png": {
       "viewport": {
@@ -112,12 +112,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:40.238804+00:00",
+      "captured_at": "2026-11-03T22:30:11.786331+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "61b6a7e9730a27ac2186b3e4be7522620313cbf07bb9cb3dd6b0debc21c4be54"
+      "sha256": "d987454ae416cb6c386031bc9b0ab0b3a778eda2a7377c2cd8095254711f130e"
     },
     "docs/assets/interactive-slide.png": {
       "viewport": {
@@ -125,12 +125,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:40.464565+00:00",
+      "captured_at": "2026-11-03T22:30:12.106743+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "91f7aa30af96bc129fcf94d14cf934b45637656bfcaf346d2e75a5abdcc286f4"
+      "sha256": "1faee6b1ae4ad8bf18314b3267e22d8e7c487773e93849649099f08fbc63a8ef"
     },
     "docs/assets/presenter.png": {
       "viewport": {
@@ -138,12 +138,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:40.704063+00:00",
+      "captured_at": "2026-11-03T22:30:12.431941+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "337b7e6dd7602c09c7fbf7b71040589e3adb93ef33bc3e8585f38bd02bc36682"
+      "sha256": "c5177f5a518427fce7ece67b820ac539225c26774d675d2ca13d4087f748f34a"
     },
     "docs/screenshots/slide-question-light.png": {
       "viewport": {
@@ -151,12 +151,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:41.045777+00:00",
+      "captured_at": "2026-11-03T22:30:12.978700+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "60735e80e194fefd60cb8e379aada6fb3215a8e1e08159b2b8f54703cb1e79cd"
+      "sha256": "8d6119896713a811556af4f2141a61e603d4f619e2f6b7ac1972f6211cfc188b"
     },
     "docs/screenshots/slide-question-dark.png": {
       "viewport": {
@@ -164,12 +164,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:41.241882+00:00",
+      "captured_at": "2026-11-03T22:30:13.179704+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "dd62daee8b248980bcb9ba1e1e3580f025ceef6fb6d1b17ae8441cc1c61f9813"
+      "sha256": "a96612bf91a61f5517081b34ea5916c7e7523ff9e0087dc67dfa771cc5c9c620"
     },
     "docs/screenshots/slide-sections-dark.png": {
       "viewport": {
@@ -177,12 +177,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:41.356993+00:00",
+      "captured_at": "2026-11-03T22:30:13.303967+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "4c74d0684dfb19feff36d5cb5a3a3e1c466d2db36dc9b56adbe33b038db37c13"
+      "sha256": "4a90be3324335f1222cecff405c8d1743a29492c8a4fb01826d9135f32eeffa6"
     },
     "docs/screenshots/slide-sections-light.png": {
       "viewport": {
@@ -190,12 +190,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:41.538953+00:00",
+      "captured_at": "2026-11-03T22:30:13.527464+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "510e82ff0217afe11b2e7eb3d6be3e2ee4008faa87278e14ff399b48d5311fc0"
+      "sha256": "2c5e36b5010c0953cd586797684945a52c284c387d033cac35da5817ee5717ef"
     },
     "docs/assets/slide-sections.png": {
       "viewport": {
@@ -203,12 +203,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:41.604731+00:00",
+      "captured_at": "2026-11-03T22:30:13.630601+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "510e82ff0217afe11b2e7eb3d6be3e2ee4008faa87278e14ff399b48d5311fc0"
+      "sha256": "467c5cc4082555a8dbd832f54ef39102d096e4a544e4846c8d9d5a2fb1641f83"
     },
     "docs/screenshots/section-active-slide.png": {
       "viewport": {
@@ -216,12 +216,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:45.583261+00:00",
+      "captured_at": "2026-11-03T22:30:17.667020+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "8f24cf5d63992795e74e49a1d778693ffb6881c49a006b2f96071cdf3fca8ef2"
+      "sha256": "2949cc215af2303f39c8568fca9cd9bc5554c7dee44707820e8be55f9e43bcf1"
     },
     "docs/screenshots/notes-conflict.png": {
       "viewport": {
@@ -229,12 +229,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:46.647201+00:00",
+      "captured_at": "2026-11-03T22:30:18.867681+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "c20e94ffdf31e28507cce474c86f546c0747e6dea34bce0b5ddbb961256183e0"
+      "sha256": "c1d453df1a4219adc71b6067eb85cb48c0ba96a001eef887c982664a89e52040"
     },
     "docs/screenshots/notes-retry.png": {
       "viewport": {
@@ -242,12 +242,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:47.557394+00:00",
+      "captured_at": "2026-11-03T22:30:19.800314+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "954be27fb707d02c6c045577f02f28302aafb909d96307c969fc80399a3341eb"
+      "sha256": "c41a44621af2172486407767c0804c5ccea24f70d431da1de821240547c1c43c"
     },
     "docs/screenshots/storage-backup.png": {
       "viewport": {
@@ -255,12 +255,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:48.512608+00:00",
+      "captured_at": "2026-11-03T22:30:20.832320+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "d8f041320c0c65f23222af239560bd286769e7f7b60461ba51ebe8f54c4566a1"
+      "sha256": "87448e0f94ac55b2e09c3f3c709acc4fcc0355aeb4636273a7628d11797d21e7"
     },
     "docs/screenshots/design-references.png": {
       "viewport": {
@@ -268,12 +268,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:48.709378+00:00",
+      "captured_at": "2026-11-03T22:30:21.062759+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "a8f340d5de2626d3f8ce51dc40b1bfde280da2a40b5673d19c4eb015cebffa3f"
+      "sha256": "3477a63a81376b41f3bd5ad30bdd93a7f097380a011d1fccc135b92419723fb4"
     },
     "docs/screenshots/reference-controls.png": {
       "viewport": {
@@ -281,12 +281,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:48.812743+00:00",
+      "captured_at": "2026-11-03T22:30:21.180675+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "2bd9e4b26ae152dea68f06b0fb7e3f8913cf6d2f5c07ef2ee5ce9e5605c9df4d"
+      "sha256": "1e5d80e1a99dc7de7b93271b5ad1de1ea37f012f8725881d5a0bf4c26b5ddf3f"
     },
     "docs/screenshots/reference-files.png": {
       "viewport": {
@@ -294,12 +294,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:48.999652+00:00",
+      "captured_at": "2026-11-03T22:30:21.350297+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "42846d3e026b44bd09e4a1f21ddd94728c450661f2e7768ea6e22ab9c47bc33e"
+      "sha256": "903facb7911528ab88b977e0cf881a25042791d5771f69c388c62decc2898768"
     },
     "docs/screenshots/reference-removed.png": {
       "viewport": {
@@ -307,12 +307,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:49.126109+00:00",
+      "captured_at": "2026-11-03T22:30:21.509998+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "ca0d47833ebcdd20950e4366f5a370ab4fe1f7638087707d1fab2957f585d8ec"
+      "sha256": "716c093704b87f0d51d3a3edf2e87d539b1ea617c1330a0051ea3672c6ffc777"
     },
     "docs/screenshots/new-presentation-references.png": {
       "viewport": {
@@ -320,12 +320,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:49.467904+00:00",
+      "captured_at": "2026-11-03T22:30:21.805461+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "90708af9b331b13ddb2ca5892be73c26437855eacee00cf4369a9fdf83811774"
+      "sha256": "fa0bddcedc4802b0090035c600ce4a0c0406fc698e2c1961532e805cd3cc6f9a"
     },
     "docs/assets/visual-review.png": {
       "renderer": "artifact_studio.visuals.snapshot + Playwright + contact_sheet",
@@ -367,12 +367,12 @@
           "diagnostics_scope": "Static slide DOM"
         }
       },
-      "captured_at": "2026-11-03T11:10:49.761600+00:00",
+      "captured_at": "2026-11-03T22:30:22.277000+00:00",
       "pixels": [
         1008,
         652
       ],
-      "sha256": "dca1f36739d0b2eb37d84164090ec6332cc614e08bcd468cc4984b52676c9e65"
+      "sha256": "330bf5313b2d8fa93963d37b97fdbc84bb63d180ba482752f11f4645ceff8785"
     },
     "docs/assets/artifact-hub.png": {
       "viewport": {
@@ -380,12 +380,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:51.130256+00:00",
+      "captured_at": "2026-11-03T22:30:23.643718+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "364efcfe197dcf07958cd1b3e4737a4c233397ce59295917e49b7f07213a40e3"
+      "sha256": "41f2597d775c6fccd3c0bd59e7eaeaa221b2aea2d6415d37cd011208a88e00c8"
     },
     "docs/assets/context-menu.png": {
       "viewport": {
@@ -393,12 +393,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:51.226701+00:00",
+      "captured_at": "2026-11-03T22:30:23.796596+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "1cce62230726062a46690e06ca520e4cfdf738c10802591f485da4522bc00bac"
+      "sha256": "79d6588ca46c965e8d8f48d9abe6353a6f009c92027854540e089dfb496c0fbd"
     },
     "docs/assets/artifact-review.png": {
       "viewport": {
@@ -406,12 +406,25 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-03T11:10:51.461749+00:00",
+      "captured_at": "2026-11-03T22:30:24.137745+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "312669a7d67e13357e355d304a2f4ab3f74d6f5c2b2c4dd9e84399c32d82c7d2"
+      "sha256": "c003c27673efb20e2eeb251be0100b5c5bbf87a441839302f62803dc45e6db0d"
+    },
+    "docs/screenshots/chat-mobile-dark.png": {
+      "viewport": {
+        "width": 320,
+        "height": 568
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:24.759598+00:00",
+      "pixels": [
+        320,
+        568
+      ],
+      "sha256": "785dfeee65b157627e39c8576f291144bdcdcefb14dc2b21a5d1a13bbf6a4e1d"
     }
   }
 }

@@ -205,6 +205,7 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | [Presentation visual review](docs/VISUAL-REVIEW.md) | Captures, contact sheets and reveal timing. |
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from a supplied reference. |
 | [Verification](QA.md) | Automated checks and application/display test scope. |
+| [UI and contrast review](docs/UI-REVIEW-2026-11-03.md) | Measured readability, keyboard/mobile fixes, feedback safety and verification limits. |
 
 <details>
 <summary><strong>Development checks</strong></summary>

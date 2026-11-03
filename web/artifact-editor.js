@@ -97,7 +97,7 @@
       if(!initial && !dirty()){post({type:'artifact:edit-cancel'});descriptor=baselineDescriptor(data);}
       onInspector({...descriptor,restoreControls:item?.record===false});state();return true;
     }
-    async function send(){
+    async function send(expectedMode=getArtifact()?.mode){
       if(!selection || busy)return false;
       busy=true;state();
       try{
@@ -108,7 +108,7 @@
         const deleted=changes.deleted==='true',moving='x' in changes||'y' in changes,text=Object.hasOwn(changes,'text'),style=Object.keys(changes).some(key=>key!=='text'&&!placements.has(key));
         const action=deleted?'delete':moving?(text||style?'update':'move'):text&&style?'update':text?'replace_text':'style';
         if(!requestId)requestId=root.crypto.randomUUID();
-        const body={message:action==='delete'?'Delete this element.':action==='move'?'Move this element.':action==='replace_text'?'Replace text.':action==='style'?'Update element style.':'Update element text and style.',request_id:requestId,content_hash:selection.content_hash,target:selection.target,edit_intent:{action,values:deleted?{}:{...changes}}};
+        const body={message:action==='delete'?'Delete this element.':action==='move'?'Move this element.':action==='replace_text'?'Replace text.':action==='style'?'Update element style.':'Update element text and style.',request_id:requestId,content_hash:selection.content_hash,target:selection.target,edit_intent:{action,values:deleted?{}:{...changes}},expected_mode:expectedMode};
         await onSend(body);
         history.clear();post({type:'artifact:edit-accept'});for(const key of Object.keys(changes))if(properties.has(key))baseline[key]=changes[key];if(descriptor?.position)initialPosition=descriptor.position;baselinePixels=descriptor?.typography.font_size_px||baselinePixels;changes={};requestId=null;sent=true;
         if(descriptor)onInspector(baselineDescriptor(descriptor));return true;

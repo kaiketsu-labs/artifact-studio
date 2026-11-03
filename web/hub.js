@@ -127,7 +127,8 @@
     onState:next=>{properties?.setState(next);if(!next.dirty && !next.busy && state.newRevision && previewUpdates.enabled)queueMicrotask(()=>void refresh());},
     onSend:async body=>{
       const item=state.detail;
-      await api(artifactPath(item.id,'/feedback'),body);
+      try{await api(artifactPath(item.id,'/feedback'),body);}
+      catch(error){if(error.status===409)await refreshArtifactReview(item.id);throw error;}
       const detail=await api(artifactPath(item.id));
       if(state.active===item.id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();}
       toast(item.mode==='batch'?'Added to batch.':'Saved for agent.');
@@ -328,7 +329,7 @@
     const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
     let result;
     try{result=await response.json();}catch{if(!response.ok)throw new Error(`Request failed (${response.status}).`);return {};}
-    if(!response.ok)throw new Error(typeof result.detail==='string'?result.detail:result.error || `Request failed (${response.status}).`);
+    if(!response.ok){const error=new Error(typeof result.detail==='string'?result.detail:result.error || `Request failed (${response.status}).`);error.status=response.status;throw error;}
     return result;
   }
   function toast(message, error=false) {
@@ -401,9 +402,13 @@
     }).join('');
     return `<article class="hub-message ${user?'is-user':''}"><div class="hub-message-head">${icon(user?'user':'robot')}<span>${user?'You':'Agent'}</span>${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}${root.ElementProperties.summary(message.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Private batch · not released</div>':''}</article>`;
   }
+  function deliveryMarkup(item) {
+    const mode=item.mode || 'batch',count=pendingCount(item),live=item.delivery?.live_available===true;
+    return `<div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${live?'Release feedback immediately to the connected agent':'Release feedback immediately. Automatic agent continuation is unavailable.'}">${icon('live')}Live${live?'':'<span class="hub-live-dot" aria-label="Automatic continuation unavailable"></span>'}</button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch">${icon('batch')}Batch</button></div>${mode==='batch'?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count?'':'disabled'}`):''}</div>`;
+  }
   function chatMarkup(item) {
-    const value=draft(item), mode=item.mode || 'batch', count=pendingCount(item), live=item.delivery?.live_available===true;
-    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)} · version ${escape(item.revision || 1)}</p></header><div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${live?'Release feedback immediately to the connected agent':'Release feedback immediately. Automatic agent continuation is unavailable.'}">${icon('live')}Live${live?'':'<span class="hub-live-dot" aria-label="Automatic continuation unavailable"></span>'}</button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch">${icon('batch')}Batch</button></div>${mode==='batch'?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count?'':'disabled'}`):''}</div><div class="hub-thread" id="hub-thread">${(item.feedback || []).length?item.feedback.map(message=>messageMarkup(message,item)).join(''):''}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="What would you change?" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
+    const value=draft(item),mode=item.mode || 'batch';
+    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)} · version ${escape(item.revision || 1)}</p></header>${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${(item.feedback || []).length?item.feedback.map(message=>messageMarkup(message,item)).join(''):''}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="What would you change?" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
   }
   function attachmentMarkup(id) {return (attachments.get(id) || []).map((file,index)=>`<span class="hub-attachment"><span title="${escape(file.name)}">${escape(file.name)}</span><button type="button" data-remove-file="${index}" aria-label="Remove ${escape(file.name)}">${icon('close')}</button></span>`).join('');}
   function targetsMarkup(value,item) {
@@ -417,8 +422,41 @@
     const item=state.detail;
     content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-element-properties" hidden></div><div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
     doc.title=`${item.title} · Artifact Studio`;
-    properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getVoice:()=>voice,getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:async()=>{const panel=properties,id=state.active,loading=state.loading,generation=panel.selectionGeneration();if(!await panel.stopVoice()){toast('Recording ended without sending. Review your edit before sending.');return;}if(properties!==panel || state.active!==id || state.loading!==loading || panel.selectionGeneration()!==generation)return;await artifactEditor.send();},onCancel:()=>{properties?.cancelVoice();artifactEditor.cancel();}});
+    properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getVoice:()=>voice,getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:async()=>{const panel=properties,id=state.active,loading=state.loading,generation=panel.selectionGeneration(),mode=state.detail.mode;if(!await panel.stopVoice()){toast('Recording ended without sending. Review your edit before sending.');return;}if(properties!==panel || state.active!==id || state.loading!==loading || panel.selectionGeneration()!==generation)return;if(state.detail.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return false;}return artifactEditor.send(mode);},onCancel:()=>{properties?.cancelVoice();artifactEditor.cancel();}});
     inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();
+  }
+  /** Refresh review controls without replacing the preview, composer or dictated drafts. */
+  function syncArtifactReview(detail) {
+    const item=state.detail;if(!item || item.id!==detail.id)return;
+    const deliveryChanged=JSON.stringify([item.mode,item.workflow,item.delivery])!==JSON.stringify([detail.mode,detail.workflow,detail.delivery]);
+    const feedbackChanged=JSON.stringify(item.feedback)!==JSON.stringify(detail.feedback);
+    for(const field of ['mode','workflow','delivery'])item[field]=detail[field];
+    if(feedbackChanged){
+      const thread=doc.getElementById('hub-thread'),atBottom=thread && thread.scrollHeight-thread.scrollTop-thread.clientHeight<50;
+      item.feedback=detail.feedback;
+      if(thread){thread.innerHTML=detail.feedback.map(message=>messageMarkup(message,item)).join('');if(atBottom)thread.scrollTop=thread.scrollHeight;}
+    }
+    if(deliveryChanged || feedbackChanged){
+      const node=doc.querySelector('.hub-delivery'),focused=doc.activeElement,mode=focused?.dataset.mode,release=focused?.dataset.action==='release';
+      if(node){
+        const ownedFocus=node.contains(focused);node.outerHTML=deliveryMarkup(item);
+        if(ownedFocus){
+          let next=doc.querySelector(mode?`[data-mode="${mode}"]`:release?'[data-action=release]':`[data-mode="${item.mode}"]`);
+          if(!next || next.disabled)next=doc.querySelector(`[data-mode="${item.mode}"]`);
+          next?.focus({preventScroll:true});
+        }
+      }
+      const dictated=doc.getElementById('hub-send-voice'),label=item.mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback';if(dictated){dictated.setAttribute('aria-label',label);dictated.title=label;}
+    }
+    if(detail.content_hash===item.content_hash){
+      const changed=JSON.stringify([item.status,item.approved,item.has_unseen_changes])!==JSON.stringify([detail.status,detail.approved,detail.has_unseen_changes]);
+      for(const field of ['status','approved','has_unseen_changes'])item[field]=detail[field];
+      if(changed){const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(item);const approve=doc.querySelector('[data-action=approve]');if(approve){approve.disabled=!!item.approved;approve.classList.toggle('is-approved',!!item.approved);approve.innerHTML=icon('check')+`<span>${item.approved?'Approved':'Approve'}</span>`;}}
+    }
+    lockComposer();
+  }
+  async function refreshArtifactReview(id) {
+    try{const detail=await api(artifactPath(id));if(state.active===id)syncArtifactReview(detail);}catch{}
   }
   function renderChat() {
     const node=doc.getElementById('hub-chat');if(!node || !state.detail)return;
@@ -427,7 +465,7 @@
   function lockComposer() {
     for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input'))if(!control.closest('.voice-input-controls'))control.disabled=sending.has(state.active);
     const submit=doc.getElementById('hub-send'),active=voice.isActive();
-    if(submit){submit.disabled=sending.has(state.active)||active;submit.title=active?'Stop dictation before sending feedback':`${state.detail?.mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter`;}
+    if(submit){submit.setAttribute('aria-label',state.detail?.mode==='batch'?'Add feedback to batch':'Send feedback');submit.disabled=sending.has(state.active)||active;submit.title=active?'Stop dictation before sending feedback':`${state.detail?.mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter`;}
     syncVoiceChrome();
   }
   /** Display pinned drafts without replacing text fields that may be receiving dictation. */
@@ -638,7 +676,7 @@
     modal('Move to project',`<form id="hub-move-form" class="hub-form" data-artifact-id="${escape(item.id)}"><label class="hub-field"><span>Project for ${escape(item.title)}</span><select name="project_id">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Move artifact</button></div></form>`);
   }
   async function sendFeedback(form) {
-    const item=state.detail,value=draft(item),files=attachments.get(item.id) || [];
+    const item=state.detail,value=draft(item),files=attachments.get(item.id) || [],expectedMode=item.mode || 'batch';
     if(voice.isActive()){toast('Stop dictation before sending feedback.');return;}
     if(sending.has(item.id) || !artifactEditor.finish() || !value.message.trim() && !files.length && !value.voice_segments?.some(segment=>segment.message.trim()))return;
     sending.add(item.id);
@@ -648,17 +686,17 @@
       // Acknowledge each completed prefix locally; failed or lost responses retain their retry IDs.
       for(const segment of [...(value.voice_segments || [])]){
         if(!segment.message.trim())continue;
-        await api(artifactPath(item.id,'/feedback'),{message:segment.message,target:segment.target,content_hash:segment.content_hash,request_id:segment.request_id});
+        await api(artifactPath(item.id,'/feedback'),{message:segment.message,target:segment.target,content_hash:segment.content_hash,request_id:segment.request_id,expected_mode:expectedMode});
         value.voice_segments=value.voice_segments.filter(current=>current.request_id!==segment.request_id);persist();renderVoiceSegments(item.id);
       }
       if(value.message.trim() || files.length){
         value.request_id ||= root.crypto.randomUUID();persist();
-        await api(artifactPath(item.id,'/feedback'),{message:value.message.trim(),target:feedbackTarget(groupTargets(value.targets)),files:await encodeFiles(files),content_hash:value.content_hash,request_id:value.request_id});
+        await api(artifactPath(item.id,'/feedback'),{message:value.message.trim(),target:feedbackTarget(groupTargets(value.targets)),files:await encodeFiles(files),content_hash:value.content_hash,request_id:value.request_id,expected_mode:expectedMode});
         value.message='';value.request_id=null;attachments.delete(item.id);persist();
       }
       drafts.delete(item.id);attachments.delete(item.id);persist();
       const detail=await api(artifactPath(item.id));if(state.active===item.id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery};renderChat();syncSelection();}
-    }catch(reason){error.textContent=reason.message;renderVoiceSegments(item.id);}finally{sending.delete(item.id);for(const control of controls)if(!control.closest('.voice-input-controls'))control.disabled=false;lockComposer();if(state.active===item.id)doc.getElementById('hub-feedback-text')?.focus();}
+    }catch(reason){if(reason.status===409)await refreshArtifactReview(item.id);error.textContent=reason.message;renderVoiceSegments(item.id);}finally{sending.delete(item.id);for(const control of controls)if(!control.closest('.voice-input-controls'))control.disabled=false;lockComposer();if(state.active===item.id)doc.getElementById('hub-feedback-text')?.focus();}
   }
   function addAttachments(incoming) {
     if(sending.has(state.active))return;
@@ -715,8 +753,9 @@
         syncVoiceChrome();return;
       }
       if(node.id==='hub-send-voice'){
-        const id=state.active,form=doc.getElementById('hub-feedback-form'),completed=await feedbackVoiceHandle?.stop();syncVoiceChrome();
+        const id=state.active,mode=state.detail?.mode,form=doc.getElementById('hub-feedback-form'),completed=await feedbackVoiceHandle?.stop();syncVoiceChrome();
         if(id!==state.active || !form.isConnected)return;
+        if(state.detail?.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return;}
         if(!completed){toast('Recording ended without sending. Review your draft before sending.');return;}
         form.requestSubmit();return;
       }
@@ -865,13 +904,7 @@
           const banner=doc.getElementById('hub-new-revision');if(banner)banner.hidden=false;
           if(previewUpdates.enabled && !artifactPreviewBusy() && await applyArtifactUpdate(detail))return;
         }
-        if(state.active===id && JSON.stringify(detail.feedback)!==JSON.stringify(state.detail.feedback)){
-          const thread=doc.getElementById('hub-thread'),atBottom=thread.scrollHeight-thread.scrollTop-thread.clientHeight<50;
-          state.detail.feedback=detail.feedback;thread.innerHTML=detail.feedback.map(message=>messageMarkup(message,state.detail)).join('');
-          if(atBottom)thread.scrollTop=thread.scrollHeight;
-          const release=doc.querySelector('[data-action=release]'),count=pendingCount(state.detail);
-          if(release){release.disabled=!count;release.innerHTML=icon('send')+`<span>Send batch${count?' · '+count:''}</span>`;}
-        }
+        syncArtifactReview(detail);
       }else if(state.designActive){
         if(!state.designs.some(item=>item.id===state.designActive))home('designs');
       }else if(!state.active && previous!==JSON.stringify([state.artifacts,state.designs,state.projects,state.projectTree])){

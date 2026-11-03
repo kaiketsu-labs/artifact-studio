@@ -105,8 +105,16 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
   .view-switch{padding-right:3px;margin-right:0}
   #view-zoom{display:none}
   .view-controls{gap:1px;flex:none}
-  .view-controls button{width:26px}
+  .view-controls button.icon-only{width:26px}
   #zoom-value{min-width:34px;font-size:11px}
+}
+@media(max-width:360px){
+  .topbar{padding-inline:6px;gap:2px}
+  .topbar .identity{margin-right:0}
+  .topbar .top-actions{gap:1px}
+  .topbar .workspace-panel-toggle.panel-right{margin-left:2px}
+  .topbar .workspace-panel-toggle.panel-right::before{display:none}
+  .view-navigation button.icon-only{width:28px}
 }
 @media(pointer:coarse){
   .topbar .workspace-panel-toggle{width:44px;height:44px;padding:11px}

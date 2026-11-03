@@ -81,6 +81,22 @@ test('stale tabs never restore another tabs deleted drafts',()=>{
   assert.equal(restored.feedback.get('deck-b/cover').feedback,'Independent work');
 });
 
+test('a completed save keeps a newer same-slide draft from another tab recoverable',()=>{
+  for(const kind of ['notes','feedback']){
+    const local=storage(),first=create(local),second=create(local);
+    const original=kind==='notes'?{notes:'First tab save',expected_notes:'Original'}:{feedback:'First tab feedback'};
+    const newer=kind==='notes'?{notes:'Second tab draft',expected_notes:'Original'}:{feedback:'Second tab feedback'};
+    first[kind].set('deck/cover',original);first.persist();
+    second[kind].set('deck/cover',newer);second.persist();
+    first[kind].delete('deck/cover');first.persist();
+    assert.deepEqual(create(local)[kind].get('deck/cover'),newer);
+    second.persist();first.persist();
+    assert.deepEqual(create(local)[kind].get('deck/cover'),newer);
+    second[kind].delete('deck/cover');second.persist();
+    assert.equal(create(local)[kind].has('deck/cover'),false);
+  }
+});
+
 test('existing drafts migrate once and retain revision and element context',()=>{
   const local=storage(),value={feedback:'Keep me',content_hash:'version-1',target:{selector:'h1',label:'Heading'}};
   local.setItem('artifact-studio:drafts:v1',JSON.stringify({version:1,feedback:[['deck/cover',value]],notes:[]}));
