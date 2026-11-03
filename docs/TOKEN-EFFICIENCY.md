@@ -75,6 +75,28 @@ The raw MCP tool catalogue does not repeat the bootstrap. Some hosts append the 
 
 ## Measured authoring exchange
 
+### Independent authoring cycle · 2 November 2026
+
+A fresh review of `f636d2b` used two independent presentation authors, separate workflow/design/context auditors and cross-review of their findings. Both authors then exercised the candidate with one client per phase. See [the evaluation report](CONTINUOUS-EVALUATION-2026-11-02.md) for presentation accuracy, UI recovery tests and measurement limits.
+
+Once a scope is selected, the bootstrap and new-deck handoff now recommend `include_discovery=False`. Discovery remains available by default. A new optional `compact_sources=True` avoids repeating a selected design file's name, local path and SHA-256 in provenance when the exact metadata is already present in `design_context.files`. Complete file inventory, scope and delivery status remain. Default responses and raw/persisted receipts keep their existing representation.
+
+Each compact provenance entry has a `file_ref` such as `design_context.files[2]`. Resolve it in **that same response**: `title` is the file's `name`, `path` its `local_path`, and `hash` its `sha256`. Keep the entry's scope and delivery status. Indices are not durable IDs and must not be reused after another inventory read. Unmatched sources stay complete. This does not compact legacy `design_references`; omitting unrelated discovery and retaining actual guide/rule hashes are separate controls.
+
+Controlled real MCP results used equal-length baseline/candidate checkout paths, five selected reference files, twelve unrelated designs, an artifact and a two-slide deck. Byte counts include serialized text and structured copies, excluding HTTP framing. Default response sizes matched baseline in all five cases.
+
+| Matched context read | Before | After | Response reduction |
+| --- | ---: | ---: | ---: |
+| First selected-reference artifact, compact sources | 33,356 B | 30,516 B | 2,840 B / 8.51% |
+| Retained-guidance artifact, compact sources | 21,215 B | 18,375 B | 2,840 B / 13.39% |
+| Selected artifact, omit unrelated discovery | 42,016 B | 33,356 B | 8,660 B / 20.61% |
+| Author's unchanged five-slide deck, retained context | 39,334 B | 35,942 B | 3,392 B / 8.62% |
+| Author's unchanged four-slide deck, retained context | 38,341 B | 34,949 B | 3,392 B / 8.85% |
+
+The compact flag adds 23 request bytes. It adds no response saving when there is no eligible `design_context.files` inventory. The advertised catalogue grows by 258 bytes (107,745→108,003); the clearer bootstrap grows by 29 bytes (1,393→1,422). Full schema definitions remain intact. Both authors reconstructed every source from the compact form and verified complete briefs, selected blue preferences and original notes. These are transport measurements, **not model-token counts or billed savings**; host selection of content copies and caching differ. The after-exercise totals describe different work and are not compared with initial authoring totals as a saving.
+
+Run the benchmark with `--compact-sources` or `--discovery` to isolate the two controls. Reuse one initialized client within an authoring phase and batch already-reviewed local calls where useful; do not skip protocol initialization for a genuinely new client. Retain an identical workflow guide's hash when requesting the design guide. Do not reread unchanged full source or recapture unaffected slides just to copy them into another call.
+
 ### Scoped artifact context · 2 November 2026
 
 A second isolated benchmark compares `2b2fd53` with the scoped-context changes. Both runs use five selected design files, twelve unrelated designs, one HTML artifact and one two-slide deck, with equal-length checkout paths. Counts include the text and structured copies in serialized MCP results; they are not model tokens or billed savings.

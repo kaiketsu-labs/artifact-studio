@@ -25,6 +25,7 @@
     }
     async function execute(command){
       if(busy)return false;
+      if(read()?.id!==command.deckId){notify('The presentation changed. Open the original presentation to retry this slide action.',()=>execute(command),true);return false;}
       pending=command;
       busy=true;onBusy(true);update();
       try{
@@ -40,7 +41,7 @@
             notify(({add:'Slide added.',duplicate:'Slides duplicated.',restore:'Slides restored.'})[result.action]);
           }
         }
-        return true;
+        return !!applied;
       }catch(error){
         // A lost response may follow a committed write; retries must reuse its token.
         if(error.status&&error.status<500)pending=null;
@@ -62,16 +63,19 @@
       await execute(pending);
     }
     async function restore(deckId,deletionId){
-      if(busy)return;
-      if(pending){notify('Finish the previous slide action first.',()=>execute(pending),true);return;}
-      if(!await ready({action:'restore',ids:[]}))return;
+      if(busy)return false;
+      if(read()?.id!==deckId){notify('The presentation changed. Open the original presentation to restore its slides.',null,true);return false;}
+      if(pending){notify('Finish the previous slide action first.',()=>execute(pending),true);return false;}
+      if(!await ready({action:'restore',ids:[]}))return false;
+      if(read()?.id!==deckId){notify('The presentation changed. Open the original presentation to restore its slides.',null,true);return false;}
       pending={deckId,url:`/api/decks/${encodeURIComponent(deckId)}/restore-slides`,payload:{deletion_id:deletionId,request_id:crypto.randomUUID()},activeId:read()?.activeId};
       const done=await execute(pending);
       if(done&&$('deleted-slides-dialog').open)await showDeleted();
+      return done;
     }
     async function undo(){
       if(!lastDeletion||lastDeletion.deckId!==read()?.id)return false;
-      await restore(lastDeletion.deckId,lastDeletion.id);return true;
+      return await restore(lastDeletion.deckId,lastDeletion.id);
     }
     async function showDeleted(){
       const state=read();if(!state||busy)return;
@@ -95,7 +99,7 @@
     $('deleted-slides').addEventListener('click',showDeleted);
     $('close-deleted-slides').addEventListener('click',()=>$('deleted-slides-dialog').close());
     update();
-    return {run,update,undo,clearUndo:()=>{lastDeletion=null;},isBusy:()=>busy};
+    return {run,update,undo,restore,clearUndo:()=>{lastDeletion=null;},isBusy:()=>busy};
   }
   window.SlideActions={create};
 })();

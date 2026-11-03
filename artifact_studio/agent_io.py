@@ -2,8 +2,58 @@
 
 import hashlib
 import json
+from typing import cast
 
 from .models import Deck, DeckReceipt, FeedbackFeed, SlideReceipt, SlideView
+
+
+def compact_source_references(context: dict[str, object]) -> None:
+    """Reference only exact selected-file provenance in this same response snapshot."""
+    design = context.get("design_context")
+    sources = context.get("sources")
+    if not isinstance(design, dict) or not isinstance(sources, list):
+        return
+    selected = cast(dict[str, object], design)
+    files = selected.get("files")
+    design_id = selected.get("id")
+    if not isinstance(files, list) or not isinstance(design_id, str):
+        return
+    inventory: dict[tuple[str, str, str], int] = {}
+    for index, file in enumerate(cast(list[object], files)):
+        if not isinstance(file, dict):
+            continue
+        item = cast(dict[str, object], file)
+        name, path, token = item.get("name"), item.get("local_path"), item.get("sha256")
+        if isinstance(name, str) and isinstance(path, str) and isinstance(token, str):
+            inventory.setdefault((name, path, token), index)
+    compact: list[object] = []
+    for source in cast(list[object], sources):
+        if not isinstance(source, dict):
+            compact.append(source)
+            continue
+        entry = cast(dict[str, object], source)
+        match = None
+        title, path, token = entry.get("title"), entry.get("path"), entry.get("hash")
+        if (
+            entry.get("scope") == "design · " + design_id
+            and isinstance(title, str)
+            and isinstance(path, str)
+            and isinstance(token, str)
+        ):
+            match = inventory.get((title, path, token))
+        compact.append(
+            {
+                **{
+                    key: value
+                    for key, value in entry.items()
+                    if key not in {"title", "path", "hash"}
+                },
+                "file_ref": f"design_context.files[{match}]",
+            }
+            if match is not None
+            else entry
+        )
+    context["sources"] = compact
 
 
 def rules_hash(instructions: str, preferences: str) -> str:

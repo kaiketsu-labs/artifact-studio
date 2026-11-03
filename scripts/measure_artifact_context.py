@@ -14,12 +14,16 @@ from artifact_studio.models import FileInput
 from tests.integration.support import DECK_ID, PROJECT, running_app
 
 
-def measure(*, baseline: bool) -> dict[str, object]:
+def measure(
+    *, baseline: bool, compact_sources: bool = False, discovery: bool = False
+) -> dict[str, object]:
     """Count transport bytes without exposing sources or claiming billed token usage."""
     samples: dict[str, object] = {}
 
     def call(client: Client, label: str, **arguments: object) -> dict[str, object]:
         """Record a response while retaining decoded context for later calls."""
+        if compact_sources:
+            arguments["compact_sources"] = True
         parameters: dict[str, object] = {"name": "get_working_context", "arguments": arguments}
         response = client.rpc("tools/call", parameters)
         if response.get("isError"):
@@ -65,20 +69,20 @@ def measure(*, baseline: bool) -> dict[str, object]:
                 "artifact_first",
                 artifact_id=artifact.id,
                 design_id=selected.id,
-                include_discovery=False,
+                include_discovery=discovery,
             )
             _ = call(
                 client,
                 "artifact_retained",
                 artifact_id=artifact.id,
                 design_id=selected.id,
-                include_discovery=False,
+                include_discovery=discovery,
                 known_rules_hash=first["rules_hash"],
                 known_guide_hash=first["guide_hash"],
             )
-            _ = call(client, "reference_only", design_id=selected.id, include_discovery=False)
+            _ = call(client, "reference_only", design_id=selected.id, include_discovery=discovery)
             legacy = call(
-                client, "deck_via_artifact_first", artifact_id=DECK_ID, include_discovery=False
+                client, "deck_via_artifact_first", artifact_id=DECK_ID, include_discovery=discovery
             )
             nested = object_value(legacy["presentation_context"])
             retained = {} if baseline else {"known_presentation_guide_hash": nested["guide_hash"]}
@@ -86,7 +90,7 @@ def measure(*, baseline: bool) -> dict[str, object]:
                 client,
                 "deck_via_artifact_retained",
                 artifact_id=DECK_ID,
-                include_discovery=False,
+                include_discovery=discovery,
                 known_rules_hash=legacy["rules_hash"],
                 known_guide_hash=legacy["guide_hash"],
                 **retained,
@@ -103,6 +107,8 @@ def measure(*, baseline: bool) -> dict[str, object]:
             "5 selected design files, 12 unrelated designs, an HTML artifact and a 2-slide deck"
         ),
         "baseline": baseline,
+        "compact_sources": compact_sources,
+        "discovery": discovery,
         "bootstrap_utf8_bytes": (PROJECT / "agent/bootstrap.md").stat().st_size,
         "samples": samples,
     }
@@ -112,9 +118,13 @@ def main() -> None:
     """Write aggregate measurements to an explicit local report destination."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline", action="store_true")
+    parser.add_argument("--compact-sources", action="store_true")
+    parser.add_argument("--discovery", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    report = measure(baseline=args.baseline)
+    report = measure(
+        baseline=args.baseline, compact_sources=args.compact_sources, discovery=args.discovery
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     _ = args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

@@ -82,9 +82,17 @@
       history.push({before:[...before.ids],after:[...after.ids],beforeSections:structuredClone(before.sections||[]),afterSections:structuredClone(after.sections||[])});
       history=history.slice(-30);future=[];
     }
+    // Structural actions share the same chronological undo stack as moves.
+    function recordAction(id,undo){history.push({actionId:id,undo});history=history.slice(-30);future=[];}
+    function consumeAction(id){
+      if(history.at(-1)?.actionId===id)history.pop();
+      else {history=[];}
+      future=[];
+    }
     async function move(action){const state=read();if(state)await commit(moveSlides(state.ids,selected,action),state.ids);}
     async function undo(redo=false){
       const from=redo?future:history,to=redo?history:future,item=from.at(-1),state=read();if(!item||!state)return false;if(busy)return true;
+      if(item.actionId){if(!redo&&await item.undo()&&from.at(-1)===item)from.pop();future=[];return true;}
       const expected=redo?item.before:item.after,next=redo?item.after:item.before;
       const expectedSections=redo?item.beforeSections:item.afterSections;
       if(!equal(state.ids,expected)||JSON.stringify(state.sections||[])!==JSON.stringify(expectedSections)){history=[];future=[];notify('Slide order or sections changed. Undo is no longer available.');return true;}
@@ -170,7 +178,7 @@
       await select(ids[next],event);buttonFor(ids[next])?.scrollIntoView({block:'nearest'});
     });
     document.addEventListener('keydown',event=>{if(event.key==='Escape'&&gesture){event.preventDefault();event.stopPropagation();cancel();suppressClick=false;}},true);
-    return {sync,move,canMove,undo,recordLayout,selection:()=>[...selected],setSelection:ids=>{selected=new Set(ids);anchor=ids[0];sync();},resetHistory:()=>{history=[];future=[];},isBusy:()=>busy,isDragging:()=>!!gesture?.dragging};
+    return {sync,move,canMove,undo,recordLayout,recordAction,consumeAction,selection:()=>[...selected],setSelection:ids=>{selected=new Set(ids);anchor=ids[0];sync();},resetHistory:()=>{history=[];future=[];},isBusy:()=>busy,isDragging:()=>!!gesture?.dragging};
   }
   const api={insertSlides,moveSlides,slideRange,dropPosition,verticalNeighbour,create};
   if(typeof module!=='undefined')module.exports=api;
