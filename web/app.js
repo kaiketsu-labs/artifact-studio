@@ -6,8 +6,10 @@
   const drafts=draftStore.notes;
   const feedbackDrafts=draftStore.feedback;
   const feedbackDraft=()=>feedbackDrafts.get(key());
+  let voice=null, voiceFeedback=null, editingVoiceSegment=false, voiceRecordingBase=null;
   const {targetsOf,groupTargets,selectTargets,isAdditive}=window.SlideSelection;
   const {svg,brand,button:iconButton}=window.SlideIcons;
+  const upwardArrow='<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4m-7 7 7-7 7 7"/></svg>';
   for(const [id,icon,label,show] of [
     ['instructions-button','rules','Instructions',true],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
     ['share-artifact','share','Share presentation',false],['view-artifact','fullscreen','Focus view',false],
@@ -86,6 +88,86 @@
   const slideQuestions=window.SlideQuestions.create({api,escape,svg,avatar:chatAvatar,deliveryMode:()=>deck?.workflow?.mode||'live',onRefresh:async(answer,deckId,slideId)=>{if(answer&&deck?.id===deckId){const target=deck.slides.find(item=>item.id===slideId);if(target&&!target.feedback.some(item=>item.event_id===answer.event_id))target.feedback.push(answer);renderRail();renderComments(slide());}await refresh();}});
   $('chat-question-status').addEventListener('click',()=>slideQuestions.jump($('feedback-list')));
 
+  voiceFeedback=window.SlideVoiceFeedback.create({
+    drafts:feedbackDrafts,key,
+    context:()=>deck&&slide()?{slide_id:selectedId,context_slide_id:selectedId,content_hash:currentTarget?feedbackDraft()?.content_hash||slide().content_hash:slide().content_hash,target:currentTarget}:null,
+    persist:persistDrafts,
+    onChange:draftKey=>{if(draftKey===key()){if(!editingVoiceSegment)renderVoiceFeedback();updateComposer();}}
+  });
+  voice=window.slideVoice=window.SlideVoice.create({onIdle:input=>{if(input===$('feedback-text'))voiceRecordingBase=null;syncVoiceChrome();updateComposer();resumePreviewUpdates();}});
+  const feedbackVoice=voice.register($('feedback-text'),{
+    capture:()=>{retainDraft();if(!voice.isActive($('feedback-text')))voiceRecordingBase=new Set(voiceFeedback.segments().map(item=>item.request_id));return voiceFeedback.capture();},
+    insert:(text,context)=>voiceFeedback.insert(text,context),
+    available:context=>!feedbackSending&&voiceFeedback.available(context),visible:()=>!!deck,label:'Your feedback'
+  });
+  $('feedback-form').querySelector('.compose-actions').insertBefore(feedbackVoice.controls,$('send-feedback'));
+  document.addEventListener('voice-input-state',event=>{
+    if(event.detail?.input===$('feedback-text')){
+      if(event.detail.active&&voiceRecordingBase===null)voiceRecordingBase=new Set(voiceFeedback.segments().map(item=>item.request_id));
+      syncVoiceChrome(event.detail.phase);
+    }
+    updateComposer();
+  });
+  $('cancel-feedback-voice').innerHTML=svg('close');
+  $('stop-feedback-voice').innerHTML='<span aria-hidden="true"></span>';
+  $('send-feedback-voice').innerHTML=upwardArrow;
+  for(let index=0;index<28;index++){const dot=document.createElement('span');dot.style.setProperty('--voice-dot',index);dot.setAttribute('aria-hidden','true');$('feedback-recording').querySelector('.voice-listening-dots').append(dot);}
+  function syncVoiceChrome(phase=''){
+    const active=!!voice?.isActive($('feedback-text')),bar=$('feedback-recording');
+    bar.hidden=!active;$('feedback-form').classList.toggle('is-recording',active);
+    bar.classList.toggle('is-finishing',phase!=='listening');$('send-feedback-voice').disabled=phase!=='listening';
+    bar.querySelector('[role=status]').setAttribute('aria-label',phase==='listening'?'Listening':phase==='waiting'?'Waiting for microphone':phase==='starting'?'Starting microphone':'Finishing dictation');
+    const label=deck?.workflow?.mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback';
+    $('send-feedback-voice').setAttribute('aria-label',label);$('send-feedback-voice').title=label;voice?.refresh();
+  }
+  $('stop-feedback-voice').addEventListener('click',async()=>{await feedbackVoice.stop();syncVoiceChrome();updateComposer();});
+  $('cancel-feedback-voice').addEventListener('click',()=>{
+    const retained=voiceRecordingBase||new Set();feedbackVoice.cancel();voiceRecordingBase=null;
+    for(const segment of voiceFeedback.segments())if(!retained.has(segment.request_id))voiceFeedback.remove(segment.request_id);
+    renderVoiceFeedback();syncVoiceChrome();
+  });
+  $('send-feedback-voice').addEventListener('click',async()=>{
+    const draftKey=key(),completed=await feedbackVoice.stop();syncVoiceChrome();
+    if(draftKey!==key())return;
+    if(!completed){toast('Recording ended without sending. Review your draft before sending.');return;}
+    $('feedback-form').requestSubmit();
+  });
+  /** Each dictated section is editable, with its original selection and revision retained. */
+  function renderVoiceFeedback(){
+    const panel=$('voice-feedback-segments'),segments=voiceFeedback?.segments()||[];
+    panel.hidden=!segments.length;
+    const signature=segments.map(item=>item.request_id).join('/');
+    if(panel.dataset.signature!==signature){
+      panel.dataset.signature=signature;panel.replaceChildren();
+      for(const segment of segments){
+        const row=document.createElement('div');row.className='voice-segment';row.dataset.voiceSegment=segment.request_id;
+        const header=document.createElement('div');header.className='voice-segment-heading';
+        const label=document.createElement('span');label.textContent=segment.target?.label||'Whole slide';label.title=targetsOf(segment.target).map(item=>item.label).join(' · ')||'Whole slide';
+        const remove=document.createElement('button');remove.type='button';remove.dataset.removeVoiceSegment=segment.request_id;remove.innerHTML=svg('close');remove.setAttribute('aria-label',`Remove dictated feedback for ${label.textContent}`);
+        header.append(label,remove);
+        const input=document.createElement('textarea');input.className='voice-feedback-text';input.rows=1;input.maxLength=10000;input.value=segment.message;input.setAttribute('aria-label',`Dictated feedback for ${label.textContent}`);
+        const context=document.createElement('small');context.className='voice-segment-context';context.textContent='Earlier version · original selection retained';context.hidden=segment.content_hash===slide()?.content_hash;
+        row.append(header,input,context);panel.append(row);voice?.register(input,{controlsHost:header,visible:()=>true});
+      }
+    }
+    for(const row of panel.querySelectorAll('[data-voice-segment]')){
+      const segment=segments.find(item=>item.request_id===row.dataset.voiceSegment),input=row.querySelector('textarea');
+      if(segment&&input!==document.activeElement)input.value=segment.message;
+      row.querySelector('.voice-segment-context').hidden=segment?.content_hash===slide()?.content_hash;
+      input.disabled=feedbackSending;row.querySelector('button').disabled=feedbackSending;
+    }
+    voice?.refresh();
+  }
+  $('voice-feedback-segments').addEventListener('input',event=>{
+    const input=event.target.closest('.voice-feedback-text'),row=input?.closest('[data-voice-segment]');if(!row||feedbackSending)return;
+    if(voice.isActive($('feedback-text')))void voice.stop();editingVoiceSegment=true;
+    try{const id=voiceFeedback.edit(row.dataset.voiceSegment,input.value);if(id){row.dataset.voiceSegment=id;row.querySelector('button').dataset.removeVoiceSegment=id;$('voice-feedback-segments').dataset.signature=voiceFeedback.segments().map(item=>item.request_id).join('/');}}
+    finally{editingVoiceSegment=false;}
+  });
+  $('voice-feedback-segments').addEventListener('click',async event=>{
+    const button=event.target.closest('[data-remove-voice-segment]');if(!button||feedbackSending)return;await voice.stop();voiceFeedback.remove(button.dataset.removeVoiceSegment);
+  });
+
   /** Report save and conflict results without interrupting the review flow. */
   function toast(message,error=false,action=null){clearTimeout(toastTimer);$('toast').textContent=message;if(action){const button=document.createElement('button');button.type='button';button.textContent=action.label;button.addEventListener('click',async()=>{button.disabled=true;try{await action.run();}catch(error){toast(error.message,true);}});$('toast').append(button);}$('toast').classList.toggle('error',error);$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,error||action?8000:3500);}
   /** Exchange JSON with the local server and surface actionable error messages. */
@@ -98,10 +180,10 @@
     const previous=feedbackDraft(),value=$('feedback-text').value;
     const hasContext=previous?.feedback?.trim()||previous?.target||(chatComposer.hasFiles()&&previous?.content_hash);
     const unchanged=previous?.feedback===value&&JSON.stringify(previous?.target)===JSON.stringify(currentTarget);
-    feedbackDrafts.set(key(),{feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:slide().content_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
+    feedbackDrafts.set(key(),{...previous,feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:slide().content_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     persistDrafts();
   }
-  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles());chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
 
 
   /** Resolve a source relative to the canonical presentation folder. */
@@ -203,7 +285,7 @@
     elementEditor.select(null);currentTarget=target;hoverElement=null;$('hover-box').hidden=true;
     const previous=feedbackDraft()||{};
     feedbackDrafts.set(key(),{...previous,target,request_id:crypto.randomUUID(),...(retarget||!previous.content_hash?{slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash}:{})});
-    retainDraft();restoreSelection();renderTarget();if(focus)$('feedback-text').focus();
+    retainDraft();voice?.boundary($('feedback-text'));restoreSelection();renderTarget();if(focus)$('feedback-text').focus();
   }
   /** Capture original geometry and toggle context without treating a group as an editable object. */
   async function selectElement(element,focus=true,additive=false){
@@ -233,7 +315,7 @@
     $('send-batch').hidden=!state.pending;iconButton($('send-batch'),'send',(live?'Send queued comments':'Send batch')+' ('+state.pending+')',true);
     $('batch-delivery-help').hidden=live;$('send-feedback').classList.toggle('is-batch',!live);
     if(live)$('feedback-text').removeAttribute('aria-describedby');else $('feedback-text').setAttribute('aria-describedby','batch-delivery-help');
-    iconButton($('send-feedback'),live?'send':'plus',live?'Send feedback':'Add to batch',!live);$('send-feedback').title+=' (Enter · Shift+Enter for a new line)';
+    iconButton($('send-feedback'),'up',live?'Send feedback':'Add to batch',false);$('send-feedback').innerHTML=upwardArrow;$('send-feedback').title+=' (Enter · Shift+Enter for a new line)';
     slideQuestions.updateDelivery($('feedback-list'));
   }
 
@@ -307,7 +389,7 @@
   }
 
   /** Display one selected slide without losing unsaved per-slide work. */
-  function render(){const item=slide();if(!item)return;$('instructions-button').hidden=deck.authoring_instructions===undefined;if(window.SlideConversations.migrateDraft(feedbackDrafts,deck))draftStore.persist();watchDeck(deck.id);renderChangeStatus();document.querySelector('.workspace').classList.remove('is-empty');for(const id of ['mode-live','mode-batch'])$(id).disabled=false;const index=deck.slides.indexOf(item),draft=drafts.get(key()),commentDraft=feedbackDraft();$('chat-slide-number').textContent=String(index+1).padStart(2,'0');$('chat-slide-title').textContent=item.title;$('chat-slide-title').title=item.title;$('feedback-slide-context').innerHTML=svg('slides')+`<span>${String(index+1).padStart(2,'0')}</span>`;$('feedback-slide-context').title=`Slide ${index+1}: ${item.title} · Included with every message`;$('feedback-slide-context').setAttribute('aria-label',`Context: slide ${index+1}, ${item.title}`);$('slide-eyebrow').textContent=`${String(index+1).padStart(2,'0')} / ${String(deck.slides.length).padStart(2,'0')}`;$('slide-eyebrow').title=`Version ${item.revision}`;$('slide-title').textContent=item.title;iconButton($('approve-button'),'check',item.approved?'Approved':'Approve',true);$('approve-button').classList.toggle('is-approved',item.approved);$('approve-button').setAttribute('aria-pressed',String(item.approved));$('approve-button').title=item.approved?'Click to return this slide to needs review':'Approve this exact slide version';$('prev-slide').disabled=index===0;$('next-slide').disabled=index===deck.slides.length-1;$('present-link').href=`/decks/${deck.id}/index.html?present=1#${item.id}`;$('present-link').removeAttribute('aria-disabled');$('present-link').removeAttribute('tabindex');
+  function render(){const item=slide();if(!item)return;renderVoiceFeedback();$('instructions-button').hidden=deck.authoring_instructions===undefined;if(window.SlideConversations.migrateDraft(feedbackDrafts,deck))draftStore.persist();watchDeck(deck.id);renderChangeStatus();document.querySelector('.workspace').classList.remove('is-empty');for(const id of ['mode-live','mode-batch'])$(id).disabled=false;const index=deck.slides.indexOf(item),draft=drafts.get(key()),commentDraft=feedbackDraft();$('chat-slide-number').textContent=String(index+1).padStart(2,'0');$('chat-slide-title').textContent=item.title;$('chat-slide-title').title=item.title;$('feedback-slide-context').innerHTML=svg('slides')+`<span>${String(index+1).padStart(2,'0')}</span>`;$('feedback-slide-context').title=`Slide ${index+1}: ${item.title} · Included with every message`;$('feedback-slide-context').setAttribute('aria-label',`Context: slide ${index+1}, ${item.title}`);$('slide-eyebrow').textContent=`${String(index+1).padStart(2,'0')} / ${String(deck.slides.length).padStart(2,'0')}`;$('slide-eyebrow').title=`Version ${item.revision}`;$('slide-title').textContent=item.title;iconButton($('approve-button'),'check',item.approved?'Approved':'Approve',true);$('approve-button').classList.toggle('is-approved',item.approved);$('approve-button').setAttribute('aria-pressed',String(item.approved));$('approve-button').title=item.approved?'Click to return this slide to needs review':'Approve this exact slide version';$('prev-slide').disabled=index===0;$('next-slide').disabled=index===deck.slides.length-1;$('present-link').href=`/decks/${deck.id}/index.html?present=1#${item.id}`;$('present-link').removeAttribute('aria-disabled');$('present-link').removeAttribute('tabindex');
     const nextKey=`${deck.id}/${item.id}/${item.content_hash}/${deck.design_hash||item.content_hash}`;currentTarget=commentDraft?.target||null;if(previewKey!==nextKey){elementEditor.select(null);if(draft?.notes!==undefined)$('notes-panel').open=true;selectedElement=null;selectedElements=[];$('group-selection-boxes').replaceChildren();$('selection-box').hidden=true;$('hover-box').hidden=true;if(!sorter.isOpen()){previewKey=nextKey;loadPreview($('preview'),item,deck.id);}}
     const note=noteAutosave.observe(key(),item.notes,draft,item.notes_revision);noteBaseline=note.expected;if($('notes').value!==note.value)$('notes').value=note.value;if($('feedback-text').value!==(commentDraft?.feedback||''))$('feedback-text').value=commentDraft?.feedback||'';notesDirty();renderVisibility();renderTarget();renderAgentContext(item);$('source-count').textContent=item.sources.length;$('sources').innerHTML=item.sources.map(source=>source.url?`<a href="${escape(sourceURL(source.url))}" target="_blank" rel="noopener">${escape(source.label)} ↗</a>`:`<p>${escape(source.label)}</p>`).join('')||'<p>No sources.</p>';renderComments(item);renderWorkflow();renderStart();updateComposer();document.title=`${deck.title} · Artifact Studio`;history.replaceState(null,'',`?deck=${encodeURIComponent(deck.id)}#${encodeURIComponent(selectedId)}`);}
   /** Keep visibility separate from review state and content drafts. */
@@ -332,7 +414,7 @@
   $('slide-menu').addEventListener('click',event=>{const control=event.target.closest('[data-slide-move],[data-slide-action]');if(!control||control.disabled)return;$('slide-menu').hidePopover();if(control.dataset.slideAction)void slideActions.run(control.dataset.slideAction);else void slideOrder.move(control.dataset.slideMove);});
   $('slide-menu').addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...$('slide-menu').querySelectorAll('button:not(:disabled)')],index=buttons.indexOf(document.activeElement),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next]?.focus();}if(event.key==='Escape'){event.preventDefault();$('slide-menu').hidePopover();if(menuSlide?.deckId===deck?.id)$('slides').querySelector(`[data-id="${CSS.escape(menuSlide.id)}"]`)?.focus();}});
   /** Choose a slide and restore any draft feedback attached to it. */
-  async function choose(id){const request=++selectionEpoch,deckId=deck?.id;if(visibilityBusy||slideActions.isBusy()||!await elementEditor.finish()||request!==selectionEpoch||deck?.id!==deckId||!deck.slides.some(item=>item.id===id))return false;retainDraft();void noteAutosave.flush(key());if(pendingDeck){deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;}selectedId=id;slideSections?.reveal(id);renderRail();render();if(!sorter.isOpen())void markOpened();$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});return true;}
+  async function choose(id){const request=++selectionEpoch,deckId=deck?.id;if(visibilityBusy||slideActions.isBusy()||!await elementEditor.finish()||request!==selectionEpoch||deck?.id!==deckId||!deck.slides.some(item=>item.id===id))return false;retainDraft();await voice?.stop();if(request!==selectionEpoch||deck?.id!==deckId)return false;void noteAutosave.flush(key());if(pendingDeck){deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;}selectedId=id;slideSections?.reveal(id);renderRail();render();if(!sorter.isOpen())void markOpened();$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});return true;}
   const slideOrder=window.SlideOrder.create({
     rail:$('slides'),read:()=>deck?{deckId:deck.id,ids:(pendingDeck||deck).slides.map(item=>item.id),activeId:selectedId,sections:(pendingDeck||deck).sections,sectionsHash:(pendingDeck||deck).sections_hash}:null,
     layout:()=>sorter.isOpen()?'grid':'list',activate:async id=>{if(await choose(id))await sorter.edit();},onBusy:()=>{sorter.sync();slideSections?.sync(pendingDeck||deck);},
@@ -419,14 +501,17 @@
   const projectFiles=window.SlideProjects.init({
     toast,read:()=>deck,
     capture:async()=>{
+      await voice.stop();
       if(elementEditor.isEditing())throw new Error('Finish or cancel the element edit before saving or opening a project.');
       if(deck)await noteAutosave.flushAll(deck.id+'/');
       retainDraft();if(!deck)return {};
       const prefix=deck.id+'/';
       let presenter_notes={};try{presenter_notes=JSON.parse(localStorage.getItem(`artifact-studio:presenter-notes:${deck.id}`)||'{}');}catch{}
-      return {active_slide_id:selectedId,...sorter.snapshot(),notes:Object.fromEntries([...drafts].filter(([name,value])=>name.startsWith(prefix)&&value.notes!==undefined).map(([name,value])=>[name.slice(prefix.length),value])),feedback:Object.fromEntries([...feedbackDrafts].filter(([name,value])=>name.startsWith(prefix)&&(value.feedback.trim()||value.target)).map(([name,value])=>[name.slice(prefix.length),value])),presenter_notes,question_answers:slideQuestions.exportDrafts(deck.id),collapsed_sections:slideSections.capture(deck.id),open_panels:[['notes','notes-panel'],['sources',null],['agent','agent-panel']].filter(([name,id])=>(id?$(id):document.querySelector('.sources-panel')).open).map(([name])=>name)};
+      return {active_slide_id:selectedId,...sorter.snapshot(),notes:Object.fromEntries([...drafts].filter(([name,value])=>name.startsWith(prefix)&&value.notes!==undefined).map(([name,value])=>[name.slice(prefix.length),value])),feedback:Object.fromEntries([...feedbackDrafts].filter(([name,value])=>name.startsWith(prefix)&&(value.feedback.trim()||value.target||value.voice_segments?.length)).map(([name,value])=>[name.slice(prefix.length),value])),presenter_notes,question_answers:slideQuestions.exportDrafts(deck.id),collapsed_sections:slideSections.capture(deck.id),open_panels:[['notes','notes-panel'],['sources',null],['agent','agent-panel']].filter(([name,id])=>(id?$(id):document.querySelector('.sources-panel')).open).map(([name])=>name)};
+
     },
     restore:async opened=>{
+      await voice.stop();
       const state=opened.client,prefix=opened.deck_id+'/';
       slideQuestions.importDrafts(opened.deck_id,state.question_answers);
       for(const [id,value] of Object.entries(state.notes||{}))drafts.set(prefix+id,value);
@@ -449,7 +534,7 @@
       if(epoch!==orderEpoch||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()){refreshQueued=true;return;}
       if(JSON.stringify(snapshot)===JSON.stringify(deck)){renderWorkflow();renderStart();return;}
       const contentChanged=snapshot.slides.find(item=>item.id===selectedId)?.content_hash!==slide()?.content_hash;
-      const holdPreview=previewBusy()||(!previewUpdates.enabled&&!force);
+      const holdPreview=previewBusy()||voice?.isActive()||(!previewUpdates.enabled&&!force);
       if(contentChanged&&holdPreview){pendingDeck=snapshot;deck.workflow=snapshot.workflow;renderWorkflow();renderRail(snapshot);renderChangeStatus();$('update-banner').hidden=false;return;}
       retainDraft();deck=snapshot;pendingDeck=null;$('update-banner').hidden=true;
       if(!deck.slides.some(item=>item.id===selectedId))selectedId=deck.slides[0].id;
@@ -556,11 +641,31 @@
   /** Send chat messages with Enter while preserving multiline and composition input. */
   function bindMessageEnter(inputId,buttonId,send){$(inputId).addEventListener('keydown',event=>{if(event.key!=='Enter'||event.shiftKey||event.altKey||event.isComposing||event.keyCode===229)return;event.preventDefault();if(!event.repeat&&!$(buttonId).disabled)send();});}
   bindMessageEnter('feedback-text','send-feedback',()=>$('feedback-form').requestSubmit());
-  $('feedback-form').addEventListener('submit',async event=>{event.preventDefault();if(!deck||feedbackSending||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()))return;if(!await elementEditor.finish()||feedbackSending)return;retainDraft();const button=$('send-feedback'),sendingDeck=deck.id,sendingKey=key(),context=feedbackDraft(),message=$('feedback-text').value;feedbackSending=true;updateComposer();$('feedback-text').disabled=true;try{const endpoint=`/api/decks/${sendingDeck}/slides/${context.slide_id}/feedback`;const files=await chatComposer.payload(sendingKey);const body={message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,request_id:context.request_id};await api(endpoint,body);chatComposer.clear(sendingKey);feedbackDrafts.delete(sendingKey);draftStore.persist();if(key()===sendingKey){$('feedback-text').value='';setTarget(null);}await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');}catch(error){chatComposer.error(error.message,sendingKey);}finally{chatComposer.idle(sendingKey);feedbackSending=false;$('feedback-text').disabled=false;updateComposer();if(key()===sendingKey&&!document.querySelector('dialog[open]')&&[document.body,button].includes(document.activeElement))$('feedback-text').focus();}});
+  $('feedback-form').addEventListener('submit',async event=>{
+    event.preventDefault();
+    if(!deck||feedbackSending||voice.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().some(item=>item.message.trim())))return;
+    const submittingKey=key();
+    if(!await elementEditor.finish()||!deck||submittingKey!==key()||feedbackSending||voice.isActive())return;
+    retainDraft();
+    const button=$('send-feedback'),sendingDeck=deck.id,sendingKey=key(),context=structuredClone(feedbackDraft()),message=$('feedback-text').value;
+    feedbackSending=true;updateComposer();renderVoiceFeedback();$('feedback-text').disabled=true;
+    try{
+      const files=await chatComposer.payload(sendingKey);
+      for(const segment of voiceFeedback.segments(sendingKey).filter(item=>item.message.trim())){
+        await api(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(segment.slide_id)}/feedback`,{message:segment.message,content_hash:segment.content_hash,target:segment.target,request_id:segment.request_id});
+        voiceFeedback.acknowledge(segment.request_id,sendingKey);
+      }
+      if(message.trim()||files.length)await api(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,request_id:context.request_id});
+      chatComposer.clear(sendingKey);voiceFeedback.clear(sendingKey);feedbackDrafts.delete(sendingKey);draftStore.persist();
+      if(key()===sendingKey){$('feedback-text').value='';setTarget(null);renderVoiceFeedback();}
+      await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
+    }catch(error){chatComposer.error(error.message,sendingKey);}
+    finally{chatComposer.idle(sendingKey);feedbackSending=false;$('feedback-text').disabled=false;renderVoiceFeedback();updateComposer();if(key()===sendingKey&&!document.querySelector('dialog[open]')&&[document.body,button].includes(document.activeElement))$('feedback-text').focus();}
+  });
 
   $('approve-button').addEventListener('click',async()=>{try{await api(`${base()}/approve`,{content_hash:slide().content_hash,approved:!slide().approved});await refresh();}catch(error){toast(error.message,true);await refresh();}});
   $('feedback-list').addEventListener('click',async event=>{if(feedbackSending)return;const button=event.target.closest('[data-event]');if(!button)return;const comment=window.SlideConversations.forSlide(deck,selectedId).find(item=>item.event_id===Number(button.dataset.event));if(!comment?.target)return;if(comment.slide_id!==selectedId||comment.content_hash!==slide().content_hash){toast(`This comment targets an earlier version: ${comment.target.quote||comment.target.label}`);return;}if(elementEditor.isBusy()||!await elementEditor.finish())return;setTarget(structuredClone(comment.target),{retarget:true,focus:true});if(selectedElements.length!==targetsOf(currentTarget).length)toast('Some original objects are no longer present. Their context is retained.');});
-  $('load-update').addEventListener('click',async()=>{if(!pendingDeck||!await elementEditor.finish())return;retainDraft();const draft=feedbackDraft();if(draft&&draft.target){toast('Draft kept on its original version. Select an element again to retarget it.');}deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;if(!slide())selectedId=deck.slides[0].id;renderRail();render();void markOpened();});
+  $('load-update').addEventListener('click',async()=>{if(!pendingDeck||!await elementEditor.finish())return;const update=pendingDeck;await voice.stop();retainDraft();const draft=feedbackDraft();if(draft&&draft.target){toast('Draft kept on its original version. Select an element again to retarget it.');}deck=update;pendingDeck=null;$('update-banner').hidden=true;if(!slide())selectedId=deck.slides[0].id;renderRail();render();void markOpened();});
   $('deck-picker').addEventListener('change',async event=>{retainDraft();try{await start(event.target.value);}catch(error){if(deck)$('deck-picker').value=deck.id;toast(error.message,true);}finally{deckPicker?.sync();if(!$('deck-switcher').disabled&&[document.body,$('deck-switcher')].includes(document.activeElement))$('deck-switcher').focus({preventScroll:true});}});
   for(const mode of ['live','batch'])$('mode-'+mode).addEventListener('click',async()=>{try{deck.workflow=await api('/api/decks/'+deck.id+'/feedback-mode',{mode});renderWorkflow();}catch(error){toast(error.message,true);}});
   $('send-batch').addEventListener('click',async()=>{try{deck.workflow=await api('/api/decks/'+deck.id+'/send-batch',{});renderWorkflow();await refresh();toast('Batch released.');}catch(error){toast(error.message,true);}});
@@ -591,15 +696,16 @@
   $('design-messages').addEventListener('click',event=>{const button=event.target.closest('[data-use-design]');if(button){const input=[...document.querySelectorAll('input[name="design"]')].find(item=>item.value===button.dataset.useDesign);if(input){input.checked=true;$('new-title').focus();}}});
   $('send-design').addEventListener('click',async()=>{const message=$('design-message').value.trim();if(!message&&!attachmentFiles.design.length){$('design-message').focus();return;}const button=$('send-design');button.disabled=true;$('design-message').disabled=true;$('attach-design').disabled=true;$('design-error').textContent='';designRequestId??=crypto.randomUUID();try{const files=await readFiles(attachmentFiles.design);await api('/api/design-requests',{message,files,request_id:designRequestId});$('design-message').value='';attachmentFiles.design=[];designRequestId=null;renderFiles('design');await loadDesignChat();$('design-messages').scrollTop=$('design-messages').scrollHeight;}catch(error){$('design-error').textContent=error.message;}finally{button.disabled=false;$('design-message').disabled=false;$('attach-design').disabled=false;if($('new-dialog').open&&[document.body,button,$('new-dialog')].includes(document.activeElement))$('design-message').focus();}});
   $('close-new').addEventListener('click',()=>$('new-dialog').close());
-  $('new-form').addEventListener('submit',async event=>{event.preventDefault();const button=$('create-button');button.disabled=true;try{const title=$('new-title').value.trim(),brief=$('new-brief').value.trim();if(!brief){$('new-brief').focus();throw new Error('Add a brief.');}const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const slug=title.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'presentation';const created=await api('/api/decks',{deck_id:date+'-'+slug,title,brief,files:await readFiles(attachmentFiles.brief),design_id:new FormData($('new-form')).get('design')||''});retainDraft();const option=new Option(created.title,created.id);$('deck-picker').append(option);$('deck-picker').value=created.id;deck=await api('/api/decks/'+created.id);selectedId=deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();$('new-dialog').close();$('new-form').reset();attachmentFiles.brief=[];renderFiles('brief');$('brief-error').textContent='';toast('Presentation created.');}catch(error){$('create-error').textContent=error.message;}finally{button.disabled=false;}});
+  $('new-form').addEventListener('submit',async event=>{event.preventDefault();await voice.stop();const button=$('create-button');button.disabled=true;try{const title=$('new-title').value.trim(),brief=$('new-brief').value.trim();if(!brief){$('new-brief').focus();throw new Error('Add a brief.');}const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const slug=title.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'presentation';const created=await api('/api/decks',{deck_id:date+'-'+slug,title,brief,files:await readFiles(attachmentFiles.brief),design_id:new FormData($('new-form')).get('design')||''});retainDraft();const option=new Option(created.title,created.id);$('deck-picker').append(option);$('deck-picker').value=created.id;deck=await api('/api/decks/'+created.id);selectedId=deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();$('new-dialog').close();$('new-form').reset();attachmentFiles.brief=[];renderFiles('brief');$('brief-error').textContent='';toast('Presentation created.');}catch(error){$('create-error').textContent=error.message;}finally{button.disabled=false;}});
   $('connect-button').addEventListener('click',()=>{$('mcp-url').value=`${location.origin}/mcp`;$('connect-dialog').showModal();});$('close-connect').addEventListener('click',()=>$('connect-dialog').close());$('copy-url').addEventListener('click',async()=>{try{await navigator.clipboard.writeText($('mcp-url').value);toast('URL copied.');}catch{$('mcp-url').select();}});
   new ResizeObserver(()=>{if(sorter.isOpen())return;if(selectedElement){elementEditor.reflow();elementEditor.sync();}else renderSelection();if(hoverElement)placeBox($('hover-box'),hoverElement);}).observe($('preview'));
-  window.addEventListener('beforeunload',event=>{retainDraft();void noteAutosave.flushAll();if(instructionsDraft!==null||learnedDraft!==null||chatComposer.hasDrafts()||slideQuestions.hasDrafts()||designReferences.hasDrafts()||elementEditor.isEditing()||$('new-title').value.trim()||$('new-brief').value.trim()||$('design-message').value.trim()||attachmentFiles.design.length||attachmentFiles.brief.length||[...feedbackDrafts.values()].some(draft=>draft.feedback.trim())||noteAutosave.failed()||!draftsAvailable&&[...drafts.values()].some(draft=>draft.notes!==undefined)){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{const dictating=voice?.isActive();void voice?.stop();retainDraft();void noteAutosave.flushAll();if(dictating||instructionsDraft!==null||learnedDraft!==null||chatComposer.hasDrafts()||slideQuestions.hasDrafts()||designReferences.hasDrafts()||elementEditor.isEditing()||$('new-title').value.trim()||$('new-brief').value.trim()||$('design-message').value.trim()||attachmentFiles.design.length||attachmentFiles.brief.length||[...feedbackDrafts.values()].some(draft=>draft.feedback.trim()||draft.voice_segments?.length)||noteAutosave.failed()||!draftsAvailable&&[...drafts.values()].some(draft=>draft.notes!==undefined)){event.preventDefault();event.returnValue='';}});
   document.addEventListener('keydown',event=>{if(!deck||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.target.closest('textarea,input,select,dialog,#element-tools,#slide-menu,#object-panel,#element-align-menu'))return;if(event.key==='ArrowLeft'){event.preventDefault();$('prev-slide').click();}if(event.key==='ArrowRight'){event.preventDefault();$('next-slide').click();}if(event.key==='Escape'){event.preventDefault();if(elementEditor.isEditing())elementEditor.cancel();else void selectElement(null,false);}});
   /** Clear stale slide content when the last selector entry is removed. */
-  function renderEmpty(){sorter.reset();previewLoader.cancel($('preview'));clearTimeout(previewStatusTimer);$('preview-status').hidden=true;animationPreview.reset();elementEditor.select(null);watchDeck(null);document.querySelector('.preview-wrap').classList.remove('has-unseen-changes');$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;selectedElements=[];$('group-selection-boxes').replaceChildren();$('selection-box').hidden=true;$('target-members').replaceChildren();$('target-members').hidden=true;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();slideSections.sync(null);$('chat-question-status').hidden=true;$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;slideActions.update();updateComposer();document.title='Artifact Studio';history.replaceState(null,'','/');}
+  function renderEmpty(){void voice?.stop();sorter.reset();previewLoader.cancel($('preview'));clearTimeout(previewStatusTimer);$('preview-status').hidden=true;animationPreview.reset();elementEditor.select(null);watchDeck(null);document.querySelector('.preview-wrap').classList.remove('has-unseen-changes');$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;selectedElements=[];$('group-selection-boxes').replaceChildren();$('selection-box').hidden=true;$('target-members').replaceChildren();$('target-members').hidden=true;$('voice-feedback-segments').replaceChildren();delete $('voice-feedback-segments').dataset.signature;$('voice-feedback-segments').hidden=true;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();slideSections.sync(null);$('chat-question-status').hidden=true;$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;slideActions.update();updateComposer();document.title='Artifact Studio';history.replaceState(null,'','/');}
+
   /** Rebuild the selector while keeping a requested or still-visible presentation selected. */
-  async function start(preferred=null,{acknowledge=true}={}){if(slideActions.isBusy()||slideSections?.isBusy())throw new Error('Wait for the slide action to finish.');if(!await elementEditor.finish())throw new Error('Finish or cancel the text edit.');retainDraft();if(deck)void noteAutosave.flushAll(deck.id+'/');switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;let snapshot,notesRevision;do{notesRevision=noteAutosave.revision;snapshot=await api(`/api/decks/${id}`);}while(notesRevision!==noteAutosave.revision);$('deck-picker').value=id;deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();for(const item of deck.slides){const name=`${deck.id}/${item.id}`,draft=drafts.get(name);if(draft?.notes!==undefined&&!noteAutosave.state(name))noteAutosave.observe(name,item.notes,draft,item.notes_revision);}if(acknowledge&&!sorter.isOpen())void markOpened();}finally{switchingDeck=false;updateComposer();}}
+  async function start(preferred=null,{acknowledge=true}={}){if(slideActions.isBusy()||slideSections?.isBusy())throw new Error('Wait for the slide action to finish.');if(!await elementEditor.finish())throw new Error('Finish or cancel the text edit.');await voice?.stop();retainDraft();if(deck)void noteAutosave.flushAll(deck.id+'/');switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;let snapshot,notesRevision;do{notesRevision=noteAutosave.revision;snapshot=await api(`/api/decks/${id}`);}while(notesRevision!==noteAutosave.revision);$('deck-picker').value=id;deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();for(const item of deck.slides){const name=`${deck.id}/${item.id}`,draft=drafts.get(name);if(draft?.notes!==undefined&&!noteAutosave.state(name))noteAutosave.observe(name,item.notes,draft,item.notes_revision);}if(acknowledge&&!sorter.isOpen())void markOpened();}finally{switchingDeck=false;updateComposer();}}
   const presentationActions=window.SlidePresentations.init({api,toast,escape,currentDeck:()=>deck,retainDraft,reload:start,forget:id=>{$('deck-picker').querySelector(`option[value="${CSS.escape(id)}"]`)?.remove();if(deck?.id===id)renderEmpty();},recover:item=>{if(![...$('deck-picker').options].some(option=>option.value===item.id))$('deck-picker').add(new Option(item.title,item.id));if(!deck)renderEmpty();}});
   deckPicker=window.SlideDeckPicker.create({select:$('deck-picker'),button:$('deck-switcher'),panel:$('deck-menu'),list:$('deck-menu-options'),createButton:$('new-project-option'),onCreate:()=>$('new-button').click(),onOpen:()=>animationPreview.stop(),blocked:()=>feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   libraryControls=window.SlideLibraries.init({api,toast,escape,currentDeck:()=>deck,onNotesError:async()=>{

@@ -20,6 +20,8 @@
 
 **Local files · Free composition · Stateless MCP · Human approval**
 
+[Voice input](docs/VOICE-INPUT.md) lets you dictate into text fields with your browser. Spoken feedback retains the object or group selected for each section; review it before sending.
+
 The **Library** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
 
 | Artifact | Review it in its own format |
