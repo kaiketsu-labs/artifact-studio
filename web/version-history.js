@@ -1,4 +1,4 @@
-/* Source-free timeline pages; only the selected version owns a preview frame. */
+/* Cached image thumbnails; only the selected version owns a live preview frame. */
 ((root)=>{
   'use strict';
   function create({api,onRestored=()=>{}}){
@@ -8,10 +8,34 @@
     doc.body.append(dialog);
     const $=selector=>dialog.querySelector(selector);let target=null,items=[],counts=new Map(),next=null,selected=null,expected='',epoch=0,busy=false,opener=null,loadBusy=false,restoreRequest=null,includeAll=false;
     const date=value=>value?new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Earlier save';
+    const thumbnails=new Map();let thumbnailObserver=null,thumbnailQueue=[],thumbnailBusy=false,thumbnailEpoch=0;
+    function clearThumbnails(){thumbnailEpoch++;thumbnailObserver?.disconnect();thumbnailQueue=[];for(const value of thumbnails.values())if(value)root.URL.revokeObjectURL(value);thumbnails.clear();}
+    function paintThumbnail(id){
+      const image=$('.version-list').querySelector(`[data-history-thumbnail="${CSS.escape(id)}"]`);if(!image||image.dataset.visible!=='true'||!thumbnails.has(id))return;
+      const url=thumbnails.get(id),tile=image.parentElement;tile.classList.toggle('is-ready',!!url);tile.classList.toggle('is-unavailable',!url);
+      if(url){image.src=url;thumbnails.delete(id);thumbnails.set(id,url);}else tile.querySelector('.version-thumb-state').innerHTML=icon('image')+'<span>Preview unavailable</span>';
+    }
+    async function loadThumbnails(){
+      if(thumbnailBusy)return;thumbnailBusy=true;
+      try{while(thumbnailQueue.length&&dialog.open){
+        const id=thumbnailQueue.shift();if(thumbnails.has(id)){paintThumbnail(id);continue;}
+        const current=thumbnailEpoch,path=target.path;let url=null;
+        try{const response=await root.fetch(`${path}/thumbnail?version_id=${encodeURIComponent(id)}`);if(!response.ok)throw Error('Thumbnail unavailable');url=root.URL.createObjectURL(await response.blob());}catch{}
+        if(current!==thumbnailEpoch){if(url)root.URL.revokeObjectURL(url);continue;}
+        thumbnails.set(id,url);paintThumbnail(id);
+        while(thumbnails.size>64){const oldest=thumbnails.keys().next().value,previous=thumbnails.get(oldest);if(previous)root.URL.revokeObjectURL(previous);thumbnails.delete(oldest);}
+      }}finally{thumbnailBusy=false;}
+    }
+    function observeThumbnails(){
+      thumbnailObserver?.disconnect();thumbnailQueue=[];
+      thumbnailObserver=new IntersectionObserver(entries=>{for(const entry of entries){const image=entry.target,id=image.dataset.historyThumbnail;image.dataset.visible=String(entry.isIntersecting);if(entry.isIntersecting){if(thumbnails.has(id))paintThumbnail(id);else if(!thumbnailQueue.includes(id))thumbnailQueue.push(id);}else{image.removeAttribute('src');image.parentElement.classList.remove('is-ready');thumbnailQueue=thumbnailQueue.filter(value=>value!==id);}}void loadThumbnails();},{root:$('.version-list'),rootMargin:'80px'});
+      for(const image of dialog.querySelectorAll('[data-history-thumbnail]'))thumbnailObserver.observe(image);
+    }
     function render(){
       const groups=new Map();for(const item of items){if(!groups.has(item.group_id))groups.set(item.group_id,[]);groups.get(item.group_id).push(item);}
       const open=new Set([...dialog.querySelectorAll('details[data-group][open]')].map(element=>element.dataset.group));
-      $('.version-list').innerHTML=[...groups].map(([id,saves])=>`<details data-group="${escape(id)}" ${open.has(id)||saves.some(item=>item.version_id===selected?.version_id)?'open':''}><summary><time>${escape(date(saves[0].created_at))}</time><small>${counts.get(id)||saves.length} ${includeAll?((counts.get(id)||saves.length)===1?'save':'saves'):((counts.get(id)||saves.length)===1?'version':'versions')}</small></summary><div>${saves.map(item=>`<button type="button" data-version="${escape(item.version_id)}" aria-current="${item.version_id===selected?.version_id}"><span class="version-dot"></span><span>Version ${item.revision}<small>${item.is_current?'Current':escape(date(item.created_at))}${includeAll&&!item.content_changed?' · Same content':''}</small></span></button>`).join('')}</div></details>`).join('')+(next?'<button type="button" class="version-earlier">Load earlier</button>':'');
+      $('.version-list').innerHTML=[...groups].map(([id,saves])=>`<details data-group="${escape(id)}" ${open.has(id)||saves.some(item=>item.version_id===selected?.version_id)?'open':''}><summary><time>${escape(date(saves[0].created_at))}</time><small>${counts.get(id)||saves.length} ${includeAll?((counts.get(id)||saves.length)===1?'save':'saves'):((counts.get(id)||saves.length)===1?'version':'versions')}</small></summary><div>${saves.map(item=>`<button type="button" data-version="${escape(item.version_id)}" aria-label="Version ${item.revision}${item.is_current?' · Current':''}" aria-current="${item.version_id===selected?.version_id}"><span class="version-thumb"><img data-history-thumbnail="${escape(item.version_id)}" alt="" width="400" height="225" decoding="async"><span class="version-thumb-state" aria-hidden="true">${icon('image')}</span></span><span class="version-caption"><span>Version ${item.revision}</span><small>${item.is_current?'Current':escape(date(item.created_at))}${includeAll&&!item.content_changed?' · Same content':''}</small></span></button>`).join('')}</div></details>`).join('')+(next?'<button type="button" class="version-earlier">Load earlier</button>':'');
+      observeThumbnails();
     }
     function scale(){const container=$('.version-preview'),frame=container.querySelector('iframe');if(!frame||target?.kind!=='slide')return;const factor=Math.min(container.clientWidth/1600,container.clientHeight/900);frame.style.cssText=`width:1600px;height:900px;transform:scale(${factor});left:${(container.clientWidth-1600*factor)/2}px;top:${(container.clientHeight-900*factor)/2}px`;}
     new ResizeObserver(scale).observe($('.version-preview'));
@@ -19,7 +43,7 @@
       selected=item;restoreRequest=null;$('.version-confirm').hidden=true;$('.version-error').textContent='';$('.version-name').textContent=`Version ${item.revision}`;$('.version-current').textContent=item.is_current?'Current':'';$('.version-restore').disabled=item.is_current||busy;render();
       const container=$('.version-preview');container.replaceChildren();const frame=doc.createElement('iframe');frame.title=`Version ${item.revision} preview`;frame.setAttribute('sandbox','allow-scripts allow-downloads');frame.referrerPolicy='no-referrer';
       frame.src=target.kind==='slide'?`${target.path}/preview?version_id=${encodeURIComponent(item.version_id)}`:`/api/artifacts/${encodeURIComponent(target.artifactId)}/preview?revision=${encodeURIComponent(item.version_id.split(':')[1])}`;
-      container.append(frame);scale();$('.version-list').querySelector(`[data-version="${CSS.escape(item.version_id)}"]`)?.focus({preventScroll:true});
+      container.append(frame);scale();const row=$('.version-list').querySelector(`[data-version="${CSS.escape(item.version_id)}"]`);row?.focus({preventScroll:true});row?.scrollIntoView({block:'nearest'});
     }
     async function load(){
       if(loadBusy)return;loadBusy=true;const current=epoch;$('.version-status').textContent='Loading versions…';
@@ -39,11 +63,11 @@
       catch(error){$('.version-error').textContent=error.message;$('.version-confirm').hidden=true;}
       finally{busy=false;dialog.removeAttribute('aria-busy');dialog.querySelectorAll('button,select').forEach(button=>button.disabled=false);$('.version-restore').disabled=selected?.is_current;}
     });
-    $('.version-actions select').addEventListener('change',()=>{if(busy)return;includeAll=$('.version-actions select').value==='all';epoch++;items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-restore').disabled=true;$('.version-confirm').hidden=true;void load();});
+    $('.version-actions select').addEventListener('change',()=>{if(busy)return;clearThumbnails();includeAll=$('.version-actions select').value==='all';epoch++;items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-restore').disabled=true;$('.version-confirm').hidden=true;void load();});
     $('.version-list').addEventListener('keydown',event=>{if(busy||!event.target.closest('[data-version]')||!['ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();const index=items.findIndex(item=>item.version_id===selected?.version_id),next=items[index+(event.key==='ArrowDown'?1:-1)];if(next)select(next);});
     dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
-    dialog.addEventListener('close',()=>{epoch++;loadBusy=false;$('.version-preview').replaceChildren();opener?.focus();});
-    return {open(value){if(busy)return;epoch++;target={...value,path:value.kind==='slide'?`/api/decks/${encodeURIComponent(value.deckId)}/slides/${encodeURIComponent(value.slideId)}/history`:`/api/artifacts/${encodeURIComponent(value.artifactId)}/history`};includeAll=false;$('.version-actions select').value='content';items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-error').textContent='';$('.version-confirm').hidden=true;$('.version-subtitle').textContent=value.title;$('.version-restore').disabled=true;opener=doc.activeElement;dialog.showModal();void load();}};
+    dialog.addEventListener('close',()=>{epoch++;loadBusy=false;clearThumbnails();$('.version-preview').replaceChildren();opener?.focus();});
+    return {open(value){if(busy)return;epoch++;clearThumbnails();target={...value,path:value.kind==='slide'?`/api/decks/${encodeURIComponent(value.deckId)}/slides/${encodeURIComponent(value.slideId)}/history`:`/api/artifacts/${encodeURIComponent(value.artifactId)}/history`};includeAll=false;$('.version-actions select').value='content';items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-error').textContent='';$('.version-confirm').hidden=true;$('.version-subtitle').textContent=value.title;$('.version-restore').disabled=true;opener=doc.activeElement;dialog.showModal();void load();}};
   }
   root.VersionTimeline={create};
 })(window);

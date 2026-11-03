@@ -1,16 +1,20 @@
 """HTTP boundaries for private-free history previews and explicit concurrent restores."""
 
+import io
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from artifact_studio import app as service
+from artifact_studio import history_thumbnails
 from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.models import AgentContext, SlidePatch, SlideView
 from artifact_studio.storage import Store, digest
 from artifact_studio.version_history import HistoryPage
+from artifact_studio.visuals import CaptureOptions, Snapshot
 from tests.design_factory import TEMPLATE_ID, make_design
 
 SLIDE_PATH = f"/api/decks/{TEMPLATE_ID}/slides/cover/history"
@@ -219,3 +223,66 @@ def test_history_validation_and_missing_resource_errors_use_http_statuses(
         },
     )
     assert malformed.status_code == 422
+
+
+def test_saved_slide_thumbnails_are_small_cached_and_design_sensitive(
+    store: Store, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cache real snapshot identities without exposing private state or reusing a changed design."""
+    revise_slide(store)
+    documents: list[str] = []
+
+    def render(prepared: Snapshot, options: CaptureOptions) -> bytes:
+        """Record audience-only source and return deterministic fixture pixels."""
+        assert options.reduced_motion
+        documents.append(prepared.document)
+        output = io.BytesIO()
+        Image.new("RGB", (1600, 900), "#315fce").save(output, format="PNG")
+        return output.getvalue()
+
+    monkeypatch.setattr(history_thumbnails, "capture_snapshot", render)
+    older = timeline(client).items[-1]
+    url = SLIDE_PATH + "/thumbnail"
+    first = client.get(url, params={"version_id": older.version_id})
+    assert first.status_code == 200 and first.headers["content-type"] == "image/png"
+    assert first.headers["cache-control"] == "no-store"
+    with Image.open(io.BytesIO(first.content)) as thumbnail:
+        assert thumbnail.size == (400, 225)
+    assert len(documents) == 1 and "Earlier audience body" in documents[0]
+    assert "Current body" not in documents[0] and "PRIVATE-" not in documents[0]
+    repeated = client.get(url, params={"version_id": older.version_id})
+    assert repeated.content == first.content and len(documents) == 1
+    theme = store.folder(TEMPLATE_ID) / "theme.css"
+    _ = theme.write_text(theme.read_text() + "\nh1{color:red}")
+    assert client.get(url, params={"version_id": older.version_id}).status_code == 200
+    assert len(documents) == 2
+    assert client.get(url, params={"version_id": "slide:bad"}).status_code == 400
+    assert client.get(url, params={"version_id": "slide:" + "a" * 64}).status_code == 404
+    assert len(documents) == 2
+
+
+def test_history_thumbnail_cache_has_a_fixed_limit(
+    store: Store, client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Generating more versions evicts old thumbnails without altering retained source."""
+    revise_slide(store)
+    monkeypatch.setattr(history_thumbnails, "MAX_THUMBNAILS", 1)
+
+    def render(prepared: Snapshot, options: CaptureOptions) -> bytes:
+        """Return deterministic fixture pixels for each saved audience document."""
+        assert prepared.document and options.reduced_motion
+        output = io.BytesIO()
+        Image.new("RGB", (1600, 900), "white").save(output, format="PNG")
+        return output.getvalue()
+
+    monkeypatch.setattr(history_thumbnails, "capture_snapshot", render)
+    page = timeline(client)
+    for item in page.items:
+        assert (
+            client.get(
+                SLIDE_PATH + "/thumbnail", params={"version_id": item.version_id}
+            ).status_code
+            == 200
+        )
+    assert len(list((store.database.parent / "history-thumbnails").glob("*.png"))) == 1
+    assert timeline(client).items == page.items
