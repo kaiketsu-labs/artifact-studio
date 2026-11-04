@@ -1,0 +1,131 @@
+{
+  "captured_at": "2026-11-04T10:07:41.916045+00:00",
+  "method": "Direct Chromium screenshots of the isolated fictional UX prototype; no DOM replacement or image retouching.",
+  "captures": [
+    {
+      "file": "01-preview.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "sha256": "e6388be68bf42c56963a82f759d5f2cf9634a207754a7fc03d4a44189ecacccf"
+    },
+    {
+      "file": "02-compare.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "sha256": "3b86452123c5cb40d5e024a837b1cb0b26476bac97179d54d8ce5054b39bf56e"
+    },
+    {
+      "file": "03-chosen.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "sha256": "073124a819d82759dad185da79fb52a1c2dd3b23216dc09b549f37b93938bb00"
+    },
+    {
+      "file": "04-dark.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "dark",
+      "sha256": "c10f360f4b73f8694564b025f46df9faf0bce2d049e5b77e86dd0ad8ab35e1c3"
+    },
+    {
+      "file": "05-mobile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "sha256": "2914a0e84deedee7745f8bdeab97f12e35371dc31f12889ced82253af2c13017"
+    },
+    {
+      "file": "06-mobile-compare.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "sha256": "f7ba9fd54fe2fb8fea2d6675ece45f116296bdb3134d30d3fbebcbbaedccaf2d"
+    }
+  ],
+  "accessibility_checks": [
+    {
+      "state": "light desktop preview",
+      "violations": []
+    },
+    {
+      "state": "light desktop compare",
+      "violations": []
+    },
+    {
+      "state": "chosen design and Undo",
+      "violations": []
+    },
+    {
+      "state": "dark desktop preview",
+      "violations": []
+    },
+    {
+      "state": "dark desktop compare",
+      "violations": []
+    },
+    {
+      "state": "light 390px preview",
+      "violations": []
+    },
+    {
+      "state": "light 390px compare",
+      "violations": []
+    },
+    {
+      "state": "dark 390px preview",
+      "violations": []
+    },
+    {
+      "state": "dark 390px compare",
+      "violations": []
+    },
+    {
+      "state": "light 320px preview",
+      "violations": []
+    },
+    {
+      "state": "light 320px compare",
+      "violations": []
+    },
+    {
+      "state": "dark 320px preview",
+      "violations": []
+    },
+    {
+      "state": "dark 320px compare",
+      "violations": []
+    },
+    {
+      "state": "light 768px preview",
+      "violations": []
+    },
+    {
+      "state": "light 768px compare",
+      "violations": []
+    },
+    {
+      "state": "dark 768px preview",
+      "violations": []
+    },
+    {
+      "state": "dark 768px compare",
+      "violations": []
+    }
+  ],
+  "page_errors": []
+}

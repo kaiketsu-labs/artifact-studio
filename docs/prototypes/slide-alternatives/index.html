@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Slide design alternatives · UX draft</title>
+  <link rel="icon" href="/web/brand/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/web/style.css">
+  <link rel="stylesheet" href="prototype.css">
+  <script src="/web/icons.js" defer></script>
+  <script src="prototype.js" defer></script>
+</head>
+<body>
+  <header class="draft-topbar">
+    <button class="icon-button" id="toggle-slides" aria-label="Toggle slide overview" aria-expanded="false" data-icon="panelLeft"></button>
+    <a class="draft-identity" href="./" aria-label="Artifact Studio"><img src="/web/brand/mark.svg" width="26" height="26" alt=""><span>Artifact Studio</span></a>
+    <span class="draft-label">UX draft</span>
+    <div class="draft-top-actions">
+      <button class="icon-button" id="toggle-theme" aria-label="Switch to dark appearance" data-icon="sun"></button>
+      <button id="present" class="draft-primary"><span data-icon="present"></span><span>Present</span></button>
+      <button class="icon-button" id="toggle-chat" aria-label="Toggle chat" aria-expanded="true" data-icon="chat"></button>
+    </div>
+  </header>
+
+  <main class="draft-workspace">
+    <aside class="draft-rail" aria-label="Slide overview">
+      <a class="draft-back" href="./"><span data-icon="left"></span>All artifacts</a>
+      <div class="draft-deck-name">A clearer way to work<span data-icon="down"></span></div>
+      <div class="draft-progress"><span data-icon="check"></span>2 / 6<span class="draft-progress-line"></span></div>
+      <nav id="slide-overview" aria-label="Slides"></nav>
+    </aside>
+
+    <section class="draft-canvas" aria-labelledby="slide-title">
+      <header class="draft-canvas-header">
+        <h1 id="slide-title">Good slides happen in the loop</h1>
+        <div class="draft-canvas-actions"><button id="design-toggle" class="design-toggle" aria-expanded="true" aria-controls="design-tray"><span data-icon="designs"></span>Designs <span class="count">4</span></button><span class="draft-divider"></span><button class="draft-approve" id="approve"><span data-icon="check"></span>Approve</button></div>
+      </header>
+
+      <div id="slide-stage" class="slide-stage" role="tabpanel" aria-label="Selected design preview" tabindex="0"></div>
+
+      <div class="decision-bar" id="decision-bar">
+        <div class="preview-description"><span id="preview-state" class="preview-state">Preview</span><strong id="preview-name">Editorial</strong></div>
+        <div class="decision-actions"><button id="back-current" class="text-button" aria-label="Back to current design" title="Back to current design"><span data-icon="restore"></span><span>Back to current</span></button><button class="draft-primary" id="use-design">Use this design<span data-icon="right"></span></button></div>
+      </div>
+
+      <section class="design-tray" id="design-tray" aria-labelledby="design-tray-title">
+        <header class="design-tray-header"><h2 id="design-tray-title">Design options <span class="count">4</span></h2><button class="text-button compare-trigger" id="compare"><span data-icon="compare"></span>Compare</button></header>
+        <div class="design-options" id="design-options" role="tablist" aria-label="Slide design options"></div>
+      </section>
+
+      <details class="draft-notes" open><summary>Notes<span>Saved</span></summary><label class="sr-only" for="speaker-notes">Speaker notes</label><textarea id="speaker-notes">Ask a teammate for one concrete change. Keep the three-step story clear.</textarea></details>
+    </section>
+
+    <aside class="draft-chat" aria-label="Slide chat">
+      <header class="draft-chat-title"><span class="slide-number">02</span><h2>Good slides happen in the loop</h2><span class="message-count">2</span></header>
+      <div class="draft-mode"><button aria-pressed="true"><span data-icon="live"></span>Live</button><button aria-pressed="false"><span data-icon="layers"></span>Batch</button></div>
+      <div class="draft-messages">
+        <article class="draft-message user"><header><time>10:42</time><span class="draft-avatar" role="img" aria-label="You" data-icon="user"></span></header><p>Try a few different design directions. Keep the three-step story.</p></article>
+        <article class="draft-message agent"><header><span class="draft-avatar agent-avatar" role="img" aria-label="Agent" data-icon="robot"></span><time>10:43</time></header><p>Three directions to explore, with the same content in each.</p><button id="review-designs" class="chat-design-card"><span class="chat-design-previews" id="chat-design-previews"></span><span class="chat-design-card-label"><span><strong>3 new designs</strong><small>Editorial · Bold · Diagram</small></span><span data-icon="right"></span></span></button></article>
+      </div>
+      <form class="draft-composer" id="draft-composer"><div class="composer-target"><span data-icon="slides"></span><span id="composer-slide">02</span><span id="composer-design"></span></div><label class="sr-only" for="draft-message">Message your agent</label><textarea id="draft-message" placeholder="Message your agent…"></textarea><div class="composer-actions"><span data-icon="attach"></span><button class="icon-button" type="submit" aria-label="Send message" data-icon="up"></button></div></form>
+    </aside>
+  </main>
+
+  <footer class="draft-footer"><span class="footer-position"><span data-icon="left"></span><span id="footer-slide">2 / 6</span><span data-icon="right"></span></span><div><span data-icon="panelLeft"></span><span data-icon="grid"></span><span class="draft-divider"></span><span data-icon="minus"></span><span class="zoom-track"></span><span data-icon="plus"></span><span>100%</span><span data-icon="fullscreen"></span></div></footer>
+
+  <dialog id="compare-dialog" class="compare-dialog" aria-labelledby="compare-title">
+    <header class="compare-header"><div><span class="compare-eyebrow">SLIDE 02</span><h2 id="compare-title">Compare designs</h2></div><button class="icon-button" id="close-compare" aria-label="Close comparison" data-icon="close"></button></header>
+    <div class="compare-grid"><section class="compare-pane"><header><span id="compare-reference-state"><span class="current-dot"></span>In slide</span><label class="sr-only" for="compare-reference">Left design</label><select id="compare-reference"></select></header><div class="slide-stage" id="compare-current" role="region" aria-label="Left design preview"></div></section><section class="compare-pane"><header><span class="compare-preview-label" id="compare-candidate-state">Preview</span><label class="sr-only" for="compare-candidate-select">Right design</label><select id="compare-candidate-select"></select></header><div class="slide-stage" id="compare-candidate"></div></section></div>
+    <footer class="compare-footer"><div class="compare-options" id="compare-options" role="tablist" aria-label="Right design"></div><div class="compare-decision"><p>Previewing keeps your slide unchanged.</p><div class="compare-choice-buttons"><button id="use-reference">Use Editorial</button><button class="draft-primary" id="use-compared">Use Bold<span data-icon="right"></span></button></div></div></footer>
+  </dialog>
+
+  <dialog class="presentation-dialog" id="presentation-dialog" aria-label="Current slide presentation"><button class="icon-button" id="close-present" aria-label="Close presentation" data-icon="close"></button><div class="slide-stage" id="presentation-stage"></div></dialog>
+  <div class="draft-toast" id="draft-toast" role="status" hidden><span data-icon="check"></span><span id="toast-message"></span><button class="text-button" id="undo-choice">Undo</button><button class="icon-button" id="close-toast" aria-label="Dismiss notification" data-icon="close"></button></div>
+  <div class="sr-only" id="live-status" role="status" aria-live="polite"></div>
+</body>
+</html>
