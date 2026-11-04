@@ -10,17 +10,16 @@ corporate packs and model credentials are not required.
 
 | Check | What it verifies |
 | --- | --- |
-| Ruff, types and unit tests | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests and JavaScript syntax. |
-| Release version simulations | The pinned Release Please engine prepares 0.1.0 and subsequent bumps offline, keeping project and lockfile versions aligned without publishing. |
-| Playwright user journeys and rendering (editor-review) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation and drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input and whole-slide design alternatives (publication, preview, comparison, decisions, conflicts and Undo). |
-| Playwright user journeys and rendering (artifacts-runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, general/hub voice input, sandboxed renderer, interactive-content and DOM checks. |
-| Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
+| Ruff, types, unit tests & release simulation | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests, JavaScript syntax and offline Release Please simulations. |
+| Playwright user journeys and rendering (editor) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation, drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input, structural undo, element commands and whole-slide design alternatives. |
+| Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, voice input, sandboxed renderer, interactive-content, DOM checks, and authoring recovery. |
+| Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, and slide insertion. |
 
 The two browser suites run in parallel with `fail-fast: false` and independent
-15-minute timeouts. Their test-file sets are disjoint and together preserve all previously covered paths and add the audit regressions. Collection on 4 November 2026
-found 46 disjoint paths: 127 cases in `editor-review` and 172 in `artifacts-runtime`; voice checks run
-in both suites. These counts guide the split, not a measured runtime guarantee.
-Each suite installs the same locked dependencies and Chromium with OS support.
+15-minute timeouts on Chromium runners with Playwright browser caching.
+Test results, screenshots, and Playwright traces are uploaded only upon failure (`if: failure()`)
+with a 1-day retention period to conserve organization storage quotas. Changes touching only
+documentation (`docs/**`, `*.md`) skip the full CI run automatically.
 
 The native Codex CLI must accept the HTTP MCP configuration using its invocation
 override. The native Claude Code CLI must register its project-local connection
@@ -83,10 +82,9 @@ tests/integration/test_native_clients.py`. Set `ARTIFACT_STUDIO_NATIVE_CLIENT` t
 an enabled native check; they are not silently skipped.
 
 Set `ARTIFACT_STUDIO_ARTIFACTS=test-results/integration` to retain per-test server logs,
-browser screenshots, Playwright traces and native client versions. CI uploads
-these and JUnit reports even after a failure, with seven-day retention. Browser
-artifacts are named `browser-results-<suite>` for `editor-review`, `editor-objects`,
-`presenter-firefox` and `artifacts-runtime`; their JUnit files are
+browser screenshots, Playwright traces and client logs. In CI, failed runs upload
+these diagnostics with 1-day retention. Browser
+artifacts are named `browser-results-<suite>` for `editor` and `runtime`; their JUnit files are
 `browser-<suite>.xml`. View a
 trace with `uv run playwright show-trace path/to/trace.zip`.
 
