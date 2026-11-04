@@ -2,7 +2,7 @@
 
 The **storage icon in the library or beside Menu in the slide editor** opens **Storage and backup**; **Menu → Storage and backup** opens the same dialog. It shows the actual working-folder path, a copy-path control, local save status, connected references and GitHub backup outcomes. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local reference folders remain read-only and their latest files are read directly.
 
-Hover or focus an icon for its explanation. The circular arrow **Refresh references** downloads the latest reference copies from GitHub; the upload arrow **Back up now** sends your saved workspace files to the private repository. **Esc** dismisses a tooltip, then closes the dialog on a second press.
+Hover or focus an icon for its explanation. The circular arrow **Refresh references** downloads the latest reference copies from GitHub; the upload arrow **Back up now** sends your saved workspace files to the private repository. A failed backup keeps the upload icon for **Retry GitHub backup**, so it stays distinct from refreshing references. **Esc** dismisses a tooltip, then closes the dialog on a second press.
 
 ## Local saving and handoff
 

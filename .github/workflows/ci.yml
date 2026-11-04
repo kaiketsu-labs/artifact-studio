@@ -83,7 +83,7 @@ jobs:
             tests: >-
               tests/integration/test_browser.py tests/integration/test_chat.py tests/integration/test_questions.py tests/integration/test_zoom.py tests/integration/test_quick_access.py
               tests/integration/test_sections.py tests/integration/test_feedback_delivery.py tests/integration/test_audience_preview.py
-              tests/integration/test_notes_and_backup.py tests/integration/test_editor_layout.py
+              tests/integration/test_notes_and_backup.py tests/integration/test_editor_layout.py tests/integration/test_sorter_header.py
           - suite: editor-objects
             tests: >-
               tests/integration/test_structural_undo.py
@@ -93,6 +93,7 @@ jobs:
               tests/integration/test_element_mode_guard.py
               tests/integration/test_slide_designs.py
               tests/integration/test_element_alternatives.py
+              tests/integration/test_element_alternative_layout.py tests/integration/test_element_alternative_motion.py
               tests/integration/test_presentation_displays.py
           - suite: presenter-firefox
             tests: tests/integration/test_presentation_displays.py

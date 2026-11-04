@@ -5,7 +5,7 @@
 .hub-layout.panels-right-closed .hub-workspace{grid-template-columns:minmax(0,1fr) 0}
 .workspace.panels-left-closed:not(.is-sorter){--chat-rail-width:0px}
 .workspace.panels-right-closed:not(.is-sorter){grid-template-columns:var(--chat-rail-width) minmax(0,1fr) 0 0}
-.panels-left-closed>.hub-sidebar,.panels-left-closed>.rail,.panels-right-closed .hub-chat,.panels-right-closed>.discussion,.panels-right-closed>.chat-resizer{visibility:hidden;overflow:hidden;min-width:0;padding:0;border:0}
+.panels-left-closed>.hub-sidebar,.workspace.panels-left-closed:not(.is-sorter)>.rail,.panels-right-closed .hub-chat,.panels-right-closed>.discussion,.panels-right-closed>.chat-resizer{visibility:hidden;overflow:hidden;min-width:0;padding:0;border:0}
 .workspace-panel-toggle,.workspace-panel-resize{position:fixed;z-index:35}
 .workspace-panel-toggle{top:76px;width:24px;height:32px;padding:0;border:1px solid var(--hub-line,var(--line));background:var(--hub-panel,var(--panel));color:var(--hub-ink,var(--ink));border-radius:5px;font-size:19px;line-height:1}
 .workspace-panel-toggle.panel-left{left:0}.workspace-panel-toggle.panel-right{right:0}

@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-11-04T14:36:10.039251+00:00",
+  "generated_at": "2026-11-04T22:42:48.538284+00:00",
   "fixture": "Original fictional Studio Blue presentation and Team launch project",
   "verification": "README references resolve; screenshot bytes match current capture inventories.",
-  "readme_screenshot_count": 10,
-  "documentation_screenshots_verified": 56,
+  "readme_screenshot_count": 16,
+  "documentation_screenshots_verified": 70,
   "screenshots": {
     "docs/assets/workspace.png": {
       "viewport": {
@@ -311,12 +311,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:37.474045+00:00",
+      "captured_at": "2026-11-04T15:14:56.686423+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "cf90b37f0831b2244369dd6075ef12bea2fdf544fe46f1a190eb017194cf1388",
+      "sha256": "86bfbfe785e479a2be02f82355e8863ac371ec48253debb60347cd98d28d1bbf",
       "manifest": "docs/screenshots/captures.json",
       "readme_reference": false
     },
@@ -542,11 +542,11 @@
       "captured_at": "2026-11-04T10:43:25.358032+00:00",
       "sha256": "cfc3c6c4c6f17f104c8d2b448bba4e1324d795d9c9c65cac356e70f070a66f8a",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": true,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": true
+      ]
     },
     "docs/assets/add-design.png": {
       "viewport": {
@@ -556,11 +556,11 @@
       "captured_at": "2026-11-04T10:43:25.573020+00:00",
       "sha256": "ebf4f66f3ff0ca062282844d65591d89478d4411c30a46ef76b6a628ea6be719",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": true,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": true
+      ]
     },
     "docs/screenshots/add-design-mobile.png": {
       "viewport": {
@@ -570,11 +570,11 @@
       "captured_at": "2026-11-04T10:43:25.730122+00:00",
       "sha256": "b27b22f9325e01abb364b92d9dee6980a03c875e98278db26df5845abad41306",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         390,
         844
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/assets/design-context.png": {
       "viewport": {
@@ -584,11 +584,11 @@
       "captured_at": "2026-11-04T10:43:25.955675+00:00",
       "sha256": "6120980b673f9a3333d8aedbddc02e5751e7176cc5aac7fd5949b8e85e271921",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": true,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": true
+      ]
     },
     "docs/screenshots/design-text-preview.png": {
       "viewport": {
@@ -598,11 +598,11 @@
       "captured_at": "2026-11-04T10:43:26.121391+00:00",
       "sha256": "bf24cd7269a109f2b0f580ee3d531ab9b479bf74450f989b1d7ee74e81cd9be6",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/assets/design-text-editor.png": {
       "viewport": {
@@ -612,11 +612,11 @@
       "captured_at": "2026-11-04T10:43:26.326071+00:00",
       "sha256": "14b54c77e4a0b144108e91be23d41a77c9e7caf1d86375760e31c6403bced075",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": true,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": true
+      ]
     },
     "docs/screenshots/design-context-dark.png": {
       "viewport": {
@@ -626,11 +626,11 @@
       "captured_at": "2026-11-04T10:43:26.589357+00:00",
       "sha256": "c2bcba8067f2a171e4733ece87889d61e1712eabd5dad909adf9aeb2b6c67582",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/design-text-editor-dark.png": {
       "viewport": {
@@ -640,11 +640,11 @@
       "captured_at": "2026-11-04T10:43:26.766920+00:00",
       "sha256": "b771b04320ccedc87db92f0eca19676ae4c6b84db79325972a98ea3d33c90557",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/design-text-editor-mobile.png": {
       "viewport": {
@@ -654,11 +654,11 @@
       "captured_at": "2026-11-04T10:43:26.836290+00:00",
       "sha256": "ddaa39841c5418931b4b1a57d34f094695f08542c4dc04ec40b300a0322be3fc",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         390,
         844
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/design-file-preview.png": {
       "viewport": {
@@ -668,11 +668,11 @@
       "captured_at": "2026-11-04T10:43:27.106466+00:00",
       "sha256": "b15f06b863884e9cfe3c0734995abd44a8e31674904a512dd9776f02a4a743d3",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/design-use-agent.png": {
       "viewport": {
@@ -682,11 +682,11 @@
       "captured_at": "2026-11-04T10:43:27.259034+00:00",
       "sha256": "bdff43c176c49268b059698c52d6a5fdaf146cc014dd453a8b03d16ae687ebb0",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/design-context-mobile.png": {
       "viewport": {
@@ -696,11 +696,11 @@
       "captured_at": "2026-11-04T10:43:27.395472+00:00",
       "sha256": "1635bac3a8ca0140572e3d128d8ce38f8fc457b885540db4efc86c90324ca5f1",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         390,
         1055
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/design-pack-context.png": {
       "viewport": {
@@ -710,11 +710,207 @@
       "captured_at": "2026-11-04T10:43:27.561471+00:00",
       "sha256": "9b1cb9f566eb519b9836f48f676b2359914f67261beb96f2d9650b104ea46f46",
       "manifest": "docs/screenshots/design-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1731
-      ],
-      "readme_reference": false
+      ]
+    },
+    "docs/screenshots/element-alternatives-available.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:40.582418+00:00",
+      "sha256": "d3be0b4de72c8a435d429dc70af1f7ead91288c5bf3083a2ca1450112939a1ae",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/assets/element-alternatives.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:41.668696+00:00",
+      "sha256": "2d846defa5bcba55600d78ad6ee0728ff46684cbc7dcff07d9b798b4a77784ca",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": true,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-headline.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:42.540188+00:00",
+      "sha256": "2d846defa5bcba55600d78ad6ee0728ff46684cbc7dcff07d9b798b4a77784ca",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-text.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:43.582549+00:00",
+      "sha256": "2c5cd2980a3309227519e10af9f73c308a824a2e7e2ce9a2e6f9bef375bfbb33",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": true,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-graphic.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:44.764089+00:00",
+      "sha256": "3fd747ff642336d0be1baff79473131a67448122c1e956f81c37a7b6e230a4c4",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": true,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-compare.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:46.035559+00:00",
+      "sha256": "19004d27e29a54847b0a34418efb31ba48611ff543e239c869c731d5313c8dcd",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": true,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-full-slide.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:47.370077+00:00",
+      "sha256": "10575fffe210b2e0206285d3066adcd23284e4416f5c33d74bb010109bd44740",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-chosen.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:48.593640+00:00",
+      "sha256": "9b619d47ad64da94e520f57df61743c40c1976c973de3ab45028215d1dbb01ce",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-history.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:50.154393+00:00",
+      "sha256": "194ed594b591c17cb2c3bf3fa67894b33491f2eabfa18b8d41bf7d76a1eaf178",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-dark.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:51.506047+00:00",
+      "sha256": "9f5ca255e7004e0a1a25050bfdfc34de534246470ce29e3de1ed301d0f1516a3",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": true,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/element-alternatives-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T22:41:53.290814+00:00",
+      "sha256": "866731a691f23340ca213a12598d2531c25d310a1cf3e84e113215d40aef8fc2",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": true,
+      "pixels": [
+        390,
+        844
+      ]
+    },
+    "docs/screenshots/sorter-header.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:54.389214+00:00",
+      "sha256": "0acafad732289262d0cf9ff4b1f9239f6f4db852b1530fee1d68b92edb2ab004",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/history-grouped.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:58.277882+00:00",
+      "sha256": "b8052e9530d6e67ebc856f7685ac1df71de16b642484bf1857270cefb3afbfc4",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
+    },
+    "docs/screenshots/storage-backup-retry.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:59.640541+00:00",
+      "sha256": "516d4a0ed345fee9fd5e063f30a20c15cdcc9fa5980a33c2350d69f6852c1adc",
+      "manifest": "docs/screenshots/element-alternatives-captures.json",
+      "readme_reference": false,
+      "pixels": [
+        1600,
+        1100
+      ]
     },
     "docs/assets/sharing.png": {
       "viewport": {
@@ -724,11 +920,11 @@
       "captured_at": "2026-11-03T22:17:47.131292+00:00",
       "sha256": "3b02da0846bf8ebecb849797b2de5bd539a94270c54359610287f34f2269b02b",
       "manifest": "docs/screenshots/sharing-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/sharing-mobile.png": {
       "viewport": {
@@ -738,11 +934,11 @@
       "captured_at": "2026-11-03T22:17:47.228784+00:00",
       "sha256": "b253de47234ea2e67e4f43117d9590c293ac9fa61a870492893e9c79495407f7",
       "manifest": "docs/screenshots/sharing-captures.json",
+      "readme_reference": false,
       "pixels": [
         390,
         844
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/sharing-fallback.png": {
       "viewport": {
@@ -752,11 +948,11 @@
       "captured_at": "2026-11-03T22:17:47.676211+00:00",
       "sha256": "fb6cf5954793706efafbdb0bcc64d336dd269f7f8a4fb04ee9a271daef74eb5b",
       "manifest": "docs/screenshots/sharing-captures.json",
+      "readme_reference": false,
       "pixels": [
         1440,
         1000
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/assets/slide-designs.png": {
       "viewport": {
@@ -766,11 +962,11 @@
       "captured_at": "2026-11-04T14:05:50.466292+00:00",
       "sha256": "f5a6eb72a52b8528bda39dddc660a1326823feb4dd5f557a6e93749319b96ce2",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": true,
       "pixels": [
         1600,
         1100
-      ],
-      "readme_reference": true
+      ]
     },
     "docs/screenshots/slide-designs-hover.png": {
       "viewport": {
@@ -780,11 +976,11 @@
       "captured_at": "2026-11-04T14:05:50.760633+00:00",
       "sha256": "1e0e1fb25fdaba106e377b1b513520efa276b27d266b3fff5a78374a039a2237",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": false,
       "pixels": [
         1600,
         1100
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/slide-designs-compare.png": {
       "viewport": {
@@ -794,11 +990,11 @@
       "captured_at": "2026-11-04T14:05:51.339663+00:00",
       "sha256": "7560a4e2251db827499bce33e26c8e7de19928ba7ef70e1401225bbbec16caf6",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": false,
       "pixels": [
         1600,
         1100
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/slide-designs-mobile.png": {
       "viewport": {
@@ -808,11 +1004,11 @@
       "captured_at": "2026-11-04T14:05:51.508695+00:00",
       "sha256": "29fbe1d05c10999adc595e37d4d321584cbc7df153e0fd071dc55421c90cff10",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": false,
       "pixels": [
         390,
         900
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/slide-designs-dark.png": {
       "viewport": {
@@ -822,11 +1018,11 @@
       "captured_at": "2026-11-04T14:05:52.077383+00:00",
       "sha256": "a6fad66d6acfcf022a2e7097b42ada2efd0168f23cf78161e5cbc7ad8c9f66a5",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": false,
       "pixels": [
         1600,
         1100
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/slide-designs-chosen.png": {
       "viewport": {
@@ -836,11 +1032,11 @@
       "captured_at": "2026-11-04T14:05:52.914490+00:00",
       "sha256": "418c2f9d6e6687422374977a23387130329df34a64e99785f742795c090746a4",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": false,
       "pixels": [
         1600,
         1100
-      ],
-      "readme_reference": false
+      ]
     },
     "docs/screenshots/slide-designs-history.png": {
       "viewport": {
@@ -850,11 +1046,11 @@
       "captured_at": "2026-11-04T14:05:54.063929+00:00",
       "sha256": "375a7867e0c87dbdecbcc24d3f787d55effbc43d5d9e746791382b421c67d0ad",
       "manifest": "docs/screenshots/slide-designs-captures.json",
+      "readme_reference": false,
       "pixels": [
         1600,
         1100
-      ],
-      "readme_reference": false
+      ]
     }
   }
 }
