@@ -1,6 +1,7 @@
 """Version, privacy and deterministic rendering checks on fictional slide content."""
 
 import base64
+import hashlib
 import io
 import os
 from collections.abc import Callable
@@ -153,6 +154,19 @@ def test_real_capture_stages_and_private_state(store: Store, tmp_path: Path) -> 
 
 
 @RENDER
+def test_real_renderer_probe_uses_the_production_sandbox() -> None:
+    """An explicit readiness probe starts no deck and releases the shared capture queue."""
+    from artifact_studio.visuals import capture_queue_status
+
+    status = capture_queue_status(probe_renderer=True)
+    assert status["running"] is False and status["queued"] == 0
+    assert "probe_error" not in status
+    renderer = status["renderer"]
+    assert isinstance(renderer, dict)
+    assert renderer["status"] == "ready" and renderer["retry_after_seconds"] == 0
+
+
+@RENDER
 def test_real_contact_sheet_pagination_and_inline_mcp(
     store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -253,7 +267,9 @@ def test_missing_renderer_reports_setup_and_releases_slot(
 
     from playwright.sync_api import Error
 
-    from artifact_studio import visuals
+    from artifact_studio import renderer_health, visuals
+
+    monkeypatch.setattr(renderer_health, "HEALTH", renderer_health.RendererHealth())
 
     def missing() -> Never:
         raise Error("Executable doesn't exist")
@@ -381,6 +397,10 @@ def test_contact_subset_paginates_in_deck_order_and_accepts_24(
     assert first.resolution == "draft"
     assert all((frame.width, frame.height) == (800, 450) for frame in first.frames)
     assert all(not frame.stale for frame in first.frames)
+    assert all(
+        frame.image_sha256 == hashlib.sha256(Path(frame.path).read_bytes()).hexdigest()
+        for frame in first.frames
+    )
     chosen = ["extra-21", "hidden", "extra-1"]
     subset = capture(store, DECK, output, slide_ids=chosen, limit=2)
     assert [frame.slide_id for frame in subset.frames] == ["hidden", "extra-1"]

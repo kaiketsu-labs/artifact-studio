@@ -49,7 +49,7 @@ For an existing filesystem bundle, `register_design(folder_id, design={id, name,
 | `presentation.js`, `icons.js`, `slideshow.css` | Copy from `runtime/`; these implement controls, notes, presenter behavior and utility UI styles |
 | `assets/` | Local fonts, logos, icons and artwork actually used by the design |
 | `README.md` | Source provenance, rights/context, design language, data date and continuation guidance |
-| `AGENT-GUIDE.md` | Copy the app guide and add any pack-specific authoring details |
+| `AGENT-GUIDE.md` | Keep brand-specific authoring details; load the current app workflow on demand |
 | `PREFERENCES.md` | The user's preferences, kept separate from source facts |
 | Original master and `reference/` | Preserve supplied material and extracted custom assets when available |
 
@@ -60,6 +60,8 @@ The JSON shape is defined by `artifact_studio.models.Deck` and `Slide`: `schema_
 Create enough compositions to demonstrate the design language; they are optional examples, not fixed templates. Preserve the freedom to move boxes, resize text, draw diagrams and invent new layouts. Avoid importing verbose source-slide copy into new decks. Notes add context the audience cannot already read; questions and explanations belong in the agent panel.
 
 Scaffolded packs are already registered; manually prepared packs need `register_design`. A new `design_id` must be unique, including reference collections and archived designs. Call `set_default_design(design_id)` when requested. Verify `get_design_assets` lists the master and custom assets, then create a presentation with the selected design to confirm its fonts, assets and review flow. Original masters stay in the pack rather than being duplicated into every new deck.
+
+Newly scaffolded `AGENT-GUIDE.md` contains a short brand-authoring starter and a pointer to `get_authoring_guide(topic="workflow")`, rather than a copy of the full app guide. Add source-specific guidance there; existing pack guides are preserved. Returned `import_directory` paths exist and accept staged downloads immediately. Missing source files are reported separately from symlink or directory errors.
 
 ## Updating presentations from their design
 
