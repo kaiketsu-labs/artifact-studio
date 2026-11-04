@@ -1,85 +1,85 @@
 {
   "fixture": "Fictional Studio Blue slides and element proposals",
-  "captured_at": "2026-11-04T15:54:40.257551+00:00",
+  "captured_at": "2026-11-04T16:03:13.188339+00:00",
   "screenshots": {
     "docs/assets/element-alternatives.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:28.897830+00:00",
-      "sha256": "3485efecde41baf85c0eaddce8dd21918c06072b8015c08856471001f344edc4"
+      "captured_at": "2026-11-04T16:03:02.117010+00:00",
+      "sha256": "2de765eeebd36aa0efc53e4a9e05f061c8ff63ec018f7681bd325bd8adc8d1ff"
     },
     "docs/screenshots/element-alternatives-headline.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:29.698585+00:00",
-      "sha256": "3485efecde41baf85c0eaddce8dd21918c06072b8015c08856471001f344edc4"
+      "captured_at": "2026-11-04T16:03:02.925941+00:00",
+      "sha256": "2de765eeebd36aa0efc53e4a9e05f061c8ff63ec018f7681bd325bd8adc8d1ff"
     },
     "docs/screenshots/element-alternatives-text.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:30.612537+00:00",
-      "sha256": "6667ff65ff0b50a740896d47c39775f7b732bd6b0760dfc43c6919da7ddd5efe"
+      "captured_at": "2026-11-04T16:03:03.875355+00:00",
+      "sha256": "20dc818e9996b9528a3165204979a0814701b1cdddd2133368516309b98a676e"
     },
     "docs/screenshots/element-alternatives-graphic.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:31.665904+00:00",
-      "sha256": "6c63d9762da9ff3136b5b38ae6fa6c854b1e1faeaef84e7cfbcf59e6ec2210e1"
+      "captured_at": "2026-11-04T16:03:04.947551+00:00",
+      "sha256": "ae270485e77f41a6732c98124e736d576103e0acffda56fa62225d9549ba1b7a"
     },
     "docs/screenshots/element-alternatives-compare.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:32.812664+00:00",
-      "sha256": "839853d4dc00b9206459ff4f4da213c7096640efd44b5c5cb09b0ede41b02f08"
+      "captured_at": "2026-11-04T16:03:06.010253+00:00",
+      "sha256": "a2d38a8a59b55089049ad131272bdb08e77b3a12efccc70d12294977ff313561"
     },
     "docs/screenshots/element-alternatives-full-slide.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:34.139908+00:00",
-      "sha256": "76d18ac5f74b63773f003f50a7a278ef5f07abce5f598f1b53aebb1060e3b663"
+      "captured_at": "2026-11-04T16:03:07.339173+00:00",
+      "sha256": "89d55a231ef3de9879d4437bc0bc3ae678f8f181df22c4ffc7397f75823d0f66"
     },
     "docs/screenshots/element-alternatives-chosen.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:35.264231+00:00",
-      "sha256": "44bfa6572fb3d9fd16e36fe0b80e486b0bda3399472e1703d1adec8878111a90"
+      "captured_at": "2026-11-04T16:03:08.691020+00:00",
+      "sha256": "612b1307a2958eefe990bc5b8f70140e4401182cea56d2cc8e2a58b0f680ff05"
     },
     "docs/screenshots/element-alternatives-history.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:36.574534+00:00",
-      "sha256": "fd49176948d55ad9ddba526b0746fa2d28a4431903e9577e72d3bb9651b313d8"
+      "captured_at": "2026-11-04T16:03:09.855582+00:00",
+      "sha256": "6b646af7fb02d8877312572a49925b2b266c41027780091984f0912876a0b2fb"
     },
     "docs/screenshots/element-alternatives-dark.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T15:54:37.693983+00:00",
-      "sha256": "5e68a24ee5173ad6e3f8797e2a3a6e1d09618d372ed51e848f2a655efc1ac31f"
+      "captured_at": "2026-11-04T16:03:10.939772+00:00",
+      "sha256": "6f022bd5c277cfa1a065cdf2405105981a141effee4f8c5982143476e6ffe4ad"
     },
     "docs/screenshots/element-alternatives-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-04T15:54:39.432993+00:00",
+      "captured_at": "2026-11-04T16:03:12.495393+00:00",
       "sha256": "4f44a64a9cd85208dd8c808dcd255b93d10205ba90558c6c0625299bef3ddfd7"
     }
   },

@@ -87,7 +87,6 @@
   async function proposalDecisionSaved(receipt,target){
     if(deck?.id!==target.deckId)return;retainDraft();const fresh=await api(`/api/decks/${encodeURIComponent(target.deckId)}`);if(deck?.id!==target.deckId)return;
     deck=fresh;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();updateComposer();
-    if(selectedId===target.slideId&&slide()?.content_hash===receipt.content_hash)void markOpened();
   }
   slideDesignOptions=window.SlideDesignOptions?.create({api,
     getContext:()=>deck&&slide()?{deckId:deck.id,slideId:selectedId,item:slide()}:null,
@@ -103,7 +102,7 @@
     getContext:()=>deck&&slide()?{deckId:deck.id,slideId:selectedId,item:slide()}:null,
     beforePreview:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();slideDesignOptions?.dismiss();prepareProposalSelection();animationPreview.stop();return true;},
     beforeDecide:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();return await noteAutosave.flush(key());},
-    afterDecision:proposalDecisionSaved,onPreview:proposalPreviewChanged,onBusy:()=>{if(deck)updateComposer();},notify:toast,
+    afterDecision:async(receipt,target)=>{await proposalDecisionSaved(receipt,target);if(selectedId===target.slideId&&slide()?.content_hash===receipt.content_hash)void markOpened();},onPreview:proposalPreviewChanged,onBusy:()=>{if(deck)updateComposer();},notify:toast,
     openSlideDesigns:()=>slideDesignOptions?.open(),
     onRequestRefresh:group=>{if(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().length){
       $('feedback-text').value=`Please refresh the ${group.label.toLowerCase()} options for the current slide design.`;
