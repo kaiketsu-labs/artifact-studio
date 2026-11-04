@@ -62,8 +62,8 @@ def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
     )
     if not selected:
         expect(page.get_by_role("heading", name="All artifacts", exact=True)).to_be_visible()
-        page.get_by_role("button", name="Presentation tools", exact=True).click()
-        page.get_by_role("link", name="Presentation tools", exact=True).click()
+        page.get_by_role("button", name="Menu", exact=True).click()
+        page.get_by_role("menuitem", name="Presentation tools", exact=True).click()
         expect(page.locator("#slide-title")).to_have_text("No presentations")
 
     def check_prompt(setup: bool = False) -> str:
@@ -97,7 +97,7 @@ def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
         expect(page.locator("#toast")).to_contain_text("Prompt copied")
         start_prompt = check_prompt()
     page.get_by_role("button", name="Menu", exact=True).click()
-    page.get_by_role("menuitem", name="Connect an agent", exact=True).click()
+    page.get_by_role("menuitem", name="Agent connection", exact=True).click()
     page.locator("#copy-agent-prompt").click()
     expect(page.locator("#toast")).to_contain_text("Prompt copied")
     prompt = check_prompt()

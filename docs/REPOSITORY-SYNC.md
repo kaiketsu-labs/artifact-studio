@@ -1,6 +1,6 @@
 # Local saving, reference libraries and GitHub backup
 
-The **storage icon in the library or beside Menu in the slide editor** opens **Storage and backup**; **Menu → Reference libraries** opens the same dialog. It shows the actual working-folder path, a copy-path control, local save status, connected references and GitHub backup outcomes. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local reference folders remain read-only and their latest files are read directly.
+The **storage icon in the library or beside Menu in the slide editor** opens **Storage and backup**; **Menu → Storage and backup** opens the same dialog. It shows the actual working-folder path, a copy-path control, local save status, connected references and GitHub backup outcomes. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local reference folders remain read-only and their latest files are read directly.
 
 ## Local saving and handoff
 
@@ -8,7 +8,7 @@ Slides live in the working folder. Speaker notes save automatically after about 
 
 The storage icon remains visible while the dialog is closed. A pending or failed note save takes priority over an earlier successful backup. GitHub's last successful backup and timestamp describe confirmed delivery; subsequent remote edits are checked at the next delivery, rather than continuously merged into local files.
 
-To continue on another laptop or Codex environment, **Save project** and **Open project** there. The archive carries notes, chats, approvals and browser drafts. GitHub backups contain current artifact/project files, saved presentation files and references, while the review database and browser drafts stay on the original device. Refreshing a GitHub reference updates its cache; applying remote content to the working collection remains an explicit action. This feature does not provide bidirectional workspace sync.
+To continue on another laptop or Codex environment, **Save presentation** and **Import presentation** there. The archive carries notes, chats, approvals and browser drafts. GitHub backups contain current artifact/project files, saved presentation files and references, while the review database and browser drafts stay on the original device. Refreshing a GitHub reference updates its cache; applying remote content to the working collection remains an explicit action. This feature does not provide bidirectional workspace sync.
 
 ## Automatic sync
 

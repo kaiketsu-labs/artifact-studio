@@ -149,13 +149,13 @@ def test_free_answer_draft_survives_updates_slide_switch_reload_and_project(
     expect(text).to_have_value("A mix of customer outcomes and practical next steps.")
     with page.expect_download() as downloaded:
         page.get_by_role("button", name="Menu", exact=True).click()
-        page.get_by_role("menuitem", name="Save project", exact=True).click()
+        page.get_by_role("menuitem", name="Save presentation", exact=True).click()
     project = downloaded.value.path()
     with zipfile.ZipFile(project) as archive:
         payload = json.loads(archive.read("project.json"))
         assert payload["client"]["question_answers"][str(event_id)]["text"].startswith("A mix")
     page.get_by_role("button", name="Menu", exact=True).click()
-    page.get_by_role("menuitem", name="Open project", exact=True).click()
+    page.get_by_role("menuitem", name="Import presentation", exact=True).click()
     page.locator("#project-file").set_input_files(project)
     expect(page.locator("#project-dialog")).not_to_be_visible()
     imported_id = page.locator("#deck-picker").input_value()

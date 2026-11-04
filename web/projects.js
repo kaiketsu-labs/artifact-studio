@@ -4,11 +4,11 @@ window.SlideProjects={
     const $=id=>document.getElementById(id),dialog=$('project-dialog');
     const {button,svg}=window.SlideIcons;
     for(const [id,icon,label,show] of [
-      ['project-button','external','Project files',true],['close-project','close','Close',false]
+      ['project-button','external','Presentation files',true],['close-project','close','Close',false]
     ])button($(id),icon,label,show);
     for(const [id,icon,label,detail,format] of [
-      ['save-project','save','Save project','Slides, notes & feedback','project'],
-      ['open-project','folder','Open project','.artifact-studio.zip','open'],
+      ['save-project','save','Save presentation','Slides, notes & feedback','project'],
+      ['open-project','folder','Import presentation','.artifact-studio.zip','open'],
       ['export-html','code','HTML','Images & animations','html'],
       ['export-pdf','pdf','PDF','Print or save as PDF','pdf']
     ]){
