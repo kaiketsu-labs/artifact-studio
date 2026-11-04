@@ -149,6 +149,18 @@ class Capture:
         self.page.locator("#clear-target").click()
         self.page.locator("#mode-live").click()
 
+    def selection_export(self) -> None:
+        """Show the object image action through the actual multi-selection menu."""
+        self.open()
+        preview = self.page.frame_locator("#preview")
+        preview.locator("#review-step").click(position={"x": 15, "y": 15})
+        preview.locator("h2").click(modifiers=["Shift"])
+        preview.locator("#review-step").click(button="right", position={"x": 15, "y": 15})
+        expect(self.page.get_by_role("menu", name="Selected objects")).to_be_visible()
+        self.save("docs/assets/selection-export.png")
+        self.page.keyboard.press("Escape")
+        self.page.locator("#clear-target").click()
+
     def overview(self) -> None:
         self.page.locator("#sorter-view").click()
         self.page.locator('.slide-thumb[data-id="workflow"]').click()
@@ -366,6 +378,7 @@ class Capture:
 
     def run(self, deck: Deck) -> None:
         self.workspace()
+        self.selection_export()
         self.overview()
         self.projects()
         self.interactive()

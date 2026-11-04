@@ -177,11 +177,15 @@ Automatic host continuation currently applies to **presentation review only**, t
 
 For a deck, open the editor's **Menu → Connect an agent → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), then call `start_live_review`. Copying a prompt alone does not configure or activate the host.
 
+Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
+
+![Selected objects with their image-export action in the real editor.](docs/assets/selection-export.png)
+
 ## Present with context
 
 ![Private presenter view showing current and next slides, notes, timer, clock and filmstrip.](docs/assets/presenter.png)
 
-Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. Where browser support, permissions and hardware allow, use a second display for audience slides and keep current/next slides, notes, timer and navigation private. [Editor controls](docs/GETTING-STARTED.md#review-and-present) · [Verification limits](QA.md).
+Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. Where browser support, permissions and hardware allow, use a second display for audience slides and keep current/next slides, notes, timer and navigation private. [Editor controls](docs/GETTING-STARTED.md#review-and-present).
 
 The self-contained HTML export scales the complete slide canvas in audience/presenter views and **All slides**, keeping fixed-size text, SVG and spacing proportional. Re-export an older file to include runtime fixes. [All keyboard shortcuts](docs/KEYBOARD-CONTROLS.md).
 
@@ -226,7 +230,6 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | --- | --- |
 | [Getting started](docs/GETTING-STARTED.md) | Installation, projects, imports, review, presentations and troubleshooting. |
 | [What agents receive](agent/README.md) | Canonical bootstrap, tool catalogue, guides, skills and context receipts. |
-| [Agent instruction audit](docs/AGENT-INSTRUCTIONS-AUDIT.md) | Checked guidance, runtime boundaries and verification scope. |
 | [Artifact architecture and remaining scope](docs/ARCHITECTURE.md) | Implemented foundation and subsequent work. |
 | [Artifact authoring](agent/guides/artifacts.md) | Free file composition, versioned edits and scoped feedback. |
 | [Mac menu-bar app](docs/MACOS.md) | Server controls, startup and updates. |
@@ -235,8 +238,8 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | [Presentation authoring](docs/AGENT-GUIDE.md) | Slide edits, notes and visual review. |
 | [Presentation visual review](docs/VISUAL-REVIEW.md) | Captures, contact sheets and reveal timing. |
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from a supplied reference. |
-| [Verification](QA.md) | Automated checks and application/display test scope. |
-| [UI and contrast review](docs/UI-REVIEW-2026-11-03.md) | Measured readability, keyboard/mobile fixes, feedback safety and verification limits. |
+| [Keyboard and pointer controls](docs/KEYBOARD-CONTROLS.md) | Shortcuts, selection, context menus and image export. |
+| [Development checks](docs/CI.md) | Automated coverage, local commands and application/display limits. |
 
 <details>
 <summary><strong>Development checks</strong></summary>

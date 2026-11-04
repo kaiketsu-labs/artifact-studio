@@ -149,6 +149,8 @@ Right-click a selected slide/HTML element, or press **Shift+F10**, for its edit 
 
 For multiple selected slide objects, the menu offers **Delete selection**, alignment and layer changes. Deletion and supported layer changes preview locally; other arrangements and alignment are labeled requests without a final-layout preview. **Send edit** submits one request anchored to all original targets. Send or cancel before changing the selection or navigating. Cancel restores local originals; dismissing a sent preview does not retract its request. HTML multi-selection remains group feedback with single-object direct edits.
 
+Drag from empty space on a slide, or in an HTML artifact with **Select** enabled, to enclose multiple objects. Hold **Shift, Cmd or Ctrl** to add objects; **Escape** cancels the drag. Right-click selected objects for **Save as image…** to download a transparent PNG. Right-click an image for its original file as well. Export uses the displayed version and local edit preview without submitting feedback or saving edits. Local images and canvas pixels are supported; unavailable external resources and nested frames are excluded. PNG export requires the local Chromium renderer used for visual review.
+
 Open **Sources & files** for downloads, canonical source path and content hash. The **Agent context** inspector shows applicable source paths, scopes, hashes and the latest recorded delivery. Available pointers are not read receipts. Matching retention hashes are useful only while the agent actually retains that guidance.
 
 For visual inspection, agents can call `capture_artifact` with viewport dimensions, a revision, elapsed animation time and optional full-page capture. It returns actual rendered evidence from a fresh offline runtime. Browser inspection is still needed for user-driven interaction states. Use the specialized slide capture tools for existing decks.
@@ -211,7 +213,7 @@ For automatic feedback in **Codex or Claude Code**, open **Menu → Connect an a
 
 Present requests browser fullscreen directly from your click, without opening an intermediate page. Esc or End returns to the editor at the current slide, keeping unsent drafts. If the browser blocks or does not support fullscreen, the slideshow still fills its available viewport.
 
-On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check. [Verification scope](../QA.md).
+On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check.
 
 ## Work on several artifacts or decks
 
@@ -293,6 +295,6 @@ uv run ruff format --check artifact_studio tests
 node --test tests/*.cjs
 ```
 
-Node.js is needed only for the optional frontend behavior tests. Tests generate fictional designs; no corporate masters, fonts, logos or personal decks are included. [QA](../QA.md) records fresh-install and browser checks and the remaining display/application limitations.
+Node.js is needed only for the optional frontend behavior tests. Tests generate fictional designs; no corporate masters, fonts, logos or personal decks are included. [CI](CI.md) describes automated checks and application/display limits.
 
 Agents should start with the [contract map](../agent/README.md) and [artifact authoring guide](../agent/guides/artifacts.md). Presentation work also uses [AGENT-GUIDE.md](AGENT-GUIDE.md) and [DESIGN-PACKS.md](DESIGN-PACKS.md); explicit private presentation uploads use [REPOSITORY-SYNC.md](REPOSITORY-SYNC.md). The canonical MCP bootstrap is [agent/bootstrap.md](../agent/bootstrap.md).

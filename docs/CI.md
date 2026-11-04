@@ -35,8 +35,6 @@ Hook tests exercise each adapter's result envelope and generated command,
 including the durable acknowledged feedback cursor;
 they do not simulate host trust or claim an authenticated model session has run.
 
-The [UI review](UI-REVIEW-2026-11-03.md) adds rendered numerical contrast checks in both themes, narrow-layout and focus regressions, and transactional feedback-mode races.
-
 Model-driven changes, host hook approval/loading, automatic continuation inside a
 signed-in desktop/CLI session, physical displays and the macOS controller still
 need their own application checks. CI does not bypass native trust or start paid

@@ -10,6 +10,8 @@ from .local_http import validate_local_url
 
 BRIDGE_PATH = "/web/artifact-bridge.js"
 MARKDOWN_PATH = "/web/vendor/marked-18.1.2.js"
+MARQUEE_PATH = "/web/marquee.js"
+IMAGE_EXPORT_PATH = "/web/image-export.js"
 READING_STYLE = (
     "html{color-scheme:light dark}body{margin:0;padding:32px;font:16px/1.6 system-ui;"
     "overflow-wrap:anywhere}main{max-width:880px;margin:auto}img,video{max-width:100%;"
@@ -47,7 +49,8 @@ def preview_headers(artifact_id: str, revision: int, origin: str) -> dict[str, s
     policy = (
         "sandbox allow-scripts allow-downloads; default-src 'none'; "
         f"script-src 'unsafe-inline' 'unsafe-eval' {files} "
-        f"{origin}{BRIDGE_PATH} {origin}{MARKDOWN_PATH}; "
+        f"{origin}{BRIDGE_PATH} {origin}{MARKDOWN_PATH} {origin}{MARQUEE_PATH} "
+        f"{origin}{IMAGE_EXPORT_PATH}; "
         f"style-src 'unsafe-inline' {files}; img-src {files} data: blob:; "
         f"font-src {files} data:; media-src {files} data: blob:; "
         f"connect-src {files}; base-uri {files}; frame-ancestors {origin}; "
@@ -157,6 +160,8 @@ def preview_document(
     additions = (
         '<meta charset="utf-8">'
         f'<base href="{escape(base, quote=True)}">'
+        f'<script src="{origin}{MARQUEE_PATH}"></script>'
+        f'<script src="{origin}{IMAGE_EXPORT_PATH}"></script>'
         f'<script src="{origin}{BRIDGE_PATH}" '
         f'data-artifact-root="{escape(files, quote=True)}" '
         f'data-artifact-format="{format_name}"></script>'

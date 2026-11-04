@@ -31,4 +31,4 @@ The same fictional deck, request fields and 100 released comments were used befo
 | Discussion rows loaded by those two compact writes | 200 | 0 | 100% |
 | Serialized equivalent of discussion materialized internally | 180,748 bytes | 0 bytes | 180,748 bytes |
 
-The discussion saving is internal work avoided, not model-context savings: compact responses already omitted that history. Full source, notes and explicitly requested released feedback remain available. Earlier measured context savings and their limits are documented in [TOKEN-EFFICIENCY.md](TOKEN-EFFICIENCY.md) and [AGENT-EVALUATION.md](AGENT-EVALUATION.md).
+The discussion saving is internal work avoided, not model-context savings: compact responses already omitted that history. Full source, notes and explicitly requested released feedback remain available. Earlier measured context savings and their limits are documented in [TOKEN-EFFICIENCY.md](TOKEN-EFFICIENCY.md).

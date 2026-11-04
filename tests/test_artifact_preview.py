@@ -132,6 +132,8 @@ def test_policy_scopes_fetch_modules_and_images_to_the_owned_revision() -> None:
         files,
         ORIGIN + "/web/artifact-bridge.js",
         ORIGIN + "/web/vendor/marked-18.1.2.js",
+        ORIGIN + "/web/marquee.js",
+        ORIGIN + "/web/image-export.js",
     ]
     assert directives["img-src"] == files + " data: blob:"
     assert headers["Referrer-Policy"] == "no-referrer"
@@ -245,7 +247,8 @@ const document = {
   currentScript: {src: origin + '/web/artifact-bridge.js', dataset: {artifactFormat: 'html'}},
   readyState: 'loading', addEventListener() {}, querySelectorAll() { return [button]; }
 };
-const window = {addEventListener(name, callback) {
+const window = {MarqueeSelection: {create: () => ({cancel() {}})},
+addEventListener(name, callback) {
   if (!listeners.has(name)) listeners.set(name, []);
   listeners.get(name).push(callback);
 }};

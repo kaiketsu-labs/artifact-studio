@@ -2,20 +2,25 @@
 
 import io
 import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from PIL import Image
 from playwright.sync_api import Error as BrowserError
-from playwright.sync_api import Route, sync_playwright
+from playwright.sync_api import Page, Route, sync_playwright
 from pydantic import Field
 
 from .artifact_models import ArtifactView
 from .artifact_preview import (
     BRIDGE_PATH,
+    IMAGE_EXPORT_PATH,
     MARKDOWN_PATH,
+    MARQUEE_PATH,
     artifact_file_headers,
     artifact_files_url,
     preview_document,
@@ -23,6 +28,7 @@ from .artifact_preview import (
 )
 from .artifacts import ArtifactStore
 from .models import StrictModel
+from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .visuals import MAX_DEPENDENCY_BYTES, render_slot
 
 CAPTURE_ORIGIN = "http://127.0.0.1:8799"
@@ -59,29 +65,31 @@ class ArtifactCapture(StrictModel):
     blocked_requests: list[str] = Field(default_factory=list)
 
 
-def capture_resources(store: ArtifactStore, artifact: ArtifactView) -> dict[str, CaptureResource]:
+def capture_resources(
+    store: ArtifactStore, artifact: ArtifactView, origin: str = CAPTURE_ORIGIN
+) -> dict[str, CaptureResource]:
     """Pin a bounded allowlist of owned snapshot bytes and the trusted preview adapters."""
     if artifact.legacy_deck_id:
         raise ValueError("Use the presentation capture for a legacy presentation.")
     if sum(item.size for item in artifact.files) > MAX_DEPENDENCY_BYTES:
         raise ValueError("Artifact capture dependencies exceed 64 MiB. Resize assets first.")
     files = store.snapshot_files(artifact.id, artifact.revision)
-    base = artifact_files_url(artifact.id, artifact.revision, CAPTURE_ORIGIN)
-    headers = artifact_file_headers(artifact.id, artifact.revision, CAPTURE_ORIGIN)
+    base = artifact_files_url(artifact.id, artifact.revision, origin)
+    headers = artifact_file_headers(artifact.id, artifact.revision, origin)
     resources = {
         base + quote(item.path, safe="/"): CaptureResource(
             files[item.path], item.mime_type, headers
         )
         for item in artifact.files
     }
-    for name in (BRIDGE_PATH, MARKDOWN_PATH):
-        resources[CAPTURE_ORIGIN + name] = CaptureResource(
+    for name in (BRIDGE_PATH, MARKDOWN_PATH, MARQUEE_PATH, IMAGE_EXPORT_PATH):
+        resources[origin + name] = CaptureResource(
             (PROJECT / name.lstrip("/")).read_bytes(), "text/javascript", headers
         )
-    resources[CAPTURE_URL] = CaptureResource(
-        preview_document(store, artifact.id, CAPTURE_ORIGIN, artifact.revision).encode(),
+    resources[origin + "/__artifact_capture__"] = CaptureResource(
+        preview_document(store, artifact.id, origin, artifact.revision).encode(),
         "text/html",
-        preview_headers(artifact.id, artifact.revision, CAPTURE_ORIGIN),
+        preview_headers(artifact.id, artifact.revision, origin),
     )
     return resources
 
@@ -95,6 +103,85 @@ def capture_resource(
     parsed = urlsplit(url)
     normalized = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
     return resources.get(normalized)
+
+
+@contextmanager
+def rendered_resources(
+    resources: dict[str, CaptureResource],
+    width: int,
+    height: int,
+    url: str = CAPTURE_URL,
+    color_scheme: Literal["light", "dark"] = "light",
+) -> Generator[tuple[Page, set[str]]]:
+    """Open verified owned bytes in one offline browser with every other request denied."""
+    blocked: set[str] = set()
+
+    def route_request(route: Route) -> None:
+        """Fulfill verified bytes and fail closed for every other request."""
+        request = route.request
+        resource = capture_resource(resources, request.url, request.method)
+        if resource is None:
+            if len(blocked) < 100:
+                blocked.add(request.url[:2000])
+            route.abort()
+        else:
+            route.fulfill(
+                status=200,
+                body=resource.body if request.method == "GET" else b"",
+                content_type=resource.mime_type,
+                headers=resource.headers,
+            )
+
+    try:
+        with sync_playwright() as renderer:
+            browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
+            try:
+                context = browser.new_context(
+                    viewport={"width": width, "height": height},
+                    device_scale_factor=1,
+                    color_scheme=color_scheme,
+                    offline=True,
+                    service_workers="block",
+                    accept_downloads=False,
+                )
+                context.route("**/*", route_request)
+                context.route_web_socket("**/*", lambda socket: socket.close())
+                page = context.new_page()
+                page.set_default_timeout(15_000)
+                _ = page.goto(url, wait_until="load", timeout=15_000)
+                _ = page.evaluate(
+                    "async () => {await document.fonts.ready;"
+                    "await Promise.all([...document.images].map(image => "
+                    "image.decode().catch(() => {})));}"
+                )
+                yield page, blocked
+            finally:
+                browser.close()
+    except BrowserError as error:
+        if "Executable doesn't exist" in str(error):
+            raise ValueError(
+                "Install the local renderer: uv run playwright install chromium --only-shell"
+            ) from error
+        raise ValueError(f"Artifact capture failed: {str(error)[:500]}") from error
+
+
+def export_artifact_selection(
+    store: ArtifactStore, artifact: ArtifactView, request: SelectionImageInput, origin: str
+) -> SelectionImage:
+    """Export a displayed bundle using only files from its pinned immutable revision."""
+    with render_slot():
+        resources = capture_resources(store, artifact, origin)
+        url = origin + "/__artifact_capture__"
+        if request.preview_html:
+            resources[url] = CaptureResource(
+                request.preview_html.encode(),
+                "text/html",
+                preview_headers(artifact.id, artifact.revision, origin),
+            )
+        with rendered_resources(
+            resources, request.width, request.height, url, request.color_scheme
+        ) as (page, _blocked):
+            return render_selection(page, request)
 
 
 def capture_artifact_image(
@@ -119,65 +206,19 @@ def capture_artifact_image(
             else store.get_artifact_revision(artifact_id, revision)
         )
         resources = capture_resources(store, artifact)
-        blocked: set[str] = set()
-
-        def route_request(route: Route) -> None:
-            """Fulfill verified bytes and fail closed for every other request."""
-            request = route.request
-            resource = capture_resource(resources, request.url, request.method)
-            if resource is None:
-                if len(blocked) < 100:
-                    blocked.add(request.url[:2000])
-                route.abort()
-            else:
-                route.fulfill(
-                    status=200,
-                    body=resource.body if request.method == "GET" else b"",
-                    content_type=resource.mime_type,
-                    headers=resource.headers,
+        with rendered_resources(resources, width, height) as (page, blocked):
+            if elapsed_ms:
+                page.wait_for_timeout(elapsed_ms)
+            if full_page:
+                pixels: object = page.evaluate(
+                    "() => Math.max(document.documentElement.scrollWidth, innerWidth)"
+                    " * Math.max(document.documentElement.scrollHeight, innerHeight)"
                 )
-
-        try:
-            with sync_playwright() as renderer:
-                browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
-                try:
-                    context = browser.new_context(
-                        viewport={"width": width, "height": height},
-                        device_scale_factor=1,
-                        offline=True,
-                        service_workers="block",
-                        accept_downloads=False,
-                    )
-                    context.route("**/*", route_request)
-                    context.route_web_socket("**/*", lambda socket: socket.close())
-                    page = context.new_page()
-                    page.set_default_timeout(15_000)
-                    _ = page.goto(CAPTURE_URL, wait_until="load", timeout=15_000)
-                    _ = page.evaluate(
-                        "async () => {await document.fonts.ready;"
-                        "await Promise.all([...document.images].map(image => "
-                        "image.decode().catch(() => {})));}"
-                    )
-                    if elapsed_ms:
-                        page.wait_for_timeout(elapsed_ms)
-                    if full_page:
-                        pixels: object = page.evaluate(
-                            "() => Math.max(document.documentElement.scrollWidth, innerWidth)"
-                            " * Math.max(document.documentElement.scrollHeight, innerHeight)"
-                        )
-                        if not isinstance(pixels, int | float) or pixels > MAX_CAPTURE_PIXELS:
-                            raise ValueError("Full-page capture exceeds 32 million pixels.")
-                    data = page.screenshot(
-                        type="png", full_page=full_page, animations="allow", timeout=15_000
-                    )
-                finally:
-                    browser.close()
-        except BrowserError as error:
-            if "Executable doesn't exist" in str(error):
-                raise ValueError(
-                    "Install the local renderer: uv run playwright install chromium --only-shell"
-                ) from error
-            raise ValueError(f"Artifact capture failed: {str(error)[:500]}") from error
+                if not isinstance(pixels, int | float) or pixels > MAX_CAPTURE_PIXELS:
+                    raise ValueError("Full-page capture exceeds 32 million pixels.")
+            data = page.screenshot(
+                type="png", full_page=full_page, animations="allow", timeout=15_000
+            )
         with Image.open(io.BytesIO(data)) as captured:
             captured_width, captured_height = captured.size
         folder = outputdir.resolve() / uuid.uuid4().hex

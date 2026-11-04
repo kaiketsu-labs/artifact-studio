@@ -54,6 +54,7 @@
     const rgb = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(computed.color);
     const color = rgb ? '#' + rgb.slice(1).map(value => Number(value).toString(16).padStart(2, '0')).join('') : computed.color;
     send({type: 'artifact:inspector', request_id: requestId, selector, label: (element.getAttribute('aria-label') || element.localName).slice(0, 500),
+      image: element.localName === 'img',
       text: element.childElementCount === 0 ? (element.textContent || '').slice(0, 9000) : '',
       canText: element.childElementCount === 0 && (element.textContent || '').length <= 9000 && !['script','style','input','textarea','img','br','hr'].includes(element.localName),
       typography: {font_size: size ? Number(size[1]) : 16, font_size_unit: size ? size[2] : 'px', font_size_px: Number.parseFloat(computed.fontSize) || 16, font_weight: computed.fontWeight,
@@ -191,6 +192,15 @@
     if (!scheduled) { scheduled = true; requestAnimationFrame(draw); }
   }
 
+  function targetFor(element){
+    const text=(element instanceof HTMLElement?element.innerText:element.textContent)||'',quote=text.replace(/\s+/g,' ').trim().slice(0,1000);
+    const label=element.getAttribute('aria-label')||element.getAttribute('alt')||element.getAttribute('title')||quote||element.localName;
+    return {kind:'element',selector:selectorFor(element),quote,label:label.slice(0,500),image:element.localName==='img',viewport:{width:innerWidth,height:innerHeight}};
+  }
+  const marquee=window.MarqueeSelection.create({doc:document,enabled:()=>selecting&&!draft,
+    onActivity:()=>{hovered=null;schedule();},
+    onSelect:(elements,additive)=>{window.focus?.();send({type:'artifact:targets',targets:elements.map(targetFor).filter(target=>target.selector),additive});},
+    onError:message=>send({type:'artifact:edit-error',message})});
   /** Send plain anchor data; no content from the artifact becomes workspace markup. */
   function choose(event) {
     const element = event.target instanceof Element ? event.target : null;
@@ -204,7 +214,7 @@
     const label = element.getAttribute('aria-label') || element.getAttribute('alt') || element.getAttribute('title') || quote || element.localName;
     send({
       type: 'artifact:target',
-      target: {kind: 'element', selector, quote, label: label.slice(0, 500), viewport: {width: innerWidth, height: innerHeight}},
+      target: {kind: 'element', selector, quote, label: label.slice(0, 500), image:element.localName==='img',viewport: {width: innerWidth, height: innerHeight}},
       additive: !!(event.metaKey || event.ctrlKey || event.shiftKey)
     });
   }
@@ -239,7 +249,9 @@
     if (event.source !== parent || event.origin !== parentOrigin) return;
     const message = event.data;
     if (!message || typeof message !== 'object') return;
-    if (message.type === 'artifact:inspect' && typeof message.selector === 'string' && message.selector.length <= 2000) {
+    if(message.type==='artifact:selection-export'&&typeof message.request_id==='string'&&Array.isArray(message.selectors)&&message.selectors.length>0&&message.selectors.length<=100&&message.selectors.every(value=>typeof value==='string'&&value.length<=2000)){
+      window.ImageExport.snapshot(document,{selectors:message.selectors}).then(value=>send({type:'artifact:selection-export-data',request_id:message.request_id,...value})).catch(error=>send({type:'artifact:selection-export-error',request_id:message.request_id,message:error.message}));
+    }else if (message.type === 'artifact:inspect' && typeof message.selector === 'string' && message.selector.length <= 2000) {
       if (draft && draft.selector !== message.selector) send({type: 'artifact:edit-error', message: 'Send or cancel the edit first.'});
       else inspect(message.selector, message.request_id);
     } else if (message.type === 'artifact:edit-preview' && typeof message.selector === 'string' && message.selector.length <= 2000) {
@@ -248,7 +260,7 @@
     } else if (message.type === 'artifact:edit-accept') { const selector = draft?.selector; draft = null; if (selector) inspect(selector);
     } else if (message.type === 'artifact:select' && typeof message.enabled === 'boolean') {
       selecting = message.enabled;
-      if (!selecting) hovered = null;
+      if (!selecting) {hovered = null;marquee.cancel();}
       schedule();
     } else if (message.type === 'artifact:selection' && Array.isArray(message.selectors)) {
       selectors = message.selectors.filter(value => typeof value === 'string' && value.length <= 2000).slice(0, 100);
