@@ -50,7 +50,7 @@ def test_scaffold_text_and_asset_authoring(service: DesignAuthoring) -> None:
     )
     folder = store.folder(pack.folder_id)
     source = folder / ".authoring-assets" / "sample.svg"
-    source.parent.mkdir()
+    assert source.parent.is_dir()
     _ = source.write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     imported = service.import_asset("fictional", str(source), "assets/sample.svg")
     assert imported["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
@@ -69,6 +69,24 @@ def test_existing_encoding_and_source_references(service: DesignAuthoring) -> No
     _ = path.write_bytes("Original\r\n".encode("utf-16"))
     _ = write(service, "reference/instructions.txt", "Changed\n")
     assert path.read_bytes().decode("utf-16") == "Changed\r\n"
+
+
+def test_new_pack_guidance_is_small_and_existing_brand_guidance_survives(
+    service: DesignAuthoring,
+) -> None:
+    """Scaffolding omits shared workflow while retaining authored guidance in other packs/decks."""
+    starter = service.read_file("fictional", "AGENT-GUIDE.md")
+    assert len(str(starter["text"]).encode()) < 1_000
+    assert 'get_authoring_guide(topic="workflow")' in str(starter["text"])
+    brand_guidance = "Use the source's cobalt accent and preserve its diagram conventions."
+    _ = service.write_file(
+        "fictional", "AGENT-GUIDE.md", brand_guidance, str(starter["expected_hash"])
+    )
+    created = service.create("separate", "Separate brand")
+    assert Path(str(created["import_directory"])).is_dir()
+    assert service.read_file("fictional", "AGENT-GUIDE.md")["text"] == brand_guidance
+    deck = service.store.create("2026-11-04-brand-guidance", "Brand guidance", "fictional")
+    assert (service.store.folder(deck.id) / "AGENT-GUIDE.md").read_text() == brand_guidance
 
 
 def test_design_sync_updates_multiple_decks_and_preserves_local_context(

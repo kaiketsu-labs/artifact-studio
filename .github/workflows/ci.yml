@@ -84,6 +84,7 @@ jobs:
               tests/integration/test_ui_contrast.py tests/integration/test_accessible_labels.py
               tests/integration/test_marquee_export.py tests/integration/test_presentation_authoring.py
               tests/integration/test_agent_workflow_gaps.py
+              tests/integration/test_audit_followups.py tests/test_text_review.py
               tests/test_visuals.py tests/test_interactive.py tests/test_presentation_authoring.py
               tests/test_element_rotation_dom.py tests/test_copilot_capture.py
     env:
@@ -99,6 +100,8 @@ jobs:
       - run: uv sync --locked
       - name: Install Chromium and OS dependencies
         run: uv run --no-sync playwright install --with-deps chromium --only-shell
+      - name: Install optional text review engine
+        run: sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
       - name: Browser journeys and sandboxed renderer tests
         run: >-
           uv run --no-sync pytest ${{ matrix.tests }}

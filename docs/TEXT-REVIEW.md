@@ -1,0 +1,17 @@
+# Optional text fidelity review
+
+Loaded fonts and matching source/DOM text do not prove that glyphs look right. A font can map C to an O-shaped glyph while every resource loads successfully. `check_slide_text` compares OCR of saved slide pixels with the visible text you expect. It returns **review candidates**, never approval or proof of correctness. Ligatures remain supported.
+
+1. Capture the relevant slide at full resolution with `capture_slide`, selecting its reveal stage/time where needed. A full-resolution contact-sheet capture also retains suitable individual frames.
+2. Call `check_slide_text(deck_id=..., slide_id=..., capture_id=..., expected_text="...")`. Use the returned capture ID, not an image path. Supply the complete text expected to be visible at that exact stage; do not include private speaker notes or intentionally hidden builds.
+3. Inspect the original image and the returned mismatch candidates. Each candidate includes expected/recognized excerpts and image-relative OCR word boxes/confidence. Confirm the font, glyphs and source before changing anything.
+
+The optional local engine is Tesseract (`tesseract-ocr` on Debian/Ubuntu, `brew install tesseract` on macOS). Install the required language data locally; `language="eng"` is the default and `language="eng+deu"` selects installed combined languages. No OCR service or network request is used. A missing engine returns `status="unavailable"`; an unsupported/missing language reports an actionable error. Recognition is limited to 20 seconds, a 1600×900 PNG, and bounded text/output sizes.
+
+`status="mismatches_detected"` means OCR and expected text disagree. `no_mismatch_detected` means no disagreement was found by this heuristic. Both retain `human_review_required=true`: OCR may normalize or misread a real font problem. Zero/O, punctuation, whitespace, reading order and complex layouts can also produce false alarms. Compatibility ligatures such as `ﬁ` normalize to `fi`, and repeated whitespace collapses; case and C/O/0 remain distinct. Supply rendered case if CSS transforms text. Unrecognized text produces missing-text candidates.
+
+Results include the source, visual and render hashes, capture ID, image SHA-256 and reveal timing. The service validates the saved image against its capture-time digest, then checks the current slide and dependencies before and after recognition. `status="stale"` requires recapture, even if an OCR comparison happened to match. Older captures without an image digest must be recreated. Runtime mismatches remain visible and must be resolved before claiming equivalence to a deck's custom player.
+
+This reuses existing capture pixels without launching another browser. It does not weaken capture isolation or substitute a different rendering path when capture is unavailable. Interactive slide text is checked through pixels and caller expectations; opaque sandbox DOM remains inaccessible to capture diagnostics. Text checks do not verify factual claims, animation between sampled frames or physical displays.
+
+Expected input is limited to 10,000 characters and 1,000 words. OCR output and mismatch lists are bounded; `omitted_mismatch_count` and `excerpt_truncated` identify incomplete reports. Full OCR and expected text are not echoed into matching responses. For large or complex slides, inspect the image and review content in smaller authoring units instead of treating a partial list as exhaustive.
