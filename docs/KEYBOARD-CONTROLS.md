@@ -53,6 +53,8 @@ Focus a **section header** for ←/→ to collapse/expand it, **F2** to rename i
 
 Select an object on a slide, or enable **Select** in an HTML artifact and click an element. Right-click opens element actions. **Shift+F10** or the keyboard Menu key also opens the menu; arrows, Home/End and Enter navigate it, and Escape closes it.
 
+In an element's alternative chooser, **←/→**, **Home/End**, or **Enter/Space** on an option select a preview. You can keep browsing before clicking outside or closing the chooser to save the last selection. **Escape** cancels it; during animation playback, the first Escape stops playback. A saved choice offers **Undo**.
+
 Drag from empty canvas space to enclose multiple objects. Hold **Shift, Cmd or Ctrl** to add to the selection; **Escape** cancels a drag. Right-click the selection for **Save as image…** (transparent PNG). Images also offer **Save original image…**. Export includes the displayed local edit preview without saving or sending it.
 
 | Shortcut | Action |

@@ -10,9 +10,14 @@ import shutil
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from playwright.sync_api import Page, expect, sync_playwright
 
+from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.libraries import Libraries, Library
+from artifact_studio.models import SlidePatch
+from artifact_studio.storage import digest
 from scripts.screenshot_fixture import seed
 from tests.integration.support import DECK_ID, PROJECT, running_app
 from tests.integration.test_element_alternatives import open_group, option, seed_elements
@@ -31,6 +36,9 @@ def main() -> None:
         audits: dict[str, object] = {}
         with running_app(root, root / "server.log") as app, sync_playwright() as playwright:
             _ = seed(app)
+            registry = ArtifactStore(app.store)
+            project = registry.create_project("Fictional review project")
+            registry.set_artifact_project(DECK_ID, project.id)
             groups = seed_elements(app, slide_id="workflow")
             browser = playwright.chromium.launch()
             context = browser.new_context(
@@ -70,6 +78,8 @@ def main() -> None:
 
             try:
                 _ = page.goto(f"{app.url}/?deck={DECK_ID}#workflow")
+                expect(page.locator("#element-alternative-toggle")).to_be_visible()
+                capture("docs/screenshots/element-alternatives-available.png")
                 open_group(page, groups["headline"])
                 option(page, groups["headline"], 1).hover()
                 expect(page.frame_locator("#preview").locator("#headline")).to_have_text(
@@ -81,7 +91,7 @@ def main() -> None:
                 open_group(page, groups["text"])
                 option(page, groups["text"], 2).click()
                 capture("docs/screenshots/element-alternatives-text.png")
-                page.locator("#element-alternative-panel [data-ea-close]").click()
+                page.keyboard.press("Escape")
                 open_group(page, groups["graphic"])
                 option(page, groups["graphic"], 1).click()
                 for index in range(3):
@@ -91,7 +101,7 @@ def main() -> None:
                         .locator("html")
                     ).to_have_attribute("data-element-preview-ready", "true")
                 capture("docs/screenshots/element-alternatives-graphic.png")
-                page.locator("#element-alternative-panel [data-ea-close]").click()
+                page.keyboard.press("Escape")
                 open_group(page, groups["headline"])
                 option(page, groups["headline"], 1).click()
                 page.locator("#element-alternative-panel [data-ea-compare]").click()
@@ -101,7 +111,7 @@ def main() -> None:
                 page.wait_for_timeout(350)
                 capture("docs/screenshots/element-alternatives-full-slide.png")
                 page.locator(".ea-comparison [data-ea-compare-close]").click()
-                page.locator("#element-alternative-panel [data-ea-use]").click()
+                page.locator("#element-alternative-panel [data-ea-close]").click()
                 expect(page.locator("#element-alternative-panel")).to_be_hidden()
                 expect(page.frame_locator("#preview").locator("#headline")).to_have_text(
                     "A stronger story, every review."
@@ -121,7 +131,7 @@ def main() -> None:
                 open_group(page, groups["text"])
                 option(page, groups["text"], 2).click()
                 capture("docs/screenshots/element-alternatives-dark.png")
-                page.locator("#element-alternative-panel [data-ea-close]").click()
+                page.keyboard.press("Escape")
                 appearance("Light")
                 touch = browser.new_context(
                     viewport={"width": 390, "height": 844},
@@ -142,6 +152,92 @@ def main() -> None:
                     )
                 finally:
                     touch.close()
+                page.locator("#sorter-view").click()
+                expect(page.locator("#sorter-presentation-title")).to_be_visible()
+                capture("docs/screenshots/sorter-header.png")
+                page.get_by_role("button", name="Edit view", exact=True).click()
+                history_html = app.store.locate(app.store.read(DECK_ID), "workflow").html
+                for index in range(5):
+                    current = app.store.locate(app.store.read(DECK_ID), "workflow")
+                    _ = app.store.revise(
+                        DECK_ID,
+                        "workflow",
+                        digest(current.model_dump_json()),
+                        f"history-docs-{index}",
+                        SlidePatch(
+                            html=history_html.replace(
+                                '<article class="slide"',
+                                f'<article data-review-pass="{index}" class="slide"',
+                                1,
+                            )
+                        ),
+                    )
+                page.reload()
+                history_path = f"/api/decks/{DECK_ID}/slides/workflow/history"
+                versions = page.request.get(app.url + history_path + "?include_all=true").json()
+                thumbnails: dict[str, bytes] = {}
+                thumbnail_page = context.new_page()
+                try:
+                    for item in versions["items"]:
+                        query = urlencode({"version_id": item["version_id"]})
+                        thumbnail_page.goto(app.url + history_path + "/preview?" + query)
+                        expect(thumbnail_page.locator(".slide")).to_be_visible()
+                        thumbnail_page.evaluate("window.ArtifactStudioCaptureReady")
+                        thumbnails[item["version_id"]] = thumbnail_page.locator(
+                            ".slide"
+                        ).screenshot()
+                finally:
+                    thumbnail_page.close()
+                page.route(
+                    "**/history/thumbnail?**",
+                    lambda route: route.fulfill(
+                        content_type="image/png",
+                        body=thumbnails[
+                            parse_qs(urlsplit(route.request.url).query)["version_id"][0]
+                        ],
+                    ),
+                )
+                page.get_by_role("button", name="Version history", exact=True).click()
+                expect(page.locator(".version-history .version-name")).not_to_be_empty()
+                expect(page.locator(".version-history .version-preview iframe")).to_be_visible()
+                expect(
+                    page.frame_locator(".version-preview iframe").locator("#headline")
+                ).to_have_text("A stronger story, every review.")
+                page.frame_locator(".version-preview iframe").locator(".slide").evaluate(
+                    "() => window.ArtifactStudioCaptureReady"
+                )
+                expect(page.locator(".version-list .version-thumb.is-ready")).to_have_count(2)
+                capture("docs/screenshots/history-grouped.png")
+                page.keyboard.press("Escape")
+                collection = Libraries(app.store).list()[0].model_dump()
+                backup = Library(
+                    id="review-docs-backup",
+                    kind="github",
+                    location="fictional-slides/demo",
+                    path="/tmp/fictional-reference-cache",
+                    sync_enabled=True,
+                    auto_sync_enabled=True,
+                ).model_dump()
+                page.route(
+                    "**/api/libraries", lambda route: route.fulfill(json=[collection, backup])
+                )
+                page.route(
+                    "**/api/library-sync",
+                    lambda route: route.fulfill(
+                        json=[
+                            {
+                                "library_id": backup["id"],
+                                "phase": "error",
+                                "error": "Connection unavailable. Reconnect, then retry.",
+                                "last_synced_at": "",
+                            }
+                        ]
+                    ),
+                )
+                page.locator("#storage-status").click()
+                page.get_by_role("button", name="Retry GitHub backup", exact=True).hover()
+                expect(page.get_by_role("tooltip")).to_be_visible()
+                capture("docs/screenshots/storage-backup-retry.png")
                 if errors:
                     raise RuntimeError("\n".join(errors))
                 if args.axe and any(audits.values()):
@@ -159,7 +255,14 @@ def main() -> None:
                             "fixture": "Fictional Studio Blue slides and element proposals",
                             "captured_at": datetime.now(UTC).isoformat(),
                             "screenshots": captures,
-                            "timeline_thumbnail": "Revision thumbnail uses a fictional PNG",
+                            "timeline_thumbnail": (
+                                "Element history uses a fictional PNG; grouped history uses "
+                                "browser captures of the exact fictional revisions. Neither "
+                                "exercises the protected renderer."
+                            ),
+                            "backup_status": (
+                                "Fictional repository and connection failure; no real backup runs"
+                            ),
                             "axe": audits if args.axe else "Not requested",
                         },
                         indent=2,

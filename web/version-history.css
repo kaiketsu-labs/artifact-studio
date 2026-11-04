@@ -18,3 +18,5 @@ html[data-theme=dark] .version-history .version-restore,html[data-theme=dark] .w
   .version-footer{align-items:stretch}
   .version-restore{align-self:flex-end;max-width:100%}
 }
+
+.version-group{margin-bottom:14px}.version-group-date{padding:6px 3px;color:var(--subtle,var(--hub-muted,#5f6b7a));font-size:12px;font-weight:600}.version-list .version-group summary{padding:6px 3px;font-weight:500}.version-filter-help{font-size:12px;line-height:1.4;color:var(--subtle,var(--hub-muted,#5f6b7a));margin:0}

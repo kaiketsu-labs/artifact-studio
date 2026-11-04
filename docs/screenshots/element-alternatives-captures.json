@@ -1,90 +1,124 @@
 {
   "fixture": "Fictional Studio Blue slides and element proposals",
-  "captured_at": "2026-11-04T16:03:13.188339+00:00",
+  "captured_at": "2026-11-04T22:42:00.318847+00:00",
   "screenshots": {
+    "docs/screenshots/element-alternatives-available.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:40.582418+00:00",
+      "sha256": "d3be0b4de72c8a435d429dc70af1f7ead91288c5bf3083a2ca1450112939a1ae"
+    },
     "docs/assets/element-alternatives.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:02.117010+00:00",
-      "sha256": "2de765eeebd36aa0efc53e4a9e05f061c8ff63ec018f7681bd325bd8adc8d1ff"
+      "captured_at": "2026-11-04T22:41:41.668696+00:00",
+      "sha256": "2d846defa5bcba55600d78ad6ee0728ff46684cbc7dcff07d9b798b4a77784ca"
     },
     "docs/screenshots/element-alternatives-headline.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:02.925941+00:00",
-      "sha256": "2de765eeebd36aa0efc53e4a9e05f061c8ff63ec018f7681bd325bd8adc8d1ff"
+      "captured_at": "2026-11-04T22:41:42.540188+00:00",
+      "sha256": "2d846defa5bcba55600d78ad6ee0728ff46684cbc7dcff07d9b798b4a77784ca"
     },
     "docs/screenshots/element-alternatives-text.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:03.875355+00:00",
-      "sha256": "20dc818e9996b9528a3165204979a0814701b1cdddd2133368516309b98a676e"
+      "captured_at": "2026-11-04T22:41:43.582549+00:00",
+      "sha256": "2c5cd2980a3309227519e10af9f73c308a824a2e7e2ce9a2e6f9bef375bfbb33"
     },
     "docs/screenshots/element-alternatives-graphic.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:04.947551+00:00",
-      "sha256": "ae270485e77f41a6732c98124e736d576103e0acffda56fa62225d9549ba1b7a"
+      "captured_at": "2026-11-04T22:41:44.764089+00:00",
+      "sha256": "3fd747ff642336d0be1baff79473131a67448122c1e956f81c37a7b6e230a4c4"
     },
     "docs/screenshots/element-alternatives-compare.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:06.010253+00:00",
-      "sha256": "a2d38a8a59b55089049ad131272bdb08e77b3a12efccc70d12294977ff313561"
+      "captured_at": "2026-11-04T22:41:46.035559+00:00",
+      "sha256": "19004d27e29a54847b0a34418efb31ba48611ff543e239c869c731d5313c8dcd"
     },
     "docs/screenshots/element-alternatives-full-slide.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:07.339173+00:00",
-      "sha256": "89d55a231ef3de9879d4437bc0bc3ae678f8f181df22c4ffc7397f75823d0f66"
+      "captured_at": "2026-11-04T22:41:47.370077+00:00",
+      "sha256": "10575fffe210b2e0206285d3066adcd23284e4416f5c33d74bb010109bd44740"
     },
     "docs/screenshots/element-alternatives-chosen.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:08.691020+00:00",
-      "sha256": "612b1307a2958eefe990bc5b8f70140e4401182cea56d2cc8e2a58b0f680ff05"
+      "captured_at": "2026-11-04T22:41:48.593640+00:00",
+      "sha256": "9b619d47ad64da94e520f57df61743c40c1976c973de3ab45028215d1dbb01ce"
     },
     "docs/screenshots/element-alternatives-history.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:09.855582+00:00",
-      "sha256": "6b646af7fb02d8877312572a49925b2b266c41027780091984f0912876a0b2fb"
+      "captured_at": "2026-11-04T22:41:50.154393+00:00",
+      "sha256": "194ed594b591c17cb2c3bf3fa67894b33491f2eabfa18b8d41bf7d76a1eaf178"
     },
     "docs/screenshots/element-alternatives-dark.png": {
       "viewport": {
         "width": 1600,
         "height": 1100
       },
-      "captured_at": "2026-11-04T16:03:10.939772+00:00",
-      "sha256": "6f022bd5c277cfa1a065cdf2405105981a141effee4f8c5982143476e6ffe4ad"
+      "captured_at": "2026-11-04T22:41:51.506047+00:00",
+      "sha256": "9f5ca255e7004e0a1a25050bfdfc34de534246470ce29e3de1ed301d0f1516a3"
     },
     "docs/screenshots/element-alternatives-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-04T16:03:12.495393+00:00",
-      "sha256": "4f44a64a9cd85208dd8c808dcd255b93d10205ba90558c6c0625299bef3ddfd7"
+      "captured_at": "2026-11-04T22:41:53.290814+00:00",
+      "sha256": "866731a691f23340ca213a12598d2531c25d310a1cf3e84e113215d40aef8fc2"
+    },
+    "docs/screenshots/sorter-header.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:54.389214+00:00",
+      "sha256": "0acafad732289262d0cf9ff4b1f9239f6f4db852b1530fee1d68b92edb2ab004"
+    },
+    "docs/screenshots/history-grouped.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:58.277882+00:00",
+      "sha256": "b8052e9530d6e67ebc856f7685ac1df71de16b642484bf1857270cefb3afbfc4"
+    },
+    "docs/screenshots/storage-backup-retry.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T22:41:59.640541+00:00",
+      "sha256": "516d4a0ed345fee9fd5e063f30a20c15cdcc9fa5980a33c2350d69f6852c1adc"
     }
   },
-  "timeline_thumbnail": "Revision thumbnail uses a fictional PNG",
+  "timeline_thumbnail": "Element history uses a fictional PNG; grouped history uses browser captures of the exact fictional revisions. Neither exercises the protected renderer.",
+  "backup_status": "Fictional repository and connection failure; no real backup runs",
   "axe": {
+    "docs/screenshots/element-alternatives-available.png": [],
     "docs/assets/element-alternatives.png": [],
     "docs/screenshots/element-alternatives-headline.png": [],
     "docs/screenshots/element-alternatives-text.png": [],
@@ -94,6 +128,9 @@
     "docs/screenshots/element-alternatives-chosen.png": [],
     "docs/screenshots/element-alternatives-history.png": [],
     "docs/screenshots/element-alternatives-dark.png": [],
-    "docs/screenshots/element-alternatives-mobile.png": []
+    "docs/screenshots/element-alternatives-mobile.png": [],
+    "docs/screenshots/sorter-header.png": [],
+    "docs/screenshots/history-grouped.png": [],
+    "docs/screenshots/storage-backup-retry.png": []
   }
 }

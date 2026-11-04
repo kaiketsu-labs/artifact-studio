@@ -442,8 +442,21 @@ def test_local_storage_controls_and_live_backup_status(
     expect(page.locator("#library-list")).not_to_contain_text("This Mac")
     page.get_by_role("button", name="Copy working folder path").click()
     assert page.evaluate("window.copiedWorkingFolder") == str(live_app.store.root)
-    page.get_by_role("button", name="Retry GitHub backup").click()
+    retry_button = page.get_by_role("button", name="Retry GitHub backup")
+    refresh_button = page.get_by_role("button", name="Refresh references")
+    upload_path = "M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"
+    refresh_path = "M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1"
+    expect(retry_button.locator("svg path")).to_have_attribute("d", upload_path)
+    expect(refresh_button.locator("svg path")).to_have_attribute("d", refresh_path)
+    retry_button.hover()
+    expect(page.get_by_role("tooltip")).to_contain_text(
+        "Try backing up saved workspace files again."
+    )
+    retry_button.click()
     expect(page.locator("#storage-status")).to_have_attribute("data-phase", "pending")
+    expect(page.get_by_role("button", name="Back up now").locator("svg path")).to_have_attribute(
+        "d", upload_path
+    )
     page.locator("#close-libraries").click()
     state.update(phase="synced", last_synced_at="2026-11-02T10:30:00+01:00")
     expect(page.locator("#storage-status")).to_have_attribute("data-phase", "synced")

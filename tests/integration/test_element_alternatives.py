@@ -1,8 +1,9 @@
 """Real MCP publication and human review of independent static element alternatives."""
 
 import os
+import re
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 from playwright.sync_api import Browser, Locator, Page, expect
@@ -159,6 +160,161 @@ def open_group(page: Page, group: dict[str, object]) -> None:
     expect(page.locator("#element-alternative-panel")).to_be_visible()
 
 
+def test_review_alternatives_control_opens_pending_groups(live_app: RunningApp, page: Page) -> None:
+    groups = seed_elements(live_app, groups=("headline", "text"))
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    control = page.get_by_role("button", name=re.compile(r"Review alternatives for \d+ elements?"))
+    expect(control).to_be_visible()
+    expect(control).to_contain_text("2")
+    control.click()
+    expect(option(page, groups["text"], 1)).to_be_visible()
+    option(page, groups["text"], 1).click()
+    page.locator("#element-alternative-panel [data-ea-close]").click()
+    expect(control).to_contain_text("1")
+    control.click()
+    expect(option(page, groups["headline"], 1)).to_be_visible()
+    option(page, groups["headline"], 1).click()
+    page.locator("#element-alternative-panel [data-ea-close]").click()
+    expect(control).to_be_hidden()
+
+
+def test_click_away_saves_last_clicked_not_hovered_and_can_undo(
+    live_app: RunningApp, page: Page
+) -> None:
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    decisions: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            decisions.append(request.url)
+            if request.method == "POST" and request.url.endswith("/element-alternatives/decide")
+            else None
+        ),
+    )
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, group)
+    option(page, group, 1).click()
+    option(page, group, 2).click()
+    option(page, group, 1).hover()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+    page.frame_locator("#preview").locator("footer").click()
+    expect(page.locator("#element-alternative-panel")).to_be_hidden()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[2])
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+        element_markup().replace(headline(0), headline(2))
+    )
+    assert len(decisions) == 1
+    page.locator("#toast").get_by_role("button", name="Undo", exact=True).click()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[0])
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
+
+
+def test_hover_and_escape_do_not_save(live_app: RunningApp, page: Page) -> None:
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, group)
+    option(page, group, 1).hover()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+    page.keyboard.press("Escape")
+    expect(page.locator("#element-alternative-panel")).to_be_hidden()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[0])
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
+
+
+@pytest.mark.parametrize("modifier", ["Shift", "Control"])
+def test_modified_click_away_saves_choice(
+    live_app: RunningApp, page: Page, modifier: Literal["Shift", "Control"]
+) -> None:
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, group)
+    option(page, group, 1).click()
+    page.frame_locator("#preview").locator("#supporting-copy").click(modifiers=[modifier])
+    expect(page.locator("#element-alternative-panel")).to_be_hidden()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+    expect(page.locator("#selection-box")).to_be_visible()
+    expect(page.locator("#target-label")).to_contain_text("Bring your ideas")
+    page.frame_locator("#preview").locator("footer").click(modifiers=[modifier])
+    expect(page.locator("#target-label")).to_have_text("2 objects")
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+        element_markup().replace(headline(0), headline(1))
+    )
+
+
+def test_hover_then_click_updates_hint(live_app: RunningApp, page: Page) -> None:
+    group = seed_elements(live_app, groups=("graphic",))["graphic"]
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, group)
+    option(page, group, 1).hover()
+    option(page, group, 1).click()
+    expect(page.locator("#element-alternative-panel [data-ea-hint]")).to_have_text(
+        "Click outside to keep · Esc to cancel"
+    )
+
+
+def test_open_menu_after_choice_saves_and_allows_new_presentation(
+    live_app: RunningApp, page: Page
+) -> None:
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, group)
+    option(page, group, 1).click()
+    page.locator("#workspace-menu-button").click()
+    page.locator("#new-button").click()
+    expect(page.locator("#new-dialog")).to_be_visible()
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+        element_markup().replace(headline(0), headline(1))
+    )
+
+
+def test_switching_target_saves_before_opening_next_group(live_app: RunningApp, page: Page) -> None:
+    groups = seed_elements(live_app, groups=("headline", "text"))
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, groups["headline"])
+    option(page, groups["headline"], 1).click()
+    page.locator(f'[data-ea-badge="{groups["text"]["id"]}"]').click()
+    expect(option(page, groups["text"], 1)).to_be_visible()
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+        element_markup().replace(headline(0), headline(1))
+    )
+    option(page, groups["text"], 2).click()
+    page.locator("#element-alternative-panel [data-ea-close]").click()
+    expect(page.locator("#element-alternative-panel")).to_be_hidden()
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+        element_markup().replace(headline(0), headline(1)).replace(body_copy(0), body_copy(2))
+    )
+
+
+def test_failed_save_keeps_selected_choice_for_retry(
+    live_app: RunningApp, browser: Browser
+) -> None:
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    context = browser.new_context(viewport={"width": 1600, "height": 1000})
+    page = context.new_page()
+    try:
+        page.goto(f"{live_app.url}/?deck={DECK_ID}")
+        open_group(page, group)
+        option(page, group, 1).click()
+        page.route(
+            "**/element-alternatives/decide",
+            lambda route: route.fulfill(status=503, json={"detail": "Temporary failure"}),
+            times=1,
+        )
+        option(page, group, 0).hover()
+        page.frame_locator("#preview").locator("#supporting-copy").click(modifiers=["Shift"])
+        expect(page.locator("#element-alternative-panel .ea-error")).not_to_be_empty()
+        expect(option(page, group, 1)).to_have_attribute("aria-selected", "true")
+        expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+        assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
+        page.locator("#element-alternative-panel [data-ea-close]").click()
+        expect(page.locator("#element-alternative-panel")).to_be_hidden()
+        assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+            element_markup().replace(headline(0), headline(1))
+        )
+    finally:
+        context.close()
+
+
 def test_element_choices_preserve_siblings_notes_and_saved_history(
     live_app: RunningApp, page: Page, artifacts: Path
 ) -> None:
@@ -180,7 +336,7 @@ def test_element_choices_preserve_siblings_notes_and_saved_history(
     option(page, groups["headline"], 1).click()
     page.mouse.move(1500, 940)
     expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
-    page.locator("#element-alternative-panel [data-ea-use]").click()
+    page.locator("#element-alternative-panel [data-ea-close]").click()
     expect(page.locator("#element-alternative-panel")).to_be_hidden()
     expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
     expect(page.locator("#preview-wrap.has-unseen-changes")).to_have_count(0)
@@ -191,7 +347,7 @@ def test_element_choices_preserve_siblings_notes_and_saved_history(
     open_group(page, groups["text"])
     option(page, groups["text"], 2).click()
     expect(page.frame_locator("#preview").locator("#supporting-copy")).to_have_text(BODY_COPY[2])
-    page.locator("#element-alternative-panel [data-ea-use]").click()
+    page.locator("#element-alternative-panel [data-ea-close]").click()
     expect(page.locator("#element-alternative-panel")).to_be_hidden()
     expect(page.locator("#preview-wrap.has-unseen-changes")).to_have_count(0)
     current = live_app.store.locate(live_app.store.read(DECK_ID), "cover")
@@ -249,10 +405,10 @@ def test_element_proposal_feedback_retains_original_proposal_when_switching(
 
 
 @pytest.mark.parametrize("width", [320, 390])
-def test_touch_partial_option_reveals_full_wording_and_keep_is_explicit(
+def test_touch_partial_option_reveals_full_wording_and_close_saves(
     live_app: RunningApp, browser: Browser, width: int, artifacts: Path
 ) -> None:
-    """A real touch tap on a partial card must reveal it without silently applying it."""
+    """A touch tap reveals the full card and closing saves the pinned choice."""
     groups = seed_elements(live_app, groups=("headline", "text"))
     context = browser.new_context(
         viewport={"width": width, "height": 844}, has_touch=True, is_mobile=True
@@ -274,22 +430,22 @@ def test_touch_partial_option_reveals_full_wording_and_keep_is_explicit(
         assert box["x"] + box["width"] <= panel["x"] + panel["width"]
         expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
         assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
-        keep = page.locator("#element-alternative-panel [data-ea-keep]")
-        keep_box = keep.bounding_box()
-        assert keep_box and keep_box["height"] >= 44
-        keep.tap()
+        page.locator("#element-alternative-panel [data-ea-close]").tap()
         expect(page.locator("#element-alternative-panel")).to_be_hidden()
-        expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[0])
+        expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+        assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+            element_markup().replace(headline(0), headline(1))
+        )
         assert page.evaluate("document.documentElement.scrollWidth === innerWidth")
         _ = page.screenshot(path=str(artifacts / f"element-touch-{width}.png"))
     finally:
         context.close()
 
 
-def test_keyboard_preview_navigation_and_slide_switch_restore_canonical_source(
+def test_keyboard_escape_cancels_and_slide_switch_saves_pinned_choice(
     live_app: RunningApp, page: Page
 ) -> None:
-    """Arrow keys preview complete wording; leaving the slide never adopts a preview."""
+    """Escape cancels keyboard previews; changing slides saves the pinned choice."""
     group = seed_elements(live_app, groups=("headline",))["headline"]
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
     open_group(page, group)
@@ -305,12 +461,15 @@ def test_keyboard_preview_navigation_and_slide_switch_restore_canonical_source(
     expect(page.locator("#element-alternative-panel")).to_be_hidden()
     expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[0])
     open_group(page, group)
-    option(page, group, 2).click()
+    option(page, group, 2).focus()
+    page.keyboard.press("Enter")
     page.locator('[data-id="next"]').click()
     expect(page.frame_locator("#preview").locator("h1")).to_have_text("Present with confidence")
     page.locator('[data-id="cover"]').click()
-    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[0])
-    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[2])
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == (
+        element_markup().replace(headline(0), headline(2))
+    )
 
 
 def test_comparison_then_whole_slide_choice_retains_readonly_earlier_element_context(
@@ -359,10 +518,10 @@ def test_comparison_then_whole_slide_choice_retains_readonly_earlier_element_con
     history.locator(f'[data-ea-saved="{options(group)[1]["id"]}"]').click()
     expect(page.locator(".ea-saved-overlay")).to_be_visible()
     expect(page.locator(".ea-saved-label")).to_contain_text("Earlier design")
-    expect(page.locator("#element-alternative-panel [data-ea-use]")).to_be_disabled()
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == new_source
     page.locator("#element-alternative-panel [data-ea-refresh]").click()
     expect(page.locator("#feedback-text")).to_have_value("My unsent thoughts")
-    page.locator("#element-alternative-panel [data-ea-keep]").click()
+    page.locator("#element-alternative-panel [data-ea-close]").click()
     expect(page.locator(".ea-saved-overlay")).to_be_hidden()
     expect(page.frame_locator("#preview").locator("#headline")).to_have_text(new_heading)
     assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == new_source
@@ -433,10 +592,11 @@ def test_held_preview_keeps_its_context_and_requires_loading_new_source_before_r
         with page.expect_response(
             lambda response: response.url.endswith("/element-alternatives/decide")
         ) as rejected:
-            page.locator("#element-alternative-panel [data-ea-use]").click()
+            page.locator("#element-alternative-panel [data-ea-close]").click()
         assert rejected.value.status == 409
         expect(page.locator("#element-alternative-panel .ea-error")).not_to_be_empty()
-        page.locator("#element-alternative-panel [data-ea-close]").click()
+        expect(option(page, groups["headline"], 1)).to_have_attribute("aria-selected", "true")
+        page.keyboard.press("Escape")
         page.locator(f'[data-ea-badge="{groups["headline"]["id"]}"]').hover()
         expect(page.locator("#toast")).to_contain_text("Show the latest slide update")
         expect(page.locator("#element-alternative-panel")).to_be_hidden()
@@ -446,7 +606,7 @@ def test_held_preview_keeps_its_context_and_requires_loading_new_source_before_r
         )
         open_group(page, groups["headline"])
         option(page, groups["headline"], 1).click()
-        page.locator("#element-alternative-panel [data-ea-use]").click()
+        page.locator("#element-alternative-panel [data-ea-close]").click()
         expect(page.locator("#element-alternative-panel")).to_be_hidden()
         current = live_app.store.locate(live_app.store.read(DECK_ID), "cover")
         assert current.html == element_markup().replace(headline(0), headline(1)).replace(

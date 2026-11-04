@@ -12,6 +12,7 @@ uv run python -m scripts.capture_screenshots
 uv run python -m scripts.capture_design_library
 uv run python -m scripts.capture_sharing
 uv run python -m scripts.capture_slide_designs
+uv run python -m scripts.capture_element_alternatives
 ```
 
 The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/artifact-studio-docs`.
@@ -42,6 +43,8 @@ The [README capture audit](readme-captures.json) checks README PNG references ag
 | [Element review](../assets/element-review.png) | Selected slide element, contextual controls and a Batch draft. |
 | [Slide chat](../assets/slide-chat.png), [light](chat-sender-icons-light.png), [dark](chat-sender-icons-dark.png), [320px drawer](chat-mobile-dark.png) | Wider chat, user/robot icons, a file attachment and a Markdown agent reply. |
 | [Sorter](../assets/slide-sorter.png), [navigation](section-sorter-navigation.png) | Multi-selection and keyboard navigation across section rows. |
+| [Sorter presentation title](sorter-header.png) | Project-backed presentation context stays visible above the slide overview. |
+| [Grouped history](history-grouped.png) | Latest versions remain visible; earlier rapid saves expand on request. |
 | [Slide management](../assets/slide-management.png) | Thumbnail context menu. |
 | [Sections](../assets/slide-sections.png), [light](slide-sections-light.png), [dark](slide-sections-dark.png) | A folded group and visible question indicators. |
 | [Active slide](section-active-slide.png) | A new slide reveals its previously folded section. |
@@ -53,9 +56,12 @@ The [README capture audit](readme-captures.json) checks README PNG references ag
 | [Interactive slide](../assets/interactive-slide.png) | The result of clicking Compare inside an actual sandboxed interactive slide. |
 | [Notes conflict](notes-conflict.png), [retry](notes-retry.png) | Actual HTTP conflict handling and a simulated connection failure, with both recovery paths exercised. |
 | [Storage and backup](storage-backup.png) | The temporary working folder and reference/backup settings. No live repository is opted in. |
+| [Retry backup](storage-backup-retry.png) | Upload and reference-refresh actions have distinct icons; the tooltip explains retry. |
 | [Visual review](../assets/visual-review.png) | Four sanitized slide renders composed by the app's contact-sheet helper. |
 
 The visual-review example uses the production snapshot sanitizer, readiness hook and contact-sheet composer with documentation Playwright captures. It does not exercise or bypass the production renderer's OS isolation. Dedicated renderer checks cover that boundary; see [visual-review verification](../VISUAL-REVIEW.md) and [CI](../CI.md). Screenshots document appearance and exercised paths, not complete application test coverage.
+
+[capture_element_alternatives.py](../../scripts/capture_element_alternatives.py) captures the pending-review control, headline/text/graphic choices, comparison, saved choices, narrow layout, sorter title, grouped history and backup retry. Its [inventory](element-alternatives-captures.json) records 14 captures and their accessibility audits. The grouped timeline's thumbnail endpoint receives browser captures of the exact fictional revisions; the earlier element-history capture uses a placeholder PNG. Both leave production renderer isolation unchanged. Backup status uses a fictional repository and connection failure without running a backup.
 
 The logo and conceptual [workflow diagram](../assets/workflow.svg) are artwork, not app screenshots, and are kept separately.
 

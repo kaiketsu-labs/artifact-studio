@@ -5,6 +5,7 @@
   const items = document.getElementById('artifact-rail-items');
   const picker = document.getElementById('deck-picker');
   const switcher = document.getElementById('deck-switcher');
+  const sorterTitle = document.getElementById('sorter-presentation-title');
   const cache = new Map();
   let current = null;
   let request = 0;
@@ -16,6 +17,8 @@
     header.hidden = true;
     items.hidden = true;
     switcher.hidden = false;
+    sorterTitle.textContent = '';
+    sorterTitle.removeAttribute('title');
     document.querySelector('.rail').classList.remove('has-artifact-rail');
   }
 
@@ -27,6 +30,8 @@
     const rail = document.querySelector('.rail');
     rail.classList.add('has-artifact-rail');
     switcher.hidden = true;
+    sorterTitle.textContent = active.title;
+    sorterTitle.title = active.title;
     header.hidden = false;
     items.hidden = false;
     header.replaceChildren();

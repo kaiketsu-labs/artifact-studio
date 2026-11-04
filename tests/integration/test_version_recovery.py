@@ -39,13 +39,21 @@ def test_artifact_timeline_preview_restore_and_one_frame(
     page.get_by_role("button", name="Version history", exact=True).click()
     timeline = page.locator("dialog.version-history")
     expect(timeline).to_be_visible()
-    expect(timeline.locator("summary small")).to_have_text("2 versions")
+    expect(timeline.locator(".version-group summary")).to_have_text("1 earlier version")
+    expect(timeline.locator(".version-group details")).not_to_have_attribute("open", "")
     expect(timeline.locator("iframe")).to_have_count(1)
     expect(page.frame_locator(".version-preview iframe").locator("#title")).to_have_text(
         "Revised heading"
     )
     expect(timeline.locator('[data-version="artifact:2"] img')).to_have_js_property(
         "naturalWidth", 400
+    )
+    timeline.locator(".version-group summary").click()
+    expect(timeline.locator('[data-version="artifact:2"]')).to_have_attribute(
+        "aria-current", "true"
+    )
+    expect(page.frame_locator(".version-preview iframe").locator("#title")).to_have_text(
+        "Revised heading"
     )
     timeline.locator('[data-version="artifact:1"]').click()
     expect(page.frame_locator(".version-preview iframe").locator("#title")).to_have_text(
@@ -102,6 +110,13 @@ def test_slide_timeline_fits_preview_and_preserves_notes(
     timeline = page.locator("dialog.version-history")
     expect(timeline).to_be_visible()
     expect(timeline.locator("[data-version]")).to_have_count(4)
+    expect(timeline.locator(".version-group details").first).not_to_have_attribute("open", "")
+    expect(timeline.locator(".version-filter-help")).to_contain_text(
+        "1 save with unchanged content is hidden"
+    )
+    expect(timeline.locator(".version-filter-help")).to_contain_text(
+        "animation changes may look the same"
+    )
     expect(timeline.locator('[data-version][aria-current="true"] img')).to_have_js_property(
         "naturalWidth", 400
     )
@@ -113,6 +128,7 @@ def test_slide_timeline_fits_preview_and_preserves_notes(
     history = live_app.get(f"/api/decks/{DECK_ID}/slides/cover/history")
     versions = HistoryPage.model_validate(history).items
     selected = next(item for item in versions if item.revision == previous.revision)
+    timeline.locator(".version-group details").first.locator("summary").click()
     timeline.locator(f'[data-version="{selected.version_id}"]').click()
     frame = page.frame_locator(".version-preview iframe")
     expect(frame.locator("h1")).to_have_text("Earlier message")
@@ -165,6 +181,7 @@ def test_timeline_loads_visible_thumbnails_and_scrolls_with_keyboard(
     selected = timeline.locator('[data-version][aria-current="true"]')
     expect(selected.locator("img")).to_have_js_property("naturalWidth", 400)
     assert 0 < len(requests) < len(versions)
+    timeline.locator(".version-group details").first.locator("summary").click()
     for _ in range(12):
         selected.press("ArrowDown")
     expect(selected).to_have_attribute("data-version", versions[12].version_id)
