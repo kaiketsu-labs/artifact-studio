@@ -17,9 +17,10 @@
     const $=selector=>tray.querySelector(selector),cmp=selector=>comparison.querySelector(selector);
     let context=null,page=null,group=null,selected='current',reference='current',trayOpen=false,busy=false,epoch=0,loadKey='',expectedHash='',reviewed=false,peekTrigger=null,closeTimer=null,historyToken=0;
     let scope='',request=null,compareOpener=null,suppressPeek=false,expectedDecision=null,interactionEpoch=0;
-    const cache=new Map(),frames=new Set();
+    const cache=new Map(),frames=new Set(),pendingPreviews=new Map();
     const resize=new ResizeObserver(entries=>{for(const entry of entries){const frame=entry.target.querySelector('iframe');if(!frame)continue;const factor=entry.target.clientWidth/1600;frame.style.width='1600px';frame.style.height='900px';frame.style.transform=`scale(${factor})`;}});
-    function clearFrame(slot){for(const frame of slot.querySelectorAll('iframe')){frames.delete(frame);resize.unobserve(frame.parentElement);}slot.replaceChildren();}
+    function clearFrame(slot){for(const frame of slot.querySelectorAll('iframe')){pendingPreviews.get(frame)?.controller.abort();pendingPreviews.delete(frame);frames.delete(frame);resize.unobserve(frame.parentElement);}slot.replaceChildren();}
+    function clearOptions(){for(const slot of $('.sd-options').querySelectorAll('.sd-frame-slot'))clearFrame(slot);delete $('.sd-options').dataset.signature;}
     function frame(slot,choice,{staticOnly=false}={}){
       const url=choice.url+(staticOnly?(choice.url.includes('?')?'&':'?')+'static=true':'');
       if(slot.dataset.designUrl===url&&slot.querySelector('iframe'))return;
@@ -27,11 +28,15 @@
       const iframe=doc.createElement('iframe');iframe.title=`${choice.name} design preview`;iframe.setAttribute('sandbox','allow-scripts');iframe.referrerPolicy='no-referrer';iframe.loading='lazy';iframe.tabIndex=staticOnly?-1:0;
       iframe.addEventListener('load',()=>{if(iframe.dataset.documentUrl===url)iframe.dataset.ready='true';});
       if(url.includes('/current-preview?')){
-        void root.fetch(url).then(async response=>{if(!response.ok)throw Error('The current slide changed. Refresh the comparison.');const html=await response.text();if(!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.documentUrl=url;iframe.srcdoc=html;}).catch(error=>{iframe.dataset.failed='true';notify(error.message,true);});
+        const controller=new root.AbortController();
+        const pending=root.fetch(url,{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The current slide changed. Refresh the comparison.');const html=await response.text();if(!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.documentUrl=url;iframe.srcdoc=html;}).catch(error=>{if(controller.signal.aborted||!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.failed='true';notify(error.message,true);});
+        pendingPreviews.set(iframe,{controller,promise:pending});void pending.finally(()=>pendingPreviews.delete(iframe));
       }else{iframe.dataset.documentUrl=url;iframe.src=url;}
       slot.append(iframe);frames.add(iframe);resize.observe(slot);
       const factor=slot.clientWidth/1600;iframe.style.cssText=`width:1600px;height:900px;transform:scale(${factor});`;
     }
+    /** Finish guarded snapshot reads before replacing their source. */
+    async function settlePreviews(){while(pendingPreviews.size)await Promise.all([...pendingPreviews.values()].map(item=>item.promise));}
     function base(value=context){return `/api/decks/${encodeURIComponent(value.deckId)}/slides/${encodeURIComponent(value.slideId)}/designs`;}
     function choices(){
       if(!group||!context)return [];
@@ -50,14 +55,14 @@
       const list=$('.sd-options'),focused=list.contains(doc.activeElement)?doc.activeElement?.dataset.sdOption:null;
       const signature=JSON.stringify([group.id,selected,choices().map(item=>[item.key,item.url])]);
       if(list.dataset.signature!==signature){
-        list.dataset.signature=signature;for(const slot of list.querySelectorAll('.sd-frame-slot'))clearFrame(slot);
+        clearOptions();list.dataset.signature=signature;
         list.innerHTML=choices().map(item=>`<button type="button" role="tab" id="sd-option-${escape(item.key)}" aria-selected="${selected===item.key}" aria-controls="preview-wrap" tabindex="${selected===item.key?'0':'-1'}" data-sd-option="${escape(item.key)}" data-sd-chosen="${item.isCurrent}" aria-label="${escape(item.name)}${item.isCurrent?', chosen design':''}"><span class="sd-frame-slot" aria-hidden="true"></span><span class="sd-option-name"><strong>${escape(item.name)}</strong>${item.isCurrent?`<span class="sd-chosen-mark" aria-hidden="true">${icon('check')}</span>`:''}</span></button>`).join('');
         for(const button of list.querySelectorAll('[data-sd-option]'))frame(button.querySelector('.sd-frame-slot'),choice(button.dataset.sdOption),{staticOnly:true});
         if(focused)list.querySelector(`[data-sd-option="${CSS.escape(focused)}"]`)?.focus({preventScroll:true});
       }
     }
     function render(){
-      if(!context||!group){toggle.hidden=true;tray.hidden=true;overlay.hidden=true;wrap.classList.remove('sd-previewing');canvas.classList.remove('sd-preview-mode');onPreview(null);return;}
+      if(!context||!group){clearOptions();toggle.hidden=true;tray.hidden=true;overlay.hidden=true;wrap.classList.remove('sd-previewing');canvas.classList.remove('sd-preview-mode');onPreview(null);return;}
       const item=choice(selected),current=item.isCurrent;
       const visible=trayOpen||!current,newer=!!page?.sets[0]?.pending&&page.sets[0].id!==group.id;
       toggle.hidden=!group.pending&&!visible&&!newer;toggle.innerHTML=icon('slides')+`<span>${newer&&!visible?'New designs':'Designs'}</span> <span class="sd-counter">${newer&&!visible?page.sets[0].options.length:choices().length}</span>`;toggle.setAttribute('aria-expanded',String(visible));toggle.setAttribute('aria-label',`${newer&&!visible?'New designs':'Designs'} ${choices().length}`);toggle.disabled=busy;
@@ -71,11 +76,11 @@
       if(!current&&group.stale&&!reviewed)$('[data-sd-use]').disabled=true;
       if(comparison.open)renderComparison();
     }
-    async function load({force=false,setId=null}={}){
+    async function load({force=false,setId=null,intent=interactionEpoch}={}){
       if(!context)return;const token=++epoch,target={...context},at=scope;
       try{
-        const result=await api(base(target));if(token!==epoch||at!==scope)return;
-        if(setId&&setId!=='latest'&&!result.sets.some(item=>item.id===setId)){const retained=await api(base(target)+'?set_id='+encodeURIComponent(setId));if(token!==epoch||at!==scope)return;result.sets.push(...retained.sets);}
+        const result=await api(base(target));if(token!==epoch||at!==scope||intent!==null&&intent!==interactionEpoch)return;
+        if(setId&&setId!=='latest'&&!result.sets.some(item=>item.id===setId)){const retained=await api(base(target)+'?set_id='+encodeURIComponent(setId));if(token!==epoch||at!==scope||intent!==null&&intent!==interactionEpoch)return;result.sets.push(...retained.sets);}
         page=result;cache.set(at,result);
         const previous=group?.id,requested=setId==='latest'?result.sets[0]?.id:(setId||previous);group=result.sets.find(item=>item.id===requested)||(previous===requested?group:null)||result.sets[0]||null;
         if(!group){render();return;}
@@ -83,7 +88,7 @@
         if(!choice(selected)||selected!=='current'&&!group.options.some(item=>item.id===selected))selected='current';
         if(selected==='current'){expectedHash=result.content_hash;expectedDecision=group.decision_id;if(!group.pending&&!force)trayOpen=false;}
         render();
-      }catch(error){if(token===epoch){$('.sd-error').textContent=error.message;notify(error.message,true);}}
+      }catch(error){if(token===epoch&&(intent===null||intent===interactionEpoch)){$('.sd-error').textContent=error.message;notify(error.message,true);}}
     }
     async function preview(key,{focus=false}={}){
       const at=scope,was=group?.id,intent=++interactionEpoch;if(busy||!group||!await beforePreview()||scope!==at||group?.id!==was||intent!==interactionEpoch)return;
@@ -92,8 +97,8 @@
       render();if(focus)$('.sd-options').querySelector(`[data-sd-option="${CSS.escape(selected)}"]`)?.focus({preventScroll:true});
     }
     async function openOption({slideId=context?.slideId,setId=null,optionId=null}={}){
-      const intent=++interactionEpoch;closePeek();if(!slideId||!await activate(slideId)||intent!==interactionEpoch)return;
-      await load({force:true,setId:setId||'latest'});if(!group||intent!==interactionEpoch)return;
+      const intent=++interactionEpoch;closePeek();if(!slideId||!await activate(slideId)||intent!==interactionEpoch||context?.slideId!==slideId)return;
+      const at=scope;await load({force:true,setId:setId||'latest',intent});if(!group||intent!==interactionEpoch||scope!==at)return;
       trayOpen=true;expectedHash=page.content_hash;expectedDecision=group.decision_id;reviewed=false;
       const selectedOption=optionId&&group.options.find(item=>item.id===optionId);
       await preview(selectedOption?(selectedOption.id===group.current_option_id?'current':selectedOption.id):(choices().find(item=>!item.isCurrent)?.key||'current'),{focus:true});
@@ -162,6 +167,7 @@
       busy=true;onBusy(true);$('.sd-error').textContent='';cmp('.sd-compare-error').textContent='';render();
       try{
         if(!await beforeDecide())return;
+        await settlePreviews();
         if(scope!==at||group?.id!==was)throw Error('The selected slide changed before the design decision.');
         if(!request)request={path:base(target)+'/decide',body:{set_id:was,option_id:option.isCurrent?null:option.id,expected_content_hash:baseline,expected_decision_id:decision,reviewed_changed_slide:acknowledged,request_id:root.crypto.randomUUID()}};
         const receipt=await api(request.path,request.body);request=null;if(at!==scope)return;
@@ -169,7 +175,7 @@
         await afterDecision(receipt,target);await load({force:true});trayOpen=false;render();
         notify(receipt.action==='keep'?'Current design kept. Alternatives saved.':`${option.name} chosen. Alternatives saved.`,false,{label:'Undo',run:async()=>{
           if(busy)return;busy=true;onBusy(true);
-          try{const undo=await api(base(target)+'/undo',{decision_id:receipt.id,expected_content_hash:receipt.content_hash,request_id:root.crypto.randomUUID()});
+          try{await settlePreviews();const undo=await api(base(target)+'/undo',{decision_id:receipt.id,expected_content_hash:receipt.content_hash,request_id:root.crypto.randomUUID()});
             if(scope!==at)return;await afterDecision(undo,target);await load({force:true});trayOpen=!!group?.pending;render();focusControl();
           }finally{busy=false;onBusy(false);render();}
         }});focusControl();
@@ -210,7 +216,7 @@
     function sync(snapshot,slideId){
       badges(snapshot);const item=snapshot.slides.find(value=>value.id===slideId);if(!item)return;
       const nextScope=`${snapshot.id}/${slideId}`,summary=snapshot.slide_designs?.[slideId],signature=JSON.stringify([nextScope,summary,item.content_hash]);
-      if(scope!==nextScope){epoch++;closePeek();if(comparison.open)comparison.close();clearFrame(overlay);scope=nextScope;page=null;group=null;selected='current';trayOpen=false;loadKey='';request=null;reviewed=false;}
+      if(scope!==nextScope){epoch++;closePeek();if(comparison.open)comparison.close();clearFrame(overlay);clearOptions();scope=nextScope;page=null;group=null;selected='current';trayOpen=false;loadKey='';request=null;reviewed=false;}
       context={deckId:snapshot.id,slideId,item};
       if(!summary){group=null;render();return;}
       if(signature!==loadKey){loadKey=signature;void load();}else render();

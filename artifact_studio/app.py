@@ -26,6 +26,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 
+from . import __version__
 from .agent_io import (
     compact_source_references,
     deck_receipt,
@@ -139,6 +140,7 @@ DATABASE = Path(os.environ.get("ARTIFACT_STUDIO_DATABASE", str(PROJECT / ".state
 store = Store(COLLECTION, DATABASE)
 mcp = MCPServer[None](
     "Artifact Studio",
+    version=__version__,
     instructions=(PROJECT / "agent/bootstrap.md").read_text(),
 )
 
@@ -1593,7 +1595,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
             await task
 
 
-app = FastAPI(title="Artifact Studio", lifespan=lifespan)
+app = FastAPI(title="Artifact Studio", version=__version__, lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
 
 
@@ -1684,7 +1686,7 @@ def copilot_setup_document(document: Literal["guide", "instructions"]) -> FileRe
 @app.get("/api/health")
 def health() -> dict[str, str]:
     """Identify a ready local server without loading presentations or exposing private context."""
-    return {"service": "artifact-studio", "status": "ready", "version": "0.1.0"}
+    return {"service": "artifact-studio", "status": "ready", "version": __version__}
 
 
 @app.get("/api/decks")

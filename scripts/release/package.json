@@ -1,0 +1,6 @@
+{
+  "name": "artifact-studio-release-tests",
+  "private": true,
+  "scripts": { "test": "node --test *.cjs" },
+  "dependencies": { "release-please": "17.3.0" }
+}

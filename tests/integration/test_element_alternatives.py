@@ -464,3 +464,57 @@ def test_held_preview_keeps_its_context_and_requires_loading_new_source_before_r
     finally:
         _ = page.screenshot(path=str(artifacts / "held-preview-context.png"))
         context.close()
+
+
+def test_delayed_whole_design_open_does_not_displace_element_preview(
+    live_app: RunningApp, page: Page
+) -> None:
+    """A dismissed whole-slide request cannot reopen its tray over an element review."""
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.on(
+        "response", lambda response: errors.append(response.url) if response.status >= 400 else None
+    )
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    expect(page.locator(f'[data-ea-badge="{group["id"]}"]')).to_be_visible()
+    page.evaluate("""() => {
+      const original = window.fetch;
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      window.releaseDesignMetadata = release;
+      window.heldDesignMetadata = 0;
+      window.fetch = async (...args) => {
+        const response = await original(...args);
+        if (typeof args[0] === 'string' && args[0].endsWith('/slides/cover/designs')) {
+          window.heldDesignMetadata++;
+          await gate;
+        }
+        return response;
+      };
+    }""")
+    current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    _ = live_app.call(
+        "publish_slide_designs",
+        deck_id=DECK_ID,
+        slide_id="cover",
+        expected_content_hash=current["content_hash"],
+        request_id="delayed-whole-design-open",
+        options=[{"name": "Whole direction", "html": element_markup()}],
+    )
+    badge = page.locator('[data-sd-badge][data-sd-slide="cover"]')
+    expect(badge).to_be_visible()
+    held_before_open = page.evaluate("window.heldDesignMetadata")
+    badge.click()
+    page.wait_for_function("count => window.heldDesignMetadata > count", arg=held_before_open)
+    open_group(page, group)
+    option(page, group, 1).click()
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+    page.evaluate(
+        "async () => { window.releaseDesignMetadata(); await new Promise(r => setTimeout(r, 0)); }"
+    )
+    expect(page.locator("#element-alternative-panel")).to_be_visible()
+    expect(option(page, group, 1)).to_have_attribute("aria-selected", "true")
+    expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
+    expect(page.locator("#slide-design-tray")).to_be_hidden()
+    assert not errors
