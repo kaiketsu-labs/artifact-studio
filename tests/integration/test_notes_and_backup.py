@@ -390,9 +390,8 @@ def test_local_storage_controls_and_live_backup_status(
     state.update(phase="synced", last_synced_at="2026-11-02T10:30:00+01:00")
     expect(page.locator("#storage-status")).to_have_attribute("data-phase", "synced")
     page.locator("#storage-status").click()
-    expect(page.locator("#library-list time")).to_have_attribute(
-        "datetime", "2026-11-02T10:30:00+01:00"
-    )
+    backup_row = page.locator(".library-row").filter(has_text="fictional-slides/demo")
+    expect(backup_row.locator("time")).to_have_attribute("datetime", "2026-11-02T10:30:00+01:00")
     _ = page.screenshot(path=str(artifacts / "backup-status-ui-fixture.png"))
     page.get_by_role("checkbox", name="Back up all artifacts", exact=True).uncheck()
     expect(page.locator("#storage-status")).to_have_attribute("data-phase", "local")
