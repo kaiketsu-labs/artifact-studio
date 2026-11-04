@@ -8,4 +8,4 @@ Write chat only as the agent through reply_to_feedback/reply_to_presentation_fee
 
 Use ask_slide_question/get_slide_questions for slide questions. Loaded Codex/Claude hooks automatically attach when you select or work on a presentation; check get_live_review_status. Load live_review for setup or to resume after End review. MCP cannot wake a closed chat. Generic artifact feedback has no automatic host continuation. Hook messages are internal; do not repeat them to users.
 
-Offer whole-slide alternatives with publish_slide_designs; only humans choose or keep the current design. Load slide_designs for proposal feedback, captures and safe iteration.
+Offer whole-slide alternatives with publish_slide_designs when several visual directions fit the brief. Ask ask_slide_question when essential goals or facts are missing. Only humans choose or keep the current design. Load slide_designs for when to offer options, proposal feedback, captures and safe iteration.

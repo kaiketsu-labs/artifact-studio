@@ -20,6 +20,16 @@ After a decision, the thumbnail count appears on hover/focus and remains directl
 
 ## Agent workflow
 
+### When to offer options
+
+- If the brief is clear but several visual directions would work, publish two or three distinct alternatives. Also do this when the human asks to explore designs. State the short tradeoff in each rationale, keep facts and the requested story intact, and retain Original.
+- If the audience, intended message, required facts or a consequential constraint is missing, use `ask_slide_question` first. Give short answer options and allow a written answer. Read pending questions before asking again. A set of polished designs does not resolve missing essential context.
+- For a small, unambiguous requested edit, use the normal guarded revision workflow. Offering alternatives is useful judgment, not a required step for every change. Never choose a proposal for the human or claim their approval.
+
+The capability is advertised in MCP initialization and `tools/list`; this guide is available through `get_authoring_guide(topic="slide_designs")`. Element-level alternatives are not implemented by these tools. Until that capability exists, use a targeted question or normal revision for individual text, headline and object changes.
+
+### Publish and iterate
+
 1. Read `get_slide(deck_id, slide_id)` and applicable guidance. Retain its `content_hash`.
 2. Author one to five named directions. Each input supplies `name`, static selectable `html`, optional short `rationale`, `interactive_html`, `title` and `sources`. Human notes and approval are not proposal fields.
    Use `.slide` for the root in slide-local `<style>` rules; these rules are scoped using the same authoring contract as normal slides. Inline CSS and `assets/` references also work. Global CSS and arbitrary JavaScript belong in `interactive_html` with a meaningful static `html` fallback.
