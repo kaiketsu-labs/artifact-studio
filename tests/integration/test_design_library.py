@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Browser, Page, expect
 
 from artifact_studio.design_library import DesignCreate, DesignLibrary
 from artifact_studio.design_references import ReferenceInput
@@ -21,6 +21,124 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_text_source_editor_saves_cancels_searches_and_undoes(
+    page: Page, live_app: RunningApp, artifacts: Path, width: int
+) -> None:
+    """Edit actual source through the keyboard and compact, themed code-editor controls."""
+    library = DesignLibrary(live_app.store)
+    markdown = "# Shared language\n\n- Clear headings\n- Short sentences\n"
+    item = library.create(
+        DesignCreate(
+            name="Editable reference",
+            files=[
+                FileInput(name="guide.md", data_base64=base64.b64encode(markdown.encode()).decode())
+            ],
+        )
+    )
+    page.set_viewport_size({"width": width, "height": 1000 if width > 700 else 844})
+    page.goto(live_app.url + f"/?view=designs&design={item.id}")
+    page.get_by_role("button", name="Open guide.md", exact=True).click()
+    dialog = page.get_by_role("dialog", name="guide.md", exact=True)
+    dialog.get_by_role("button", name="Edit", exact=True).click()
+    editor = dialog.get_by_role("textbox", name="Edit guide.md", exact=True)
+    expect(editor).to_be_visible()
+    expect(dialog.locator(".cm-lineNumbers")).to_be_visible()
+    expect(dialog.locator("[data-code-language]")).to_have_text("Markdown")
+    save = dialog.get_by_role("button", name="Save", exact=True)
+    expect(save).to_be_disabled()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("\n## Next\n\nMake room for the message.\n")
+    expect(save).to_be_enabled()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(save).to_be_disabled()
+    page.keyboard.press("ControlOrMeta+Shift+z")
+    expect(save).to_be_enabled()
+    dialog.get_by_role("button", name="Find in file", exact=True).click()
+    search = dialog.locator('.cm-search input[name="search"]')
+    expect(search).to_be_visible()
+    search.press_sequentially("message")
+    expect(dialog.locator(".cm-searchMatch")).to_have_count(1)
+    page.keyboard.press("Escape")
+    expect(dialog.locator(".cm-search")).to_have_count(0)
+    expect(dialog).to_be_visible()
+    _ = page.screenshot(path=str(artifacts / "source-editor-light.png"))
+    editor.click()
+    page.keyboard.press("ControlOrMeta+s")
+    expect(dialog.get_by_role("heading", name="Next", exact=True)).to_be_visible()
+    assert "Make room for the message." in Path(item.files[0].local_path).read_text()
+    saved = library.get(item.id)
+    page.keyboard.press("Escape")
+    expect(dialog).not_to_be_visible()
+    page.locator("#appearance-button").click()
+    page.locator('[data-appearance="dark"]').click()
+    page.get_by_role("button", name="Open guide.md", exact=True).click()
+    dialog.get_by_role("button", name="Edit", exact=True).click()
+    expect(editor).to_be_visible()
+    _ = page.screenshot(path=str(artifacts / "source-editor-dark.png"))
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text("An unsaved edit")
+    page.once("dialog", lambda prompt: prompt.dismiss())
+    page.keyboard.press("Escape")
+    expect(editor).to_have_text("An unsaved edit")
+    dialog.get_by_role("button", name="Cancel", exact=True).click()
+    expect(dialog.get_by_role("heading", name="Next", exact=True)).to_be_visible()
+    assert library.get(item.id).version == saved.version
+    assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+    page.keyboard.press("Escape")
+
+
+def test_text_source_conflict_keeps_the_draft_and_can_open_latest(
+    browser: Browser, live_app: RunningApp
+) -> None:
+    """Preserve both writers' work and require an explicit discard before reloading."""
+    library = DesignLibrary(live_app.store)
+    item = library.create(
+        DesignCreate(
+            name="Concurrent sources",
+            files=[
+                FileInput(
+                    name="theme.css",
+                    data_base64=base64.b64encode(b".slide { color: blue; }\n").decode(),
+                )
+            ],
+        )
+    )
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = context.new_page()
+    errors: list[str] = []
+    statuses: list[int] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.on(
+        "response",
+        lambda response: statuses.append(response.status) if response.status >= 400 else None,
+    )
+    try:
+        page.goto(live_app.url + f"/?view=designs&design={item.id}")
+        page.get_by_role("button", name="Open theme.css", exact=True).click()
+        dialog = page.get_by_role("dialog", name="theme.css", exact=True)
+        dialog.get_by_role("button", name="Edit", exact=True).click()
+        editor = dialog.get_by_role("textbox", name="Edit theme.css", exact=True)
+        expect(editor).to_be_visible()
+        assert dialog.locator(".cm-line span").count() > 0
+        page.keyboard.press("ControlOrMeta+a")
+        page.keyboard.insert_text(".slide { color: red; }")
+        source = Path(item.files[0].local_path)
+        _ = source.write_text(".slide { color: green; }\n")
+        dialog.get_by_role("button", name="Save", exact=True).click()
+        expect(dialog.get_by_role("alert")).to_contain_text("changed elsewhere")
+        expect(editor).to_have_text(".slide { color: red; }")
+        assert source.read_text() == ".slide { color: green; }\n"
+        dialog.get_by_role("button", name="Copy edits", exact=True).click()
+        assert page.evaluate("navigator.clipboard.readText()") == ".slide { color: red; }"
+        page.once("dialog", lambda prompt: prompt.accept())
+        dialog.get_by_role("button", name="Open latest", exact=True).click()
+        expect(dialog.locator("pre code")).to_have_text(".slide { color: green; }\n")
+        assert not errors and statuses == [409]
+    finally:
+        context.close()
 
 
 @pytest.mark.parametrize("width", [1440, 390])
@@ -115,11 +233,13 @@ def test_text_preview_limits_and_binary_fallback(page: Page, live_app: RunningAp
     page.get_by_role("button", name="Open large.txt", exact=True).click()
     dialog = page.get_by_role("dialog", name="large.txt", exact=True)
     expect(dialog.locator(".design-text-limit")).to_be_visible()
+    expect(dialog.get_by_role("button", name="Edit", exact=True)).to_be_disabled()
     assert len(dialog.locator("pre code").inner_text()) == 1024 * 1024
     page.keyboard.press("Escape")
     page.get_by_role("button", name="Open unknown.bin", exact=True).click()
     fallback = page.get_by_role("dialog", name="unknown.bin", exact=True)
     expect(fallback.get_by_role("alert")).to_contain_text("not readable text")
+    expect(fallback.get_by_role("button", name="Edit", exact=True)).to_be_disabled()
     expect(fallback.get_by_role("link", name="Download original")).to_be_visible()
     page.keyboard.press("Escape")
 
