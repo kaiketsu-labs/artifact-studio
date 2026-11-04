@@ -3,6 +3,9 @@
 import argparse
 import hashlib
 import json
+import os
+import tempfile
+import uuid
 from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
@@ -16,7 +19,7 @@ from .models import SlideReceipt, StrictModel
 
 
 class Invocation(StrictModel):
-    """An explicit existing MCP call with caller-supplied concurrency and retry tokens."""
+    """An explicit MCP call; preparation can supply omitted concurrency and retry tokens."""
 
     tool: str = Field(min_length=1, max_length=100)
     arguments: dict[str, object] = Field(default_factory=dict)
@@ -126,6 +129,180 @@ def read_calls(path: Path, expected_hash: str = "") -> tuple[list[Invocation], s
     return calls, token
 
 
+PREPARE_TOOLS = {
+    "revise_slide",
+    "add_slide",
+    "create_presentation",
+    "update_presentation_theme",
+    "update_presentation_context",
+    "append_presentation_context",
+    "write_design_file",
+    "sync_presentation_design",
+}
+
+
+def required_string(arguments: dict[str, object], key: str) -> str:
+    """Require identity or a read token rather than guessing a target."""
+    value = arguments.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"Preparation needs a nonempty {key}.")
+    return value
+
+
+def positioned_add(item: Invocation) -> bool:
+    """Recognize additions whose order and section membership need a baseline."""
+    return item.tool == "add_slide" and (
+        item.arguments.get("after_slide_id") is not None
+        or bool(item.arguments.get("section_id"))
+        or "expected_slide_ids" in item.arguments
+        or bool(item.arguments.get("expected_sections_hash"))
+    )
+
+
+def validate_preparation(calls: list[Invocation]) -> None:
+    """Reject ambiguous shared baselines before any network access."""
+    targets: set[tuple[str, str, str]] = set()
+    additions: dict[str, int] = {}
+    positioned: set[str] = set()
+    for item in calls:
+        if item.tool not in PREPARE_TOOLS:
+            continue
+        if item.tool == "write_design_file":
+            target = (
+                required_string(item.arguments, "design_id"),
+                "design_file",
+                required_string(item.arguments, "path"),
+            )
+            if target in targets:
+                raise ValueError("Prepare one write per design file; split dependent calls.")
+            targets.add(target)
+            continue
+        deck_id = required_string(item.arguments, "deck_id")
+        if item.tool in {"add_slide", "revise_slide"}:
+            _, slide_id = write_identity(item)
+            target = (deck_id, "slide", slide_id)
+        else:
+            target = (deck_id, "context" if item.tool.endswith("_context") else item.tool, "")
+        if target in targets:
+            raise ValueError(
+                "Prepare one write per slide, theme or context; split dependent calls."
+            )
+        targets.add(target)
+        if item.tool == "add_slide":
+            additions[deck_id] = additions.get(deck_id, 0) + 1
+            if positioned_add(item):
+                positioned.add(deck_id)
+    if any(additions[deck_id] > 1 for deck_id in positioned):
+        raise ValueError(
+            "Prepare positioned additions separately from other adds in the same deck."
+        )
+
+
+def prepare_calls(
+    client: Client, calls: list[Invocation], known_rules_hash: str = ""
+) -> tuple[list[Invocation], list[dict[str, object]]]:
+    """Read missing guards once; never replace supplied baselines or execute writes.
+
+    Read current source before drafting. Preparation binds an omitted guard to the
+    version present now; it cannot establish which version the draft was based on.
+    Persist the returned calls and reuse them unchanged after any transport failure.
+    """
+    validate_preparation(calls)
+    prepared = [item.model_copy(deep=True) for item in calls]
+    outlines: dict[str, dict[str, object]] = {}
+    guidance: list[dict[str, object]] = []
+    client.initialize()
+
+    def outline(deck_id: str) -> dict[str, object]:
+        """Read one compact shared baseline per deck, without slide source/history."""
+        if deck_id not in outlines:
+            result = object_value(
+                client.call(
+                    Invocation(
+                        tool="get_presentation_outline",
+                        arguments={"deck_id": deck_id, "known_rules_hash": known_rules_hash},
+                    )
+                )
+            )
+            outlines[deck_id] = result
+            guidance.append({"deck_id": deck_id, **rule_guidance(result)})
+        return outlines[deck_id]
+
+    for item in prepared:
+        if item.tool not in PREPARE_TOOLS:
+            continue
+        arguments = item.arguments
+        if item.tool == "write_design_file":
+            if "expected_hash" not in arguments:
+                current = object_value(
+                    client.call(
+                        Invocation(
+                            tool="get_design_file",
+                            arguments={key: arguments[key] for key in ("design_id", "path")},
+                        )
+                    )
+                )
+                arguments["expected_hash"] = required_string(current, "expected_hash")
+            continue
+        deck_id = required_string(arguments, "deck_id")
+        if item.tool == "revise_slide" and "expected_hash" not in arguments:
+            _, slide_id = write_identity(item)
+            slides = TypeAdapter(list[SlideReceipt]).validate_python(outline(deck_id).get("slides"))
+            matching = [slide for slide in slides if slide.id == slide_id]
+            if len(matching) != 1:
+                raise ValueError(f"Slide {slide_id!r} is not in the current deck outline.")
+            arguments["expected_hash"] = matching[0].expected_hash
+        elif positioned_add(item):
+            if "expected_slide_ids" not in arguments or "expected_sections_hash" not in arguments:
+                current = outline(deck_id)
+                slides = TypeAdapter(list[SlideReceipt]).validate_python(current.get("slides"))
+                arguments.setdefault("expected_slide_ids", [slide.id for slide in slides])
+                arguments.setdefault(
+                    "expected_sections_hash", required_string(current, "sections_hash")
+                )
+        elif item.tool.endswith("_context") and "expected_hash" not in arguments:
+            arguments["expected_hash"] = required_string(outline(deck_id), "context_hash")
+        elif item.tool == "update_presentation_theme" and "expected_hash" not in arguments:
+            current = object_value(
+                client.call(
+                    Invocation(tool="get_presentation_theme", arguments={"deck_id": deck_id})
+                )
+            )
+            arguments["expected_hash"] = required_string(current, "expected_hash")
+        elif item.tool == "sync_presentation_design" and "expected_hash" not in arguments:
+            current = object_value(
+                client.call(
+                    Invocation(tool="get_presentation_design_sync", arguments={"deck_id": deck_id})
+                )
+            )
+            arguments["expected_hash"] = required_string(current, "expected_hash")
+        if item.tool in {"revise_slide", "add_slide", "create_presentation"}:
+            arguments.setdefault("request_id", "file-" + uuid.uuid4().hex)
+    return prepared, guidance
+
+
+def save_prepared(path: Path, calls: list[Invocation]) -> str:
+    """Publish a complete new call file; never overwrite a baseline needed for retries."""
+    source = TypeAdapter(list[Invocation]).dump_json(calls, indent=2) + b"\n"
+    if len(source) > 32_000_000:
+        raise ValueError("Prepared calls exceed 32 MB; split the batch.")
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".prepared-") as temporary:
+        _ = temporary.write(source)
+        temporary.flush()
+        os.fsync(temporary.fileno())
+        os.link(temporary.name, path)
+    return hashlib.sha256(source).hexdigest()
+
+
+def rule_guidance(outline: dict[str, object]) -> dict[str, object]:
+    """Forward changed rules while leaving full source and discovery out of receipts."""
+    return {
+        key: outline[key]
+        for key in ("authoring_instructions", "learned_preferences", "rules_hash", "rules_included")
+        if key in outline
+    }
+
+
 def verify_writes(
     client: Client, receipts: list[SlideReceipt], known_rules_hash: str
 ) -> dict[str, object]:
@@ -157,17 +334,7 @@ def verify_writes(
                         "current": actual.model_dump() if actual else None,
                     }
                 )
-        rules = {
-            key: outline[key]
-            for key in (
-                "authoring_instructions",
-                "learned_preferences",
-                "rules_hash",
-                "rules_included",
-            )
-            if key in outline
-        }
-        guidance.append({"deck_id": deck_id, **rules})
+        guidance.append({"deck_id": deck_id, **rule_guidance(outline)})
         known_rules_hash = str(outline.get("rules_hash", ""))
     return {
         "matched": len(receipts) - len(changed),
@@ -240,6 +407,7 @@ def describe_call(item: Invocation) -> dict[str, object]:
     return {
         "tool": item.tool,
         "deck_id": item.arguments.get("deck_id"),
+        **{key: item.arguments[key] for key in ("design_id", "path") if key in item.arguments},
         "slide_id": slide.get("id") if item.tool == "add_slide" else item.arguments.get("slide_id"),
         "request_id": item.arguments.get("request_id"),
         "patch_fields": list(object_value(item.arguments.get("patch", {}))),
@@ -252,19 +420,34 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--calls-file", type=Path, required=True)
     parser.add_argument("--sha256", default="")
-    parser.add_argument("--describe", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--describe", action="store_true")
+    mode.add_argument(
+        "--prepare", type=Path, metavar="NEW_FILE", help="Read missing guards into a new call file."
+    )
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--known-rules-hash", default="")
     parser.add_argument("--url", default="http://127.0.0.1:8790/mcp")
     args = parser.parse_args(argv)
     try:
-        if not args.describe and not args.sha256:
-            raise ValueError("Inspect the call file, then supply its --sha256 before execution.")
         calls, token = read_calls(args.calls_file, args.sha256)
         if args.describe:
             result = {
                 "sha256": token,
                 "calls": [describe_call(item) for item in calls],
+            }
+        elif args.prepare:
+            if args.prepare.exists() or args.prepare.is_symlink():
+                raise ValueError(
+                    "Prepared file already exists; reuse it for retries or choose a new file."
+                )
+            prepared, guidance = prepare_calls(Client(args.url), calls, args.known_rules_hash)
+            result = {
+                "ok": True,
+                "prepared_file": str(args.prepare.resolve()),
+                "sha256": save_prepared(args.prepare, prepared),
+                "calls": [describe_call(item) for item in prepared],
+                "guidance": guidance,
             }
         else:
             result = execute(Client(args.url), calls, args.verify, args.known_rules_hash)

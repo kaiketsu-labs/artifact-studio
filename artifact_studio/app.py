@@ -38,6 +38,7 @@ from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
 from .artifacts import ArtifactStore
 from .autosync import AutoSync, SyncStatus
+from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
 from .design_references import (
     DesignReference,
@@ -108,7 +109,7 @@ from .sections import Sections, sections_hash
 from .share_api import sharing_routes
 from .slide_actions import SlideActionResult, SlideActions
 from .storage import ConflictError, Store, digest
-from .visuals import CaptureOptions, VisualResult, capture
+from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status
 
 PROJECT = Path(__file__).resolve().parent.parent
 COLLECTION = Path(
@@ -213,7 +214,7 @@ def get_working_context(
     deck_id: str = "",
     ctx: Context[None, Request] | None = None,
     known_guide_hash: str = "",
-    include_discovery: bool = True,
+    include_discovery: bool = False,
     project_id: str = "",
     artifact_id: str = "",
     known_presentation_guide_hash: str = "",
@@ -231,7 +232,8 @@ def get_working_context(
     known_guide_hash omits only the retained guide; omit hashes after context loss.
     For a legacy deck selected by artifact_id, retain its nested guide separately with
     known_presentation_guide_hash, only while retaining that exact text.
-    include_discovery=False skips unrelated lists; selected brand and queued requests remain.
+    Discovery lists are omitted by default; include_discovery=True loads them explicitly.
+    Selected brand, complete rules and queued requests remain included.
     compact_sources=True links duplicate design-file provenance to design_context.files[N]
     in this same response; full file metadata and delivery status remain. Default stays full.
     """
@@ -725,6 +727,7 @@ def capture_slide(
     stage: int | None = None,
     elapsed_ms: int = 0,
     reduced_motion: bool = False,
+    resolution: Literal["full", "draft"] = "full",
 ) -> CallToolResult:
     """Inspect a full-size slide image with exact version metadata, locally through MCP.
 
@@ -740,7 +743,10 @@ def capture_slide(
             DATABASE.parent / "visual-reviews",
             slide_id=slide_id,
             options=CaptureOptions(
-                stage=stage, elapsed_ms=elapsed_ms, reduced_motion=reduced_motion
+                stage=stage,
+                elapsed_ms=elapsed_ms,
+                reduced_motion=reduced_motion,
+                resolution=resolution,
             ),
         )
     )
@@ -748,10 +754,18 @@ def capture_slide(
 
 @mcp.tool(annotations=READ)
 @tool_errors
-def capture_contact_sheet(deck_id: str, offset: int = 0, limit: int = 12) -> CallToolResult:
+def capture_contact_sheet(
+    deck_id: str,
+    offset: int = 0,
+    limit: int = 24,
+    slide_ids: list[str] | None = None,
+    resolution: Literal["full", "draft"] = "draft",
+) -> CallToolResult:
     """Inspect a paginated overview of completed slides, including hidden slides.
 
-    Returns image pixels, full-size local frame paths, version hashes and next_offset.
+    Select slide_ids or page through the deck; up to 24 frames per sheet, in deck order.
+    Draft frames are 800x450; resolution="full" uses 1600x900. Returns image pixels,
+    local frame paths, version hashes and next_offset. Concurrent captures queue.
     Use capture_slide for chart detail and reveal steps; a contact sheet alone is
     not a full-size review. Respect the host's access restrictions for the deck.
     """
@@ -762,8 +776,16 @@ def capture_contact_sheet(deck_id: str, offset: int = 0, limit: int = 12) -> Cal
             DATABASE.parent / "visual-reviews",
             offset=offset,
             limit=limit,
+            slide_ids=slide_ids,
+            options=CaptureOptions(resolution=resolution),
         )
     )
+
+
+@mcp.tool(annotations=READ)
+def get_capture_status() -> dict[str, object]:
+    """Read capture queue activity and capacity without starting a browser or loading slides."""
+    return capture_queue_status()
 
 
 @mcp.tool(annotations=WRITE)
@@ -836,11 +858,69 @@ def set_default_design(design_id: str) -> str:
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def register_design(folder_id: str, design: DesignManifest) -> DesignView:
-    """Register a design prepared from a user-supplied PPTX, URL or example. Read the import
-    guidance in get_working_context and prepare the local bundle using filesystem tools.
-    The user provides the reference; the agent handles extraction, files and registration.
+    """Register an existing local design bundle. For a new pack use create_design_pack,
+    write_design_file and import_design_asset; scaffolding and registration are automatic.
     """
     return store.register_design(folder_id, design)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def create_design_pack(
+    design_id: str, name: str, description: str = "", css: str = ""
+) -> dict[str, object]:
+    """Scaffold and register a usable design: managed viewer/runtime, cover, CSS and guidance.
+    Returns its folder_id for example slide editing and a staging directory for asset imports.
+    """
+    return DesignAuthoring(store).create(design_id, name, description, css)
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_design_file(design_id: str, path: str) -> dict[str, object]:
+    """Read one design text file with its expected_hash; managed viewer CSS is omitted."""
+    return DesignAuthoring(store).read_file(design_id, path)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def write_design_file(
+    design_id: str, path: str, text: str, expected_hash: str = ""
+) -> dict[str, object]:
+    """Create/update design guidance, author CSS or assets text, guarded by the read hash.
+    Changes affect new decks. Use presentation design sync to update existing decks.
+    """
+    return DesignAuthoring(store).write_file(design_id, path, text, expected_hash)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def import_design_asset(
+    design_id: str, source_path: str, asset_path: str, expected_sha256: str = ""
+) -> dict[str, object]:
+    """Copy a staged/registered source into design assets; return metadata without binary text.
+    Supply the destination's current hash to replace an existing asset.
+    """
+    return DesignAuthoring(store).import_asset(design_id, source_path, asset_path, expected_sha256)
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_presentation_design_sync(deck_id: str) -> dict[str, object]:
+    """Preview theme/asset changes from this deck's design, including local conflicts and hash."""
+    return DesignAuthoring(store).sync_preview(deck_id)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def sync_presentation_design(
+    deck_id: str, expected_hash: str, overwrite: bool = False
+) -> dict[str, object]:
+    """Apply a current design sync preview, preserving slides, notes and deck-only assets.
+    Locally modified files require explicit overwrite=True; stale previews are rejected.
+    Re-prepare existing embedded interactive snapshots to adopt changed dependencies.
+    """
+    return DesignAuthoring(store).sync(deck_id, expected_hash, overwrite)
 
 
 @mcp.tool(annotations=READ)

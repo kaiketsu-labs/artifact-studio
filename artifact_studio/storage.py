@@ -1174,6 +1174,9 @@ class Store:
                 )
             design = self.design(design_id)
             template = self.folder(design.folder_id)
+            from .design_authoring import design_files, record_design_baseline
+
+            _ = design_files(template)
             target.mkdir()
             for name in (
                 "index.html",
@@ -1218,6 +1221,11 @@ class Store:
                     ):
                         source.url = f"../{design.folder_id}/{source.url}"
             self.write(deck_id, deck)
+            try:
+                record_design_baseline(self, deck_id)
+            except OSError, ValueError:
+                shutil.rmtree(target)
+                raise
             self.seed_slide_views(db, deck)
             attachments: list[DesignFile] = []
             for file_index, (name, data) in enumerate(decoded):

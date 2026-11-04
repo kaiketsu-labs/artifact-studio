@@ -1,10 +1,21 @@
 """Real MCP authoring recovery preserves identity, source ownership and visual baselines."""
 
+import json
 import os
+from pathlib import Path
 
 import pytest
 
-from artifact_studio.agent_client import Client, Invocation, execute, object_value
+from artifact_studio.agent_client import (
+    Client,
+    Invocation,
+    execute,
+    main,
+    object_value,
+    prepare_calls,
+    read_calls,
+    save_prepared,
+)
 from tests.integration.support import DECK_ID, RunningApp
 
 pytestmark = [
@@ -201,3 +212,74 @@ def test_lost_creation_response_replays_without_replacing_later_edits(live_app: 
         _ = client.call(
             create.model_copy(update={"arguments": {**create.arguments, "brief": "Changed"}})
         )
+
+
+def test_cli_preparation_fetches_hashes_and_preserves_later_human_edits(
+    live_app: RunningApp, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The minimal CLI reads guards, then rejects human drift without refreshing them."""
+    source = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    draft = tmp_path / "draft.json"
+    prepared = tmp_path / "prepared.json"
+    draft.write_text(
+        json.dumps(
+            [
+                {
+                    "tool": "revise_slide",
+                    "arguments": {
+                        "deck_id": DECK_ID,
+                        "slide_id": "cover",
+                        "patch": {"title": "Prepared revision"},
+                    },
+                }
+            ]
+        )
+    )
+    common = ["--url", live_app.url + "/mcp"]
+    assert main(["--calls-file", str(draft), "--prepare", str(prepared), *common]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["ok"] is True
+    calls, _ = read_calls(prepared, report["sha256"])
+    assert calls[0].arguments["expected_hash"] == source["expected_hash"]
+    assert calls[0].arguments["request_id"]
+    assert live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")["title"] == source["title"]
+    live_app.store.save_notes(DECK_ID, "cover", "New human note", str(source["notes"]))
+    assert main(["--calls-file", str(prepared), "--verify", *common]) == 1
+    failed = json.loads(capsys.readouterr().out)
+    assert failed["ok"] is False and failed["completed"] == []
+    assert "changed" in failed["error"]
+    after = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    assert after["title"] == source["title"] and after["notes"] == "New human note"
+    assert read_calls(prepared, report["sha256"])[0] == calls
+
+
+def test_prepared_file_recovers_lost_response_without_manual_hash_or_retry_id(
+    live_app: RunningApp, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A generated persisted retry ID reuses the recorded write through real MCP transport."""
+    before = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    calls, _ = prepare_calls(
+        Client(live_app.url + "/mcp"),
+        [
+            Invocation(
+                tool="revise_slide",
+                arguments={
+                    "deck_id": DECK_ID,
+                    "slide_id": "cover",
+                    "patch": {"title": "Prepared and recovered"},
+                },
+            )
+        ],
+    )
+    prepared = tmp_path / "prepared.json"
+    _ = save_prepared(prepared, calls)
+    client = LostWriteResponse(live_app.url + "/mcp")
+    client.tool_to_lose = "revise_slide"
+    assert execute(client, calls, verify=True)["ok"] is False
+    assert main(["--calls-file", str(prepared), "--verify", "--url", live_app.url + "/mcp"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["verification"]["matched"] == 1
+    current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    assert current["title"] == "Prepared and recovered"
+    assert current["revision"] == int(str(before["revision"])) + 1
+    assert current["notes"] == before["notes"]

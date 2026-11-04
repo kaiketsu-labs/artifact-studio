@@ -83,6 +83,7 @@ jobs:
               tests/integration/test_project_tree.py tests/integration/test_sharing_workspace.py
               tests/integration/test_ui_contrast.py tests/integration/test_accessible_labels.py
               tests/integration/test_marquee_export.py tests/integration/test_presentation_authoring.py
+              tests/integration/test_agent_workflow_gaps.py
               tests/test_visuals.py tests/test_interactive.py tests/test_presentation_authoring.py
               tests/test_element_rotation_dom.py tests/test_copilot_capture.py
     env:

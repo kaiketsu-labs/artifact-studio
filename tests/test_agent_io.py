@@ -148,7 +148,13 @@ def test_guides_and_discovery_can_be_retained_independently_of_rules(
         DesignRequestInput(message="A user design request", request_id="retain-guide-request")
     )
     first = service.get_working_context(deck_id=TEMPLATE_ID)
-    assert first["guide_included"] and first["discovery_included"]
+    assert first["guide_included"] and first["discovery_included"] is False
+    discovered = service.get_working_context(deck_id=TEMPLATE_ID, include_discovery=True)
+    assert discovered["discovery_included"] is True
+    assert discovered["designs"] and discovered["presentations"]
+    assert discovered["preferences"] == first["preferences"]
+    assert discovered["authoring_instructions"] == first["authoring_instructions"]
+    assert discovered["design_inbox"] == first["design_inbox"]
     retained = service.get_working_context(
         deck_id=TEMPLATE_ID, known_guide_hash=str(first["guide_hash"]), include_discovery=False
     )

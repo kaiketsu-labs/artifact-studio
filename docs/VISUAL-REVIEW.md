@@ -12,9 +12,11 @@ The Python packages are locked with the app. Chromium is a separate official Pla
 
 ## Agent workflow
 
-Call `get_working_context`, read the workspace rules, then read the deck and released feedback. Use `capture_contact_sheet(deck_id, offset=0, limit=12)` to scan completed slides, including hidden ones. Follow `next_offset` until there are no pages left. Each tile has a slide number/title; full-size frame paths are retained locally.
+Call `get_working_context`, read the workspace rules, then read the deck and released feedback. Use `capture_contact_sheet(deck_id)` to scan up to 24 completed slides, including hidden ones. Follow `next_offset` until there are no pages left, or pass `slide_ids=[...]` to capture only affected slides in deck order. Offsets apply to that selected subset. Each tile has a slide number/title and a local frame path. The default `resolution="draft"` produces 800 × 450 frames; `resolution="full"` produces 1600 × 900 frames. Both preserve the same 1600 × 900 layout.
 
 Use `capture_slide(deck_id, slide_id)` for a 1600 × 900 completed-slide image. Inspect every slide at full size; a contact sheet does not verify chart labels or small text. The tool returns an image block plus metadata, including the slide ID, content hash, rendering-dependency hash, expected revision hash, renderer/runtime hash, capture time and diagnostics. If `stale` is true, capture again before drawing conclusions about the current slide.
+
+Single-slide captures also accept `resolution="draft"` for iteration. Parallel requests wait in a bounded first-in, first-out queue instead of failing immediately while another capture runs. `get_capture_status()` reports running/queued counts and capacity. Waiting times out after 30 seconds; a full queue or timeout returns an actionable error. Capture failures release the slot. Inspect `queue_wait_ms`, `resolution`, frame dimensions and selected-slide count in the returned manifest.
 
 `runtime_matches_deck=false` means the deck has a different runtime; the image uses the trusted shared renderer and cannot establish fidelity to that custom runtime. Resolve this mismatch before claiming slideshow equivalence.
 
