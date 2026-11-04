@@ -41,6 +41,8 @@ need their own application checks. CI does not bypass native trust or start paid
 model requests. The tested client versions are recorded in the artifacts; update
 the matrix versions deliberately when supporting a new client release.
 
+Presentation window journeys run in Chromium and Firefox. They check explicit audience-window opening, denied or unavailable screen access, blocked pop-ups, synchronized navigation, private notes, audience fullscreen and returning to editing. Granted-screen cases use simulated display metadata; physical monitor placement still requires a hardware check.
+
 ## Run locally
 
 Use an isolated default collection/database before the unit suite imports the app:
@@ -61,6 +63,8 @@ Enable the browser and agent suites explicitly:
 ```sh
 uv run playwright install chromium --only-shell
 ARTIFACT_STUDIO_BROWSER_TESTS=1 uv run pytest tests/integration -m browser
+uv run playwright install firefox
+ARTIFACT_STUDIO_BROWSER_TESTS=1 ARTIFACT_STUDIO_TEST_BROWSER=firefox uv run pytest tests/integration/test_presentation_displays.py
 ARTIFACT_STUDIO_AGENT_TESTS=1 uv run pytest tests/integration/test_agents.py
 ARTIFACT_STUDIO_RENDER_TESTS=1 uv run pytest tests/test_visuals.py tests/test_interactive.py tests/test_element_rotation_dom.py
 ```

@@ -1793,6 +1793,15 @@ def export_html(deck_id: DeckID) -> HTMLResponse:
     )
 
 
+@app.get("/decks/{deck_id}/presentation.js")
+@app.get("/decks/{deck_id}/icons.js")
+@app.get("/decks/{deck_id}/slideshow.css")
+def presentation_runtime(deck_id: DeckID, request: Request) -> FileResponse:
+    """Use installed viewer controls for existing decks without rewriting their files."""
+    _ = store.read(deck_id)
+    return FileResponse(PROJECT / "runtime" / Path(request.url.path).name)
+
+
 @app.get("/api/decks/{deck_id}/audience")
 def audience_preview(deck_id: DeckID) -> HTMLResponse:
     """View the sanitized offline audience document inline, without notes or review state."""

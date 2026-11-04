@@ -75,6 +75,7 @@ jobs:
               tests/integration/test_feedback_mode_sync.py
               tests/integration/test_element_mode_guard.py
               tests/integration/test_slide_designs.py
+              tests/integration/test_presentation_displays.py
           - suite: artifacts-runtime
             tests: >-
               tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
@@ -103,10 +104,21 @@ jobs:
         run: uv run --no-sync playwright install --with-deps chromium --only-shell
       - name: Install optional text review engine
         run: sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+      - name: Install Firefox for presentation compatibility
+        if: matrix.suite == 'editor-review'
+        run: uv run --no-sync playwright install --with-deps firefox
       - name: Browser journeys and sandboxed renderer tests
         run: >-
           uv run --no-sync pytest ${{ matrix.tests }}
           --junitxml=test-results/browser-${{ matrix.suite }}.xml
+      - name: Firefox presenter and audience windows
+        if: matrix.suite == 'editor-review'
+        env:
+          ARTIFACT_STUDIO_TEST_BROWSER: firefox
+          ARTIFACT_STUDIO_ARTIFACTS: test-results/firefox
+        run: >-
+          uv run --no-sync pytest tests/integration/test_presentation_displays.py
+          --junitxml=test-results/browser-firefox-presenting.xml
       - name: Upload screenshots, Playwright traces and server logs
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

@@ -201,7 +201,7 @@ Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctr
 
 ![Private presenter view showing current and next slides, notes, timer, clock and filmstrip.](docs/assets/presenter.png)
 
-Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. Where browser support, permissions and hardware allow, use a second display for audience slides and keep current/next slides, notes, timer and navigation private. [Editor controls](docs/GETTING-STARTED.md#review-and-present).
+Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. **Presenter view** opens a separate audience window while keeping current/next slides, notes and the timer private. Move that window to your other monitor and click **Fullscreen**; supported browsers can also place it automatically with screen access. [Editor controls and browser differences](docs/GETTING-STARTED.md#review-and-present).
 
 The self-contained HTML export scales the complete slide canvas in audience/presenter views and **All slides**, keeping fixed-size text, SVG and spacing proportional. Re-export an older file to include runtime fixes. [All keyboard shortcuts](docs/KEYBOARD-CONTROLS.md).
 

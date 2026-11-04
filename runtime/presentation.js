@@ -479,7 +479,8 @@
   function tick(){$('elapsed').textContent=duration(clock.elapsed());$('wall-clock').textContent=new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit'}).format(new Date());}
   /** A deliberate display change leaves native fullscreen without ending the slideshow. */
   const fullscreenElement=()=>document.fullscreenElement||document.webkitFullscreenElement;
-  async function leaveFullscreen(){if(embedded){hostMessage('fullscreen',{mode:'leave'});return;}if(!fullscreenElement())return;leavingFullscreen=true;try{await (document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch{leavingFullscreen=false;}}
+  function displayChange(pending=true){if(embedded)window.frameElement?.dispatchEvent(new CustomEvent('artifact-studio:display-change',{detail:pending}));else if(!pending)leavingFullscreen=false;else if(fullscreenElement())leavingFullscreen=true;}
+  async function leaveFullscreen(){if(embedded){displayChange();hostMessage('fullscreen',{mode:'leave'});return;}if(!fullscreenElement())return;leavingFullscreen=true;try{await (document.exitFullscreen||document.webkitExitFullscreen).call(document);}catch{leavingFullscreen=false;}}
   async function fullscreen(){if(embedded){hostMessage('fullscreen',{mode:'toggle'});return;}try{if(fullscreenElement())await leaveFullscreen();else await (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement);displayStatus();}catch{displayStatus('Fullscreen unavailable in this browser.');}}
   function startClock(){clock.start();iconButton($('pause-timer'),'pause','Pause timer',false);tick();}
   /** Use CSS presentation immediately; native fullscreen remains subject to browser activation. */
@@ -487,7 +488,17 @@
     if(active){endPresentation();return;}
     const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;
     active=true;mode='single';clock.pause();clock.reset();startClock();render();if(!embedded)void fullscreen();
-    if('getScreenDetails' in window){try{screenDetails=await window.getScreenDetails();if(!active||ending)return;screenDetails.addEventListener('screenschange',updateScreens);updateScreens();const other=screenDetails.screens.find(screen=>screen!==screenDetails.currentScreen);if(other&&channel){selectedScreen=other;openAudience(other,true);}}catch{displayStatus('Automatic display selection unavailable.');}}
+    if(!('getScreenDetails' in window)||!navigator.permissions?.query)return;
+    try{
+      const permission=await navigator.permissions.query({name:'window-management'});
+      if(permission.state!=='granted'||!active||ending||mode!=='single')return;
+      const details=await window.getScreenDetails();
+      if(!active||ending||mode!=='single')return;
+      if(screenDetails!==details){screenDetails?.removeEventListener('screenschange',updateScreens);screenDetails=details;screenDetails.addEventListener('screenschange',updateScreens);}
+      updateScreens();
+      const other=details.screens.find(screen=>screen!==details.currentScreen);
+      if(other&&channel)openAudience(other,true);
+    }catch{}
   }
   async function endPresentation(){
     if(isAudience){channel?.postMessage({kind:'end'});return;}
@@ -513,15 +524,38 @@
     selectedScreen=screen;
     const url=new URL(location.href);url.searchParams.set('audience','1');url.searchParams.set('channel',channelName);url.searchParams.delete('presenter');
     const geometry=screen?`,left=${screen.availLeft},top=${screen.availTop},width=${screen.availWidth},height=${screen.availHeight}`:'';
+    displayChange();
     audienceWindow=window.open(url.href,`slide-audience-${channelName}`,`popup${geometry}`);
-    if(!audienceWindow&&automatic){$('show-presenter').title='Presenter view · pop-up blocked';displayStatus('Pop-up blocked. Open Presenter view to retry.');return;}
-    mode='presenter';void leaveFullscreen();active=true;startClock();render();updateScreens();
+    if(!audienceWindow&&automatic){displayChange(false);return;}
+    mode='presenter';void leaveFullscreen();active=true;render();updateScreens();
     $('open-audience').hidden=!!audienceWindow;
     if(!audienceWindow)displayStatus('Pop-up blocked. Allow pop-ups, then retry.');
     else{displayStatus('Audience window open. Check its display.');try{audienceWindow.focus();}catch{}broadcast(true);}
   }
   function blackScreen(){if(isAudience){channel?.postMessage({kind:'blackout'});return;}blackout=!blackout;render();broadcast();}
-  function showPresenter(){if(isAudience)return;if(!active){const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;}active=true;mode='presenter';void leaveFullscreen();startClock();$('open-audience').hidden=!!audienceWindow;render();}
+  function showPresenter(){if(isAudience)return;if(!active){const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;startClock();}active=true;mode='presenter';void leaveFullscreen();$('open-audience').hidden=!!audienceWindow;render();}
+  /** Open from the click, then place the window when display access resolves. */
+  function presentWithAudience(){
+    if(isAudience)return;
+    let discovery=null;
+    try{if('getScreenDetails' in window)discovery=Promise.resolve(window.getScreenDetails()).then(details=>({details}),error=>({error}));}catch(error){discovery=Promise.resolve({error});}
+    if(audienceWindow?.closed)audienceWindow=null;
+    showPresenter();
+    if(!audienceWindow)openAudience();
+    const opened=audienceWindow;
+    if(!opened)return;
+    if(!discovery){displayStatus('Display selection unavailable in this browser. Move the audience window to another display.');return;}
+    discovery.then(({details,error})=>{
+      if(!active||ending||audienceWindow!==opened)return;
+      if(error){displayStatus(error?.name==='NotAllowedError'?'Display access denied. Move the audience window manually.':'Display access unavailable. Move the audience window manually.');return;}
+      if(screenDetails!==details){screenDetails?.removeEventListener('screenschange',updateScreens);screenDetails=details;screenDetails.addEventListener('screenschange',updateScreens);}
+      selectedScreen=details.screens.find(screen=>screen!==details.currentScreen)||null;
+      updateScreens();
+      if(!selectedScreen){displayStatus('No other display detected. Move the audience window manually if needed.');return;}
+      try{opened.moveTo(selectedScreen.availLeft,selectedScreen.availTop);opened.resizeTo(selectedScreen.availWidth,selectedScreen.availHeight);displayStatus('Audience window open. Check its display.');}
+      catch{displayStatus('Could not place the audience window. Move it manually.');}
+    });
+  }
   function selectIndex(event){const button=event.target.closest('[data-index]');if(button)navigate('goto',Number(button.dataset.index));}
   let overviewReturnFocus=null;
   function showAllSlides(){if(isAudience){channel?.postMessage({kind:'overview'});return;}overviewReturnFocus=document.activeElement;overview.showModal();overview.querySelector(`[data-index="${current}"]`)?.focus();}
@@ -534,12 +568,12 @@
   $('dots').addEventListener('click',selectIndex);$('presenter-filmstrip').addEventListener('click',selectIndex);
   $('present-button').addEventListener('click',()=>active?endPresentation():startPresentation());
   $('end-presentation').addEventListener('click',endPresentation);$('exit-slideshow').addEventListener('click',endPresentation);
-  $('show-presenter').addEventListener('click',showPresenter);$('show-presenter').hidden=isAudience;
+  $('show-presenter').addEventListener('click',presentWithAudience);$('show-presenter').hidden=isAudience;
   $('audience-view-button').addEventListener('click',()=>{mode='single';render();});
-  $('open-audience').addEventListener('click',()=>openAudience());
+  $('open-audience').addEventListener('click',presentWithAudience);
   $('screen-choice').addEventListener('change',event=>{const screen=screenDetails?.screens[Number(event.target.value)];if(screen){selectedScreen=screen;if(audienceWindow){try{audienceWindow.moveTo(screen.availLeft,screen.availTop);audienceWindow.resizeTo(screen.availWidth,screen.availHeight);displayStatus('Audience window open. Check its display.');}catch{displayStatus('Could not change displays. Move the audience window manually.');}}else openAudience(screen);}});
   $('swap-displays').addEventListener('click',()=>{if(!audienceWindow||!screenDetails||!selectedScreen)return;const original=screenDetails.currentScreen;try{window.moveTo(selectedScreen.availLeft,selectedScreen.availTop);window.resizeTo(selectedScreen.availWidth,selectedScreen.availHeight);audienceWindow.moveTo(original.availLeft,original.availTop);audienceWindow.resizeTo(original.availWidth,original.availHeight);selectedScreen=original;updateScreens();displayStatus('Displays changed. Check both windows.');}catch{displayStatus('Could not swap displays. Move the windows manually.');}});
-  for(const id of ['single-fullscreen','presenter-fullscreen'])$(id).addEventListener('click',fullscreen);
+  for(const id of ['single-fullscreen','presenter-fullscreen','audience-fullscreen'])$(id).addEventListener('click',fullscreen);
   for(const id of ['blackout-button','single-blackout'])$(id).addEventListener('click',blackScreen);
   $('pause-timer').addEventListener('click',()=>{if(clock.running)clock.pause();else clock.start();iconButton($('pause-timer'),clock.running?'pause':'play',clock.running?'Pause timer':'Resume timer',false);tick();});
   $('reset-timer').addEventListener('click',()=>{clock.reset();tick();});
