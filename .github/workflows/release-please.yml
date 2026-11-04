@@ -1,0 +1,102 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Prepare a release PR, or publish the merged release PR
+        type: choice
+        options: [prepare, publish]
+        default: prepare
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please-main
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare release PR (no publication)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.command == 'prepare')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        id: release
+        with:
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+      # PRs created with GITHUB_TOKEN do not trigger pull_request workflows.
+      # workflow_dispatch does, and records CI against the generated PR's commit.
+      - name: Run CI on the release PR
+        if: steps.release.outputs.prs_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_PR: ${{ fromJSON(steps.release.outputs.pr).number }}
+        run: |
+          branch=$(gh pr view "$RELEASE_PR" --json headRefName --jq .headRefName)
+          gh workflow run ci.yml --ref "$branch"
+
+  publish:
+    name: Publish merged release (manual only)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.command == 'publish'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Require successful CI for main and pending releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          result=$(gh run list --workflow ci.yml --commit "$RELEASE_SHA" --branch main --event push \
+            --limit 1 --json conclusion --jq '.[0].conclusion // "missing"')
+          if [ "$result" != success ]; then
+            echo "Wait for CI to pass on main before publishing (current result: $result)."
+            exit 1
+          fi
+          release_commits=$(gh pr list --state merged --base main --label 'autorelease: pending' \
+            --limit 200 --json mergeCommit --jq '.[] | .mergeCommit.oid // "missing"')
+          if [ -z "$release_commits" ]; then
+            echo "No merged release PR is pending. Merge the release PR before publishing."
+            exit 1
+          fi
+          while IFS= read -r release_commit; do
+            if [ "$release_commit" = missing ]; then
+              echo "A pending release PR has no merge commit; cannot verify its CI."
+              exit 1
+            fi
+            result=$(gh run list --workflow ci.yml --commit "$release_commit" --branch main --event push \
+              --limit 1 --json conclusion --jq '.[0].conclusion // "missing"')
+            if [ "$result" != success ]; then
+              echo "Wait for CI to pass on release commit $release_commit before publishing (current result: $result)."
+              exit 1
+            fi
+          done <<< "$release_commits"
+          current=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+          if [ "$current" != "$RELEASE_SHA" ]; then
+            echo "Main changed after this run was requested. Run Publish again after its CI passes."
+            exit 1
+          fi
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        with:
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true

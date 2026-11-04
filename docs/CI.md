@@ -11,6 +11,7 @@ corporate packs and model credentials are not required.
 | Check | What it verifies |
 | --- | --- |
 | Ruff, types and unit tests | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests and JavaScript syntax. |
+| Release version simulations | The pinned Release Please engine prepares 0.1.0 and subsequent bumps offline, keeping project and lockfile versions aligned without publishing. |
 | Playwright user journeys and rendering (editor-review) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation and drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input and whole-slide design alternatives (publication, preview, comparison, decisions, conflicts and Undo). |
 | Playwright user journeys and rendering (artifacts-runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, general/hub voice input, sandboxed renderer, interactive-content and DOM checks. |
 | Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
@@ -95,5 +96,9 @@ uvx pre-commit run --all-files
 ```
 
 Adding a workflow does not change GitHub branch protection. To require these
-checks before merge, select the five expanded CI job names in the repository's branch
+checks before merge, select the six expanded CI job names in the repository's branch
 rules after their first successful run.
+
+The separate [Release Please workflow](RELEASING.md) prepares release PRs on pushes
+to `main` and explicitly dispatches CI for those bot-created PRs. Publication is a
+separate manual action after the release PR is merged and `main` CI passes.

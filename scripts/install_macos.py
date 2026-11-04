@@ -8,6 +8,7 @@ import plistlib
 import shutil
 import subprocess
 import tempfile
+import tomllib
 from pathlib import Path
 
 
@@ -34,6 +35,8 @@ def install(
     if not 1024 <= port <= 65535:
         raise ValueError("Choose a port between 1024 and 65535.")
     project = Path(__file__).resolve().parent.parent
+    with (project / "pyproject.toml").open("rb") as project_file:
+        version = tomllib.load(project_file)["project"]["version"]
     python = project / ".venv/bin/python"
     if not python.exists():
         raise ValueError("Set up Artifact Studio first with uv sync --locked --python 3.14.")
@@ -107,8 +110,8 @@ def install(
                     "CFBundleDisplayName": name,
                     "CFBundleExecutable": "ArtifactStudio",
                     "CFBundlePackageType": "APPL",
-                    "CFBundleShortVersionString": "0.1.0",
-                    "CFBundleVersion": "1",
+                    "CFBundleShortVersionString": version,
+                    "CFBundleVersion": version,
                     "CFBundleIconFile": "ArtifactStudio.icns",
                     "LSMinimumSystemVersion": "13.0",
                     "LSUIElement": True,
