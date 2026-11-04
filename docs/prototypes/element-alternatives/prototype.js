@@ -29,7 +29,7 @@
   const initial={current:{headline:0,text:0,graphic:0,slide:0},pending:{headline:true,text:true,graphic:true,slide:true},stale:{headline:false,text:false,graphic:false,slide:false},history:[]};
   let state=structuredClone(initial),scope='headline',selected=1,trayOpen=true,previous=null,left=0,right=1,view='element',menuOpener=null,compareOpener=null,draftContext=null;
   const published={headline:structuredClone(initial.current),text:structuredClone(initial.current),graphic:structuredClone(initial.current),slide:structuredClone(initial.current)};
-  let inlineOpen=false,pinned=null,inlineAnchor=null,openedByHover=false,hoverTimer=null;
+  let inlineOpen=false,pinned=null,inlineAnchor=null,inlineAlignment='start',openedByHover=false,hoverTimer=null;
   let question=new URLSearchParams(location.search).get('scenario')==='question',waitingForAgent=false,answeredAudience=null;
   if(question){selected=0;trayOpen=false;for(const key of Object.keys(state.pending))state.pending[key]=false;}
   const announce=text=>$('status').textContent=text;
@@ -90,7 +90,7 @@
   function openScope(key,{byHover=false,focus=true}={}){
     if(!groups[key])return;
     if(inlineOpen&&scope===key){if(!byHover)openedByHover=false;$('scope-menu').hidePopover();return;}
-    scope=key;selected=state.current[key];pinned=null;trayOpen=true;inlineOpen=key!=='slide';openedByHover=byHover;inlineAnchor=null;view=key==='slide'?'slide':'element';$('scope-menu').hidePopover();render();
+    scope=key;selected=state.current[key];pinned=null;trayOpen=true;inlineOpen=key!=='slide';openedByHover=byHover;inlineAnchor=null;inlineAlignment=byHover?'end':'start';view=key==='slide'?'slide':'element';$('scope-menu').hidePopover();render();
     if(focus&&!byHover)(inlineOpen?$(`inline-option-${selected}`):$(`option-${selected}`))?.focus({preventScroll:true});announce(groups[key].label+' options. The slide is unchanged.');
   }
   function selectElement(key){
@@ -170,7 +170,7 @@
     if(!panel.matches(':popover-open'))panel.showPopover();
     if(!inlineAnchor){const target=$('slide-stage').querySelector(`[data-scope="${scope}"]`);inlineAnchor=target?.getBoundingClientRect()||$('slide-stage').getBoundingClientRect();}
     const width=Math.min(430,innerWidth-24);panel.style.width=width+'px';
-    panel.style.left=Math.max(12,Math.min(inlineAnchor.left,innerWidth-width-12))+'px';
+    const left=inlineAlignment==='end'?inlineAnchor.right-width:inlineAnchor.left;panel.style.left=Math.max(12,Math.min(left,innerWidth-width-12))+'px';
     const above=inlineAnchor.top-panel.offsetHeight-8,minTop=scope==='headline'?64:Math.max(64,doc.querySelector('.draft-canvas-header').getBoundingClientRect().bottom+6);
     panel.style.top=Math.max(8,Math.min(above>=minTop?above:inlineAnchor.bottom+12,innerHeight-panel.offsetHeight-12))+'px';
   }

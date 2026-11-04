@@ -102,6 +102,24 @@ def main() -> None:
             page.locator("#speaker-notes").click()
             expect(page.locator("#inline-options")).to_be_hidden()
             expect(page.locator("#slide-stage h2")).to_have_text("Good slides happen in the loop.")
+            badge = page.locator(".canvas-option-badge[data-open-scope=headline]")
+            badge.hover()
+            expect(page.locator("#inline-options")).to_be_visible()
+            start_box, end_box = badge.bounding_box(), option(1).bounding_box()
+            assert start_box and end_box
+            start_x, start_y = (
+                start_box["x"] + start_box["width"] / 2,
+                start_box["y"] + start_box["height"] / 2,
+            )
+            end_x, end_y = end_box["x"] + end_box["width"] / 2, end_box["y"] + end_box["height"] / 2
+            for step in range(1, 21):
+                page.mouse.move(
+                    start_x + (end_x - start_x) * step / 20, start_y + (end_y - start_y) * step / 20
+                )
+                page.wait_for_timeout(20)
+            expect(page.locator("#inline-options")).to_be_visible()
+            expect(page.locator("#slide-stage h2")).to_have_text("A stronger story, every review.")
+            page.locator("#inline-close").click()
             page.locator("#slide-stage [data-scope=headline]").click()
             option(1).click()
             page.locator("#inline-scope").click()
