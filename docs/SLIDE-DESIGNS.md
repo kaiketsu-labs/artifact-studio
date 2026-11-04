@@ -6,9 +6,9 @@ Agents can publish several whole-slide designs without replacing the chosen slid
 
 The slide overview shows a small stacked-cards count. Hover or keyboard focus reveals clickable previews near the cursor. Clicking a preview opens that design on the canvas; it does not change the presentation. The Designs row also supports arrow keys, Home and End. Compare can show the chosen design and a proposal, or any two proposals.
 
-The chosen design uses a heavier border and check icon. A blue outline marks the temporary preview.
+The chosen design uses a heavier gold border and check icon. A blue outline marks the temporary preview.
 
-![Real editor with three alternatives and a bold border around the chosen original.](assets/slide-designs.png)
+![Real editor with three alternatives and a gold border around the chosen original.](assets/slide-designs.png)
 
 [Hover previews](screenshots/slide-designs-hover.png) · [Compare](screenshots/slide-designs-compare.png) · [Narrow comparison](screenshots/slide-designs-mobile.png) · [Dark appearance](screenshots/slide-designs-dark.png)
 

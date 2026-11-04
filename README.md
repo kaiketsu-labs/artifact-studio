@@ -174,9 +174,9 @@ The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds 
 
 ## Explore slide designs
 
-![A whole-slide design preview alongside the original and three authored alternatives. The chosen design has a bold border and check.](docs/assets/slide-designs.png)
+![A whole-slide design preview alongside the original and three authored alternatives. The chosen design has a gold border and check.](docs/assets/slide-designs.png)
 
-Ask your agent for several directions for a slide. Hover the slide's stacked-card count for clickable previews, or open **Designs**. Previewing leaves the chosen slide unchanged. **Compare** shows any two designs; **Keep current** or **Use this design** records your decision and puts the options away. The chosen design has a stronger border and a check icon.
+Ask your agent for several directions for a slide. Hover the slide's stacked-card count for clickable previews, or open **Designs**. Previewing leaves the chosen slide unchanged. **Compare** shows any two designs; **Keep current** or **Use this design** records your decision and puts the options away. The chosen design has a stronger gold border and a check icon.
 
 Alternatives stay in **Version history → Design decisions & saved alternatives**, and the decision has Undo. Feedback written while previewing stays attached to that proposal. Speaker notes remain intact. [Workflow, agent tools and limits](docs/SLIDE-DESIGNS.md).
 

@@ -730,6 +730,7 @@ def capture_slide_design(deck_id: str, slide_id: str, design_id: str) -> CallToo
             path=str(path),
             frames=[frozen.frame],
             total_slides=1,
+            selected_slides=1,
         )
     )
 

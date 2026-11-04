@@ -1,122 +1,824 @@
 {
-  "generated_at": "2026-11-03T12:26:03.080205+00:00",
+  "generated_at": "2026-11-04T13:19:10.533378+00:00",
   "fixture": "Original fictional Studio Blue presentation and Team launch project",
-  "verification": "README PNG references resolve to captured files whose hashes match their inventories.",
-  "readme_screenshot_count": 7,
-  "existing_screenshots_refreshed": 6,
-  "documentation_screenshots_verified": 41,
+  "verification": "Current inventories match screenshot bytes. README references resolve; older screenshots without retained capture provenance are labelled explicitly.",
+  "readme_screenshot_count": 10,
+  "documentation_screenshots_verified": 54,
   "screenshots": {
     "docs/assets/artifact-hub.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:51.130256+00:00",
-      "manifest": "docs/screenshots/captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:23.643718+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "364efcfe197dcf07958cd1b3e4737a4c233397ce59295917e49b7f07213a40e3",
-      "previous_sha256": "d503e40eec6691985ebfeb7ae8109cbe2b5b5047850712d8c128b927b4fffa24",
-      "changed": true
+      "sha256": "41f2597d775c6fccd3c0bd59e7eaeaa221b2aea2d6415d37cd011208a88e00c8",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
     },
     "docs/assets/add-design.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:53.627938+00:00",
-      "manifest": "docs/screenshots/design-captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "captured_at": "2026-11-04T10:43:25.573020+00:00",
+      "sha256": "ebf4f66f3ff0ca062282844d65591d89478d4411c30a46ef76b6a628ea6be719",
+      "manifest": "docs/screenshots/design-captures.json",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "7764e01e992fa42a2b68301c952faebc55b89acc4ebe8d931540d80b0baa19a8",
-      "previous_sha256": "9b3a237594627d8d7fa304c21d2a043227fcb8798963b606b9448cff1e59cf47",
-      "changed": true
+      "readme_reference": true
     },
     "docs/assets/design-library.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:53.487862+00:00",
-      "manifest": "docs/screenshots/design-captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "captured_at": "2026-11-04T10:43:25.358032+00:00",
+      "sha256": "cfc3c6c4c6f17f104c8d2b448bba4e1324d795d9c9c65cac356e70f070a66f8a",
+      "manifest": "docs/screenshots/design-captures.json",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "aaa716833f4b084cdc70bffd94563652f15e0b4c832b676e6d28621b24f2921c",
-      "previous_sha256": "b2d6cf3cadc87ef6909facf1b25e82eca53e24194fbdcdd2334a843675151632",
-      "changed": true
+      "readme_reference": true
     },
     "docs/assets/design-context.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:53.822184+00:00",
-      "manifest": "docs/screenshots/design-captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "captured_at": "2026-11-04T10:43:25.955675+00:00",
+      "sha256": "6120980b673f9a3333d8aedbddc02e5751e7176cc5aac7fd5949b8e85e271921",
+      "manifest": "docs/screenshots/design-captures.json",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "05aa16ac53c178802905911e29ae061de9745bbfee5c1747bf321383dfe6af34",
-      "previous_sha256": "c3e720ede808426d71d9db0b6881a9f9d09358a378d9d1970462d6a04c34d2bd",
-      "changed": true
+      "readme_reference": true
     },
     "docs/assets/artifact-review.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:51.461749+00:00",
-      "manifest": "docs/screenshots/captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:24.137745+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "312669a7d67e13357e355d304a2f4ab3f74d6f5c2b2c4dd9e84399c32d82c7d2",
-      "previous_sha256": "f77cedb66d14dc3654a9f43d08eb0a8d3efebbacf31490790d4d1dfb7b1818d1",
-      "changed": true
+      "sha256": "c003c27673efb20e2eeb251be0100b5c5bbf87a441839302f62803dc45e6db0d",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
     },
     "docs/assets/presenter.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:40.704063+00:00",
-      "manifest": "docs/screenshots/captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:12.431941+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "337b7e6dd7602c09c7fbf7b71040589e3adb93ef33bc3e8585f38bd02bc36682",
-      "previous_sha256": "77341b10387303caae1cbf5d9ae19f70fbf9c624369f8301f673d2affb026c7f",
-      "changed": true
+      "sha256": "c5177f5a518427fce7ece67b820ac539225c26774d675d2ca13d4087f748f34a",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
     },
     "docs/assets/context-menu.png": {
-      "readme_reference": true,
-      "captured_at": "2026-11-03T11:10:51.226701+00:00",
-      "manifest": "docs/screenshots/captures.json",
       "viewport": {
         "width": 1440,
         "height": 1000
       },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:23.796596+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "1cce62230726062a46690e06ca520e4cfdf738c10802591f485da4522bc00bac",
-      "previous_sha256": null,
-      "changed": true
+      "sha256": "79d6588ca46c965e8d8f48d9abe6353a6f009c92027854540e089dfb496c0fbd",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
+    },
+    "docs/assets/workspace.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:10.051487+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "13966794cddcef1032f128ea6be8e32b8502034d319325bbb77515ee349cbdf5",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/slide-chat.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:10.206673+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "c15bee847d5c2b4560bab511c7ecb908cc00907b8d4f3ea6ca71e25b067fd0b2",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/chat-sender-icons-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:10.314625+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "c15bee847d5c2b4560bab511c7ecb908cc00907b8d4f3ea6ca71e25b067fd0b2",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/chat-sender-icons-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:10.560892+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "ac81d78dd1a32307b39baa28ebea0ca4ddc8914f34e821a2858569b10b106b5f",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/element-review.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:10.911673+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "0ec141c9a20abee5c01a768780c6f1dd5c2e8e77fd4e98c4f41c6ada9d6740ed",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/slide-sorter.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:11.232368+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "5ef943c485c27bcfdaa0306f8762b2fcefd5148fe293d4f491205dd0ad8d0b15",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/section-sorter-navigation.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:11.364757+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "a7023fa529da228a160d1c2098816c96af5b8058e041dc9a987b173e2809f835",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/slide-management.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:11.582628+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "17cd311ae272d54833520630cefbe93ca27bba7419d1c099165d2e232859c584",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/projects.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:11.786331+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "d987454ae416cb6c386031bc9b0ab0b3a778eda2a7377c2cd8095254711f130e",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/interactive-slide.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:12.106743+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1faee6b1ae4ad8bf18314b3267e22d8e7c487773e93849649099f08fbc63a8ef",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-question-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:12.978700+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "8d6119896713a811556af4f2141a61e603d4f619e2f6b7ac1972f6211cfc188b",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-question-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:13.179704+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "a96612bf91a61f5517081b34ea5916c7e7523ff9e0087dc67dfa771cc5c9c620",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-sections-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:13.303967+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "4a90be3324335f1222cecff405c8d1743a29492c8a4fb01826d9135f32eeffa6",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-sections-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:13.527464+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "2c5e36b5010c0953cd586797684945a52c284c387d033cac35da5817ee5717ef",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/slide-sections.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:13.630601+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "467c5cc4082555a8dbd832f54ef39102d096e4a544e4846c8d9d5a2fb1641f83",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/section-active-slide.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:17.667020+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "2949cc215af2303f39c8568fca9cd9bc5554c7dee44707820e8be55f9e43bcf1",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/notes-conflict.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:18.867681+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "c1d453df1a4219adc71b6067eb85cb48c0ba96a001eef887c982664a89e52040",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/notes-retry.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:19.800314+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "c41a44621af2172486407767c0804c5ccea24f70d431da1de821240547c1c43c",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/storage-backup.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:20.832320+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "87448e0f94ac55b2e09c3f3c709acc4fcc0355aeb4636273a7628d11797d21e7",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/design-references.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:21.062759+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "3477a63a81376b41f3bd5ad30bdd93a7f097380a011d1fccc135b92419723fb4",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/reference-controls.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:21.180675+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1e5d80e1a99dc7de7b93271b5ad1de1ea37f012f8725881d5a0bf4c26b5ddf3f",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/reference-files.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:21.350297+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "903facb7911528ab88b977e0cf881a25042791d5771f69c388c62decc2898768",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/reference-removed.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:21.509998+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "716c093704b87f0d51d3a3edf2e87d539b1ea617c1330a0051ea3672c6ffc777",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/new-presentation-references.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:21.805461+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "fa0bddcedc4802b0090035c600ce4a0c0406fc698e2c1961532e805cd3cc6f9a",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/visual-review.png": {
+      "renderer": "artifact_studio.visuals.snapshot + Playwright + contact_sheet",
+      "diagnostics": {
+        "cover": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "workflow": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "story": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "appendix": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        }
+      },
+      "captured_at": "2026-11-03T22:30:22.277000+00:00",
+      "pixels": [
+        1008,
+        652
+      ],
+      "sha256": "330bf5313b2d8fa93963d37b97fdbc84bb63d180ba482752f11f4645ceff8785",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/chat-mobile-dark.png": {
+      "viewport": {
+        "width": 320,
+        "height": 568
+      },
+      "region": null,
+      "captured_at": "2026-11-03T22:30:24.759598+00:00",
+      "pixels": [
+        320,
+        568
+      ],
+      "sha256": "785dfeee65b157627e39c8576f291144bdcdcefb14dc2b21a5d1a13bbf6a4e1d",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/add-design-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:25.730122+00:00",
+      "sha256": "b27b22f9325e01abb364b92d9dee6980a03c875e98278db26df5845abad41306",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        390,
+        844
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-text-preview.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.121391+00:00",
+      "sha256": "bf24cd7269a109f2b0f580ee3d531ab9b479bf74450f989b1d7ee74e81cd9be6",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/design-text-editor.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.326071+00:00",
+      "sha256": "14b54c77e4a0b144108e91be23d41a77c9e7caf1d86375760e31c6403bced075",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": true
+    },
+    "docs/screenshots/design-context-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.589357+00:00",
+      "sha256": "c2bcba8067f2a171e4733ece87889d61e1712eabd5dad909adf9aeb2b6c67582",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-text-editor-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.766920+00:00",
+      "sha256": "b771b04320ccedc87db92f0eca19676ae4c6b84db79325972a98ea3d33c90557",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-text-editor-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:26.836290+00:00",
+      "sha256": "ddaa39841c5418931b4b1a57d34f094695f08542c4dc04ec40b300a0322be3fc",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        390,
+        844
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-file-preview.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:27.106466+00:00",
+      "sha256": "b15f06b863884e9cfe3c0734995abd44a8e31674904a512dd9776f02a4a743d3",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-use-agent.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:27.259034+00:00",
+      "sha256": "bdff43c176c49268b059698c52d6a5fdaf146cc014dd453a8b03d16ae687ebb0",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-context-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:27.395472+00:00",
+      "sha256": "1635bac3a8ca0140572e3d128d8ce38f8fc457b885540db4efc86c90324ca5f1",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        390,
+        1055
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-pack-context.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:27.561471+00:00",
+      "sha256": "9b1cb9f566eb519b9836f48f676b2359914f67261beb96f2d9650b104ea46f46",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1731
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/sharing.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-03T22:17:47.131292+00:00",
+      "sha256": "3b02da0846bf8ebecb849797b2de5bd539a94270c54359610287f34f2269b02b",
+      "manifest": "docs/screenshots/sharing-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/sharing-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-03T22:17:47.228784+00:00",
+      "sha256": "b253de47234ea2e67e4f43117d9590c293ac9fa61a870492893e9c79495407f7",
+      "manifest": "docs/screenshots/sharing-captures.json",
+      "pixels": [
+        390,
+        844
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/sharing-fallback.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-03T22:17:47.676211+00:00",
+      "sha256": "fb6cf5954793706efafbdb0bcc64d336dd269f7f8a4fb04ee9a271daef74eb5b",
+      "manifest": "docs/screenshots/sharing-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/slide-designs.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:09.888322+00:00",
+      "sha256": "971c42f974a4414bad276ba55bd63e70bd29d570c1eff5047be49284127f6891",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": true
+    },
+    "docs/screenshots/slide-designs-hover.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:10.770432+00:00",
+      "sha256": "9bd5372a6caf4494c54acd8f5e2c1d66ac277220e6b1a56d1c7508592aaebc8e",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-compare.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:11.729971+00:00",
+      "sha256": "90ea08e5e2fb5ed92661cf74e653194b94efc745650b867984a85cad3f4c8497",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captured_at": "2026-11-04T13:17:12.442843+00:00",
+      "sha256": "431a3d42ec1548978781f4fcf0e6f7d45e118ee92c3b782708db071af586e6d3",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        390,
+        900
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-dark.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:13.355722+00:00",
+      "sha256": "7d8ff240bab7f9d597ca463c3b97cc19ffc6e0efdbdd7078f16b8601d9f8acec",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-chosen.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:14.341551+00:00",
+      "sha256": "d5d45ffe657393931218016e7f7f134ab6badd976c29c0ee6b0a81d659ae6fcd",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-history.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:15.426466+00:00",
+      "sha256": "e4feb67252e028c1f0511c019a844533cf65d078de6ac860d1da480d0455a82e",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/selection-export.png": {
+      "sha256": "b04397b60c7253700067a931441cb77a31d16acc1e6760dab4fda9c2c4646dbb",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "capture_provenance": "Existing committed screenshot; capture manifest not retained.",
+      "readme_reference": true
     }
   }
 }

@@ -1,0 +1,63 @@
+{
+  "fixture": "Fictional Studio Blue presentation and authored directions",
+  "captured_at": "2026-11-04T13:17:16.042693+00:00",
+  "screenshots": {
+    "docs/assets/slide-designs.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:09.888322+00:00",
+      "sha256": "971c42f974a4414bad276ba55bd63e70bd29d570c1eff5047be49284127f6891"
+    },
+    "docs/screenshots/slide-designs-hover.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:10.770432+00:00",
+      "sha256": "9bd5372a6caf4494c54acd8f5e2c1d66ac277220e6b1a56d1c7508592aaebc8e"
+    },
+    "docs/screenshots/slide-designs-compare.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:11.729971+00:00",
+      "sha256": "90ea08e5e2fb5ed92661cf74e653194b94efc745650b867984a85cad3f4c8497"
+    },
+    "docs/screenshots/slide-designs-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captured_at": "2026-11-04T13:17:12.442843+00:00",
+      "sha256": "431a3d42ec1548978781f4fcf0e6f7d45e118ee92c3b782708db071af586e6d3"
+    },
+    "docs/screenshots/slide-designs-dark.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:13.355722+00:00",
+      "sha256": "7d8ff240bab7f9d597ca463c3b97cc19ffc6e0efdbdd7078f16b8601d9f8acec"
+    },
+    "docs/screenshots/slide-designs-chosen.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:14.341551+00:00",
+      "sha256": "d5d45ffe657393931218016e7f7f134ab6badd976c29c0ee6b0a81d659ae6fcd"
+    },
+    "docs/screenshots/slide-designs-history.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T13:17:15.426466+00:00",
+      "sha256": "e4feb67252e028c1f0511c019a844533cf65d078de6ac860d1da480d0455a82e"
+    }
+  },
+  "timeline_thumbnail": "Revision thumbnail uses a fictional PNG; proposals are real"
+}
