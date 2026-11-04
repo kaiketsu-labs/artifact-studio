@@ -33,14 +33,14 @@
     <section class="draft-canvas" aria-labelledby="slide-title">
       <header class="draft-canvas-header">
         <h1 id="slide-title">Good slides happen in the loop</h1>
-        <div class="draft-canvas-actions"><button id="design-toggle" class="design-toggle" aria-expanded="true" aria-controls="design-tray"><span data-icon="designs"></span>Designs <span class="count">4</span></button><span class="draft-divider"></span><button class="draft-approve" id="approve"><span data-icon="check"></span>Approve</button></div>
+        <div class="draft-canvas-actions"><button id="design-history" class="icon-button" aria-label="Slide history" title="History and saved designs" aria-haspopup="dialog" data-icon="history"></button><button id="design-toggle" class="design-toggle" aria-expanded="true" aria-controls="design-tray"><span data-icon="designs"></span>Designs <span class="count">4</span></button><span class="draft-divider"></span><button class="draft-approve" id="approve"><span data-icon="check"></span>Approve</button></div>
       </header>
 
       <div id="slide-stage" class="slide-stage" role="tabpanel" aria-label="Selected design preview" tabindex="0"></div>
 
       <div class="decision-bar" id="decision-bar">
         <div class="preview-description"><span id="preview-state" class="preview-state">Preview</span><strong id="preview-name">Editorial</strong></div>
-        <div class="decision-actions"><button id="back-current" class="text-button" aria-label="Back to current design" title="Back to current design"><span data-icon="restore"></span><span>Back to current</span></button><button class="draft-primary" id="use-design">Use this design<span data-icon="right"></span></button></div>
+        <div class="decision-actions"><button id="back-current" class="text-button" aria-label="Keep current design" title="Keep current design"><span data-icon="check"></span><span>Keep current</span></button><button class="draft-primary" id="use-design">Use this design<span data-icon="right"></span></button></div>
       </div>
 
       <section class="design-tray" id="design-tray" aria-labelledby="design-tray-title">
@@ -73,7 +73,13 @@
   <dialog id="compare-dialog" class="compare-dialog" aria-labelledby="compare-title">
     <header class="compare-header"><div><span class="compare-eyebrow">SLIDE 02</span><h2 id="compare-title">Compare designs</h2></div><button class="icon-button" id="close-compare" aria-label="Close comparison" data-icon="close"></button></header>
     <div class="compare-grid"><section class="compare-pane"><header><span id="compare-reference-state"><span class="current-dot"></span>In slide</span><label class="sr-only" for="compare-reference">Left design</label><select id="compare-reference"></select></header><div class="slide-stage" id="compare-current" role="region" aria-label="Left design preview"></div></section><section class="compare-pane"><header><span class="compare-preview-label" id="compare-candidate-state">Preview</span><label class="sr-only" for="compare-candidate-select">Right design</label><select id="compare-candidate-select"></select></header><div class="slide-stage" id="compare-candidate"></div></section></div>
-    <footer class="compare-footer"><div class="compare-options" id="compare-options" role="tablist" aria-label="Right design"></div><div class="compare-decision"><p>Previewing keeps your slide unchanged.</p><div class="compare-choice-buttons"><button id="use-reference">Use Editorial</button><button class="draft-primary" id="use-compared">Use Bold<span data-icon="right"></span></button></div></div></footer>
+    <footer class="compare-footer"><div class="compare-options" id="compare-options" role="tablist" aria-label="Right design"></div><div class="compare-decision"><p>Previewing keeps your slide unchanged.</p><div class="compare-choice-buttons"><button id="keep-compared-current" class="text-button">Keep current</button><button id="use-reference">Use Editorial</button><button class="draft-primary" id="use-compared">Use Bold<span data-icon="right"></span></button></div></div></footer>
+  </dialog>
+
+  <dialog id="design-history-dialog" class="design-history-dialog" aria-labelledby="design-history-title">
+    <header class="design-history-header"><div><span class="compare-eyebrow">SLIDE 02</span><h2 id="design-history-title">Slide history</h2></div><button class="icon-button" id="close-design-history" aria-label="Close slide history" data-icon="close"></button></header>
+    <ol class="design-history-list" id="design-history-list" aria-label="Design decisions"></ol>
+    <details class="saved-designs" id="saved-designs"><summary><span data-icon="designs"></span>Saved alternatives<span class="count">3</span></summary><div class="saved-design-options" id="saved-design-options"></div></details>
   </dialog>
 
   <dialog class="presentation-dialog" id="presentation-dialog" aria-label="Current slide presentation"><button class="icon-button" id="close-present" aria-label="Close presentation" data-icon="close"></button><div class="slide-stage" id="presentation-stage"></div></dialog>

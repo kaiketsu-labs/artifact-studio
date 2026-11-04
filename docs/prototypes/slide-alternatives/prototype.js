@@ -37,6 +37,8 @@
     {name:'Space for the details', html:otherSlide('Space for<br>the details.',6)},
   ];
   let current = 'original', selected = 'original', activeSlide = 1, previousChoice = null, approved = false;
+  let choiceSettled = false, trayOpen = true, historyNavigated = false;
+  const designHistory = [{id:'original',action:'Starting design'}];
   let compareTrigger = null, compareReference = current;
   const peek = $('alternative-peek');
   let peekTrigger = null, peekCloseTimer = null, suppressPeekFocus = false;
@@ -45,7 +47,7 @@
 
   function renderRail() {
     closeAlternativePeek();
-    $('slide-overview').innerHTML = slides.map((slide,index) => `${index === 0 || index === 3 ? `<div class="draft-section-label">${icon('down')}${index === 0 ? 'The story' : 'In the room'}<span>3</span></div>` : ''}<div class="draft-slide-entry"><button class="draft-slide-thumb" data-slide="${index}" aria-label="Slide ${index+1}: ${slide.name}${index === 1 ? ', 3 alternative designs available' : ''}" ${index === activeSlide ? 'aria-current="true"' : ''}><div class="rail-slide-image" aria-hidden="true">${index === 1 ? design(current).html : slide.html}</div><span class="rail-slide-caption"><span class="rail-slide-number">0${index+1}</span><span>${slide.name}</span><span class="dot ${index === 0 || index === 2 ? 'green' : 'red'}"></span></span></button>${index === 1 ? `<button class="rail-alternatives" data-alternatives aria-label="View 3 alternative designs for slide 2" aria-expanded="false" aria-controls="alternative-peek" aria-describedby="alternative-peek-help">${icon('designs')}<span>3</span></button>` : ''}</div>`).join('');
+    $('slide-overview').innerHTML = slides.map((slide,index) => `${index === 0 || index === 3 ? `<div class="draft-section-label">${icon('down')}${index === 0 ? 'The story' : 'In the room'}<span>3</span></div>` : ''}<div class="draft-slide-entry ${index === 1 && choiceSettled ? 'is-decided' : ''}"><button class="draft-slide-thumb" data-slide="${index}" aria-label="Slide ${index+1}: ${slide.name}${index === 1 ? ', 3 alternative designs available' : ''}" ${index === activeSlide ? 'aria-current="true"' : ''}><div class="rail-slide-image" aria-hidden="true">${index === 1 ? design(current).html : slide.html}</div><span class="rail-slide-caption"><span class="rail-slide-number">0${index+1}</span><span>${slide.name}</span><span class="dot ${index === 0 || index === 2 ? 'green' : 'red'}"></span></span></button>${index === 1 ? `<button class="rail-alternatives" data-alternatives aria-label="View 3 alternative designs for slide 2" aria-expanded="false" aria-controls="alternative-peek" aria-describedby="alternative-peek-help">${icon('designs')}<span>3</span></button>` : ''}</div>`).join('');
   }
 
   function closeAlternativePeek({restoreFocus = false} = {}) {
@@ -85,7 +87,7 @@
   function openDesignOptions(id) {
     closeAlternativePeek();
     if (activeSlide !== 1) { activeSlide = 1; selected = current; renderSlide(); }
-    $('design-tray').hidden = false; $('design-toggle').setAttribute('aria-expanded','true');
+    trayOpen = true;
     doc.body.classList.remove('slides-open'); $('toggle-slides').setAttribute('aria-expanded','false');
     preview(id || (selected !== current ? selected : designs.find(item => item.id !== current).id),{focus:true});
     $('design-tray').scrollIntoView({block:'nearest'});
@@ -113,21 +115,35 @@
 
   function render({focus = false} = {}) {
     const item = design(selected), inSlide = selectedIsCurrent();
+    $('design-tray').hidden = !trayOpen;
+    $('design-toggle').setAttribute('aria-expanded',String(trayOpen));
+    $('design-toggle').hidden = choiceSettled && !trayOpen && inSlide;
+    $('design-history').hidden = false;
+    $('decision-bar').hidden = choiceSettled && inSlide;
     $('slide-stage').innerHTML = item.html;
-    $('slide-stage').setAttribute('role','tabpanel');
-    $('slide-stage').setAttribute('aria-labelledby', `design-${selected}`);
+    $('slide-stage').setAttribute('role',trayOpen ? 'tabpanel' : 'region');
+    if (trayOpen) { $('slide-stage').setAttribute('aria-labelledby', `design-${selected}`); $('slide-stage').removeAttribute('aria-label'); }
+    else { $('slide-stage').removeAttribute('aria-labelledby'); $('slide-stage').setAttribute('aria-label',`${item.name} design ${inSlide ? 'in slide' : 'preview'}`); }
     $('preview-state').classList.toggle('is-current', inSlide);
     $('preview-state').innerHTML = inSlide ? `${icon('check')}In slide` : 'Preview';
     $('preview-name').textContent = item.name;
-    $('back-current').hidden = inSlide;
+    $('back-current').hidden = choiceSettled && inSlide;
+    const keepLabel = choiceSettled ? 'Back to current' : 'Keep current';
+    $('back-current').innerHTML = `${icon(choiceSettled ? 'restore' : 'check')}<span>${keepLabel}</span>`;
+    $('back-current').setAttribute('aria-label',`${keepLabel} design`);
+    $('back-current').title = `${keepLabel} design`;
+    $('back-current').classList.toggle('is-confirm',!choiceSettled);
     $('use-design').hidden = inSlide;
     $('approve').hidden = !inSlide;
     $('approve').setAttribute('aria-pressed',String(approved));
     $('approve').innerHTML = `${icon('check')}${approved ? 'Approved' : 'Approve'}`;
     $('design-options').innerHTML = designs.map(item => optionMarkup(item,'design')).join('');
     $('composer-design').textContent = inSlide ? '' : `${item.name} preview`;
+    $('review-designs').classList.toggle('is-resolved',choiceSettled);
+    $('review-designs').querySelector('.chat-design-card-label strong').innerHTML = choiceSettled ? `${icon('check')}${design(current).name} kept` : '3 new designs';
+    $('review-designs').setAttribute('aria-label',choiceSettled ? `View saved designs, ${design(current).name} kept` : 'Review 3 new designs');
     if ($('compare-dialog').open) renderComparison();
-    if (focus) $(`design-${selected}`).focus({preventScroll:true});
+    if (focus) (trayOpen ? $(`design-${selected}`) : $('slide-stage')).focus({preventScroll:true});
   }
 
   function preview(id, {focus = false} = {}) {
@@ -146,28 +162,46 @@
     $('compare-candidate').setAttribute('aria-labelledby',`compare-${selected}`);
     $('compare-options').innerHTML = designs.filter(item => item.id !== compareReference).map(item => optionMarkup(item,'compare')).join('');
     $('compare-candidate-state').textContent = selectedIsCurrent() ? 'In slide' : 'Preview';
-    $('use-reference').hidden = compareReference === current;
-    $('use-reference').textContent = `Use ${design(compareReference).name}`;
-    $('use-compared').innerHTML = selectedIsCurrent() ? `${icon('check')}In slide` : `Use ${design(selected).name}${icon('right')}`;
-    $('use-compared').disabled = selectedIsCurrent();
+    $('use-reference').hidden = false;
+    $('use-reference').textContent = `${compareReference === current ? 'Keep' : 'Use'} ${design(compareReference).name}`;
+    $('use-compared').innerHTML = selectedIsCurrent() ? `Keep ${design(current).name}${icon('check')}` : `Use ${design(selected).name}${icon('right')}`;
+    $('use-compared').disabled = false;
+    $('keep-compared-current').hidden = compareReference === current || selectedIsCurrent();
   }
 
   function closeComparison() {
     $('compare-dialog').close();
   }
 
-  function adopt() {
-    if (selectedIsCurrent()) return;
-    previousChoice = {id:current,approved};
-    current = selected;
-    approved = false;
+  function settleDesign(id) {
+    const replacing = id !== current;
+    previousChoice = {id:current,approved,settled:choiceSettled};
+    current = id; selected = current;
+    if (replacing) approved = false;
+    choiceSettled = true; trayOpen = false;
+    designHistory.push({id:current,action:replacing ? 'Design chosen' : 'Kept current design'});
     renderRail();
     if ($('compare-dialog').open) closeComparison();
     render();
-    $('toast-message').textContent = `${design(current).name} is now in the slide.`;
+    $('toast-message').textContent = replacing ? `${design(current).name} is now in the slide.` : `${design(current).name} kept. Alternatives saved.`;
     $('draft-toast').hidden = false;
     $('undo-choice').hidden = false;
-    $('design-toggle').focus({preventScroll:true});
+    $('design-history').focus({preventScroll:true});
+  }
+
+  function adopt() { settleDesign(selected); }
+
+  function cancelExploration() {
+    if (choiceSettled) trayOpen = false;
+    preview(current,{focus:!choiceSettled});
+    if (choiceSettled) $('design-history').focus({preventScroll:true});
+  }
+
+  function focusDesignControl() { ($('design-toggle').hidden ? $('design-history') : $('design-toggle')).focus({preventScroll:true}); }
+
+  function renderDesignHistory() {
+    $('design-history-list').innerHTML = [...designHistory].reverse().map((entry,index) => `<li><button class="design-history-entry" data-history-design="${entry.id}" aria-label="Preview ${design(entry.id).name}, ${entry.action.toLowerCase()}${index === 0 && entry.id === current ? ', in slide' : ''}"><span class="history-design-image" aria-hidden="true">${design(entry.id).html}</span><span class="history-design-copy"><strong>${design(entry.id).name}</strong><small>${entry.action}</small></span>${index === 0 && entry.id === current ? `<span class="history-current">${icon('check')}In slide</span>` : icon('right')}</button></li>`).join('');
+    $('saved-design-options').innerHTML = designs.filter(item => item.id !== current).map(item => `<button class="saved-design-option" data-history-design="${item.id}" aria-label="Preview saved ${item.name} design"><span class="design-option-image" aria-hidden="true">${item.html}</span><span class="design-option-label"><strong>${item.name}</strong></span></button>`).join('');
   }
 
   function tabKeyboard(event, prefix) {
@@ -185,10 +219,11 @@
   $('design-options').addEventListener('keydown', event => tabKeyboard(event,'design'));
   $('compare-options').addEventListener('click', event => { const option = event.target.closest('[data-design]'); if (option) { preview(option.dataset.design); $(`compare-${selected}`).focus({preventScroll:true}); } });
   $('compare-options').addEventListener('keydown', event => tabKeyboard(event,'compare'));
-  $('back-current').addEventListener('click', () => preview(current,{focus:true}));
+  $('back-current').addEventListener('click', () => { if (choiceSettled) cancelExploration(); else settleDesign(current); });
   $('use-design').addEventListener('click', adopt);
   $('use-compared').addEventListener('click', adopt);
-  $('use-reference').addEventListener('click', () => { selected = compareReference; adopt(); });
+  $('use-reference').addEventListener('click', () => settleDesign(compareReference));
+  $('keep-compared-current').addEventListener('click', () => settleDesign(current));
   $('compare-reference').addEventListener('change', event => { compareReference = event.target.value; renderComparison(); announce(`Comparing ${design(compareReference).name} with ${design(selected).name}. Your slide is unchanged.`); });
   $('compare-candidate-select').addEventListener('change', event => { preview(event.target.value); $('compare-candidate-select').focus({preventScroll:true}); });
   $('compare').addEventListener('click', event => {
@@ -199,18 +234,23 @@
     $('close-compare').focus();
   });
   $('close-compare').addEventListener('click', closeComparison);
-  $('compare-dialog').addEventListener('close', () => { compareTrigger?.focus({preventScroll:true}); });
-  $('design-toggle').addEventListener('click', () => { const expanded = $('design-toggle').getAttribute('aria-expanded') === 'true'; $('design-tray').hidden = expanded; $('design-toggle').setAttribute('aria-expanded',String(!expanded)); });
+  $('compare-dialog').addEventListener('close', () => { (compareTrigger?.checkVisibility() ? compareTrigger : $('design-history')).focus({preventScroll:true}); });
+  $('design-toggle').addEventListener('click', () => { trayOpen = !trayOpen; render(); if ($('design-toggle').hidden) $('design-history').focus({preventScroll:true}); });
   $('review-designs').addEventListener('click', () => openDesignOptions());
+  $('design-history').addEventListener('click', () => { renderDesignHistory(); $('saved-designs').open = false; historyNavigated = false; $('design-history-dialog').showModal(); $('close-design-history').focus(); });
+  $('close-design-history').addEventListener('click', () => $('design-history-dialog').close());
+  $('design-history-dialog').addEventListener('close', () => { if (!historyNavigated) $('design-history').focus({preventScroll:true}); historyNavigated = false; });
+  $('design-history-dialog').addEventListener('click', event => { const entry = event.target.closest('[data-history-design]'); if (entry) { historyNavigated = true; $('design-history-dialog').close(); openDesignOptions(entry.dataset.historyDesign); } });
   $('undo-choice').addEventListener('click', () => {
     if (previousChoice === null) return;
-    current = previousChoice.id; approved = previousChoice.approved; selected = current; previousChoice = null;
+    current = previousChoice.id; approved = previousChoice.approved; choiceSettled = previousChoice.settled; trayOpen = !choiceSettled; selected = current; previousChoice = null;
+    designHistory.push({id:current,action:'Choice undone'});
     renderRail(); render();
     $('toast-message').textContent = `Back to ${design(current).name.toLowerCase()}. All designs are kept.`;
     $('undo-choice').hidden = true;
-    $('design-toggle').focus({preventScroll:true});
+    focusDesignControl();
   });
-  $('close-toast').addEventListener('click', () => { $('draft-toast').hidden = true; $('design-toggle').focus({preventScroll:true}); });
+  $('close-toast').addEventListener('click', () => { $('draft-toast').hidden = true; focusDesignControl(); });
 
   function renderSlide() {
     renderRail();
@@ -218,6 +258,7 @@
     $('decision-bar').hidden = activeSlide !== 1;
     $('design-tray').hidden = activeSlide !== 1;
     $('design-toggle').hidden = activeSlide !== 1;
+    $('design-history').hidden = activeSlide !== 1;
     doc.querySelector('.draft-chat-title h2').textContent = slides[activeSlide].name;
     doc.querySelector('.slide-number').textContent = `0${activeSlide+1}`;
     doc.querySelector('.message-count').textContent = activeSlide === 1 ? '2' : '0';
@@ -225,10 +266,10 @@
     $('composer-slide').textContent = `0${activeSlide+1}`;
     $('composer-design').textContent = '';
     $('footer-slide').textContent = `${activeSlide+1} / 6`;
-    if (activeSlide === 1) { render(); $('design-toggle').setAttribute('aria-expanded','true'); }
+    if (activeSlide === 1) { render(); }
     else { $('slide-stage').innerHTML = slides[activeSlide].html; $('slide-stage').removeAttribute('aria-labelledby'); $('slide-stage').setAttribute('role','region'); $('approve').hidden = false; }
   }
-  $('slide-overview').addEventListener('click', event => { if (event.target.closest('[data-alternatives]')) { openDesignOptions(); return; } const thumb = event.target.closest('[data-slide]'); if (!thumb) return; activeSlide = Number(thumb.dataset.slide); selected = current; renderSlide(); doc.body.classList.remove('slides-open'); $('toggle-slides').setAttribute('aria-expanded','false'); if (innerWidth > 600) doc.querySelector(`[data-slide="${activeSlide}"]`).focus({preventScroll:true}); else $('toggle-slides').focus(); });
+  $('slide-overview').addEventListener('click', event => { if (event.target.closest('[data-alternatives]')) { openDesignOptions(); return; } const thumb = event.target.closest('[data-slide]'); if (!thumb) return; $('draft-toast').hidden = true; activeSlide = Number(thumb.dataset.slide); selected = current; trayOpen = !choiceSettled; renderSlide(); doc.body.classList.remove('slides-open'); $('toggle-slides').setAttribute('aria-expanded','false'); if (innerWidth > 600) doc.querySelector(`[data-slide="${activeSlide}"]`).focus({preventScroll:true}); else $('toggle-slides').focus(); });
   $('toggle-theme').addEventListener('click', () => { const dark = doc.documentElement.dataset.theme !== 'dark'; doc.documentElement.dataset.theme = dark ? 'dark' : 'light'; $('toggle-theme').setAttribute('aria-label',`Switch to ${dark ? 'light' : 'dark'} appearance`); });
   $('toggle-slides').addEventListener('click', () => { const open = doc.body.classList.toggle('slides-open'); $('toggle-slides').setAttribute('aria-expanded',String(open)); });
   $('toggle-chat').addEventListener('click', () => { const narrow = innerWidth <= 1100; doc.body.classList.toggle(narrow ? 'chat-open' : 'chat-closed'); $('toggle-chat').setAttribute('aria-expanded',String(narrow ? doc.body.classList.contains('chat-open') : !doc.body.classList.contains('chat-closed'))); });
@@ -237,7 +278,7 @@
   $('approve').addEventListener('click', () => { approved = !approved; $('approve').setAttribute('aria-pressed',String(approved)); $('approve').innerHTML = `${icon('check')}${approved ? 'Approved' : 'Approve'}`; });
   $('present').addEventListener('click', () => { $('presentation-stage').innerHTML = activeSlide === 1 ? design(current).html : slides[activeSlide].html; $('presentation-dialog').showModal(); });
   $('close-present').addEventListener('click', () => $('presentation-dialog').close());
-  doc.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('compare-dialog').open && !$('presentation-dialog').open) { doc.body.classList.remove('slides-open','chat-open'); if (!selectedIsCurrent()) preview(current,{focus:true}); } });
+  doc.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('compare-dialog').open && !$('presentation-dialog').open && !$('design-history-dialog').open) { doc.body.classList.remove('slides-open','chat-open'); if (!selectedIsCurrent() || (choiceSettled && trayOpen)) cancelExploration(); } });
   $('chat-design-previews').innerHTML = designs.slice(1).map(item => `<span aria-hidden="true">${item.html}</span>`).join('');
   renderRail(); render();
   if (innerWidth <= 1100) $('toggle-chat').setAttribute('aria-expanded','false');
