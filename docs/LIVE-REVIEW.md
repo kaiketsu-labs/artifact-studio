@@ -44,7 +44,7 @@ Use `start_live_review()` with no deck for the design inbox, or with a deck to e
 
 The start response is compact: it points to this topic rather than resending the guide you just read. Set `include_guide=True` to include the full `guide` field, or use `get_authoring_guide(topic="live_review")`.
 
-Use **Menu → Connect an agent → End review** for the selected presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` again to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
+Use **Menu → Agent connection → End review** for the selected presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` again to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
 
 Live submits each comment immediately. Batch remains private until **Send batch**. Neither switches nor hooks silently release a queued batch. A closed or unavailable agent can read saved feedback when resumed.
 

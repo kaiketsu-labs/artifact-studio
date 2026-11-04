@@ -31,6 +31,7 @@ from .design_references import ReferenceInput, RemoveReferenceInput
 from .design_thumbnails import THUMBNAIL_SUFFIXES
 from .design_thumbnails import design_thumbnail as make_design_thumbnail
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
+from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .storage import Store
 from .visuals import capture
@@ -116,6 +117,16 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def artifacts() -> ArtifactStore:
         """Use the currently configured collection and durable review database."""
         return ArtifactStore(get_store())
+
+    @router.get("/api/navigation")
+    def quick_access() -> NavigationSnapshot:
+        """Share recent projects and verified live connections with web and native menus."""
+        return Navigation(get_store()).snapshot()
+
+    @router.post("/api/navigation/visit")
+    def visit_project(body: NavigationVisit) -> NavigationSnapshot:
+        """Remember an explicit human navigation without changing presentation or review state."""
+        return Navigation(get_store()).visit(body)
 
     @router.get("/api/hub")
     def library() -> dict[str, object]:

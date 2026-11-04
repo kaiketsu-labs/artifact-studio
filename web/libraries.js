@@ -16,7 +16,7 @@
   }
   function init({api,toast,escape,currentDeck,onNotesError=()=>{},beforeSaveWorkspace=async()=>true}){
     const $=id=>document.getElementById(id),{svg,button}=window.SlideIcons;
-    button($('libraries-button'),'folder','Reference libraries',true);
+    button($('libraries-button'),'folder','Storage and backup',true);
     button($('close-libraries'),'close','Close');button($('add-library'),'plus','Connect library');
     let busy=false,rendered='',revision=0,libraries=null,statuses=[],localState='saved',unavailable=false,polling=false;
     const recovery=root.WorkspaceRecoveryUI.create({api,getLibraries:()=>libraries||[]});

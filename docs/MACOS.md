@@ -15,6 +15,8 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 | Control | Behavior |
 | --- | --- |
 | Pixel status square | Filled: responding. Small: starting/stopping. Outline: stopped or failed; open the menu for the exact status. The icon follows the menu bar's light/dark appearance. |
+| Connected | Green-dot entries open the artifact where a Codex or Claude Code review connection is currently active. |
+| Recent Projects → | Hover to open your last five projects. A green plug identifies connected projects. The same recent list appears in the app's Menu. |
 | Open Artifact Studio | Opens the workspace in your default browser. |
 | Start / Stop / Restart | Controls the server started by this menu-bar app. Stop waits for a graceful shutdown. |
 | Update… | Checks GitHub main, installs an available update and rebuilds the controller. A running server requires confirmation before it stops and restarts. A stopped server stays stopped. |
@@ -23,7 +25,9 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 | Show Logs | Reveals the local server log in Finder. |
 | Quit Artifact Studio | Gracefully stops its server and closes the menu-bar app. Launch at Login remains configured. |
 
-The controller checks `/api/health` every two seconds, without reading decks or private notes. Backup settings/status load when you open the menu; the controller does not continuously reread artifact content. If another Artifact Studio already uses the configured port, it displays **Running · started elsewhere** and disables Stop/Restart. Stop that instance from its original Terminal or controller, then use **Start** here. It never kills an unrelated process using the same port.
+The controller checks `/api/health` every two seconds. Compact navigation metadata refreshes every ten seconds and when the menu opens; backup settings/status load on opening. It does not read artifact bodies, feedback or private notes. Connected entries require an unexpired review connection; merely configuring an MCP server does not create one. Opening a project or artifact records its project in the shared recent list. Agent tool calls do not change Recents, and the list survives restarts in the workspace database.
+
+If another Artifact Studio already uses the configured port, it displays **Running · started elsewhere** and disables Stop/Restart. Stop that instance from its original Terminal or controller, then use **Start** here. It never kills an unrelated process using the same port.
 
 Closing a browser tab does not stop the server. Stopping or restarting the server interrupts active agent connections; unsent attachments stay in the tab, while submitted feedback and saved decks remain on disk. A crashed server shows a failed state; Start retries deliberately rather than looping indefinitely.
 

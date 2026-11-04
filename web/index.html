@@ -16,6 +16,8 @@
   <link rel="stylesheet" href="/web/element-properties.css">
   <link rel="stylesheet" href="/web/workspace-panels.css">
   <link rel="stylesheet" href="/web/appearance.css">
+  <link rel="stylesheet" href="/web/quick-access.css">
+  <script src="/web/quick-access.js" defer></script>
   <link rel="stylesheet" href="/web/design-references.css">
   <link rel="stylesheet" href="/web/slide-sections.css">
   <link rel="stylesheet" href="/web/storage-status.css">
@@ -77,16 +79,16 @@
     <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Artifact Studio">
       <div role="group" aria-label="Files">
         <button id="new-button" type="button" role="menuitem" tabindex="-1" aria-label="New presentation"></button>
-        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Open project"></button>
-        <button id="menu-save-project" type="button" role="menuitem" tabindex="-1" aria-label="Save project" disabled></button>
-        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Project files"></button>
+        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Import presentation"></button>
+        <button id="menu-save-project" type="button" role="menuitem" tabindex="-1" aria-label="Save presentation" disabled></button>
+        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Presentation files"></button>
       </div>
       <div role="separator"></div>
       <div role="group" aria-label="Workspace">
-        <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Reference libraries"></button>
+        <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Storage and backup"></button>
         <button id="deck-design-references" type="button" role="menuitem" tabindex="-1" aria-label="Design references"></button>
         <button id="instructions-button" type="button" role="menuitem" tabindex="-1" aria-label="Instructions" hidden></button>
-        <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Connect an agent"></button>
+        <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Agent connection"></button>
       </div>
       <div role="separator"></div>
       <button id="appearance-button" type="button" role="menuitem" tabindex="-1" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
@@ -241,7 +243,7 @@
 </dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <dialog id="project-dialog" aria-labelledby="project-dialog-title">
-  <header><h2 id="project-dialog-title">Project files</h2><button id="close-project" type="button" aria-label="Close"></button></header>
+  <header><h2 id="project-dialog-title">Presentation files</h2><button id="close-project" type="button" aria-label="Close"></button></header>
   <p id="project-context" class="project-context" hidden></p>
   <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button></div>
   <h3 class="project-group-label">Export</h3>
@@ -263,7 +265,7 @@
   <div id="removed-list"></div><p id="removed-error" class="inline-error" role="alert"></p>
 </dialog>
 <dialog id="connect-dialog">
-  <header><h2>Connect an agent</h2><button id="close-connect" aria-label="Close"></button></header>
+  <header><h2>Agent connection</h2><button id="close-connect" aria-label="Close"></button></header>
   <details class="connection-details"><summary>Guided setup</summary>
     <p>Open the Artifact Studio checkout in your agent.</p>
     <p><strong>Claude Code</strong> <code>/setup</code> · <strong>Codex</strong> <code>$setup</code></p>
