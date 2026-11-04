@@ -268,12 +268,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:37.474045+00:00",
+      "captured_at": "2026-11-04T14:38:03.348894+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "cf90b37f0831b2244369dd6075ef12bea2fdf544fe46f1a190eb017194cf1388"
+      "sha256": "1b8e69a7d09102e1c58ff1b42386a7f90a9b09ff04f43d2f2bbb2859aeb40cbd"
     },
     "docs/screenshots/design-references.png": {
       "viewport": {

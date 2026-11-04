@@ -21,6 +21,40 @@ pytestmark = [
 ]
 
 
+@pytest.mark.parametrize("editor", [False, True])
+def test_local_save_timestamp_persists_and_updates(
+    page: Page, live_app: RunningApp, editor: bool, artifacts: Path
+) -> None:
+    """Show persisted file time separately from status reads in both storage dialogs."""
+    if editor:
+        open_editor(page, live_app)
+    else:
+        page.goto(live_app.url)
+    page.locator("#storage-status").click()
+    saved = page.locator("#library-list .local-save-time time")
+    expect(saved).to_be_visible()
+    initial = saved.get_attribute("datetime")
+    assert initial
+    expect(saved).not_to_have_text(initial)
+    page.locator("#close-libraries").click()
+    page.locator("#storage-status").click()
+    expect(saved).to_have_attribute("datetime", initial)
+    source = live_app.store.root / "INSTRUCTIONS.md"
+    _ = source.write_text("Keep fictional slides concise.\n")
+    # A controlled file timestamp distinguishes this save from all fixture assets.
+    modified = (
+        max(path.stat().st_mtime for path in live_app.store.root.rglob("*") if path.is_file()) + 1
+    )
+    os.utime(source, (modified, modified))
+    expect(saved).not_to_have_attribute("datetime", initial, timeout=20_000)
+    latest = saved.get_attribute("datetime")
+    assert latest
+    page.reload()
+    page.locator("#storage-status").click()
+    expect(saved).to_have_attribute("datetime", latest)
+    _ = page.screenshot(path=str(artifacts / "local-save-time.png"))
+
+
 def test_notes_save_on_pause_switch_and_reload(page: Page, live_app: RunningApp) -> None:
     """Persist notes in canonical files while preserving slide context and approval."""
     open_editor(page, live_app)
