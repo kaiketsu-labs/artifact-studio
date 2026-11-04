@@ -2,6 +2,19 @@
 
 MCP is stateless at the transport level. Agents can still retain context between calls: sending the same guide, slide history or encoded image on every request is unnecessary.
 
+## Workflow measurements · 4 November 2026
+
+`scripts/measure_startup_context.py --output /tmp/startup-context.json` runs a disposable real MCP server with two designs, twenty work decks and a queued request. With identical guides, selected-brand preferences, rules and queued requests, explicit discovery and the new default compare as follows:
+
+| Measure | Discovery included | New default | Reduction |
+| --- | ---: | ---: | ---: |
+| MCP startup text | 14,970 B | 12,429 B | 2,541 B / 17.0% |
+| Serialized MCP result (text and structured copies) | 29,453 B | 24,755 B | 4,698 B / 16.0% |
+
+Run with `uv run python -m scripts.measure_startup_context --output /tmp/startup-context.json`. Counts are UTF-8 bytes, not model tokens or billed savings; absolute paths affect totals. Existing briefs still load through the outline, and pending requests remain in startup. The seven new design/sync/queue tools increase the serialized tool catalogue from 114,731 to 119,478 bytes (4.1%); host tool selection and caching determine how much of that enters a prompt.
+
+Draft capture frames have 360,000 pixels instead of 1,440,000 (75% fewer), preserving the same CSS layout. A 24-slide contact overview needs one call instead of two; `slide_ids` skips unaffected slides. Full-resolution review remains available. The file client prepares missing hashes once using one outline per deck, and persists retry IDs; manual hash copying and duplicate HTML echoes are unnecessary. Neither pixel counts nor call counts establish token savings.
+
 ## Read only what the task needs
 
 | Need | Call |
@@ -41,7 +54,7 @@ Delivery cursors still govern released feedback; unchanged-rule omission never r
 
 Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Expanded context remains explicitly available and still includes its requested guides and inventory.
 
-`include_discovery=False` omits unrelated presentation, design and library lists and sets `discovery_included=false`. It preserves the selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages. Use `list_presentations`, `list_designs` or `list_libraries` when discovering new work. The default remains `True` for existing integrations.
+`include_discovery=False` is the default: unrelated presentation, design and library lists are omitted and `discovery_included=false`. The selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages remain. Use `list_presentations`, `list_design_contexts` or `list_libraries` when discovering new work, or explicitly pass `include_discovery=True` for the previous lists. This default applies to compact and full startup, including artifact/project context.
 
 This also applies to general artifact/project and reference-only context. Related artifacts within the selected project remain as short pointers. For a presentation selected with `artifact_id`, the outer artifact guide and nested presentation guide are distinct: retain `guide_hash` with `known_guide_hash`, and `presentation_context.guide_hash` with `known_presentation_guide_hash`. A missing, unknown or changed hash returns the corresponding complete guide.
 
@@ -59,7 +72,7 @@ Revision idempotency uses the original request and embedding mode. Identical ret
 
 ## Already-reviewed local drafts
 
-Use the [file-input client](FILE-CLIENT.md) when patches are already on disk. It binds execution to a file hash, passes the JSON through existing MCP tools, and optionally checks a batch with one outline read per deck. This avoids a large draft print followed by the same HTML in tool arguments. Initial authoring, visual review and necessary source inspection still cost context; the saving is in duplicate transfer. The client stops on conflicts and reports partial completion without automatic rebasing or restoration.
+Use the [file-input client](FILE-CLIENT.md) when patches are already on disk. Its preparation step fills missing current hashes and persists retry IDs without changing server content. Execute that prepared file directly; an explicit file hash is optional. The client passes JSON through existing MCP tools and can verify a batch with one outline read per deck, avoiding a large draft print followed by the same HTML in tool arguments. Initial authoring, visual review and necessary source inspection still cost context. Conflicts stop the batch with partial-completion metadata; existing tokens are never silently refreshed.
 
 ## What this does and does not measure
 

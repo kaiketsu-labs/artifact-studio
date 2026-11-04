@@ -4,7 +4,9 @@ import io
 import json
 import math
 import threading
+import time
 import uuid
+from collections import deque
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -24,10 +26,73 @@ from .storage import SlideMarkup, Store, digest
 
 PROJECT = Path(__file__).resolve().parents[1]
 WIDTH, HEIGHT = 1600, 900
-_RENDER_LOCK = threading.Lock()
 MAX_ASSET_BYTES = 25 * 1024 * 1024
 MAX_DEPENDENCY_BYTES = 64 * 1024 * 1024
 MAX_PAGE_BYTES = 96 * 1024 * 1024
+MAX_CONTACT_SLIDES = 24
+
+
+class RenderQueue:
+    """A bounded FIFO shared by slide, artifact and object-image captures."""
+
+    def __init__(self, capacity: int = 8, timeout: float = 30) -> None:
+        self.condition = threading.Condition()
+        self.waiters: deque[object] = deque()
+        self.owner: int | None = None
+        self.capacity = capacity
+        self.timeout = timeout
+
+    def status(self) -> dict[str, object]:
+        """Describe queue occupancy without revealing other capture targets."""
+        with self.condition:
+            return {
+                "running": self.owner is not None,
+                "queued": len(self.waiters),
+                "capacity": self.capacity,
+                "wait_timeout_seconds": self.timeout,
+            }
+
+    @contextmanager
+    def slot(self) -> Generator[int]:
+        """Wait in arrival order, removing timed-out requests and releasing on failure."""
+        started = time.monotonic()
+        ticket = object()
+        with self.condition:
+            if self.owner == threading.get_ident():
+                raise ValueError("A capture cannot request another renderer while it is running.")
+            if len(self.waiters) >= self.capacity:
+                raise ValueError(
+                    "The visual capture queue is full. Retry after a capture finishes."
+                )
+            self.waiters.append(ticket)
+            self.condition.notify_all()
+            try:
+                while self.owner is not None or self.waiters[0] is not ticket:
+                    remaining = self.timeout - (time.monotonic() - started)
+                    if remaining <= 0:
+                        raise ValueError(
+                            "Visual capture timed out while queued. Check get_capture_status "
+                            "and retry; this request did not start rendering."
+                        )
+                    _ = self.condition.wait(remaining)
+                self.owner = threading.get_ident()
+            finally:
+                self.waiters.remove(ticket)
+                self.condition.notify_all()
+        try:
+            yield round((time.monotonic() - started) * 1000)
+        finally:
+            with self.condition:
+                self.owner = None
+                self.condition.notify_all()
+
+
+_RENDER_QUEUE = RenderQueue()
+
+
+def capture_queue_status() -> dict[str, object]:
+    """Return shared renderer occupancy for callers deciding when to submit captures."""
+    return _RENDER_QUEUE.status()
 
 
 class ReviewEmbedder(AssetEmbedder):
@@ -65,14 +130,10 @@ class ReviewEmbedder(AssetEmbedder):
 
 
 @contextmanager
-def render_slot() -> Generator[None]:
+def render_slot() -> Generator[int]:
     """Serialize preparation, rendering and persistence so concurrent requests stay bounded."""
-    if not _RENDER_LOCK.acquire(blocking=False):
-        raise ValueError("A visual capture is running. Retry when it finishes.")
-    try:
-        yield
-    finally:
-        _RENDER_LOCK.release()
+    with _RENDER_QUEUE.slot() as waited_ms:
+        yield waited_ms
 
 
 class CaptureOptions(StrictModel):
@@ -81,6 +142,12 @@ class CaptureOptions(StrictModel):
     stage: Annotated[int | None, Field(ge=0, le=50)] = None
     elapsed_ms: Annotated[int, Field(ge=0, le=600_000)] = 0
     reduced_motion: bool = False
+    resolution: Literal["full", "draft"] = "full"
+
+    @property
+    def pixel_ratio(self) -> float:
+        """Reduce raster pixels without reflowing the presentation's CSS layout."""
+        return 0.5 if self.resolution == "draft" else 1
 
 
 class Diagnostics(StrictModel):
@@ -112,6 +179,8 @@ class Frame(StrictModel):
     reduced_motion: bool
     width: int = WIDTH
     height: int = HEIGHT
+    viewport_width: int = WIDTH
+    viewport_height: int = HEIGHT
     path: str = ""
     stale: bool = False
     diagnostics: Diagnostics | None = None
@@ -127,6 +196,9 @@ class VisualResult(StrictModel):
     path: str
     frames: list[Frame]
     total_slides: int
+    selected_slides: int
+    resolution: Literal["full", "draft"] = "full"
+    queue_wait_ms: int = 0
     next_offset: int | None = None
     scope: str = "Slide content only; not presenter controls or physical-display verification."
 
@@ -145,7 +217,7 @@ def snapshot(
     number: int,
     options: CaptureOptions,
     *,
-    viewport: tuple[int, int] = (WIDTH, HEIGHT),
+    viewport: tuple[int, int] | None = None,
     preview_html: str = "",
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
@@ -153,7 +225,7 @@ def snapshot(
         raise ValueError(
             "Custom interactive slides use stage 0 plus elapsed_ms, or null for final."
         )
-    width, height = viewport
+    width, height = viewport or (WIDTH, HEIGHT)
     content_hash = store.content_hash(deck_id, slide)
     SlideMarkup().feed(slide.html)
     folder = store.folder(deck_id)
@@ -215,8 +287,10 @@ def snapshot(
     return Snapshot(
         document=document,
         frame=Frame(
-            width=width,
-            height=height,
+            width=round(width * options.pixel_ratio),
+            height=round(height * options.pixel_ratio),
+            viewport_width=width,
+            viewport_height=height,
             slide_id=slide.id,
             title=slide.title,
             slide_number=number,
@@ -237,6 +311,7 @@ def snapshot(
                 + runtime_styles
                 + adapter
                 + options.model_dump_json()
+                + json.dumps([width, height])
             ),
             stage=options.stage,
             elapsed_ms=options.elapsed_ms,
@@ -245,10 +320,11 @@ def snapshot(
     )
 
 
-def contact_sheet(images: list[bytes], frames: list[Frame]) -> bytes:
-    """Compose labeled thumbnails while retaining full-size frames for detailed inspection."""
-    columns = min(3, math.ceil(math.sqrt(len(images))))
-    tile_width, tile_height, gap = 480, 302, 16
+def contact_sheet(images: list[bytes], frames: list[Frame], *, draft: bool = False) -> bytes:
+    """Compose labeled thumbnails while retaining individual frames at the chosen resolution."""
+    columns = min(4, math.ceil(math.sqrt(len(images))))
+    tile_width, image_height, gap = (320, 180, 12) if draft else (480, 270, 16)
+    tile_height = image_height + 32
     rows = (len(images) + columns - 1) // columns
     sheet = Image.new(
         "RGB", (columns * (tile_width + gap) + gap, rows * (tile_height + gap) + gap), "#eef1f5"
@@ -261,10 +337,15 @@ def contact_sheet(images: list[bytes], frames: list[Frame]) -> bytes:
         )
         with Image.open(io.BytesIO(data)) as source:
             thumb = source.convert("RGB")
-            thumb.thumbnail((tile_width, 270), Image.Resampling.LANCZOS)
+            thumb.thumbnail((tile_width, image_height), Image.Resampling.LANCZOS)
         sheet.paste(thumb, (left, top))
         label = f"{frame.slide_number:02d} · {frame.title}" + (" · Hidden" if frame.hidden else "")
-        draw.text((left + 6, top + 278), label[:70], fill="#172b49", font_size=15)
+        draw.text(
+            (left + 6, top + image_height + 8),
+            label[: 45 if draft else 70],
+            fill="#172b49",
+            font_size=15,
+        )
     output = io.BytesIO()
     sheet.save(output, format="PNG")
     return output.getvalue()
@@ -287,7 +368,7 @@ def _render_images[T](
                 context = browser.new_context(
                     viewport={"width": viewport[0], "height": viewport[1]},
                     color_scheme=color_scheme,
-                    device_scale_factor=1,
+                    device_scale_factor=options.pixel_ratio,
                     reduced_motion="reduce" if options.reduced_motion else "no-preference",
                     offline=True,
                     service_workers="block",
@@ -319,7 +400,12 @@ def _render_images[T](
 def capture_snapshot(prepared: Snapshot, options: CaptureOptions) -> bytes:
     """Capture one prepared saved slide without changing the current presentation."""
     with render_slot():
-        return _render_images([prepared], options, _screenshot)[0]
+        return _render_images(
+            [prepared],
+            options,
+            _screenshot,
+            viewport=(prepared.frame.viewport_width, prepared.frame.viewport_height),
+        )[0]
 
 
 def _screenshot(page: Page) -> bytes:
@@ -345,20 +431,31 @@ def capture(
     output: Path,
     *,
     slide_id: str | None = None,
+    slide_ids: list[str] | None = None,
     options: CaptureOptions | None = None,
     offset: int = 0,
-    limit: int = 12,
+    limit: int = MAX_CONTACT_SLIDES,
 ) -> VisualResult:
     """Render a slide or contact-sheet page without opening a server URL or user profile."""
-    with render_slot():
-        if offset < 0 or not 1 <= limit <= 12:
-            raise ValueError("Use offset >= 0 and limit between 1 and 12.")
-        options = options or CaptureOptions()
+    if offset < 0 or not 1 <= limit <= MAX_CONTACT_SLIDES:
+        raise ValueError(f"Use offset >= 0 and limit between 1 and {MAX_CONTACT_SLIDES}.")
+    if slide_id is not None and slide_ids is not None:
+        raise ValueError("Choose slide_id or slide_ids, not both.")
+    if slide_ids is not None and (
+        not 1 <= len(slide_ids) <= 500 or len(slide_ids) != len(set(slide_ids))
+    ):
+        raise ValueError("Provide 1–500 distinct slide_ids for a contact sheet.")
+    with render_slot() as waited_ms:
+        options = options or CaptureOptions(resolution="draft" if slide_id is None else "full")
         deck = store.read(deck_id)
+        requested = set(slide_ids) if slide_ids is not None else None
+        if requested is not None and requested - {slide.id for slide in deck.slides}:
+            raise ValueError("One or more slide_ids were not found in this presentation.")
         selected = [
             (number, slide)
             for number, slide in enumerate(deck.slides, 1)
-            if slide_id is None or slide.id == slide_id
+            if (slide_id is None or slide.id == slide_id)
+            and (requested is None or slide.id in requested)
         ]
         if slide_id is not None and not selected:
             raise ValueError("Slide not found.")
@@ -402,7 +499,9 @@ def capture(
         frames = [item.frame for item in prepared]
         result_path = Path(frames[0].path) if slide_id else folder / "contact-sheet.png"
         if slide_id is None:
-            _ = result_path.write_bytes(contact_sheet(images, frames))
+            _ = result_path.write_bytes(
+                contact_sheet(images, frames, draft=options.resolution == "draft")
+            )
         result = VisualResult(
             capture_id=capture_id,
             deck_id=deck_id,
@@ -411,8 +510,11 @@ def capture(
             path=str(result_path),
             frames=frames,
             total_slides=len(deck.slides),
+            selected_slides=len(selected),
+            resolution=options.resolution,
+            queue_wait_ms=waited_ms,
             next_offset=offset + len(page)
-            if slide_id is None and offset + len(page) < len(deck.slides)
+            if slide_id is None and offset + len(page) < len(selected)
             else None,
         )
         _ = (folder / "manifest.json").write_text(result.model_dump_json(indent=2))
