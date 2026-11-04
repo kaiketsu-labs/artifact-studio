@@ -41,7 +41,7 @@ need their own application checks. CI does not bypass native trust or start paid
 model requests. The tested client versions are recorded in the artifacts; update
 the matrix versions deliberately when supporting a new client release.
 
-Presentation window journeys run in Chromium and Firefox. They check explicit audience-window opening, denied or unavailable screen access, blocked pop-ups, synchronized navigation, private notes, audience fullscreen and returning to editing. Granted-screen cases use simulated display metadata; physical monitor placement still requires a hardware check.
+Presentation window journeys run in Chromium and an independent Firefox job. Editor journeys are split between workspace/review and object/presenter suites so compatibility checks run in parallel. They check explicit audience-window opening, denied or unavailable screen access, blocked pop-ups, synchronized navigation, private notes, audience fullscreen and returning to editing. Granted-screen cases use simulated display metadata; physical monitor placement still requires a hardware check.
 
 ## Run locally
 
@@ -84,9 +84,9 @@ an enabled native check; they are not silently skipped.
 Set `ARTIFACT_STUDIO_ARTIFACTS=test-results/integration` to retain per-test server logs,
 browser screenshots, Playwright traces and native client versions. CI uploads
 these and JUnit reports even after a failure, with seven-day retention. Browser
-artifacts are named `browser-results-editor-review` and
-`browser-results-artifacts-runtime`; their JUnit files are
-`browser-editor-review.xml` and `browser-artifacts-runtime.xml`. View a
+artifacts are named `browser-results-<suite>` for `editor-review`, `editor-objects`,
+`presenter-firefox` and `artifacts-runtime`; their JUnit files are
+`browser-<suite>.xml`. View a
 trace with `uv run playwright show-trace path/to/trace.zip`.
 
 ## Before committing
