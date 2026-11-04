@@ -73,8 +73,9 @@
     onPreview:proposal=>{
       if(!deck||!selectedId)return;
       const previous=feedbackDraft();
+      // Scope sync can precede canvas selection restoration; empty drafts inherit no targets.
       if(!previous?.feedback?.trim()&&!previous?.target&&!chatComposer.hasFiles()&&(previous?.design_option_id!==proposal?.design_option_id||previous?.content_hash!==(proposal?.content_hash||slide().content_hash))){
-        feedbackDrafts.set(key(),{...previous,feedback:previous?.feedback||'',target:currentTarget,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,request_id:crypto.randomUUID()});
+        feedbackDrafts.set(key(),{...previous,feedback:previous?.feedback||'',target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,request_id:crypto.randomUUID()});
       }
       renderTarget();
     },notify:toast

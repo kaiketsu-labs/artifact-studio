@@ -539,7 +539,10 @@ class ScopedTools:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"design-{design_id}.png"
         _ = path.write_bytes(data)
-        metadata = {"design_id": design_id, "frame": frozen.frame.model_dump(mode="json")}
+        metadata = {
+            "design_id": design_id,
+            "frame": frozen.frame.model_dump(mode="json", exclude={"path"}),
+        }
         return CallToolResult(
             content=[
                 TextContent(type="text", text=json.dumps(metadata)),
