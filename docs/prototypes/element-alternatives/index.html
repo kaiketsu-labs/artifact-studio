@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Element alternatives · UX draft</title>
+  <link rel="icon" href="/web/brand/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/web/style.css">
+  <link rel="stylesheet" href="../slide-alternatives/prototype.css">
+  <link rel="stylesheet" href="prototype.css">
+  <script src="/web/icons.js" defer></script><script src="prototype.js" defer></script>
+</head>
+<body>
+  <header class="draft-topbar">
+    <button class="icon-button" id="toggle-slides" aria-label="Toggle slide overview" aria-expanded="true" data-icon="panelLeft"></button>
+    <a class="draft-identity" href="./" aria-label="Artifact Studio"><img src="/web/brand/mark.svg" width="26" height="26" alt=""><span>Artifact Studio</span></a>
+    <span class="draft-label">UX draft</span>
+    <div class="draft-top-actions"><button class="icon-button" id="toggle-theme" aria-label="Switch to dark appearance" data-icon="sun"></button><button class="draft-primary" id="present"><span data-icon="present"></span>Present</button><button class="icon-button" id="toggle-chat" aria-label="Toggle chat" aria-expanded="true" data-icon="chat"></button></div>
+  </header>
+  <main class="draft-workspace">
+    <aside class="draft-rail" aria-label="Slide overview">
+      <a class="draft-back" href="./"><span data-icon="left"></span>All artifacts</a>
+      <div class="draft-deck-name">A clearer way to work<span data-icon="down"></span></div>
+      <div class="draft-progress"><span data-icon="check"></span>2 / 6<span class="draft-progress-line"></span></div>
+      <nav id="slide-overview" aria-label="Slides"></nav>
+    </aside>
+    <section class="draft-canvas" aria-labelledby="slide-title">
+      <header class="draft-canvas-header"><h1 id="slide-title">Good slides happen in the loop</h1><div class="draft-canvas-actions"><button id="history" class="icon-button" aria-label="Slide history" data-icon="history"></button><button id="options" class="options-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="scope-menu"><span data-icon="designs"></span>Options<span class="pending-dot" aria-hidden="true"></span></button><span class="draft-divider"></span><button class="draft-approve" id="approve"><span data-icon="check"></span>Approve</button></div></header>
+      <div id="slide-stage" class="slide-stage" aria-label="Slide canvas"></div>
+      <section id="component-tray" class="component-tray" aria-label="Element alternatives">
+        <div class="element-decision"><div class="preview-description"><span id="preview-state" class="preview-state">Preview</span><strong id="preview-name"></strong></div><div><button id="keep" class="text-button">Keep current</button><button id="use" class="draft-primary">Use headline<span data-icon="right"></span></button></div></div>
+        <p class="context-change" id="context-change" role="status" hidden></p>
+        <header class="component-tray-header"><button class="scope-switch" id="scope-switch" aria-haspopup="menu" aria-expanded="false" aria-controls="scope-menu"><span id="scope-label">Headline</span><span class="scope-count" id="scope-count">2 options</span><span data-icon="down"></span></button><button id="compare" class="text-button"><span data-icon="compare"></span>Compare</button></header>
+        <div id="element-options" class="element-options" role="tablist" aria-label="Headline options"></div>
+      </section>
+      <details class="draft-notes" open><summary>Notes<span>Saved</span></summary><label class="sr-only" for="speaker-notes">Speaker notes</label><textarea id="speaker-notes">Ask a teammate for one concrete change. Keep the three-step story clear.</textarea></details>
+  <section id="inline-options" class="inline-options" popover="manual" aria-label="Element options"></section>
+  <div id="scope-menu" class="scope-menu" popover="auto" role="menu" aria-label="Options on this slide"></div>
+    </section>
+    <aside class="draft-chat" aria-label="Slide chat">
+      <header class="draft-chat-title"><span class="slide-number">02</span><h2>Good slides happen in the loop</h2><span class="message-count">2</span></header>
+      <div class="draft-mode"><button aria-pressed="true"><span data-icon="live"></span>Live</button><button aria-pressed="false"><span data-icon="layers"></span>Batch</button></div>
+      <div class="draft-messages" id="messages"></div>
+      <form class="draft-composer" id="draft-composer"><div class="composer-target"><span data-icon="slides"></span>02<span id="feedback-scope"></span></div><label class="sr-only" for="draft-message">Message your agent</label><textarea id="draft-message" placeholder="Message your agent…"></textarea><div class="composer-actions"><span data-icon="attach"></span><button class="icon-button" type="submit" aria-label="Send message" data-icon="up"></button></div></form>
+    </aside>
+  </main>
+  <footer class="draft-footer"><span class="footer-position"><span data-icon="left"></span>2 / 6<span data-icon="right"></span></span><div><span data-icon="panelLeft"></span><span data-icon="grid"></span><span class="draft-divider"></span><span data-icon="minus"></span><span class="zoom-track"></span><span data-icon="plus"></span>100%<span data-icon="fullscreen"></span></div></footer>
+  <dialog id="comparison" class="element-comparison" aria-labelledby="comparison-title">
+    <header role="presentation"><h2 id="comparison-title">Compare headline</h2><div><div class="view-switch" role="group" aria-label="Comparison view"><button data-view="element" aria-pressed="true">Element</button><button data-view="slide" aria-pressed="false">Full slide</button></div><button class="icon-button" id="close-comparison" aria-label="Close comparison" data-icon="close"></button></div></header>
+    <div class="comparison-grid"><section><header><label class="sr-only" for="left-option">Left option</label><select id="left-option"></select><span id="left-chosen"></span></header><div class="component-comparison-frame" id="left-preview"></div></section><section><header><label class="sr-only" for="right-option">Right option</label><select id="right-option"></select><span id="right-chosen"></span></header><div class="component-comparison-frame" id="right-preview"></div></section></div>
+    <footer role="presentation"><button id="compare-keep" class="text-button">Keep current</button><div><button id="use-left"></button><button id="use-right" class="draft-primary"></button></div></footer>
+  </dialog>
+  <dialog id="history-dialog" class="element-history" aria-labelledby="history-title"><header role="presentation"><h2 id="history-title">Slide history</h2><button id="close-history" class="icon-button" aria-label="Close slide history" data-icon="close"></button></header><div id="history-content"></div></dialog>
+  <dialog class="presentation-dialog" id="presentation-dialog" aria-label="Chosen slide presentation"><button class="icon-button" id="close-present" aria-label="Close presentation" data-icon="close"></button><div class="slide-stage" id="presentation-stage"></div></dialog>
+  <div class="draft-toast" id="toast" role="status" hidden><span data-icon="check"></span><span id="toast-message"></span><button id="undo" class="text-button">Undo</button><button id="dismiss-toast" class="icon-button" aria-label="Dismiss notification" data-icon="close"></button></div>
+  <div class="sr-only" id="status" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -9,3 +9,5 @@ Visually inspect the rendered result with the available capture tools, including
 Write chat only as the agent through reply_to_feedback or reply_to_artifact_feedback; omit event_id/reply_to for an opening message. Never use human-feedback endpoints or impersonate the user.
 
 MCP does not automatically wake this Copilot conversation. When asked to review feedback, read newly released comments, address them, and reply inside Artifact Studio. Do not promise continuous Live processing or attempt to configure local Codex/Claude hooks. Reuse retained rule hashes only while retaining their exact text.
+
+Offer whole-slide designs with publish_slide_designs or static element alternatives with publish_element_alternatives when useful directions fit a clear brief. Only humans choose or Keep current. Load the slide_designs guide for stable element ids, source/preview hashes and proposal feedback. If essential context is missing, ask a concise question in chat first; discovered tools remain authoritative.

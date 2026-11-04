@@ -1,0 +1,126 @@
+{
+  "kind": "Fictional UX prototype; no production API or agent execution",
+  "captured_at": "2026-11-04T15:13:06.671731+00:00",
+  "screenshots": {
+    "01-headline": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "0fd3cf5d384ce27d41873d4da50d997b48549b535627640d968f9f4f16bc4ce3",
+      "captured_at": "2026-11-04T15:12:57.781693+00:00"
+    },
+    "02-navigation": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "83109a6819ef8e25fe4b15acf6de9d15c587cfaf10453933e4c6e2e30c2c06e6",
+      "captured_at": "2026-11-04T15:12:59.201416+00:00"
+    },
+    "03-compare-element": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "9b110fc07ab444784f8d0d6ed1fd018296d44b4f7397cdc86fdd66d6f501a56d",
+      "captured_at": "2026-11-04T15:12:59.675760+00:00"
+    },
+    "04-compare-context": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "bb11edfb027bc15bf11c6b709468f20e270a775593d6e0f3f018ecfbc0cac3c9",
+      "captured_at": "2026-11-04T15:13:00.047951+00:00"
+    },
+    "05-chosen": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "782b2937f7c68dde5ccb7eab6a873f3db4261491df11f069bd2e733897e1dfb6",
+      "captured_at": "2026-11-04T15:13:00.376490+00:00"
+    },
+    "06-history": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "4cf202df800876e5d5e0f4fdfec449ff894478e10a82e669addec5ae330ab42c",
+      "captured_at": "2026-11-04T15:13:00.947801+00:00"
+    },
+    "07-graphic": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "d6c7f352a542bfc9cd2866befe04c0c60993a768d51e54006912a0886f5bdc54",
+      "captured_at": "2026-11-04T15:13:01.398946+00:00"
+    },
+    "08-text": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "7f1331b59fe79b11a6639a6ea1cfed729cadc209df0be5eeef90fb7b3be9eb62",
+      "captured_at": "2026-11-04T15:13:01.878543+00:00"
+    },
+    "09-dark": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "a15d270cc03023986c4e42d278d14b0b6a3264f3e040bf19cc970ac2355c72f1",
+      "captured_at": "2026-11-04T15:13:02.316617+00:00"
+    },
+    "10-mobile": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "3352422c49cd0e8d56d7119374479a70607c8a0f14c43e642a6fde20b9b0ce3f",
+      "captured_at": "2026-11-04T15:13:02.865817+00:00"
+    },
+    "11-mobile-compare": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "489690b9df93c99fd68a47f94d5efdbb86ff58c7b21290e6b917f67003ba2acb",
+      "captured_at": "2026-11-04T15:13:03.173150+00:00"
+    },
+    "15-mobile-text": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "98fe8cfb000b69247368a1773fed7e09bc7de98f8a0f9626be2875276b544c60",
+      "captured_at": "2026-11-04T15:13:03.988997+00:00"
+    },
+    "12-question-first": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "71c505aeaa35a518839b2adbf008a9dbfa29d0b3059d3d954e1416058d6c1b19",
+      "captured_at": "2026-11-04T15:13:04.516311+00:00"
+    },
+    "13-earlier-context": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "4eb82f1e97fd8e9fb18f2a33ee1c73442bbdb95d048907ea4dab87b6343c7722",
+      "captured_at": "2026-11-04T15:13:05.686957+00:00"
+    },
+    "14-graphic-history": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "sha256": "9614b2cd6bf4117929dae02b4dda5c91927cebd84da39caa5121c1e8fef00e73",
+      "captured_at": "2026-11-04T15:13:06.513641+00:00"
+    }
+  }
+}

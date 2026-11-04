@@ -2,8 +2,10 @@
 ((root)=>{
   'use strict';
   const MAX_SEGMENTS=100,MAX_MESSAGE=10000;
-  const fields=['request_id','message','slide_id','context_slide_id','content_hash','target','design_option_id','design_option_name'];
-  const captureFields=['key','request_id','slide_id','context_slide_id','content_hash','target','design_option_id','design_option_name'];
+  const proposalKeys=['design_option_id','design_option_name','element_option_id','element_option_name','element_context_hash'];
+  const proposalFields=value=>Object.fromEntries(proposalKeys.filter(name=>value[name]!==undefined).map(name=>[name,value[name]]));
+  const fields=['request_id','message','slide_id','context_slide_id','content_hash','target',...proposalKeys];
+  const captureFields=['key','request_id','slide_id','context_slide_id','content_hash','target',...proposalKeys];
   const targetFields=['selector','label','quote','html','x','y','width','height'];
   const text=(value,max)=>typeof value==='string'&&value.length<=max;
   const identifier=value=>typeof value==='string'&&/^[a-z0-9][a-z0-9-]{0,79}$/.test(value);
@@ -13,7 +15,12 @@
   /** Validate bounded snapshots independently of live preview elements. */
   function validElement(value){return exact(value,targetFields)&&text(value.selector,2000)&&text(value.label,200)&&(value.quote===undefined||text(value.quote,2000))&&(value.html===undefined||text(value.html,15000))&&['x','y','width','height'].every(name=>coordinate(value[name]));}
   function validVoiceTarget(value){return value===null||validElement(value)||exact(value,['kind','label','elements'])&&value.kind==='group'&&text(value.label,200)&&Array.isArray(value.elements)&&value.elements.length>0&&value.elements.length<=100&&value.elements.every(validElement);}
-  function validContext(value){return requestId(value.request_id)&&identifier(value.slide_id)&&(value.context_slide_id===null||identifier(value.context_slide_id))&&text(value.content_hash,128)&&validVoiceTarget(value.target)&&(value.design_option_id===undefined||typeof value.design_option_id==='string'&&/^[a-f0-9]{32}$/.test(value.design_option_id)&&text(value.design_option_name,60)&&value.target===null);}
+  function validContext(value){
+    if(!requestId(value.request_id)||!identifier(value.slide_id)||!(value.context_slide_id===null||identifier(value.context_slide_id))||!text(value.content_hash,128)||!validVoiceTarget(value.target))return false;
+    if(value.design_option_id!==undefined&&(value.element_option_id!==undefined||!(/^[a-f0-9]{32}$/.test(value.design_option_id))||!text(value.design_option_name,60)||value.target!==null))return false;
+    if(value.element_option_id!==undefined&&(!(/^[a-f0-9]{32}$/.test(value.element_option_id))||!text(value.element_option_name,60)||!(/^[a-f0-9]{64}$/.test(value.element_context_hash||''))||value.target!==null))return false;
+    return value.element_option_id!==undefined||value.element_context_hash===undefined;
+  }
   function validSegment(value){return exact(value,fields)&&validContext(value)&&text(value.message,MAX_MESSAGE);}
   function validSegments(values){return Array.isArray(values)&&values.length<=MAX_SEGMENTS&&values.every(validSegment)&&new Set(values.map(value=>value.request_id)).size===values.length;}
   function freeze(value){if(value&&typeof value==='object'){for(const item of Object.values(value))freeze(item);Object.freeze(value);}return value;}
@@ -28,7 +35,7 @@
     function capture(){
       const draftKey=key(),current=context();
       if(typeof draftKey!=='string'||!draftKey||draftKey.length>210||!current)return null;
-      const result={key:draftKey,request_id:uuid(),slide_id:current.slide_id,context_slide_id:current.context_slide_id??current.slide_id,content_hash:current.content_hash,target:copy(current.target||null),...(current.design_option_id?{design_option_id:current.design_option_id,design_option_name:current.design_option_name}:{})};
+      const result={key:draftKey,request_id:uuid(),slide_id:current.slide_id,context_slide_id:current.context_slide_id??current.slide_id,content_hash:current.content_hash,target:copy(current.target||null),...proposalFields(current)};
       return validContext(result)&&draftKey.endsWith('/'+result.slide_id)?freeze(result):null;
     }
     function available(snapshot){return exact(snapshot,captureFields)&&typeof snapshot.key==='string'&&snapshot.key.length>0&&snapshot.key.length<=210&&validContext(snapshot)&&snapshot.key.endsWith('/'+snapshot.slide_id)&&!retired.has(identity(snapshot.key,snapshot.request_id));}
@@ -38,12 +45,12 @@
       const draftKey=snapshot.key,existing=drafts.get(draftKey),current=raw(draftKey);
       if(!validSegments(current))return false;
       const index=current.findIndex(item=>item.request_id===snapshot.request_id),previous=index<0?'':current[index].message;
-      if(index>=0&&['slide_id','context_slide_id','content_hash','target','design_option_id','design_option_name'].some(name=>JSON.stringify(current[index][name])!==JSON.stringify(snapshot[name])))return false;
+      if(index>=0&&['slide_id','context_slide_id','content_hash','target',...proposalKeys].some(name=>JSON.stringify(current[index][name])!==JSON.stringify(snapshot[name])))return false;
       if(index<0&&current.length>=MAX_SEGMENTS)return false;
       const message=join(previous,addition);if(message.length>MAX_MESSAGE)return false;
-      const segment=freeze({request_id:snapshot.request_id,message,slide_id:snapshot.slide_id,context_slide_id:snapshot.context_slide_id,content_hash:snapshot.content_hash,target:copy(snapshot.target),...(snapshot.design_option_id?{design_option_id:snapshot.design_option_id,design_option_name:snapshot.design_option_name}:{})});
+      const segment=freeze({request_id:snapshot.request_id,message,slide_id:snapshot.slide_id,context_slide_id:snapshot.context_slide_id,content_hash:snapshot.content_hash,target:copy(snapshot.target),...proposalFields(snapshot)});
       const next=[...current];if(index<0)next.push(segment);else next[index]=segment;
-      drafts.set(draftKey,{...(existing||{feedback:'',slide_id:snapshot.slide_id,context_slide_id:snapshot.context_slide_id,content_hash:snapshot.content_hash,target:copy(snapshot.target),request_id:uuid(),...(snapshot.design_option_id?{design_option_id:snapshot.design_option_id,design_option_name:snapshot.design_option_name}:{})}),voice_segments:next});
+      drafts.set(draftKey,{...(existing||{feedback:'',slide_id:snapshot.slide_id,context_slide_id:snapshot.context_slide_id,content_hash:snapshot.content_hash,target:copy(snapshot.target),request_id:uuid(),...proposalFields(snapshot)}),voice_segments:next});
       changed(draftKey);return true;
     }
     function edit(id,message,draftKey=key()){

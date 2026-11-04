@@ -19,7 +19,7 @@ from pathlib import Path, PurePosixPath
 from typing import Literal, cast
 from urllib.parse import unquote, urlsplit
 
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import Field, TypeAdapter, field_validator, model_validator
 
 from .css_assets import embed_css
 from .libraries import LibraryFile, inventory
@@ -42,7 +42,29 @@ class NoteDraft(StrictModel):
     pending_notes: str | None = Field(default=None, max_length=20_000)
 
 
-class VoiceFeedbackDraft(StrictModel):
+class _PortableFeedbackDraft(StrictModel):
+    """Portable files exclude the private proposal archive needed by an unsent comment."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def require_retained_proposal_context(cls, value: object) -> object:
+        if isinstance(value, dict):
+            document = cast(dict[str, object], value)
+            if any(
+                document.get(key)
+                for key in (
+                    "element_set_id",
+                    "element_option_id",
+                    "element_option_name",
+                    "element_context_hash",
+                )
+            ):
+                raise ValueError("Finish or clear proposal feedback before saving this project.")
+            return document
+        return value
+
+
+class VoiceFeedbackDraft(_PortableFeedbackDraft):
     """One unsent dictated comment pinned to its original reviewed selection."""
 
     request_id: str = Field(min_length=8, max_length=100)
@@ -53,7 +75,7 @@ class VoiceFeedbackDraft(StrictModel):
     target: SlideTarget | None = None
 
 
-class FeedbackDraft(StrictModel):
+class FeedbackDraft(_PortableFeedbackDraft):
     """An unsent comment with its original slide and element context."""
 
     feedback: str = Field(max_length=10_000)
@@ -467,8 +489,9 @@ def _restore_review(
         )
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,reply_to,"
-            "target,released,batch_id,context_slide_id,files,edit_intent,question) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "target,released,batch_id,context_slide_id,files,edit_intent,question,"
+            "element_set_id,element_option_id,element_context_hash,element_option_name) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck.id,
                 item.slide_id or "",
@@ -484,6 +507,10 @@ def _restore_review(
                 TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
                 item.edit_intent.model_dump_json() if item.edit_intent else None,
                 item.question.model_dump_json() if item.question else None,
+                item.element_set_id,
+                item.element_option_id,
+                item.element_context_hash,
+                item.element_option_name,
             ),
         )
         event_ids[item.event_id] = cast(int, cursor.lastrowid)
