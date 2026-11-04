@@ -38,9 +38,40 @@ Agents choose their tools, code and layouts. Import a file or folder, or have th
 
 ## How it works
 
-![Artifact Studio workflow: brief and sources → your agent creates or revises → preview and review → approve a version → present, export or share. Targeted feedback loops back to your agent, with Live or Batch release.](docs/assets/workflow-overview.png)
+```mermaid
+flowchart LR
+    subgraph clients["Clients"]
+        agent["AI agent<br/>Codex / Claude Code"]
+        browser["Browser UI<br/>Brief · preview · review"]
+    end
 
-Feedback stays linked to its artifact, selected objects and version. **Live** releases submitted comments immediately; **Batch** keeps them private until you choose **Send batch**. Approval records the exact version you reviewed.
+    subgraph server["Local FastAPI service"]
+        mcp["MCP /mcp<br/>Stateless tools"]
+        api["HTTP /api/...<br/>UI + preview assets"]
+        core["Artifact services<br/>Scoped context<br/>Version guards<br/>Feedback"]
+        mcp <--> core
+        api <--> core
+    end
+
+    subgraph data["Local persistence"]
+        files[("Files<br/>Sources · assets · revisions")]
+        db[("SQLite<br/>Metadata · feedback · approvals")]
+    end
+
+    agent <-->|"Context + operations"| mcp
+    browser <-->|"Edit + review"| api
+    core <--> files
+    core <--> db
+
+    classDef client fill:#f8fafc,stroke:#64748b,color:#0f172a
+    classDef service fill:#eff6ff,stroke:#2563eb,color:#0f172a
+    classDef storage fill:#f8fafc,stroke:#475569,color:#0f172a
+    class agent,browser client
+    class mcp,api,core service
+    class files,db storage
+```
+
+Feedback retains the selected artifact, targets and content hash. **Live** releases submitted comments immediately; **Batch** releases them when you choose **Send batch**. Agents read released feedback through MCP; automatic continuation requires configured presentation host hooks. Approval records the exact version reviewed.
 
 ## Quick start
 
