@@ -31,7 +31,8 @@ def live_app(tmp_path: Path, artifacts: Path) -> Iterator[RunningApp]:
 def browser() -> Iterator[Browser]:
     """Close Playwright's event loop per test so renderer tests can start their own."""
     with sync_playwright() as renderer:
-        browser = renderer.chromium.launch()
+        engine = os.environ.get("ARTIFACT_STUDIO_TEST_BROWSER", "chromium")
+        browser = {"chromium": renderer.chromium, "firefox": renderer.firefox}[engine].launch()
         try:
             yield browser
         finally:
@@ -59,7 +60,7 @@ def page(browser: Browser, artifacts: Path, live_app: RunningApp) -> Iterator[Pa
         "requestfailed",
         lambda request: (
             errors.append(f"Request failed: {request.failure}: {request.url}")
-            if request.failure != "net::ERR_ABORTED"
+            if request.failure not in {"net::ERR_ABORTED", "NS_BINDING_ABORTED"}
             else None
         ),
     )

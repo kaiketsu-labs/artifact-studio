@@ -72,6 +72,25 @@ test('Escape still exits while the viewer is loading or uses an older bundled ru
   await check.doc.exitFullscreen();await settle();
   assert.equal(check.launcher.isOpen(),false);assert.equal(check.returned(),'cover');
 });
+test('opening another display can leave fullscreen before its asynchronous host message',async()=>{
+  const check=fixture();check.click();await settle();check.message({action:'ready'});
+  check.frame().handlers['artifact-studio:display-change']({detail:true});
+  check.handlers.fullscreenchange();
+  check.doc.fullscreenElement=null;
+  check.frame().handlers['artifact-studio:display-change']({detail:true});
+  await check.doc.exitFullscreen();await settle();
+  assert.equal(check.launcher.isOpen(),true);
+  assert.equal(check.messages.some(message=>message.action==='end'),false);
+  check.message({action:'end'});await settle();
+  assert.equal(check.launcher.isOpen(),false);
+});
+test('a blocked automatic popup does not suppress Escape from fullscreen',async()=>{
+  const check=fixture();check.click();await settle();check.message({action:'ready'});
+  check.frame().handlers['artifact-studio:display-change']({detail:true});
+  check.frame().handlers['artifact-studio:display-change']({detail:false});
+  await check.doc.exitFullscreen();await settle();
+  assert.equal(check.messages.some(message=>message.action==='end'),true);
+});
 test('unavailable fullscreen keeps the show usable and reports the limitation',async()=>{
   for(const options of [{unsupported:true},{reject:true}]){
     const check=fixture(options);check.click();await settle();

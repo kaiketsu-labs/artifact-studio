@@ -215,7 +215,11 @@ For automatic feedback in **Codex or Claude Code**, open **Menu → Agent connec
 
 Present requests browser fullscreen directly from your click, without opening an intermediate page. Esc or End returns to the editor at the current slide, keeping unsent drafts. If the browser blocks or does not support fullscreen, the slideshow still fills its available viewport.
 
-On one screen, Present shows the audience slide. Where browser support, permissions and hardware allow, a second display can show audience slides while your private presenter view shows current/next slides, editable notes, elapsed time, clock, navigation and display controls. Screen placement requires a real two-display check.
+On one screen, Present shows the audience slide. Choose **Presenter view** in the slideshow toolbar to open a separate, synchronized audience window. Your original window keeps current/next slides, editable notes, elapsed time, clock and navigation private. Move the audience window to another monitor and click its **Fullscreen** button. **End** closes it and returns to the editor.
+
+Firefox uses this manual window placement. Chrome and Edge can offer a display picker after you allow screen access; with access already granted, Studio tries to open the audience window automatically. If permission or pop-ups are blocked, the slideshow remains usable: allow pop-ups and choose **Open audience window** to retry, or continue on one screen. Browser and operating-system restrictions may still require moving or maximizing the audience window yourself. Check both physical displays before presenting; automated browser tests do not establish screen placement.
+
+The running app supplies current presentation controls to existing decks. It leaves their source files, notes and offline viewer copies untouched; a new HTML export embeds the installed runtime.
 
 ## Work on several artifacts or decks
 

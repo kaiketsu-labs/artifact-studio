@@ -15,6 +15,7 @@
         current.deliberate=true;current.native=false;
         try{await (doc.exitFullscreen||doc.webkitExitFullscreen).call(doc);}catch{current.deliberate=false;current.native=!!currentFullscreen();}
       }else if(!active){
+        current.deliberate=false;
         const request=current.layer.requestFullscreen||current.layer.webkitRequestFullscreen;
         if(!request){onUnavailable();notify();return;}
         try{await request.call(current.layer);}catch{if(session===current)onUnavailable();}
@@ -33,7 +34,7 @@
     function changed(){
       if(!session)return;
       if(currentFullscreen()===session.layer)session.native=true;
-      else if(session.deliberate)session.deliberate=false;
+      else if(session.deliberate){session.deliberate=false;session.native=false;}
       else if(session.native){session.native=false;end();}
       notify();
     }
@@ -52,6 +53,7 @@
       void fullscreen();
       url.searchParams.set('workspace','1');
       const current=session,load=()=>{if(session===current)frame.src=url.href;};
+      frame.addEventListener('artifact-studio:display-change',event=>{if(session===current)current.deliberate=event.detail!==false&&(current.native||currentFullscreen()===current.layer);});
       if(prepare)Promise.resolve().then(()=>prepare()).then(load,error=>{if(session===current)void close().then(()=>onError(error.message));});
       else load();
       frame.addEventListener('load',()=>{if(session?.frame!==frame)return;try{if(frame.contentWindow.location.pathname==='/'&&new URL(frame.contentWindow.location.href).searchParams.has('deck')){void close();return;}}catch{}frame.focus();notify();});
