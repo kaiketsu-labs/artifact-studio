@@ -99,6 +99,8 @@ def test_restore_retry_reuses_operation_after_lost_response(
         expect(page.get_by_role("button", name="Retry", exact=True)).to_be_visible()
         page.get_by_role("button", name="Retry", exact=True).click()
         expect(page.locator('.slide-thumb[data-id="next"]')).to_have_count(1)
+        expect(page.locator("#slides")).to_have_attribute("aria-busy", "false")
+        expect(page.locator('.slide-thumb[data-id="next"]')).to_be_focused()
         page.keyboard.press("Control+z")
         expect(page.locator(".slide-thumb").first).to_have_attribute("data-id", "cover")
         assert [slide.id for slide in live_app.store.read(DECK_ID).slides] == ["cover", "next"]

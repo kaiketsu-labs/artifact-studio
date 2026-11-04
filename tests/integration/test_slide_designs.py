@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from mcp.types import CallToolResult, ImageContent
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Page, Route, expect
 
 from artifact_studio.models import SlidePatch
 from artifact_studio.slide_designs import DesignCapture, DesignSet
@@ -172,6 +172,13 @@ def test_external_slide_edit_requires_reviewing_latest_before_replacement(
         "external-newer-edit",
         SlidePatch(html=markup("Newer human edit")),
     )
+    pending: list[Route] = []
+    decisions: list[str] = []
+    page.route("**/designs/current-preview?**static=true", lambda route: pending.append(route))
+    page.on(
+        "request",
+        lambda request: decisions.append(request.url) if request.url.endswith("/decide") else None,
+    )
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
     page.get_by_role("tab", name="Editorial", exact=True).click()
     expect(page.locator("[data-sd-use]")).to_be_disabled()
@@ -181,6 +188,11 @@ def test_external_slide_edit_requires_reviewing_latest_before_replacement(
         "Newer human edit"
     )
     page.locator("[data-sd-use-candidate]").click()
+    expect(page.locator("[data-sd-use-candidate]")).to_be_disabled()
+    active = [route for route in pending if route.request.failure is None]
+    assert active and not decisions
+    for route in active:
+        route.continue_()
     expect(page.locator("#slide-design-tray")).to_be_hidden()
     assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == markup(
         "Editorial direction"

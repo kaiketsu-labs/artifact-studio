@@ -22,6 +22,64 @@ pytestmark = [
 
 
 @pytest.mark.parametrize("editor", [False, True])
+def test_storage_action_tooltips_explain_direction_without_running_actions(
+    page: Page, live_app: RunningApp, editor: bool, artifacts: Path
+) -> None:
+    """Explain both arrows on hover and keyboard focus without moving files."""
+    collection = Libraries(live_app.store).list()[0].model_dump()
+    backup = Library(
+        id="tooltip-fixture",
+        kind="github",
+        location="fictional-slides/demo",
+        path="/tmp/fictional-tooltip-cache",
+        sync_enabled=True,
+        auto_sync_enabled=True,
+    ).model_dump()
+    page.route("**/api/libraries", lambda route: route.fulfill(json=[collection, backup]))
+    page.route("**/api/library-sync", lambda route: route.fulfill(json=[]))
+    requests: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            requests.append(request.url)
+            if request.method == "POST" and "/api/libraries/" in request.url
+            else None
+        ),
+    )
+    if editor:
+        open_editor(page, live_app)
+    else:
+        page.goto(live_app.url)
+    page.locator("#storage-status").click()
+    dialog = page.get_by_role("dialog", name="Storage and backup")
+    refresh = dialog.get_by_role("button", name="Refresh references", exact=True)
+    before = dialog.locator(".library-row").last.bounding_box()
+    refresh.hover()
+    tip = page.get_by_role("tooltip")
+    expect(tip).to_contain_text("Get the latest reference copies from GitHub.")
+    expect(refresh).to_have_attribute("aria-describedby", "library-action-tooltip")
+    assert dialog.locator(".library-row").last.bounding_box() == before
+    refresh.press("Tab")
+    expect(dialog.get_by_role("button", name="Back up now", exact=True)).to_be_focused()
+    expect(tip).to_contain_text("Back up saved workspace files to your private GitHub repository.")
+    page.keyboard.press("Escape")
+    expect(tip).to_be_hidden()
+    expect(dialog).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(dialog).to_be_hidden()
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.emulate_media(color_scheme="dark")
+    page.locator("#storage-status").click()
+    refresh.hover()
+    expect(tip).to_be_visible()
+    bounds = tip.bounding_box()
+    assert bounds is not None and 0 <= bounds["x"] <= bounds["x"] + bounds["width"] <= 390
+    assert 0 <= bounds["y"] <= bounds["y"] + bounds["height"] <= 844
+    _ = page.screenshot(path=str(artifacts / "storage-tooltip.png"))
+    assert not requests
+
+
+@pytest.mark.parametrize("editor", [False, True])
 def test_local_save_timestamp_persists_and_updates(
     page: Page, live_app: RunningApp, editor: bool, artifacts: Path
 ) -> None:

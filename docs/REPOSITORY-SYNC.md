@@ -2,6 +2,8 @@
 
 The **storage icon in the library or beside Menu in the slide editor** opens **Storage and backup**; **Menu → Storage and backup** opens the same dialog. It shows the actual working-folder path, a copy-path control, local save status, connected references and GitHub backup outcomes. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local reference folders remain read-only and their latest files are read directly.
 
+Hover or focus an icon for its explanation. The circular arrow **Refresh references** downloads the latest reference copies from GitHub; the upload arrow **Back up now** sends your saved workspace files to the private repository. **Esc** dismisses a tooltip, then closes the dialog on a second press.
+
 ## Local saving and handoff
 
 **On this device → Last saved** shows the newest saved workspace file time, with seconds in your local timezone. It includes current slides, artifact files, notes and workspace instructions; it excludes caches, revision history and connected references. The observation refreshes within about 15 seconds and survives reopening the app. It is based on existing file modification times, so deleting a file or copying one while preserving its timestamp does not create a new save event. An unavailable timestamp displays **—**; GitHub's backup time is separate.
