@@ -17,6 +17,7 @@ from pathlib import Path
 from playwright.sync_api import Browser, Page, Route, expect, sync_playwright
 
 from artifact_studio.agent_client import Invocation
+from artifact_studio.libraries import Libraries, Library
 from artifact_studio.models import Deck
 from artifact_studio.review import ReviewHookInput, Reviews
 from artifact_studio.visuals import CaptureOptions, Diagnostics, Frame, contact_sheet, snapshot
@@ -56,7 +57,14 @@ class Capture:
         expect(self.page.locator("#notes-panel")).to_have_attribute("open", "")
         expect(self.page.frame_locator("#preview").locator(".slide")).to_be_visible()
 
-    def save(self, name: str, page: Page | None = None, region: str | None = None) -> None:
+    def save(
+        self,
+        name: str,
+        page: Page | None = None,
+        region: str | None = None,
+        *,
+        preserve_pointer: bool = False,
+    ) -> None:
         """Capture actual pixels, with no DOM replacement or screenshot retouching."""
         page = page or self.page
         expect(page.locator("#toast")).to_be_hidden(timeout=10_000)
@@ -64,7 +72,8 @@ class Capture:
         _ = page.evaluate(
             "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
         )
-        page.mouse.move(1435, 995)
+        if not preserve_pointer:
+            page.mouse.move(1435, 995)
         target = self.output / name
         target.parent.mkdir(parents=True, exist_ok=True)
         if region:
@@ -350,10 +359,30 @@ class Capture:
         expect(self.page.locator("#notes-state")).to_have_text("Saved")
         self.page.locator("#notes").fill(original)
         expect(self.page.locator("#notes-state")).to_have_text("Saved")
-        self.page.locator("#storage-status").click()
-        expect(self.page.get_by_role("dialog", name="Storage and backup")).to_be_visible()
-        self.save("docs/screenshots/storage-backup.png")
-        self.page.locator("#close-libraries").click()
+        collection = Libraries(self.app.store).list()[0].model_dump()
+        backup = Library(
+            id="tooltip-fixture",
+            kind="github",
+            location="fictional-slides/demo",
+            path="/tmp/fictional-tooltip-cache",
+            sync_enabled=True,
+            auto_sync_enabled=True,
+        ).model_dump()
+        self.page.route("**/api/libraries", lambda route: route.fulfill(json=[collection, backup]))
+        self.page.route("**/api/library-sync", lambda route: route.fulfill(json=[]))
+        try:
+            self.page.locator("#storage-status").click()
+            dialog = self.page.get_by_role("dialog", name="Storage and backup")
+            expect(dialog).to_be_visible()
+            dialog.get_by_role("button", name="Refresh references", exact=True).hover()
+            expect(self.page.get_by_role("tooltip")).to_contain_text(
+                "Get the latest reference copies from GitHub."
+            )
+            self.save("docs/screenshots/storage-backup.png", preserve_pointer=True)
+            self.page.locator("#close-libraries").click()
+        finally:
+            self.page.unroute("**/api/libraries")
+            self.page.unroute("**/api/library-sync")
 
     def mobile_chat(self) -> None:
         """Capture the real narrow drawer with its own appearance and panel preferences."""

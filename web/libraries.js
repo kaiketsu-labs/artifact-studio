@@ -14,11 +14,53 @@
     if(phases.some(phase=>phase!=='synced'))return {phase:'pending',icon:'upload',text:'Saved on this device. GitHub backup is pending.'};
     return {phase:'synced',icon:'check',text:'Saved on this device. Last GitHub backup succeeded.'};
   }
+  /** Explain transfer direction on hover and keyboard focus without changing the action. */
+  function actionTips(dialog){
+    const doc=dialog.ownerDocument,view=doc.defaultView,tip=doc.createElement('div');
+    tip.id='library-action-tooltip';tip.className='library-action-tooltip';tip.setAttribute('role','tooltip');tip.hidden=true;dialog.append(tip);
+    const descriptions={open:'View this repository on GitHub.',refresh:'Get the latest reference copies from GitHub.',retry:'Back up saved workspace files to your private GitHub repository.',current:'Back up this presentation’s saved files to GitHub.',all:'Back up all saved workspace files to GitHub.',copy:'Copy the location of your working files.',notes:'Find a note that could not be saved.',connect:'Connect the folder or GitHub repository you entered.'};
+    let control=null,timer=null,description=null;
+    const clear=()=>{view.clearTimeout(timer);timer=null;};
+    function hide(){
+      clear();tip.hidden=true;
+      if(control){if(description===null)control.removeAttribute('aria-describedby');else control.setAttribute('aria-describedby',description);}
+      control=null;description=null;
+    }
+    function show(node){
+      hide();if(!node.isConnected||!dialog.open)return;
+      control=node;description=node.getAttribute('aria-describedby');node.setAttribute('aria-describedby',[description,tip.id].filter(Boolean).join(' '));
+      const heading=doc.createElement('strong'),body=doc.createElement('span');heading.textContent=node.getAttribute('aria-label');
+      body.textContent=node.dataset.action==='retry'&&heading.textContent==='Retry GitHub backup'?'Try backing up saved workspace files again.':descriptions[node.id==='add-library'?'connect':node.dataset.action];
+      tip.replaceChildren(heading,body);tip.hidden=false;
+      const bounds=node.getBoundingClientRect(),width=tip.offsetWidth,height=tip.offsetHeight;
+      tip.style.left=`${Math.max(12,Math.min(bounds.right-width,view.innerWidth-width-12))}px`;
+      tip.style.top=`${Math.max(12,Math.min(bounds.bottom+height+8<view.innerHeight?bounds.bottom+8:bounds.top-height-8,view.innerHeight-height-12))}px`;
+    }
+    const target=event=>event.target.closest('.library-actions [data-action],#add-library');
+    dialog.addEventListener('pointerover',event=>{
+      if(tip.contains(event.target)){clear();return;}
+      const node=target(event);if(!node||event.pointerType==='touch'||node.contains(event.relatedTarget))return;
+      clear();timer=view.setTimeout(()=>show(node),180);
+    });
+    dialog.addEventListener('pointerout',event=>{
+      const node=target(event);
+      if(!node&&!tip.contains(event.target)||node?.contains(event.relatedTarget)||tip.contains(event.relatedTarget))return;
+      if(control===doc.activeElement&&control?.matches(':focus-visible'))return;
+      clear();timer=view.setTimeout(hide,180);
+    });
+    dialog.addEventListener('focusin',event=>{const node=target(event);if(node?.matches(':focus-visible'))show(node);});
+    dialog.addEventListener('focusout',event=>{if(target(event))hide();});
+    dialog.addEventListener('keydown',event=>{if(event.key==='Escape'&&!tip.hidden){event.preventDefault();event.stopPropagation();hide();}},true);
+    dialog.addEventListener('pointerdown',hide,true);dialog.addEventListener('click',hide,true);dialog.addEventListener('close',hide);dialog.addEventListener('scroll',hide,true);view.addEventListener('resize',hide);view.addEventListener('blur',hide);
+    return {hide};
+  }
   function init({api,toast,escape,currentDeck,onNotesError=()=>{},beforeSaveWorkspace=async()=>true}){
     const $=id=>document.getElementById(id),{svg,button}=window.SlideIcons;
     button($('libraries-button'),'folder','Storage and backup',true);
     button($('close-libraries'),'close','Close');button($('add-library'),'plus','Connect library');
+    $('add-library').removeAttribute('title');
     let busy=false,rendered='',revision=0,libraries=null,statuses=[],localState='saved',unavailable=false,polling=false;
+    const tips=actionTips($('library-dialog'));
     const recovery=root.WorkspaceRecoveryUI.create({api,getLibraries:()=>libraries||[]});
     const archiveActions=document.createElement('div');archiveActions.className='workspace-archive-actions';
     archiveActions.innerHTML=`<button type="button" data-save-workspace>${svg('archive')}Save workspace</button><button type="button" data-restore-workspace>${svg('restore')}Restore workspace</button>`;
@@ -59,7 +101,8 @@
       }).join('');
       if(markup===rendered)return;
       const list=$('library-list'),focused=document.activeElement,focus=list.contains(focused)?focused?.dataset:null;
-      list.innerHTML=markup;rendered=markup;
+      tips.hide();list.innerHTML=markup;rendered=markup;
+      for(const control of list.querySelectorAll('.library-actions [data-action]'))control.removeAttribute('title');
       if(busy)working(true);
       const selector=focus?.autoSync?`[data-auto-sync="${CSS.escape(focus.autoSync)}"]`:focus?.library?`[data-library="${CSS.escape(focus.library)}"][data-action="${CSS.escape(focus.action)}"]`:null;
       if(selector&&!busy)list.querySelector(selector)?.focus();

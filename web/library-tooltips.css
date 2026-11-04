@@ -1,0 +1,10 @@
+/* Shared by the library and presentation storage dialogs. */
+.library-action-tooltip{
+  position:fixed;z-index:1000;box-sizing:border-box;
+  width:max-content;max-width:min(280px,calc(100vw - 24px));
+  padding:10px 12px;border:1px solid #ffffff24;border-radius:8px;
+  background:#202b3d;color:#f4f7ff;box-shadow:0 5px 20px #101c3433;
+  font:11px/1.5 system-ui,sans-serif;overflow-wrap:anywhere;
+}
+.library-action-tooltip strong{display:block;color:inherit;font-size:12px;font-weight:600;margin-bottom:3px}
+.library-action-tooltip span{display:block;color:#d9e2f1}
