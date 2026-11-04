@@ -1132,6 +1132,7 @@
                 "type": "string"
               },
               "html": {
+                "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
                 "maxLength": 150000,
                 "minLength": 1,
                 "title": "Html",
@@ -1139,7 +1140,7 @@
               },
               "interactive_html": {
                 "default": "",
-                "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+                "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
                 "maxLength": 2000000,
                 "title": "Interactive Html",
                 "type": "string"
@@ -1824,6 +1825,7 @@
             "type": "string"
           },
           "html": {
+            "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
             "maxLength": 150000,
             "minLength": 1,
             "title": "Html",
@@ -1831,7 +1833,7 @@
           },
           "interactive_html": {
             "default": "",
-            "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+            "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
             "maxLength": 2000000,
             "title": "Interactive Html",
             "type": "string"
@@ -2583,6 +2585,7 @@
                 "type": "string"
               },
               "html": {
+                "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
                 "maxLength": 150000,
                 "minLength": 1,
                 "title": "Html",
@@ -2590,7 +2593,7 @@
               },
               "interactive_html": {
                 "default": "",
-                "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+                "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
                 "maxLength": 2000000,
                 "title": "Interactive Html",
                 "type": "string"
@@ -3727,6 +3730,150 @@
       }
     },
     {
+      "name": "get_presentation_theme",
+      "description": "Read this deck's author CSS and expected_hash; common viewer CSS is omitted.\nupdate_presentation_theme manages base styles, so do not manually join viewer.css.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "get_presentation_themeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_presentation_themeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "update_presentation_theme",
+      "description": "Replace this deck's author CSS, keeping viewer styles and rejecting stale writes.\nDoes not edit the reusable design or other decks. Returns hashes without echoing CSS.\nInteractive documents prepared earlier contain snapshots; re-prepare them to adopt changes.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "css": {
+            "title": "Css",
+            "type": "string"
+          },
+          "expected_hash": {
+            "title": "Expected Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "css",
+          "expected_hash"
+        ],
+        "title": "update_presentation_themeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "update_presentation_themeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "list_presentation_assets",
+      "description": "List actual deck-local assets with paths, sizes and replacement hashes; no binary data.\nget_design_assets lists brand source files; use this after adding assets to a deck.\nimport_directory is a deck-specific staging path for agent downloads/extracted dependencies.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "prefix": {
+            "default": "assets/",
+            "title": "Prefix",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "list_presentation_assetsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "list_presentation_assetsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "import_presentation_asset",
+      "description": "Copy a local font/image/CSS/JS/media file into this deck's assets/ path (up to 50 MB).\nStage downloads in list_presentation_assets.import_directory, or use this deck's brief/assets,\nits design assets or registered reference libraries. Other local/private files are rejected.\nNew files need no hash; replacing a file requires its current sha256 from the asset list.\nReturns a compact receipt; no base64 round trip. Does not modify reusable design files.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "source_path": {
+            "title": "Source Path",
+            "type": "string"
+          },
+          "asset_path": {
+            "title": "Asset Path",
+            "type": "string"
+          },
+          "expected_sha256": {
+            "default": "",
+            "title": "Expected Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "source_path",
+          "asset_path"
+        ],
+        "title": "import_presentation_assetArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "import_presentation_assetDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "add_slide",
       "description": "Add a slide and return a compact receipt; include_content returns the full slide.\nembed_assets prepares local interactive CSS/JS/images/fonts server-side, avoiding base64 echoes.\nSupply a unique request_id (8–100 chars) for safe retries: the same payload returns its original\nacknowledgement without recreating or overwriting a slide. Changed payloads conflict.\nTo insert, provide after_slide_id or section_id plus request_id, expected_slide_ids and\nexpected_sections_hash from a fresh outline. Empty after_slide_id inserts at the beginning\nof the selected section/deck; section_id alone appends within that group. An anchor infers\nits section, or must belong to the explicitly selected group. Order and membership change\ntogether; retry preserves the original receipt without moving the slide again.\n",
       "input_schema": {
@@ -3775,6 +3922,7 @@
                 "type": "string"
               },
               "html": {
+                "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
                 "maxLength": 150000,
                 "minLength": 1,
                 "title": "Html",
@@ -3782,7 +3930,7 @@
               },
               "interactive_html": {
                 "default": "",
-                "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+                "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
                 "maxLength": 2000000,
                 "title": "Interactive Html",
                 "type": "string"
@@ -4379,6 +4527,7 @@
                 "type": "string"
               },
               "html": {
+                "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
                 "maxLength": 150000,
                 "minLength": 1,
                 "title": "Html",
@@ -4386,7 +4535,7 @@
               },
               "interactive_html": {
                 "default": "",
-                "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+                "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
                 "maxLength": 2000000,
                 "title": "Interactive Html",
                 "type": "string"
@@ -4567,6 +4716,7 @@
                   }
                 ],
                 "default": null,
+                "description": "Static selectable HTML; slide-local CSS/styles and assets/ backgrounds work.",
                 "title": "Html"
               },
               "interactive_html": {
@@ -4580,7 +4730,7 @@
                   }
                 ],
                 "default": null,
-                "description": "Revise custom HTML/CSS/JavaScript freely; set an empty string to disable. Keep the static html fallback aligned.",
+                "description": "Revise arbitrary HTML/CSS/JavaScript, style/script, iframe srcdoc and media freely; set an empty string to disable. Keep the static html fallback aligned.",
                 "title": "Interactive Html"
               },
               "notes": {
@@ -5161,6 +5311,7 @@
                 "type": "string"
               },
               "html": {
+                "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
                 "maxLength": 150000,
                 "minLength": 1,
                 "title": "Html",
@@ -5168,7 +5319,7 @@
               },
               "interactive_html": {
                 "default": "",
-                "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+                "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
                 "maxLength": 2000000,
                 "title": "Interactive Html",
                 "type": "string"
@@ -6865,6 +7016,7 @@
                 "type": "string"
               },
               "html": {
+                "description": "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> selectors and assets/ image backgrounds are supported. For arbitrary scripts, iframes, media, controls or global CSS use interactive_html.",
                 "maxLength": 150000,
                 "minLength": 1,
                 "title": "Html",
@@ -6872,7 +7024,7 @@
               },
               "interactive_html": {
                 "default": "",
-                "description": "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; keep html as a meaningful static fallback.",
+                "description": "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, SVG animation, video/audio and controls in the fixed slide canvas. Runs in an offline sandbox; bundle dependencies with embed_assets=True. Keep html as its meaningful selectable static representation.",
                 "maxLength": 2000000,
                 "title": "Interactive Html",
                 "type": "string"

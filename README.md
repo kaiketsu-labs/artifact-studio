@@ -36,6 +36,8 @@ The **Library** is the home screen. Browse all your work, filter by project or f
 
 Agents choose their tools, code and layouts. Import a file or folder, or have the agent register an authored bundle. A type selects the viewer; it does not prescribe components or require a design pack. General HTML bundles can contain their own CSS, JavaScript, SVG, fonts and data. External services are not enabled automatically, and opening a preview never runs installation or build scripts.
 
+Presentation composition is free within a fixed 16:9 canvas. Slides support local CSS/backgrounds and isolated custom documents with scripts, styles, iframe content and media. Agents can update a deck's theme and import staged fonts/images/assets through MCP. [Authoring capabilities and examples](docs/INTERACTIVE-HTML.md).
+
 ## How it works
 
 ```mermaid
