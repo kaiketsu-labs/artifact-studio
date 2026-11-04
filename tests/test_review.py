@@ -33,6 +33,69 @@ def comment(store: Store, message: str, released: bool = True) -> None:
         _ = store.append_feedback(db, DECK, "", "user", message, "", released=released)
 
 
+def test_overlapping_waiters_supersede_without_acknowledging_feedback(store: Store) -> None:
+    """Only the newest parked Stop wakes; later polls keep its token and cursor."""
+    reviews = Reviews(store)
+    post = ReviewHookInput(
+        harness="claude-code",
+        session_id="session",
+        event="PostToolUse",
+        deck_id=DECK,
+        start_review=True,
+    )
+    assert reviews.bind(post).listening
+    first = post.model_copy(update={"event": "Stop", "wait_id": "wait-a", "begin_wait": True})
+    second = first.model_copy(update={"wait_id": "wait-b"})
+
+    async def overlap() -> None:
+        old = asyncio.create_task(reviews.handle(first, timeout=2))
+        await asyncio.sleep(0.1)
+        new = asyncio.create_task(reviews.handle(second, timeout=2))
+        await asyncio.sleep(0.3)
+        assert not (await old).listening
+        comment(store, "Review this")
+        assert (await new).feedback_available
+
+    asyncio.run(overlap())
+    assert not reviews.pending(first.model_copy(update={"begin_wait": False})).listening
+    continuation = second.model_copy(update={"begin_wait": False})
+    assert reviews.pending(continuation).feedback_available
+    assert asyncio.run(reviews.handle(continuation, timeout=0)).feedback_available
+    with store.connect() as db:
+        assert db.execute("SELECT feedback_cursor FROM review_sessions").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("action", ["tool", "end", "disconnect", "archive"])
+def test_waiter_is_cancelled_on_session_activity_or_end(store: Store, action: str) -> None:
+    """A cancelled token cannot resume even after the session is explicitly rebound."""
+    reviews = Reviews(store)
+    post = ReviewHookInput(
+        harness="claude-code",
+        session_id="session",
+        event="PostToolUse",
+        deck_id=DECK,
+        start_review=True,
+    )
+    assert reviews.bind(post).listening
+    stop = post.model_copy(update={"event": "Stop", "wait_id": "wait-a", "begin_wait": True})
+    assert reviews.pending(stop).listening
+    if action == "tool":
+        assert reviews.bind(post).listening
+    elif action == "end":
+        _ = reviews.release(post.model_copy(update={"event": "SessionEnd"}))
+        assert reviews.bind(post).listening
+    elif action == "disconnect":
+        reviews.disconnect(DECK)
+        assert reviews.bind(post).listening
+    else:
+        store.set_archived(DECK, archived=True)
+        store.set_archived(DECK, archived=False)
+        assert reviews.bind(post).listening
+    assert not reviews.pending(stop.model_copy(update={"begin_wait": False})).listening
+    with store.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM review_waits").fetchone()[0] == 0
+
+
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_automatic_attachment_respects_ownership_end_review_and_batch(
     store: Store, harness: Literal["codex", "claude-code"]

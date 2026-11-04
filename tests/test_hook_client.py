@@ -1,5 +1,6 @@
 """Tests for project hooks and review event handling."""
 
+import io
 import json
 import shlex
 from pathlib import Path
@@ -66,7 +67,9 @@ def test_configure_merge_and_quote(
     assert data["other"] == 1
     assert data["hooks"]["Stop"][0] == {"hooks": []}
     handler = data["hooks"]["Stop"][1]["hooks"][0]
-    assert handler["timeout"] == 600
+    assert handler["timeout"] == client.STOP_TIMEOUT_SECONDS == 28800
+    assert handler.get("asyncRewake") is (True if harness == "claude-code" else None)
+    assert "async" not in handler
     assert shlex.split(handler["command"])[0] == str(Path("/tmp/uv with spaces").resolve())
     assert shlex.split(handler["command"])[1] == "--no-cache"
     assert ("Interrupt" in data["hooks"]) is (harness == "codex")
@@ -102,6 +105,8 @@ def test_migrate_cache_dependent_hooks(
         arguments.remove("--no-cache")
         generated["command"] = shlex.join(arguments)
         groups[0]["hooks"].append(unrelated)
+    data["hooks"]["Stop"][0]["hooks"][0]["timeout"] = 600
+    data["hooks"]["Stop"][0]["hooks"][0].pop("asyncRewake", None)
     data["other"] = {"keep": True}
     target.write_text(json.dumps(data))
     _ = client.configure(harness, tmp_path, "http://localhost:8799", "artifact-studio", False)
@@ -113,6 +118,10 @@ def test_migrate_cache_dependent_hooks(
         assert len(handlers) == 2
         assert "--no-cache" in shlex.split(handlers[1]["command"])
         assert "http://localhost:8799" in shlex.split(handlers[1]["command"])
+    assert migrated["hooks"]["Stop"][-1]["hooks"][0]["timeout"] == 28800
+    assert migrated["hooks"]["Stop"][-1]["hooks"][0].get("asyncRewake") is (
+        True if harness == "claude-code" else None
+    )
     before = target.read_text()
     _ = client.configure(harness, tmp_path, "http://localhost:8799", "artifact-studio", False)
     assert target.read_text() == before
@@ -187,20 +196,110 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
-def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
-    """Forward one compact renewal after the bounded local idle wait."""
-    reason = "Artifact Studio idle renewal: call read_design_requests(after_event_id=3)."
-    times = iter([0.0, 541.0])
+def test_stop_registers_one_waiter_and_reuses_its_identity(
+    monkeypatch: pytest.MonkeyPatch, harness: str
+) -> None:
+    """Only the initial poll supersedes prior listeners; later polls keep the same token."""
+    messages: list[dict[str, object]] = []
+
+    def post(_: str, message: dict[str, object], __: int) -> dict[str, object]:
+        messages.append(message.copy())
+        return {
+            "listening": True,
+            "feedback_available": len(messages) == 3,
+            "reason": "Feedback ready" if len(messages) == 3 else "waiting",
+        }
+
+    monkeypatch.setattr(client, "_post", post)
+    monkeypatch.setattr(client.time, "sleep", lambda _: None)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+    assert client.handle_event(
+        harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
+    ) == {"decision": "block", "reason": "Feedback ready"}
+    assert [message["begin_wait"] for message in messages] == [True, False, False]
+    ids = [message["wait_id"] for message in messages]
+    assert len(set(ids)) == 1 and isinstance(ids[0], str) and len(ids[0]) == 32
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_stop_expires_quietly_after_old_renewal_deadline(
+    monkeypatch: pytest.MonkeyPatch, harness: str
+) -> None:
+    """Quiet polls past nine minutes never request a model turn, even at expiry."""
+    times = iter([0.0, 541.0, 541.0, float(client.STOP_WAIT_SECONDS)])
     monkeypatch.setattr(client.time, "monotonic", lambda: next(times))
+    monkeypatch.setattr(client.time, "sleep", lambda _: None)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     monkeypatch.setattr(
         client,
         "_post",
-        lambda *_: {"listening": True, "feedback_available": False, "reason": reason},  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+        lambda *_: {"listening": True, "feedback_available": False, "reason": "waiting"},  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
     )
     result = client.handle_event(
         harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     )
-    assert result == {"decision": "block", "reason": reason}
+    assert result == {}
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_feedback_at_quiet_expiry_still_wakes(
+    monkeypatch: pytest.MonkeyPatch, harness: str
+) -> None:
+    """A delivery observed in the final poll takes precedence over quiet expiry."""
+    times = iter([0.0, float(client.STOP_WAIT_SECONDS)])
+    monkeypatch.setattr(client.time, "monotonic", lambda: next(times))
+    reason = "Read released feedback."
+
+    def final_delivery(*_: object) -> dict[str, object]:
+        """The long poll returns feedback just as the quiet wait reaches its deadline."""
+        assert client.time.monotonic() == client.STOP_WAIT_SECONDS
+        return {"listening": True, "feedback_available": True, "reason": reason}
+
+    monkeypatch.setattr(
+        client,
+        "_post",
+        final_delivery,
+    )
+    assert client.handle_event(
+        harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
+    ) == {"decision": "block", "reason": reason}
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_stop_process_output_uses_host_wake_contract(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], harness: str
+) -> None:
+    """Claude wakes via exit 2 and stderr; Codex consumes a JSON blocking decision."""
+    monkeypatch.setattr(
+        client.sys, "argv", ["hook", "event", "--event", "Stop", "--harness", harness]
+    )
+    monkeypatch.setattr(client.sys, "stdin", io.StringIO('{"session_id":"s"}'))
+    reason = "Read released feedback."
+    monkeypatch.setattr(
+        client,
+        "handle_event",
+        lambda *_: {"decision": "block", "reason": reason},  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+    )
+    code = client.main()
+    output = capsys.readouterr()
+    if harness == "claude-code":
+        assert code == 2 and output.err.strip() == reason and output.out == ""
+    else:
+        assert code == 0 and output.err == ""
+        assert json.loads(output.out) == {"decision": "block", "reason": reason}
+
+
+@pytest.mark.parametrize("input_text", ['{"session_id":"s"}', "invalid json"])
+def test_claude_quiet_or_malformed_stop_never_rewakes(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], input_text: str
+) -> None:
+    """A quiet listener and invalid host input exit successfully without a wake message."""
+    monkeypatch.setattr(
+        client.sys, "argv", ["hook", "event", "--event", "Stop", "--harness", "claude-code"]
+    )
+    monkeypatch.setattr(client.sys, "stdin", io.StringIO(input_text))
+    monkeypatch.setattr(client, "handle_event", lambda *_: {})  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+    assert client.main() == 0
+    output = capsys.readouterr()
+    assert output.err == "" and json.loads(output.out) == {}
 
 
 def test_conflicting_reviewer_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:

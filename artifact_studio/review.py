@@ -21,6 +21,8 @@ class ReviewHookInput(StrictModel):
     seen_design_cursor: int | None = Field(default=None, ge=0)
     start_review: bool = False
     auto_start: bool = False
+    wait_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,100}$")
+    begin_wait: bool = False
 
 
 class ReviewHookReply(StrictModel):
@@ -55,6 +57,12 @@ class Reviews:
     def disconnect(self, deck_id: str) -> None:
         """Release review waits and prevent automatic rebinding until explicitly resumed."""
         with self.store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            _ = db.execute(
+                "DELETE FROM review_waits WHERE (harness,session_id) IN "
+                "(SELECT harness,session_id FROM review_sessions WHERE deck=?)",
+                (deck_id,),
+            )
             _ = db.execute(
                 "UPDATE review_sessions SET enabled=0,expires_at=0 WHERE deck=?", (deck_id,)
             )
@@ -70,6 +78,10 @@ class Reviews:
                 "SELECT * FROM review_sessions WHERE harness=? AND session_id=?",
                 (body.harness, body.session_id),
             ).fetchone()
+            _ = db.execute(
+                "DELETE FROM review_waits WHERE harness=? AND session_id=?",
+                (body.harness, body.session_id),
+            )
             automatic = (
                 body.auto_start
                 and bool(deck_id)
@@ -119,6 +131,11 @@ class Reviews:
     def release(self, body: ReviewHookInput) -> ReviewHookReply:
         """End listening immediately after a host interruption or session failure."""
         with self.store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            _ = db.execute(
+                "DELETE FROM review_waits WHERE harness=? AND session_id=?",
+                (body.harness, body.session_id),
+            )
             _ = db.execute(
                 "UPDATE review_sessions SET expires_at=0,enabled=0 "
                 "WHERE harness=? AND session_id=?",
@@ -143,6 +160,22 @@ class Reviews:
                 (deck_id, time.time(), body.harness, body.session_id),
             ).fetchone()
             if other:
+                return ReviewHookReply()
+            if body.begin_wait:
+                if body.wait_id is None:
+                    return ReviewHookReply()
+                _ = db.execute(
+                    "INSERT INTO review_waits VALUES (?,?,?) "
+                    "ON CONFLICT(harness,session_id) DO UPDATE SET wait_id=excluded.wait_id",
+                    (body.harness, body.session_id, body.wait_id),
+                )
+            elif (
+                body.wait_id is not None
+                and not db.execute(
+                    "SELECT 1 FROM review_waits WHERE harness=? AND session_id=? AND wait_id=?",
+                    (body.harness, body.session_id, body.wait_id),
+                ).fetchone()
+            ):
                 return ReviewHookReply()
             now = time.time()
             expiry = cast(float, row["expires_at"])
@@ -190,6 +223,8 @@ class Reviews:
         deadline = time.monotonic() + min(25, max(0, timeout))
         while True:
             result = await asyncio.to_thread(self.pending, body)
+            if body.begin_wait:
+                body = body.model_copy(update={"begin_wait": False})
             if not result.listening or result.feedback_available or time.monotonic() >= deadline:
                 return result
             await asyncio.sleep(0.2)

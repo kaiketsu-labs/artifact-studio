@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import cast
 from urllib.error import URLError
@@ -20,6 +21,8 @@ from .local_http import NoRedirect as _NoRedirect
 from .local_http import validate_local_url as _validate_url
 
 APP_DIR = Path(__file__).resolve().parent.parent
+STOP_TIMEOUT_SECONDS = 8 * 60 * 60
+STOP_WAIT_SECONDS = STOP_TIMEOUT_SECONDS - 60
 INBOX_TOOLS = {
     "get_working_context",
     "read_design_requests",
@@ -114,7 +117,7 @@ def configure(
     hooks = _object(data.setdefault("hooks", {}))
     if hooks is not data["hooks"]:
         raise ValueError("hooks must be an object")
-    events = {"PostToolUse": 10, "Stop": 600, "SessionEnd": 3}
+    events = {"PostToolUse": 10, "Stop": STOP_TIMEOUT_SECONDS, "SessionEnd": 3}
     if harness == "codex":
         events["Interrupt"] = 3
     for event, timeout in events.items():
@@ -140,9 +143,10 @@ def configure(
                 server_name,
             ]
         )
-        entry: dict[str, object] = {
-            "hooks": [{"type": "command", "command": command, "timeout": timeout}]
-        }
+        handler: dict[str, object] = {"type": "command", "command": command, "timeout": timeout}
+        if harness == "claude-code" and event == "Stop":
+            handler["asyncRewake"] = True
+        entry: dict[str, object] = {"hooks": [handler]}
         if event == "PostToolUse":
             server_pattern = "".join(
                 "[-_]" if char in "-_" else re.escape(char) for char in server_name
@@ -274,7 +278,7 @@ def _post(url: str, message: dict[str, object], timeout: int) -> dict[str, objec
 def handle_event(
     harness: str, event: str, url: str, server_name: str, payload: dict[str, object]
 ) -> dict[str, object]:
-    """Keep idle polling local; continue only for feedback or a bounded review renewal."""
+    """Keep idle polling local; continue only for feedback and expire quiet waits."""
     try:
         _validate_url(url)
     except ValueError:
@@ -282,12 +286,17 @@ def handle_event(
     message = normalize(harness, event, server_name, payload)
     if not message:
         return {}
-    deadline = time.monotonic() + 540
+    if event == "Stop":
+        message["wait_id"] = uuid.uuid4().hex
+        message["begin_wait"] = True
+    deadline = time.monotonic() + STOP_WAIT_SECONDS
     while True:
         try:
             result = _post(url, message, 30 if event == "Stop" else 2)
         except OSError, URLError, ValueError, json.JSONDecodeError:
             return {}
+        if event == "Stop":
+            message["begin_wait"] = False
         reason = result.get("reason")
         if event == "PostToolUse" and isinstance(reason, str) and reason:
             return {
@@ -297,9 +306,11 @@ def handle_event(
             return {}
         if not isinstance(reason, str) or not reason:
             return {}
-        if result.get("feedback_available") is True or time.monotonic() >= deadline:
+        if result.get("feedback_available") is True:
             return {"decision": "block", "reason": reason}
         if result.get("feedback_available") is not False:
+            return {}
+        if time.monotonic() >= deadline:
             return {}
         time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
 
@@ -338,6 +349,16 @@ def main() -> int:
             result = handle_event(args.harness, args.event, args.url, args.server_name, payload)
         except OSError, ValueError:
             result = {}
+        reason = result.get("reason")
+        if (
+            args.harness == "claude-code"
+            and args.event == "Stop"
+            and result.get("decision") == "block"
+            and isinstance(reason, str)
+            and reason.strip()
+        ):
+            print(reason, file=sys.stderr)
+            return 2
         print(json.dumps(result))
     return 0
 

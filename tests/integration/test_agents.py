@@ -451,9 +451,17 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
             text=True,
             capture_output=True,
             timeout=10,
-            check=True,
+            check=False,
         )
-        _ = (artifacts / f"{harness}-{event}.json").write_text(result.stdout)
+        _ = (artifacts / f"{harness}-{event}.json").write_text(
+            json.dumps(
+                {"exit_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+            )
+        )
+        if harness == "claude-code" and event == "Stop" and result.returncode == 2:
+            assert result.stdout == "" and result.stderr.strip()
+            return {"decision": "block", "reason": result.stderr.strip()}
+        result.check_returncode()
         return object_value(json.loads(result.stdout))
 
     def response(value: dict[str, object]) -> object:
@@ -569,6 +577,88 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     assert not live_app.store.workflow(DECK_ID).review_connected
     assert live_app.call("get_live_review_status", deck_id=DECK_ID)["status"] == "unavailable"
     assert dispatch("Stop") == {}
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_repeated_stop_replaces_parked_hook_without_duplicate_wake(
+    live_app: RunningApp, harness: Literal["codex", "claude-code"]
+) -> None:
+    """Only the newest real hook process may wake for a released delivery."""
+    configuration = configure(harness, live_app.project, live_app.url, "artifact-studio", False)
+    hooks = json.loads(configuration.read_text())["hooks"]
+    command = shlex.split(hooks["Stop"][-1]["hooks"][0]["command"])
+    session = "overlapping-stops"
+    _ = live_app.post(
+        "/api/review/hooks",
+        {
+            "harness": harness,
+            "session_id": session,
+            "event": "PostToolUse",
+            "deck_id": DECK_ID,
+            "start_review": True,
+        },
+    )
+    processes: list[subprocess.Popen[str]] = []
+
+    def parked(previous: str = "") -> tuple[subprocess.Popen[str], str]:
+        process = subprocess.Popen(
+            command,
+            cwd=live_app.project,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        processes.append(process)
+        assert process.stdin is not None
+        _ = process.stdin.write(json.dumps({"session_id": session}))
+        process.stdin.close()
+        process.stdin = None
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            assert process.poll() is None, "Quiet Stop unexpectedly exited"
+            with live_app.store.connect() as db:
+                row = db.execute(
+                    "SELECT wait_id FROM review_waits WHERE harness=? AND session_id=?",
+                    (harness, session),
+                ).fetchone()
+            if row and row[0] != previous:
+                return process, str(row[0])
+            time.sleep(0.05)
+        raise AssertionError("Stop hook did not register its listener")
+
+    try:
+        first, token = parked()
+        second, _ = parked(token)
+        out, err = first.communicate(timeout=8)
+        assert first.returncode == 0 and json.loads(out) == {} and not err
+        assert second.poll() is None
+        _ = live_app.post(f"/api/decks/{DECK_ID}/feedback-mode", {"mode": "live"})
+        _ = live_app.post(
+            f"/api/decks/{DECK_ID}/feedback",
+            {
+                "message": "One wake for this feedback",
+                "request_id": "single-hook-wake",
+                "context_slide_id": "cover",
+            },
+        )
+        out, err = second.communicate(timeout=8)
+        if harness == "claude-code":
+            assert second.returncode == 2 and not out and "read_feedback" in err
+        else:
+            assert second.returncode == 0 and not err
+            assert json.loads(out)["decision"] == "block"
+        with live_app.store.connect() as db:
+            cursor = db.execute(
+                "SELECT feedback_cursor FROM review_sessions WHERE harness=? AND session_id=?",
+                (harness, session),
+            ).fetchone()[0]
+        assert cursor == 0, "A wake must not acknowledge unread feedback"
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+                _ = process.communicate(timeout=8)
 
 
 def test_official_sdk_replays_creation(live_app: RunningApp) -> None:

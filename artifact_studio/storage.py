@@ -186,6 +186,9 @@ class Store:
                     design_cursor INTEGER NOT NULL DEFAULT 0,
                     expires_at REAL NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
                     PRIMARY KEY(harness, session_id));
+                CREATE TABLE IF NOT EXISTS review_waits (
+                    harness TEXT NOT NULL, session_id TEXT NOT NULL, wait_id TEXT NOT NULL,
+                    PRIMARY KEY(harness, session_id));
                 CREATE TABLE IF NOT EXISTS approvals (
                     deck TEXT, slide TEXT, content_hash TEXT,
                     PRIMARY KEY(deck, slide));
@@ -625,6 +628,11 @@ class Store:
         _ = self.read(deck_id)
         with self.connect() as db:
             if archived:
+                _ = db.execute(
+                    "DELETE FROM review_waits WHERE (harness,session_id) IN "
+                    "(SELECT harness,session_id FROM review_sessions WHERE deck=?)",
+                    (deck_id,),
+                )
                 _ = db.execute(
                     "INSERT OR IGNORE INTO archived_decks VALUES (?,?)",
                     (deck_id, datetime.now(UTC).isoformat()),
