@@ -22,6 +22,28 @@ from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
+@pytest.mark.parametrize("asset", ["presentation.js", "icons.js", "slideshow.css"])
+def test_existing_decks_use_installed_controls_without_changing_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, asset: str
+) -> None:
+    """Serve current managed runtime bytes while preserving old offline copies and notes."""
+    make_design(tmp_path / TEMPLATE_ID)
+    store = Store(tmp_path, tmp_path / "state/review.sqlite3")
+    monkeypatch.setattr(service, "store", store)
+    source = store.folder(TEMPLATE_ID) / asset
+    _ = source.write_text("/* Old offline viewer copy */")
+    before = store.view(TEMPLATE_ID)
+    client = TestClient(service.app)
+    response = client.get(f"/decks/{TEMPLATE_ID}/{asset}")
+    assert response.status_code == 200
+    assert response.content == (service.PROJECT / "runtime" / asset).read_bytes()
+    assert response.headers["cache-control"] == "private, no-cache"
+    assert "content-disposition" not in response.headers
+    assert source.read_text() == "/* Old offline viewer copy */"
+    assert store.view(TEMPLATE_ID) == before
+    assert client.get(f"/decks/missing-deck/{asset}").status_code == 404
+
+
 def test_inline_audience_route_excludes_private_values_from_entire_response(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
