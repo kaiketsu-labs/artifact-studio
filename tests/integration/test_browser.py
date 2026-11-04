@@ -75,14 +75,16 @@ def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
         target = f'deck_id="{deck_id}"' if selected else ""
         context_args = f"{target}, include_discovery=False" if selected else ""
         assert f"get_working_context({context_args})" in prompt
-        assert f"start_live_review({target})" in prompt
         assert f"get_live_review_status({target})" in prompt
         if selected:
+            assert "automatically" in prompt
+            assert "Use start_live_review only to resume" in prompt
             assert f"get_presentation_outline({target}, include_context=True)" in prompt
             assert "brief_files" in prompt
             assert f"Workspace: {live_app.url}/?deck={deck_id}" in prompt
             assert "get_presentation(" not in prompt
         else:
+            assert "start_live_review()" in prompt
             assert "read_design_requests()" in prompt
             assert f"Workspace: {live_app.url}/ MCP:" in prompt
             if not setup:
