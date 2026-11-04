@@ -104,6 +104,11 @@ def test_design_publication_preview_feedback_keep_reload_history_and_undo(
     expect(saved).not_to_have_attribute("open", "")
     saved.locator(":scope > summary").click()
     expect(saved).to_contain_text("Kept current design")
+    thumbnail = saved.locator(".sd-saved-options .sd-frame-slot").first.bounding_box()
+    assert thumbnail and thumbnail["width"] >= 100 and thumbnail["height"] >= 55
+    restore = page.locator(".version-restore").bounding_box()
+    assert restore and page.viewport_size
+    assert restore["y"] + restore["height"] <= page.viewport_size["height"]
     page.get_by_role("button", name="Preview saved Editorial design", exact=True).click()
     expect(page.frame_locator(".sd-canvas-overlay iframe").locator("h1")).to_have_text(
         "Editorial direction"
