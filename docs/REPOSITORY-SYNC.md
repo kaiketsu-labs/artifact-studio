@@ -4,6 +4,8 @@ The **storage icon in the library or beside Menu in the slide editor** opens **S
 
 ## Local saving and handoff
 
+**On this device → Last saved** shows the newest saved workspace file time, with seconds in your local timezone. It includes current slides, artifact files, notes and workspace instructions; it excludes caches, revision history and connected references. The observation refreshes within about 15 seconds and survives reopening the app. It is based on existing file modification times, so deleting a file or copying one while preserving its timestamp does not create a new save event. An unavailable timestamp displays **—**; GitHub's backup time is separate.
+
 Slides live in the working folder. Speaker notes save automatically after about 700 ms without typing, on leaving the field/slide, and before project save or presentation startup. **Saved** confirms the canonical file write; **Saving…** means it is pending. Failed requests retain a browser draft. Retry after reconnecting; a restored draft also resumes saving when its baseline is still valid. A concurrent edit opens **Review changes**, with both texts and an explicit choice. Revision checks protect older requests, including when text was changed and then reverted. Notes do not change slide approval.
 
 The storage icon remains visible while the dialog is closed. A pending or failed note save takes priority over an earlier successful backup. GitHub's last successful backup and timestamp describe confirmed delivery; subsequent remote edits are checked at the next delivery, rather than continuously merged into local files.

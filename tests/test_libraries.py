@@ -1,8 +1,10 @@
 """Exercise library discovery and safe repeat sync against real disposable Git repositories."""
 
 import asyncio
+import json
 import os
 import threading
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -668,3 +670,89 @@ def test_auto_sync_preserves_previously_managed_revision_history(
     _ = libraries.sync(library.id, automatic=True)
     assert command("git", "--git-dir", str(remote), "show", f"main:{relative}") == "old revision"
     assert relative in json.loads(manifest_path.read_text())
+
+
+def test_local_save_observes_saved_workspace_files_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Use file modification times, ignoring private state, history and cached references."""
+    root = tmp_path / "collection"
+    root.mkdir()
+    store = Store(root, root / "state" / "review.sqlite3")
+    libraries = Libraries(store)
+    clock = 10.0
+    monkeypatch.setattr(module.time, "monotonic", lambda: clock)
+
+    def saved(relative: str, stamp: int) -> Path:
+        """Create a fictional file with a deterministic modification time."""
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _ = path.write_text("fictional")
+        os.utime(path, (stamp, stamp))
+        return path
+
+    saved("deck/index.html", 100)
+    saved("deck/notes.md", 200)
+    saved("INSTRUCTIONS.md", 300)
+    source = saved("projects/p/artifacts/a/files/research/source.bin", 400)
+    saved("projects/p/artifacts/a/revisions/1/files/old.html", 900)
+    saved("workspace-recovery.json", 900)
+    saved("review.sqlite3", 900)
+    saved("state/libraries/cached/index.html", 900)
+    saved(".hidden/file.html", 900)
+
+    def refuse_read(_: Path) -> bytes:
+        """Ensure observation never opens file contents."""
+        pytest.fail("contents were read")
+
+    monkeypatch.setattr(Path, "read_bytes", refuse_read)
+    first = libraries.list()[0].last_saved_at
+    assert first is not None and datetime.fromisoformat(first).timestamp() == 400
+    os.utime(source, (500, 500))
+    assert Libraries(store).list()[0].last_saved_at == first
+    clock += 16
+    second = Libraries(store).list()[0].last_saved_at
+    assert second is not None and datetime.fromisoformat(second).timestamp() == 500
+    clock += 16
+    assert Libraries(store).list()[0].last_saved_at == second
+
+
+def test_local_save_empty_or_unavailable_is_unknown(tmp_path: Path) -> None:
+    """An empty or missing collection has no invented save timestamp."""
+    root = tmp_path / "empty"
+    root.mkdir()
+    cache = tmp_path / "cache"
+    assert module.last_local_save(root, cache) is None
+    root.rmdir()
+    assert module.last_local_save(root, tmp_path / "other-cache") is None
+
+
+def test_local_save_excludes_registered_nested_reference_and_serializes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Exclude registered references without hiding a collection registered as itself."""
+    root = tmp_path / "collection"
+    root.mkdir()
+    source = root / "deck" / "index.html"
+    source.parent.mkdir()
+    _ = source.write_text("<aside>Notes in presentation</aside>")
+    os.utime(source, (0, 0))
+    reference = root / "reference-library"
+    reference.mkdir()
+    _ = (reference / "reference.html").write_text("read-only reference")
+    store = Store(root, tmp_path / "state" / "review.sqlite3")
+    libraries = Libraries(store)
+    _ = libraries.register(LibraryInput(location=str(reference)))
+    _ = libraries.register(LibraryInput(location=str(root)))
+    _ = libraries.register(LibraryInput(location=str(tmp_path)))
+    monkeypatch.setattr(service, "store", store)
+    item = libraries.list()[0]
+    assert item.last_saved_at is not None
+    assert datetime.fromisoformat(item.last_saved_at).timestamp() == 0
+    assert json.loads(json.dumps(service.get_working_context(include_discovery=True)))
+    response = TestClient(service.app).get("/api/libraries")
+    assert response.status_code == 200
+    assert response.json()[0]["last_saved_at"] == item.last_saved_at
+    assert (
+        service.list_libraries()[0].model_dump(mode="json")["last_saved_at"] == item.last_saved_at
+    )
