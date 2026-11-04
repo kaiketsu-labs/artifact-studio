@@ -6,4 +6,6 @@ Read released feedback and current source before changes. Preserve human notes, 
 
 Visually inspect the rendered result with the available capture tools, including relevant animation states. If the selected format cannot be captured here, say that visual verification is incomplete. Never claim a check from source code alone. Replies should briefly explain what changed or ask one necessary question.
 
+Write chat only as the agent through reply_to_feedback or reply_to_artifact_feedback; omit event_id/reply_to for an opening message. Never use human-feedback endpoints or impersonate the user.
+
 MCP does not automatically wake this Copilot conversation. When asked to review feedback, read newly released comments, address them, and reply inside Artifact Studio. Do not promise continuous Live processing or attempt to configure local Codex/Claude hooks. Reuse retained rule hashes only while retaining their exact text.

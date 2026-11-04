@@ -778,7 +778,7 @@ def create_presentation(
     ctx: Context[None, Request] | None = None,
     request_id: str = "",
 ) -> CreatedDeckReceipt | Deck:
-    """Create a branded cover and save the human's brief as context and presentation feedback.
+    """Create a branded cover and save the supplied brief as context and agent-authored feedback.
     Read that brief before drafting the full story; choose the slide count to fit the content.
     Returns deck identity and slide IDs; include_content=True returns the full cover source.
     deck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).
@@ -787,7 +787,7 @@ def create_presentation(
     retry returns the original creation snapshot, not current content; read the deck to resume.
     If an ID already exists without a matching receipt, read and reconcile ownership first.
     """
-    deck = store.create(deck_id, title, design_id, brief, files, request_id)
+    deck = store.create(deck_id, title, design_id, brief, files, request_id, brief_author="agent")
     if include_content:
         return deck
     links = workspace_links(deck_id, ctx)
@@ -1116,9 +1116,11 @@ async def wait_for_feedback(
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def reply_to_feedback(
-    deck_id: str, slide_id: str, event_id: int, message: str, request_id: str
+    deck_id: str, slide_id: str, message: str, request_id: str, event_id: int | None = None
 ) -> str:
-    """Respond to a user's comment after revising a slide or when a decision is needed."""
+    """Post a brief agent message on a slide; omit event_id for an opening message.
+    Supply event_id to reply to a comment. Never use human-feedback endpoints for agent text.
+    """
     slide = store.locate(store.read(deck_id), slide_id)
     return store.add_feedback(
         deck_id,
@@ -1127,18 +1129,22 @@ def reply_to_feedback(
         store.content_hash(deck_id, slide),
         request_id,
         reply_to=event_id,
+        author="agent",
     )
 
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
 def reply_to_presentation_feedback(
-    deck_id: str, event_id: int, message: str, request_id: str
+    deck_id: str, message: str, request_id: str, event_id: int | None = None
 ) -> str:
     """Reply to general instructions such as creating, moving or restructuring slides.
     Infer the requested scope from the message; context_slide_id is a viewing hint, not a target.
+    Omit event_id for an opening agent message; never post through human-feedback endpoints.
     """
-    return store.add_feedback(deck_id, None, message, "", request_id, reply_to=event_id)
+    return store.add_feedback(
+        deck_id, None, message, "", request_id, reply_to=event_id, author="agent"
+    )
 
 
 @mcp.tool(annotations=WRITE)

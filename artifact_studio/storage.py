@@ -834,12 +834,13 @@ class Store:
         files: list[FileInput] | None = None,
         edit_intent: EditIntent | None = None,
         expected_mode: Literal["live", "batch"] | None = None,
+        author: Literal["user", "agent"] | None = None,
     ) -> str:
         """Save a comment or reply exactly once, retaining its original slide context."""
         decoded = decode_attachments(files or [])
         if not message.strip() and not decoded:
             raise ValueError("Add a message or attach a file.")
-        author = "agent" if reply_to is not None else "user"
+        author = author or ("agent" if reply_to is not None else "user")
         target_json = target.model_dump_json() if target else None
         intent_json = edit_intent.model_dump_json() if edit_intent else None
         if edit_intent is not None and not isinstance(target, ElementTarget):
@@ -854,6 +855,7 @@ class Store:
                     else []
                 )
                 + ([intent_json] if intent_json is not None else [])
+                + (["agent"] if author == "agent" and reply_to is None else [])
             )
         )
         stored_slide_id = slide_id or ""
@@ -1074,13 +1076,16 @@ class Store:
         brief: str = "",
         files: list[FileInput] | None = None,
         request_id: str = "",
+        *,
+        brief_author: Literal["user", "agent"] = "user",
     ) -> Deck:
         """Create a branded starting canvas with a durable brief for the authoring agent."""
         if request_id and not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
         payload_hash = digest(
             json.dumps(
-                [deck_id, title, design_id, brief, [item.model_dump() for item in files or []]],
+                [deck_id, title, design_id, brief, [item.model_dump() for item in files or []]]
+                + (["agent"] if brief_author == "agent" else []),
                 sort_keys=True,
                 separators=(",", ":"),
             )
@@ -1241,7 +1246,7 @@ class Store:
                 "All slides start unreviewed.\n"
             )
             if brief:
-                _ = self.append_feedback(db, deck_id, "", "user", brief, "", released=True)
+                _ = self.append_feedback(db, deck_id, "", brief_author, brief, "", released=True)
             index = self.root / "README.md"
             with index.open("a") as file:
                 _ = file.write(

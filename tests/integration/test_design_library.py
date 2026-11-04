@@ -10,6 +10,7 @@ from PIL import Image
 from playwright.sync_api import Page, expect
 
 from artifact_studio.design_library import DesignCreate, DesignLibrary
+from artifact_studio.design_references import ReferenceInput
 from artifact_studio.models import FileInput
 from tests.design_factory import powerpoint_source
 from tests.integration.support import DECK_ID, RunningApp
@@ -20,6 +21,107 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_text_context_files_open_in_place(
+    page: Page, live_app: RunningApp, artifacts: Path, tmp_path: Path, width: int
+) -> None:
+    """Preview text and formatted Markdown without executing source or losing downloads."""
+    markdown = (
+        "# A clear visual language\n\nUse **short headlines** and useful diagrams.\n\n"
+        "- One idea at a time\n- Keep room around the message\n\n"
+        '<img src="/must-not-load" onerror="window.previewExecuted=true">\n'
+    )
+    files = {
+        "AGENT-GUIDE.md": markdown.encode(),
+        "license.txt": "Fictional font license\nGrüße aus München.".encode("utf-16"),
+        "theme.css": b".slide { color: #315bea; }",
+        "presentation.js": b"window.previewExecuted = true;",
+        "index.html": b"<script>window.previewExecuted=true</script><h1>Source only</h1>",
+        "tokens.json": b'{"accent":"#315bea"}',
+        "palette.csv": b"name,color\naccent,#315bea\n",
+        "settings.yaml": b"spacing: generous\n",
+        "NOTICE": b"Extensionless references also open here.",
+    }
+    library = DesignLibrary(live_app.store)
+    uploads = [
+        FileInput(name=name, data_base64=base64.b64encode(data).decode())
+        for name, data in files.items()
+    ]
+    item = library.create(DesignCreate(name="Text reference design", files=uploads[:5]))
+    item = library.attach(item.id, ReferenceInput(files=uploads[5:]))
+    page.set_viewport_size({"width": width, "height": 1000 if width > 700 else 844})
+    page.goto(live_app.url + f"/?view=designs&design={item.id}")
+    page.get_by_role("button", name="Open AGENT-GUIDE.md", exact=True).click()
+    dialog = page.get_by_role("dialog", name="AGENT-GUIDE.md", exact=True)
+    expect(dialog.get_by_role("heading", name="A clear visual language")).to_be_visible()
+    expect(dialog.locator("strong")).to_have_text("short headlines")
+    expect(dialog.locator("img")).to_have_count(0)
+    dialog.get_by_role("button", name="Source", exact=True).click()
+    expect(dialog.locator("pre code")).to_have_text(markdown)
+    dialog.get_by_role("button", name="Preview", exact=True).click()
+    expect(dialog.get_by_role("heading", name="A clear visual language")).to_be_visible()
+    assert page.evaluate("window.previewExecuted") is None
+    with page.expect_download() as download:
+        dialog.get_by_role("link", name="Download original").click()
+    original = tmp_path / "guide.md"
+    download.value.save_as(original)
+    assert original.read_bytes() == markdown.encode()
+    _ = page.screenshot(path=str(artifacts / "markdown-preview-light.png"))
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("button", name="Open AGENT-GUIDE.md", exact=True)).to_be_focused()
+    page.locator("#appearance-button").click()
+    page.locator('[data-appearance="dark"]').click()
+    page.get_by_role("button", name="Preview AGENT-GUIDE.md", exact=True).focus()
+    page.keyboard.press("Enter")
+    expect(dialog.get_by_role("heading", name="A clear visual language")).to_be_visible()
+    _ = page.screenshot(path=str(artifacts / "markdown-preview-dark.png"))
+    page.keyboard.press("Escape")
+    for name, data in files.items():
+        if name.endswith(".md"):
+            continue
+        page.get_by_role("button", name=f"Open {name}", exact=True).click()
+        file_dialog = page.get_by_role("dialog", name=name, exact=True)
+        expected = data.decode("utf-16") if name == "license.txt" else data.decode()
+        expect(file_dialog.locator("pre code")).to_have_text(expected)
+        assert page.evaluate("window.previewExecuted") is None
+        assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+        bounds = file_dialog.bounding_box()
+        assert bounds and bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= width
+        if name == "theme.css":
+            _ = page.screenshot(path=str(artifacts / "source-preview-dark.png"))
+        page.keyboard.press("Escape")
+    assert library.get(item.id).version == item.version
+
+
+def test_text_preview_limits_and_binary_fallback(page: Page, live_app: RunningApp) -> None:
+    """Keep large reads bounded and offer original downloads when text decoding fails."""
+    library = DesignLibrary(live_app.store)
+    item = library.create(
+        DesignCreate(
+            name="Preview bounds",
+            files=[
+                FileInput(
+                    name="large.txt", data_base64=base64.b64encode(b"A" * 1_100_000).decode()
+                ),
+                FileInput(
+                    name="unknown.bin", data_base64=base64.b64encode(b"\x00\xffbinary").decode()
+                ),
+            ],
+        )
+    )
+    page.goto(live_app.url + f"/?view=designs&design={item.id}")
+    page.get_by_role("button", name="Open large.txt", exact=True).click()
+    dialog = page.get_by_role("dialog", name="large.txt", exact=True)
+    expect(dialog.locator(".design-text-limit")).to_be_visible()
+    assert len(dialog.locator("pre code").inner_text()) == 1024 * 1024
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Open unknown.bin", exact=True).click()
+    fallback = page.get_by_role("dialog", name="unknown.bin", exact=True)
+    expect(fallback.get_by_role("alert")).to_contain_text("not readable text")
+    expect(fallback.get_by_role("link", name="Download original")).to_be_visible()
+    page.keyboard.press("Escape")
 
 
 @pytest.mark.parametrize("width", [1440, 390])

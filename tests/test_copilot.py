@@ -329,6 +329,33 @@ def test_inline_create_retries_survive_lost_reply_and_later_edits(gateway: Gatew
     )
 
 
+def test_copilot_opening_messages_are_agent_authored(gateway: GatewayFixture) -> None:
+    """Keep standalone Copilot messages distinct from human chat and private Batch feedback."""
+    result = call(
+        gateway.client,
+        "reply_to_feedback",
+        {
+            "deck_id": DECK,
+            "message": "I have prepared an outline.",
+            "request_id": "copilot-opening-message",
+        },
+    )
+    assert result.get("isError") is not True
+    message = gateway.store.comments(DECK)[-1]
+    assert message.author == "agent" and message.reply_to is None
+    repeated = call(
+        gateway.client,
+        "reply_to_feedback",
+        {
+            "deck_id": DECK,
+            "message": "I have prepared an outline.",
+            "request_id": "copilot-opening-message",
+        },
+    )
+    assert data(result) == data(repeated)
+    assert gateway.store.comments(DECK)[-1].event_id == message.event_id
+
+
 def test_batch_privacy_and_released_reply(gateway: GatewayFixture) -> None:
     """Withheld artifact comments remain unreadable and cannot be inferred through replies."""
     artifacts = ArtifactStore(gateway.store)

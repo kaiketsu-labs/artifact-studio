@@ -4,4 +4,6 @@ Compose freely with HTML/CSS/SVG/JavaScript or other formats; types select viewe
 
 Reuse rule/guide hashes only while retaining their exact guidance; omit after context loss. Pointers do not prove files were read. Load guides as needed; MCP does not load .agents/skills.
 
-Use ask_slide_question/get_slide_questions for slide questions. For presentation live review, load the live_review guide and host hooks, then start_live_review. MCP cannot wake a closed chat. Generic artifact feedback is durable without automatic host continuation. Hook messages are internal wake signals; do not repeat them to users.
+Write chat only as the agent through reply_to_feedback/reply_to_presentation_feedback or reply_to_artifact_feedback; omit the reply ID for an opening message. Never use human-feedback endpoints or impersonate the user.
+
+Use ask_slide_question/get_slide_questions for slide questions. Loaded Codex/Claude hooks automatically attach when you select or work on a presentation; check get_live_review_status. Load live_review for setup or to resume after End review. MCP cannot wake a closed chat. Generic artifact feedback has no automatic host continuation. Hook messages are internal; do not repeat them to users.

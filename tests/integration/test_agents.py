@@ -15,7 +15,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 
-from artifact_studio.agent_client import object_value
+from artifact_studio.agent_client import Invocation, object_value
 from artifact_studio.design_library import DesignDetail
 from artifact_studio.hook_client import configure
 from artifact_studio.models import DesignRequestInput, Slide
@@ -28,6 +28,54 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
     ),
 ]
+
+
+def test_agent_briefs_and_opening_messages_keep_their_real_author(live_app: RunningApp) -> None:
+    """MCP-originated text never becomes human feedback or wakes its own author."""
+
+    def call(tool: str, **arguments: object) -> object:
+        """Accept scalar message receipts as well as structured context responses."""
+        return live_app.client().call(Invocation(tool=tool, arguments=arguments))
+
+    deck_id = "2026-11-04-agent-attribution"
+    _ = call(
+        "create_presentation",
+        deck_id=deck_id,
+        title="Authorship",
+        brief="Agent-prepared working brief",
+        request_id="author-created-deck",
+    )
+    _ = call(
+        "reply_to_presentation_feedback",
+        deck_id=deck_id,
+        message="I have prepared the initial outline.",
+        request_id="author-opening-deck",
+    )
+    _ = call(
+        "reply_to_feedback",
+        deck_id=deck_id,
+        slide_id="cover",
+        message="Here is the opening slide.",
+        request_id="author-opening-slide",
+    )
+    messages = live_app.store.comments(deck_id)
+    assert len(messages) == 3 and all(item.author == "agent" for item in messages)
+    assert all(item.reply_to is None for item in messages)
+    assert not live_app.store.feedback_feed(deck_id).events
+    _ = live_app.post(
+        f"/api/decks/{deck_id}/feedback",
+        {"message": "Human feedback stays human.", "request_id": "human-real-comment"},
+    )
+    feed = live_app.store.feedback_feed(deck_id)
+    assert len(feed.events) == 1 and feed.events[0].author == "user"
+    _ = call(
+        "reply_to_presentation_feedback",
+        deck_id=deck_id,
+        event_id=feed.events[0].event_id,
+        message="I will update it.",
+        request_id="author-real-reply",
+    )
+    assert live_app.store.comments(deck_id)[-1].author == "agent"
 
 
 def test_official_sdk_discovers_and_calls_tools(live_app: RunningApp) -> None:
@@ -414,12 +462,12 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
             return {"structuredContent": value}
         return json.dumps([{"type": "text", "text": json.dumps(value)}])
 
-    start = live_app.call("start_live_review", deck_id=DECK_ID)
-    assert start["status"] == "awaiting_host_hook" and start["review_connected"] is False
+    start = live_app.call("get_working_context", deck_id=DECK_ID, include_discovery=False)
+    assert not live_app.store.workflow(DECK_ID).review_connected
     assert (
         dispatch(
             "PostToolUse",
-            tool_name="mcp__artifact_studio__start_live_review",
+            tool_name="mcp__artifact_studio__get_working_context",
             tool_input={"deck_id": DECK_ID},
             tool_response=response(start),
         )

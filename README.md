@@ -175,7 +175,7 @@ The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds 
 
 Automatic host continuation currently applies to **presentation review only**, through the supported Codex/Claude Code hooks. General artifact feedback is durable, but does not automatically wake an agent. The Live availability indicator and tooltip distinguish these capabilities. Plain MCP cannot wake a closed chat.
 
-For a deck, open the editor's **Menu → Connect an agent → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), then call `start_live_review`. Copying a prompt alone does not configure or activate the host.
+For a deck, open the editor's **Menu → Connect an agent → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), the agent then connects automatically when it selects or works on the presentation. Copying a prompt alone does not configure or activate the host.
 
 Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
 

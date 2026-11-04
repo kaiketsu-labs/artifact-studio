@@ -20,6 +20,7 @@ class ReviewHookInput(StrictModel):
     seen_cursor: int | None = Field(default=None, ge=0)
     seen_design_cursor: int | None = Field(default=None, ge=0)
     start_review: bool = False
+    auto_start: bool = False
 
 
 class ReviewHookReply(StrictModel):
@@ -69,11 +70,17 @@ class Reviews:
                 "SELECT * FROM review_sessions WHERE harness=? AND session_id=?",
                 (body.harness, body.session_id),
             ).fetchone()
-            if not body.start_review and (not own or not own["enabled"]):
+            automatic = (
+                body.auto_start
+                and bool(deck_id)
+                and (not own or own["enabled"] == 1 or own["deck"] != deck_id)
+            )
+            starting = body.start_review or automatic
+            if not starting and (not own or not own["enabled"]):
                 return ReviewHookReply()
-            if body.deck_id is None and own and not body.start_review:
+            if body.deck_id is None and own and not starting:
                 deck_id = cast(str, own["deck"])
-            if own and own["deck"] != deck_id and not body.start_review:
+            if own and own["deck"] != deck_id and not starting:
                 return ReviewHookReply()
             other = db.execute(
                 "SELECT 1 FROM review_sessions WHERE deck=? AND enabled=1 AND expires_at>? "
@@ -81,7 +88,11 @@ class Reviews:
                 (deck_id, time.time(), body.harness, body.session_id),
             ).fetchone()
             if other:
-                return ReviewHookReply(reason="This presentation already has a live reviewer.")
+                return ReviewHookReply(
+                    reason="This presentation already has a live reviewer."
+                    if body.start_review
+                    else ""
+                )
             same_deck = bool(own and own["deck"] == deck_id)
             feedback_cursor = max(
                 cast(int, own["feedback_cursor"]) if same_deck else 0, body.seen_cursor or 0
