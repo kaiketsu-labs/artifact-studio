@@ -174,6 +174,14 @@ The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds 
 
 `capture_artifact` returns an actual rendered image with revision and viewport metadata. It can sample elapsed animation time in a fresh offline runtime. Use a browser for user-driven interaction states; use the existing slide capture tools for presentations. Preview cards use cached images, not a running iframe per artifact.
 
+## Explore slide designs
+
+![A whole-slide design preview alongside the original and three authored alternatives. The chosen design has a gold border and check.](docs/assets/slide-designs.png)
+
+Ask your agent for several directions for a slide. Hover the slide's stacked-card count for clickable previews, or open **Designs**. Previewing leaves the chosen slide unchanged. **Compare** shows any two designs; **Keep current** or **Use this design** records your decision and puts the options away. The chosen design has a stronger gold border and a check icon.
+
+Alternatives stay in **Version history → Design decisions & saved alternatives**, and the decision has Undo. Feedback written while previewing stays attached to that proposal. Speaker notes remain intact. [Workflow, agent tools and limits](docs/SLIDE-DESIGNS.md).
+
 ## Live or Batch
 
 | Live | Batch |

@@ -61,7 +61,13 @@ class AgentContext(StrictModel):
         default_factory=list,
         description="Legacy notes; use ask_slide_question for answerable slide questions.",
     )
-    alternatives: list[str] = Field(default_factory=list)
+    alternatives: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Legacy text notes. Use publish_slide_designs for previewable, "
+            "selectable design alternatives."
+        ),
+    )
 
 
 class Slide(StrictModel):
@@ -250,6 +256,9 @@ class Feedback(StrictModel):
     files: list[FeedbackFile] = Field(default_factory=list)
     edit_intent: EditIntent | None = None
     question: QuestionPrompt | None = None
+    design_set_id: str | None = None
+    design_option_id: str | None = None
+    design_option_name: str | None = None
 
     @model_validator(mode="after")
     def question_context(self) -> Self:
@@ -338,6 +347,7 @@ class DeckView(StrictModel):
     workflow: FeedbackWorkflow = Field(default_factory=FeedbackWorkflow)
     feedback: list[Feedback] = Field(default_factory=list)
     brief_files: list[DesignFile] = Field(default_factory=list)
+    slide_designs: dict[str, dict[str, object]] = Field(default_factory=dict)
 
 
 class AgentDeckView(DeckView):
@@ -432,6 +442,7 @@ class CommentInput(StrictModel):
     target: SlideTarget | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
     edit_intent: EditIntent | None = None
+    design_option_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
 
 
 class PresentationCommentInput(StrictModel):

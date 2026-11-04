@@ -27,6 +27,8 @@
   <script src="/web/element-commands.js" defer></script>
   <script src="/web/multi-element-edits.js" defer></script>
   <link rel="stylesheet" href="/web/version-history.css">
+  <link rel="stylesheet" href="/web/slide-designs.css">
+  <script src="/web/slide-designs.js" defer></script>
   <script src="/web/version-history.js" defer></script>
   <script src="/web/workspace-recovery.js" defer></script>
   <script src="/web/icons.js" defer></script>
@@ -163,7 +165,7 @@
     <div id="feedback-list" aria-live="polite"></div>
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
-      <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
+      <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><span id="feedback-design-context" class="feedback-design-context" hidden></span><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <div id="target-members" class="target-members" aria-label="Selected objects" hidden></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>

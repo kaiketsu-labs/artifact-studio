@@ -1,112 +1,86 @@
 {
-  "generated_at": "2026-11-04T13:17:37.915690+00:00",
+  "generated_at": "2026-11-04T14:36:10.039251+00:00",
   "fixture": "Original fictional Studio Blue presentation and Team launch project",
-  "verification": "README PNG references resolve to captured files whose hashes match their inventories.",
-  "readme_screenshot_count": 9,
-  "documentation_screenshots_verified": 49,
+  "verification": "README references resolve; screenshot bytes match current capture inventories.",
+  "readme_screenshot_count": 10,
+  "documentation_screenshots_verified": 56,
   "screenshots": {
-    "docs/assets/add-design.png": {
-      "readme_reference": true,
-      "viewport": {
-        "width": 1440,
-        "height": 1000
-      },
-      "captured_at": "2026-11-04T10:43:25.573020+00:00",
-      "sha256": "ebf4f66f3ff0ca062282844d65591d89478d4411c30a46ef76b6a628ea6be719",
-      "manifest": "docs/screenshots/design-captures.json"
-    },
-    "docs/assets/artifact-hub.png": {
-      "readme_reference": true,
+    "docs/assets/workspace.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T14:14:51.268231+00:00",
+      "captured_at": "2026-11-04T13:12:18.781980+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "c03c4e4cd6f9ab6ff124756cb8bf40e62e064b809df5771c3907321dcfca924d",
-      "manifest": "docs/screenshots/captures.json"
+      "sha256": "3f0144c759a84d89223762611e716017796d6da7a6ac13cf31cf567669a15be7",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
     },
-    "docs/assets/artifact-review.png": {
-      "readme_reference": true,
+    "docs/assets/slide-chat.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:49.454000+00:00",
+      "captured_at": "2026-11-04T13:12:19.296821+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "1a591b213830766df74299f8f69f2275ed17edd8199a5d5416dae96ca65ba57e",
-      "manifest": "docs/screenshots/captures.json"
+      "sha256": "68fb509d5770d39f5667f71cd0d39fb616546c260c5380890ac59e71a91bd080",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
     },
-    "docs/assets/context-menu.png": {
-      "readme_reference": true,
+    "docs/screenshots/chat-sender-icons-light.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:48.992502+00:00",
+      "captured_at": "2026-11-04T13:12:19.890148+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "cc617bc9b974b35beb0d4bc190470f0e1bbb84d0c5395e60fe1b89930cecb9b7",
-      "manifest": "docs/screenshots/captures.json"
+      "sha256": "68fb509d5770d39f5667f71cd0d39fb616546c260c5380890ac59e71a91bd080",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
     },
-    "docs/assets/design-context.png": {
-      "readme_reference": true,
-      "viewport": {
-        "width": 1440,
-        "height": 1000
-      },
-      "captured_at": "2026-11-04T10:43:25.955675+00:00",
-      "sha256": "6120980b673f9a3333d8aedbddc02e5751e7176cc5aac7fd5949b8e85e271921",
-      "manifest": "docs/screenshots/design-captures.json"
-    },
-    "docs/assets/design-library.png": {
-      "readme_reference": true,
-      "viewport": {
-        "width": 1440,
-        "height": 1000
-      },
-      "captured_at": "2026-11-04T10:43:25.358032+00:00",
-      "sha256": "cfc3c6c4c6f17f104c8d2b448bba4e1324d795d9c9c65cac356e70f070a66f8a",
-      "manifest": "docs/screenshots/design-captures.json"
-    },
-    "docs/assets/design-text-editor.png": {
-      "readme_reference": true,
-      "viewport": {
-        "width": 1440,
-        "height": 1000
-      },
-      "captured_at": "2026-11-04T10:43:26.326071+00:00",
-      "sha256": "14b54c77e4a0b144108e91be23d41a77c9e7caf1d86375760e31c6403bced075",
-      "manifest": "docs/screenshots/design-captures.json"
-    },
-    "docs/assets/presenter.png": {
-      "readme_reference": true,
+    "docs/screenshots/chat-sender-icons-dark.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:26.169879+00:00",
+      "captured_at": "2026-11-04T13:12:20.814067+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "ed00e518e00ff353e9f0c0d8245f224dd695206b21c3b897bb737b9be2fe0261",
-      "manifest": "docs/screenshots/captures.json"
+      "sha256": "eac98136c4f48e57d2098f3ccde3e69f60faece317d13e853f65b7fe6b158dc5",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/element-review.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:21.806163+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "8116d362539e59d0963f074faf132250c4cb3260c0d047da44673b3c50be7367",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
     },
     "docs/assets/selection-export.png": {
-      "readme_reference": true,
       "viewport": {
         "width": 1440,
         "height": 1000
@@ -118,7 +92,769 @@
         1000
       ],
       "sha256": "fa14fde3fd3c17dbedde72d3df8e671670bef9e505e4af39fb0bf98d90c4c37e",
-      "manifest": "docs/screenshots/captures.json"
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
+    },
+    "docs/assets/slide-sorter.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:24.156279+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "aa9b489d099abca95ccf475a689e793d94ffec348577d4086f11ddea79459fb5",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/section-sorter-navigation.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:24.473072+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "d5ae8022ecedc9e2217e30f385fa4d1acd2df0f09bfd2c75bc7d7dcefcee21e2",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/slide-management.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:24.691678+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1d87228f924466fb793c90bef9403b6019e6b0e9acc02fcba129f6f45e269750",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/projects.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:25.031503+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1ab147fcce59eb6b7444d31f570b96964ba14b59e2d06822fc096687cd04acf4",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/interactive-slide.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:25.514481+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "6b65701a642904b46c1b852b0f2c74898015aa28323d9a73cc9bdc1f98d9126f",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/presenter.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:26.169879+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "ed00e518e00ff353e9f0c0d8245f224dd695206b21c3b897bb737b9be2fe0261",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
+    },
+    "docs/screenshots/slide-question-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:27.016896+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "8957420db134d6ae96962b446e2e53e78b5b93f6339a516415dbe32a48b2bae3",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-question-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:27.283662+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "e09101f818b8afacf080fd34396c70bd699df8f477e14c23d002f8063648254b",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-sections-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:27.444052+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "b7a85e85efadd65f8ea29c535e7b13417225f105300d4b3e8c901fba7d8642d2",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-sections-light.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:27.695347+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "8edfd6f79c6bf68f69f021424cb502d130515c9320bb1fd4459b68c0ccd62f8d",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/slide-sections.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:27.926024+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "8edfd6f79c6bf68f69f021424cb502d130515c9320bb1fd4459b68c0ccd62f8d",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/section-active-slide.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:32.403021+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "780e70d0d271128b7771da163a3482edf4573ddc50111fd1e000380be764e7bc",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/notes-conflict.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:35.247365+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "48517f363fcda6566a604e076c1f10d0b284cf88a5d472ed337128ffb03de3b3",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/notes-retry.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:36.315335+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "5eb4ac36f8f66dc7decc0f66f856acb68dc974d019d766cd5d75dfe1475745d9",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/storage-backup.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:37.474045+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "cf90b37f0831b2244369dd6075ef12bea2fdf544fe46f1a190eb017194cf1388",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/design-references.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:37.725159+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "2e3b2f9fc487e5903921adce419fd45e9a6a13100ca2bb77c379d4123ea8aa03",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/reference-controls.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:37.875297+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "84999de21508d7778b212f41055b5e3a1d0d62f28b38789d0b7bf57ee7885483",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/reference-files.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:38.812954+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "ab9b8fc5fe2984b7183ed2f37de82722df860045b65a74a97ad203ffeeeab01b",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/reference-removed.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:39.294630+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "155435d63c3d560577d7784b3142e85dc507533d977d4a2317879e5b0810d2c5",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/new-presentation-references.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:39.830523+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "0ad18ade3dd08a03b2aee25297cc464ce5a6c2f7c14046ef527e6ef2ef128d68",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/visual-review.png": {
+      "renderer": "artifact_studio.visuals.snapshot + Playwright + contact_sheet",
+      "diagnostics": {
+        "cover": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "workflow": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "story": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        },
+        "appendix": {
+          "reveal_steps": 0,
+          "failed_images": [],
+          "failed_fonts": [],
+          "possible_overflow": [],
+          "media_count": 0,
+          "interactive": false,
+          "diagnostics_scope": "Static slide DOM"
+        }
+      },
+      "captured_at": "2026-11-04T13:12:40.650589+00:00",
+      "pixels": [
+        1008,
+        652
+      ],
+      "sha256": "dca1f36739d0b2eb37d84164090ec6332cc614e08bcd468cc4984b52676c9e65",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/artifact-hub.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T14:14:51.268231+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "c03c4e4cd6f9ab6ff124756cb8bf40e62e064b809df5771c3907321dcfca924d",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
+    },
+    "docs/assets/context-menu.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:48.992502+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "cc617bc9b974b35beb0d4bc190470f0e1bbb84d0c5395e60fe1b89930cecb9b7",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
+    },
+    "docs/assets/artifact-review.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:49.454000+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "1a591b213830766df74299f8f69f2275ed17edd8199a5d5416dae96ca65ba57e",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": true
+    },
+    "docs/assets/quick-access.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:54.342482+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "bbff2ecde2c3e053d8e75a761b732a6c3b4fcdb3bb1f9672d2d0b47b165fb4b3",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/quick-access-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:55.100026+00:00",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "sha256": "7ebde9883f119aaba81a94265676c32d494a64e3e0ae96eed7cc52d7300ebce0",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/chat-mobile-dark.png": {
+      "viewport": {
+        "width": 320,
+        "height": 568
+      },
+      "region": null,
+      "captured_at": "2026-11-04T13:12:56.235798+00:00",
+      "pixels": [
+        320,
+        568
+      ],
+      "sha256": "2a80f2f4033ce896fb0900d09d5a6148672eea4ebf4afe55befd128936420310",
+      "manifest": "docs/screenshots/captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/design-library.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:25.358032+00:00",
+      "sha256": "cfc3c6c4c6f17f104c8d2b448bba4e1324d795d9c9c65cac356e70f070a66f8a",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": true
+    },
+    "docs/assets/add-design.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:25.573020+00:00",
+      "sha256": "ebf4f66f3ff0ca062282844d65591d89478d4411c30a46ef76b6a628ea6be719",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": true
+    },
+    "docs/screenshots/add-design-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:25.730122+00:00",
+      "sha256": "b27b22f9325e01abb364b92d9dee6980a03c875e98278db26df5845abad41306",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        390,
+        844
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/design-context.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:25.955675+00:00",
+      "sha256": "6120980b673f9a3333d8aedbddc02e5751e7176cc5aac7fd5949b8e85e271921",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": true
+    },
+    "docs/screenshots/design-text-preview.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.121391+00:00",
+      "sha256": "bf24cd7269a109f2b0f580ee3d531ab9b479bf74450f989b1d7ee74e81cd9be6",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/design-text-editor.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.326071+00:00",
+      "sha256": "14b54c77e4a0b144108e91be23d41a77c9e7caf1d86375760e31c6403bced075",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": true
+    },
+    "docs/screenshots/design-context-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.589357+00:00",
+      "sha256": "c2bcba8067f2a171e4733ece87889d61e1712eabd5dad909adf9aeb2b6c67582",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-text-editor-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.766920+00:00",
+      "sha256": "b771b04320ccedc87db92f0eca19676ae4c6b84db79325972a98ea3d33c90557",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-text-editor-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:26.836290+00:00",
+      "sha256": "ddaa39841c5418931b4b1a57d34f094695f08542c4dc04ec40b300a0322be3fc",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        390,
+        844
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-file-preview.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:27.106466+00:00",
+      "sha256": "b15f06b863884e9cfe3c0734995abd44a8e31674904a512dd9776f02a4a743d3",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-use-agent.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:27.259034+00:00",
+      "sha256": "bdff43c176c49268b059698c52d6a5fdaf146cc014dd453a8b03d16ae687ebb0",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-context-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:27.395472+00:00",
+      "sha256": "1635bac3a8ca0140572e3d128d8ce38f8fc457b885540db4efc86c90324ca5f1",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        390,
+        1055
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/design-pack-context.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:27.561471+00:00",
+      "sha256": "9b1cb9f566eb519b9836f48f676b2359914f67261beb96f2d9650b104ea46f46",
+      "manifest": "docs/screenshots/design-captures.json",
+      "pixels": [
+        1440,
+        1731
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/sharing.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-03T22:17:47.131292+00:00",
+      "sha256": "3b02da0846bf8ebecb849797b2de5bd539a94270c54359610287f34f2269b02b",
+      "manifest": "docs/screenshots/sharing-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/sharing-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-03T22:17:47.228784+00:00",
+      "sha256": "b253de47234ea2e67e4f43117d9590c293ac9fa61a870492893e9c79495407f7",
+      "manifest": "docs/screenshots/sharing-captures.json",
+      "pixels": [
+        390,
+        844
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/sharing-fallback.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-03T22:17:47.676211+00:00",
+      "sha256": "fb6cf5954793706efafbdb0bcc64d336dd269f7f8a4fb04ee9a271daef74eb5b",
+      "manifest": "docs/screenshots/sharing-captures.json",
+      "pixels": [
+        1440,
+        1000
+      ],
+      "readme_reference": false
+    },
+    "docs/assets/slide-designs.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T14:05:50.466292+00:00",
+      "sha256": "f5a6eb72a52b8528bda39dddc660a1326823feb4dd5f557a6e93749319b96ce2",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": true
+    },
+    "docs/screenshots/slide-designs-hover.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T14:05:50.760633+00:00",
+      "sha256": "1e0e1fb25fdaba106e377b1b513520efa276b27d266b3fff5a78374a039a2237",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-compare.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T14:05:51.339663+00:00",
+      "sha256": "7560a4e2251db827499bce33e26c8e7de19928ba7ef70e1401225bbbec16caf6",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captured_at": "2026-11-04T14:05:51.508695+00:00",
+      "sha256": "29fbe1d05c10999adc595e37d4d321584cbc7df153e0fd071dc55421c90cff10",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        390,
+        900
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-dark.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T14:05:52.077383+00:00",
+      "sha256": "a6fad66d6acfcf022a2e7097b42ada2efd0168f23cf78161e5cbc7ad8c9f66a5",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-chosen.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T14:05:52.914490+00:00",
+      "sha256": "418c2f9d6e6687422374977a23387130329df34a64e99785f742795c090746a4",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
+    },
+    "docs/screenshots/slide-designs-history.png": {
+      "viewport": {
+        "width": 1600,
+        "height": 1100
+      },
+      "captured_at": "2026-11-04T14:05:54.063929+00:00",
+      "sha256": "375a7867e0c87dbdecbcc24d3f787d55effbc43d5d9e746791382b421c67d0ad",
+      "manifest": "docs/screenshots/slide-designs-captures.json",
+      "pixels": [
+        1600,
+        1100
+      ],
+      "readme_reference": false
     }
   }
 }

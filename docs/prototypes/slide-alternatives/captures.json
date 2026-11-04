@@ -1,0 +1,271 @@
+{
+  "captured_at": "2026-11-04T11:06:35.178200+00:00",
+  "method": "Direct Chromium screenshots of the isolated fictional UX prototype; no DOM replacement or image retouching. Hover detail is a direct viewport-region capture; history is a direct dialog capture.",
+  "captures": [
+    {
+      "file": "01-preview.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "ae7647bb0b753e118c4bde84263ee65a8179f0c8efa91aff5193eec86ec8856c"
+    },
+    {
+      "file": "02-compare.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "91a75dc2af51f4ef9f666563161f40e5874452d404b4932320647979456d5aac"
+    },
+    {
+      "file": "03-chosen.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "b4ec4bef5e470471c5b0ae445358179e94d4252858bb212794bcaddabf75e9be"
+    },
+    {
+      "file": "10-history.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "region": "#design-history-dialog",
+      "sha256": "9c7bdc867990577ab0b8fefd97c5e83f3ed7a62ef63ecea633448a34b6b7abf5"
+    },
+    {
+      "file": "11-kept-current.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "f2fc006400a931f34151d722f5432a438cc5a4261c9f222e8da149b15b7ea240"
+    },
+    {
+      "file": "04-dark.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "dark",
+      "clip": null,
+      "region": null,
+      "sha256": "8afd95d588fffd25e166c36fcb4f7808f70a227b1dc3850c69667d4504d4904d"
+    },
+    {
+      "file": "05-mobile.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "7b61acbcd6bc4f96c7e9e53fc0646c62aa9d4bd615620b84b036c3cade30774c"
+    },
+    {
+      "file": "06-mobile-compare.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "9f42f515c321c659f292118321948eb734493d17530ec9c32cf0d3ca15d761eb"
+    },
+    {
+      "file": "07-hover.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "region": null,
+      "sha256": "61c2ee95578ef986d57a17c933575b4372846ed604c4fe6947683e1427e0852b"
+    },
+    {
+      "file": "08-hover-detail.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": {
+        "x": 74,
+        "y": 154,
+        "width": 500,
+        "height": 340
+      },
+      "region": null,
+      "sha256": "8aacd7c291fa2e6981ab1868ce9d20fa25377909cc27233b1d883dd83e06cffa"
+    },
+    {
+      "file": "09-hover-dark.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "dark",
+      "clip": null,
+      "region": null,
+      "sha256": "268a51fad121c29489665464d73587ce7ac144534793147d99c7f11b3ea236cb"
+    }
+  ],
+  "accessibility_checks": [
+    {
+      "state": "light desktop preview with Keep current",
+      "violations": []
+    },
+    {
+      "state": "light desktop compare with Keep current",
+      "violations": []
+    },
+    {
+      "state": "chosen design, quiet editor and Undo",
+      "violations": []
+    },
+    {
+      "state": "history with saved alternatives collapsed",
+      "violations": []
+    },
+    {
+      "state": "history with saved alternatives expanded",
+      "violations": []
+    },
+    {
+      "state": "dark chosen design, quiet editor",
+      "violations": []
+    },
+    {
+      "state": "dark history with saved alternatives",
+      "violations": []
+    },
+    {
+      "state": "keep existing design, quiet editor",
+      "violations": []
+    },
+    {
+      "state": "history records keeping current",
+      "violations": []
+    },
+    {
+      "state": "dark desktop preview",
+      "violations": []
+    },
+    {
+      "state": "dark desktop compare",
+      "violations": []
+    },
+    {
+      "state": "light 390px preview with Keep current",
+      "violations": []
+    },
+    {
+      "state": "light 390px compare",
+      "violations": []
+    },
+    {
+      "state": "light 390px kept current, quiet editor",
+      "violations": []
+    },
+    {
+      "state": "light 390px history",
+      "violations": []
+    },
+    {
+      "state": "dark 390px preview",
+      "violations": []
+    },
+    {
+      "state": "dark 390px compare",
+      "violations": []
+    },
+    {
+      "state": "light 320px preview with Keep current",
+      "violations": []
+    },
+    {
+      "state": "light 320px compare",
+      "violations": []
+    },
+    {
+      "state": "light 320px kept current, quiet editor",
+      "violations": []
+    },
+    {
+      "state": "light 320px history",
+      "violations": []
+    },
+    {
+      "state": "dark 320px preview",
+      "violations": []
+    },
+    {
+      "state": "dark 320px compare",
+      "violations": []
+    },
+    {
+      "state": "light 768px preview with Keep current",
+      "violations": []
+    },
+    {
+      "state": "light 768px compare",
+      "violations": []
+    },
+    {
+      "state": "light 768px kept current, quiet editor",
+      "violations": []
+    },
+    {
+      "state": "light 768px history",
+      "violations": []
+    },
+    {
+      "state": "dark 768px preview",
+      "violations": []
+    },
+    {
+      "state": "dark 768px compare",
+      "violations": []
+    },
+    {
+      "state": "light hover fan",
+      "violations": []
+    },
+    {
+      "state": "light lifted card",
+      "violations": []
+    },
+    {
+      "state": "dark hover fan",
+      "violations": []
+    },
+    {
+      "state": "dark lifted card",
+      "violations": []
+    },
+    {
+      "state": "keyboard preview fan",
+      "violations": []
+    }
+  ],
+  "page_errors": []
+}

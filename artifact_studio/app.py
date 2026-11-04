@@ -5,6 +5,7 @@ import os
 import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from functools import wraps
 from html import escape
 from pathlib import Path
@@ -108,9 +109,18 @@ from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .sections import Sections, sections_hash
 from .share_api import sharing_routes
 from .slide_actions import SlideActionResult, SlideActions
+from .slide_design_api import design_routes
+from .slide_designs import (
+    DesignCapture,
+    DesignInput,
+    DesignPage,
+    DesignSet,
+    DesignSource,
+    SlideDesigns,
+)
 from .storage import ConflictError, Store, digest
 from .text_review import check_slide_text as review_captured_text
-from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status
+from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status, capture_snapshot
 
 PROJECT = Path(__file__).resolve().parent.parent
 COLLECTION = Path(
@@ -459,6 +469,7 @@ def get_authoring_guide(
         "design_guide",
         "design_context",
         "artifacts",
+        "slide_designs",
     ],
     design_id: str = "",
     deck_id: str = "",
@@ -475,6 +486,7 @@ def get_authoring_guide(
         "text_review": "TEXT-REVIEW.md",
         "interactive_html": "INTERACTIVE-HTML.md",
         "design_import": "DESIGN-PACKS.md",
+        "slide_designs": "SLIDE-DESIGNS.md",
     }
     if topic == "artifacts":
         path = PROJECT / "agent/guides/artifacts.md"
@@ -662,6 +674,7 @@ def get_slide(
 ) -> AgentSlideView:
     """Read complete slide source, notes and expected_hash for a safe revision.
     Read released comments via read_feedback; include_feedback=True adds slide discussion history.
+    Use publish_slide_designs for alternatives; revise_slide changes the chosen slide.
     include_interactive_html=False omits embedded interactive source (returned as empty with
     an explicit inclusion marker, byte count and hash), preserving static HTML, notes and tokens.
     Use it for static/notes inspection; request full source before editing interactive content.
@@ -682,6 +695,77 @@ def get_slide(
         interactive_html_included=include_interactive_html,
         interactive_html_bytes=len(view.interactive_html.encode()),
         interactive_html_hash=digest(view.interactive_html),
+    )
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def publish_slide_designs(
+    deck_id: str,
+    slide_id: str,
+    expected_content_hash: str,
+    request_id: str,
+    options: Annotated[list[DesignInput], Field(min_length=1, max_length=5)],
+) -> DesignSet:
+    """Offer 1–5 named whole-slide designs without replacing the current slide.
+
+    Read get_slide first and pass its content_hash. Local assets and interactive dependencies
+    are frozen for review. The original is retained automatically. Only the human can decide
+    Use this design or Keep current. To refine proposals, read their source and publish a new
+    set; old design IDs and feedback anchors remain immutable. Exact request retries are safe.
+    """
+    return SlideDesigns(store).publish(
+        deck_id, slide_id, expected_content_hash, request_id, options
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_slide_designs(
+    deck_id: str,
+    slide_id: str,
+    cursor: int | None = None,
+    decision_cursor: int | None = None,
+    set_id: str | None = None,
+) -> DesignPage:
+    """Read available design sets, human decisions and source-free preview pointers."""
+    return SlideDesigns(store).list(
+        deck_id, slide_id, cursor=cursor, decision_cursor=decision_cursor, set_id=set_id
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_slide_design(deck_id: str, slide_id: str, design_id: str) -> DesignSource:
+    """Read one immutable design's audience source, including its proposal feedback hash."""
+    return SlideDesigns(store).read(deck_id, slide_id, design_id)
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def capture_slide_design(deck_id: str, slide_id: str, design_id: str) -> CallToolResult:
+    """Visually inspect a frozen proposed design without changing the chosen slide."""
+    designs = SlideDesigns(store)
+    option = designs.read(deck_id, slide_id, design_id).option
+    frozen = designs.preview(deck_id, slide_id, design_id)
+    output = DATABASE.parent / "design-captures"
+    output.mkdir(parents=True, exist_ok=True)
+    path = output / f"{design_id}.png"
+    _ = path.write_bytes(capture_snapshot(frozen, CaptureOptions(reduced_motion=True)))
+    return visual_result(
+        DesignCapture(
+            design_id=design_id,
+            set_id=option.set_id,
+            source_hash=option.source_hash,
+            capture_id=design_id,
+            deck_id=deck_id,
+            captured_at=datetime.now(UTC).isoformat(),
+            kind="slide-design",
+            path=str(path),
+            frames=[frozen.frame],
+            total_slides=1,
+            selected_slides=1,
+        )
     )
 
 
@@ -1965,6 +2049,7 @@ def feedback(deck_id: DeckID, slide_id: SlideID, body: CommentInput) -> dict[str
         files=body.files,
         edit_intent=body.edit_intent,
         expected_mode=body.expected_mode,
+        design_option_id=body.design_option_id,
     )
     return {"event_id": event_id}
 
@@ -2019,6 +2104,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 app.include_router(artifact_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
+app.include_router(design_routes(lambda: store))
 app.include_router(image_routes(lambda: store))
 app.include_router(recovery_routes(lambda: store))
 

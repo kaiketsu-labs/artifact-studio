@@ -74,6 +74,7 @@ jobs:
               tests/integration/test_voice_rich.py tests/integration/test_voice_presenter.py tests/integration/test_sharing_render.py
               tests/integration/test_feedback_mode_sync.py
               tests/integration/test_element_mode_guard.py
+              tests/integration/test_slide_designs.py
           - suite: artifacts-runtime
             tests: >-
               tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
