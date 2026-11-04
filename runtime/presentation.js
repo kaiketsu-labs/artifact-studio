@@ -345,7 +345,9 @@
     <nav id="presenter-filmstrip" class="presenter-filmstrip" aria-label="All slides"></nav>`;
   const controls=document.createElement('div');controls.className='single-controls';controls.innerHTML='<button id="single-previous"></button><span id="single-counter"></span><button id="single-next"></button><button id="all-slides-button"></button><button id="single-blackout"></button><button id="show-presenter"></button><button id="single-fullscreen"></button><button id="exit-slideshow"></button>';document.body.append(controls);
   const overview=document.createElement('dialog');overview.id='all-slides-dialog';overview.innerHTML='<header><h2>All slides</h2><button id="close-all-slides"></button></header><div id="all-slides-grid"></div>';document.body.append(overview);
-  const canvasObserver=new ResizeObserver(entries=>{for(const entry of entries)entry.target.style.setProperty('--slide-scale',String(Math.min(entry.contentRect.width/1600,entry.contentRect.height/900)));});
+  /** Size newly visible canvases before popup focus can delay resize delivery. */
+  function fitCanvas(element){const {width,height}=element.getBoundingClientRect();element.style.setProperty('--slide-scale',String(Math.min(width/1600,height/900)));}
+  const canvasObserver=new ResizeObserver(entries=>{for(const entry of entries)fitCanvas(entry.target);});
   const pointer=document.createElement('div');pointer.className='laser-pointer';pointer.hidden=true;$('stage').append(pointer);
   for(const [id,icon,label,show] of [
     ['previous','left','Previous slide',false],['next','right','Next slide',false],['notes-button','notes','Notes',false],['sources-button','sources','Sources',false],['present-button','present','Present',true],['audience-fullscreen','fullscreen','Fullscreen',false],
@@ -392,7 +394,7 @@
   let noteFont=22;
 
   /** Keep unfinished notes attached to their original slide and concurrency baseline. */
-  function persistNotes(){try{if(noteDrafts.size)localStorage.setItem(noteKey,JSON.stringify(Object.fromEntries(noteDrafts)));else localStorage.removeItem(noteKey);}catch{}}
+  function persistNotes(){if(isAudience)return;try{if(noteDrafts.size)localStorage.setItem(noteKey,JSON.stringify(Object.fromEntries(noteDrafts)));else localStorage.removeItem(noteKey);}catch{}}
   function noteValue(index=current){const slide=deck.slides[index];return noteDrafts.get(slide?.id)?.notes??slide?.notes??'';}
   function noteStatus(message=''){$('presenter-note-status').textContent=message;$('message').textContent=message;}
   function displayStatus(message=''){if(isAudience)return;const status=$('display-status');status.textContent=message;status.hidden=!message;}
@@ -465,6 +467,7 @@
     updateProgressRail($('dots'),current);
     history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
     iconButton($('present-button'),'present',active?'End':'Present',true);
+    for(const slot of document.querySelectorAll(mode==='presenter'?'#presenter-view .stage-slot,#presenter-filmstrip .film-slide':'#stage'))fitCanvas(slot);
     hostMessage('state');
   }
   /** Route all audience commands to the presenter to keep one navigation authority. */
