@@ -182,6 +182,12 @@ Ask your agent for several directions for a slide. Hover the slide's stacked-car
 
 Alternatives stay in **Version history → Design decisions & saved alternatives**, and the decision has Undo. Feedback written while previewing stays attached to that proposal. Speaker notes remain intact. [Workflow, agent tools and limits](docs/SLIDE-DESIGNS.md).
 
+You can also ask for headline, supporting-text or graphic options. Their small canvas badges open full-wording or visual cards beside the actual element. Hover previews the change live; click or tap pins it. **Use** applies just that element, while **Keep current** retains it. Gold marks the chosen option, blue marks a preview, and saved options remain in History. Element alternatives require a static slide and a uniquely identified target; agents can freely compose its HTML/CSS/SVG.
+
+![Full wording options previewed live in the real slide editor.](docs/assets/element-alternatives.png)
+
+[Text options](docs/screenshots/element-alternatives-text.png) · [Graphic options](docs/screenshots/element-alternatives-graphic.png) · [Comparison](docs/screenshots/element-alternatives-compare.png) · [Dark appearance](docs/screenshots/element-alternatives-dark.png) · [Touch layout](docs/screenshots/element-alternatives-mobile.png)
+
 ## Live or Batch
 
 | Live | Batch |

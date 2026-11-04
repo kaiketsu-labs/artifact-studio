@@ -133,3 +133,20 @@ test('late voice results retain the proposal identity across design switches and
   assert.ok(validSegments(restored));
   assert.equal(!!validSegments([{...restored[0],target:heading}]),false);
 });
+
+test('element voice feedback retains its fragment and full-slide context across later previews',()=>{
+  const values=new Map(),storage={keys:()=>[...values.keys()],getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};
+  const draftStore=createDrafts(storage);let number=0;
+  let selection={...context(null),element_option_id:'c'.repeat(32),element_option_name:'Clearer promise',element_context_hash:'a'.repeat(64)};
+  const queue=create({drafts:draftStore.feedback,key:()=> 'deck/cover',context:()=>selection,persist:draftStore.persist,uuid:()=>`element-voice-${++number}`});
+  const original=queue.capture();assert.ok(original);
+  selection={...selection,element_context_hash:'b'.repeat(64)};
+  const recomposed=queue.capture();assert.ok(recomposed);
+  assert.equal(queue.insert('Keep the earlier composition',original),true);
+  assert.equal(queue.insert('Make this version clearer',recomposed),true);
+  const restored=createDrafts(storage).feedback.get('deck/cover').voice_segments;
+  assert.deepEqual(restored.map(item=>item.element_context_hash),['a'.repeat(64),'b'.repeat(64)]);
+  assert.ok(restored.every(item=>item.element_option_id==='c'.repeat(32)&&item.target===null));
+  assert.ok(validSegments(restored));
+  for(const change of [{target:heading},{design_option_id:'d'.repeat(32),design_option_name:'Bold'},{element_context_hash:'bad'},{element_option_id:undefined}])assert.equal(!!validSegments([{...restored[0],...change}]),false);
+});

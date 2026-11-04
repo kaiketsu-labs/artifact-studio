@@ -1,4 +1,4 @@
-# Slide design alternatives
+# Slide and element alternatives
 
 Agents can publish several whole-slide designs without replacing the chosen slide. The original is retained automatically. Proposals use freely composed HTML/CSS/SVG and optional `interactive_html`; they are not a catalogue of fixed layouts.
 
@@ -26,7 +26,7 @@ After a decision, the thumbnail count appears on hover/focus and remains directl
 - If the audience, intended message, required facts or a consequential constraint is missing, use `ask_slide_question` first. Give short answer options and allow a written answer. Read pending questions before asking again. A set of polished designs does not resolve missing essential context.
 - For a small, unambiguous requested edit, use the normal guarded revision workflow. Offering alternatives is useful judgment, not a required step for every change. Never choose a proposal for the human or claim their approval.
 
-The capability is advertised in MCP initialization and `tools/list`; this guide is available through `get_authoring_guide(topic="slide_designs")`. Element-level alternatives are not implemented by these tools. Until that capability exists, use a targeted question or normal revision for individual text, headline and object changes.
+Whole-slide and static element alternatives are advertised in MCP initialization and `tools/list`; this guide is available through `get_authoring_guide(topic="slide_designs")`. The local MCP server exposes `ask_slide_question`; the scoped Copilot gateway can ask through its agent chat reply tools when that question tool is unavailable. Discovered tools remain authoritative.
 
 ### Publish and iterate
 
@@ -52,4 +52,28 @@ Previews retain the shared theme and local dependencies at publication time. App
 
 Decisions use a private database journal around the canonical source write. Recovery completes an interrupted choice once, preserving current notes and presentation structure. Undo is limited to the latest design decision and requires its resulting content still to be current. It restores prior source and applicable approval without replacing newer human notes.
 
-The database stores proposals, frozen previews and decision history. Include it with the collection in full workspace backups. Current-source GitHub backup and audience exports do not include private proposal history. Component alternatives are a separate follow-up.
+The database stores proposals, frozen previews and decision history. Include it with the collection in full workspace backups. Current-source GitHub backup and audience exports do not include private proposal history. Element fragments and their retained full-slide preview contexts are private review history too.
+
+
+## Static headline, text and graphic alternatives
+
+Use `publish_element_alternatives` for useful alternatives to one existing static element or container. The same judgment applies: offer two or three worthwhile directions for a clear brief, ask first when essential context is missing, and directly revise a small unambiguous change. Headline, text and graphic kinds describe the review UI; they do not limit composition to predefined layouts. Interactive slides continue to use whole-slide proposals.
+
+1. Read `get_slide` and its `content_hash`. Choose one existing element with a unique HTML `id`, passing that value as `target_id`. If it lacks a stable id, add one with a normal guarded revision and read the new source before publishing. Do not target the slide root, use an ambiguous id, or publish overlapping pending targets.
+2. Compose one to five options with `name`, optional concise `rationale`, and complete replacement outer `html`. Each replacement retains the target id. Preserve the element's important styling, semantics, facts and references. Freely compose static HTML/CSS/SVG within the target; assets remain presentation-local. The server retains Original automatically.
+3. Call `publish_element_alternatives(deck_id, slide_id, target_id, kind, label, expected_content_hash, request_id, options)`. Use a concise human label, such as Headline, and `kind="headline"`, `"text"` or `"graphic"`. Publication never replaces the chosen slide. Exact retries return the original receipt.
+4. Read `get_element_alternatives` for groups and decisions, and `get_element_alternative` for an immutable fragment and its original/current preview-context hashes. Use `capture_element_alternative` to inspect actual full-slide pixels, with the same offline renderer as ordinary captures. Pass `context_hash` to read or capture an exact retained context; omit it for the current safe composed context.
+5. Read released feedback normally. Element-specific comments carry `element_option_id`, `element_option_name`, `element_context_hash` and the immutable fragment's `source_hash` in `content_hash`. Read/capture using the recorded context hash when interpreting that feedback. A fragment's source hash, its full-slide preview context hash and a capture frame's visual content hash identify different things.
+6. Refine by publishing a new group against the current slide. This archives the older pending invitation for the same target; its option ids, source fragments, previews and feedback anchors remain addressable. Disjoint pending groups remain available. Never choose, Keep, Undo, approve, or call human-feedback endpoints as the agent.
+
+The browser shows complete headline/body wording and visual graphic cards. Hover changes the actual slide preview temporarily; leaving restores the chosen element unless the human pinned a preview by clicking. Touch taps and keyboard arrows work without hover. Explicit **Use headline / Use text / Use graphic** changes only that target, preserves unrelated content and speaker notes, and returns the changed slide to review. **Keep current** preserves the chosen source and approval. Both settle the group, with saved options and a recent-decision Undo in History.
+
+Known disjoint element decisions can produce a new full-slide context around an unchanged saved fragment; the earlier context remains readable by hash. If a target, parent design or shared resources changed incompatibly, the saved group is labelled as earlier context and adoption is blocked. Ask for refreshed options rather than applying a retained fragment to another design. A refresh request does not overwrite an unsent chat draft.
+
+History pagination uses `cursor`, `decision_cursor`, `set_id` and the independent next cursors like whole-slide history. The scoped Copilot gateway offers the same four element tools with flat `options_json`; its initial cursors use `-1`, finished streams use zero, and optional context/set hashes use empty strings. Every operation enforces the selected project/workspace scope. Capture metadata includes the option id, set id, fragment source hash and resolved context hash, without local host paths.
+
+![Real headline options above the selected slide element.](screenshots/element-alternatives-headline.png)
+
+[Text](screenshots/element-alternatives-text.png) · [Graphic](screenshots/element-alternatives-graphic.png) · [Element comparison](screenshots/element-alternatives-compare.png) · [Full slide](screenshots/element-alternatives-full-slide.png) · [Saved history](screenshots/element-alternatives-history.png) · [Touch](screenshots/element-alternatives-mobile.png) · [Capture inventory](screenshots/element-alternatives-captures.json)
+
+Full workspace backups retain the private proposal database. A portable presentation ZIP retains historical comment identities, but does not carry that private proposal archive; finish or clear unsent proposal feedback before saving that ZIP. Audience exports and GitHub source backups contain the chosen slide.

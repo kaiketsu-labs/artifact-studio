@@ -16,7 +16,7 @@
     doc.body.append(comparison);
     const $=selector=>tray.querySelector(selector),cmp=selector=>comparison.querySelector(selector);
     let context=null,page=null,group=null,selected='current',reference='current',trayOpen=false,busy=false,epoch=0,loadKey='',expectedHash='',reviewed=false,peekTrigger=null,closeTimer=null,historyToken=0;
-    let scope='',request=null,compareOpener=null,suppressPeek=false,expectedDecision=null;
+    let scope='',request=null,compareOpener=null,suppressPeek=false,expectedDecision=null,interactionEpoch=0;
     const cache=new Map(),frames=new Set();
     const resize=new ResizeObserver(entries=>{for(const entry of entries){const frame=entry.target.querySelector('iframe');if(!frame)continue;const factor=entry.target.clientWidth/1600;frame.style.width='1600px';frame.style.height='900px';frame.style.transform=`scale(${factor})`;}});
     function clearFrame(slot){for(const frame of slot.querySelectorAll('iframe')){frames.delete(frame);resize.unobserve(frame.parentElement);}slot.replaceChildren();}
@@ -86,14 +86,14 @@
       }catch(error){if(token===epoch){$('.sd-error').textContent=error.message;notify(error.message,true);}}
     }
     async function preview(key,{focus=false}={}){
-      const at=scope,was=group?.id;if(busy||!group||!await beforePreview()||scope!==at||group?.id!==was)return;
+      const at=scope,was=group?.id,intent=++interactionEpoch;if(busy||!group||!await beforePreview()||scope!==at||group?.id!==was||intent!==interactionEpoch)return;
       const item=choice(key);if(!item)return;selected=item.key;trayOpen=true;request=null;
       if(selected==='current')expectedHash=page.content_hash;
       render();if(focus)$('.sd-options').querySelector(`[data-sd-option="${CSS.escape(selected)}"]`)?.focus({preventScroll:true});
     }
     async function openOption({slideId=context?.slideId,setId=null,optionId=null}={}){
-      closePeek();if(!slideId||!await activate(slideId))return;
-      await load({force:true,setId:setId||'latest'});if(!group)return;
+      const intent=++interactionEpoch;closePeek();if(!slideId||!await activate(slideId)||intent!==interactionEpoch)return;
+      await load({force:true,setId:setId||'latest'});if(!group||intent!==interactionEpoch)return;
       trayOpen=true;expectedHash=page.content_hash;expectedDecision=group.decision_id;reviewed=false;
       const selectedOption=optionId&&group.options.find(item=>item.id===optionId);
       await preview(selectedOption?(selectedOption.id===group.current_option_id?'current':selectedOption.id):(choices().find(item=>!item.isCurrent)?.key||'current'),{focus:true});
@@ -143,8 +143,9 @@
       for(const button of comparison.querySelectorAll('button'))button.disabled=busy;
     }
     async function openComparison(){
-      const at=scope,was=group?.id;if(!group||busy||!await beforePreview()||scope!==at||group?.id!==was)return;
+      const at=scope,was=group?.id,intent=++interactionEpoch;if(!group||busy||!await beforePreview()||scope!==at||group?.id!==was||intent!==interactionEpoch)return;
       const latest=await api(base());if(scope!==at||group?.id!==was)return;
+      if(intent!==interactionEpoch)return;
       page=latest;group=latest.sets.find(item=>item.id===was)||group;expectedHash=latest.content_hash;expectedDecision=group.decision_id;reference='current';reviewed=false;
       if(selected==='current')selected=choices().find(item=>!item.isCurrent)?.key||'current';
       compareOpener=doc.activeElement;render();renderComparison();comparison.showModal();cmp('[data-sd-close]').focus();
@@ -236,8 +237,9 @@
     doc.addEventListener('pointerdown',event=>{if(!peek.contains(event.target)&&!event.target.closest('[data-sd-badge]'))closePeek();});
     doc.addEventListener('scroll',()=>closePeek(),true);root.addEventListener('resize',()=>closePeek());
     return {sync,history,mountCards,open:openOption,isPreviewing:()=>!!group&&selected!=='current',isBusy:()=>busy,
+      dismiss(){if(busy)return false;interactionEpoch++;closePeek();selected='current';trayOpen=false;reviewed=false;request=null;if(comparison.open)comparison.close();render();return true;},
       feedbackContext:()=>{const item=choice(selected);return item&&!item.isCurrent?{design_option_id:item.id,design_option_name:item.name,content_hash:item.source_hash}:null;},
-      reset(){epoch++;scope='';context=null;group=null;page=null;selected='current';trayOpen=false;closePeek();if(comparison.open)comparison.close();clearFrame(overlay);render();},
+      reset(){epoch++;interactionEpoch++;scope='';context=null;group=null;page=null;selected='current';trayOpen=false;closePeek();if(comparison.open)comparison.close();clearFrame(overlay);render();},
       card(comment){return comment.design_set_id?`<button type="button" class="sd-chat-card" data-slide-design-set="${escape(comment.design_set_id)}">View design options ${icon('right')}</button>`:'';}};
   }
   root.SlideDesignOptions={create};

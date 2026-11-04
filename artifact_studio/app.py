@@ -47,6 +47,15 @@ from .design_references import (
     ReferenceInput,
     RemoveReferenceInput,
 )
+from .element_alternative_api import element_alternative_routes
+from .element_alternatives import (
+    ElementAlternatives,
+    ElementCapture,
+    ElementInput,
+    ElementPage,
+    ElementSet,
+    ElementSource,
+)
 from .events import deck_events
 from .history_api import history_routes
 from .image_api import image_routes
@@ -761,6 +770,100 @@ def capture_slide_design(deck_id: str, slide_id: str, design_id: str) -> CallToo
             deck_id=deck_id,
             captured_at=datetime.now(UTC).isoformat(),
             kind="slide-design",
+            path=str(path),
+            frames=[frozen.frame],
+            total_slides=1,
+            selected_slides=1,
+        )
+    )
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def publish_element_alternatives(
+    deck_id: str,
+    slide_id: str,
+    target_id: Annotated[str, Field(min_length=1, max_length=200)],
+    kind: Literal["headline", "text", "graphic"],
+    label: Annotated[str, Field(min_length=1, max_length=80)],
+    expected_content_hash: str,
+    request_id: str,
+    options: Annotated[list[ElementInput], Field(min_length=1, max_length=5)],
+) -> ElementSet:
+    """Offer alternatives for one existing static slide element without changing the slide.
+
+    Read get_slide first. target_id is a unique existing HTML id; add one through a guarded
+    revise_slide first if needed. Each option supplies name, rationale and the complete
+    replacement outer HTML, preserving that id. Original is retained automatically. Freely
+    compose HTML/CSS/SVG; kind only controls how the review UI presents the options.
+    Interactive slides require whole-slide alternatives. Only humans choose or Keep current.
+    Read the slide_designs guide for targeting, source hashes, feedback and safe iteration.
+    """
+    return ElementAlternatives(store).publish(
+        deck_id, slide_id, target_id, kind, label, expected_content_hash, request_id, options
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_element_alternatives(
+    deck_id: str,
+    slide_id: str,
+    cursor: int | None = None,
+    decision_cursor: int | None = None,
+    set_id: str | None = None,
+) -> ElementPage:
+    """Read element option groups, their preview context and explicit human decisions.
+
+    Carry the returned independent history cursors; set_id retrieves a retained group.
+    Current proposals and earlier saved contexts remain distinct. This call never chooses.
+    """
+    return ElementAlternatives(store).list(
+        deck_id, slide_id, cursor=cursor, decision_cursor=decision_cursor, set_id=set_id
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_element_alternative(
+    deck_id: str, slide_id: str, element_option_id: str, context_hash: str | None = None
+) -> ElementSource:
+    """Read one immutable element fragment, its target and original/reviewed context hashes."""
+    return ElementAlternatives(store).read(
+        deck_id, slide_id, element_option_id, context_hash=context_hash
+    )
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def capture_element_alternative(
+    deck_id: str, slide_id: str, element_option_id: str, context_hash: str | None = None
+) -> CallToolResult:
+    """Inspect actual full-slide pixels for an element proposal through the offline renderer.
+
+    Captures retain the option identity and source hash; they do not revise the chosen slide.
+    Earlier design contexts remain labelled by the corresponding metadata/source read.
+    """
+    alternatives = ElementAlternatives(store)
+    source = alternatives.read(deck_id, slide_id, element_option_id, context_hash=context_hash)
+    option = source.option
+    frozen = alternatives.preview(
+        deck_id, slide_id, element_option_id, context_hash=source.context_hash
+    )
+    output = DATABASE.parent / "element-captures"
+    output.mkdir(parents=True, exist_ok=True)
+    path = output / f"{element_option_id}-{source.context_hash}.png"
+    _ = path.write_bytes(capture_snapshot(frozen, CaptureOptions(reduced_motion=True)))
+    return visual_result(
+        ElementCapture(
+            element_option_id=element_option_id,
+            set_id=option.set_id,
+            source_hash=option.source_hash,
+            context_hash=source.context_hash,
+            capture_id=element_option_id,
+            deck_id=deck_id,
+            captured_at=datetime.now(UTC).isoformat(),
+            kind="element-alternative",
             path=str(path),
             frames=[frozen.frame],
             total_slides=1,
@@ -2050,6 +2153,8 @@ def feedback(deck_id: DeckID, slide_id: SlideID, body: CommentInput) -> dict[str
         edit_intent=body.edit_intent,
         expected_mode=body.expected_mode,
         design_option_id=body.design_option_id,
+        element_option_id=body.element_option_id,
+        element_context_hash=body.element_context_hash,
     )
     return {"event_id": event_id}
 
@@ -2105,6 +2210,7 @@ app.include_router(artifact_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
 app.include_router(design_routes(lambda: store))
+app.include_router(element_alternative_routes(lambda: store))
 app.include_router(image_routes(lambda: store))
 app.include_router(recovery_routes(lambda: store))
 

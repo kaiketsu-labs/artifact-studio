@@ -35,10 +35,10 @@
   let visibilityBusy=false,menuSlide=null;
   let orderEpoch=0, selectionEpoch=0;
   let currentTarget=null, noteBaseline='', previewKey='', railSignature='', agentNotesKey='', commentsKey='', commentsSignature='', isLoading=false, feedbackSending=false, draftWarning=false, switchingDeck=false;
-  let refreshQueued=false,slideDesignOptions=null;
+  let refreshQueued=false,slideDesignOptions=null,elementAlternatives=null;
   const previewUpdates=window.SlidePreviewUpdates.create({onChange:()=>{syncPreviewUpdates();if(previewUpdates.enabled)void refresh();}});
   function syncPreviewUpdates(){const control=$('auto-update-preview');iconButton(control,'refresh','Auto-update preview');control.setAttribute('aria-pressed',String(previewUpdates.enabled));control.title=previewUpdates.enabled?'Auto-update on · incoming revisions appear automatically':'Auto-update off · choose Show update to load revisions';}
-  function previewBusy(){return previewMarquee?.active()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor?.state().dirty||groupEditor?.state().busy||animationPreview.isPlaying()||!!slideDesignOptions?.isPreviewing();}
+  function previewBusy(){return previewMarquee?.active()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor?.state().dirty||groupEditor?.state().busy||animationPreview.isPlaying()||!!slideDesignOptions?.isPreviewing()||!!elementAlternatives?.isOpen();}
   function resumePreviewUpdates(){if(pendingDeck&&previewUpdates.enabled&&!previewBusy())void refresh();}
   $('auto-update-preview').addEventListener('click',()=>previewUpdates.set(!previewUpdates.enabled));
   syncPreviewUpdates();
@@ -59,28 +59,56 @@
   try{$('notes-panel').open=localStorage.getItem('artifact-studio:notes-open')==='true';}catch{}
   $('notes-panel').addEventListener('toggle',()=>{try{localStorage.setItem('artifact-studio:notes-open',String($('notes-panel').open));}catch{}});
   const sharing=window.ArtifactSharing.create();
-  const versions=window.VersionTimeline.create({api,onOpened:(dialog,target)=>slideDesignOptions?.history(dialog,target),onRestored:async target=>{slideDesignOptions?.reset();await start(target.deckId);toast('Version restored.');}});
+  const versions=window.VersionTimeline.create({api,onOpened:(dialog,target)=>{void slideDesignOptions?.history(dialog,target);void elementAlternatives?.history(dialog,target);},onRestored:async target=>{slideDesignOptions?.reset();elementAlternatives?.reset();await start(target.deckId);toast('Version restored.');}});
+  function proposalReference(value){
+    if(value?.element_option_id)return {element_option_id:value.element_option_id,element_option_name:value.element_option_name,element_context_hash:value.element_context_hash,content_hash:value.content_hash};
+    return value?.design_option_id?{design_option_id:value.design_option_id,design_option_name:value.design_option_name,content_hash:value.content_hash}:null;
+  }
+  function liveProposalContext(){return elementAlternatives?.feedbackContext()||slideDesignOptions?.feedbackContext();}
   function feedbackDesignContext(){
     const saved=feedbackDraft();
     const pinned=!!(saved?.feedback?.trim()||saved?.target||chatComposer?.hasFiles());
-    return pinned?(saved?.design_option_id?{design_option_id:saved.design_option_id,design_option_name:saved.design_option_name,content_hash:saved.content_hash}:null):slideDesignOptions?.feedbackContext();
+    return pinned?proposalReference(saved):liveProposalContext();
+  }
+  function prepareProposalSelection(){
+    const previous=feedbackDraft();
+    if(!previous?.feedback?.trim()&&!chatComposer.hasFiles()){currentTarget=null;if(previous)feedbackDrafts.set(key(),{...previous,target:null});}
+    elementEditor.select(null);properties.clear();selectedElement=null;selectedElements=[];hoverElement=null;
+    $('hover-box').hidden=true;$('selection-box').hidden=true;$('group-selection-boxes').replaceChildren();
+  }
+  function proposalPreviewChanged(proposal){
+    if(!deck||!selectedId)return;
+    const previous=feedbackDraft();
+    if(!previous?.feedback?.trim()&&!previous?.target&&!chatComposer.hasFiles()&&JSON.stringify(proposalReference(previous))!==JSON.stringify(proposal)){
+      feedbackDrafts.set(key(),{...previous,feedback:previous?.feedback||'',target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,element_option_id:proposal?.element_option_id,element_option_name:proposal?.element_option_name,element_context_hash:proposal?.element_context_hash,request_id:crypto.randomUUID()});
+    }
+    renderTarget();
+  }
+  async function proposalDecisionSaved(receipt,target){
+    if(deck?.id!==target.deckId)return;retainDraft();const fresh=await api(`/api/decks/${encodeURIComponent(target.deckId)}`);if(deck?.id!==target.deckId)return;
+    deck=fresh;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();updateComposer();
+    if(selectedId===target.slideId&&slide()?.content_hash===receipt.content_hash)void markOpened();
   }
   slideDesignOptions=window.SlideDesignOptions?.create({api,
     getContext:()=>deck&&slide()?{deckId:deck.id,slideId:selectedId,item:slide()}:null,
     activate:async id=>id===selectedId?true:choose(id),
-    beforePreview:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();animationPreview.stop();return true;},
+    beforePreview:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||elementAlternatives?.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();elementAlternatives?.dismiss();prepareProposalSelection();animationPreview.stop();return true;},
     beforeDecide:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();return await noteAutosave.flush(key());},
-    afterDecision:async(receipt,target)=>{if(deck?.id!==target.deckId)return;retainDraft();const fresh=await api(`/api/decks/${encodeURIComponent(target.deckId)}`);if(deck?.id!==target.deckId)return;deck=fresh;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();updateComposer();},
+    afterDecision:proposalDecisionSaved,
     onBusy:()=>{if(deck)updateComposer();},
-    onPreview:proposal=>{
-      if(!deck||!selectedId)return;
-      const previous=feedbackDraft();
-      // Scope sync can precede canvas selection restoration; empty drafts inherit no targets.
-      if(!previous?.feedback?.trim()&&!previous?.target&&!chatComposer.hasFiles()&&(previous?.design_option_id!==proposal?.design_option_id||previous?.content_hash!==(proposal?.content_hash||slide().content_hash))){
-        feedbackDrafts.set(key(),{...previous,feedback:previous?.feedback||'',target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,request_id:crypto.randomUUID()});
-      }
-      renderTarget();
-    },notify:toast
+    onPreview:proposalPreviewChanged,notify:toast
+  });
+  elementAlternatives=window.ElementAlternatives?.create({api,
+    activate:async id=>id===selectedId?true:choose(id),
+    getContext:()=>deck&&slide()?{deckId:deck.id,slideId:selectedId,item:slide()}:null,
+    beforePreview:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();slideDesignOptions?.dismiss();prepareProposalSelection();animationPreview.stop();return true;},
+    beforeDecide:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();return await noteAutosave.flush(key());},
+    afterDecision:proposalDecisionSaved,onPreview:proposalPreviewChanged,onBusy:()=>{if(deck)updateComposer();},notify:toast,
+    openSlideDesigns:()=>slideDesignOptions?.open(),
+    onRequestRefresh:group=>{if(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().length){
+      $('feedback-text').value=`Please refresh the ${group.label.toLowerCase()} options for the current slide design.`;
+      currentTarget=null;feedbackDrafts.set(key(),{feedback:$('feedback-text').value,target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash,request_id:crypto.randomUUID()});retainDraft();
+    }else toast('Your draft is preserved. Finish it before asking to refresh.');workspacePanels.exitView();document.querySelector('.workspace-panel-toggle.panel-right[aria-expanded=false]')?.click();$('feedback-text').focus();updateComposer();}
   });
   iconButton($('version-history'),'history','Version history');
   $('version-history').addEventListener('click',async()=>{if(!deck||!await finishEdits()||!await noteAutosave.flush(key()))return;retainDraft();animationPreview.stop();versions.open({kind:'slide',deckId:deck.id,slideId:selectedId,title:slide().title});});
@@ -99,7 +127,7 @@
     },
     deliveryStatus:submission=>{if(!submission)return 'released';const comments=deck?.id===submission.deck_id?deck.slides.find(item=>item.id===submission.slide_id)?.feedback||[]:[];if(comments.some(item=>item.author==='agent'&&item.reply_to===submission.event_id))return 'answered';const event=comments.find(item=>item.event_id===submission.event_id);return (event?.released??submission.released)?'released':'queued';},
     onChange:element=>{queueMicrotask(resumePreviewUpdates);placeBox($('selection-box'),element);if(!element)return;const rect=element.getBoundingClientRect(),frame=$('preview').contentDocument.documentElement,tools=$('element-tools');tools.style.left=`${Math.max(6,Math.min(rect.left,frame.clientWidth-tools.offsetWidth-6))}px`;tools.style.top=`${rect.top-tools.offsetHeight-36>=6?rect.top-tools.offsetHeight-36:Math.min(frame.clientHeight-tools.offsetHeight-6,rect.bottom+10)}px`;},
-    onError:message=>toast(message,true),blocked:()=>feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isPreviewing()||slideDesignOptions?.isBusy()||groupEditor?.state().dirty||groupEditor?.state().canRedo||groupEditor?.state().sent
+    onError:message=>toast(message,true),blocked:()=>feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isPreviewing()||slideDesignOptions?.isBusy()||elementAlternatives?.isOpen()||elementAlternatives?.isBusy()||groupEditor?.state().dirty||groupEditor?.state().canRedo||groupEditor?.state().sent
   });
   for(const button of $('element-align-menu').querySelectorAll('[data-align]'))iconButton(button,`align${button.dataset.align[0].toUpperCase()+button.dataset.align.slice(1)}`,button.getAttribute('aria-label'));
   const animationPreview=window.SlideAnimationPreview.create({
@@ -173,11 +201,11 @@
       for(const segment of segments){
         const row=document.createElement('div');row.className='voice-segment';row.dataset.voiceSegment=segment.request_id;
         const header=document.createElement('div');header.className='voice-segment-heading';
-        const label=document.createElement('span');label.textContent=segment.design_option_name?'Design · '+segment.design_option_name:segment.target?.label||'Whole slide';label.title=targetsOf(segment.target).map(item=>item.label).join(' · ')||'Whole slide';
+        const label=document.createElement('span');label.textContent=segment.element_option_name?'Option · '+segment.element_option_name:segment.design_option_name?'Design · '+segment.design_option_name:segment.target?.label||'Whole slide';label.title=targetsOf(segment.target).map(item=>item.label).join(' · ')||'Whole slide';
         const remove=document.createElement('button');remove.type='button';remove.dataset.removeVoiceSegment=segment.request_id;remove.innerHTML=svg('close');remove.setAttribute('aria-label',`Remove dictated feedback for ${label.textContent}`);
         header.append(label,remove);
         const input=document.createElement('textarea');input.className='voice-feedback-text';input.rows=1;input.maxLength=10000;input.value=segment.message;input.setAttribute('aria-label',`Dictated feedback for ${label.textContent}`);
-        const context=document.createElement('small');context.className='voice-segment-context';context.textContent='Earlier version · original selection retained';context.hidden=!!segment.design_option_id||segment.content_hash===slide()?.content_hash;
+        const context=document.createElement('small');context.className='voice-segment-context';context.textContent='Earlier version · original selection retained';context.hidden=!!segment.design_option_id||!!segment.element_option_id||segment.content_hash===slide()?.content_hash;
         row.append(header,input,context);panel.append(row);voice?.register(input,{controlsHost:header,visible:()=>true});
       }
     }
@@ -216,12 +244,12 @@
     if(note)drafts.set(key(),note.draft||{});
     const previous=feedbackDraft(),value=$('feedback-text').value;
     const hasContext=previous?.feedback?.trim()||previous?.target||(chatComposer.hasFiles()&&previous?.content_hash);
-    const designContext=hasContext?(previous?.design_option_id?{design_option_id:previous.design_option_id,design_option_name:previous.design_option_name,content_hash:previous.content_hash}:null):slideDesignOptions?.feedbackContext();
+    const designContext=hasContext?proposalReference(previous):liveProposalContext();
     const unchanged=previous?.feedback===value&&JSON.stringify(previous?.target)===JSON.stringify(currentTarget);
-    feedbackDrafts.set(key(),{...previous,feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:(designContext?.content_hash||slide().content_hash),design_option_id:designContext?.design_option_id,design_option_name:designContext?.design_option_name,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
+    feedbackDrafts.set(key(),{...previous,feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:(designContext?.content_hash||slide().content_hash),design_option_id:designContext?.design_option_id,design_option_name:designContext?.design_option_name,element_option_id:designContext?.element_option_id,element_option_name:designContext?.element_option_name,element_context_hash:designContext?.element_context_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     persistDrafts();
   }
-  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy();elementEditor.sync();$('feedback-text').disabled=!deck||switchingDeck||feedbackSending;$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy();elementEditor.sync();$('feedback-text').disabled=!deck||switchingDeck||feedbackSending;$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
 
 
 
@@ -237,18 +265,18 @@
     const signature=JSON.stringify([snapshot.id,snapshot.slides.map(item=>item.id),snapshot.sections?.map(group=>[group.id,group.slide_ids])]);
     if(signature!==railSignature){
       railSignature=signature;
-      const entries=new Map(snapshot.slides.map((item,index)=>[item.id,`<div class="slide-entry"><button class="slide-thumb" data-id="${escape(item.id)}"><div class="thumb-preview"><iframe title="Thumbnail ${index+1}" tabindex="-1" loading="lazy" sandbox="allow-same-origin"></iframe></div><span class="thumb-question" hidden aria-hidden="true"></span><div class="thumb-caption"><span class="thumb-number">${String(index+1).padStart(2,'0')}</span><span class="thumb-title">${escape(item.title)}</span><span class="dot ${item.approved?'green':'red'}" aria-hidden="true"></span></div></button><button class="slide-visibility" data-visibility-id="${escape(item.id)}" aria-label="Hide slide ${index+1}"></button></div>`]));$('slides').innerHTML=slideSections.render(snapshot,entries);
+      const entries=new Map(snapshot.slides.map((item,index)=>[item.id,`<div class="slide-entry"><button class="slide-thumb" data-id="${escape(item.id)}"><div class="thumb-preview"><iframe title="Thumbnail ${index+1}" tabindex="-1" loading="lazy" sandbox="allow-same-origin"></iframe></div><span class="thumb-question" hidden aria-hidden="true"></span><div class="thumb-caption"><span class="thumb-number">${String(index+1).padStart(2,'0')}</span> <span class="thumb-title">${escape(item.title)}</span><span class="dot ${item.approved?'green':'red'}" aria-hidden="true"></span></div></button><button class="slide-visibility" data-visibility-id="${escape(item.id)}" aria-label="Hide slide ${index+1}"></button></div>`]));$('slides').innerHTML=slideSections.render(snapshot,entries);
     }
     $('slides').querySelectorAll('iframe').forEach((frame,index)=>loadPreview(frame,snapshot.slides[index],snapshot.id,snapshot.design_hash));
     $('slides').querySelectorAll('[data-id]').forEach((button,index)=>{
-      const item=snapshot.slides[index],pendingQuestions=window.SlideQuestions.pending(item.feedback||[]).length,label=`Slide ${index+1}: ${item.title}${pendingQuestions?` · ${pendingQuestions} question${pendingQuestions===1?'':'s'} awaiting your answer`:''} — ${item.approved?'Approved':'Needs review'}${item.hidden?' · Hidden from slideshow':''}${item.has_unseen_changes?' · Updated since last opened':''}`;
+      const item=snapshot.slides[index],pendingQuestions=window.SlideQuestions.pending(item.feedback||[]).length,label=`Slide ${String(index+1).padStart(2,'0')} ${item.title}${pendingQuestions?` · ${pendingQuestions} question${pendingQuestions===1?'':'s'} awaiting your answer`:''} — ${item.approved?'Approved':'Needs review'}${item.hidden?' · Hidden from slideshow':''}${item.has_unseen_changes?' · Updated since last opened':''}`;
       const caption=button.querySelector('.thumb-title');if(caption.textContent!==item.title)caption.textContent=item.title;button.querySelector('.dot').className='dot '+(item.approved?'green':'red');
       button.setAttribute('aria-current',String(item.id===selectedId));button.setAttribute('aria-label',label);button.title=label;button.classList.toggle('has-unseen-changes',!!item.has_unseen_changes);
       button.classList.toggle('is-hidden',!!item.hidden);
       const questionBadge=button.querySelector('.thumb-question');questionBadge.hidden=!pendingQuestions;questionBadge.innerHTML=svg('question');button.classList.toggle('has-open-question',!!pendingQuestions);
       const visibility=button.parentElement.querySelector('[data-visibility-id]');iconButton(visibility,item.hidden?'eyeOff':'eye',`${item.hidden?'Unhide':'Hide'} slide ${index+1}`);visibility.disabled=visibilityBusy||slideActions.isBusy();
     });
-    slideOrder.sync();slideActions.update();sorter.sync();slideSections.sync(snapshot);slideDesignOptions?.sync(snapshot,selectedId);
+    slideOrder.sync();slideActions.update();sorter.sync();slideSections.sync(snapshot);slideDesignOptions?.sync(snapshot,selectedId);elementAlternatives?.sync(deck?.id===snapshot.id?deck:snapshot,selectedId);
   }
   function renderChangeStatus(){document.querySelector('.preview-wrap').classList.toggle('has-unseen-changes',!!(pendingDeck||deck)?.slides.find(item=>item.id===selectedId)?.has_unseen_changes);}
   /** Acknowledge only a version explicitly opened, never a background refresh. */
@@ -274,7 +302,7 @@
   }
   /** Reflect each original anchor in the composer, even after its preview version changes. */
   function renderTarget(){
-    const designContext=feedbackDesignContext();const designChip=$('feedback-design-context');if(designChip){designChip.hidden=!designContext;designChip.textContent=designContext?'Design · '+designContext.design_option_name:'';}
+    const designContext=feedbackDesignContext();const designChip=$('feedback-design-context');if(designChip){designChip.hidden=!designContext;designChip.textContent=designContext?(designContext.element_option_id?'Option · '+designContext.element_option_name:'Design · '+designContext.design_option_name):'';}
     const targeted=!!currentTarget,context=feedbackDraft(),targets=targetsOf(currentTarget);
     const original=deck.slides.find(item=>item.id===context?.slide_id),otherSlide=targeted&&context?.slide_id!==selectedId;
     $('target-label').textContent=targeted?`${otherSlide?'Another slide · ':''}${currentTarget.label}${original&&context.content_hash!==original.content_hash?' · earlier version':''}`:'';
@@ -421,7 +449,7 @@
   function setTarget(target,{retarget=false,focus=false}={}){
     elementMenu.close();elementEditor.select(null);currentTarget=target;hoverElement=null;$('hover-box').hidden=true;
     const previous=feedbackDraft()||{};
-    feedbackDrafts.set(key(),{...previous,target,request_id:crypto.randomUUID(),...(retarget||!previous.content_hash?{slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash,design_option_id:undefined,design_option_name:undefined}:{})});
+    feedbackDrafts.set(key(),{...previous,target,request_id:crypto.randomUUID(),...(retarget||!previous.content_hash?{slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash,design_option_id:undefined,design_option_name:undefined,element_option_id:undefined,element_option_name:undefined,element_context_hash:undefined}:{})});
     retainDraft();voice?.boundary($('feedback-text'));restoreSelection();renderTarget();if(focus)$('feedback-text').focus();
   }
   function targetFor(element){
@@ -430,6 +458,7 @@
   }
   async function selectElements(elements,additive=false){
     if(feedbackSending||elementEditor.isBusy()||!await finishEdits())return false;
+    elementAlternatives?.dismiss();
     const doc=$('preview').contentDocument,context=feedbackDraft();
     if(doc?.body?.dataset.previewKey!==slide()?.content_hash||elements.some(element=>!element.isConnected||element.ownerDocument!==doc))return false;
     if(additive&&currentTarget&&(context?.slide_id!==selectedId||context.content_hash!==slide().content_hash)){toast('Start a new selection on this version first.');return false;}
@@ -441,6 +470,9 @@
   async function selectElement(element,focus=true,additive=false){
     if(elementEditor.isBusy()||feedbackSending||!await finishEdits())return false;
     if(element&&(!element.isConnected||element.ownerDocument!==$('preview').contentDocument||element.ownerDocument.body?.dataset.previewKey!==slide()?.content_hash))return false;
+    if(element&&!additive&&elementAlternatives?.selection(element))return true;
+    elementAlternatives?.dismiss();
+    if(element&&!element.isConnected)return false;
     if(element&&element===selectedElement&&!additive){if(focus)$('feedback-text').focus();return true;}
     const context=feedbackDraft();
     if(additive&&currentTarget&&(context?.slide_id!==selectedId||context.content_hash!==slide().content_hash)){toast('These objects belong to an earlier version. Click without a modifier to start a new selection.');return false;}
@@ -452,11 +484,11 @@
   /** Install immediate hover and click targeting inside the script-free slide preview. */
   function bindPreview(){
     groupEditor?.onSelectionChange();const doc=$('preview').contentDocument;if(!doc)return;
-    elementEditor.bind(doc);const fresh=!boundPreviewDocuments.has(doc);
+    elementAlternatives?.bindPreview(doc);elementEditor.bind(doc);const fresh=!boundPreviewDocuments.has(doc);
     if(fresh){
       previewMarquee?.destroy();
       previewMarquee=window.MarqueeSelection.create({doc,candidates:()=>window.SlideObjects.collect(doc).map(item=>item.element),
-        enabled:()=>!document.body.classList.contains('workspace-clean-view')&&!elementEditor.isEditing()&&!elementEditor.isBusy()&&!feedbackSending&&!groupEditor.state().dirty&&!groupEditor.state().canRedo,
+        enabled:()=>!document.body.classList.contains('workspace-clean-view')&&!elementEditor.isEditing()&&!elementEditor.isBusy()&&!feedbackSending&&!elementAlternatives?.isOpen()&&!groupEditor.state().dirty&&!groupEditor.state().canRedo,
         onSelect:selectElements,onActivity:active=>{if(active){hoverElement=null;$('hover-box').hidden=true;}else requestAnimationFrame(resumePreviewUpdates);},onError:message=>toast(message,true)});
     }
     bindKeyboardSelection(doc,fresh);doc.documentElement.style.cursor='crosshair';
@@ -464,7 +496,7 @@
       boundPreviewDocuments.add(doc);
       doc.addEventListener('wheel',event=>sorter.zoomWheel(event,$('preview')),{passive:false});
       doc.addEventListener('pointermove',event=>{
-        if(elementEditor.isEditing()||elementEditor.isBusy()||previewMarquee.active())return;
+        if(elementEditor.isEditing()||elementEditor.isBusy()||elementAlternatives?.isOpen()||previewMarquee.active())return;
         let target=event.target;if(!(target instanceof doc.defaultView.Element)||target.matches('html,body,.slide')){hoverElement=null;$('hover-box').hidden=true;return;}
         if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');
         if(selectedElements.includes(target)){$('hover-box').hidden=true;return;}
@@ -472,7 +504,7 @@
       });
       doc.documentElement.addEventListener('pointerleave',()=>{$('hover-box').hidden=true;hoverElement=null;});
       doc.addEventListener('click',event=>{
-        if(elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;
+        if(event.defaultPrevented||elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;
         event.preventDefault();event.stopPropagation();if(elementEditor.consumeClick())return;
         let target=event.target;if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');
         void selectElement(target,false,isAdditive(event));
@@ -560,8 +592,8 @@
     const focused=slideQuestions.captureFocus(list);
     const atEnd=list.scrollHeight-list.scrollTop-list.clientHeight<35;
     commentsKey=key();commentsSignature=signature;
-    list.innerHTML=comments.map(comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}"><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to)}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.author==='user'&&comment.target?(window.MultiElementEdits.readableMessage(comment.message)||comment.message):comment.message)}${window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${slideDesignOptions?.card(comment)||''}${comment.design_option_id?`<span class="comment-design-context">Design · ${escape(comment.design_option_name||'Saved alternative')}</span>`:''}${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&!comment.design_option_id&&!comment.design_set_id&&comment.content_hash!==item.content_hash?'<span class="old-version">Earlier version</span>':''}</article>`).join('')||'';
-    slideQuestions.mount(list,comments,deck.id,item.id);slideDesignOptions?.mountCards();
+    list.innerHTML=comments.map(comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}"><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to)}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.author==='user'&&comment.target?(window.MultiElementEdits.readableMessage(comment.message)||comment.message):comment.message)}${window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${slideDesignOptions?.card(comment)||''}${elementAlternatives?.card(comment)||''}${comment.element_option_id?`<span class="comment-design-context">Option · ${escape(comment.element_option_name||'Saved alternative')}</span>`:''}${comment.design_option_id?`<span class="comment-design-context">Design · ${escape(comment.design_option_name||'Saved alternative')}</span>`:''}${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&!comment.design_option_id&&!comment.design_set_id&&!comment.element_option_id&&!comment.element_set_id&&comment.content_hash!==item.content_hash?'<span class="old-version">Earlier version</span>':''}</article>`).join('')||'';
+    slideQuestions.mount(list,comments,deck.id,item.id);slideDesignOptions?.mountCards();elementAlternatives?.mountCards();
     if(changedContext&&pendingQuestions){list.querySelector('[data-question-state="open"]')?.scrollIntoView({block:'nearest'});}else if(changedContext||atEnd)list.scrollTop=list.scrollHeight;
     slideQuestions.restoreFocus(list,focused);
   }
@@ -573,7 +605,7 @@
   /** Keep visibility separate from review state and content drafts. */
   function renderVisibility(){const item=slide();$('share-artifact').disabled=!item;$('view-artifact').disabled=!item;iconButton($('hide-slide'),item?.hidden?'eyeOff':'eye',item?.hidden?'Unhide slide':'Hide slide');$('hide-slide').classList.toggle('is-hidden',!!item?.hidden);$('hide-slide').disabled=visibilityBusy||slideActions.isBusy()||!item;}
   async function setHidden(id,ids=[id]){
-    if(visibilityBusy||slideActions.isBusy()||!deck)return;
+    if(visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy()||!deck)return;
     const deckId=deck.id,items=(pendingDeck||deck).slides.filter(item=>ids.includes(item.id));if(!items.length)return;
     const hidden=items.some(item=>!item.hidden);
     visibilityBusy=true;orderEpoch++;updateComposer();renderVisibility();renderRail();$('toggle-slide-hidden').disabled=true;
@@ -612,11 +644,11 @@
   $('slide-menu').addEventListener('click',event=>{const control=event.target.closest('[data-slide-move],[data-slide-action]');if(!control||control.disabled)return;$('slide-menu').hidePopover();if(control.dataset.slideAction)void slideActions.run(control.dataset.slideAction);else void slideOrder.move(control.dataset.slideMove);});
   $('slide-menu').addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...$('slide-menu').querySelectorAll('button:not(:disabled)')],index=buttons.indexOf(document.activeElement),next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[next]?.focus();}if(event.key==='Escape'){event.preventDefault();$('slide-menu').hidePopover();if(menuSlide?.deckId===deck?.id)$('slides').querySelector(`[data-id="${CSS.escape(menuSlide.id)}"]`)?.focus();}});
   /** Choose a slide and restore any draft feedback attached to it. */
-  async function choose(id){const request=++selectionEpoch,deckId=deck?.id;if(visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isBusy()||!await finishEdits()||request!==selectionEpoch||deck?.id!==deckId||!deck.slides.some(item=>item.id===id))return false;retainDraft();await voice?.stop();if(request!==selectionEpoch||deck?.id!==deckId)return false;void noteAutosave.flush(key());if(pendingDeck){deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;}selectedId=id;slideSections?.reveal(id);renderRail();render();if(!sorter.isOpen())void markOpened();$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});return true;}
+  async function choose(id){const request=++selectionEpoch,deckId=deck?.id;if(visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy()||!await finishEdits()||request!==selectionEpoch||deck?.id!==deckId||!deck.slides.some(item=>item.id===id))return false;retainDraft();await voice?.stop();if(request!==selectionEpoch||deck?.id!==deckId)return false;void noteAutosave.flush(key());if(pendingDeck){deck=pendingDeck;pendingDeck=null;$('update-banner').hidden=true;}selectedId=id;slideSections?.reveal(id);renderRail();render();if(!sorter.isOpen())void markOpened();$('slides').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest'});return true;}
   const slideOrder=window.SlideOrder.create({
     rail:$('slides'),read:()=>deck?{deckId:deck.id,ids:(pendingDeck||deck).slides.map(item=>item.id),activeId:selectedId,sections:(pendingDeck||deck).sections,sectionsHash:(pendingDeck||deck).sections_hash}:null,
     layout:()=>sorter.isOpen()?'grid':'list',activate:async id=>{if(await choose(id))await sorter.edit();},onBusy:()=>{sorter.sync();slideSections?.sync(pendingDeck||deck);},
-    open:choose,contextMenu:openSlideMenu,command:action=>slideActions.run(action),undoAction:()=>slideActions.undo(),blocked:()=>slideActions.isBusy()||visibilityBusy||!!slideSections?.isBusy(),drop:point=>slideSections?.drop(point),
+    open:choose,contextMenu:openSlideMenu,command:action=>slideActions.run(action),undoAction:()=>slideActions.undo(),blocked:()=>slideActions.isBusy()||visibilityBusy||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy(),drop:point=>slideSections?.drop(point),
     notify:(message,undo)=>toast(message,false,undo?{label:'Undo',run:undo}:null),
     save:async(ids,expected,options)=>{
       const deckId=deck.id;retainDraft();orderEpoch++;
@@ -647,7 +679,7 @@
     read:()=>deck?{...(pendingDeck||deck),activeId:selectedId}:null,
     selection:()=>slideOrder.selection(),request:api,
     prepare:async({action,ids}={})=>{
-      if(slideSections?.isBusy()||slideOrder.isBusy()||visibilityBusy||feedbackSending||switchingDeck||!await finishEdits())return false;
+      if(slideSections?.isBusy()||slideOrder.isBusy()||visibilityBusy||feedbackSending||switchingDeck||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy()||!await finishEdits())return false;
       retainDraft();
       if(['delete','duplicate'].includes(action)){
         const original=pendingDeck||deck,order=original.slides.map(item=>item.id);
@@ -694,7 +726,7 @@
   });
   slideSections=window.SlideSections.create({
     rail:$('slides'),read:()=>pendingDeck||deck,active:()=>selectedId,escape,svg,toast,
-    blocked:()=>visibilityBusy||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()||feedbackSending||switchingDeck,
+    blocked:()=>visibilityBusy||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()||feedbackSending||switchingDeck||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy(),
     prepare:async()=>{if(!await finishEdits())return false;retainDraft();return true;},
     onBusy:()=>{orderEpoch++;updateComposer();sorter.sync();},
     save:async(ids,sections,baseline)=>{const before={ids:baseline.slides.map(item=>item.id),sections:structuredClone(baseline.sections||[])};orderEpoch++;try{const saved=await api(`/api/decks/${baseline.id}/sections`,{slide_ids:ids,sections,expected_slide_ids:baseline.slides.map(item=>item.id),expected_sections_hash:baseline.sections_hash});if(deck?.id!==baseline.id)throw new Error('The presentation changed.');applyLayout(saved);slideOrder.recordLayout(before,{ids:saved.slide_ids,sections:saved.sections});renderRail();render();}finally{orderEpoch++;setTimeout(()=>void refresh(),0);}}
@@ -726,7 +758,7 @@
   });
   /** Poll durable state while preserving a user's in-progress review of an older version. */
   async function refresh(force=false){
-    if(!deck||switchingDeck||slideSections?.isBusy()||presentationActions.isBusy()||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy())return;
+    if(!deck||switchingDeck||slideSections?.isBusy()||presentationActions.isBusy()||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy())return;
     if(isLoading){refreshQueued=true;return;}
     isLoading=true;
     try{
@@ -856,10 +888,10 @@
     try{
       const files=await chatComposer.payload(sendingKey);
       for(const segment of voiceFeedback.segments(sendingKey).filter(item=>item.message.trim())){
-        await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(segment.slide_id)}/feedback`,{message:segment.message,content_hash:segment.content_hash,target:segment.target,design_option_id:segment.design_option_id,request_id:segment.request_id},expectedMode);
+        await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(segment.slide_id)}/feedback`,{message:segment.message,content_hash:segment.content_hash,target:segment.target,design_option_id:segment.design_option_id,element_option_id:segment.element_option_id,element_context_hash:segment.element_context_hash,request_id:segment.request_id},expectedMode);
         voiceFeedback.acknowledge(segment.request_id,sendingKey);
       }
-      if(message.trim()||files.length)await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,design_option_id:context.design_option_id,request_id:context.request_id},expectedMode);
+      if(message.trim()||files.length)await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,design_option_id:context.design_option_id,element_option_id:context.element_option_id,element_context_hash:context.element_context_hash,request_id:context.request_id},expectedMode);
       chatComposer.clear(sendingKey);voiceFeedback.clear(sendingKey);feedbackDrafts.delete(sendingKey);draftStore.persist();
       if(key()===sendingKey){$('feedback-text').value='';setTarget(null);renderVoiceFeedback();}
       await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
@@ -907,9 +939,9 @@
   document.addEventListener('keydown',event=>{if(!deck||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.target.closest('textarea,input,select,dialog,#element-tools,#slide-menu,#object-panel,#element-align-menu'))return;if(event.key==='ArrowLeft'){event.preventDefault();$('prev-slide').click();}if(event.key==='ArrowRight'){event.preventDefault();$('next-slide').click();}if(event.key==='Escape'){event.preventDefault();if(groupEditor.state().dirty||groupEditor.state().canRedo||groupEditor.state().sent)groupEditor.cancel();else if(elementEditor.isEditing())elementEditor.cancel();else void selectElement(null,false);}});
   /** Clear stale slide content when the last selector entry is removed. */
   function clearHistoryForDeck(nextId){if((deck?.id||null)!==nextId){slideOrder.resetHistory();slideActions.clearUndo();}}
-  function renderEmpty(){clearHistoryForDeck(null);void voice?.stop();sorter.reset();previewLoader.cancel($('preview'));clearTimeout(previewStatusTimer);$('preview-status').hidden=true;animationPreview.reset();elementEditor.select(null);watchDeck(null);document.querySelector('.preview-wrap').classList.remove('has-unseen-changes');$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;selectedElements=[];$('group-selection-boxes').replaceChildren();$('selection-box').hidden=true;$('target-members').replaceChildren();$('target-members').hidden=true;$('voice-feedback-segments').replaceChildren();delete $('voice-feedback-segments').dataset.signature;$('voice-feedback-segments').hidden=true;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();slideSections.sync(null);$('chat-question-status').hidden=true;$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;slideActions.update();updateComposer();document.title='Artifact Studio';history.replaceState(null,'','/');}
+  function renderEmpty(){slideDesignOptions?.reset();elementAlternatives?.reset();clearHistoryForDeck(null);void voice?.stop();sorter.reset();previewLoader.cancel($('preview'));clearTimeout(previewStatusTimer);$('preview-status').hidden=true;animationPreview.reset();elementEditor.select(null);watchDeck(null);document.querySelector('.preview-wrap').classList.remove('has-unseen-changes');$('deck-picker').selectedIndex=-1;deck=null;selectedId=null;pendingDeck=null;currentTarget=null;selectedElement=null;selectedElements=[];$('group-selection-boxes').replaceChildren();$('selection-box').hidden=true;$('target-members').replaceChildren();$('target-members').hidden=true;$('voice-feedback-segments').replaceChildren();delete $('voice-feedback-segments').dataset.signature;$('voice-feedback-segments').hidden=true;hoverElement=null;previewKey='';railSignature='';noteBaseline='';document.querySelector('.workspace').classList.add('is-empty');$('slides').replaceChildren();slideSections.sync(null);$('chat-question-status').hidden=true;$('progress-text').replaceChildren();$('progress-text').removeAttribute('aria-label');$('progress-text').removeAttribute('title');$('progress-bar').style.width='0%';$('preview').onload=null;$('preview').dataset.loadToken='';$('preview').srcdoc='';$('notes').value='';$('feedback-text').value='';$('update-banner').hidden=true;$('slide-title').textContent=$('deck-picker').options.length?'Choose a presentation':'No presentations';$('slide-eyebrow').textContent=$('deck-picker').options.length?'':'Create a presentation to begin.';$('present-link').removeAttribute('href');$('present-link').setAttribute('aria-disabled','true');$('present-link').tabIndex=-1;for(const id of ['approve-button','prev-slide','next-slide','mode-live','mode-batch'])$(id).disabled=true;slideActions.update();updateComposer();document.title='Artifact Studio';history.replaceState(null,'','/');}
   /** Rebuild the selector while keeping a requested or still-visible presentation selected. */
-  async function start(preferred=null,{acknowledge=true}={}){if(slideActions.isBusy()||slideSections?.isBusy()||slideDesignOptions?.isBusy())throw new Error('Wait for the slide action to finish.');if(!await finishEdits())throw new Error('Finish or cancel the text edit.');await voice?.stop();retainDraft();if(deck)void noteAutosave.flushAll(deck.id+'/');switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;let snapshot,notesRevision;do{notesRevision=noteAutosave.revision;snapshot=await api(`/api/decks/${id}`);}while(notesRevision!==noteAutosave.revision);$('deck-picker').value=id;clearHistoryForDeck(id);deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();for(const item of deck.slides){const name=`${deck.id}/${item.id}`,draft=drafts.get(name);if(draft?.notes!==undefined&&!noteAutosave.state(name))noteAutosave.observe(name,item.notes,draft,item.notes_revision);}if(acknowledge&&!sorter.isOpen())void markOpened();}finally{switchingDeck=false;updateComposer();}}
+  async function start(preferred=null,{acknowledge=true}={}){if(slideActions.isBusy()||slideSections?.isBusy()||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy())throw new Error('Wait for the slide action to finish.');if(!await finishEdits())throw new Error('Finish or cancel the text edit.');await voice?.stop();retainDraft();if(deck)void noteAutosave.flushAll(deck.id+'/');switchingDeck=true;updateComposer();try{const items=await api('/api/decks');$('deck-picker').innerHTML=items.map(item=>`<option value="${escape(item.id)}">${escape(item.title)}</option>`).join('');if(!deck)$('deck-picker').selectedIndex=-1;if(!items.length){renderEmpty();return;}const requested=preferred||deck?.id||new URLSearchParams(location.search).get('deck');const id=items.some(item=>item.id===requested)?requested:items[0].id;let snapshot,notesRevision;do{notesRevision=noteAutosave.revision;snapshot=await api(`/api/decks/${id}`);}while(notesRevision!==noteAutosave.revision);$('deck-picker').value=id;clearHistoryForDeck(id);deck=snapshot;selectedId=deck.slides.some(item=>item.id===decodeURIComponent(location.hash.slice(1)))?decodeURIComponent(location.hash.slice(1)):deck.slides[0].id;pendingDeck=null;$('update-banner').hidden=true;renderRail();render();for(const item of deck.slides){const name=`${deck.id}/${item.id}`,draft=drafts.get(name);if(draft?.notes!==undefined&&!noteAutosave.state(name))noteAutosave.observe(name,item.notes,draft,item.notes_revision);}if(acknowledge&&!sorter.isOpen())void markOpened();}finally{switchingDeck=false;updateComposer();}}
   const presentationActions=window.SlidePresentations.init({api,toast,escape,currentDeck:()=>deck,retainDraft,reload:start,forget:id=>{$('deck-picker').querySelector(`option[value="${CSS.escape(id)}"]`)?.remove();if(deck?.id===id)renderEmpty();},recover:item=>{if(![...$('deck-picker').options].some(option=>option.value===item.id))$('deck-picker').add(new Option(item.title,item.id));if(!deck)renderEmpty();}});
   deckPicker=window.SlideDeckPicker.create({select:$('deck-picker'),button:$('deck-switcher'),panel:$('deck-menu'),list:$('deck-menu-options'),createButton:$('new-project-option'),onCreate:()=>$('new-button').click(),onOpen:()=>animationPreview.stop(),blocked:()=>feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   libraryControls=window.SlideLibraries.init({api,toast,escape,currentDeck:()=>deck,beforeSaveWorkspace:async()=>{if(!await finishEdits())return false;retainDraft();if(!await noteAutosave.flushAll(deck?deck.id+'/':''))throw new Error('Save pending notes before creating a workspace archive.');return true;},onNotesError:async()=>{

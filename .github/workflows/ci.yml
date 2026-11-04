@@ -75,6 +75,7 @@ jobs:
               tests/integration/test_feedback_mode_sync.py
               tests/integration/test_element_mode_guard.py
               tests/integration/test_slide_designs.py
+              tests/integration/test_element_alternatives.py
           - suite: artifacts-runtime
             tests: >-
               tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
@@ -88,6 +89,7 @@ jobs:
               tests/integration/test_audit_followups.py tests/test_text_review.py
               tests/test_visuals.py tests/test_interactive.py tests/test_presentation_authoring.py
               tests/test_element_rotation_dom.py tests/test_copilot_capture.py
+              tests/test_element_alternative_tools.py
     env:
       ARTIFACT_STUDIO_BROWSER_TESTS: "1"
       ARTIFACT_STUDIO_RENDER_TESTS: "1"

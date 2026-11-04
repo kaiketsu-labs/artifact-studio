@@ -149,6 +149,8 @@
       workspace = doc.querySelector(kind === 'hub' ? '.hub-layout' : '.workspace');
       left = workspace?.querySelector(kind === 'hub' ? '.hub-sidebar' : '.rail');
       right = workspace?.querySelector(kind === 'hub' ? '.hub-chat' : '.discussion');
+      // Keep keyboard resize controls inside the existing workspace landmark.
+      if (workspace) for (const handle of Object.values(handles)) if (handle.parentElement !== workspace) workspace.append(handle);
       const available = !!(workspace && left);
       if (kind === 'slides' && workspace && view.MutationObserver && !workspace._workspacePanelsObserved) {
         new view.MutationObserver(apply).observe(workspace,{attributes:true,attributeFilter:['class']});

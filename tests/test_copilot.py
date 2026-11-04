@@ -27,7 +27,7 @@ from artifact_studio.copilot import (
 )
 from artifact_studio.design_library import DesignDelete, DesignLibrary
 from artifact_studio.models import Slide, SlidePatch
-from artifact_studio.storage import Store
+from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 HOST = "copilot.example.test"
@@ -153,6 +153,10 @@ def test_initialization_catalog_flat_schemas_and_bootstrap(gateway: GatewayFixtu
         "get_slide_designs",
         "get_slide_design",
         "capture_slide_design",
+        "publish_element_alternatives",
+        "get_element_alternatives",
+        "get_element_alternative",
+        "capture_element_alternative",
     } <= names
     assert not names & {
         "register_artifact",
@@ -284,6 +288,86 @@ def test_design_proposals_use_flat_gateway_schema_and_enforce_project_scope(
         denied = call(gateway.client, name, args)
         assert denied["isError"] is True
         assert "Editorial" not in json.dumps(denied)
+
+
+def test_element_options_use_flat_scoped_contract_and_retained_context(
+    gateway: GatewayFixture,
+) -> None:
+    """Real gateway publication exposes option identities without broadening its scope."""
+    slide = gateway.store.read(DECK).slides[0]
+    _ = gateway.store.revise(
+        DECK,
+        slide.id,
+        digest(slide.model_dump_json()),
+        "gateway-element-fixture",
+        SlidePatch(
+            html='<article class="slide"><h1 id="headline">Current headline</h1>'
+            '<p id="body">Keep this text.</p></article>'
+        ),
+    )
+    current = object_value(
+        data(
+            call(
+                gateway.client,
+                "get_slide",
+                {
+                    "deck_id": DECK,
+                    "slide_id": "cover",
+                },
+            )
+        )
+    )
+    before = gateway.store.read(DECK)
+    arguments = {
+        "deck_id": DECK,
+        "slide_id": "cover",
+        "target_id": "headline",
+        "kind": "headline",
+        "label": "Headline",
+        "expected_content_hash": current["content_hash"],
+        "request_id": "gateway-element-options",
+        "options_json": json.dumps(
+            [
+                {"name": "Direct", "html": '<h1 id="headline">A clearer result.</h1>'},
+            ]
+        ),
+    }
+    group = object_value(data(call(gateway.client, "publish_element_alternatives", arguments)))
+    assert data(call(gateway.client, "publish_element_alternatives", arguments)) == group
+    assert gateway.store.read(DECK) == before
+    options = [object_value(item) for item in list_value(group["options"])]
+    assert len(options) == 2
+    reference = {
+        "deck_id": DECK,
+        "slide_id": "cover",
+        "element_option_id": options[1]["id"],
+        "context_hash": group["context_hash"],
+    }
+    source = object_value(data(call(gateway.client, "get_element_alternative", reference)))
+    assert source["html"] == '<h1 id="headline">A clearer result.</h1>'
+    assert source["context_hash"] == group["context_hash"]
+    assert "notes" not in source
+    _ = data(
+        call(
+            gateway.client,
+            "get_element_alternatives",
+            {
+                "deck_id": DECK,
+                "slide_id": "cover",
+                "set_id": group["id"],
+            },
+        )
+    )
+    _ = ArtifactStore(gateway.store).set_artifact_project(DECK, gateway.unrelated.project_id)
+    for name, args in (
+        ("publish_element_alternatives", arguments),
+        ("get_element_alternatives", {"deck_id": DECK, "slide_id": "cover"}),
+        ("get_element_alternative", reference),
+        ("capture_element_alternative", reference),
+    ):
+        denied = call(gateway.client, name, args)
+        assert denied["isError"] is True
+        assert "A clearer result." not in json.dumps(denied)
 
 
 def test_owned_file_revision_roundtrip_and_conflict(gateway: GatewayFixture) -> None:

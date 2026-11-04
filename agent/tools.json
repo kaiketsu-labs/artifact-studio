@@ -214,6 +214,18 @@
                 "default": false,
                 "title": "Auto Sync Enabled",
                 "type": "boolean"
+              },
+              "last_saved_at": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Last Saved At"
               }
             },
             "required": [
@@ -305,6 +317,18 @@
             "default": false,
             "title": "Auto Sync Enabled",
             "type": "boolean"
+          },
+          "last_saved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Saved At"
           }
         },
         "required": [
@@ -370,6 +394,18 @@
             "default": false,
             "title": "Auto Sync Enabled",
             "type": "boolean"
+          },
+          "last_saved_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Saved At"
           }
         },
         "required": [
@@ -1000,6 +1036,54 @@
                 ],
                 "default": null,
                 "title": "Design Option Name"
+              },
+              "element_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Set Id"
+              },
+              "element_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Id"
+              },
+              "element_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Name"
+              },
+              "element_context_hash": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Context Hash"
               }
             },
             "required": [
@@ -1358,6 +1442,17 @@
               "type": "object"
             },
             "title": "Slide Designs",
+            "type": "object"
+          },
+          "element_alternatives": {
+            "additionalProperties": {
+              "items": {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "title": "Element Alternatives",
             "type": "object"
           },
           "rules_hash": {
@@ -1791,6 +1886,54 @@
                 ],
                 "default": null,
                 "title": "Design Option Name"
+              },
+              "element_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Set Id"
+              },
+              "element_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Id"
+              },
+              "element_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Name"
+              },
+              "element_context_hash": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Context Hash"
               }
             },
             "required": [
@@ -2716,6 +2859,806 @@
           "design_id"
         ],
         "title": "capture_slide_designArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "publish_element_alternatives",
+      "description": "Offer alternatives for one existing static slide element without changing the slide.\n\nRead get_slide first. target_id is a unique existing HTML id; add one through a guarded\nrevise_slide first if needed. Each option supplies name, rationale and the complete\nreplacement outer HTML, preserving that id. Original is retained automatically. Freely\ncompose HTML/CSS/SVG; kind only controls how the review UI presents the options.\nInteractive slides require whole-slide alternatives. Only humans choose or Keep current.\nRead the slide_designs guide for targeting, source hashes, feedback and safe iteration.\n",
+      "input_schema": {
+        "$defs": {
+          "ElementInput": {
+            "additionalProperties": false,
+            "description": "One static replacement subtree, retaining the target's existing HTML id.",
+            "properties": {
+              "name": {
+                "maxLength": 60,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "default": "",
+                "maxLength": 240,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "maxLength": 150000,
+                "minLength": 1,
+                "title": "Html",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "html"
+            ],
+            "title": "ElementInput",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "headline",
+              "text",
+              "graphic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "expected_content_hash": {
+            "title": "Expected Content Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/$defs/ElementInput"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "target_id",
+          "kind",
+          "label",
+          "expected_content_hash",
+          "request_id",
+          "options"
+        ],
+        "title": "publish_element_alternativesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "ElementOption": {
+            "additionalProperties": false,
+            "description": "A retained fragment and its exact audience-only preview context.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "title": "Html",
+                "type": "string"
+              },
+              "text": {
+                "title": "Text",
+                "type": "string"
+              },
+              "source_hash": {
+                "title": "Source Hash",
+                "type": "string"
+              },
+              "context_hash": {
+                "title": "Context Hash",
+                "type": "string"
+              },
+              "preview_url": {
+                "title": "Preview Url",
+                "type": "string"
+              },
+              "is_original": {
+                "default": false,
+                "title": "Is Original",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "name",
+              "rationale",
+              "html",
+              "text",
+              "source_hash",
+              "context_hash",
+              "preview_url"
+            ],
+            "title": "ElementOption",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A target-scoped publication and its human decision state.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "headline",
+              "text",
+              "graphic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "original_context_hash": {
+            "title": "Original Context Hash",
+            "type": "string"
+          },
+          "context_hash": {
+            "title": "Context Hash",
+            "type": "string"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "boolean"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "stale_reason": {
+            "title": "Stale Reason",
+            "type": "string"
+          },
+          "current_option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Option Id"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/$defs/ElementOption"
+            },
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "target_id",
+          "kind",
+          "label",
+          "created_at",
+          "original_context_hash",
+          "context_hash",
+          "pending",
+          "stale",
+          "stale_reason",
+          "current_option_id",
+          "decision_id",
+          "options"
+        ],
+        "title": "ElementSet",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_element_alternatives",
+      "description": "Read element option groups, their preview context and explicit human decisions.\n\nCarry the returned independent history cursors; set_id retrieves a retained group.\nCurrent proposals and earlier saved contexts remain distinct. This call never chooses.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "decision_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Cursor"
+          },
+          "set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Set Id"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id"
+        ],
+        "title": "get_element_alternativesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "DesignDecision": {
+            "additionalProperties": false,
+            "description": "A source-free receipt, also used in the human decision history.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "action": {
+                "enum": [
+                  "choose",
+                  "keep",
+                  "undo"
+                ],
+                "title": "Action",
+                "type": "string"
+              },
+              "option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Option Id"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "created_at": {
+                "title": "Created At",
+                "type": "string"
+              },
+              "content_hash": {
+                "title": "Content Hash",
+                "type": "string"
+              },
+              "revision": {
+                "title": "Revision",
+                "type": "integer"
+              },
+              "pending": {
+                "title": "Pending",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "action",
+              "option_id",
+              "name",
+              "created_at",
+              "content_hash",
+              "revision",
+              "pending"
+            ],
+            "title": "DesignDecision",
+            "type": "object"
+          },
+          "ElementOption": {
+            "additionalProperties": false,
+            "description": "A retained fragment and its exact audience-only preview context.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "title": "Html",
+                "type": "string"
+              },
+              "text": {
+                "title": "Text",
+                "type": "string"
+              },
+              "source_hash": {
+                "title": "Source Hash",
+                "type": "string"
+              },
+              "context_hash": {
+                "title": "Context Hash",
+                "type": "string"
+              },
+              "preview_url": {
+                "title": "Preview Url",
+                "type": "string"
+              },
+              "is_original": {
+                "default": false,
+                "title": "Is Original",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "name",
+              "rationale",
+              "html",
+              "text",
+              "source_hash",
+              "context_hash",
+              "preview_url"
+            ],
+            "title": "ElementOption",
+            "type": "object"
+          },
+          "ElementSet": {
+            "additionalProperties": false,
+            "description": "A target-scoped publication and its human decision state.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "target_id": {
+                "title": "Target Id",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "headline",
+                  "text",
+                  "graphic"
+                ],
+                "title": "Kind",
+                "type": "string"
+              },
+              "label": {
+                "title": "Label",
+                "type": "string"
+              },
+              "created_at": {
+                "title": "Created At",
+                "type": "string"
+              },
+              "original_context_hash": {
+                "title": "Original Context Hash",
+                "type": "string"
+              },
+              "context_hash": {
+                "title": "Context Hash",
+                "type": "string"
+              },
+              "pending": {
+                "title": "Pending",
+                "type": "boolean"
+              },
+              "stale": {
+                "title": "Stale",
+                "type": "boolean"
+              },
+              "stale_reason": {
+                "title": "Stale Reason",
+                "type": "string"
+              },
+              "current_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Current Option Id"
+              },
+              "decision_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Decision Id"
+              },
+              "options": {
+                "items": {
+                  "$ref": "#/$defs/ElementOption"
+                },
+                "title": "Options",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "target_id",
+              "kind",
+              "label",
+              "created_at",
+              "original_context_hash",
+              "context_hash",
+              "pending",
+              "stale",
+              "stale_reason",
+              "current_option_id",
+              "decision_id",
+              "options"
+            ],
+            "title": "ElementSet",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "sets": {
+            "items": {
+              "$ref": "#/$defs/ElementSet"
+            },
+            "title": "Sets",
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/$defs/DesignDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          },
+          "next_decision_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Decision Cursor"
+          }
+        },
+        "required": [
+          "sets",
+          "decisions",
+          "content_hash"
+        ],
+        "title": "ElementPage",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_element_alternative",
+      "description": "Read one immutable element fragment, its target and original/reviewed context hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "element_option_id": {
+            "title": "Element Option Id",
+            "type": "string"
+          },
+          "context_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Hash"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "element_option_id"
+        ],
+        "title": "get_element_alternativeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "ElementOption": {
+            "additionalProperties": false,
+            "description": "A retained fragment and its exact audience-only preview context.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "title": "Html",
+                "type": "string"
+              },
+              "text": {
+                "title": "Text",
+                "type": "string"
+              },
+              "source_hash": {
+                "title": "Source Hash",
+                "type": "string"
+              },
+              "context_hash": {
+                "title": "Context Hash",
+                "type": "string"
+              },
+              "preview_url": {
+                "title": "Preview Url",
+                "type": "string"
+              },
+              "is_original": {
+                "default": false,
+                "title": "Is Original",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "name",
+              "rationale",
+              "html",
+              "text",
+              "source_hash",
+              "context_hash",
+              "preview_url"
+            ],
+            "title": "ElementOption",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One immutable fragment with an explicit retained full-slide context.",
+        "properties": {
+          "option": {
+            "$ref": "#/$defs/ElementOption"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "headline",
+              "text",
+              "graphic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "html": {
+            "title": "Html",
+            "type": "string"
+          },
+          "original_context_hash": {
+            "title": "Original Context Hash",
+            "type": "string"
+          },
+          "context_hash": {
+            "title": "Context Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "option",
+          "target_id",
+          "kind",
+          "label",
+          "html",
+          "original_context_hash",
+          "context_hash"
+        ],
+        "title": "ElementSource",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_element_alternative",
+      "description": "Inspect actual full-slide pixels for an element proposal through the offline renderer.\n\nCaptures retain the option identity and source hash; they do not revise the chosen slide.\nEarlier design contexts remain labelled by the corresponding metadata/source read.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "element_option_id": {
+            "title": "Element Option Id",
+            "type": "string"
+          },
+          "context_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Hash"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "element_option_id"
+        ],
+        "title": "capture_element_alternativeArguments",
         "type": "object"
       },
       "annotations": {
@@ -5532,6 +6475,54 @@
                 ],
                 "default": null,
                 "title": "Design Option Name"
+              },
+              "element_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Set Id"
+              },
+              "element_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Id"
+              },
+              "element_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Name"
+              },
+              "element_context_hash": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Context Hash"
               }
             },
             "required": [
@@ -6354,6 +7345,54 @@
                 ],
                 "default": null,
                 "title": "Design Option Name"
+              },
+              "element_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Set Id"
+              },
+              "element_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Id"
+              },
+              "element_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Name"
+              },
+              "element_context_hash": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Context Hash"
               }
             },
             "required": [
@@ -7088,6 +8127,54 @@
                 ],
                 "default": null,
                 "title": "Design Option Name"
+              },
+              "element_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Set Id"
+              },
+              "element_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Id"
+              },
+              "element_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Name"
+              },
+              "element_context_hash": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Context Hash"
               }
             },
             "required": [
@@ -7755,6 +8842,54 @@
                 ],
                 "default": null,
                 "title": "Design Option Name"
+              },
+              "element_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Set Id"
+              },
+              "element_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Id"
+              },
+              "element_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Option Name"
+              },
+              "element_context_hash": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Element Context Hash"
               }
             },
             "required": [

@@ -259,6 +259,10 @@ class Feedback(StrictModel):
     design_set_id: str | None = None
     design_option_id: str | None = None
     design_option_name: str | None = None
+    element_set_id: str | None = None
+    element_option_id: str | None = None
+    element_option_name: str | None = None
+    element_context_hash: str | None = None
 
     @model_validator(mode="after")
     def question_context(self) -> Self:
@@ -348,6 +352,7 @@ class DeckView(StrictModel):
     feedback: list[Feedback] = Field(default_factory=list)
     brief_files: list[DesignFile] = Field(default_factory=list)
     slide_designs: dict[str, dict[str, object]] = Field(default_factory=dict)
+    element_alternatives: dict[str, list[dict[str, object]]] = Field(default_factory=dict)
 
 
 class AgentDeckView(DeckView):
@@ -443,6 +448,21 @@ class CommentInput(StrictModel):
     files: list[FileInput] = Field(default_factory=list, max_length=5)
     edit_intent: EditIntent | None = None
     design_option_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    element_option_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    element_context_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def proposal_context(self) -> Self:
+        """A proposal comment refers to one saved option without a canonical element edit."""
+        if self.design_option_id and self.element_option_id:
+            raise ValueError("Choose one saved proposal context for this comment.")
+        if self.element_context_hash and not self.element_option_id:
+            raise ValueError("An element preview context needs its saved option.")
+        if (self.design_option_id or self.element_option_id) and (
+            self.target is not None or self.edit_intent is not None
+        ):
+            raise ValueError("Proposal feedback cannot target an element in the chosen slide.")
+        return self
 
 
 class PresentationCommentInput(StrictModel):

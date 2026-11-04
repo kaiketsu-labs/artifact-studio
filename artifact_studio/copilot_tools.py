@@ -9,7 +9,7 @@ from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from functools import wraps
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 from mcp.server.mcpserver import Image as MCPImage
 from mcp.server.mcpserver import MCPServer
@@ -22,6 +22,7 @@ from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView, ProjectView
 from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
 from .copilot_capture import capture_cloud_slide
+from .element_alternatives import ElementAlternatives, ElementInput
 from .models import Slide, SlidePatch
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import SAFE_ID, ConflictError, Store, digest
@@ -34,6 +35,8 @@ MAX_RESULT_BYTES = 4 * 1024 * 1024
 Text = Annotated[str, Field(max_length=1_500_000)]
 Identifier = Annotated[str, Field(min_length=1, max_length=100)]
 RequestID = Annotated[str, Field(min_length=8, max_length=100)]
+ElementID = Annotated[str, Field(min_length=1, max_length=200)]
+ElementLabel = Annotated[str, Field(min_length=1, max_length=80)]
 READ = ToolAnnotations(read_only_hint=True, destructive_hint=False)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 FILE_INPUTS = TypeAdapter(list[ArtifactFileInput])
@@ -555,6 +558,101 @@ class ScopedTools:
             structured_content=metadata,
         )
 
+    def publish_element_alternatives(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        target_id: ElementID,
+        kind: Literal["headline", "text", "graphic"],
+        label: ElementLabel,
+        expected_content_hash: str,
+        request_id: RequestID,
+        options_json: Text,
+    ) -> dict[str, object]:
+        """Offer 1–5 static element alternatives as JSON; only humans choose or Keep current.
+
+        target_id is an existing unique HTML id. Each replacement keeps that id and supplies
+        name, optional rationale and full outer html. Load the slide_designs guide first.
+        """
+        _ = self.deck(deck_id)
+        options = TypeAdapter(list[ElementInput]).validate_json(options_json)
+        result = ElementAlternatives(self.store).publish(
+            deck_id, slide_id, target_id, kind, label, expected_content_hash, request_id, options
+        )
+        return public_object(result.model_dump(mode="json"))
+
+    def get_element_alternatives(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        cursor: int = -1,
+        decision_cursor: int = -1,
+        set_id: str = "",
+    ) -> dict[str, object]:
+        """Read element groups and human decisions. -1 starts; 0 skips a finished stream."""
+        _ = self.deck(deck_id)
+        result = ElementAlternatives(self.store).list(
+            deck_id,
+            slide_id,
+            cursor=None if cursor == -1 else cursor,
+            decision_cursor=None if decision_cursor == -1 else decision_cursor,
+            set_id=set_id or None,
+        )
+        return public_object(result.model_dump(mode="json"))
+
+    def get_element_alternative(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        element_option_id: Identifier,
+        context_hash: str = "",
+    ) -> dict[str, object]:
+        """Read a scoped immutable fragment; a context hash selects its retained preview."""
+        _ = self.deck(deck_id)
+        result = ElementAlternatives(self.store).read(
+            deck_id, slide_id, element_option_id, context_hash=context_hash or None
+        )
+        return public_object(result.model_dump(mode="json"))
+
+    def capture_element_alternative(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        element_option_id: Identifier,
+        context_hash: str = "",
+    ) -> CallToolResult:
+        """Capture full-slide pixels for an element proposal, optionally in a retained context."""
+        _ = self.deck(deck_id)
+        alternatives = ElementAlternatives(self.store)
+        source = alternatives.read(
+            deck_id, slide_id, element_option_id, context_hash=context_hash or None
+        )
+        frozen = alternatives.preview(
+            deck_id, slide_id, element_option_id, context_hash=source.context_hash
+        )
+        data = capture_snapshot(frozen, CaptureOptions(reduced_motion=True))
+        _ = self.deck(deck_id)
+        if len(data) > 3 * 1024 * 1024:
+            raise ValueError("The captured alternative exceeds the gateway's 3 MiB image limit.")
+        folder = self.store.database.parent / "copilot-captures"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"element-{element_option_id}-{source.context_hash}.png"
+        _ = path.write_bytes(data)
+        metadata = {
+            "element_option_id": element_option_id,
+            "set_id": source.option.set_id,
+            "source_hash": source.option.source_hash,
+            "context_hash": source.context_hash,
+            "frame": frozen.frame.model_dump(mode="json", exclude={"path"}),
+        }
+        return CallToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(metadata)),
+                MCPImage(path=path).to_image_content(),
+            ],
+            structured_content=metadata,
+        )
+
     def add_slide(
         self,
         deck_id: Identifier,
@@ -699,6 +797,9 @@ def register_tools(
         scoped.get_slide_designs,
         scoped.get_slide_design,
         scoped.capture_slide_design,
+        scoped.get_element_alternatives,
+        scoped.get_element_alternative,
+        scoped.capture_element_alternative,
         scoped.read_feedback,
         scoped.capture_artifact,
         scoped.capture_slide,
@@ -709,6 +810,7 @@ def register_tools(
         scoped.reply_to_artifact_feedback,
         scoped.revise_slide,
         scoped.publish_slide_designs,
+        scoped.publish_element_alternatives,
         scoped.add_slide,
         scoped.reorder_slides,
         scoped.reply_to_feedback,

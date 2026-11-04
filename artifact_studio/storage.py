@@ -226,6 +226,9 @@ class Store:
             from .slide_designs import install_designs
 
             install_designs(db)
+            from .element_alternatives import install_element_alternatives
+
+            install_element_alternatives(db)
             columns = {row[1] for row in db.execute("PRAGMA table_info(feedback)")}
             if "target" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN target TEXT")
@@ -245,6 +248,14 @@ class Store:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN design_set_id TEXT")
             if "design_option_id" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN design_option_id TEXT")
+            if "element_set_id" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN element_set_id TEXT")
+            if "element_option_id" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN element_option_id TEXT")
+            if "element_context_hash" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN element_context_hash TEXT")
+            if "element_option_name" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN element_option_name TEXT")
             _ = db.execute(
                 "CREATE INDEX IF NOT EXISTS feedback_replies ON feedback(reply_to,author)"
             )
@@ -353,6 +364,9 @@ class Store:
         from .slide_designs import recover_design_decisions
 
         recover_design_decisions(self, db, deck_id)
+        from .element_alternatives import recover_element_decisions
+
+        recover_element_decisions(self, db, deck_id)
 
     @contextmanager
     def editing(self, deck_id: str) -> Generator[sqlite3.Connection]:
@@ -427,10 +441,15 @@ class Store:
         """Read a replayable feedback queue using a durable event cursor."""
         with self.connect() as db:
             rows = db.execute(
-                "SELECT feedback.*,delivery.id AS delivery_id,o.name AS design_option_name "
+                "SELECT feedback.*,delivery.id AS delivery_id,o.name AS design_option_name,"
+                "CASE WHEN es.id IS NOT NULL THEN e.name ELSE feedback.element_option_name "
+                "END AS saved_element_option_name "
                 "FROM feedback LEFT JOIN delivery ON feedback.id=delivery.event_id "
                 "LEFT JOIN slide_design_options o ON o.id=feedback.design_option_id "
-                "WHERE deck=? AND feedback.id>? "
+                "LEFT JOIN element_alternative_options e ON e.id=feedback.element_option_id "
+                "LEFT JOIN element_alternative_sets es ON es.id=e.set_id "
+                "AND es.deck=feedback.deck AND es.slide=feedback.slide "
+                "WHERE feedback.deck=? AND feedback.id>? "
                 "ORDER BY feedback.id",
                 (deck_id, after_event_id),
             ).fetchall()
@@ -461,6 +480,10 @@ class Store:
                 design_set_id=cast(str | None, row["design_set_id"]),
                 design_option_id=cast(str | None, row["design_option_id"]),
                 design_option_name=cast(str | None, row["design_option_name"]),
+                element_set_id=cast(str | None, row["element_set_id"]),
+                element_option_id=cast(str | None, row["element_option_id"]),
+                element_option_name=cast(str | None, row["saved_element_option_name"]),
+                element_context_hash=cast(str | None, row["element_context_hash"]),
             )
             for row in rows
         ]
@@ -549,6 +572,7 @@ class Store:
 
     def view(self, deck_id: str, *, include_pending: bool = True) -> DeckView:
         """Return a review-ready snapshot of a presentation."""
+        from .element_alternatives import element_badges
         from .sections import sections_hash
         from .slide_designs import design_badges
 
@@ -585,6 +609,7 @@ class Store:
             learned_preferences=self.learned_preferences(),
             brief_files=self.brief_files(deck_id),
             slide_designs=design_badges(self, deck),
+            element_alternatives=element_badges(self, deck),
             workflow=self.workflow(deck_id),
             feedback=[
                 item
@@ -871,12 +896,22 @@ class Store:
         expected_mode: Literal["live", "batch"] | None = None,
         author: Literal["user", "agent"] | None = None,
         design_option_id: str | None = None,
+        element_option_id: str | None = None,
+        element_context_hash: str | None = None,
     ) -> str:
         """Save a comment or reply exactly once, retaining its original slide context."""
         decoded = decode_attachments(files or [])
         if not message.strip() and not decoded:
             raise ValueError("Add a message or attach a file.")
         author = author or ("agent" if reply_to is not None else "user")
+        if design_option_id is not None and element_option_id is not None:
+            raise ValueError("Choose one saved proposal context for this comment.")
+        if element_context_hash is not None and element_option_id is None:
+            raise ValueError("An element preview context needs its saved option.")
+        if (design_option_id is not None or element_option_id is not None) and (
+            target is not None or edit_intent is not None
+        ):
+            raise ValueError("Proposal feedback cannot target an element in the chosen slide.")
         target_json = target.model_dump_json() if target else None
         intent_json = edit_intent.model_dump_json() if edit_intent else None
         if edit_intent is not None and not isinstance(target, ElementTarget):
@@ -893,9 +928,15 @@ class Store:
                 + ([intent_json] if intent_json is not None else [])
                 + (["agent"] if author == "agent" and reply_to is None else [])
                 + (["slide-design", design_option_id] if design_option_id is not None else [])
+                + (
+                    ["element-alternative", element_option_id, element_context_hash]
+                    if element_option_id is not None
+                    else []
+                )
             )
         )
         stored_slide_id = slide_id or ""
+        element_option_name: str | None = None
         with self.editing(deck_id) as db:
             prior = db.execute(
                 "SELECT payload_hash,result FROM operations WHERE deck=? AND request_id=?",
@@ -916,6 +957,36 @@ class Store:
                     raise ConflictError(
                         "Design feedback must reference its original proposal and source hash."
                     )
+            if element_option_id is not None:
+                option = db.execute(
+                    "SELECT o.source_hash,s.anchor_hash,s.original_context_hash,o.name "
+                    "FROM element_alternative_options o JOIN element_alternative_sets s "
+                    "ON s.id=o.set_id WHERE o.id=? AND s.deck=? AND s.slide=?",
+                    (element_option_id, deck_id, slide_id),
+                ).fetchone()
+                if option is None or option[0] != content_hash:
+                    raise ConflictError(
+                        "Element feedback must reference its original proposal and source hash."
+                    )
+                context_hash = element_context_hash or cast(str, option[1])
+                context = db.execute(
+                    "SELECT 1 FROM element_alternative_previews "
+                    "WHERE option_id=? AND context_hash=?",
+                    (element_option_id, context_hash),
+                ).fetchone()
+                if context is None and element_context_hash is None:
+                    context_hash = cast(str, option[2])
+                    context = db.execute(
+                        "SELECT 1 FROM element_alternative_previews "
+                        "WHERE option_id=? AND context_hash=?",
+                        (element_option_id, context_hash),
+                    ).fetchone()
+                if context is None:
+                    raise ConflictError(
+                        "Element feedback must reference a retained preview context."
+                    )
+                element_context_hash = context_hash
+                element_option_name = cast(str, option[3])
             if slide_id is not None:
                 _ = self.locate(deck, slide_id)
             elif target is not None:
@@ -952,6 +1023,9 @@ class Store:
                 files_json=TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
                 intent_json=intent_json,
                 design_option_id=design_option_id,
+                element_option_id=element_option_id,
+                element_context_hash=element_context_hash,
+                element_option_name=element_option_name,
             )
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
@@ -977,13 +1051,17 @@ class Store:
         question_json: str | None = None,
         design_set_id: str | None = None,
         design_option_id: str | None = None,
+        element_set_id: str | None = None,
+        element_option_id: str | None = None,
+        element_context_hash: str | None = None,
+        element_option_name: str | None = None,
     ) -> str:
         """Append a message and its delivery record within the caller's transaction."""
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,"
             "reply_to,target,context_slide_id,released,files,edit_intent,question,"
-            "design_set_id,design_option_id) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "design_set_id,design_option_id,element_set_id,element_option_id,element_context_hash,"
+            "element_option_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck_id,
                 slide_id,
@@ -1000,6 +1078,10 @@ class Store:
                 question_json,
                 design_set_id,
                 design_option_id,
+                element_set_id,
+                element_option_id,
+                element_context_hash,
+                element_option_name,
             ),
         )
         if released and author == "user":

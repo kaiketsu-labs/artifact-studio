@@ -1,6 +1,6 @@
 # Element alternatives — UX draft
 
-This is an interactive, fictional draft for extending whole-slide alternatives to individual headlines, text and static graphics. It calls no production API and implements no agent tool. The existing whole-slide feature is [PR #33](https://github.com/kaiketsu-labs/artifact-studio/pull/33). There is no separate slide-story/ideas feature in this proposal.
+This is the original interactive, fictional UX draft for individual headlines, text and static graphics. The production feature is now implemented; use the [current workflow and agent tools](../../SLIDE-DESIGNS.md) for actual authoring. This preserved draft calls no production API. The earlier whole-slide feature is [PR #33](https://github.com/kaiketsu-labs/artifact-studio/pull/33). There is no separate slide-story/ideas feature.
 
 ![Headline options with readable wording, a gold chosen border and a blue temporary preview.](screenshots/01-headline.png)
 
@@ -29,11 +29,11 @@ The same decision rule applies to the earlier whole-slide feature and this futur
 | The requested change is small and unambiguous | Make the normal guarded revision. Options should not become a compulsory wizard. |
 | The target or its parent design changed | Read the new source and refresh affected proposals; do not choose an old fragment or silently apply it to another element. |
 
-The production bootstrap now advertises whole-slide proposals and the question boundary. Its on-demand [slide_designs guide](../../SLIDE-DESIGNS.md) contains the detailed rule and explicitly says element alternatives are not yet implemented. A Terra agent verified that actual MCP initialization, guide delivery and tool discovery agree.
+The production bootstrap advertises whole-slide and element proposals alongside the question boundary. Its on-demand [slide_designs guide](../../SLIDE-DESIGNS.md) contains the detailed rule. A fresh Terra agent verified actual MCP initialization, guide delivery, tool discovery, publication and exact-context feedback reads.
 
-When element tools exist, add one short capability sentence to initialization and the quickstart, extend the on-demand guide, and register descriptive tool schemas. `tools/list` remains authoritative. Do not advertise an unimplemented tool or rely on a skill body being loaded automatically. [Question-first example](screenshots/12-question-first.png) illustrates the existing question pattern. Answers and subsequent proposals in this prototype are scripted, not model output.
+Registered element tools are advertised in initialization and the quickstart, with descriptive schemas and details in the on-demand guide. `tools/list` remains authoritative. [Question-first example](screenshots/12-question-first.png) illustrates the existing question pattern. Answers and subsequent proposals in this prototype are scripted, not model output.
 
-## Implementation draft after UX review
+## Original implementation outline
 
 1. Preserve `publish_slide_designs` and its existing contract. Add a separate element-publication tool, provisionally `publish_element_alternatives`, plus source/preview reads. Scope it by slide, a unique existing target and the current content hash. Do not introduce a layout enum.
 2. Store an immutable target snapshot, original subtree hash, parent-design identity, named candidate fragments, resource hashes and full-slide preview documents. Reuse the existing offline snapshot/render boundary. Start with a single static HTML element or explicit container; custom interactive documents remain whole-slide proposals until their authoring/selection model supports this safely.
