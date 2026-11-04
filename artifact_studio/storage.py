@@ -128,10 +128,10 @@ class SlideMarkup(HTMLParser):
         self.handle_starttag(tag, attrs)
 
 
-def replace_text(path: Path, content: str) -> None:
-    """Atomically replace a UTF-8 document without exposing partially written content."""
+def replace_text(path: Path, content: str, *, encoding: str = "utf-8") -> None:
+    """Atomically replace a document without exposing partially written content."""
     with tempfile.NamedTemporaryFile(
-        mode="w", encoding="utf-8", dir=path.parent, delete=False
+        mode="w", encoding=encoding, dir=path.parent, delete=False
     ) as file:
         _ = file.write(content)
         temporary = Path(file.name)

@@ -92,6 +92,10 @@ Slides nudge by 0.1% of the canvas (1% with Shift), independent of preview zoom.
 | ⌘/Ctrl+Z; ⌘/Ctrl+Shift+Z | Native undo/redo while typing, separate from object or slide history |
 | ⌘/Ctrl+B / I | Bold/italic in the rich-text rules editor |
 | ⌘/Ctrl+K | Add/edit a link in the rich-text rules editor |
+| ⌘/Ctrl+S | Save the open design text file while editing |
+| ⌘/Ctrl+F | Find/replace in the design source editor |
+| ⌘/Ctrl+Z / Shift+Z | Undo/redo source edits before saving |
+| Tab / Shift+Tab | Indent/unindent source lines; Escape then Tab exits the editor |
 
 Enter adds a normal line break in notes and other text fields. Sending in Batch mode adds a message to the local batch; use **Send batch** to release it to the agent. Text selection, copy, paste, caret movement and field editing retain their normal browser shortcuts.
 

@@ -20,7 +20,9 @@ from .design_references import (
 )
 from .libraries import LibraryFile, allowed, file_hash, inventory, safe_file
 from .models import FileInput, StrictModel
-from .storage import ConflictError, Store, decode_attachments, digest
+from .storage import ConflictError, Store, decode_attachments, digest, replace_text
+
+TEXT_LIMIT = 1024 * 1024
 
 PREVIEW_TYPES = {
     ".svg": "image/svg+xml",
@@ -85,6 +87,14 @@ class DesignDelete(StrictModel):
     """Remove only the design version the human reviewed."""
 
     expected_version: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class DesignTextEdit(StrictModel):
+    """Save a complete text source only against its previously read bytes."""
+
+    path: str = Field(min_length=1, max_length=1000)
+    text: str = Field(max_length=TEXT_LIMIT)
+    expected_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
 class DesignLibrary:
@@ -223,6 +233,46 @@ class DesignLibrary:
         if name not in {file.path for file in self._inventory(item)}:
             raise FileNotFoundError("Choose a file from this design's context.")
         return safe_file(self.store.folder(item.folder_id), name)
+
+    def edit_text(self, design_id: str, body: DesignTextEdit) -> DesignDetail:
+        """Preserve text encoding and line endings while rejecting stale or partial edits."""
+        with self.store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            target = self.file(design_id, body.path)
+            with target.open("rb") as source:
+                original = source.read(TEXT_LIMIT + 1)
+            if len(original) > TEXT_LIMIT:
+                raise ValueError("Files larger than 1 MB are preview-only. Edit the original file.")
+            if hashlib.sha256(original).hexdigest() != body.expected_hash:
+                raise ConflictError("This file changed elsewhere. Your edits have not been saved.")
+            encoding = (
+                "utf-16-le"
+                if original.startswith(b"\xff\xfe")
+                else "utf-16-be"
+                if original.startswith(b"\xfe\xff")
+                else "utf-8"
+            )
+            try:
+                decoded = original.decode(encoding)
+                if any(ord(char) < 32 and char not in "\t\n\r" for char in decoded + body.text):
+                    raise ValueError("Only readable text files can be edited here.")
+                text = body.text.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+                if "\r\n" in decoded and "\n" not in decoded.replace("\r\n", ""):
+                    text = text.replace("\n", "\r\n")
+                elif "\r" in decoded and "\n" not in decoded:
+                    text = text.replace("\n", "\r")
+                if decoded.startswith("\ufeff"):
+                    text = "\ufeff" + text
+                data = text.encode(encoding)
+            except UnicodeError as error:
+                raise ValueError(
+                    "Only readable UTF-8 or UTF-16 text can be edited here."
+                ) from error
+            if len(data) > TEXT_LIMIT:
+                raise ValueError("Keep the saved text under 1 MB.")
+            if data != original:
+                replace_text(target, text, encoding=encoding)
+        return self.get(design_id)
 
     @staticmethod
     def _attach(folder: Path, files: list[FileInput]) -> None:
