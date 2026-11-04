@@ -366,6 +366,7 @@ def test_http_and_stateless_mcp(store: Store, monkeypatch: pytest.MonkeyPatch) -
             },
         )
         assert init.status_code == 200, init.text
+        assert init.json()["result"]["serverInfo"]["version"] == service.__version__
         assert "mcp-session-id" not in init.headers
         listed = client.post(
             "/mcp",

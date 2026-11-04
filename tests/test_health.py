@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from artifact_studio import __version__
 from artifact_studio import app as service
 from artifact_studio.storage import Store
 
@@ -23,5 +24,11 @@ def test_health_does_not_read_decks(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     client = TestClient(service.app)
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"service": "artifact-studio", "status": "ready", "version": "0.1.0"}
+    assert response.json() == {
+        "service": "artifact-studio",
+        "status": "ready",
+        "version": __version__,
+    }
+    assert service.app.version == __version__
+    assert service.mcp.version == __version__
     assert response.headers["cache-control"] == "no-store"
