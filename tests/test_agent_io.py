@@ -186,9 +186,21 @@ def test_guides_and_discovery_can_be_retained_independently_of_rules(
     )
 
 
+def test_opening_agent_messages_cannot_reuse_a_human_message_identity(store: Store) -> None:
+    """Keep authorship in retry identity while preserving genuine human-originated briefs."""
+    deck = store.create("2026-11-04-authorship", "Authorship", brief="A real human brief")
+    assert store.comments(deck.id)[0].author == "user"
+    _ = store.add_feedback(deck.id, None, "Same text", "", "human-message-identity")
+    with pytest.raises(ToolError, match="another action"):
+        _ = service.reply_to_presentation_feedback(deck.id, "Same text", "human-message-identity")
+    assert [item.author for item in store.comments(deck.id)] == ["user", "user"]
+
+
 def test_deck_mutations_return_order_without_echoing_source(store: Store) -> None:
     """Large source, notes and binaries stay canonical through compact creation and ordering."""
     created = service.create_presentation("2026-11-01-receipt", "Receipt", brief="Complete brief")
+    assert [item.author for item in store.comments(created.id)] == ["agent"]
+    assert not store.feedback_feed(created.id).events
     assert isinstance(created, DeckReceipt) and created.slide_ids == ["cover"]
     assert "slides" not in created.model_dump()
     full_created = service.create_presentation("2026-11-01-full", "Full", include_content=True)

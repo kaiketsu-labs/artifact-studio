@@ -2,7 +2,7 @@
 
 Artifact Studio uses the same stateless MCP server for Codex, Claude Code and other MCP clients. Automatic continuation additionally needs a lifecycle adapter in the agent harness. This app includes project-local or optional user-level command hooks for **Codex** and **Claude Code**. Other clients can still read and revise slides through MCP; they need their own lifecycle adapter for automatic continuation.
 
-The hooks keep an explicitly started review open at the end of an agent response. New Live feedback, a released batch or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
+The hooks automatically attach to selected presentation work and keep its review open at the end of an agent response. New Live feedback, a released batch or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
 
 ## One-time setup
 
@@ -19,7 +19,7 @@ uv --no-cache run --no-sync python -m artifact_studio.hook_client configure \
   --dry-run
 ```
 
-Use `--harness claude-code` for Claude Code. Inspect the output, then repeat without `--dry-run` to save it. Replace `--project …` with `--global` to install user-level hooks instead (`~/.claude/settings.json` or `~/.codex/hooks.json`), so a session started in any folder can join live review. The hooks stay inert until that session calls `start_live_review`. Claude Code runs an identical hook defined at both levels once; Codex runs both, so remove a project copy after installing globally. If the MCP connection has a different name, pass that exact name. Only local HTTP URLs are accepted. The generated commands use the checkout's absolute path and uv executable; regenerate them if either moves.
+Use `--harness claude-code` for Claude Code. Inspect the output, then repeat without `--dry-run` to save it. Replace `--project …` with `--global` to install user-level hooks instead (`~/.claude/settings.json` or `~/.codex/hooks.json`), so a session started in any folder can join live review. Hooks attach when that session selects or works on a presentation; unscoped discovery does not start review. Claude Code runs an identical hook defined at both levels once; Codex runs both, so remove a project copy after installing globally. If the MCP connection has a different name, pass that exact name. Only local HTTP URLs are accepted. The generated commands use the checkout's absolute path and uv executable; regenerate them if either moves.
 
 The configurator merges existing settings atomically and rejects malformed settings instead of replacing them. Repeating the same configuration does not duplicate it. It replaces this adapter's older generated handlers while preserving unrelated hooks. The launcher uses `uv --no-cache` and `--no-sync` so it does not need a protected shared uv cache. Rerun configuration after an app update changes the launcher; changed Codex hook definitions require native review/trust again. It writes only:
 
@@ -32,11 +32,13 @@ Hooks run local commands with your host's permissions. The agent must not bypass
 
 ## Start and end a review
 
-In the connected agent chat, ask:
+After the one-time hook setup, selecting or working on a presentation automatically attaches the current agent chat. Context reads with a selected deck (including a legacy presentation opened by artifact ID), creation and authoring calls trigger the host hook. No separate request to start review is needed. Unscoped discovery and general artifacts do not start presentation review.
 
-> Read get_working_context(deck_id=...), then get_authoring_guide(topic="live_review"). Start live review for my presentation with start_live_review(deck_id=...), then check get_live_review_status(deck_id=...). Read get_presentation_outline(deck_id=..., include_context=True), the full brief, relevant brief_files attachments and read_feedback, then address my released feedback. Keep the review open while I use Artifact Studio.
+For an existing presentation, the agent should:
 
-Use `start_live_review()` with no deck for the design inbox. The response reports `awaiting_host_hook`: the loaded host hook must register this successful call to opt that session into review. The tool response alone does not prove availability. Ordinary reads do not start or restart it. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
+> Read get_working_context(deck_id=...), then check get_live_review_status(deck_id=...). Read the outline, brief, relevant files and released feedback; keep review open while the human uses Artifact Studio.
+
+Use `start_live_review()` with no deck for the design inbox, or with a deck to explicitly resume an ended review. The response reports `awaiting_host_hook`; the loaded host hook must run before the connection is established. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
 
 `start_live_review` reports `status="awaiting_host_hook"`: the call requests a connection, and any returned lease describes the target’s current reviewer. The host's `PostToolUse` hook runs **after** that response. Call `get_live_review_status(deck_id=...)` afterward (omit the ID for the design inbox): it returns `status="connected"` or `"unavailable"`, `review_connected`, `review_harness` and `review_session`, without starting or renewing a lease. Status covers the active reviewer for that exact target, which may be another session; compare `review_session` with your host session before claiming your own connection. An ordinary MCP feedback wait is not a host hook connection. Expired or disconnected leases are unavailable. Working context and review status include `workspace_url` and `mcp_url` derived from the actual HTTP request, including its port; direct Python calls receive relative URLs.
 

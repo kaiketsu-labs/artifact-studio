@@ -15,7 +15,7 @@ MCP is stateless at the transport level. Agents can still retain context between
 | Check order/status later | `get_presentation_outline(deck_id=...)` — no slide HTML or conversation history. |
 | Edit one slide | `get_slide`, then `revise_slide` with only changed fields. |
 | Create or reorder | `create_presentation` / `reorder_slides` return deck identity and ordered `slide_ids`, without slide source. |
-| Start automatic review | Read the live_review topic once, then `start_live_review`; its default response contains status and a guide pointer. |
+| Automatic review | Loaded hooks attach on selected presentation context or authoring calls, without a separate start call. Read live_review only for setup; use `start_live_review` to resume after End review. |
 | Continue reviewing | `read_feedback`/`wait_for_feedback` with `after_delivery_id=next_cursor`. |
 | Read general artifact feedback | `read_artifact_feedback` with its own `after_delivery_id=next_cursor`; generic artifacts have no automatic host hook. |
 | Edit an owned artifact | `get_artifact`, then `read_artifact_files` for relevant paths and `revise_artifact` for changed files with an expected revision/hash and unique request ID. |

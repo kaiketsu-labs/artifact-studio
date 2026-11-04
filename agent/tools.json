@@ -2333,7 +2333,7 @@
     },
     {
       "name": "create_presentation",
-      "description": "Create a branded cover and save the human's brief as context and presentation feedback.\nRead that brief before drafting the full story; choose the slide count to fit the content.\nReturns deck identity and slide IDs; include_content=True returns the full cover source.\ndeck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).\nThe compact receipt includes workspace_url and private-field-free audience_url for review.\nSupply a unique request_id (8–100 characters) for exact-payload retries. A recorded\nretry returns the original creation snapshot, not current content; read the deck to resume.\nIf an ID already exists without a matching receipt, read and reconcile ownership first.\n",
+      "description": "Create a branded cover and save the supplied brief as context and agent-authored feedback.\nRead that brief before drafting the full story; choose the slide count to fit the content.\nReturns deck identity and slide IDs; include_content=True returns the full cover source.\ndeck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).\nThe compact receipt includes workspace_url and private-field-free audience_url for review.\nSupply a unique request_id (8–100 characters) for exact-payload retries. A recorded\nretry returns the original creation snapshot, not current content; read the deck to resume.\nIf an ID already exists without a matching receipt, read and reconcile ownership first.\n",
       "input_schema": {
         "$defs": {
           "FileInput": {
@@ -6494,7 +6494,7 @@
     },
     {
       "name": "reply_to_feedback",
-      "description": "Respond to a user's comment after revising a slide or when a decision is needed.",
+      "description": "Post a brief agent message on a slide; omit event_id for an opening message.\nSupply event_id to reply to a comment. Never use human-feedback endpoints for agent text.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -6505,10 +6505,6 @@
             "title": "Slide Id",
             "type": "string"
           },
-          "event_id": {
-            "title": "Event Id",
-            "type": "integer"
-          },
           "message": {
             "title": "Message",
             "type": "string"
@@ -6516,12 +6512,23 @@
           "request_id": {
             "title": "Request Id",
             "type": "string"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Event Id"
           }
         },
         "required": [
           "deck_id",
           "slide_id",
-          "event_id",
           "message",
           "request_id"
         ],
@@ -6548,16 +6555,12 @@
     },
     {
       "name": "reply_to_presentation_feedback",
-      "description": "Reply to general instructions such as creating, moving or restructuring slides.\nInfer the requested scope from the message; context_slide_id is a viewing hint, not a target.\n",
+      "description": "Reply to general instructions such as creating, moving or restructuring slides.\nInfer the requested scope from the message; context_slide_id is a viewing hint, not a target.\nOmit event_id for an opening agent message; never post through human-feedback endpoints.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
             "title": "Deck Id",
             "type": "string"
-          },
-          "event_id": {
-            "title": "Event Id",
-            "type": "integer"
           },
           "message": {
             "title": "Message",
@@ -6566,11 +6569,22 @@
           "request_id": {
             "title": "Request Id",
             "type": "string"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Event Id"
           }
         },
         "required": [
           "deck_id",
-          "event_id",
           "message",
           "request_id"
         ],

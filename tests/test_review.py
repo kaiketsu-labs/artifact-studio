@@ -33,6 +33,35 @@ def comment(store: Store, message: str, released: bool = True) -> None:
         _ = store.append_feedback(db, DECK, "", "user", message, "", released=released)
 
 
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+def test_automatic_attachment_respects_ownership_end_review_and_batch(
+    store: Store, harness: Literal["codex", "claude-code"]
+) -> None:
+    """Join fresh authoring sessions without taking another reviewer or reopening ended work."""
+    reviews = Reviews(store)
+    body = ReviewHookInput(
+        harness=harness,
+        session_id="author",
+        event="PostToolUse",
+        deck_id=DECK,
+        auto_start=True,
+    )
+    assert reviews.bind(body).listening
+    assert store.workflow(DECK).review_session == "author"
+    assert not reviews.bind(body.model_copy(update={"session_id": "other"})).listening
+    comment(store, "Private batch request", released=False)
+    assert not reviews.pending(body).feedback_available
+    reviews.disconnect(DECK)
+    assert not reviews.bind(body).listening
+    assert reviews.bind(body.model_copy(update={"start_review": True})).listening
+    second = "2026-11-04-second-deck"
+    _ = store.create(second, "Second presentation")
+    assert reviews.bind(body.model_copy(update={"deck_id": second})).listening
+    assert store.workflow(second).review_session == "author"
+    assert not store.workflow(DECK).review_connected
+    assert not store.feedback_feed(DECK).events
+
+
 @pytest.mark.parametrize("target", [DECK, ""])
 def test_review_request_is_not_a_hook_connection(
     store: Store, monkeypatch: pytest.MonkeyPatch, target: str

@@ -10,6 +10,44 @@ from artifact_studio import hook_client as client
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
+@pytest.mark.parametrize("tool", ["get_working_context", "create_presentation", "revise_slide"])
+def test_successful_presentation_work_requests_automatic_binding(harness: str, tool: str) -> None:
+    """Attach the actual selected deck without an explicit start tool or extra context text."""
+    payload: dict[str, object] = {
+        "session_id": "author",
+        "tool_name": "mcp__artifact_studio__" + tool,
+        "tool_input": {"deck_id": "2026-11-04-story"},
+        "tool_response": {"structuredContent": {"id": "2026-11-04-story"}},
+    }
+    normalized = client.normalize(harness, "PostToolUse", "artifact-studio", payload)
+    assert normalized["auto_start"] is True
+    assert normalized["deck_id"] == "2026-11-04-story"
+    payload["tool_response"] = {"isError": True, "content": []}
+    assert client.normalize(harness, "PostToolUse", "artifact-studio", payload) == {}
+
+
+def test_artifact_context_binds_only_an_explicit_legacy_presentation() -> None:
+    """Do not attach the design inbox or a generic artifact from an unrelated context read."""
+    payload: dict[str, object] = {
+        "session_id": "author",
+        "tool_name": "mcp__artifact_studio__get_working_context",
+        "tool_input": {"artifact_id": "artifact-one"},
+        "tool_response": {"structuredContent": {"artifact": {"id": "artifact-one"}}},
+    }
+    assert client.normalize("codex", "PostToolUse", "artifact-studio", payload) == {}
+    payload["tool_response"] = {
+        "structuredContent": {
+            "presentation_context": {"deck_id": "2026-11-04-story"},
+        }
+    }
+    normalized = client.normalize("codex", "PostToolUse", "artifact-studio", payload)
+    assert normalized["deck_id"] == "2026-11-04-story" and normalized["auto_start"] is True
+    payload["tool_input"] = {}
+    payload["tool_response"] = {"structuredContent": {"designs": []}}
+    assert "auto_start" not in client.normalize("codex", "PostToolUse", "artifact-studio", payload)
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_configure_merge_and_quote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harness: str
 ) -> None:

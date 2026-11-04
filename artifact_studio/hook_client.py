@@ -26,6 +26,17 @@ INBOX_TOOLS = {
     "wait_for_design_requests",
     "start_live_review",
 }
+AUTO_REVIEW_TOOLS = {
+    "get_working_context",
+    "create_presentation",
+    "get_presentation",
+    "get_slide",
+    "revise_slide",
+    "add_slide",
+    "append_slides",
+    "reply_to_feedback",
+    "reply_to_presentation_feedback",
+}
 
 
 def _object(value: object) -> dict[str, object]:
@@ -225,8 +236,14 @@ def normalize(
     if tool == "start_live_review":
         message["start_review"] = True
     deck = arguments.get("deck_id")
+    if tool == "get_working_context" and not deck:
+        deck = _object(response.get("presentation_context")).get("deck_id")
+        if not deck and (arguments.get("artifact_id") or arguments.get("project_id")):
+            return {}
     if isinstance(deck, str) and deck:
         message["deck_id"] = deck
+        if tool in AUTO_REVIEW_TOOLS:
+            message["auto_start"] = True
     elif tool in INBOX_TOOLS:
         message["deck_id"] = None
     else:

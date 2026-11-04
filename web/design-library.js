@@ -3,12 +3,14 @@
   'use strict';
   function create({api,icon,escape,sizeLabel,toast,modal,changed}){
     const doc=root.document,dialog=doc.getElementById('hub-dialog');
-    let selected=null,pending=[],busy=false;
+    let selected=null,pending=[],busy=false,textRequest=null,textPreview=null;
     const path=id=>`/api/design-library/${encodeURIComponent(id)}`;
     const control=(action,label,name,attrs='')=>`<button type="button" data-design-action="${action}" ${attrs}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
     const type=file=>file.name.includes('.')?file.name.split('.').at(-1).toUpperCase().slice(0,8):'FILE';
     const fileLabel=file=>file.path.startsWith('reference/uploads/')?'Uploaded reference':file.path;
     const imageTypes=new Set(['SVG','PNG','JPG','JPEG','WEBP','GIF','AVIF','BMP','TIF','TIFF','ICO']);
+    const binaryTypes=new Set([...imageTypes,'PPT','PPTX','POTX','PDF','DOC','DOCX','XLS','XLSX','ZIP','GZ','7Z','RAR','TTF','OTF','WOFF','WOFF2','EMF','WMF','WDP','MP3','MP4','MOV','WAV']);
+    const textFile=file=>!binaryTypes.has(type(file));
     const fileKinds={PPTX:'slides',POTX:'slides',PPT:'slides',PDF:'pdf',DOC:'document',DOCX:'document',MD:'document',TXT:'document',RTF:'document',CSV:'data',XLS:'data',XLSX:'data',JSON:'code',CSS:'code',JS:'code',TS:'code',HTML:'code',XML:'code',ZIP:'archive',TTF:'font',OTF:'font',WOFF:'font',WOFF2:'font',EMF:'image',WMF:'image',WDP:'image',TIFF:'image',TIF:'image',BMP:'image',ICO:'image'};
     const fileIcons={slides:'slides',pdf:'pdf',document:'notes',data:'table',code:'code',archive:'archive',font:'font',image:'image',file:'file'};
     function filePreview(file){
@@ -18,11 +20,47 @@
     function fileVisual(file){
       const extension=type(file),kind=imageTypes.has(extension)?'image':fileKinds[extension]||'file',preview=filePreview(file);
       const badge=`<span class="design-file-badge is-${kind}" aria-hidden="true">${icon(fileIcons[kind])}<b>${escape(extension)}</b></span>`;
-      return preview?`<button type="button" class="design-file-visual has-preview" data-design-action="preview-file" data-file-path="${escape(file.path)}" aria-label="Preview ${escape(file.name)}" title="Preview ${escape(file.name)}">${badge}<img src="${escape(preview)}" alt="" loading="lazy" decoding="async" data-design-file-image></button>`:`<span class="design-file-visual">${badge}</span>`;
+      return preview||textFile(file)?`<button type="button" class="design-file-visual has-preview" data-design-action="preview-file" data-file-path="${escape(file.path)}" aria-label="Preview ${escape(file.name)}" title="Preview ${escape(file.name)}">${badge}${preview?`<img src="${escape(preview)}" alt="" loading="lazy" decoding="async" data-design-file-image>`:''}</button>`:`<span class="design-file-visual">${badge}</span>`;
     }
     function fileRow(file){
-      return `<li>${fileVisual(file)}<a href="${escape(file.url)}" title="${escape(file.path)}" download><strong>${escape(file.name)}</strong><small>${escape(fileLabel(file))}</small></a><small class="design-file-size">${sizeLabel(file.size)}</small>${file.removable?control('remove-file','','trash',`data-file-path="${escape(file.path)}" class="hub-icon-only" aria-label="Remove ${escape(file.name)} from design context" title="Remove from context"`):''}</li>`;
+      const label=`<strong>${escape(file.name)}</strong><small>${escape(fileLabel(file))}</small>`;
+      const name=textFile(file)?`<button type="button" class="design-file-name" data-design-action="preview-file" data-file-path="${escape(file.path)}" title="${escape(file.path)}" aria-label="Open ${escape(file.name)}">${label}</button>`:`<a href="${escape(file.url)}" title="${escape(file.path)}" download>${label}</a>`;
+      return `<li>${fileVisual(file)}${name}<small class="design-file-size">${sizeLabel(file.size)}</small>${file.removable?control('remove-file','','trash',`data-file-path="${escape(file.path)}" class="hub-icon-only" aria-label="Remove ${escape(file.name)} from design context" title="Remove from context"`):''}</li>`;
     }
+    /** Bound reference reads without preloading file bodies into discovery or agent context. */
+    async function readText(file,signal){
+      const response=await root.fetch(file.url,{signal,cache:'no-store'});
+      if(!response.ok)throw Error('This file could not be opened.');
+      const reader=response.body?.getReader();if(!reader)return {text:'',truncated:false};
+      const limit=1024*1024,chunks=[];let total=0,truncated=false;
+      try{while(true){const {value,done}=await reader.read();if(done)break;const remaining=limit-total;if(value.length>remaining){chunks.push(value.slice(0,remaining));total+=remaining;truncated=true;break;}chunks.push(value);total+=value.length;}}
+      finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
+      const data=new Uint8Array(total);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length;}
+      const encoding=data[0]===255&&data[1]===254?'utf-16le':data[0]===254&&data[1]===255?'utf-16be':'utf-8';
+      const decoder=new TextDecoder(encoding,{fatal:true});let text;
+      try{text=decoder.decode(data,{stream:truncated});}catch{throw Error('This file is not readable text. Download the original to open it.');}
+      if(/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text))throw Error('This file is not readable text. Download the original to open it.');
+      return {text,truncated};
+    }
+    function showText(source=false){
+      if(!textPreview?.panel.isConnected)return;
+      const {panel,text,markdown}=textPreview,content=panel.querySelector('[data-design-text-content]');
+      content.classList.toggle('is-source',!markdown||source);
+      if(!text)content.innerHTML='<p class="design-text-state">Empty file</p>';
+      else if(markdown&&!source)content.innerHTML=root.SlideChatMarkdown.render(text);
+      else{const pre=doc.createElement('pre'),code=doc.createElement('code');code.textContent=text;pre.append(code);content.replaceChildren(pre);}
+      for(const button of panel.querySelectorAll('[data-text-view]'))button.setAttribute('aria-pressed',String((button.dataset.textView==='source')===source));
+      content.scrollTop=0;
+    }
+    async function openText(file){
+      textRequest?.abort();const request=new AbortController();textRequest=request;textPreview=null;
+      const markdown=['MD','MARKDOWN','MDOWN','MKD'].includes(type(file));
+      modal(file.name,`<section class="design-text-preview"><div class="design-text-toolbar">${markdown?`<div class="design-text-views" role="group" aria-label="File view">${control('text-view','Preview','eye','data-text-view="preview" aria-pressed="true"')}${control('text-view','Source','code','data-text-view="source" aria-pressed="false"')}</div>`:'<span></span>'}<a href="${escape(file.url)}" download>${icon('download')}Download original</a></div><div class="design-text-content" data-design-text-content tabindex="0" aria-label="File content"><p class="design-text-state" role="status">Loading…</p></div><small class="design-text-limit" hidden>Preview limited to the first 1 MB. Download the original for the complete file.</small></section>`);
+      const panel=dialog.querySelector('.design-text-preview');
+      try{const result=await readText(file,request.signal);if(textRequest!==request||!panel.isConnected||!dialog.open)return;textPreview={panel,text:result.text,markdown};panel.querySelector('.design-text-limit').hidden=!result.truncated;showText();}
+      catch(error){if(request.signal.aborted||!panel.isConnected)return;const content=panel.querySelector('[data-design-text-content]');content.replaceChildren();const message=doc.createElement('p');message.className='design-text-state';message.setAttribute('role','alert');message.textContent=error.message;content.append(message);}
+    }
+    dialog.addEventListener('close',()=>{textRequest?.abort();textRequest=null;textPreview=null;});
     function cover(item){
       const formats=(item.formats||[]).filter(format=>!['CSS','HTML','JS'].includes(format)).slice(0,3);
       const fallback=`<span class="design-cover-sheet"><b>${escape(formats[0]||'DESIGN')}</b><span>${escape(item.name)}</span><i></i><i></i><i></i></span><span class="design-cover-formats">${formats.map(format=>`<b>${escape(format)}</b>`).join('')}</span>`;
@@ -105,8 +143,10 @@ ${link}`;
         if(action==='new')return filesForm(true);
         if(action==='attach')return filesForm(false);
         if(action==='use')return useDialog();
+        if(action==='text-view'){showText(node.dataset.textView==='source');return;}
         if(action==='preview-file'){
           const file=selected.files.find(file=>file.path===node.dataset.filePath);
+          if(textFile(file))return openText(file);
           modal(file.name,`<div class="design-preview-dialog"><img src="${escape(filePreview(file))}" alt="${escape(file.name)}" decoding="async"><a href="${escape(file.url)}" download>${icon('download')}Download original</a></div>`);return;
         }
         if(action==='share-message'){

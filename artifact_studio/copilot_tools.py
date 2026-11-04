@@ -527,24 +527,30 @@ class ScopedTools:
     def reply_to_feedback(
         self,
         deck_id: Identifier,
-        event_id: int,
         message: str,
         request_id: RequestID,
         slide_id: str = "",
+        event_id: int = 0,
     ) -> str:
-        """Reply to released feedback; an empty slide_id selects a general deck request."""
+        """Post as the agent; omit event_id for an opening message or reply to released feedback."""
         _ = self.deck(deck_id)
         events = {
             item.event_id: item
             for item in self.store.comments(deck_id)
             if item.released and (item.slide_id or "") == slide_id
         }
-        if event_id not in events:
+        if event_id and event_id not in events:
             raise ValueError("Reply must reference released feedback in this presentation context.")
         slide = self.store.locate(self.store.read(deck_id), slide_id) if slide_id else None
         content_hash = self.store.content_hash(deck_id, slide) if slide else ""
         return self.store.add_feedback(
-            deck_id, slide_id or None, message, content_hash, request_id, reply_to=event_id
+            deck_id,
+            slide_id or None,
+            message,
+            content_hash,
+            request_id,
+            reply_to=event_id or None,
+            author="agent",
         )
 
     def capture_artifact(
