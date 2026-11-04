@@ -123,6 +123,61 @@ def test_markdown_view_and_sidebar_controls(
     expect(page.locator("body")).not_to_have_class(re.compile("workspace-clean-view"))
 
 
+def test_markdown_table_of_contents_stays_in_review_workspace(
+    live_app: RunningApp, page: Page, tmp_path: Path
+) -> None:
+    """An authored fragment link navigates to its heading without leaving review."""
+    store = ArtifactStore(live_app.store)
+    project = store.create_project("Fictional guide", "")
+    folder = tmp_path / "guide"
+    folder.mkdir()
+    _ = (folder / "index.md").write_text(
+        "# Guide\n\n[Jump to details](#details)\n\n## Details\n\nFurther reading."
+    )
+    item = store.register_artifact(project.id, "Guide", folder, "index.md")
+    page.goto(f"{live_app.url}/?artifact={item.id}")
+    page.get_by_role("link", name="Jump to details").click()
+    expect(page.locator("#hub-markdown h2")).to_be_focused()
+    assert f"artifact={item.id}" in page.url
+    expect(page.get_by_role("button", name="Select", exact=True)).to_be_visible()
+
+
+def test_clean_view_respects_escape_handled_by_artifact(
+    live_app: RunningApp, page: Page, tmp_path: Path
+) -> None:
+    """Dismiss authored UI before Escape returns from the reviewer's clean view."""
+    store = ArtifactStore(live_app.store)
+    project = store.create_project("Fictional interactive page", "")
+    folder = tmp_path / "interactive"
+    folder.mkdir()
+    _ = (folder / "index.html").write_text(
+        '<button id="open" onclick="document.querySelector(\'dialog\').showModal()">Open</button>'
+        "<dialog><p>Artifact dialog</p></dialog>"
+        '<input id="search" onkeydown="if(event.key===\'Escape\') event.preventDefault()">'
+        '<button id="export" onclick="parent.postMessage({type:\'artifact:export\','
+        "file:{name:'report.txt',type:'text/plain',content:'Report'}},'*')\">Export</button>"
+    )
+    item = store.register_artifact(project.id, "Interactive", folder, "index.html")
+    page.goto(f"{live_app.url}/?artifact={item.id}")
+    frame = page.frame_locator("#hub-html-preview")
+    page.get_by_label("Feedback for Interactive").fill("Keep this draft")
+    page.get_by_role("button", name="View", exact=True).click()
+    frame.locator("#export").click()
+    expect(page.get_by_role("dialog", name="Export file")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("dialog", name="Export file")).not_to_be_visible()
+    expect(page.locator("body")).to_have_class(re.compile("workspace-clean-view"))
+    frame.locator("#open").click()
+    frame.locator("dialog").press("Escape")
+    expect(frame.locator("dialog")).not_to_be_visible()
+    expect(page.locator("body")).to_have_class(re.compile("workspace-clean-view"))
+    frame.locator("#search").press("Escape")
+    expect(page.locator("body")).to_have_class(re.compile("workspace-clean-view"))
+    frame.locator("#open").press("Escape")
+    expect(page.locator("body")).not_to_have_class(re.compile("workspace-clean-view"))
+    expect(page.get_by_label("Feedback for Interactive")).to_have_value("Keep this draft")
+
+
 def test_drag_card_to_project(live_app: RunningApp, page: Page, tmp_path: Path) -> None:
     """Move a registered card by pointer drag without moving or changing source bytes."""
     store, item, _, destination, source = register(live_app, tmp_path)

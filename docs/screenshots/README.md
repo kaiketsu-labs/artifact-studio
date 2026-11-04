@@ -43,6 +43,7 @@ The [README capture audit](readme-captures.json) verifies every PNG screenshot l
 | [Slide management](../assets/slide-management.png) | Thumbnail context menu. |
 | [Sections](../assets/slide-sections.png), [light](slide-sections-light.png), [dark](slide-sections-dark.png) | A folded group and visible question indicators. |
 | [Active slide](section-active-slide.png) | A new slide reveals its previously folded section. |
+| [Folded section keyboard focus](section-keyboard-focus.png) | The real 800 × 600 editor after arrow navigation between folded fictional sections, captured by the section keyboard regression. This supplemental capture is separate from the generated inventories above. |
 | [Question, light](slide-question-light.png), [dark](slide-question-dark.png) | Suggested answers and a free-text answer in the slide's chat. |
 | [Design references](design-references.png), [pending files](reference-controls.png), [saved files](reference-files.png), [removed file](reference-removed.png) | A fictional PowerPoint source plus attach, save and remove controls. |
 | [New presentation references](new-presentation-references.png) | Managing shared design sources while preparing a new deck. |

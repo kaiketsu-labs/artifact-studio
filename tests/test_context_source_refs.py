@@ -15,13 +15,32 @@ from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.design_library import DesignCreate, DesignLibrary
 from artifact_studio.design_references import ReferenceInput, RemoveReferenceInput
 from artifact_studio.models import FileInput
-from artifact_studio.storage import Store
+from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
 def upload(name: str) -> FileInput:
     """Use independent tiny source files, without reading a real collection."""
     return FileInput(name=name, data_base64=base64.b64encode(name.encode()).decode())
+
+
+def test_receipt_hashes_the_guidance_returned_in_the_same_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concurrent guidance change cannot make the receipt identify different text."""
+    store = Store(tmp_path / "collection", tmp_path / "state/review.sqlite3")
+    instructions = iter(["First rule", "Changed rule"])
+    preferences = iter(["First preference", "Changed preference"])
+    monkeypatch.setattr(store, "authoring_instructions", lambda: next(instructions))
+    monkeypatch.setattr(store, "learned_preferences", lambda: next(preferences))
+
+    context = artifact_context(store, record_delivery=True, include_discovery=False)
+    sources = cast(list[dict[str, str]], context["sources"])
+    assert context["authoring_instructions"] == "First rule"
+    assert context["learned_preferences"] == "First preference"
+    assert sources[0]["hash"] == digest("First rule")
+    assert sources[1]["hash"] == digest("First preference")
+    assert object_value(context["receipt"])["sources"] == sources
 
 
 def restored_sources(context: dict[str, object]) -> list[dict[str, object]]:

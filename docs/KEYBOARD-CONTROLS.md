@@ -26,7 +26,7 @@ Focus a slide thumbnail first. The sorter is the grid reached through its icon o
 
 | Shortcut | Action |
 | --- | --- |
-| ↑ / ↓ | Previous/next visible thumbnail; in the sorter, move between rows |
+| ↑ / ↓ | Previous/next visible thumbnail or section header; in the sorter, move between thumbnail rows |
 | ← / → in the sorter | Previous/next thumbnail |
 | Home / End | First/last visible thumbnail |
 | Shift + navigation keys | Extend the selected range |
@@ -47,7 +47,9 @@ Focus a slide thumbnail first. The sorter is the grid reached through its icon o
 
 With the editor canvas focused and no object edit active, ←/→ switches slides. ⌘/Ctrl + mouse wheel changes zoom. Undo for adding/duplicating slides is not available; restoring a deletion does not create a redo entry.
 
-Focus a **section header** for ←/→ to collapse/expand it, **F2** to rename it, or **Shift+F10 / Menu** for section actions.
+Focus a **section header** for ←/→ to collapse/expand it, ↑/↓ to reach adjacent visible headers or slides, **F2** to rename it, or **Shift+F10 / Menu** for section actions. In the slide list, arrow navigation can reach folded headers even when all their slides are hidden; Shift+arrows continues to extend a slide selection.
+
+![Keyboard focus on a folded section in a narrow editor window](screenshots/section-keyboard-focus.png)
 
 ## Element keyboard controls
 

@@ -137,7 +137,7 @@
     exit.addEventListener('click', () => { state.focus = false; apply(); }); exitArea.append(exit); doc.body.append(exitArea);
     doc.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
-      if (state.focus) { event.preventDefault(); state.focus = false; apply(); }
+      if (state.focus && !doc.querySelector('dialog[open],:popover-open')) { event.preventDefault(); state.focus = false; apply(); }
       else if (compact() && compactChatOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactChatOpen = false; apply(); controls.right.focus?.(); }
       else if (narrow() && compactSidebarOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactSidebarOpen = false; apply(); controls.left.focus?.(); }
     });

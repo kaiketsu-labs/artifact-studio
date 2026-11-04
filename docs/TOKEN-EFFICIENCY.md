@@ -94,7 +94,7 @@ The raw MCP tool catalogue does not repeat the bootstrap. Some hosts append the 
 
 ### Scoped discovery and feedback
 
-Once a scope is selected, the bootstrap and new-deck handoff now recommend `include_discovery=False`. Discovery remains available by default. A new optional `compact_sources=True` avoids repeating a selected design file's name, local path and SHA-256 in provenance when the exact metadata is already present in `design_context.files`. Complete file inventory, scope and delivery status remain. Default responses and raw/persisted receipts keep their existing representation.
+Once a scope is selected, the bootstrap and new-deck handoff recommend `include_discovery=False`. Discovery is omitted by default and can be requested with `include_discovery=True`. The optional `compact_sources=True` avoids repeating a selected design file's name, local path and SHA-256 in provenance when the exact metadata is already present in `design_context.files`. Complete file inventory, scope and delivery status remain. Default responses and raw/persisted receipts keep their existing representation.
 
 Each compact provenance entry has a `file_ref` such as `design_context.files[2]`. Resolve it in **that same response**: `title` is the file's `name`, `path` its `local_path`, and `hash` its `sha256`. Keep the entry's scope and delivery status. Indices are not durable IDs and must not be reused after another inventory read. Unmatched sources stay complete. This does not compact legacy `design_references`; omitting unrelated discovery and retaining actual guide/rule hashes are separate controls.
 

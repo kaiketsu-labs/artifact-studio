@@ -34,9 +34,9 @@ def artifact_context(
     project = next((item for item in artifacts.list_projects() if item.id == project_id), None)
     if project_id and project is None:
         raise FileNotFoundError("Project not found.")
-    rules = rule_fields(
-        store.authoring_instructions(), store.learned_preferences(), known_rules_hash
-    )
+    instructions = store.authoring_instructions()
+    preferences = store.learned_preferences()
+    rules = rule_fields(instructions, preferences, known_rules_hash)
     guide_path = PROJECT / "agent/guides/artifacts.md"
     guide = guide_fields(guide_path.read_text(), known_guide_hash)
     instruction_path = store.root / "INSTRUCTIONS.md"
@@ -58,14 +58,14 @@ def artifact_context(
             "title": "Workspace rules",
             "scope": "workspace",
             "path": instruction_source,
-            "hash": digest(store.authoring_instructions()),
+            "hash": digest(instructions),
             "delivery": rule_state,
         },
         {
             "title": "Learned preferences",
             "scope": "workspace · secondary",
             "path": str(store.root / "LEARNED-PREFERENCES.md"),
-            "hash": digest(store.learned_preferences()),
+            "hash": digest(preferences),
             "delivery": rule_state,
         },
         {

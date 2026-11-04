@@ -233,10 +233,13 @@
     }, {capture: true, passive: false});
   }
   window.addEventListener('keydown', event => {
-    if (event.key === 'Escape') send({type: 'artifact:escape'});
     if (!selecting || event.isComposing || event.target.closest?.('input,textarea,select,[contenteditable]') || !['Enter', ' '].includes(event.key)) return;
     event.preventDefault();event.stopImmediatePropagation();choose(event);
   }, true);
+  // Let authored controls and native dialogs consume Escape before leaving Studio's view.
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('dialog[open],:popover-open')) send({type: 'artifact:escape'});
+  });
   window.addEventListener('pointermove', event => {
     if (!selecting) return;
     hovered = event.target instanceof Element ? event.target : null;

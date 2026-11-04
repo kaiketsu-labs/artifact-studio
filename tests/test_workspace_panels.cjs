@@ -11,7 +11,7 @@ function fixture() {
   const left=element(),right=element(),workspace=element(),body=element(), children=[];
   workspace.querySelector=s=>s.includes('sidebar')?left:right;
   body.append=e=>children.push(e);
-  const doc={body,createElement:element,querySelector:()=>workspace,addEventListener:(k,v)=>{listeners[k]=v}};
+  const doc={body,createElement:element,querySelector:s=>s==='.hub-layout'||s==='.workspace'?workspace:null,addEventListener:(k,v)=>{listeners[k]=v}};
   const store=new Map(),storage={getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v)};
   const view={addEventListener(){}};
   return {doc,view,storage,store,workspace,body,children,listeners};
@@ -37,6 +37,20 @@ test('clean view preserves nodes and Escape restores layout',()=>{
   f.listeners.keydown({key:'Escape',preventDefault(){}});
   assert.equal(f.body.classList.contains('workspace-clean-view'),false);
   assert.equal(f.workspace,workspace);
+});
+
+test('Escape leaves clean view open while a dialog or popover handles it',()=>{
+  const f=fixture(), panels=create({...f,kind:'hub'}); panels.refresh(); panels.enterView();
+  const original=f.doc.querySelector;
+  f.doc.querySelector=s=>s==='dialog[open],:popover-open'?{}:original(s);
+  let prevented=false;
+  f.listeners.keydown({key:'Escape',preventDefault(){prevented=true;}});
+  assert.equal(prevented,false);
+  assert.equal(f.body.classList.contains('workspace-clean-view'),true);
+  f.doc.querySelector=original;
+  f.listeners.keydown({key:'Escape',preventDefault(){prevented=true;}});
+  assert.equal(prevented,true);
+  assert.equal(f.body.classList.contains('workspace-clean-view'),false);
 });
 
 test('keyboard resizing and edge drag collapse a panel',()=>{

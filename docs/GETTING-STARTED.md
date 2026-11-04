@@ -129,9 +129,11 @@ Right-click a library card or related-artifact row for its open/view, conversati
 | Format | Available controls |
 | --- | --- |
 | HTML | Natural page preview, responsive/desktop/tablet/mobile widths, replay and element selection. Authored JavaScript runs in an opaque-origin sandbox with scoped local resources. External services are not automatically available. |
-| Markdown | Rendered document or original source. Raw HTML stays literal; owned images use revision-pinned resources. |
+| Markdown | Rendered document or original source. Heading links navigate within the preview; raw HTML stays literal and owned images use revision-pinned resources. |
 | Image/SVG | Original aspect ratio, fit/zoom, and drag a region while Select is active. |
 | Other files | Original download, file inventory and artifact-level feedback. A dedicated preview may be unavailable. |
+
+In View, Escape first dismisses an open dialog or a control that handles the key; an unhandled Escape returns to the review workspace. Draft feedback stays available when you return.
 
 Choose **Select**, then click an element or text block, select document text, or drag an image rectangle. Hold **Cmd, Ctrl or Shift** to add targets. Remove a target with its × or clear the group. Image regions retain the original image dimensions; text and element targets retain quoted content. Dynamic anchors are best-effort and stay attached to their original revision.
 

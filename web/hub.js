@@ -80,13 +80,24 @@
   /** Keep Markdown source authoritative while rendering owned images and safe links. */
   function renderDocument(markdown, item, source) {
     const renderer = new markdown.Renderer();
+    const headings=new Map(),usedHeadings=new Set();
+    const headingText=tokens=>tokens.map(token=>token.tokens?headingText(token.tokens):token.text || '').join('');
     renderer.html = token => escape(token.text);
+    renderer.heading = function(token) {
+      const label=this.parser.parseInline(token.tokens);
+      const slug=headingText(token.tokens).toLowerCase().replace(/<[^>]*>/g,'').replace(/[^\p{L}\p{N}\p{M}_\-\s]/gu,'').replace(/\s/g,'-');
+      let count=headings.get(slug) || 0,unique=slug;
+      while(usedHeadings.has(unique))unique=`${slug}-${++count}`;
+      headings.set(slug,count);usedHeadings.add(unique);
+      return `<h${token.depth} id="hub-md-${escape(unique)}" tabindex="-1">${label}</h${token.depth}>\n`;
+    };
     renderer.image = token => {
       const path = bundlePath(item.entrypoint, token.href);
       return path ? `<img src="${escape(filePath(item,path))}" alt="${escape(token.text)}" loading="lazy">` : `<span class="chat-image-alt">${escape(token.text || 'Image')}</span>`;
     };
     renderer.link = function(token) {
       const label = this.parser.parseInline(token.tokens), path = bundlePath(item.entrypoint,token.href);
+      if (/^#[^\s]*$/.test(token.href)) return `<a href="${escape(token.href)}" data-hub-fragment="${escape(token.href.slice(1))}">${label}</a>`;
       if (path) return `<a href="${escape(filePath(item,path))}" target="_blank" rel="noopener noreferrer">${label}</a>`;
       if (/^(https?:|mailto:)/i.test(token.href)) return `<a href="${escape(token.href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
       return label;
@@ -852,6 +863,12 @@
   });
   content.addEventListener('error',event=>{if(event.target.matches?.('[data-preview-image]'))event.target.remove();},true);
   content.addEventListener('click',event=>{
+    const fragment=event.target.closest('#hub-markdown [data-hub-fragment]');
+    if(fragment && !state.selecting){
+      event.preventDefault();let id;try{id=decodeURIComponent(fragment.dataset.hubFragment);}catch{return;}
+      const heading=doc.getElementById(`hub-md-${id}`);if(heading && doc.getElementById('hub-markdown').contains(heading)){heading.scrollIntoView();heading.focus({preventScroll:true});}
+      return;
+    }
     if(!state.selecting || kindOf(state.detail || {})!=='markdown' || state.sourceView)return;
     const block=event.target.closest('#hub-markdown [data-target-index]');if(!block)return;
     event.preventDefault();const selection=root.getSelection(),additive=isAdditive(event);

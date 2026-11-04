@@ -33,6 +33,52 @@ def section(page: Page, name: str) -> Locator:
     return page.locator(".slide-section").filter(has=page.locator(".section-title", has_text=name))
 
 
+@pytest.mark.parametrize("width,height", [(800, 600), (1600, 1000)])
+def test_arrow_navigation_reaches_collapsed_section_headers(
+    page: Page, live_app: RunningApp, artifacts: Path, width: int, height: int
+) -> None:
+    """Reach and expand folded sections entirely by keyboard without changing selection."""
+    page.set_viewport_size({"width": width, "height": height})
+    open_editor(page, live_app)
+    add_section(page, "Overview")
+    page.locator('.slide-thumb[data-id="next"]').click()
+    add_section(page, "Results")
+    overview = section(page, "Overview").locator(".section-toggle")
+    results = section(page, "Results").locator(".section-toggle")
+    overview.click()
+    results.click()
+    expect(page.locator(".slide-thumb:visible")).to_have_count(0)
+    overview.focus()
+    page.keyboard.press("ArrowDown")
+    expect(results).to_be_focused()
+    expect(results).to_have_attribute("aria-expanded", "false")
+    _ = page.screenshot(path=str(artifacts / "folded-section-keyboard-focus.png"))
+    page.keyboard.press("ArrowRight")
+    expect(results).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Control+ArrowLeft")
+    expect(results).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("Alt+ArrowLeft")
+    expect(results).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowDown")
+    expect(page.locator('.slide-thumb[data-id="next"]')).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(results).to_be_focused()
+    page.keyboard.press("ArrowUp")
+    expect(overview).to_be_focused()
+    page.keyboard.press("Shift+F10")
+    expect(page.locator("#section-menu")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(section(page, "Overview").locator(".section-options")).to_be_focused()
+    overview.focus()
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("ArrowDown")
+    expect(page.locator('.slide-thumb[data-id="cover"]')).to_be_focused()
+    page.keyboard.press("Shift+ArrowDown")
+    expect(page.locator('.slide-thumb[data-id="next"]')).to_be_focused()
+    expect(page.locator('.slide-thumb[aria-pressed="true"]')).to_have_count(2)
+    assert live_app.store.comments(DECK_ID) == []
+
+
 @pytest.mark.parametrize("width,height", [(1280, 800), (1600, 1000)])
 def test_create_fold_rename_move_remove_and_save_sections(
     page: Page, live_app: RunningApp, artifacts: Path, width: int, height: int

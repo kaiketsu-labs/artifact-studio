@@ -156,9 +156,17 @@
       contextMenu(id,{x:event.clientX,y:event.clientY});
     });
     rail.addEventListener('keydown',async event=>{
-      const button=event.target.closest('[data-id]'),header=event.target.closest('.section-header');if((!button&&!header)||busy||blocked())return;
+      const button=event.target.closest('[data-id]'),header=event.target.closest('.section-header');if(event.defaultPrevented||(!button&&!header)||busy||blocked())return;
       if((event.metaKey||event.ctrlKey)&&!event.altKey&&!event.isComposing&&['z','y'].includes(event.key.toLowerCase())){
         event.preventDefault();if(!event.repeat){const redo=event.key.toLowerCase()==='y'||event.shiftKey;if(!await undo(redo)&&!redo)await undoAction();}return;
+      }
+      // Folding a section must not make its slides unreachable from the arrow-key flow.
+      // Shift navigation still extends a slide range, skipping section controls.
+      if(!event.altKey&&!event.metaKey&&!event.ctrlKey&&!event.isComposing&&['ArrowUp','ArrowDown'].includes(event.key)&&(header||layout()!=='grid')&&!event.shiftKey){
+        const targets=[...rail.querySelectorAll('[data-id],.section-toggle')].filter(item=>item.getClientRects().length),current=button||header.querySelector('.section-toggle'),index=targets.indexOf(current),next=targets[Math.max(0,Math.min(targets.length-1,index+(event.key==='ArrowUp'?-1:1)))];
+        if(!next)return;event.preventDefault();
+        if(next.dataset.id)await select(next.dataset.id,event);else next.focus({preventScroll:true});
+        next.scrollIntoView({block:'nearest'});return;
       }
       if(!button)return;
       if(event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey){event.preventDefault();const id=button.dataset.id;if(!selected.has(id)){if(!await select(id))return;}else if(!await open(id))return;contextMenu(id);return;}

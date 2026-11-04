@@ -54,11 +54,19 @@ test('bundle links cannot escape the artifact or request arbitrary protocols',()
 test('Markdown keeps authored HTML literal and uses immutable owned image resources',()=>{
   const item={id:'guide',entrypoint:'docs/guide.md',revision:3};
   const html=renderDocument(marked,item,'# Guide\n\n<script>secret()</script>\n\n![Cover](../cover.svg)\n\n![Remote](https://remote.test/pixel.png)\n\n[Unsafe](javascript:alert(1))\n\n[Docs](https://example.com)');
-  assert.match(html,/<h1>Guide<\/h1>/);
+  assert.match(html,/<h1 id="hub-md-guide" tabindex="-1">Guide<\/h1>/);
   assert.ok(!html.includes('<script>'));
   assert.match(html,/src="\/api\/artifacts\/guide\/files\/cover.svg\?revision=3"/);
   assert.ok(!html.includes('src="https://'));
   assert.ok(!html.includes('href="javascript:'));
   assert.match(html,/rel="noopener noreferrer"/);
   assert.equal(filePath(item,'images/space name.png'),'/api/artifacts/guide/files/images/space%20name.png?revision=3');
+});
+
+test('Markdown headings and table of contents retain safe in-document links',()=>{
+  const item={id:'guide',entrypoint:'guide.md',revision:1};
+  const html=renderDocument(marked,item,'[Jump](#next-steps)\n\n## Next steps\n\n## Next steps');
+  assert.match(html,/<a href="#next-steps" data-hub-fragment="next-steps">Jump<\/a>/);
+  assert.match(html,/id="hub-md-next-steps"/);
+  assert.match(html,/id="hub-md-next-steps-1"/);
 });
