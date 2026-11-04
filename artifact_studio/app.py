@@ -1880,8 +1880,8 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
         page,
         headers={
             "Content-Security-Policy": (
-                "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self'; "
-                "font-src 'self'; script-src 'none'; frame-src 'none'; base-uri 'self'"
+                "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                "font-src 'self' data:; script-src 'none'; frame-src 'none'; base-uri 'self'"
             )
         },
     )

@@ -69,11 +69,13 @@ def test_fresh_session_theme_assets_scoped_css_and_selection(
         expected_hash=theme["expected_hash"],
     )
     original = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    data_image = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
     html = (
         '<article class="slide" style="padding:7cqw"><style>'
         "@media(min-width:0px){.slide{background:url(assets/authoring/background.png);"
         "background-size:cover}}"
-        "h1{color:rgb(19,75,155);font-size:4cqw}p{font-size:2cqw}"
+        "h1{color:rgb(19,75,155);font-size:4cqw}p{font-size:2cqw;"
+        f'background-image:url("{data_image}")}}'
         ".deck-toolbar,textarea{display:none!important}"
         "</style><h1>Review together</h1><p>Create, review and present.</p></article>"
     )
@@ -93,6 +95,11 @@ def test_fresh_session_theme_assets_scoped_css_and_selection(
     heading = frame.get_by_role("heading", level=1)
     expect(heading).to_have_css("color", "rgb(19, 75, 155)")
     expect(frame.locator(".slide")).to_have_css("--authoring-import", "ready")
+    assert frame.locator("p").evaluate("""async element => {
+        const image = new Image();
+        image.src = getComputedStyle(element).backgroundImage.slice(5, -2);
+        await image.decode(); return image.naturalWidth > 0;
+    }""")
     expect(frame.locator(".slide")).to_have_css(
         "background-image",
         f'url("{live_app.url}/decks/{DECK_ID}/assets/authoring/background.png")',
