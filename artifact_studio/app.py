@@ -99,6 +99,7 @@ from .models import (
     SlideVisibilityInput,
     WorkspaceInstructionsInput,
 )
+from .presentation_files import PresentationFiles
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
 from .recovery_api import recovery_routes
@@ -177,6 +178,30 @@ def _compact_context_receipt(context: dict[str, object]) -> None:
             if key != "sources"
         }
         context["receipt_sources"] = "sources"
+
+
+def presentation_capabilities() -> dict[str, object]:
+    """Advertise the same authoring contract in compact and expanded startup responses."""
+    return {
+        "free_composition": True,
+        "slide_format": "HTML/CSS/SVG/JavaScript",
+        "presentation_canvas": "16:9",
+        "powerpoint_reference_input": True,
+        "powerpoint_export": False,
+        "audience_exports": ["HTML", "PDF"],
+        "editable_project_export": True,
+        "custom_html_css_javascript": True,
+        "static_fallback_field": "html",
+        "static_css": "Inline CSS, scoped slide-local <style> rules and assets/ backgrounds.",
+        "interactive_field": "interactive_html",
+        "interactive_content": "Styles, scripts, iframe srcdoc, media, SVG animation, controls",
+        "asset_helper": "prepare_interactive_html",
+        "preferred_asset_write": {"tool": "revise_slide", "embed_assets": True},
+        "theme_tools": ["get_presentation_theme", "update_presentation_theme"],
+        "asset_tools": ["list_presentation_assets", "import_presentation_asset"],
+        "execution": "Opaque offline sandbox; bundle dependencies, no workspace/private notes.",
+        "examples_are_optional": True,
+    }
 
 
 @mcp.tool(annotations=READ)
@@ -348,19 +373,7 @@ def get_working_context(
                 "design_guide",
                 "design_context",
             ],
-            "authoring_capabilities": {
-                "free_composition": True,
-                "slide_format": "HTML/CSS/SVG",
-                "powerpoint_reference_input": True,
-                "powerpoint_export": False,
-                "audience_exports": ["HTML", "PDF"],
-                "editable_project_export": True,
-                "custom_html_css_javascript": True,
-                "interactive_field": "interactive_html",
-                "asset_helper": "prepare_interactive_html",
-                "preferred_asset_write": {"tool": "revise_slide", "embed_assets": True},
-                "examples_are_optional": True,
-            },
+            "authoring_capabilities": presentation_capabilities(),
             "app_path": str(PROJECT),
             "canonical_collection": str(store.root),
             "instructions_path": str(store.root / "INSTRUCTIONS.md"),
@@ -413,20 +426,7 @@ def get_working_context(
         "design": (folder / "README.md").read_text() if folder else design_message,
         "design_import_guide": (PROJECT / "docs/DESIGN-PACKS.md").read_text(),
         "interactive_content_guide": (PROJECT / "docs/INTERACTIVE-HTML.md").read_text(),
-        "authoring_capabilities": {
-            "free_composition": True,
-            "slide_format": "HTML/CSS/SVG",
-            "powerpoint_reference_input": True,
-            "powerpoint_export": False,
-            "audience_exports": ["HTML", "PDF"],
-            "editable_project_export": True,
-            "custom_html_css_javascript": True,
-            "interactive_field": "interactive_html",
-            "static_fallback_field": "html",
-            "asset_helper": "prepare_interactive_html",
-            "execution": "Opaque-origin sandbox; offline, no workspace APIs or private notes.",
-            "examples_are_optional": True,
-        },
+        "authoring_capabilities": presentation_capabilities(),
         "runtime_path": str(PROJECT / "runtime"),
         "default_design_id": store.default_design_id(),
         "discovery_included": include_discovery,
@@ -909,6 +909,51 @@ def prepare_interactive_html(deck_id: str, html: str, include_theme: bool = True
     Keep a meaningful static html fallback for selection, thumbnails and next-slide previews.
     """
     return prepare_document(store, deck_id, html, include_theme=include_theme)
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_presentation_theme(deck_id: str) -> dict[str, object]:
+    """Read this deck's author CSS and expected_hash; common viewer CSS is omitted.
+    update_presentation_theme manages base styles, so do not manually join viewer.css.
+    """
+    return PresentationFiles(store).theme(deck_id)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def update_presentation_theme(deck_id: str, css: str, expected_hash: str) -> dict[str, object]:
+    """Replace this deck's author CSS, keeping viewer styles and rejecting stale writes.
+    Does not edit the reusable design or other decks. Returns hashes without echoing CSS.
+    Interactive documents prepared earlier contain snapshots; re-prepare them to adopt changes.
+    """
+    return PresentationFiles(store).update_theme(deck_id, css, expected_hash)
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def list_presentation_assets(
+    deck_id: str, prefix: str = "assets/", offset: int = 0, limit: int = 50
+) -> dict[str, object]:
+    """List actual deck-local assets with paths, sizes and replacement hashes; no binary data.
+    get_design_assets lists brand source files; use this after adding assets to a deck.
+    import_directory is a deck-specific staging path for agent downloads/extracted dependencies.
+    """
+    return PresentationFiles(store).assets(deck_id, prefix, offset, limit)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def import_presentation_asset(
+    deck_id: str, source_path: str, asset_path: str, expected_sha256: str = ""
+) -> dict[str, object]:
+    """Copy a local font/image/CSS/JS/media file into this deck's assets/ path (up to 50 MB).
+    Stage downloads in list_presentation_assets.import_directory, or use this deck's brief/assets,
+    its design assets or registered reference libraries. Other local/private files are rejected.
+    New files need no hash; replacing a file requires its current sha256 from the asset list.
+    Returns a compact receipt; no base64 round trip. Does not modify reusable design files.
+    """
+    return PresentationFiles(store).import_asset(deck_id, source_path, asset_path, expected_sha256)
 
 
 def slide_write_response(

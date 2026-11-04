@@ -5,6 +5,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .slide_css import scope_styles
+
 
 class StrictModel(BaseModel):
     """Reject accidental fields in agent and browser writes."""
@@ -67,13 +69,23 @@ class Slide(StrictModel):
 
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")
     title: str = Field(min_length=1, max_length=160)
-    html: str = Field(min_length=1, max_length=150_000)
+    html: str = Field(
+        min_length=1,
+        max_length=150_000,
+        description=(
+            "Selectable static <article class=slide> HTML/SVG. Inline CSS, slide-local <style> "
+            "selectors and assets/ image backgrounds are supported. For arbitrary scripts, "
+            "iframes, media, controls or global CSS use interactive_html."
+        ),
+    )
     interactive_html: str = Field(
         default="",
         max_length=2_000_000,
         description=(
-            "Optional arbitrary HTML/CSS/JavaScript in an offline sandbox; "
-            "keep html as a meaningful static fallback."
+            "Unrestricted slide document: HTML/CSS/JavaScript, <style>, <script>, iframe srcdoc, "
+            "SVG animation, video/audio and controls in the fixed slide canvas. "
+            "Runs in an offline sandbox; bundle dependencies with embed_assets=True. "
+            "Keep html as its meaningful selectable static representation."
         ),
     )
     notes: str = Field(default="", max_length=20_000)
@@ -82,6 +94,15 @@ class Slide(StrictModel):
     revision: int = Field(default=1, ge=1)
     hidden: bool = Field(default=False, strict=True)
     agent: AgentContext = Field(default_factory=AgentContext)
+
+    @field_validator("html")
+    @classmethod
+    def local_styles(cls, value: str) -> str:
+        """Contain authored style blocks while leaving ordinary source unchanged."""
+        result = scope_styles(value)
+        if len(result) > 150_000:
+            raise ValueError("Keep static slide HTML below 150,000 characters.")
+        return result
 
 
 class DeckSection(StrictModel):
@@ -327,12 +348,17 @@ class SlidePatch(StrictModel):
     """Fields an agent may revise without granting approval."""
 
     title: str | None = Field(default=None, max_length=160)
-    html: str | None = Field(default=None, max_length=150_000)
+    html: str | None = Field(
+        default=None,
+        max_length=150_000,
+        description="Static selectable HTML; slide-local CSS/styles and assets/ backgrounds work.",
+    )
     interactive_html: str | None = Field(
         default=None,
         max_length=2_000_000,
         description=(
-            "Revise custom HTML/CSS/JavaScript freely; set an empty string to disable. "
+            "Revise arbitrary HTML/CSS/JavaScript, style/script, iframe srcdoc and media freely; "
+            "set an empty string to disable. "
             "Keep the static html fallback aligned."
         ),
     )

@@ -28,9 +28,12 @@ class DocumentParts(list[str]):
 class InteractiveMarkup(EmbeddedMarkup):
     """Inline local scripts and styles before ordinary image and font substitution."""
 
-    def __init__(self, embedder: AssetEmbedder) -> None:
+    def __init__(
+        self, embedder: AssetEmbedder, directory: Path | None = None, depth: int = 0
+    ) -> None:
         """Retain a single self-contained document token stream."""
-        super().__init__(embedder, None)
+        super().__init__(embedder, directory)
+        self.depth = depth
         self.external_script = False
         self.parts = DocumentParts()
 
@@ -38,7 +41,7 @@ class InteractiveMarkup(EmbeddedMarkup):
         """Embed local script and stylesheet files while retaining unrestricted HTML."""
         values = dict(attrs)
         if tag == "script" and values.get("src"):
-            path = self.embedder.local_path(values["src"] or "")
+            path = self.embedder.local_path(values["src"] or "", self.directory)
             source = re.sub(r"</script", r"<\\/script", path.read_text(), flags=re.I)
             kind = values.get("type", "text/javascript")
             if kind not in {"text/javascript", "application/javascript", "module"}:
@@ -47,11 +50,20 @@ class InteractiveMarkup(EmbeddedMarkup):
             self.external_script = True
             return
         if tag == "link" and (values.get("rel") or "").lower() == "stylesheet":
-            path = self.embedder.local_path(values.get("href") or "")
+            path = self.embedder.local_path(values.get("href") or "", self.directory)
             css = self.embedder.css(path.read_text(), path.parent).replace("<", r"\3c ")
             self.parts.append("<style>" + css + "</style>")
             return
         super().handle_starttag(tag, attrs)
+
+    def embedded_document(self, html: str) -> str:
+        """Prepare nested srcdoc with the same resource boundary and expansion budget."""
+        if self.depth >= 6:
+            raise ValueError("Keep embedded iframe documents at or below 6 levels.")
+        parser = InteractiveMarkup(self.embedder, self.directory, self.depth + 1)
+        parser.feed(html)
+        parser.close()
+        return "".join(parser.parts)
 
     def handle_data(self, data: str) -> None:
         """Ignore original fallback bodies of replaced external scripts."""
@@ -74,6 +86,7 @@ class InteractiveAssets(AssetEmbedder):
         """Track repeated data-URL expansion as well as distinct local files."""
         super().__init__(folder)
         self.expanded = 0
+        self.css_limit = MAX_DOCUMENT
 
     def asset(self, url: str, directory: Path | None = None) -> str:
         """Stop repeated resource expansion before constructing an oversized string."""
