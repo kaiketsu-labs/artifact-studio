@@ -58,6 +58,33 @@
     const query = search.trim().toLocaleLowerCase();
     return artifacts.filter(item => (projectIds?projectIds.includes(item.project_id):project === 'all' || item.project_id === project) && (kind === 'all' || kindOf(item) === kind) && `${item.title} ${item.project_title || ''} ${item.entrypoint || ''}`.toLocaleLowerCase().includes(query));
   }
+  const sortLabels={name:'Name',updated:'Last changed',created:'Created',type:'File type'};
+  const names=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
+  /** Group by the entrypoint's file format, keeping slide decks together. */
+  function artifactType(item) {
+    const extension=/\.([^.\/]+)$/.exec(item.entrypoint || '')?.[1].toLowerCase();
+    const format=extension==='htm'?'html':extension==='markdown'?'md':extension;
+    const key=item.kind==='presentation'?'presentation':format || (kindOf(item)==='markdown'?'md':kindOf(item));
+    const labels={presentation:'Presentations',html:'HTML',md:'Markdown',image:'Images',file:'Files'};
+    const label=Object.hasOwn(labels,key)?labels[key]:key.toLocaleUpperCase();
+    return {key,label,icon:kinds[kindOf(item)].icon};
+  }
+  /** Sort a copy with natural names and stable ties; unknown dates always stay last. */
+  function sortArtifacts(artifacts, {by='updated',direction='desc'}={}) {
+    const sign=direction==='asc'?1:-1;
+    const title=(a,b)=>names.compare(a.title || '',b.title || '') || String(a.id).localeCompare(String(b.id));
+    return [...artifacts].sort((a,b)=>{
+      if(by==='name')return sign*title(a,b);
+      if(by==='type')return sign*names.compare(artifactType(a).label,artifactType(b).label) || title(a,b);
+      const first=Date.parse(a[by==='created'?'created_at':'updated_at']),second=Date.parse(b[by==='created'?'created_at':'updated_at']);
+      if(!Number.isFinite(first) || !Number.isFinite(second))return Number.isFinite(first)?-1:Number.isFinite(second)?1:title(a,b);
+      return sign*(first-second) || title(a,b);
+    });
+  }
+  /** Ignore stale or malformed browser preferences without affecting saved artifacts. */
+  function validSort(value) {
+    return value && Object.hasOwn(sortLabels,value.by) && ['asc','desc'].includes(value.direction)?{by:value.by,direction:value.direction}:{by:'updated',direction:'desc'};
+  }
   /** Search registered visual languages independently of presentation artifacts. */
   function filterDesigns(designs, search='') {
     const query=search.trim().toLocaleLowerCase();
@@ -115,7 +142,7 @@
     if (!mime || typeof type !== 'string' || type.split(';')[0] !== mime || typeof content !== 'string' || content.length > 20*1024*1024) return null;
     return {name,type:mime+';charset=utf-8',content};
   }
-  const exports = {filterArtifacts,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath,exportFile,validVoiceSegment,appendVoiceSegment};
+  const exports = {filterArtifacts,sortArtifacts,artifactType,validSort,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath,exportFile,validVoiceSegment,appendVoiceSegment};
   if (typeof module !== 'undefined' && module.exports) { module.exports=exports; return; }
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
@@ -123,6 +150,8 @@
   const icon=name => extraIcons[name]?`<svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${extraIcons[name]}"/>${name==='updated'?'<circle cx="20" cy="17" r="2" fill="currentColor" stroke="none"/>':''}</svg>`:root.SlideIcons.svg(name);
   const sizeLabel=size => root.SlideChatComposer.sizeLabel(Number(size) || 0);
   const state={designActive:null,projects:[],projectTree:{nodes:[],content_hash:''},artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
+  let sort=validSort(null);
+  try{sort=validSort(JSON.parse(root.localStorage.getItem('artifact-studio:library-sort')));}catch{}
   const collapsedFolders=new Set();
   try{for(const id of JSON.parse(root.localStorage.getItem('artifact-studio:collapsed-folders') || '[]'))if(typeof id==='string')collapsedFolders.add(id);}catch{}
   let treeBusy=false;
@@ -229,7 +258,7 @@
       if(!collapsedFolders.delete(id))return;
       root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));
       const row=doc.querySelector(`[data-tree-node="${id}"]`),copy=doc.createElement('div');copy.innerHTML=sidebar();
-      const children=copy.querySelector(`[data-folder-children="${id}"]`);if(row&&children){row.after(children);row.querySelector('[data-toggle-folder]').setAttribute('aria-expanded','true');row.querySelector('.project-tree-open>.ui-icon').outerHTML=icon('folderOpen');}
+      const children=copy.querySelector(`[data-folder-children="${id}"]`);if(row&&children){row.after(children);row.querySelector('[data-toggle-folder]').setAttribute('aria-expanded','true');row.querySelector('.project-tree-open>.ui-icon').outerHTML=icon('folderOpen');quickAccess.decorateProjects();}
     },onError:error=>toast(error.message,true)});
   function resetEditor(){if(!artifactEditor.reset())return false;properties?.clear();inspectorSelector=null;return true;}
   function syncInspector(){
@@ -246,6 +275,8 @@
     }
   } catch {}
   const selectedProject=id => state.projects.find(project=>project.id===id);
+  const quickAccess=root.ProjectQuickAccess.create({menu:doc.getElementById('hub-tools-menu'),button:doc.getElementById('hub-tools-button'),keyboard:true,onProject:id=>home(id),trackProjects:true});
+  let initialProjectRecorded=false;
   const projectTitle=id => id==='designs'?'Designs':state.projectTree.nodes.find(node=>'folder:'+node.id===id)?.title || selectedProject(id)?.title || (id === 'all' ? 'All artifacts' : 'Project');
   const selectedFolder=()=>state.project.startsWith('folder:')?state.project.slice(7):state.projectTree.nodes.find(node=>node.id===state.project)?.parent_id ?? null;
   function rememberFolders(){try{root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));}catch{}}
@@ -377,7 +408,7 @@
     }
     return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><div class="hub-sidebar-label">Projects${button('project-add','','plus','aria-label="Add project or folder" title="Add project or folder" aria-haspopup="menu"')}</div>${root.ProjectNavigation.markup({tree:state.projectTree,projects:state.projects,selected:state.project,collapsed:collapsedFolders,icon})}</aside>`;
   }
-  function filteredArtifacts(){return filterArtifacts(state.artifacts,{...state,projectIds:state.project.startsWith('folder:')?root.ProjectNavigation.projectsIn(state.projectTree,state.project.slice(7)):null});}
+  function filteredArtifacts(){return sortArtifacts(filterArtifacts(state.artifacts,{...state,projectIds:state.project.startsWith('folder:')?root.ProjectNavigation.projectsIn(state.projectTree,state.project.slice(7)):null}),sort);}
   function visibleItems() {
     return state.project==='designs'?filterDesigns(state.designs,state.search):filteredArtifacts();
   }
@@ -386,24 +417,51 @@
     return `${count} ${state.project==='designs'?'design':'artifact'}${count===1?'':'s'}`;
   }
   function designCards(){return designLibrary.cards(visibleItems(),state.search);}
+  function reverseSortLabel() {
+    return ['updated','created'].includes(sort.by)?(sort.direction==='desc'?'Oldest first':'Newest first'):(sort.direction==='asc'?'Z to A':'A to Z');
+  }
+  function sortControl() {
+    return `<div class="hub-sort">${icon('sort')}<select id="hub-sort" aria-label="Sort artifacts" title="Sort artifacts">${Object.entries(sortLabels).map(([key,label])=>`<option value="${key}" ${sort.by===key?'selected':''}>${label}</option>`).join('')}</select>${button('sort-direction','',sort.direction==='asc'?'up':'down',`aria-label="${reverseSortLabel()}" title="${reverseSortLabel()}"`)}</div>`;
+  }
+  function refreshCards() {
+    const grid=doc.getElementById('hub-grid');grid.classList.toggle('is-grouped',state.project!=='designs' && sort.by==='type');grid.innerHTML=cards();
+    doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);
+  }
+  function updateSort(value) {
+    sort=validSort(value);
+    try{root.localStorage.setItem('artifact-studio:library-sort',JSON.stringify(sort));}catch{}
+    const control=doc.querySelector('.hub-sort');
+    if(control){
+      control.querySelector('select').value=sort.by;
+      const toggle=control.querySelector('button');toggle.innerHTML=icon(sort.direction==='asc'?'up':'down');toggle.setAttribute('aria-label',reverseSortLabel());toggle.title=reverseSortLabel();
+    }
+    refreshCards();
+  }
   function cards() {
     if(state.project==='designs')return designCards();
     const items=filteredArtifacts();
     if(!items.length)return `<div class="hub-empty">${icon(state.search?'eye':'folder')}<h2>${state.search || state.kind!=='all'?'No matching artifacts':state.project==='all'?'A place for your work':'This project is ready'}</h2><p>${state.search || state.kind!=='all'?'Try another search or format.':'Import a page, document, image, presentation or a bundle of files.'}</p>${state.search || state.kind!=='all'?'':`<div class="hub-empty-actions">${button('import','Import files','upload','class="hub-primary"')}</div>`}</div>`;
-    return items.map(item=>{
+    const card=item=>{
       const kind=kinds[kindOf(item)], preview=item.preview_url || (kindOf(item)==='image'?filePath(item):kindOf(item)==='file'?'':`/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
       const safePreview=typeof preview==='string' && preview.startsWith('/api/') && !preview.startsWith('//')?preview:'';
       return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img src="${escape(safePreview)}" alt="" draggable="false" loading="lazy" decoding="async" data-preview-image>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button><button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
+    };
+    if(sort.by!=='type')return items.map(card).join('');
+    const groups=Map.groupBy(items,item=>artifactType(item).key);
+    return [...groups].map(([key,group],index)=>{
+      const type=artifactType(group[0]);
+      return `<section class="hub-type-group" aria-labelledby="hub-type-${index}" data-file-type="${escape(key)}"><h2 id="hub-type-${index}">${icon(type.icon)}${escape(type.label)}<span>${group.length}</span></h2><div class="hub-grid">${group.map(card).join('')}</div></section>`;
     }).join('');
   }
   function library() {
+    if(!initialProjectRecorded){initialProjectRecorded=true;if(selectedProject(state.project))void quickAccess.visit({project_id:state.project});}
     void voice.stop();
     properties?.destroy();properties=null;
     const designs=state.project==='designs';
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
-    for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
-    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
-    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();
+    for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],.hub-top-actions [data-action="context"]'))node.hidden=designs;
+    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><div class="hub-library-toolbar" ${designs?'hidden':''}><nav class="hub-chips" aria-label="Artifact formats">${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav>${sortControl()}</div><div id="hub-grid" class="hub-grid ${!designs && sort.by==='type'?'is-grouped':''}">${cards()}</div></main></div>`;
+    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();
   }
   function fileList(item) {
     return `<ul class="hub-file-list">${fileRecords(item).map(file=>`<li><a href="${escape(filePath(item,file.path || file.name))}" download>${icon('notes')}<span>${escape(file.path || file.name)}</span></a>${file.size!==undefined?`<small>${sizeLabel(file.size)}</small>`:''}</li>`).join('')}</ul>`;
@@ -454,7 +512,7 @@
     content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-element-properties" hidden></div><div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
     doc.title=`${item.title} · Artifact Studio`;
     properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getVoice:()=>voice,getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:async()=>{const panel=properties,id=state.active,loading=state.loading,generation=panel.selectionGeneration(),mode=state.detail.mode;if(!await panel.stopVoice()){toast('Recording ended without sending. Review your edit before sending.');return;}if(properties!==panel || state.active!==id || state.loading!==loading || panel.selectionGeneration()!==generation)return;if(state.detail.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return false;}return artifactEditor.send(mode);},onCancel:()=>{properties?.cancelVoice();artifactEditor.cancel();}});
-    inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();
+    inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();
   }
   /** Refresh review controls without replacing the preview, composer or dictated drafts. */
   function syncArtifactReview(detail) {
@@ -620,7 +678,7 @@
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
-    if(item?.legacy_deck_id){root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
+    if(item?.legacy_deck_id){await quickAccess.visit({project_id:item.project_id});root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
     const token=++state.loading;state.active=id;state.selecting=false;state.sourceView=false;state.newRevision=null;
     content.innerHTML='<main class="hub-loading" role="status">Opening artifact…</main>';
     try {
@@ -631,12 +689,13 @@
       if(kindOf(detail)==='markdown') {const response=await fetch(filePath(detail));if(!response.ok)throw new Error('The Markdown source could not be loaded.');source=await response.text();}
       if(token!==state.loading)return;
       state.detail=detail;state.source=source;state.project=detail.project_id;
+      void quickAccess.visit({project_id:detail.project_id});
       const value=draft(detail);if(!value.message && !value.targets.length){value.content_hash=detail.content_hash;value.revision=detail.revision;}
       workspace();if(push)updateHistory(id);
       if(detail.status==='updated')api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).then(()=>{const card=state.artifacts.find(item=>item.id===id);if(card)card.status='draft';if(state.detail===detail){detail.status='draft';const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(detail);}}).catch(()=>{});
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
-  function home(project='all',push=true) {if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
+  function home(project='all',push=true) {if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(selectedProject(project))void quickAccess.visit({project_id:project});if(push)updateHistory(null);}
   function modal(title,body,wide=false) {modalEpoch++;closeTreeMenu();void voice.stop();dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();voice.refresh();}
   /** Retain the explicit parent export handoff used by authored dashboards. */
   function exportDialog(file) {
@@ -746,6 +805,7 @@
   }
   const versions=root.VersionTimeline.create({api,onRestored:async target=>{await openArtifact(target.artifactId,false);toast('Version restored.');}});
   async function action(name,node) {
+    if(name==='sort-direction'){updateSort({...sort,direction:sort.direction==='asc'?'desc':'asc'});return;}
     if(name==='history'){if(!artifactEditor.finish())return;versions.open({kind:'artifact',artifactId:state.detail.id,title:state.detail.title});return;}
     if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
     if(name==='auto-update'){previewUpdates.set(!previewUpdates.enabled);return;}
@@ -826,12 +886,13 @@
   content.addEventListener('contextmenu',event=>{if(libraryContextMenu(event,{x:event.clientX,y:event.clientY})){event.preventDefault();event.stopPropagation();}else closeTreeMenu();});
   content.addEventListener('keydown',event=>{if(root.ElementCommands.shortcut(event)==='menu' && libraryContextMenu(event)){event.preventDefault();event.stopPropagation();}});
   doc.addEventListener('input',event=>{
-    if(event.target.id==='hub-search'){state.search=event.target.value;doc.getElementById('hub-grid').innerHTML=cards();doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);}
+    if(event.target.id==='hub-search'){state.search=event.target.value;refreshCards();}
     if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
     if(event.target.dataset.hubVoiceSegment){const segment=draft().voice_segments?.find(segment=>(segment.id || segment.request_id)===event.target.dataset.hubVoiceSegment);if(segment){segment.id ||= segment.request_id;segment.message=event.target.value;segment.request_id=root.crypto.randomUUID();persist();}}
   });
   doc.addEventListener('change',event=>{
     const node=event.target;
+    if(node.id==='hub-sort')updateSort({by:node.value,direction:['updated','created'].includes(node.value)?'desc':'asc'});
     if(node.id==='hub-project-picker')home(node.value);
     if(node.id==='hub-viewport'){state.viewport=node.value;const frame=doc.getElementById('hub-html-preview');frame.style.width=node.value==='fluid'?'100%':`${node.value}px`;}
     if(['hub-import-files','hub-import-folder'].includes(node.id))setImportFiles([...node.files]);

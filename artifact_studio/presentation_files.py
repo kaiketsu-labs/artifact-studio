@@ -16,8 +16,14 @@ MANAGED_BASE = "\n/* Artifact Studio viewer base */\n@layer artifact-studio-base
 
 def ordinary_file(path: Path) -> Path:
     """Reject symbolic links and special files before a bounded local read."""
-    if any(part.is_symlink() for part in (path, *path.parents)) or not path.is_file():
-        raise ValueError("Use an ordinary local file without symlinks.")
+    if any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError("Local file paths cannot contain symlinks.")
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Local file does not exist: {path}. Check the source path or create the file first."
+        )
+    if not path.is_file():
+        raise ValueError("Use a regular local file, not a directory or special file.")
     return path
 
 
@@ -141,6 +147,8 @@ class PresentationFiles:
         if not offset >= 0 or not 1 <= limit <= 100 or not prefix.startswith("assets/"):
             raise ValueError("Use an assets/ prefix, nonnegative offset and limit 1–100.")
         folder = self.store.folder(deck_id)
+        if (self.store.root / deck_id).is_symlink():
+            raise ValueError("Presentation directories cannot be symlinks.")
         assets = folder / "assets"
         if assets.is_symlink():
             raise ValueError("The assets folder cannot be a symlink.")
@@ -150,9 +158,15 @@ class PresentationFiles:
             if path.is_file() and path.relative_to(folder).as_posix().startswith(prefix)
         )
         page = paths[offset : offset + limit]
+        staging = folder / ".authoring-assets"
+        if any(part.is_symlink() for part in (staging, *staging.parents)):
+            raise ValueError("The asset import directory cannot contain symlinks.")
+        if staging.exists() and not staging.is_dir():
+            raise ValueError("The asset import path must be a directory, not a file.")
+        staging.mkdir(exist_ok=True)
         return {
             "deck_id": deck_id,
-            "import_directory": str(folder / ".authoring-assets"),
+            "import_directory": str(staging),
             "assets": [
                 {
                     "path": path.relative_to(folder).as_posix(),

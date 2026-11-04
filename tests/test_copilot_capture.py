@@ -9,6 +9,7 @@ import pytest
 from artifact_studio.copilot_capture import audience_clone
 from artifact_studio.copilot_tools import ScopedTools
 from artifact_studio.models import AgentContext, SlidePatch
+from artifact_studio.slide_designs import DesignInput, SlideDesigns
 from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
@@ -80,6 +81,33 @@ def test_real_slide_capture_contains_pixels_and_original_tokens(store: Store) ->
     assert digest(slide.model_dump_json()) in serialized
     assert store.content_hash(DECK, slide) in serialized
     assert '"width": 1600' in serialized and '"height": 900' in serialized
+
+
+@RENDER
+def test_real_design_capture_uses_frozen_proposal_without_private_context(store: Store) -> None:
+    """Exercise the production proposal renderer while leaving the chosen slide untouched."""
+    before = store.read(DECK)
+    slide = before.slides[0]
+    group = SlideDesigns(store).publish(
+        DECK,
+        slide.id,
+        store.content_hash(DECK, slide),
+        "capture-design-proposal",
+        [
+            DesignInput(
+                name="Editorial", html='<article class="slide"><h1>Proposal only</h1></article>'
+            )
+        ],
+    )
+    result = ScopedTools(store, "legacy-presentations", False).capture_slide_design(
+        DECK, slide.id, group.options[1].id
+    )
+    assert not result.is_error
+    assert any(item.type == "image" and item.mime_type == "image/png" for item in result.content)
+    serialized = json.dumps(result.structured_content)
+    assert "PRIVATE" not in serialized and '"path"' not in serialized
+    assert group.options[1].source_hash in serialized
+    assert store.read(DECK) == before
 
 
 @RENDER

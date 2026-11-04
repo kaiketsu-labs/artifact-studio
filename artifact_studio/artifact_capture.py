@@ -28,6 +28,7 @@ from .artifact_preview import (
 )
 from .artifacts import ArtifactStore
 from .models import StrictModel
+from .renderer_health import sandboxed_browser
 from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .visuals import MAX_DEPENDENCY_BYTES, render_slot
 
@@ -133,35 +134,27 @@ def rendered_resources(
             )
 
     try:
-        with sync_playwright() as renderer:
-            browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
-            try:
-                context = browser.new_context(
-                    viewport={"width": width, "height": height},
-                    device_scale_factor=1,
-                    color_scheme=color_scheme,
-                    offline=True,
-                    service_workers="block",
-                    accept_downloads=False,
-                )
-                context.route("**/*", route_request)
-                context.route_web_socket("**/*", lambda socket: socket.close())
-                page = context.new_page()
-                page.set_default_timeout(15_000)
-                _ = page.goto(url, wait_until="load", timeout=15_000)
-                _ = page.evaluate(
-                    "async () => {await document.fonts.ready;"
-                    "await Promise.all([...document.images].map(image => "
-                    "image.decode().catch(() => {})));}"
-                )
-                yield page, blocked
-            finally:
-                browser.close()
+        with sandboxed_browser(sync_playwright) as browser:
+            context = browser.new_context(
+                viewport={"width": width, "height": height},
+                device_scale_factor=1,
+                color_scheme=color_scheme,
+                offline=True,
+                service_workers="block",
+                accept_downloads=False,
+            )
+            context.route("**/*", route_request)
+            context.route_web_socket("**/*", lambda socket: socket.close())
+            page = context.new_page()
+            page.set_default_timeout(15_000)
+            _ = page.goto(url, wait_until="load", timeout=15_000)
+            _ = page.evaluate(
+                "async () => {await document.fonts.ready;"
+                "await Promise.all([...document.images].map(image => "
+                "image.decode().catch(() => {})));}"
+            )
+            yield page, blocked
     except BrowserError as error:
-        if "Executable doesn't exist" in str(error):
-            raise ValueError(
-                "Install the local renderer: uv run playwright install chromium --only-shell"
-            ) from error
         raise ValueError(f"Artifact capture failed: {str(error)[:500]}") from error
 
 

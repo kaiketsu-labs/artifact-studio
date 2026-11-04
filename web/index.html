@@ -16,6 +16,8 @@
   <link rel="stylesheet" href="/web/element-properties.css">
   <link rel="stylesheet" href="/web/workspace-panels.css">
   <link rel="stylesheet" href="/web/appearance.css">
+  <link rel="stylesheet" href="/web/quick-access.css">
+  <script src="/web/quick-access.js" defer></script>
   <link rel="stylesheet" href="/web/design-references.css">
   <link rel="stylesheet" href="/web/slide-sections.css">
   <link rel="stylesheet" href="/web/storage-status.css">
@@ -25,6 +27,8 @@
   <script src="/web/element-commands.js" defer></script>
   <script src="/web/multi-element-edits.js" defer></script>
   <link rel="stylesheet" href="/web/version-history.css">
+  <link rel="stylesheet" href="/web/slide-designs.css">
+  <script src="/web/slide-designs.js" defer></script>
   <script src="/web/version-history.js" defer></script>
   <script src="/web/workspace-recovery.js" defer></script>
   <script src="/web/icons.js" defer></script>
@@ -77,16 +81,16 @@
     <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Artifact Studio">
       <div role="group" aria-label="Files">
         <button id="new-button" type="button" role="menuitem" tabindex="-1" aria-label="New presentation"></button>
-        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Open project"></button>
-        <button id="menu-save-project" type="button" role="menuitem" tabindex="-1" aria-label="Save project" disabled></button>
-        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Project files"></button>
+        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Import presentation"></button>
+        <button id="menu-save-project" type="button" role="menuitem" tabindex="-1" aria-label="Save presentation" disabled></button>
+        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Presentation files"></button>
       </div>
       <div role="separator"></div>
       <div role="group" aria-label="Workspace">
-        <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Reference libraries"></button>
+        <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Storage and backup"></button>
         <button id="deck-design-references" type="button" role="menuitem" tabindex="-1" aria-label="Design references"></button>
         <button id="instructions-button" type="button" role="menuitem" tabindex="-1" aria-label="Instructions" hidden></button>
-        <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Connect an agent"></button>
+        <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Agent connection"></button>
       </div>
       <div role="separator"></div>
       <button id="appearance-button" type="button" role="menuitem" tabindex="-1" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
@@ -161,12 +165,12 @@
     <div id="feedback-list" aria-live="polite"></div>
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
-      <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
+      <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><span id="feedback-design-context" class="feedback-design-context" hidden></span><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <div id="target-members" class="target-members" aria-label="Selected objects" hidden></div>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>
       <div id="voice-feedback-segments" class="voice-segments" aria-label="Dictated feedback" hidden></div>
-      <textarea id="feedback-text" placeholder="Message your agent…" maxlength="10000"></textarea>
+      <textarea id="feedback-text" placeholder="Message your agent…" maxlength="10000" disabled></textarea>
       <div id="feedback-error" role="alert"></div>
       <div id="feedback-upload-status" role="status"></div>
       <input id="feedback-file-input" type="file" multiple hidden>
@@ -241,7 +245,7 @@
 </dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <dialog id="project-dialog" aria-labelledby="project-dialog-title">
-  <header><h2 id="project-dialog-title">Project files</h2><button id="close-project" type="button" aria-label="Close"></button></header>
+  <header><h2 id="project-dialog-title">Presentation files</h2><button id="close-project" type="button" aria-label="Close"></button></header>
   <p id="project-context" class="project-context" hidden></p>
   <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button></div>
   <h3 class="project-group-label">Export</h3>
@@ -263,7 +267,7 @@
   <div id="removed-list"></div><p id="removed-error" class="inline-error" role="alert"></p>
 </dialog>
 <dialog id="connect-dialog">
-  <header><h2>Connect an agent</h2><button id="close-connect" aria-label="Close"></button></header>
+  <header><h2>Agent connection</h2><button id="close-connect" aria-label="Close"></button></header>
   <details class="connection-details"><summary>Guided setup</summary>
     <p>Open the Artifact Studio checkout in your agent.</p>
     <p><strong>Claude Code</strong> <code>/setup</code> · <strong>Codex</strong> <code>$setup</code></p>

@@ -8,9 +8,12 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
 from collections import defaultdict
 from collections.abc import Generator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -72,6 +75,7 @@ class Library(StrictModel):
     path: str
     sync_enabled: bool = False
     auto_sync_enabled: bool = False
+    last_saved_at: str | None = None
 
 
 class LibrarySyncSettings(StrictModel):
@@ -256,6 +260,77 @@ def inventory(
     return sorted(result, key=lambda item: item.path)
 
 
+# Libraries are reconstructed for each request, so cache observations across instances.
+_SAVE_CACHE: dict[tuple[Path, tuple[Path, ...]], tuple[float, str | None]] = {}
+_SAVE_CACHE_LOCK = threading.Lock()
+_SAVE_CACHE_SECONDS = 15.0
+
+
+def last_local_save(root: Path, cache: Path, references: tuple[Path, ...] = ()) -> str | None:
+    """Observe the newest eligible saved file without reading its contents."""
+    resolved = root.resolve()
+    exclusions = {cache.resolve(), *(path.resolve() for path in references)}
+    key = (
+        resolved,
+        tuple(
+            sorted(
+                path for path in exclusions if path != resolved and path.is_relative_to(resolved)
+            )
+        ),
+    )
+    with _SAVE_CACHE_LOCK:
+        now = time.monotonic()
+        previous = _SAVE_CACHE.get(key)
+        if previous is not None and now - previous[0] < _SAVE_CACHE_SECONDS:
+            return previous[1]
+        try:
+            newest: int | None = None
+
+            def fail(error: OSError) -> None:
+                """Avoid presenting a partial inventory as a complete observation."""
+                raise error
+
+            if not root.is_dir():
+                raise FileNotFoundError(root)
+            for folder, directories, names in root.walk(follow_symlinks=False, on_error=fail):
+                directories[:] = [
+                    name
+                    for name in directories
+                    if not name.startswith(".")
+                    and (
+                        name not in EXCLUDED
+                        or artifact_source((folder / name).relative_to(root) / "placeholder")
+                    )
+                    and not revision_directory((folder / name).relative_to(root))
+                    and not (folder / name).is_symlink()
+                    and not any((folder / name).resolve().is_relative_to(path) for path in key[1])
+                ]
+                for name in names:
+                    path = folder / name
+                    relative = path.relative_to(root)
+                    if (
+                        relative == Path("workspace-recovery.json")
+                        or re.search(r"\.(?:db|sqlite|sqlite3)(?:-wal|-shm|-journal)?$", name, re.I)
+                        or not snapshot_allowed(relative)
+                        or path.is_symlink()
+                        or not path.is_file()
+                    ):
+                        continue
+                    modified = path.stat().st_mtime_ns
+                    newest = modified if newest is None else max(newest, modified)
+            result = (
+                datetime.fromtimestamp(newest / 1_000_000_000, UTC).isoformat()
+                if newest is not None
+                else None
+            )
+        except OSError, OverflowError, ValueError:
+            result = None
+        if len(_SAVE_CACHE) >= 128 and key not in _SAVE_CACHE:
+            _ = _SAVE_CACHE.pop(next(iter(_SAVE_CACHE)))
+        _SAVE_CACHE[key] = (now, result)
+        return result
+
+
 def safe_file(root: Path, name: str) -> Path:
     """Resolve a registered document without exposing hidden state or escaped symlinks."""
     relative = Path(name)
@@ -333,17 +408,21 @@ class Libraries:
 
     def list(self) -> list[Library]:
         """Include the canonical collection alongside explicitly registered sources."""
-        local = Library(
-            id="collection", kind="local", location=str(self.store.root), path=str(self.store.root)
-        )
         with self.store.connect() as db:
-            return [
-                local,
-                *(
-                    Library.model_validate_json(str(row[0]))
-                    for row in db.execute("SELECT document FROM libraries ORDER BY id")
-                ),
+            references = [
+                Library.model_validate_json(str(row[0]))
+                for row in db.execute("SELECT document FROM libraries ORDER BY id")
             ]
+        local = Library(
+            id="collection",
+            kind="local",
+            location=str(self.store.root),
+            path=str(self.store.root),
+            last_saved_at=last_local_save(
+                self.store.root, self.cache, tuple(Path(item.path) for item in references)
+            ),
+        )
+        return [local, *references]
 
     def get(self, identifier: str) -> Library:
         """Resolve a registered library ID without treating it as a filesystem path."""

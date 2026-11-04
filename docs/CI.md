@@ -11,13 +11,13 @@ corporate packs and model credentials are not required.
 | Check | What it verifies |
 | --- | --- |
 | Ruff, types and unit tests | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests and JavaScript syntax. |
-| Playwright user journeys and rendering (editor-review) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation and drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus and rich-text/presenter voice input. |
+| Playwright user journeys and rendering (editor-review) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation and drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input and whole-slide design alternatives (publication, preview, comparison, decisions, conflicts and Undo). |
 | Playwright user journeys and rendering (artifacts-runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, general/hub voice input, sandboxed renderer, interactive-content and DOM checks. |
 | Agent integration (Codex / Claude Code) | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries and conflicts; each generated hook command executed as a real subprocess against the server; Batch withholding/release, wake-up, acknowledgement and session end. Pinned native CLIs are checked in separate matrix jobs. |
 
 The two browser suites run in parallel with `fail-fast: false` and independent
-15-minute timeouts. Their test-file sets are disjoint and together preserve all previously covered paths and add the audit regressions. Collection on 3 November 2026
-found 38 disjoint paths: 116 cases in `editor-review` and 107 in `artifacts-runtime`; voice checks run
+15-minute timeouts. Their test-file sets are disjoint and together preserve all previously covered paths and add the audit regressions. Collection on 4 November 2026
+found 46 disjoint paths: 127 cases in `editor-review` and 172 in `artifacts-runtime`; voice checks run
 in both suites. These counts guide the split, not a measured runtime guarantee.
 Each suite installs the same locked dependencies and Chromium with OS support.
 

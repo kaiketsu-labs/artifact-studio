@@ -2,6 +2,20 @@
 
 MCP is stateless at the transport level. Agents can still retain context between calls: sending the same guide, slide history or encoded image on every request is unnecessary.
 
+## Audit follow-ups · 4 November 2026
+
+For static-source or notes inspection, `get_slide(include_interactive_html=False)` omits only the embedded interactive body. The empty field is explicitly marked `interactive_html_included=false`; its byte count and SHA-256 remain, along with exact static source, notes, revision/content hashes and requested released feedback. Full source remains the default and must be read before editing interactive content. Never copy an omitted field into a patch to clear it. Use the outline for status-only checks.
+
+| Measured response | Full | Targeted | Reduction |
+| --- | ---: | ---: | ---: |
+| The audit's two embedded-font slides, serialized MCP results | 4,097,242 B | 3,376 B | 99.92% |
+| Reproducible bundled SVG fixture, serialized MCP result | 904,981 B | 2,442 B | 99.73% |
+| New design scaffold guide | 28,599 B | 412 B | 98.56% |
+
+The two slide-read comparisons retained all other returned fields exactly. These are UTF-8 transport bytes, not billed tokens. Reproduce the SVG case with `uv run python -m scripts.measure_targeted_reads --output /tmp/targeted-reads.json`. Existing authored design guides are never replaced; only newly scaffolded packs receive the concise brand-specific starter. The bootstrap now uses supplied IDs directly and discovers work only when the target is unknown.
+
+Probe renderer readiness once before a batch with `get_capture_status(probe_renderer=True)`. Recent launch failures are cached for 30 seconds; ordinary status reads do not start Chromium. Optional `check_slide_text` reuses captured pixels instead of recapturing, and reports OCR differences for visual interpretation. Detailed guidance is on demand via `get_authoring_guide(topic="text_review")`.
+
 ## Workflow measurements · 4 November 2026
 
 `scripts/measure_startup_context.py --output /tmp/startup-context.json` runs a disposable real MCP server with two designs, twenty work decks and a queued request. With identical guides, selected-brand preferences, rules and queued requests, explicit discovery and the new default compare as follows:

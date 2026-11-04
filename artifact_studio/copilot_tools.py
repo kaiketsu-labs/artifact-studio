@@ -23,7 +23,9 @@ from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactV
 from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
 from .copilot_capture import capture_cloud_slide
 from .models import Slide, SlidePatch
+from .slide_designs import DesignInput, SlideDesigns
 from .storage import SAFE_ID, ConflictError, Store, digest
+from .visuals import CaptureOptions, capture_snapshot
 
 PROJECT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = (PROJECT / "agent/copilot.md").read_text()
@@ -473,6 +475,86 @@ class ScopedTools:
         )
         return slide_receipt(deck_id, view).model_dump()
 
+    def publish_slide_designs(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        expected_content_hash: str,
+        request_id: RequestID,
+        options_json: Text,
+    ) -> dict[str, object]:
+        """Publish a JSON array of 1–5 designs; only the human can choose or keep one."""
+        _ = self.deck(deck_id)
+        options = TypeAdapter(list[DesignInput]).validate_json(options_json)
+        result = SlideDesigns(self.store).publish(
+            deck_id, slide_id, expected_content_hash, request_id, options
+        )
+        return public_object(result.model_dump(mode="json"))
+
+    def get_slide_designs(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        cursor: int = -1,
+        decision_cursor: int = -1,
+        set_id: str = "",
+    ) -> dict[str, object]:
+        """Read saved proposals and decisions. -1 starts; 0 skips a finished stream."""
+        _ = self.deck(deck_id)
+        result = SlideDesigns(self.store).list(
+            deck_id,
+            slide_id,
+            cursor=None if cursor == -1 else cursor,
+            decision_cursor=None if decision_cursor == -1 else decision_cursor,
+            set_id=set_id or None,
+        )
+        return public_object(result.model_dump(mode="json"))
+
+    def get_slide_design(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        design_id: Identifier,
+    ) -> dict[str, object]:
+        """Read one scoped proposal's immutable audience source and feedback hash."""
+        _ = self.deck(deck_id)
+        return public_object(
+            SlideDesigns(self.store).read(deck_id, slide_id, design_id).model_dump(mode="json")
+        )
+
+    def capture_slide_design(
+        self,
+        deck_id: Identifier,
+        slide_id: Identifier,
+        design_id: Identifier,
+    ) -> CallToolResult:
+        """Return frozen design pixels through the offline renderer without local host paths."""
+        _ = self.deck(deck_id)
+        designs = SlideDesigns(self.store)
+        option = designs.read(deck_id, slide_id, design_id).option
+        frozen = designs.preview(deck_id, slide_id, design_id)
+        data = capture_snapshot(frozen, CaptureOptions(reduced_motion=True))
+        _ = self.deck(deck_id)
+        if len(data) > 3 * 1024 * 1024:
+            raise ValueError("The captured design exceeds the gateway's 3 MiB image limit.")
+        folder = self.store.database.parent / "copilot-captures"
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"design-{design_id}.png"
+        _ = path.write_bytes(data)
+        metadata = {
+            "design_id": design_id,
+            "set_id": option.set_id,
+            "source_hash": option.source_hash,
+            "frame": frozen.frame.model_dump(mode="json", exclude={"path"}),
+        }
+        return CallToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(metadata)),
+                MCPImage(path=path).to_image_content(),
+            ],
+            structured_content=metadata,
+        )
+
     def add_slide(
         self,
         deck_id: Identifier,
@@ -614,6 +696,9 @@ def register_tools(
         scoped.read_artifact_feedback,
         scoped.get_presentation_outline,
         scoped.get_slide,
+        scoped.get_slide_designs,
+        scoped.get_slide_design,
+        scoped.capture_slide_design,
         scoped.read_feedback,
         scoped.capture_artifact,
         scoped.capture_slide,
@@ -623,6 +708,7 @@ def register_tools(
         scoped.revise_artifact,
         scoped.reply_to_artifact_feedback,
         scoped.revise_slide,
+        scoped.publish_slide_designs,
         scoped.add_slide,
         scoped.reorder_slides,
         scoped.reply_to_feedback,

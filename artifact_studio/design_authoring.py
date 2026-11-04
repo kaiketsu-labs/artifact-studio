@@ -27,6 +27,14 @@ from .storage import ConflictError, Store, digest, replace_text
 
 PROJECT = Path(__file__).resolve().parents[1]
 BASELINE = ".artifact-studio-design-baseline.json"
+SCAFFOLD_GUIDE = (
+    "# Design authoring notes\n\n"
+    "Record this brand's typography, colours, composition principles and source provenance here. "
+    "Keep user preferences in PREFERENCES.md. Example slides demonstrate the design language; "
+    "compose freely for each brief.\n\n"
+    'Read current tool workflow with get_authoring_guide(topic="workflow"); load other topics '
+    "only as needed. Workspace rules and the selected presentation brief remain primary.\n"
+)
 MANAGED = {
     "index.html",
     "design.json",
@@ -111,9 +119,10 @@ class DesignAuthoring:
             ) as tmp:
                 folder = Path(tmp)
                 (folder / "assets").mkdir()
+                (folder / ".authoring-assets").mkdir()
                 for filename in ("presentation.js", "icons.js", "slideshow.css"):
                     _ = shutil.copy2(PROJECT / "runtime" / filename, folder / filename)
-                _ = shutil.copy2(PROJECT / "docs/AGENT-GUIDE.md", folder / "AGENT-GUIDE.md")
+                _ = (folder / "AGENT-GUIDE.md").write_text(SCAFFOLD_GUIDE)
                 _ = (folder / "PREFERENCES.md").write_text("")
                 _ = (folder / "README.md").write_text(
                     f"# {name}\n\n{manifest.description}\n\n"

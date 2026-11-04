@@ -1,5 +1,6 @@
 """Local, version-anchored slide images and paginated visual review sheets."""
 
+import hashlib
 import io
 import json
 import math
@@ -21,6 +22,7 @@ from pydantic import Field
 
 from .models import Slide, StrictModel
 from .projects import AssetEmbedder, root_tag
+from .renderer_health import renderer_status, sandboxed_browser
 from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .storage import SlideMarkup, Store, digest
 
@@ -90,9 +92,19 @@ class RenderQueue:
 _RENDER_QUEUE = RenderQueue()
 
 
-def capture_queue_status() -> dict[str, object]:
-    """Return shared renderer occupancy for callers deciding when to submit captures."""
-    return _RENDER_QUEUE.status()
+def capture_queue_status(probe_renderer: bool = False) -> dict[str, object]:
+    """Return queue occupancy and last launch status; explicitly probe without loading a deck."""
+    if probe_renderer:
+        try:
+            with render_slot(), sandboxed_browser(sync_playwright, force=True):
+                pass
+        except ValueError as error:
+            return {
+                **_RENDER_QUEUE.status(),
+                "renderer": renderer_status(),
+                "probe_error": str(error),
+            }
+    return {**_RENDER_QUEUE.status(), "renderer": renderer_status()}
 
 
 class ReviewEmbedder(AssetEmbedder):
@@ -182,6 +194,7 @@ class Frame(StrictModel):
     viewport_width: int = WIDTH
     viewport_height: int = HEIGHT
     path: str = ""
+    image_sha256: str = ""
     stale: bool = False
     diagnostics: Diagnostics | None = None
 
@@ -362,37 +375,29 @@ def _render_images[T](
     """Render prepared audience documents through the shared offline browser boundary."""
     images: list[T] = []
     try:
-        with sync_playwright() as renderer:
-            browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
-            try:
-                context = browser.new_context(
-                    viewport={"width": viewport[0], "height": viewport[1]},
-                    color_scheme=color_scheme,
-                    device_scale_factor=options.pixel_ratio,
-                    reduced_motion="reduce" if options.reduced_motion else "no-preference",
-                    offline=True,
-                    service_workers="block",
-                    accept_downloads=False,
-                )
-                context.route("**/*", lambda route: route.abort())
-                for item in prepared:
-                    tab = context.new_page()
-                    try:
-                        tab.set_default_timeout(15_000)
-                        tab.set_content(item.document, wait_until="load", timeout=15_000)
-                        item.frame.diagnostics = Diagnostics.model_validate(
-                            tab.evaluate("() => window.ArtifactStudioCaptureReady")
-                        )
-                        images.append(paint(tab))
-                    finally:
-                        tab.close()
-            finally:
-                browser.close()
+        with sandboxed_browser(sync_playwright) as browser:
+            context = browser.new_context(
+                viewport={"width": viewport[0], "height": viewport[1]},
+                color_scheme=color_scheme,
+                device_scale_factor=options.pixel_ratio,
+                reduced_motion="reduce" if options.reduced_motion else "no-preference",
+                offline=True,
+                service_workers="block",
+                accept_downloads=False,
+            )
+            context.route("**/*", lambda route: route.abort())
+            for item in prepared:
+                tab = context.new_page()
+                try:
+                    tab.set_default_timeout(15_000)
+                    tab.set_content(item.document, wait_until="load", timeout=15_000)
+                    item.frame.diagnostics = Diagnostics.model_validate(
+                        tab.evaluate("() => window.ArtifactStudioCaptureReady")
+                    )
+                    images.append(paint(tab))
+                finally:
+                    tab.close()
     except BrowserError as error:
-        if "Executable doesn't exist" in str(error):
-            raise ValueError(
-                "Install the local renderer: uv run playwright install chromium --only-shell"
-            ) from error
         raise ValueError(f"Visual capture failed: {str(error)[:500]}") from error
     return images
 
@@ -484,6 +489,7 @@ def capture(
             path = folder / f"{item.frame.slide_number:03d}-{item.frame.slide_id}.png"
             _ = path.write_bytes(image)
             item.frame.path = str(path)
+            item.frame.image_sha256 = hashlib.sha256(image).hexdigest()
             latest = next(
                 (slide for slide in current.slides if slide.id == item.frame.slide_id), None
             )

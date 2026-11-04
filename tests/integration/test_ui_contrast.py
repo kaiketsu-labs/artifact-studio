@@ -132,7 +132,7 @@ def test_editor_secondary_text_placeholders_and_control_states(
     page.locator('.studio-share-formats input[value="html"]').check()
     readable(page.locator(".studio-share-formats label").first.locator("small"))
     page.keyboard.press("Escape")
-    menu(page, "Project files")
+    menu(page, "Presentation files")
     page.keyboard.press("Tab")
     page.locator("#save-project").focus()
     readable(page.locator("#save-project"), kind="outline", minimum=3)
@@ -145,9 +145,7 @@ def test_editor_secondary_text_placeholders_and_control_states(
     page.keyboard.press("Escape")
 
     page.set_viewport_size({"width": 390, "height": 844})
-    toggle = page.locator(".workspace-panel-toggle.panel-right")
-    if toggle.get_attribute("aria-expanded") != "true":
-        toggle.click()
+    page.get_by_role("button", name="Open chat", exact=True).click()
     readable(page.locator("#feedback-count"))
     readable(page.locator("#feedback-text"), kind="placeholder")
 

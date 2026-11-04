@@ -16,7 +16,7 @@
   }
   function init({api,toast,escape,currentDeck,onNotesError=()=>{},beforeSaveWorkspace=async()=>true}){
     const $=id=>document.getElementById(id),{svg,button}=window.SlideIcons;
-    button($('libraries-button'),'folder','Reference libraries',true);
+    button($('libraries-button'),'folder','Storage and backup',true);
     button($('close-libraries'),'close','Close');button($('add-library'),'plus','Connect library');
     let busy=false,rendered='',revision=0,libraries=null,statuses=[],localState='saved',unavailable=false,polling=false;
     const recovery=root.WorkspaceRecoveryUI.create({api,getLibraries:()=>libraries||[]});
@@ -33,9 +33,9 @@
       const state=backupSummary(libraries,statuses,localState,unavailable),control=$('storage-status');
       button(control,state.icon,'Storage and backup: '+state.text);control.dataset.phase=state.phase;control.title=state.text;
     }
-    function timestamp(value){
+    function timestamp(value,seconds=false){
       if(!value)return '';
-      const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(date);
+      const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:seconds?'medium':'short'}).format(date);
     }
     function renderRows(force=false){
       if(!libraries||busy&&!force)return;
@@ -44,10 +44,11 @@
         libraries.some(item=>item.auto_sync_enabled)?'Saved on this device':'Saved on this device · Automatic backup off';
       const markup=libraries.map(item=>{
         const state=states.get(item.id),collection=item.id==='collection';
+        const lastSaved=collection?timestamp(item.last_saved_at,true):'';
         const type=collection?'Working folder':item.kind==='github'?(item.auto_sync_enabled?'Private GitHub backup':item.sync_enabled?'Manual GitHub backup':'GitHub reference · read-only'):'Local reference · read-only';
         return `<article class="library-row"><span class="library-symbol">${svg(item.kind==='github'?'github':'folder')}</span>
           <div class="library-description"><strong>${escape(collection?'On this device':item.location)}</strong><small>${type}</small>
-          ${collection?`<small class="library-path">${escape(item.location)}</small><small>${localLabel}</small>`:''}
+          ${collection?`<small class="library-path">${escape(item.location)}</small><small>${localLabel}</small><small class="local-save-time">Last saved · ${lastSaved?`<time datetime="${escape(item.last_saved_at)}">${escape(lastSaved)}</time>`:'—'}</small>`:''}
           ${item.kind==='github'?`<label class="library-auto"><input type="checkbox" data-auto-sync="${escape(item.id)}" ${item.auto_sync_enabled?'checked':''}><span>Back up all artifacts</span></label>`:''}
           ${item.auto_sync_enabled?`<small class="sync-state sync-${escape(state?.phase||'pending')}">${({pending:'Waiting to back up',syncing:'Backing up…',synced:'Backed up',error:'Backup needs attention'})[state?.phase]||'Waiting to back up'}</small>
             ${state?.last_synced_at?`<small>Last backup · <time datetime="${escape(state.last_synced_at)}">${escape(timestamp(state.last_synced_at))}</time></small>`:''}

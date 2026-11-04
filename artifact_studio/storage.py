@@ -226,6 +226,9 @@ class Store:
             from .version_history import install_slide_history
 
             install_slide_history(db)
+            from .slide_designs import install_designs
+
+            install_designs(db)
             columns = {row[1] for row in db.execute("PRAGMA table_info(feedback)")}
             if "target" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN target TEXT")
@@ -241,6 +244,10 @@ class Store:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN edit_intent TEXT")
             if "question" not in columns:
                 _ = db.execute("ALTER TABLE feedback ADD COLUMN question TEXT")
+            if "design_set_id" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN design_set_id TEXT")
+            if "design_option_id" not in columns:
+                _ = db.execute("ALTER TABLE feedback ADD COLUMN design_option_id TEXT")
             _ = db.execute(
                 "CREATE INDEX IF NOT EXISTS feedback_replies ON feedback(reply_to,author)"
             )
@@ -249,7 +256,8 @@ class Store:
                 "WHERE released=1 AND author='user' ORDER BY id"
             )
             for row in db.execute(
-                "SELECT DISTINCT deck FROM slide_actions WHERE completed=0"
+                "SELECT DISTINCT deck FROM slide_actions WHERE completed=0 UNION "
+                "SELECT DISTINCT deck FROM slide_design_decisions WHERE completed=0"
             ).fetchall():
                 with suppress(ConflictError, ValueError, FileNotFoundError):
                     self.recover_slides(db, cast(str, row[0]))
@@ -345,6 +353,9 @@ class Store:
         from .slide_actions import recover_pending
 
         recover_pending(self, db, deck_id)
+        from .slide_designs import recover_design_decisions
+
+        recover_design_decisions(self, db, deck_id)
 
     @contextmanager
     def editing(self, deck_id: str) -> Generator[sqlite3.Connection]:
@@ -419,8 +430,10 @@ class Store:
         """Read a replayable feedback queue using a durable event cursor."""
         with self.connect() as db:
             rows = db.execute(
-                "SELECT feedback.*,delivery.id AS delivery_id FROM feedback LEFT JOIN delivery "
-                "ON feedback.id=delivery.event_id WHERE deck=? AND feedback.id>? "
+                "SELECT feedback.*,delivery.id AS delivery_id,o.name AS design_option_name "
+                "FROM feedback LEFT JOIN delivery ON feedback.id=delivery.event_id "
+                "LEFT JOIN slide_design_options o ON o.id=feedback.design_option_id "
+                "WHERE deck=? AND feedback.id>? "
                 "ORDER BY feedback.id",
                 (deck_id, after_event_id),
             ).fetchall()
@@ -448,6 +461,9 @@ class Store:
                 question=QuestionPrompt.model_validate_json(cast(str, row["question"]))
                 if row["question"]
                 else None,
+                design_set_id=cast(str | None, row["design_set_id"]),
+                design_option_id=cast(str | None, row["design_option_id"]),
+                design_option_name=cast(str | None, row["design_option_name"]),
             )
             for row in rows
         ]
@@ -537,6 +553,7 @@ class Store:
     def view(self, deck_id: str, *, include_pending: bool = True) -> DeckView:
         """Return a review-ready snapshot of a presentation."""
         from .sections import sections_hash
+        from .slide_designs import design_badges
 
         deck = self.read(deck_id)
         context_file = self.folder(deck_id) / "README.md"
@@ -570,6 +587,7 @@ class Store:
             authoring_instructions=self.authoring_instructions(),
             learned_preferences=self.learned_preferences(),
             brief_files=self.brief_files(deck_id),
+            slide_designs=design_badges(self, deck),
             workflow=self.workflow(deck_id),
             feedback=[
                 item
@@ -860,6 +878,7 @@ class Store:
         edit_intent: EditIntent | None = None,
         expected_mode: Literal["live", "batch"] | None = None,
         author: Literal["user", "agent"] | None = None,
+        design_option_id: str | None = None,
     ) -> str:
         """Save a comment or reply exactly once, retaining its original slide context."""
         decoded = decode_attachments(files or [])
@@ -881,6 +900,7 @@ class Store:
                 )
                 + ([intent_json] if intent_json is not None else [])
                 + (["agent"] if author == "agent" and reply_to is None else [])
+                + (["slide-design", design_option_id] if design_option_id is not None else [])
             )
         )
         stored_slide_id = slide_id or ""
@@ -894,6 +914,16 @@ class Store:
                     raise ConflictError("Request ID already belongs to another action.")
                 return cast(str, prior[1])
             deck = self.read(deck_id)
+            if design_option_id is not None:
+                option = db.execute(
+                    "SELECT o.source_hash FROM slide_design_options o JOIN slide_design_sets s "
+                    "ON s.id=o.set_id WHERE o.id=? AND s.deck=? AND s.slide=?",
+                    (design_option_id, deck_id, slide_id),
+                ).fetchone()
+                if option is None or option[0] != content_hash or target is not None:
+                    raise ConflictError(
+                        "Design feedback must reference its original proposal and source hash."
+                    )
             if slide_id is not None:
                 _ = self.locate(deck, slide_id)
             elif target is not None:
@@ -929,6 +959,7 @@ class Store:
                 context_slide_id=context_slide_id or slide_id,
                 files_json=TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
                 intent_json=intent_json,
+                design_option_id=design_option_id,
             )
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
@@ -952,12 +983,15 @@ class Store:
         files_json: str = "[]",
         intent_json: str | None = None,
         question_json: str | None = None,
+        design_set_id: str | None = None,
+        design_option_id: str | None = None,
     ) -> str:
         """Append a message and its delivery record within the caller's transaction."""
         cursor = db.execute(
             "INSERT INTO feedback(deck,slide,author,message,created_at,content_hash,"
-            "reply_to,target,context_slide_id,released,files,edit_intent,question) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "reply_to,target,context_slide_id,released,files,edit_intent,question,"
+            "design_set_id,design_option_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 deck_id,
                 slide_id,
@@ -972,6 +1006,8 @@ class Store:
                 files_json,
                 intent_json,
                 question_json,
+                design_set_id,
+                design_option_id,
             ),
         )
         if released and author == "user":

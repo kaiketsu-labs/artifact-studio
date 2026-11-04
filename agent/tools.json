@@ -85,11 +85,13 @@
               "workflow",
               "live_review",
               "visual_review",
+              "text_review",
               "interactive_html",
               "design_import",
               "design_guide",
               "design_context",
-              "artifacts"
+              "artifacts",
+              "slide_designs"
             ],
             "title": "Topic",
             "type": "string"
@@ -617,6 +619,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -961,6 +964,42 @@
                   }
                 ],
                 "default": null
+              },
+              "design_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Set Id"
+              },
+              "design_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Id"
+              },
+              "design_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Name"
               }
             },
             "required": [
@@ -1313,6 +1352,14 @@
             "title": "Brief Files",
             "type": "array"
           },
+          "slide_designs": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Slide Designs",
+            "type": "object"
+          },
           "rules_hash": {
             "title": "Rules Hash",
             "type": "string"
@@ -1375,7 +1422,7 @@
     },
     {
       "name": "get_slide",
-      "description": "Read complete slide source, notes and expected_hash for a safe revision.\nRead released comments via read_feedback; include_feedback=True adds slide discussion history.\n",
+      "description": "Read complete slide source, notes and expected_hash for a safe revision.\nRead released comments via read_feedback; include_feedback=True adds slide discussion history.\nUse publish_slide_designs for alternatives; revise_slide changes the chosen slide.\ninclude_interactive_html=False omits embedded interactive source (returned as empty with\nan explicit inclusion marker, byte count and hash), preserving static HTML, notes and tokens.\nUse it for static/notes inspection; request full source before editing interactive content.\nAn omitted empty field is not an instruction to clear it. Use outlines for status-only reads.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -1389,6 +1436,11 @@
           "include_feedback": {
             "default": false,
             "title": "Include Feedback",
+            "type": "boolean"
+          },
+          "include_interactive_html": {
+            "default": true,
+            "title": "Include Interactive Html",
             "type": "boolean"
           }
         },
@@ -1419,6 +1471,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -1702,6 +1755,42 @@
                   }
                 ],
                 "default": null
+              },
+              "design_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Set Id"
+              },
+              "design_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Id"
+              },
+              "design_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Name"
               }
             },
             "required": [
@@ -1811,7 +1900,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Complete editable source with an explicit discussion-history inclusion marker.",
+        "description": "Editable source with explicit markers for omitted discussion and interactive data.",
         "properties": {
           "id": {
             "pattern": "^[a-z0-9][a-z0-9-]{0,79}$",
@@ -1898,6 +1987,21 @@
           "feedback_included": {
             "title": "Feedback Included",
             "type": "boolean"
+          },
+          "interactive_html_included": {
+            "default": true,
+            "title": "Interactive Html Included",
+            "type": "boolean"
+          },
+          "interactive_html_bytes": {
+            "default": 0,
+            "title": "Interactive Html Bytes",
+            "type": "integer"
+          },
+          "interactive_html_hash": {
+            "default": "",
+            "title": "Interactive Html Hash",
+            "type": "string"
           }
         },
         "required": [
@@ -1911,6 +2015,707 @@
           "feedback_included"
         ],
         "title": "AgentSlideView",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "publish_slide_designs",
+      "description": "Offer 1–5 named whole-slide designs without replacing the current slide.\n\nRead get_slide first and pass its content_hash. Local assets and interactive dependencies\nare frozen for review. The original is retained automatically. Only the human can decide\nUse this design or Keep current. To refine proposals, read their source and publish a new\nset; old design IDs and feedback anchors remain immutable. Exact request retries are safe.\n",
+      "input_schema": {
+        "$defs": {
+          "DesignInput": {
+            "additionalProperties": false,
+            "description": "A whole-slide direction; human notes and approval cannot be supplied.",
+            "properties": {
+              "name": {
+                "maxLength": 60,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "default": "",
+                "maxLength": 240,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "maxLength": 150000,
+                "minLength": 1,
+                "title": "Html",
+                "type": "string"
+              },
+              "interactive_html": {
+                "default": "",
+                "maxLength": 2000000,
+                "title": "Interactive Html",
+                "type": "string"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
+              },
+              "sources": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/Source"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sources"
+              }
+            },
+            "required": [
+              "name",
+              "html"
+            ],
+            "title": "DesignInput",
+            "type": "object"
+          },
+          "Source": {
+            "additionalProperties": false,
+            "description": "A source attached to a specific slide.",
+            "properties": {
+              "label": {
+                "title": "Label",
+                "type": "string"
+              },
+              "url": {
+                "default": "",
+                "title": "Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "title": "Source",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "expected_content_hash": {
+            "title": "Expected Content Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/$defs/DesignInput"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "expected_content_hash",
+          "request_id",
+          "options"
+        ],
+        "title": "publish_slide_designsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "DesignOption": {
+            "additionalProperties": false,
+            "description": "Small proposal metadata, separate from its source and frozen document.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "title": "Rationale",
+                "type": "string"
+              },
+              "source_hash": {
+                "title": "Source Hash",
+                "type": "string"
+              },
+              "preview_url": {
+                "title": "Preview Url",
+                "type": "string"
+              },
+              "is_original": {
+                "default": false,
+                "title": "Is Original",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "name",
+              "rationale",
+              "source_hash",
+              "preview_url"
+            ],
+            "title": "DesignOption",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One immutable publication and its current review decision.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "boolean"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/$defs/DesignOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "current_option_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Option Id"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "pending",
+          "stale",
+          "options",
+          "current_option_id",
+          "decision_id"
+        ],
+        "title": "DesignSet",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_slide_designs",
+      "description": "Read available design sets, human decisions and source-free preview pointers.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "decision_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Cursor"
+          },
+          "set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Set Id"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id"
+        ],
+        "title": "get_slide_designsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "DesignDecision": {
+            "additionalProperties": false,
+            "description": "A source-free receipt, also used in the human decision history.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "action": {
+                "enum": [
+                  "choose",
+                  "keep",
+                  "undo"
+                ],
+                "title": "Action",
+                "type": "string"
+              },
+              "option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Option Id"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "created_at": {
+                "title": "Created At",
+                "type": "string"
+              },
+              "content_hash": {
+                "title": "Content Hash",
+                "type": "string"
+              },
+              "revision": {
+                "title": "Revision",
+                "type": "integer"
+              },
+              "pending": {
+                "title": "Pending",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "action",
+              "option_id",
+              "name",
+              "created_at",
+              "content_hash",
+              "revision",
+              "pending"
+            ],
+            "title": "DesignDecision",
+            "type": "object"
+          },
+          "DesignOption": {
+            "additionalProperties": false,
+            "description": "Small proposal metadata, separate from its source and frozen document.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "title": "Rationale",
+                "type": "string"
+              },
+              "source_hash": {
+                "title": "Source Hash",
+                "type": "string"
+              },
+              "preview_url": {
+                "title": "Preview Url",
+                "type": "string"
+              },
+              "is_original": {
+                "default": false,
+                "title": "Is Original",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "name",
+              "rationale",
+              "source_hash",
+              "preview_url"
+            ],
+            "title": "DesignOption",
+            "type": "object"
+          },
+          "DesignSet": {
+            "additionalProperties": false,
+            "description": "One immutable publication and its current review decision.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "created_at": {
+                "title": "Created At",
+                "type": "string"
+              },
+              "pending": {
+                "title": "Pending",
+                "type": "boolean"
+              },
+              "stale": {
+                "title": "Stale",
+                "type": "boolean"
+              },
+              "options": {
+                "items": {
+                  "$ref": "#/$defs/DesignOption"
+                },
+                "title": "Options",
+                "type": "array"
+              },
+              "current_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Current Option Id"
+              },
+              "decision_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Decision Id"
+              }
+            },
+            "required": [
+              "id",
+              "created_at",
+              "pending",
+              "stale",
+              "options",
+              "current_option_id",
+              "decision_id"
+            ],
+            "title": "DesignSet",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Lazy proposal metadata; no rendered documents, human notes or source bodies.",
+        "properties": {
+          "sets": {
+            "items": {
+              "$ref": "#/$defs/DesignSet"
+            },
+            "title": "Sets",
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/$defs/DesignDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Cursor"
+          },
+          "next_decision_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Next Decision Cursor"
+          }
+        },
+        "required": [
+          "sets",
+          "decisions",
+          "content_hash"
+        ],
+        "title": "DesignPage",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_slide_design",
+      "description": "Read one immutable design's audience source, including its proposal feedback hash.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "design_id"
+        ],
+        "title": "get_slide_designArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "$defs": {
+          "DesignOption": {
+            "additionalProperties": false,
+            "description": "Small proposal metadata, separate from its source and frozen document.",
+            "properties": {
+              "id": {
+                "title": "Id",
+                "type": "string"
+              },
+              "set_id": {
+                "title": "Set Id",
+                "type": "string"
+              },
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "title": "Rationale",
+                "type": "string"
+              },
+              "source_hash": {
+                "title": "Source Hash",
+                "type": "string"
+              },
+              "preview_url": {
+                "title": "Preview Url",
+                "type": "string"
+              },
+              "is_original": {
+                "default": false,
+                "title": "Is Original",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "set_id",
+              "name",
+              "rationale",
+              "source_hash",
+              "preview_url"
+            ],
+            "title": "DesignOption",
+            "type": "object"
+          },
+          "Source": {
+            "additionalProperties": false,
+            "description": "A source attached to a specific slide.",
+            "properties": {
+              "label": {
+                "title": "Label",
+                "type": "string"
+              },
+              "url": {
+                "default": "",
+                "title": "Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "title": "Source",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One immutable proposal's editable audience source, excluding private notes.",
+        "properties": {
+          "option": {
+            "$ref": "#/$defs/DesignOption"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "html": {
+            "title": "Html",
+            "type": "string"
+          },
+          "interactive_html": {
+            "title": "Interactive Html",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/$defs/Source"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "option",
+          "title",
+          "html",
+          "interactive_html",
+          "sources"
+        ],
+        "title": "DesignSource",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_slide_design",
+      "description": "Visually inspect a frozen proposed design without changing the chosen slide.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "design_id"
+        ],
+        "title": "capture_slide_designArguments",
         "type": "object"
       },
       "annotations": {
@@ -2368,15 +3173,67 @@
     },
     {
       "name": "get_capture_status",
-      "description": "Read capture queue activity and capacity without starting a browser or loading slides.",
+      "description": "Read queue and last renderer readiness. probe_renderer=True tests sandbox launch now.\nDefault does not launch a browser. A successful probe does not verify any slide pixels.\n",
       "input_schema": {
-        "properties": {},
+        "properties": {
+          "probe_renderer": {
+            "default": false,
+            "title": "Probe Renderer",
+            "type": "boolean"
+          }
+        },
         "title": "get_capture_statusArguments",
         "type": "object"
       },
       "output_schema": {
         "additionalProperties": true,
         "title": "get_capture_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "check_slide_text",
+      "description": "Compare existing full-resolution capture pixels with expected visible text using local OCR.\nRead topic='text_review'. Requires optional Tesseract. Returns anchored mismatch candidates\nand confidence for visual review, never approval or proof that glyphs are correct.\nSupply expected text for this captured reveal stage; private notes are not read.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "capture_id": {
+            "title": "Capture Id",
+            "type": "string"
+          },
+          "expected_text": {
+            "title": "Expected Text",
+            "type": "string"
+          },
+          "language": {
+            "default": "eng",
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "capture_id",
+          "expected_text"
+        ],
+        "title": "check_slide_textArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "check_slide_textDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -2487,6 +3344,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -4060,7 +4918,7 @@
     },
     {
       "name": "list_presentation_assets",
-      "description": "List actual deck-local assets with paths, sizes and replacement hashes; no binary data.\nget_design_assets lists brand source files; use this after adding assets to a deck.\nimport_directory is a deck-specific staging path for agent downloads/extracted dependencies.\n",
+      "description": "List actual deck-local assets with paths, sizes and replacement hashes; no binary data.\nget_design_assets lists brand source files; use this after adding assets to a deck.\nCreates import_directory when missing: a deck-specific staging directory for downloads.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -4095,7 +4953,7 @@
         "type": "object"
       },
       "annotations": {
-        "read_only_hint": true,
+        "read_only_hint": false,
         "destructive_hint": false
       }
     },
@@ -4163,6 +5021,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -4353,6 +5212,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -4636,6 +5496,42 @@
                   }
                 ],
                 "default": null
+              },
+              "design_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Set Id"
+              },
+              "design_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Id"
+              },
+              "design_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Name"
               }
             },
             "required": [
@@ -4945,6 +5841,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -5137,6 +6034,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },
@@ -5420,6 +6318,42 @@
                   }
                 ],
                 "default": null
+              },
+              "design_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Set Id"
+              },
+              "design_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Id"
+              },
+              "design_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Name"
               }
             },
             "required": [
@@ -6118,6 +7052,42 @@
                   }
                 ],
                 "default": null
+              },
+              "design_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Set Id"
+              },
+              "design_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Id"
+              },
+              "design_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Name"
               }
             },
             "required": [
@@ -6749,6 +7719,42 @@
                   }
                 ],
                 "default": null
+              },
+              "design_set_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Set Id"
+              },
+              "design_option_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Id"
+              },
+              "design_option_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Design Option Name"
               }
             },
             "required": [
@@ -7144,6 +8150,7 @@
                 "type": "array"
               },
               "alternatives": {
+                "description": "Legacy text notes. Use publish_slide_designs for previewable, selectable design alternatives.",
                 "items": {
                   "type": "string"
                 },

@@ -11,8 +11,8 @@
 .project-tree-disclosure .ui-icon{width:12px;height:12px;transition:transform .12s}
 .project-tree-disclosure[aria-expanded=true] .ui-icon{transform:rotate(90deg)}
 .project-tree-disclosure.is-spacer{visibility:hidden;pointer-events:none}
-.hub-sidebar .project-tree-open{flex:1;min-width:0;gap:8px;padding:7px 3px;text-align:left;justify-content:flex-start;font-size:12px}
-.project-tree-open>span:not(.hub-count){flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hub-sidebar .project-tree-open{flex:1;min-width:0;gap:6px;padding:7px 3px;text-align:left;justify-content:flex-start;font-size:12px}
+.project-tree-open>span:not(.hub-count):not(.project-connected-badge){flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .project-tree-open>.ui-icon{width:16px;height:16px;color:var(--hub-blue)}
 [data-node-kind=folder] .project-tree-open>.ui-icon{color:#b48a42}
 .project-tree-row:has([aria-current=true]){background:var(--hub-soft);color:var(--hub-blue)}

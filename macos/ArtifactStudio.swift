@@ -33,6 +33,20 @@ private struct BackupStatus: Decodable {
     let error: String
 }
 
+private struct NavigationEntry: Decodable, Equatable {
+    let id: String
+    let title: String
+    let url: String
+    let project_id: String
+    let project_title: String
+    let harness: String
+}
+
+private struct NavigationSnapshot: Decodable, Equatable {
+    var connected: [NavigationEntry]
+    let recent: [NavigationEntry]
+}
+
 private enum BackupRequestError: LocalizedError {
     case response(String)
     var errorDescription: String? {
@@ -106,6 +120,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var backupStatuses: [BackupStatus] = []
     private var backupLoading = false
     private var backupError = ""
+    private var navigation = NavigationSnapshot(connected: [], recent: [])
+    private var renderedNavigation: NavigationSnapshot?
+    private var navigationItems: [NSMenuItem] = []
+    private var navigationLoading = false
+    private var navigationUpdated = Date.distantPast
+    private var navigationEnabled = false
     private let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let startItem = NSMenuItem(title: "Start", action: #selector(start), keyEquivalent: "")
     private let stopItem = NSMenuItem(title: "Stop", action: #selector(stop), keyEquivalent: "")
@@ -206,6 +226,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         backupItem.isEnabled = !updating && state == .running
         if state != .running { backupLibraries = []; backupStatuses = []; backupError = "" }
         renderBackupMenu()
+        renderNavigation()
         startItem.isEnabled = !updating && (state == .stopped || state == .failed)
         stopItem.isEnabled = !updating && process?.isRunning == true && state != .stopping
         restartItem.isEnabled = !updating && process?.isRunning == true && state == .running
@@ -222,6 +243,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === self.menu, state == .running else { return }
         Task { await refreshBackup() }
+        Task { await refreshNavigation() }
+    }
+
+    private func refreshNavigation() async {
+        guard state == .running, !navigationLoading else { return }
+        navigationLoading = true
+        defer { navigationLoading = false; renderNavigation() }
+        do {
+            navigation = try JSONDecoder().decode(NavigationSnapshot.self, from: await request("api/navigation", timeout: 5))
+            navigationUpdated = Date()
+        } catch { navigation.connected = [] }
+    }
+
+    private func renderNavigation() {
+        let enabled = state == .running && !updating
+        var visible = navigation
+        if !enabled { visible.connected = [] }
+        guard renderedNavigation != visible || navigationEnabled != enabled else { return }
+        renderedNavigation = visible
+        navigationEnabled = enabled
+        for item in navigationItems { menu.removeItem(item) }
+        navigationItems = []
+        for (title, entries) in [("Connected", visible.connected), ("Recent Projects", visible.recent)] where !entries.isEmpty {
+            let heading = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let submenu = title == "Recent Projects" ? NSMenu(title: title) : nil
+            heading.isEnabled = submenu != nil && enabled
+            heading.submenu = submenu
+            navigationItems.append(heading)
+            for entry in entries {
+                let item = NSMenuItem(title: entry.title, action: #selector(openNavigation), keyEquivalent: "")
+                item.target = self
+                item.representedObject = entry.url
+                item.isEnabled = enabled
+                if entry.harness.isEmpty {
+                    let agents = visible.connected.filter { $0.project_id == entry.project_id }.map { $0.harness == "codex" ? "Codex" : $0.harness == "claude-code" ? "Claude Code" : $0.harness }
+                    if agents.isEmpty {
+                        item.image = NSImage(systemSymbolName: "square.stack.3d.up", accessibilityDescription: nil)
+                        item.toolTip = entry.title
+                    } else {
+                        item.image = NSImage(systemSymbolName: "powerplug.fill", accessibilityDescription: "Agent connected")?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [.systemGreen]))
+                        item.image?.isTemplate = false
+                        item.toolTip = "\(entry.title) · \(Set(agents).sorted().joined(separator: ", ")) connected"
+                    }
+                } else {
+                    let image = NSImage(size: NSSize(width: 16, height: 16), flipped: false) { _ in
+                        NSColor.systemGreen.setFill()
+                        NSBezierPath(ovalIn: NSRect(x: 5, y: 5, width: 6, height: 6)).fill()
+                        return true
+                    }
+                    image.isTemplate = false
+                    item.image = image
+                    item.toolTip = "\(entry.project_title) · \(entry.harness == "codex" ? "Codex" : entry.harness == "claude-code" ? "Claude Code" : entry.harness) connected"
+                }
+                if let submenu { submenu.addItem(item) } else { navigationItems.append(item) }
+            }
+            navigationItems.append(.separator())
+        }
+        for (offset, item) in navigationItems.enumerated() { menu.insertItem(item, at: 2 + offset) }
+    }
+
+    @objc private func openNavigation(_ sender: NSMenuItem) {
+        guard state == .running, let path = sender.representedObject as? String,
+              let url = URL(string: path, relativeTo: workspaceURL)?.absoluteURL,
+              url.host == workspaceURL.host, url.port == workspaceURL.port else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func request(_ path: String, body: [String: Bool]? = nil, timeout: TimeInterval = 15) async throws -> Data {
@@ -387,6 +473,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             external = false
         }
         updateMenu()
+        if ready && Date().timeIntervalSince(navigationUpdated) > 10 { await refreshNavigation() }
     }
 
     @objc private func start() {

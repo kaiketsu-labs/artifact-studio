@@ -134,6 +134,59 @@ def test_outline_keeps_order_and_tokens_without_source_or_history(store: Store) 
     assert service.get_slide(TEMPLATE_ID, "cover").html == original.slides[0].html
 
 
+def test_targeted_slide_read_omits_only_interactive_body(store: Store) -> None:
+    """Large embedded dependencies stay optional without weakening guards or erasing source."""
+    before = store.read(TEMPLATE_ID).slides[0]
+    interactive = "<style>/*" + "embedded-font-data-" * 30_000 + "*/</style><p>Exact text</p>"
+    _ = store.revise(
+        TEMPLATE_ID,
+        before.id,
+        digest(before.model_dump_json()),
+        "large-interactive-fixture",
+        SlidePatch(interactive_html=interactive, notes="Human speaker note"),
+    )
+    full = service.get_slide(TEMPLATE_ID, "cover")
+    _ = store.add_feedback(
+        TEMPLATE_ID, "cover", "Released review", full.content_hash, "read-release"
+    )
+    _ = store.set_mode(TEMPLATE_ID, "batch")
+    _ = store.add_feedback(
+        TEMPLATE_ID, "cover", "Withheld review", full.content_hash, "read-withheld"
+    )
+    discussion = service.get_slide(
+        TEMPLATE_ID, "cover", include_feedback=True, include_interactive_html=False
+    )
+    assert "Released review" in discussion.model_dump_json()
+    assert "Withheld review" not in discussion.model_dump_json()
+    targeted = service.get_slide(TEMPLATE_ID, "cover", include_interactive_html=False)
+    assert targeted.interactive_html == "" and not targeted.interactive_html_included
+    assert targeted.interactive_html_bytes == len(interactive.encode())
+    assert targeted.interactive_html_hash == digest(interactive)
+    assert targeted.expected_hash == full.expected_hash
+    assert targeted.content_hash == full.content_hash
+    assert targeted.notes == full.notes == "Human speaker note"
+    assert targeted.html == full.html and targeted.approved == full.approved
+    assert len(targeted.model_dump_json()) < len(full.model_dump_json()) / 50
+    _ = service.revise_slide(
+        TEMPLATE_ID,
+        "cover",
+        targeted.expected_hash,
+        "targeted-title-edit",
+        SlidePatch(title="Updated title"),
+    )
+    current = service.get_slide(TEMPLATE_ID, "cover")
+    assert current.interactive_html == interactive and current.interactive_html_included
+    assert current.notes == "Human speaker note"
+    with pytest.raises(ToolError, match="changed"):
+        _ = service.revise_slide(
+            TEMPLATE_ID,
+            "cover",
+            targeted.expected_hash,
+            "targeted-stale-edit",
+            SlidePatch(title="Stale title"),
+        )
+
+
 def test_guides_and_discovery_can_be_retained_independently_of_rules(
     store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -26,6 +26,8 @@
 
 The **Library** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
 
+Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Created**, or **File type**. File type shows separate format groups; the arrow reverses the order. One choice is remembered in this browser across overviews. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
+
 | Artifact | Review it in its own format |
 | --- | --- |
 | Presentations | Slide thumbnails, element feedback, sections, notes, animations and a private presenter view. |
@@ -122,7 +124,7 @@ Reload the agent session if the connection is not visible, then start with:
 
 Use `get_working_context(artifact_id=...)` for selected work or `project_id=...` before creating related work. Existing decks also accept `deck_id=...` and retain their design guidance. The [agent contract map](agent/README.md) explains the canonical bootstrap, guides, tools and context receipts.
 
-**Microsoft 365 Copilot:** use a Copilot Studio agent with the optional [authenticated gateway](docs/MICROSOFT-COPILOT.md). Select one project or explicitly allow the workspace. The gateway needs an approved HTTPS endpoint; the local editor stays private. Start from **Connect an agent → Microsoft 365 Copilot**, or the hub menu. Microsoft sign-in, connector policies and an actual Copilot tool call must be verified separately. Automatic Copilot wake-up is not included.
+**Microsoft 365 Copilot:** use a Copilot Studio agent with the optional [authenticated gateway](docs/MICROSOFT-COPILOT.md). Select one project or explicitly allow the workspace. The gateway needs an approved HTTPS endpoint; the local editor stays private. Start from **Agent connection → Microsoft 365 Copilot**, or the hub menu. Microsoft sign-in, connector policies and an actual Copilot tool call must be verified separately. Automatic Copilot wake-up is not included.
 
 Open **Designs → Add design**, enter a name, then drop in reference files or choose them from your computer. Master slides, guidelines, PDFs, logos, images, fonts and other file types are supported. The description is collapsed and optional; files can also be added later. **Add design** saves the collection and opens its context files. A design does not need example slides.
 
@@ -172,6 +174,14 @@ The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds 
 
 `capture_artifact` returns an actual rendered image with revision and viewport metadata. It can sample elapsed animation time in a fresh offline runtime. Use a browser for user-driven interaction states; use the existing slide capture tools for presentations. Preview cards use cached images, not a running iframe per artifact.
 
+## Explore slide designs
+
+![A whole-slide design preview alongside the original and three authored alternatives. The chosen design has a gold border and check.](docs/assets/slide-designs.png)
+
+Ask your agent for several directions for a slide. Hover the slide's stacked-card count for clickable previews, or open **Designs**. Previewing leaves the chosen slide unchanged. **Compare** shows any two designs; **Keep current** or **Use this design** records your decision and puts the options away. The chosen design has a stronger gold border and a check icon.
+
+Alternatives stay in **Version history → Design decisions & saved alternatives**, and the decision has Undo. Feedback written while previewing stays attached to that proposal. Speaker notes remain intact. [Workflow, agent tools and limits](docs/SLIDE-DESIGNS.md).
+
 ## Live or Batch
 
 | Live | Batch |
@@ -181,7 +191,7 @@ The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds 
 
 Automatic host continuation currently applies to **presentation review only**, through the supported Codex/Claude Code hooks. General artifact feedback is durable, but does not automatically wake an agent. The Live availability indicator and tooltip distinguish these capabilities. Plain MCP cannot wake a closed chat.
 
-For a deck, open the editor's **Menu → Connect an agent → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), the agent then connects automatically when it selects or works on the presentation. Copying a prompt alone does not configure or activate the host.
+For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), the agent then connects automatically when it selects or works on the presentation. Copying a prompt alone does not configure or activate the host.
 
 Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
 
@@ -220,7 +230,9 @@ Select a slide or HTML element to open a compact floating toolbar without moving
 
 **Share** exports one artifact or a project ZIP. Choose **HTML** or **PDF** for presentations, then **Share…** opens your device’s native share sheet. Choose Teams, Mail or another compatible installed app there. **Save file** remains available when the browser cannot share the file; Outlook drafts are also available on supported Macs. HTML presentation files embed local assets and keep animations; PDF includes all slides. Multi-file HTML artifacts retain their bundle in a ZIP. Private review chats and speaker notes are omitted. Outlook handoff is available on macOS with Outlook installed; nothing is sent automatically. [Sharing and exports](docs/PROJECTS.md#share-an-artifact-or-project).
 
-Presentation **Save/Open project** remains the portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Opted-in repository backup includes current artifact bundles, project briefs and manifests alongside presentations; creating a project does not opt it into uploads. Repository connections default to reference only. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
+**Save presentation / Import presentation** transfers a portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Opted-in repository backup includes current artifact bundles, project briefs and manifests alongside presentations; creating a project does not opt it into uploads. Repository connections default to reference only. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
+
+The app's **Menu** and [Mac menu-bar app](docs/MACOS.md) put active agent reviews first, marked with green dots. **Recent projects →** opens a submenu of your last five projects, shared across both interfaces. Hover, click or use arrow keys to switch projects.
 
 The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way backup to a selected private repository; review chat, approvals and revision history stay local. The Mac menu’s **GitHub Backup** submenu exposes the same setting, last delivery, Sync Now/Retry and backup settings.
 

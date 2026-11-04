@@ -120,7 +120,7 @@ def test_asset_import_receipts_replacement_and_boundaries(store: Store, tmp_path
     deck = store.create("2026-11-04-assets", "Assets", "test-brand")
     service = PresentationFiles(store)
     source = Path(str(service.assets(deck.id)["import_directory"])) / "download.svg"
-    source.parent.mkdir()
+    assert source.parent.is_dir()
     _ = source.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>New artwork</text></svg>')
     original = service.import_asset(deck.id, str(source), "assets/new/art.svg")
     assert original["sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
@@ -168,6 +168,34 @@ def test_asset_sources_are_scoped_to_authorized_material(store: Store, tmp_path:
         service.import_asset(deck.id, str(selected_brand_asset), "assets/brand.svg")["path"]
         == "assets/brand.svg"
     )
+
+
+def test_staging_is_ready_and_missing_sources_are_actionable(store: Store) -> None:
+    """The advertised staging path works immediately and source failures explain the cause."""
+    service = PresentationFiles(store)
+    first = service.assets(TEMPLATE_ID)
+    directory = Path(str(first["import_directory"]))
+    assert directory.is_dir()
+    assert service.assets(TEMPLATE_ID)["import_directory"] == str(directory)
+    with pytest.raises(FileNotFoundError, match="does not exist.*create the file first"):
+        service.import_asset(TEMPLATE_ID, str(directory / "missing.svg"), "assets/missing.svg")
+    with pytest.raises(ValueError, match="not a directory"):
+        service.import_asset(TEMPLATE_ID, str(directory), "assets/directory.svg")
+
+
+@pytest.mark.parametrize("blocker", ["symlink", "file"])
+def test_staging_rejects_symlinks_and_files(store: Store, tmp_path: Path, blocker: str) -> None:
+    """Listing never creates a staging directory through an external link or existing file."""
+    staging = store.folder(TEMPLATE_ID) / ".authoring-assets"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if blocker == "symlink":
+        staging.symlink_to(outside, target_is_directory=True)
+    else:
+        _ = staging.write_text("Keep this file")
+    with pytest.raises(ValueError, match="import (directory|path)"):
+        PresentationFiles(store).assets(TEMPLATE_ID)
+    assert list(outside.iterdir()) == []
 
 
 def test_css_asset_embedding_matches_accepted_syntax(store: Store) -> None:

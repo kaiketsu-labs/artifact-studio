@@ -20,7 +20,7 @@ In **Context files**, click a text file's name or icon to open it in the preview
 
 The VS Code-style source editor includes line numbers, syntax highlighting, bracket matching, folding, undo/redo and find/replace (⌘F / Ctrl+F). It uses a locally bundled [CodeMirror](https://codemirror.net/docs/guide/) and loads only when editing. Rebuild that optional frontend dependency with `npm ci --ignore-scripts && npm run build` in `scripts/text-editor`; versions and bundled license notices are checked in. Normal app installation does not require Node.js.
 
-For a pack already in a GitHub repo, connect that repo using **Menu → Reference libraries**, or ask the agent to register it as a reference library. The agent refreshes the repo, inspects its files and copies the chosen pack into your local collection before registering it. Registering a library alone does not install its designs or upload your files.
+For a pack already in a GitHub repo, connect that repo using **Menu → Storage and backup**, or ask the agent to register it as a reference library. The agent refreshes the repo, inspects its files and copies the chosen pack into your local collection before registering it. Registering a library alone does not install its designs or upload your files.
 
 To add a PowerPoint source to an existing design, use **New presentation → Manage references** or **Menu → Design references**. Attach any file type, such as PowerPoint, PDF, images, documents or data: up to five per batch, 25 MB each and 50 MB total. Downloads are inert; attaching a file does not prove the agent can inspect its format. They are shared by presentations using that design and give the agent reference material; attaching a file does not automatically apply its template or slides. An upload also queues a design inbox notice for an active agent with trusted, loaded review hooks. Ask the agent to inspect the source and preserve the branding while composing appropriate layouts. If the design pack is missing, restore or register it before attaching a reference.
 
@@ -49,7 +49,7 @@ For an existing filesystem bundle, `register_design(folder_id, design={id, name,
 | `presentation.js`, `icons.js`, `slideshow.css` | Copy from `runtime/`; these implement controls, notes, presenter behavior and utility UI styles |
 | `assets/` | Local fonts, logos, icons and artwork actually used by the design |
 | `README.md` | Source provenance, rights/context, design language, data date and continuation guidance |
-| `AGENT-GUIDE.md` | Copy the app guide and add any pack-specific authoring details |
+| `AGENT-GUIDE.md` | Keep brand-specific authoring details; load the current app workflow on demand |
 | `PREFERENCES.md` | The user's preferences, kept separate from source facts |
 | Original master and `reference/` | Preserve supplied material and extracted custom assets when available |
 
@@ -60,6 +60,8 @@ The JSON shape is defined by `artifact_studio.models.Deck` and `Slide`: `schema_
 Create enough compositions to demonstrate the design language; they are optional examples, not fixed templates. Preserve the freedom to move boxes, resize text, draw diagrams and invent new layouts. Avoid importing verbose source-slide copy into new decks. Notes add context the audience cannot already read; questions and explanations belong in the agent panel.
 
 Scaffolded packs are already registered; manually prepared packs need `register_design`. A new `design_id` must be unique, including reference collections and archived designs. Call `set_default_design(design_id)` when requested. Verify `get_design_assets` lists the master and custom assets, then create a presentation with the selected design to confirm its fonts, assets and review flow. Original masters stay in the pack rather than being duplicated into every new deck.
+
+Newly scaffolded `AGENT-GUIDE.md` contains a short brand-authoring starter and a pointer to `get_authoring_guide(topic="workflow")`, rather than a copy of the full app guide. Add source-specific guidance there; existing pack guides are preserved. Returned `import_directory` paths exist and accept staged downloads immediately. Missing source files are reported separately from symlink or directory errors.
 
 ## Updating presentations from their design
 

@@ -83,6 +83,21 @@ def test_hub_poll_updates_review_controls_without_replacing_drafts(
     expect(page.locator('[data-mode="batch"]')).to_be_focused()
 
 
+def test_slide_feedback_waits_for_the_initial_slide(page: Page, live_app: RunningApp) -> None:
+    """Prevent a draft from being typed before its slide identity is available."""
+    pending: list[Route] = []
+    page.route(f"**/api/decks/{DECK_ID}", lambda route: pending.append(route))
+    with page.expect_request(f"**/api/decks/{DECK_ID}"):
+        _ = page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    field = page.locator("#feedback-text")
+    expect(field).to_be_disabled()
+    assert len(pending) == 1
+    pending[0].continue_()
+    expect(field).to_be_enabled()
+    field.fill("Draft after the slide is ready")
+    expect(field).to_have_value("Draft after the slide is ready")
+
+
 @pytest.mark.parametrize("kind", ["artifact", "slides"])
 def test_feedback_mode_race_preserves_draft_and_requires_explicit_resubmit(
     browser: Browser, live_app: RunningApp, tmp_path: Path, kind: str

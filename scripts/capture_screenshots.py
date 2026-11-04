@@ -18,6 +18,7 @@ from playwright.sync_api import Browser, Page, Route, expect, sync_playwright
 
 from artifact_studio.agent_client import Invocation
 from artifact_studio.models import Deck
+from artifact_studio.review import ReviewHookInput, Reviews
 from artifact_studio.visuals import CaptureOptions, Diagnostics, Frame, contact_sheet, snapshot
 from scripts.screenshot_fixture import seed
 from tests.integration.support import DECK_ID, PROJECT, RunningApp, running_app
@@ -245,7 +246,7 @@ class Capture:
         self.page.keyboard.press("Escape")
 
     def projects(self) -> None:
-        self.menu("Project files")
+        self.menu("Presentation files")
         self.save("docs/assets/projects.png")
         self.page.locator("#close-project").click()
 
@@ -391,6 +392,7 @@ class Capture:
         self.references()
         self.visual_review(self.app.store.read(DECK_ID))
         self.library()
+        self.quick_access()
         self.mobile_chat()
         if self.errors:
             raise RuntimeError(self.errors)
@@ -473,6 +475,33 @@ p{font-size:20px;max-width:480px;line-height:1.6}.cards{display:flex;gap:16px;ma
         expect(self.page.locator("#hub-element-properties")).to_be_visible()
         self.page.locator("#hub-feedback-text").fill("Give the headline a little more room.")
         self.save("docs/assets/artifact-review.png")
+
+    def quick_access(self) -> None:
+        """Show shared project switching with a fictional, explicitly seeded review lease."""
+        for title in ("Customer research", "Product strategy", "Quarterly review"):
+            project = self.app.post("/api/hub/projects", {"title": title})
+            self.page.goto(f"{self.app.url}/?project={project['id']}")
+            expect(self.page.get_by_role("heading", name=title, exact=True)).to_be_visible()
+        _ = Reviews(self.app.store).bind(
+            ReviewHookInput(
+                harness="codex", session_id="documentation-fixture", event="PostToolUse",
+                deck_id=DECK_ID, auto_start=True,
+            )
+        )
+        self.page.get_by_role("button", name="Menu", exact=True).click()
+        self.page.get_by_role("menuitem", name="Recent projects", exact=True).hover()
+        expect(self.page.locator("#hub-tools-menu-recents")).to_be_visible()
+        self.save("docs/assets/quick-access.png")
+        self.page.goto(f"{self.app.url}/?deck={DECK_ID}")
+        expect(self.page.locator("#slide-title")).to_be_visible()
+        self.appearance("Dark")
+        self.page.get_by_role("button", name="Menu", exact=True).click()
+        self.page.get_by_role("menuitem", name="Recent projects", exact=True).hover()
+        expect(self.page.locator("#workspace-menu-recents")).to_be_visible()
+        self.save("docs/screenshots/quick-access-dark.png")
+        self.page.keyboard.press("Escape")
+        self.page.keyboard.press("Escape")
+        self.appearance("Light")
 
 
 def main() -> None:
