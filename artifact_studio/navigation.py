@@ -62,8 +62,19 @@ class Navigation:
                 for row in db.execute("SELECT id,document FROM artifact_projects")
             }
             archived = {cast(str, row[0]) for row in db.execute("SELECT deck FROM archived_decks")}
+            assigned = {
+                cast(str, row[0])
+                for row in db.execute(
+                    "SELECT artifact_id FROM artifact_legacy_projects WHERE project_id<>?",
+                    (LEGACY_PROJECT,),
+                )
+            }
+        excluded = archived | assigned
         if any(
-            path.parent.name not in archived and not (path.parent / "design.json").exists()
+            path.parent.name not in excluded
+            and not (path.parent / "design.json").exists()
+            and not (path.parent / "design-context.json").exists()
+            and 'id="deck-data"' in path.read_text()
             for path in self.store.root.glob("*/index.html")
         ):
             projects[LEGACY_PROJECT] = ProjectView(

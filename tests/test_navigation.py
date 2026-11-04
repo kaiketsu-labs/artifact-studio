@@ -98,6 +98,24 @@ def test_artifact_visits_follow_membership_without_reading_bundle_bodies(
     assert navigation.visit(NavigationVisit(artifact_id=deck)).recent[0].id == project.id
 
 
+def test_moving_the_last_legacy_deck_removes_its_virtual_project_shortcut(
+    navigation: Navigation,
+) -> None:
+    """Keep recent project destinations consistent with actual hub membership."""
+    artifacts = ArtifactStore(navigation.store)
+    deck = "2026-11-04-navigation"
+    _ = navigation.visit(NavigationVisit(artifact_id=deck))
+    project = artifacts.create_project("Team launch")
+    _ = artifacts.set_artifact_project(deck, project.id)
+    assert [entry.id for entry in artifacts.list_projects()] == [project.id]
+    assert not navigation.snapshot().recent
+    plain = navigation.store.root / "plain-page"
+    plain.mkdir()
+    _ = (plain / "index.html").write_text("<h1>A page, not a presentation</h1>")
+    assert not navigation.snapshot().recent
+    assert navigation.visit(NavigationVisit(artifact_id=deck)).recent[0].id == project.id
+
+
 def test_navigation_http_keeps_invalid_and_cross_origin_visits_out(
     navigation: Navigation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
