@@ -304,7 +304,10 @@ def test_scoped_context_discovery_and_selected_reference(client: TestClient) -> 
                 cast(dict[str, object], selected["artifact"])["context"]
                 == "Artifact private context"
             )
-    discovery = service.get_working_context(project_id=artifact.project_id)
+    assert (
+        service.get_working_context(project_id=artifact.project_id)["discovery_included"] is False
+    )
+    discovery = service.get_working_context(project_id=artifact.project_id, include_discovery=True)
     assert discovery["discovery_included"] is True
     assert all(
         "files" not in item

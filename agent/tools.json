@@ -4,7 +4,7 @@
   "tools": [
     {
       "name": "get_working_context",
-      "description": "Read first: compact startup with complete user rules; load guides on demand.\nPass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.\nPass design_id with a project/artifact to include a selected reference collection or pack.\nPass deck_id for existing work to select its design, not the workspace default.\nSupplying both IDs requires them to match.\nDesign references contain file pointers, not file contents; open relevant files yourself.\nFor decks, detail=\"full\" loads expanded guides and asset inventory; general artifacts\nuse their artifact guide for either detail setting.\nPass known_rules_hash only while retaining those rules; changes return full text.\nknown_guide_hash omits only the retained guide; omit hashes after context loss.\nFor a legacy deck selected by artifact_id, retain its nested guide separately with\nknown_presentation_guide_hash, only while retaining that exact text.\ninclude_discovery=False skips unrelated lists; selected brand and queued requests remain.\ncompact_sources=True links duplicate design-file provenance to design_context.files[N]\nin this same response; full file metadata and delivery status remain. Default stays full.\n",
+      "description": "Read first: compact startup with complete user rules; load guides on demand.\nPass artifact_id/project_id for general artifacts; deck_id selects legacy slide guidance.\nPass design_id with a project/artifact to include a selected reference collection or pack.\nPass deck_id for existing work to select its design, not the workspace default.\nSupplying both IDs requires them to match.\nDesign references contain file pointers, not file contents; open relevant files yourself.\nFor decks, detail=\"full\" loads expanded guides and asset inventory; general artifacts\nuse their artifact guide for either detail setting.\nPass known_rules_hash only while retaining those rules; changes return full text.\nknown_guide_hash omits only the retained guide; omit hashes after context loss.\nFor a legacy deck selected by artifact_id, retain its nested guide separately with\nknown_presentation_guide_hash, only while retaining that exact text.\nDiscovery lists are omitted by default; include_discovery=True loads them explicitly.\nSelected brand, complete rules and queued requests remain included.\ncompact_sources=True links duplicate design-file provenance to design_context.files[N]\nin this same response; full file metadata and delivery status remain. Default stays full.\n",
       "input_schema": {
         "properties": {
           "design_id": {
@@ -37,7 +37,7 @@
             "type": "string"
           },
           "include_discovery": {
-            "default": true,
+            "default": false,
             "title": "Include Discovery",
             "type": "boolean"
           },
@@ -3072,6 +3072,15 @@
             "default": false,
             "title": "Reduced Motion",
             "type": "boolean"
+          },
+          "resolution": {
+            "default": "full",
+            "enum": [
+              "full",
+              "draft"
+            ],
+            "title": "Resolution",
+            "type": "string"
           }
         },
         "required": [
@@ -3088,7 +3097,7 @@
     },
     {
       "name": "capture_contact_sheet",
-      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nReturns image pixels, full-size local frame paths, version hashes and next_offset.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\n",
+      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect slide_ids or page through the deck; up to 24 frames per sheet, in deck order.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -3101,15 +3110,57 @@
             "type": "integer"
           },
           "limit": {
-            "default": 12,
+            "default": 24,
             "title": "Limit",
             "type": "integer"
+          },
+          "slide_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Slide Ids"
+          },
+          "resolution": {
+            "default": "draft",
+            "enum": [
+              "full",
+              "draft"
+            ],
+            "title": "Resolution",
+            "type": "string"
           }
         },
         "required": [
           "deck_id"
         ],
         "title": "capture_contact_sheetArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_capture_status",
+      "description": "Read capture queue activity and capacity without starting a browser or loading slides.",
+      "input_schema": {
+        "properties": {},
+        "title": "get_capture_statusArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_capture_statusDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -3816,7 +3867,7 @@
     },
     {
       "name": "register_design",
-      "description": "Register a design prepared from a user-supplied PPTX, URL or example. Read the import\nguidance in get_working_context and prepare the local bundle using filesystem tools.\nThe user provides the reference; the agent handles extraction, files and registration.\n",
+      "description": "Register an existing local design bundle. For a new pack use create_design_pack,\nwrite_design_file and import_design_asset; scaffolding and registration are automatic.\n",
       "input_schema": {
         "$defs": {
           "DesignManifest": {
@@ -3899,6 +3950,222 @@
           "folder_id"
         ],
         "title": "DesignView",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_design_pack",
+      "description": "Scaffold and register a usable design: managed viewer/runtime, cover, CSS and guidance.\nReturns its folder_id for example slide editing and a staging directory for asset imports.\n",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "css": {
+            "default": "",
+            "title": "Css",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "name"
+        ],
+        "title": "create_design_packArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_design_packDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_design_file",
+      "description": "Read one design text file with its expected_hash; managed viewer CSS is omitted.",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "path"
+        ],
+        "title": "get_design_fileArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_design_fileDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "write_design_file",
+      "description": "Create/update design guidance, author CSS or assets text, guarded by the read hash.\nChanges affect new decks. Use presentation design sync to update existing decks.\n",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "expected_hash": {
+            "default": "",
+            "title": "Expected Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "path",
+          "text"
+        ],
+        "title": "write_design_fileArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "write_design_fileDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "import_design_asset",
+      "description": "Copy a staged/registered source into design assets; return metadata without binary text.\nSupply the destination's current hash to replace an existing asset.\n",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "source_path": {
+            "title": "Source Path",
+            "type": "string"
+          },
+          "asset_path": {
+            "title": "Asset Path",
+            "type": "string"
+          },
+          "expected_sha256": {
+            "default": "",
+            "title": "Expected Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "source_path",
+          "asset_path"
+        ],
+        "title": "import_design_assetArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "import_design_assetDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_presentation_design_sync",
+      "description": "Preview theme/asset changes from this deck's design, including local conflicts and hash.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "get_presentation_design_syncArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_presentation_design_syncDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "sync_presentation_design",
+      "description": "Apply a current design sync preview, preserving slides, notes and deck-only assets.\nLocally modified files require explicit overwrite=True; stale previews are rejected.\nRe-prepare existing embedded interactive snapshots to adopt changed dependencies.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "expected_hash": {
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deck_id",
+          "expected_hash"
+        ],
+        "title": "sync_presentation_designArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "sync_presentation_designDictOutput",
         "type": "object"
       },
       "annotations": {

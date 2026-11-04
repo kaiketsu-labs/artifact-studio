@@ -8,7 +8,14 @@ from pathlib import Path
 import pytest
 
 from artifact_studio import agent_client
-from artifact_studio.agent_client import Client, Invocation, execute, read_calls
+from artifact_studio.agent_client import (
+    Client,
+    Invocation,
+    execute,
+    prepare_calls,
+    read_calls,
+    save_prepared,
+)
 from artifact_studio.models import SlideReceipt
 
 
@@ -218,3 +225,125 @@ def test_verified_add_needs_retry_identity_before_any_write() -> None:
     with pytest.raises(ValueError, match="request_id"):
         _ = execute(client, [invocation("first"), add], verify=True)
     assert not client.initialized and not client.calls
+
+
+def test_prepare_reads_one_outline_and_persists_replayable_guards(tmp_path: Path) -> None:
+    """Fetch missing tokens once without echoing source or changing the unprepared draft."""
+    client = FakeClient(
+        lambda _: {
+            "slides": [receipt("first", "current-first"), receipt("second", "current-second")],
+            "rules_hash": "current-rules",
+            "rules_included": True,
+            "authoring_instructions": "Use the selected brand.",
+        }
+    )
+    calls = [invocation(sid) for sid in ("first", "second")]
+    for item in calls:
+        del item.arguments["expected_hash"]
+        del item.arguments["request_id"]
+    prepared, guidance = prepare_calls(client, calls, "retained-rules")
+    assert len(client.calls) == 1 and client.calls[0].tool == "get_presentation_outline"
+    assert client.calls[0].arguments["known_rules_hash"] == "retained-rules"
+    assert prepared[0].arguments["expected_hash"] == "current-first"
+    assert prepared[1].arguments["expected_hash"] == "current-second"
+    assert "request_id" not in calls[0].arguments
+    assert prepared[0].arguments["request_id"] != prepared[1].arguments["request_id"]
+    assert guidance[0]["authoring_instructions"] == "Use the selected brand."
+    path = tmp_path / "prepared.json"
+    token = save_prepared(path, prepared)
+    restored, restored_token = read_calls(path, token)
+    assert restored == prepared and restored_token == token
+    with pytest.raises(FileExistsError):
+        _ = save_prepared(path, calls)
+    assert read_calls(path)[0] == prepared
+
+
+def test_prepare_never_refreshes_explicit_guards_or_ids() -> None:
+    """Even stale-looking caller tokens survive preparation and subsequent execution."""
+    client = FakeClient(lambda _: pytest.fail("No read is needed for supplied guards"))
+    original = invocation("first")
+    prepared, guidance = prepare_calls(client, [original])
+    assert prepared == [original] and not client.calls and not guidance
+
+
+def test_prepare_positioned_add_uses_order_and_section_guard() -> None:
+    """Additions keep stable IDs and get structural tokens from a shared outline."""
+    client = FakeClient(
+        lambda _: {"slides": [receipt("first", "hash")], "sections_hash": "section-version"}
+    )
+    call = Invocation(
+        tool="add_slide",
+        arguments={
+            "deck_id": "fictional-deck",
+            "slide": {"id": "added", "title": "Added", "html": "private-draft"},
+            "after_slide_id": "first",
+        },
+    )
+    prepared, _ = prepare_calls(client, [call])
+    assert prepared[0].arguments["expected_slide_ids"] == ["first"]
+    assert prepared[0].arguments["expected_sections_hash"] == "section-version"
+    assert prepared[0].arguments["request_id"]
+    second = call.model_copy(update={"arguments": {**call.arguments, "slide": {"id": "second"}}})
+    blocked = FakeClient(lambda _: pytest.fail("Ambiguous plans must fail before reads"))
+    with pytest.raises(ValueError, match="positioned additions separately"):
+        _ = prepare_calls(blocked, [call, second])
+    assert not blocked.initialized
+
+
+def test_prepare_theme_context_and_design_hashes() -> None:
+    """Authoring files use the exact guard returned by their corresponding read tool."""
+
+    def handler(item: Invocation) -> object:
+        return (
+            {"context_hash": "context-token"}
+            if item.tool == "get_presentation_outline"
+            else {"expected_hash": item.tool + "-token"}
+        )
+
+    client = FakeClient(handler)
+    calls = [
+        Invocation(tool="update_presentation_theme", arguments={"deck_id": "fictional-deck"}),
+        Invocation(tool="append_presentation_context", arguments={"deck_id": "fictional-deck"}),
+        Invocation(tool="sync_presentation_design", arguments={"deck_id": "fictional-deck"}),
+        Invocation(tool="write_design_file", arguments={"design_id": "brand", "path": "theme.css"}),
+        Invocation(
+            tool="write_design_file",
+            arguments={"design_id": "brand", "path": "assets/new.svg", "expected_hash": ""},
+        ),
+    ]
+    prepared, _ = prepare_calls(client, calls)
+    assert [item.arguments["expected_hash"] for item in prepared] == [
+        "get_presentation_theme-token",
+        "context-token",
+        "get_presentation_design_sync-token",
+        "get_design_file-token",
+        "",
+    ]
+    assert all(item.tool.startswith("get_") for item in client.calls)
+    assert len(client.calls) == 4
+
+
+def test_prepare_rejects_duplicate_targets_before_any_read() -> None:
+    """Dependent writes cannot share one fetched baseline."""
+    client = FakeClient(lambda _: pytest.fail("No read is expected"))
+    with pytest.raises(ValueError, match="one write per slide"):
+        _ = prepare_calls(client, [invocation("first"), invocation("first")])
+    assert not client.initialized
+
+
+def test_prepare_refuses_existing_output_before_network(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A repeated CLI preparation cannot replace the tokens required to retry safely."""
+    draft = tmp_path / "draft.json"
+    draft.write_text(json.dumps([invocation("first").model_dump()]))
+    output = tmp_path / "prepared.json"
+    output.write_text("KEEP_EXISTING_BASELINE")
+
+    def forbidden(*args: object, **kwargs: object) -> dict[str, object]:
+        raise AssertionError("No network request is expected")
+
+    monkeypatch.setattr(agent_client, "post_json", forbidden)
+    assert agent_client.main(["--calls-file", str(draft), "--prepare", str(output)]) == 1
+    assert "reuse it for retries" in capsys.readouterr().out
+    assert output.read_text() == "KEEP_EXISTING_BASELINE"

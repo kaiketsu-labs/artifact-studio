@@ -3,10 +3,13 @@
 import base64
 import io
 import os
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 from PIL import Image
+from playwright.sync_api import Page
 from pydantic import ValidationError
 
 from artifact_studio.models import AgentContext, Slide, SlidePatch
@@ -76,7 +79,7 @@ def test_capture_validation(store: Store, tmp_path: Path) -> None:
     for values in ({"stage": -1}, {"stage": 51}, {"elapsed_ms": -1}, {"elapsed_ms": 600001}):
         with pytest.raises(ValidationError):
             CaptureOptions.model_validate(values)
-    for offset, limit in ((-1, 12), (0, 0), (0, 13), (100, 12)):
+    for offset, limit in ((-1, 12), (0, 0), (0, 25), (100, 12)):
         with pytest.raises(ValueError):
             capture(store, DECK, tmp_path / "captures", offset=offset, limit=limit)
     with pytest.raises(ValueError, match="Slide not found"):
@@ -169,7 +172,7 @@ def test_real_contact_sheet_pagination_and_inline_mcp(
     assert [item.type for item in result.content] == ["text", "image"]
     assert result.content[1].type == "image"
     with Image.open(io.BytesIO(base64.b64decode(result.content[1].data))) as image:
-        assert image.width > 900
+        assert image.width > 600
 
 
 def test_render_hash_tracks_root_settings_and_imported_css(store: Store) -> None:
@@ -190,16 +193,16 @@ def test_render_hash_tracks_root_settings_and_imported_css(store: Store) -> None
     assert third.frame.render_hash != second.frame.render_hash
 
 
-def test_capture_dependency_budget_and_busy_preparation(
+def test_capture_dependency_budget_and_recursive_preparation(
     store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Reject oversized reads and concurrent preparation before entering a browser."""
+    """Reject oversized reads and same-thread recursion before entering a browser."""
     from artifact_studio import visuals
 
     monkeypatch.setattr(visuals, "MAX_ASSET_BYTES", 1)
     with pytest.raises(ValueError, match="size limit"):
         snapshot(store, DECK, store.read(DECK).slides[0], 1, CaptureOptions())
-    with visuals.render_slot(), pytest.raises(ValueError, match="capture is running"):
+    with visuals.render_slot(), pytest.raises(ValueError, match="another renderer"):
         capture(store, "missing", tmp_path / "captures")
 
 
@@ -275,3 +278,142 @@ def test_repeated_assets_are_bounded_during_embedding(
     with pytest.raises(ValueError, match="Expanded review assets"):
         embedder.markup('<img src="small.png">' * 20)
     assert embedder.total_bytes == 60
+
+
+def test_capture_queue_is_fifo_and_recovers_after_failure() -> None:
+    """Concurrent callers wait in arrival order and a failed capture frees the renderer."""
+    from artifact_studio.visuals import RenderQueue
+
+    queue = RenderQueue(timeout=2)
+    order: list[int] = []
+
+    def work(number: int) -> int:
+        with queue.slot() as waited:
+            order.append(number)
+            if number == 1:
+                raise RuntimeError("Fictional renderer failed")
+            return waited
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        with queue.slot():
+            first = pool.submit(work, 1)
+            with queue.condition:
+                assert queue.condition.wait_for(lambda: len(queue.waiters) == 1, timeout=1)
+            second = pool.submit(work, 2)
+            with queue.condition:
+                assert queue.condition.wait_for(lambda: len(queue.waiters) == 2, timeout=1)
+            assert queue.status() == {
+                "running": True,
+                "queued": 2,
+                "capacity": 8,
+                "wait_timeout_seconds": 2,
+            }
+        with pytest.raises(RuntimeError, match="Fictional"):
+            first.result(timeout=2)
+        assert second.result(timeout=2) >= 0
+    assert order == [1, 2]
+    assert queue.status()["running"] is False
+    assert queue.status()["queued"] == 0
+
+
+def test_capture_queue_bounds_and_cleans_up_timeouts() -> None:
+    """A full or timed-out queue does not retain abandoned tickets or lose its owner."""
+    from artifact_studio.visuals import RenderQueue
+
+    queue = RenderQueue(capacity=1, timeout=0.1)
+
+    def work() -> None:
+        with queue.slot():
+            pytest.fail("This request must time out before it starts rendering.")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        with queue.slot():
+            waiting = pool.submit(work)
+            with queue.condition:
+                assert queue.condition.wait_for(lambda: len(queue.waiters) == 1, timeout=1)
+            rejected = pool.submit(work)
+            with pytest.raises(ValueError, match="queue is full"):
+                rejected.result(timeout=1)
+            with pytest.raises(ValueError, match="timed out while queued"):
+                waiting.result(timeout=1)
+            assert queue.status()["running"] is True
+            assert queue.status()["queued"] == 0
+        with queue.slot():
+            assert queue.status()["running"] is True
+    assert queue.status()["running"] is False
+
+
+def test_contact_subset_paginates_in_deck_order_and_accepts_24(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Selected slide IDs keep original numbering and paginate without unrelated frames."""
+    from artifact_studio import visuals
+
+    def render(
+        prepared: list[visuals.Snapshot],
+        options: CaptureOptions,
+        paint: Callable[[Page], bytes],
+    ) -> list[bytes]:
+        del options, paint
+        images: list[bytes] = []
+        for item in prepared:
+            with Image.new("RGB", (item.frame.width, item.frame.height), "white") as image:
+                output = io.BytesIO()
+                image.save(output, format="PNG")
+                images.append(output.getvalue())
+        return images
+
+    monkeypatch.setattr(visuals, "_render_images", render)
+    for number in range(24):
+        store.add_slide(
+            DECK,
+            Slide(
+                id=f"extra-{number}",
+                title=f"Extra {number}",
+                html='<article class="slide"><p>Fictional extra slide</p></article>',
+            ),
+        )
+    output = tmp_path / "captures"
+    first = capture(store, DECK, output)
+    assert len(first.frames) == 24
+    assert first.next_offset == 24
+    assert first.total_slides == first.selected_slides == 26
+    assert first.resolution == "draft"
+    assert all((frame.width, frame.height) == (800, 450) for frame in first.frames)
+    assert all(not frame.stale for frame in first.frames)
+    chosen = ["extra-21", "hidden", "extra-1"]
+    subset = capture(store, DECK, output, slide_ids=chosen, limit=2)
+    assert [frame.slide_id for frame in subset.frames] == ["hidden", "extra-1"]
+    assert [frame.slide_number for frame in subset.frames] == [2, 4]
+    assert subset.next_offset == 2
+    assert subset.selected_slides == 3
+    assert subset.total_slides == 26
+    last = capture(store, DECK, output, slide_ids=chosen, offset=2, limit=2)
+    assert [frame.slide_id for frame in last.frames] == ["extra-21"]
+    assert last.next_offset is None
+    assert VisualResult.model_validate_json(Path(last.path).with_name("manifest.json").read_text())
+    for ids in ([], ["missing"], ["hidden", "hidden"]):
+        with pytest.raises(ValueError):
+            capture(store, DECK, output, slide_ids=ids)
+    with pytest.raises(ValueError, match="not both"):
+        capture(store, DECK, output, slide_id="cover", slide_ids=["hidden"])
+
+
+@RENDER
+def test_real_draft_capture_preserves_layout_and_version(store: Store, tmp_path: Path) -> None:
+    """Draft rasterization uses one quarter the pixels without reflowing fixed-pixel layouts."""
+    full = capture(store, DECK, tmp_path, slide_id="cover")
+    draft = capture(
+        store, DECK, tmp_path, slide_id="cover", options=CaptureOptions(resolution="draft")
+    )
+    assert draft.resolution == "draft"
+    assert draft.frames[0].content_hash == full.frames[0].content_hash
+    assert draft.frames[0].expected_hash == full.frames[0].expected_hash
+    assert draft.frames[0].render_hash != full.frames[0].render_hash
+    assert draft.frames[0].viewport_width == full.frames[0].viewport_width == 1600
+    assert draft.frames[0].viewport_height == full.frames[0].viewport_height == 900
+    assert not draft.frames[0].stale
+    with Image.open(draft.path) as image:
+        assert image.size == (800, 450)
+    for x, y in ((900, 350), (300, 650), (1400, 800)):
+        assert pixel(draft.path, x // 2, y // 2) == pixel(full.path, x, y)
