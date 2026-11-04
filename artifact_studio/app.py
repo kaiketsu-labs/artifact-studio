@@ -47,6 +47,7 @@ from .design_references import (
 )
 from .events import deck_events
 from .history_api import history_routes
+from .image_api import image_routes
 from .interactive import prepare_document
 from .libraries import (
     Libraries,
@@ -1838,6 +1839,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 app.include_router(artifact_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
+app.include_router(image_routes(lambda: store))
 app.include_router(recovery_routes(lambda: store))
 
 

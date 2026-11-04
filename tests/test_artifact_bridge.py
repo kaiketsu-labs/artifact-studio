@@ -16,7 +16,8 @@ pytestmark = [
 
 def test_preview_is_bounded_and_cancel_restores_original() -> None:
     """Preview a text and style patch, reject another target, and restore the source DOM."""
-    bridge = (Path(__file__).parents[1] / "web" / "artifact-bridge.js").read_text()
+    web = Path(__file__).parents[1] / "web"
+    bridge = (web / "marquee.js").read_text() + "\n" + (web / "artifact-bridge.js").read_text()
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page()

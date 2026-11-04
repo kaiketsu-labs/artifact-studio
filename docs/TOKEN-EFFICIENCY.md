@@ -79,9 +79,7 @@ The raw MCP tool catalogue does not repeat the bootstrap. Some hosts append the 
 
 ## Measured authoring exchange
 
-### Independent authoring cycle · 2 November 2026
-
-A fresh review of `f636d2b` used two independent presentation authors, separate workflow/design/context auditors and cross-review of their findings. Both authors then exercised the candidate with one client per phase. See [the evaluation report](CONTINUOUS-EVALUATION-2026-11-02.md) for presentation accuracy, UI recovery tests and measurement limits.
+### Scoped discovery and feedback
 
 Once a scope is selected, the bootstrap and new-deck handoff now recommend `include_discovery=False`. Discovery remains available by default. A new optional `compact_sources=True` avoids repeating a selected design file's name, local path and SHA-256 in provenance when the exact metadata is already present in `design_context.files`. Complete file inventory, scope and delivery status remain. Default responses and raw/persisted receipts keep their existing representation.
 

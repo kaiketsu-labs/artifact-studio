@@ -36,12 +36,13 @@
   let refreshQueued=false;
   const previewUpdates=window.SlidePreviewUpdates.create({onChange:()=>{syncPreviewUpdates();if(previewUpdates.enabled)void refresh();}});
   function syncPreviewUpdates(){const control=$('auto-update-preview');iconButton(control,'refresh','Auto-update preview');control.setAttribute('aria-pressed',String(previewUpdates.enabled));control.title=previewUpdates.enabled?'Auto-update on · incoming revisions appear automatically':'Auto-update off · choose Show update to load revisions';}
-  function previewBusy(){return elementEditor.isEditing()||elementEditor.isBusy()||groupEditor?.state().dirty||groupEditor?.state().busy||animationPreview.isPlaying();}
+  function previewBusy(){return previewMarquee?.active()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor?.state().dirty||groupEditor?.state().busy||animationPreview.isPlaying();}
   function resumePreviewUpdates(){if(pendingDeck&&previewUpdates.enabled&&!previewBusy())void refresh();}
   $('auto-update-preview').addEventListener('click',()=>previewUpdates.set(!previewUpdates.enabled));
   syncPreviewUpdates();
   let deckPicker=null, workspaceMenu=null, previewStatusTimer=null, libraryControls=null, draftsAvailable=true;
   const boundPreviewDocuments=new WeakSet();
+  let previewMarquee=null;
   const key=()=>`${deck?.id}/${selectedId}`;
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
   const presentationLauncher=window.SlidePresentationLauncher.create({button:$('present-link'),additionalButtons:[$('fullscreen-button')],prepare:async()=>{retainDraft();if(!await noteAutosave.flushAll(deck.id+'/'))throw new Error('Some notes have not saved. Retry or review them before presenting.');},onError:message=>toast(message,true),onReturn:id=>{void resumeAfterPresentation(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Artifact Studio in Chrome or Firefox.',true)});
@@ -332,6 +333,15 @@
   }});
   groupEditor.toolbar.addEventListener('click',()=>{if(groupEditor.toolbar.hidden)$('preview').focus({preventScroll:true});});
   async function previewSelection(action){if(feedbackSending)return;if(voice.isActive()){toast('Stop dictation before editing the selection.');return;}if(!await elementEditor.finish())return;groupEditor.preview(action);}
+  async function saveSelectionImage(original=false){
+    const deckId=deck?.id,id=selectedId,item=slide(),doc=$('preview').contentDocument;
+    const context=feedbackDraft(),selectors=targetsOf(currentTarget).map(target=>target.selector);
+    if(!selectors.length||context?.slide_id!==id||context.content_hash!==item?.content_hash||doc?.body?.dataset.previewKey!==item.content_hash)throw Error('Select objects on the displayed slide first.');
+    toast('Preparing image…');
+    const preview=await window.ImageExport.snapshot(doc,{slide:true,selectors});
+    await window.ImageExport.save(`/api/decks/${encodeURIComponent(deckId)}/slides/${encodeURIComponent(id)}/selection-image`,{content_hash:item.content_hash,...preview,transparent:true,format:original?'original':'png'});
+    toast('Image downloaded.');
+  }
   function showElementMenu(point){
     if(!deck||!selectedElements.length||feedbackSending||elementEditor.isBusy()||groupEditor.state().busy)return;
     const context=[deck.id,selectedId,slide().content_hash,currentTarget],single=!!selectedElement,primary=/Mac|iPhone|iPad/.test(navigator.platform)?'⌘':'Ctrl+';
@@ -344,6 +354,8 @@
       entry('Redo','refresh',pending.canRedo?()=>groupEditor.redo():run('redo'),{keys:primary+'Shift+Z',disabled:!pending.canRedo&&(!single||!elementEditor.canRedo())}),
       {separator:true},...(single?[entry('Edit text','edit',run('edit'),{keys:'F2',disabled:!elementEditor.canEdit()||pending.dirty||pending.sent}),entry('Format object…','palette',()=>{$('element-properties').querySelector('input:not(:disabled),textarea:not(:disabled),button:not(:disabled)')?.focus();},{disabled:pending.dirty||pending.sent})]:[]),
       entry(single?'Delete object':'Delete selection','trash',single?run('delete'):guard('delete'),{keys:'Delete',danger:true,disabled:pending.sent}),
+      {separator:true},entry('Save as image…','download',()=>saveSelectionImage()),
+      ...(single&&selectedElement.localName==='img'?[entry('Save original image…','image',()=>saveSelectionImage(true))]:[]),
       {separator:true},entry('Arrange…','batch',()=>showArrangeMenu(point,context),{disabled:pending.sent}),
       entry(single?'Align to slide…':'Ask agent to align…','align',()=>showAlignContext(point,context),{disabled:pending.sent}),
       {separator:true},entry('Comment on selection','chat',()=>{$('feedback-text').focus();}),
@@ -385,6 +397,19 @@
     feedbackDrafts.set(key(),{...previous,target,request_id:crypto.randomUUID(),...(retarget||!previous.content_hash?{slide_id:selectedId,context_slide_id:selectedId,content_hash:slide().content_hash}:{})});
     retainDraft();voice?.boundary($('feedback-text'));restoreSelection();renderTarget();if(focus)$('feedback-text').focus();
   }
+  function targetFor(element){
+    const rect=element.getBoundingClientRect(),canvas=$('preview').contentDocument.querySelector('.slide').getBoundingClientRect(),clamp=value=>Math.max(0,Math.min(1,value));
+    return {selector:selectorFor(element),label:labelFor(element),quote:(element.innerText||element.textContent).trim().slice(0,2000),html:elementSnapshot(element),x:clamp((rect.left-canvas.left)/canvas.width),y:clamp((rect.top-canvas.top)/canvas.height),width:clamp(rect.width/canvas.width),height:clamp(rect.height/canvas.height)};
+  }
+  async function selectElements(elements,additive=false){
+    if(feedbackSending||elementEditor.isBusy()||!await finishEdits())return false;
+    const doc=$('preview').contentDocument,context=feedbackDraft();
+    if(doc?.body?.dataset.previewKey!==slide()?.content_hash||elements.some(element=>!element.isConnected||element.ownerDocument!==doc))return false;
+    if(additive&&currentTarget&&(context?.slide_id!==selectedId||context.content_hash!==slide().content_hash)){toast('Start a new selection on this version first.');return false;}
+    const targets=new Map((additive?targetsOf(currentTarget):[]).map(target=>[target.selector,target]));
+    for(const element of elements){const target=targetFor(element);targets.set(target.selector,target);}
+    setTarget(groupTargets([...targets.values()].slice(0,100)),{retarget:true,focus:false});return true;
+  }
   /** Capture original geometry and toggle context without treating a group as an editable object. */
   async function selectElement(element,focus=true,additive=false){
     if(elementEditor.isBusy()||feedbackSending||!await finishEdits())return false;
@@ -394,12 +419,40 @@
     if(additive&&currentTarget&&(context?.slide_id!==selectedId||context.content_hash!==slide().content_hash)){toast('These objects belong to an earlier version. Click without a modifier to start a new selection.');return false;}
     if(!element||element.matches('body,html,.slide')){if(!additive)setTarget(null,{focus});return true;}
     elementEditor.select(null);
-    const rect=element.getBoundingClientRect(),canvas=$('preview').contentDocument.querySelector('.slide').getBoundingClientRect(),clamp=value=>Math.max(0,Math.min(1,value));
-    const target={selector:selectorFor(element),label:labelFor(element),quote:(element.innerText||element.textContent).trim().slice(0,2000),html:elementSnapshot(element),x:clamp((rect.left-canvas.left)/canvas.width),y:clamp((rect.top-canvas.top)/canvas.height),width:clamp(rect.width/canvas.width),height:clamp(rect.height/canvas.height)};
+    const target=targetFor(element);
     setTarget(groupTargets(selectTargets(targetsOf(currentTarget),target,additive)),{retarget:true,focus});return true;
   }
   /** Install immediate hover and click targeting inside the script-free slide preview. */
-  function bindPreview(){groupEditor?.onSelectionChange();const doc=$('preview').contentDocument;if(!doc)return;elementEditor.bind(doc);const fresh=!boundPreviewDocuments.has(doc);bindKeyboardSelection(doc,fresh);doc.documentElement.style.cursor='crosshair';if(fresh){boundPreviewDocuments.add(doc);doc.addEventListener('wheel',event=>sorter.zoomWheel(event,$('preview')),{passive:false});doc.addEventListener('pointermove',event=>{if(elementEditor.isEditing()||elementEditor.isBusy())return;let target=event.target;if(!(target instanceof doc.defaultView.Element)||target.matches('html,body,.slide')){hoverElement=null;$('hover-box').hidden=true;return;}if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');if(selectedElements.includes(target)){$('hover-box').hidden=true;return;}if(hoverElement===target)return;hoverElement=target;placeBox($('hover-box'),target);$('hover-box').querySelector('span').textContent=labelFor(target);});doc.documentElement.addEventListener('pointerleave',()=>{$('hover-box').hidden=true;hoverElement=null;});doc.addEventListener('click',event=>{if(elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;event.preventDefault();event.stopPropagation();if(elementEditor.consumeClick())return;let target=event.target;if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');selectElement(target,false,isAdditive(event));});}restoreSelection();renderTarget();}
+  function bindPreview(){
+    groupEditor?.onSelectionChange();const doc=$('preview').contentDocument;if(!doc)return;
+    elementEditor.bind(doc);const fresh=!boundPreviewDocuments.has(doc);
+    if(fresh){
+      previewMarquee?.destroy();
+      previewMarquee=window.MarqueeSelection.create({doc,candidates:()=>window.SlideObjects.collect(doc).map(item=>item.element),
+        enabled:()=>!document.body.classList.contains('workspace-clean-view')&&!elementEditor.isEditing()&&!elementEditor.isBusy()&&!feedbackSending&&!groupEditor.state().dirty&&!groupEditor.state().canRedo,
+        onSelect:selectElements,onActivity:active=>{if(active){hoverElement=null;$('hover-box').hidden=true;}else requestAnimationFrame(resumePreviewUpdates);},onError:message=>toast(message,true)});
+    }
+    bindKeyboardSelection(doc,fresh);doc.documentElement.style.cursor='crosshair';
+    if(fresh){
+      boundPreviewDocuments.add(doc);
+      doc.addEventListener('wheel',event=>sorter.zoomWheel(event,$('preview')),{passive:false});
+      doc.addEventListener('pointermove',event=>{
+        if(elementEditor.isEditing()||elementEditor.isBusy()||previewMarquee.active())return;
+        let target=event.target;if(!(target instanceof doc.defaultView.Element)||target.matches('html,body,.slide')){hoverElement=null;$('hover-box').hidden=true;return;}
+        if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');
+        if(selectedElements.includes(target)){$('hover-box').hidden=true;return;}
+        if(hoverElement===target)return;hoverElement=target;placeBox($('hover-box'),target);$('hover-box').querySelector('span').textContent=labelFor(target);
+      });
+      doc.documentElement.addEventListener('pointerleave',()=>{$('hover-box').hidden=true;hoverElement=null;});
+      doc.addEventListener('click',event=>{
+        if(elementEditor.isEditing()||elementEditor.isBusy()||feedbackSending)return;
+        event.preventDefault();event.stopPropagation();if(elementEditor.consumeClick())return;
+        let target=event.target;if(target.closest('svg')?.classList.contains('icon'))target=target.closest('svg');
+        void selectElement(target,false,isAdditive(event));
+      });
+    }
+    restoreSelection();renderTarget();
+  }
   /** Render discussion as text, including element anchors and original-version labels. */
   function renderWorkflow(){
     const state=deck.workflow||{mode:'live',pending:0},live=state.mode==='live',available=state.agent_waiting;

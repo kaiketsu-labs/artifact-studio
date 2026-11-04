@@ -64,7 +64,7 @@
       event.preventDefault();const buttons=rows(),current=buttons.indexOf(doc.activeElement),index=event.key==='Home'?0:event.key==='End'?buttons.length-1:(current+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons[index]?.focus();
     });
     doc.addEventListener('pointerdown',event=>{if(open()&&!panel.contains(event.target))close();},true);
-    view.addEventListener('resize',()=>close());doc.addEventListener('scroll',()=>close(),true);
+    view.addEventListener('resize',()=>close());doc.addEventListener('scroll',event=>{if(!panel.contains(event.target))close();},true);
     return {show,close,isOpen:open,panel};
   }
   function framePoint(frame,x,y,viewport){

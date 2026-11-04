@@ -5,20 +5,21 @@ import json
 import math
 import threading
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from PIL import Image, ImageDraw
 from playwright.sync_api import Error as BrowserError
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Page, sync_playwright
 from pydantic import Field
 
 from .models import Slide, StrictModel
 from .projects import AssetEmbedder, root_tag
+from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .storage import SlideMarkup, Store, digest
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -138,20 +139,28 @@ class Snapshot(StrictModel):
 
 
 def snapshot(
-    store: Store, deck_id: str, slide: Slide, number: int, options: CaptureOptions
+    store: Store,
+    deck_id: str,
+    slide: Slide,
+    number: int,
+    options: CaptureOptions,
+    *,
+    viewport: tuple[int, int] = (WIDTH, HEIGHT),
+    preview_html: str = "",
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
     if slide.interactive_html and options.stage not in {None, 0}:
         raise ValueError(
             "Custom interactive slides use stage 0 plus elapsed_ms, or null for final."
         )
+    width, height = viewport
     content_hash = store.content_hash(deck_id, slide)
     SlideMarkup().feed(slide.html)
     folder = store.folder(deck_id)
     embedder = ReviewEmbedder(folder)
     theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
-    markup = embedder.markup(slide.html)
-    interactive = slide.interactive_html
+    markup = embedder.markup(preview_html or slide.html)
+    interactive = "" if preview_html else slide.interactive_html
     runtime = (PROJECT / "runtime/presentation.js").read_text()
     runtime_styles = (PROJECT / "runtime/slideshow.css").read_text()
     adapter = (PROJECT / "runtime/capture.js").read_text()
@@ -178,8 +187,8 @@ def snapshot(
         + theme
         + runtime_styles.replace("<", r"\3c ")
         + "</style><style>"
-        + f"html,body{{margin:0;width:{WIDTH}px;height:{HEIGHT}px;overflow:hidden}}"
-        + f"#capture-stage{{position:relative;width:{WIDTH}px;height:{HEIGHT}px;"
+        + f"html,body{{margin:0;width:{width}px;height:{height}px;overflow:hidden}}"
+        + f"#capture-stage{{position:relative;width:{width}px;height:{height}px;"
         + "container-type:inline-size;box-shadow:none}"
         + "#capture-stage>.slide{position:relative;width:100%;height:100%;"
         + "box-sizing:border-box;overflow:hidden}"
@@ -206,6 +215,8 @@ def snapshot(
     return Snapshot(
         document=document,
         frame=Frame(
+            width=width,
+            height=height,
             slide_id=slide.id,
             title=slide.title,
             slide_number=number,
@@ -259,15 +270,23 @@ def contact_sheet(images: list[bytes], frames: list[Frame]) -> bytes:
     return output.getvalue()
 
 
-def _render_images(prepared: list[Snapshot], options: CaptureOptions) -> list[bytes]:
+def _render_images[T](
+    prepared: list[Snapshot],
+    options: CaptureOptions,
+    paint: Callable[[Page], T],
+    *,
+    viewport: tuple[int, int] = (WIDTH, HEIGHT),
+    color_scheme: Literal["light", "dark"] = "light",
+) -> list[T]:
     """Render prepared audience documents through the shared offline browser boundary."""
-    images: list[bytes] = []
+    images: list[T] = []
     try:
         with sync_playwright() as renderer:
             browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
             try:
                 context = browser.new_context(
-                    viewport={"width": WIDTH, "height": HEIGHT},
+                    viewport={"width": viewport[0], "height": viewport[1]},
+                    color_scheme=color_scheme,
                     device_scale_factor=1,
                     reduced_motion="reduce" if options.reduced_motion else "no-preference",
                     offline=True,
@@ -283,9 +302,7 @@ def _render_images(prepared: list[Snapshot], options: CaptureOptions) -> list[by
                         item.frame.diagnostics = Diagnostics.model_validate(
                             tab.evaluate("() => window.ArtifactStudioCaptureReady")
                         )
-                        images.append(
-                            tab.screenshot(type="png", animations="allow", timeout=15_000)
-                        )
+                        images.append(paint(tab))
                     finally:
                         tab.close()
             finally:
@@ -302,7 +319,24 @@ def _render_images(prepared: list[Snapshot], options: CaptureOptions) -> list[by
 def capture_snapshot(prepared: Snapshot, options: CaptureOptions) -> bytes:
     """Capture one prepared saved slide without changing the current presentation."""
     with render_slot():
-        return _render_images([prepared], options)[0]
+        return _render_images([prepared], options, _screenshot)[0]
+
+
+def _screenshot(page: Page) -> bytes:
+    """Keep ordinary visual captures unchanged when no object export was requested."""
+    return page.screenshot(type="png", animations="allow", timeout=15_000)
+
+
+def export_snapshot(prepared: Snapshot, request: SelectionImageInput) -> SelectionImage:
+    """Export selected slide objects through the existing sandboxed render boundary."""
+    with render_slot():
+        return _render_images(
+            [prepared],
+            CaptureOptions(reduced_motion=True),
+            lambda page: render_selection(page, request),
+            viewport=(request.width, request.height),
+            color_scheme=request.color_scheme,
+        )[0]
 
 
 def capture(
@@ -341,7 +375,7 @@ def capture(
                     "Review page exceeds 96 MiB. Retry with a smaller contact-sheet limit."
                 )
             prepared.append(item)
-        images = _render_images(prepared, options)
+        images = _render_images(prepared, options, _screenshot)
         capture_id = uuid.uuid4().hex
         folder = output / capture_id
         folder.mkdir(parents=True)
