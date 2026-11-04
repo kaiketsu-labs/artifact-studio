@@ -76,6 +76,7 @@ class ArtifactView(ArtifactManifest):
     """Compact artifact metadata with review status for the exact source snapshot."""
 
     project_title: str
+    updated_at: str = ""
     status: Literal["draft", "updated", "approved"] = "draft"
     approved: bool = False
     has_unseen_changes: bool = False

@@ -393,12 +393,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:48.706478+00:00",
+      "captured_at": "2026-11-04T14:14:51.268231+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "8a3ee9c15217b03066b6cf69c8c11fcee6f83e0c6b8cd5478876098f4e68b0e9"
+      "sha256": "c03c4e4cd6f9ab6ff124756cb8bf40e62e064b809df5771c3907321dcfca924d"
     },
     "docs/assets/context-menu.png": {
       "viewport": {

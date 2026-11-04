@@ -15,3 +15,17 @@
 
 #hub-auto-update[aria-pressed=true]{background:var(--hub-soft);color:var(--hub-blue)}
 .hub-view-toolbar>div{min-width:0;max-width:100%;flex-wrap:wrap}
+/* Library sorting stays beside format filters without adding another toolbar row. */
+.hub-library-toolbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:25px;flex-wrap:wrap}
+.hub-library-toolbar .hub-chips{margin-bottom:0;flex:1}
+.hub-sort{display:flex;align-items:center;gap:4px;border:1px solid var(--hub-line);border-radius:7px;background:var(--hub-panel);padding-left:9px;flex-shrink:0;color:var(--hub-muted);height:34px}
+.hub-sort>.ui-icon{width:15px;height:15px}
+.hub-sort select{border:0;background:transparent;color:var(--hub-ink);font:inherit;font-size:12px;padding:5px 20px 5px 3px;width:119px;cursor:pointer}
+.hub-sort button{border-radius:0 6px 6px 0;border-left:1px solid var(--hub-line);height:32px;width:31px;padding:6px;justify-content:center}
+.hub-sort button .ui-icon{width:15px;height:15px}
+.hub-grid.is-grouped{display:flex;flex-direction:column;gap:28px}
+.hub-type-group{min-width:0}
+.hub-type-group h2{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:550;margin:0 0 12px;color:var(--hub-ink)}
+.hub-type-group h2>.ui-icon{width:16px;height:16px;color:var(--hub-muted)}
+.hub-type-group h2>span{font-size:11px;font-weight:400;color:var(--hub-muted);margin-left:2px}
+@media(max-width:650px){.hub-library-toolbar{gap:10px;margin-bottom:20px}.hub-library-toolbar .hub-chips{flex-basis:100%}.hub-sort{margin-left:auto}}

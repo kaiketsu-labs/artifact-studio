@@ -2,8 +2,10 @@
 
 import base64
 import hashlib
+import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -11,7 +13,7 @@ from pydantic import ValidationError
 
 from artifact_studio import artifacts as artifact_module
 from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactTarget
-from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.artifacts import ArtifactStore, artifact_revision_hash
 from artifact_studio.models import FileInput
 from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -69,6 +71,11 @@ def test_revisions_dependencies_approvals_seen_and_exact_retries(
     changes = [ArtifactFileInput(path="app.js", text="console.log('changed')")]
     updated = artifacts.revise_artifact(initial.id, changes, initial.content_hash, "revision-001")
     assert updated.revision == 2 and updated.status == "updated" and not updated.approved
+    assert updated.created_at == initial.created_at
+    assert updated.updated_at > initial.updated_at == initial.created_at
+    historical = artifacts.get_artifact_revision(initial.id, 1)
+    assert historical.created_at == initial.created_at
+    assert historical.updated_at == initial.updated_at
     assert (
         artifacts.revise_artifact(initial.id, changes, initial.content_hash, "revision-001")
         == updated
@@ -88,6 +95,21 @@ def test_revisions_dependencies_approvals_seen_and_exact_retries(
         _ = artifacts.mark_seen(initial.id, initial.content_hash)
     assert artifacts.mark_seen(initial.id, updated.content_hash).status == "draft"
     assert artifacts.approve(initial.id, updated.content_hash, True).status == "approved"
+    restored = artifacts.restore_artifact(
+        initial.id,
+        1,
+        artifact_revision_hash(updated.id, updated.revision, updated.content_hash),
+        "restore-first",
+    )
+    assert restored.created_at == initial.created_at
+    assert restored.updated_at > updated.updated_at
+    repeated = artifacts.restore_artifact(
+        initial.id,
+        1,
+        artifact_revision_hash(restored.id, restored.revision, restored.content_hash),
+        "restore-same",
+    )
+    assert repeated.updated_at == restored.updated_at
 
 
 def test_external_edits_become_new_revisions_and_snapshot_tampering_is_detected(
@@ -286,8 +308,21 @@ def test_legacy_decks_keep_ids_sources_and_feedback(
     make_design(store.root / TEMPLATE_ID)
     deck = store.create("2026-11-02-legacy-deck", "Existing deck")
     source = (store.folder(deck.id) / "index.html").read_bytes()
+    before = artifacts.get_artifact(deck.id)
+    slide = store.view(deck.id).slides[0]
+    store.approve(deck.id, slide.id, slide.content_hash, True)
+    _ = store.mark_slide_seen(deck.id, slide.id, slide.content_hash)
     _ = store.add_feedback(deck.id, None, "Existing feedback", "", "legacy-comment")
     adapted = artifacts.get_artifact(deck.id)
+    assert adapted.created_at and adapted.updated_at
+    assert (adapted.created_at, adapted.updated_at) == (before.created_at, before.updated_at)
+    asset = store.folder(deck.id) / "assets" / "new.png"
+    _ = asset.write_bytes(b"image")
+    future = datetime(2035, 1, 1, tzinfo=UTC).timestamp()
+    os.utime(asset, (future, future))
+    changed = artifacts.get_artifact(deck.id)
+    assert changed.created_at == before.created_at
+    assert changed.updated_at == datetime.fromtimestamp(future, UTC).isoformat()
     assert adapted.id == deck.id and adapted.legacy_deck_id == deck.id
     assert adapted.kind == "presentation"
     assert artifacts.feedback(deck.id)[0].message == "Existing feedback"

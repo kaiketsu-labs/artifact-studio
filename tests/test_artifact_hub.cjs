@@ -2,6 +2,43 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const marked=require('../web/vendor/marked-18.1.2.js');
 const {filterArtifacts,groupTargets,selectTargets,bundlePath,renderDocument,feedbackTarget,filePath,exportFile}=require('../web/hub.js');
+const {sortArtifacts,artifactType,validSort}=require('../web/hub.js');
+
+test('library sorts natural names, distinct dates and missing timestamps without mutating input',()=>{
+  const items=[
+    {id:'ten',title:'Draft 10',created_at:'2026-01-01T10:00:00Z',updated_at:'2026-01-03T10:00:00Z'},
+    {id:'two',title:'draft 2',created_at:'2026-01-02T10:00:00Z',updated_at:'2026-01-02T10:00:00Z'},
+    {id:'unknown',title:'Archive',created_at:'',updated_at:'invalid'},
+  ];
+  const ids=options=>sortArtifacts(items,options).map(item=>item.id);
+  assert.deepEqual(ids({by:'name',direction:'asc'}),['unknown','two','ten']);
+  assert.deepEqual(ids({by:'created',direction:'desc'}),['two','ten','unknown']);
+  assert.deepEqual(ids({by:'updated',direction:'desc'}),['ten','two','unknown']);
+  assert.deepEqual(ids({by:'updated',direction:'asc'}),['two','ten','unknown']);
+  assert.deepEqual(items.map(item=>item.id),['ten','two','unknown']);
+});
+
+test('file-type sorting groups actual formats and keeps names natural inside each group',()=>{
+  const items=[
+    {id:'a',title:'Diagram 10',kind:'svg',entrypoint:'cover.SVG'},
+    {id:'b',title:'Website',kind:'html',entrypoint:'index.htm'},
+    {id:'c',title:'Diagram 2',kind:'image',entrypoint:'diagram.svg'},
+    {id:'d',title:'Deck',kind:'presentation',entrypoint:'index.html'},
+    {id:'e',title:'Photo',kind:'image',entrypoint:'photo.png'},
+  ];
+  assert.deepEqual(sortArtifacts(items,{by:'type',direction:'asc'}).map(item=>item.id),['b','e','d','c','a']);
+  assert.equal(artifactType(items[0]).label,'SVG');
+  assert.equal(artifactType(items[3]).key,'presentation');
+  assert.equal(artifactType({kind:'markdown',entrypoint:'guide.markdown'}).key,'md');
+  assert.equal(artifactType({kind:'other',entrypoint:'README'}).label,'Files');
+  assert.equal(artifactType({kind:'file',entrypoint:'README.constructor'}).label,'CONSTRUCTOR');
+  assert.equal(artifactType({kind:'markdown',entrypoint:'README'}).key,'md');
+});
+
+test('unusable stored sort preferences fall back to newest changes',()=>{
+  for(const value of [null,{},'name',{by:'__proto__',direction:'asc'},{by:'name',direction:'sideways'}])assert.deepEqual(validSort(value),{by:'updated',direction:'desc'});
+  assert.deepEqual(validSort({by:'type',direction:'asc'}),{by:'type',direction:'asc'});
+});
 
 test('generated exports accept portable text and reject unsafe paths, formats and payloads',()=>{
   for(const [name,type] of [['benchmark.html','text/html'],['data.json','application/json'],['results.csv','text/csv']]){

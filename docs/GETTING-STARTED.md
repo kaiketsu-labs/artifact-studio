@@ -63,6 +63,8 @@ Keep that Terminal running, then open [Artifact Studio](http://127.0.0.1:8790/).
 
 The sidebar’s **Designs** opens registered design packs and their examples, with the workspace default marked. They are excluded from **All artifacts** and project counts. Presentations created from a design remain normal artifacts. Classification uses each pack’s `design.json`; files and existing links stay in place.
 
+In **All artifacts**, project and folder overviews, use the sort control beside the format filters: **Name** (natural A–Z), **Last changed** (newest content first), **Created** (newest first), or **File type** (format groups with names A–Z inside each group). The arrow reverses the order. Search and format filters keep the selected order; one setting is shared across these overviews and remembered in this browser. Sorting does not move files or reorder projects. Legacy presentation dates use available history and filesystem timestamps.
+
 ### Storage locations
 
 By default, presentations, project briefs and owned artifact bundles go in `~/Documents/Artifacts`; review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
