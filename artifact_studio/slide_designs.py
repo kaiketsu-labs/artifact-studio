@@ -14,7 +14,7 @@ from .interactive import prepare_document
 from .models import AgentContext, Deck, Slide, Source, StrictModel
 from .storage import ConflictError, SlideMarkup, Store, digest
 from .version_history import capture_slide_version
-from .visuals import CaptureOptions, Snapshot, snapshot
+from .visuals import CaptureOptions, Snapshot, VisualResult, snapshot
 
 MAX_SAVED_BYTES = 64 * 1024 * 1024
 SOURCE_FIELDS = {"title", "html", "interactive_html", "sources"}
@@ -95,6 +95,14 @@ class DesignSource(StrictModel):
     html: str
     interactive_html: str
     sources: list[Source]
+
+
+class DesignCapture(VisualResult):
+    """Frozen visual receipt with the immutable proposal identity used for feedback."""
+
+    design_id: str
+    set_id: str
+    source_hash: str
 
 
 class DecideDesign(StrictModel):

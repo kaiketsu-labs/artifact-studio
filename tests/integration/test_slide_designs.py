@@ -9,9 +9,8 @@ from mcp.types import CallToolResult, ImageContent
 from playwright.sync_api import Page, expect
 
 from artifact_studio.models import SlidePatch
-from artifact_studio.slide_designs import DesignSet
+from artifact_studio.slide_designs import DesignCapture, DesignSet
 from artifact_studio.storage import digest
-from artifact_studio.visuals import VisualResult
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 
 pytestmark = [
@@ -209,7 +208,8 @@ def test_frozen_design_capture_through_registered_mcp(live_app: RunningApp) -> N
     image = next(item for item in result.content if isinstance(item, ImageContent))
     assert image.mime_type == "image/png"
     assert base64.b64decode(image.data).startswith(b"\x89PNG\r\n\x1a\n")
-    manifest = VisualResult.model_validate(result.structured_content)
+    manifest = DesignCapture.model_validate(result.structured_content)
     assert manifest.kind == "slide-design" and manifest.selected_slides == 1
+    assert manifest.design_id == design_id and manifest.source_hash == group.options[1].source_hash
     assert Path(manifest.path).read_bytes() == base64.b64decode(image.data)
     assert live_app.store.read(DECK_ID) == before

@@ -530,7 +530,9 @@ class ScopedTools:
     ) -> CallToolResult:
         """Return frozen design pixels through the offline renderer without local host paths."""
         _ = self.deck(deck_id)
-        frozen = SlideDesigns(self.store).preview(deck_id, slide_id, design_id)
+        designs = SlideDesigns(self.store)
+        option = designs.read(deck_id, slide_id, design_id).option
+        frozen = designs.preview(deck_id, slide_id, design_id)
         data = capture_snapshot(frozen, CaptureOptions(reduced_motion=True))
         _ = self.deck(deck_id)
         if len(data) > 3 * 1024 * 1024:
@@ -541,6 +543,8 @@ class ScopedTools:
         _ = path.write_bytes(data)
         metadata = {
             "design_id": design_id,
+            "set_id": option.set_id,
+            "source_hash": option.source_hash,
             "frame": frozen.frame.model_dump(mode="json", exclude={"path"}),
         }
         return CallToolResult(

@@ -110,7 +110,14 @@ from .sections import Sections, sections_hash
 from .share_api import sharing_routes
 from .slide_actions import SlideActionResult, SlideActions
 from .slide_design_api import design_routes
-from .slide_designs import DesignInput, DesignPage, DesignSet, DesignSource, SlideDesigns
+from .slide_designs import (
+    DesignCapture,
+    DesignInput,
+    DesignPage,
+    DesignSet,
+    DesignSource,
+    SlideDesigns,
+)
 from .storage import ConflictError, Store, digest
 from .text_review import check_slide_text as review_captured_text
 from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status, capture_snapshot
@@ -738,13 +745,18 @@ def get_slide_design(deck_id: str, slide_id: str, design_id: str) -> DesignSourc
 @tool_errors
 def capture_slide_design(deck_id: str, slide_id: str, design_id: str) -> CallToolResult:
     """Visually inspect a frozen proposed design without changing the chosen slide."""
-    frozen = SlideDesigns(store).preview(deck_id, slide_id, design_id)
+    designs = SlideDesigns(store)
+    option = designs.read(deck_id, slide_id, design_id).option
+    frozen = designs.preview(deck_id, slide_id, design_id)
     output = DATABASE.parent / "design-captures"
     output.mkdir(parents=True, exist_ok=True)
     path = output / f"{design_id}.png"
     _ = path.write_bytes(capture_snapshot(frozen, CaptureOptions(reduced_motion=True)))
     return visual_result(
-        VisualResult(
+        DesignCapture(
+            design_id=design_id,
+            set_id=option.set_id,
+            source_hash=option.source_hash,
             capture_id=design_id,
             deck_id=deck_id,
             captured_at=datetime.now(UTC).isoformat(),

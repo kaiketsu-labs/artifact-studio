@@ -42,6 +42,8 @@ The capability is advertised in MCP initialization and `tools/list`; this guide 
 
 The scoped Copilot gateway uses `options_json`, a JSON array of the same design objects, to keep its input schema flat. Its history cursors default to `-1` for the first page; zero skips a completed stream. All four tools enforce the currently shared project/workspace scope.
 
+Capture results include `design_id`, `set_id` and the proposal's `source_hash` for feedback. The frame's `content_hash` identifies its frozen visual context, including shared styling and assets; it is a different token. Use the proposal `source_hash` when discussing that option.
+
 ## Conflicts and preservation
 
 Choices check the current audience-content hash and the last decision observed for that publication. Concurrent notes are preserved. Another reviewer or newer source can cause a conflict; compare with the latest chosen slide before replacing changed source. This comparison does not itself apply a proposal.
