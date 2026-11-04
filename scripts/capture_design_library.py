@@ -145,6 +145,10 @@ def main() -> None:
 
             def capture(name: str) -> None:
                 _ = page.evaluate("document.fonts.ready")
+                _ = page.evaluate(
+                    "new Promise(resolve => requestAnimationFrame(() => "
+                    "requestAnimationFrame(resolve)))"
+                )
                 target = staging / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 data = page.screenshot(
@@ -187,9 +191,34 @@ def main() -> None:
                     page.get_by_role("button", name="Preview Master.pptx").locator("img")
                 ).to_have_js_property("naturalWidth", 640)
                 capture("docs/assets/design-context.png")
+                page.get_by_role("button", name="Open design-guidelines.md", exact=True).click()
+                text_dialog = page.get_by_role("dialog", name="design-guidelines.md", exact=True)
+                expect(text_dialog.get_by_role("heading", name="Editorial system")).to_be_visible()
+                capture("docs/screenshots/design-text-preview.png")
+                text_dialog.get_by_role("button", name="Edit", exact=True).click()
+                code = text_dialog.get_by_role("textbox", name="Edit design-guidelines.md")
+                expect(code).to_be_visible()
+                page.keyboard.press("ControlOrMeta+End")
+                page.keyboard.insert_text(
+                    "\n## Composition\n\n- One clear idea per page\n"
+                    "- Use diagrams when they explain more\n"
+                )
+                capture("docs/assets/design-text-editor.png")
+                text_dialog.get_by_role("button", name="Save", exact=True).click()
+                expect(text_dialog.get_by_role("heading", name="Composition")).to_be_visible()
+                text_dialog.get_by_role("button", name="Close dialog").click()
                 page.locator("#appearance-button").click()
                 page.locator('[data-appearance="dark"]').click()
                 capture("docs/screenshots/design-context-dark.png")
+                page.get_by_role("button", name="Open design-guidelines.md", exact=True).click()
+                text_dialog.get_by_role("button", name="Edit", exact=True).click()
+                expect(code).to_be_visible()
+                capture("docs/screenshots/design-text-editor-dark.png")
+                page.set_viewport_size({"width": 390, "height": 844})
+                capture("docs/screenshots/design-text-editor-mobile.png")
+                text_dialog.get_by_role("button", name="Cancel", exact=True).click()
+                text_dialog.get_by_role("button", name="Close dialog").click()
+                page.set_viewport_size({"width": 1440, "height": 1000})
                 page.locator("#appearance-button").click()
                 page.locator('[data-appearance="light"]').click()
                 page.get_by_role("button", name="Preview Master.pptx").click()

@@ -10,7 +10,7 @@ from pydantic import TypeAdapter
 from artifact_studio import app as service
 from artifact_studio.artifact_context import artifact_context
 from artifact_studio.artifacts import ArtifactStore
-from artifact_studio.design_library import DesignCreate, DesignDelete, DesignLibrary
+from artifact_studio.design_library import DesignCreate, DesignDelete, DesignLibrary, DesignTextEdit
 from artifact_studio.design_references import ReferenceInput, RemoveReferenceInput
 from artifact_studio.models import DesignManifest, FileInput
 from artifact_studio.storage import ConflictError, Store
@@ -173,3 +173,82 @@ def test_design_preview_serves_only_inert_images(
     assert response.headers["x-content-type-options"] == "nosniff"
     brief = next(file for file in item.files if file.name == "brief.md")
     assert client.get(f"/api/design-library/{item.id}/image/{brief.path}").status_code == 400
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16-le", "utf-16-be"])
+def test_text_saves_preserve_encoding_newlines_and_current_agent_inventory(
+    library: DesignLibrary, encoding: str
+) -> None:
+    """Write canonical source bytes while retaining Unicode, BOMs and Windows line endings."""
+    prefix = "\ufeff" if encoding.startswith("utf-16") else ""
+    original = (prefix + "# Before\r\nGrüße\r\n").encode(encoding)
+    item = library.create(DesignCreate(name="Editable", files=[upload("guide.md", original)]))
+    source = item.files[0]
+    body = DesignTextEdit(path=source.path, expected_hash=source.sha256, text="# After\nMünchen\n")
+    saved = library.edit_text(item.id, body)
+    assert Path(source.local_path).read_bytes() == (prefix + "# After\r\nMünchen\r\n").encode(
+        encoding
+    )
+    assert saved.files[0].sha256 != source.sha256 and saved.version != item.version
+    assert (
+        artifact_context(library.store, design_id=item.id)["design_context"] == saved.model_dump()
+    )
+    with pytest.raises(ConflictError):
+        library.edit_text(item.id, body)
+    unchanged = library.edit_text(
+        item.id, body.model_copy(update={"expected_hash": saved.files[0].sha256})
+    )
+    assert unchanged.version == saved.version
+
+
+def test_text_editing_rejects_stale_binary_partial_and_unlisted_sources(
+    library: DesignLibrary, tmp_path: Path
+) -> None:
+    """Never overwrite a newer file, a partial preview, binary media or an escaped path."""
+    item = library.create(DesignCreate(name="Protected", files=[upload("guide.md", b"Original")]))
+    source = item.files[0]
+    body = DesignTextEdit(path=source.path, text="Human draft", expected_hash=source.sha256)
+    target = Path(source.local_path)
+    _ = target.write_text("Newer agent edit")
+    with pytest.raises(ConflictError):
+        library.edit_text(item.id, body)
+    assert target.read_text() == "Newer agent edit"
+    for content in [b"\x00binary", b"\xffbroken", b"x" * 1_048_577]:
+        _ = target.write_bytes(content)
+        current = library.get(item.id).files[0]
+        with pytest.raises(ValueError):
+            library.edit_text(item.id, body.model_copy(update={"expected_hash": current.sha256}))
+        assert target.read_bytes() == content
+    with pytest.raises(FileNotFoundError):
+        library.edit_text(item.id, body.model_copy(update={"path": "../private.md"}))
+    private = tmp_path / "private.md"
+    _ = private.write_text("Keep private")
+    target.unlink()
+    target.symlink_to(private)
+    with pytest.raises(FileNotFoundError):
+        library.edit_text(item.id, body)
+    assert private.read_text() == "Keep private"
+
+
+def test_pack_text_edit_http_is_canonical_and_conflict_aware(
+    library: DesignLibrary, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Edit guidance and runtime text through the same source inventory used by agents."""
+    make_design(library.store.root / TEMPLATE_ID)
+    monkeypatch.setattr(service, "store", library.store)
+    client = TestClient(service.app, base_url="http://127.0.0.1")
+    item = library.get("test-brand")
+    for source in [
+        file for file in item.files if file.name in {"README.md", "theme.css", "index.html"}
+    ]:
+        original = Path(source.local_path).read_text()
+        body = DesignTextEdit(path=source.path, expected_hash=source.sha256, text=original + "\n")
+        response = client.post(f"/api/design-library/{item.id}/files/edit", json=body.model_dump())
+        assert response.status_code == 200, response.text
+        assert client.get(source.url).content == (original + "\n").encode()
+        assert (
+            client.post(
+                f"/api/design-library/{item.id}/files/edit", json=body.model_dump()
+            ).status_code
+            == 409
+        )

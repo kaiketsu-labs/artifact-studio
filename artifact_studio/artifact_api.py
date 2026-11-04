@@ -19,7 +19,14 @@ from .artifact_context import artifact_context
 from .artifact_models import ArtifactFeedback, ArtifactFeedbackInput, ArtifactView, ProjectView
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore, relative_path
-from .design_library import PREVIEW_TYPES, DesignCreate, DesignDelete, DesignDetail, DesignLibrary
+from .design_library import (
+    PREVIEW_TYPES,
+    DesignCreate,
+    DesignDelete,
+    DesignDetail,
+    DesignLibrary,
+    DesignTextEdit,
+)
 from .design_references import ReferenceInput, RemoveReferenceInput
 from .design_thumbnails import THUMBNAIL_SUFFIXES
 from .design_thumbnails import design_thumbnail as make_design_thumbnail
@@ -159,6 +166,11 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     @router.post("/api/design-library/{design_id}/files/remove")
     def remove_design_file(design_id: str, body: RemoveReferenceInput) -> DesignDetail:
         return DesignLibrary(get_store()).remove_file(design_id, body)
+
+    @router.post("/api/design-library/{design_id}/files/edit")
+    def edit_design_text(design_id: str, body: DesignTextEdit) -> DesignDetail:
+        """Save a human-edited source without overwriting a newer agent or filesystem edit."""
+        return DesignLibrary(get_store()).edit_text(design_id, body)
 
     @router.post("/api/design-library/{design_id}/delete")
     def delete_design(design_id: str, body: DesignDelete) -> dict[str, bool]:

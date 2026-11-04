@@ -3,7 +3,7 @@
   'use strict';
   function create({api,icon,escape,sizeLabel,toast,modal,changed}){
     const doc=root.document,dialog=doc.getElementById('hub-dialog');
-    let selected=null,pending=[],busy=false,textRequest=null,textPreview=null;
+    let selected=null,pending=[],busy=false,textRequest=null,textPreview=null,editorLoad=null;
     const path=id=>`/api/design-library/${encodeURIComponent(id)}`;
     const control=(action,label,name,attrs='')=>`<button type="button" data-design-action="${action}" ${attrs}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
     const type=file=>file.name.includes('.')?file.name.split('.').at(-1).toUpperCase().slice(0,8):'FILE';
@@ -40,10 +40,26 @@
       const decoder=new TextDecoder(encoding,{fatal:true});let text;
       try{text=decoder.decode(data,{stream:truncated});}catch{throw Error('This file is not readable text. Download the original to open it.');}
       if(/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text))throw Error('This file is not readable text. Download the original to open it.');
-      return {text,truncated};
+      const hash=Array.from(new Uint8Array(await root.crypto.subtle.digest('SHA-256',data)),byte=>byte.toString(16).padStart(2,'0')).join('');
+      return {text,truncated,hash};
+    }
+    const textDirty=()=>!!textPreview?.editing&&textPreview.editor?.value()!==textPreview.text.replace(/\r\n?/g,'\n');
+    function textActions(){
+      if(!textPreview?.panel.isConnected)return;
+      const {panel,editing,saving,truncated}=textPreview;
+      for(const node of panel.querySelectorAll('[data-text-read]'))node.hidden=!!editing;
+      for(const node of panel.querySelectorAll('[data-text-edit]'))node.hidden=!editing;
+      panel.querySelector('[data-design-action="edit-text"]').disabled=!!truncated||!!textPreview.loadingEditor;
+      panel.querySelector('[data-design-action="save-text"]').disabled=!!saving||!textDirty();
+      panel.querySelector('[data-design-action="cancel-text"]').disabled=!!saving;
+      panel.querySelector('[data-design-action="save-text"] span').textContent=saving?'Saving…':'Save';
+      dialog.querySelector('[data-action="close-dialog"]').disabled=!!saving;
+      panel.setAttribute('aria-busy',String(!!saving));
+      const dirty=panel.querySelector('[data-code-dirty]');if(dirty)dirty.hidden=!textDirty();
     }
     function showText(source=false){
-      if(!textPreview?.panel.isConnected)return;
+      if(!textPreview?.panel.isConnected||textPreview.editing)return;
+      textPreview.source=source;
       const {panel,text,markdown}=textPreview,content=panel.querySelector('[data-design-text-content]');
       content.classList.toggle('is-source',!markdown||source);
       if(!text)content.innerHTML='<p class="design-text-state">Empty file</p>';
@@ -51,16 +67,58 @@
       else{const pre=doc.createElement('pre'),code=doc.createElement('code');code.textContent=text;pre.append(code);content.replaceChildren(pre);}
       for(const button of panel.querySelectorAll('[data-text-view]'))button.setAttribute('aria-pressed',String((button.dataset.textView==='source')===source));
       content.scrollTop=0;
+      textActions();
+    }
+    async function editText(){
+      if(!textPreview||textPreview.truncated)return;
+      const current=textPreview,{panel,text,file}=current,content=panel.querySelector('[data-design-text-content]');
+      current.loadingEditor=true;textActions();
+      try{
+        if(!editorLoad)editorLoad=new Promise((resolve,reject)=>{const script=doc.createElement('script');script.src='/web/vendor/codemirror.js';script.onload=resolve;script.onerror=()=>{script.remove();editorLoad=null;reject(Error('The editor could not load. Try again.'));};doc.head.append(script);});
+        await editorLoad;if(textPreview!==current||!panel.isConnected)return;
+        current.editing=true;content.classList.add('is-source','is-editing');
+        content.innerHTML=`<div class="design-code-header">${icon('code')}<span>${escape(file.name)}</span><i data-code-dirty hidden aria-label="Unsaved changes"></i>${control('find-text','','search','class="hub-icon-only" aria-label="Find in file" title="Find (⌘F / Ctrl+F)"')}</div><div class="design-code-body" data-voice-exclude></div><div class="design-code-status"><span data-code-position>Ln 1, Col 1</span><span data-code-language></span></div>`;
+        current.editor=root.ArtifactTextEditor.create(content.querySelector('.design-code-body'),{value:text,name:file.name,onChange:textActions,onSave:()=>void saveText(),onPosition:(line,column)=>{content.querySelector('[data-code-position]').textContent=`Ln ${line}, Col ${column}`;}});
+        content.querySelector('[data-code-language]').textContent=current.editor.language;textActions();current.editor.focus();
+      }finally{current.loadingEditor=false;if(textPreview===current)textActions();}
+    }
+    function cancelText(){
+      if(!textPreview||textPreview.saving)return;
+      textPreview.editor?.destroy();textPreview.editor=null;textPreview.editing=false;textPreview.panel.querySelector('[data-design-text-content]').classList.remove('is-editing');
+      textPreview.panel.querySelector('[data-design-text-error]').hidden=true;
+      showText(textPreview.source);textPreview.panel.querySelector('[data-design-action="edit-text"]').focus();
+    }
+    async function saveText(){
+      if(!textPreview||textPreview.saving||!textDirty())return;
+      const current=textPreview,{panel,file,designId,editor}=current,error=panel.querySelector('[data-design-text-error]');
+      current.saving=true;editor.setReadOnly(true);error.hidden=true;textActions();
+      try{
+        const item=await api(path(designId)+'/files/edit',{path:file.path,text:editor.value(),expected_hash:current.hash});
+        current.text=editor.value();current.file=item.files.find(item=>item.path===file.path);current.hash=current.file.sha256;current.editing=false;current.saving=false;
+        editor.destroy();current.editor=null;
+        panel.querySelector('[data-design-text-content]').classList.remove('is-editing');
+        showText(current.source);toast('File saved.');
+        await changed(designId).catch(()=>toast('File saved. Refresh the file list to update it.',true));
+      }catch(failure){
+        error.hidden=false;error.querySelector('[role="alert"]').textContent=failure.message;
+        error.querySelector('[data-text-conflict]').hidden=failure.status!==409;
+        editor.setReadOnly(false);editor.focus();
+      }finally{current.saving=false;if(textPreview===current){textActions();if(!current.editing)panel.querySelector('[data-design-action="edit-text"]').focus();}}
     }
     async function openText(file){
-      textRequest?.abort();const request=new AbortController();textRequest=request;textPreview=null;
+      textRequest?.abort();textPreview?.editor?.destroy();const request=new AbortController();textRequest=request;textPreview=null;
       const markdown=['MD','MARKDOWN','MDOWN','MKD'].includes(type(file));
-      modal(file.name,`<section class="design-text-preview"><div class="design-text-toolbar">${markdown?`<div class="design-text-views" role="group" aria-label="File view">${control('text-view','Preview','eye','data-text-view="preview" aria-pressed="true"')}${control('text-view','Source','code','data-text-view="source" aria-pressed="false"')}</div>`:'<span></span>'}<a href="${escape(file.url)}" download>${icon('download')}Download original</a></div><div class="design-text-content" data-design-text-content tabindex="0" aria-label="File content"><p class="design-text-state" role="status">Loading…</p></div><small class="design-text-limit" hidden>Preview limited to the first 1 MB. Download the original for the complete file.</small></section>`);
+      modal(file.name,`<section class="design-text-preview"><div class="design-text-toolbar">${markdown?`<div class="design-text-views" role="group" aria-label="File view" data-text-read>${control('text-view','Preview','eye','data-text-view="preview" aria-pressed="true"')}${control('text-view','Source','code','data-text-view="source" aria-pressed="false"')}</div>`:'<span></span>'}<div class="design-text-actions"><a href="${escape(file.url)}" download data-text-read>${icon('download')}Download original</a>${control('edit-text','Edit','edit','data-text-read disabled')}${control('cancel-text','Cancel','close','data-text-edit hidden')}${control('save-text','Save','save','class="hub-primary" data-text-edit hidden disabled title="Save (⌘S / Ctrl+S)"')}</div></div><div class="design-text-content" data-design-text-content tabindex="0" aria-label="File content"><p class="design-text-state" role="status">Loading…</p></div><div class="design-text-error" data-design-text-error hidden><p role="alert"></p><div data-text-conflict hidden>${control('copy-text','Copy edits','copy')}${control('reload-text','Open latest','refresh')}</div></div><small class="design-text-limit" hidden>Preview limited to the first 1 MB. Download the original to edit the complete file.</small></section>`);
       const panel=dialog.querySelector('.design-text-preview');
-      try{const result=await readText(file,request.signal);if(textRequest!==request||!panel.isConnected||!dialog.open)return;textPreview={panel,text:result.text,markdown};panel.querySelector('.design-text-limit').hidden=!result.truncated;showText();}
+      try{const result=await readText(file,request.signal);if(textRequest!==request||!panel.isConnected||!dialog.open)return;textPreview={panel,...result,markdown,file,designId:selected.id,editing:false,saving:false};panel.querySelector('.design-text-limit').hidden=!result.truncated;showText();}
       catch(error){if(request.signal.aborted||!panel.isConnected)return;const content=panel.querySelector('[data-design-text-content]');content.replaceChildren();const message=doc.createElement('p');message.className='design-text-state';message.setAttribute('role','alert');message.textContent=error.message;content.append(message);}
     }
-    dialog.addEventListener('close',()=>{textRequest?.abort();textRequest=null;textPreview=null;});
+    dialog.addEventListener('close',()=>{textRequest?.abort();textPreview?.editor?.destroy();textRequest=null;textPreview=null;});
+    const allowTextClose=()=>!textPreview?.saving&&(!textDirty()||root.confirm('Discard unsaved changes?'));
+    dialog.addEventListener('cancel',event=>{if(!allowTextClose())event.preventDefault();});
+    dialog.addEventListener('click',event=>{if(event.target.closest('[data-action="close-dialog"]')&&!allowTextClose()){event.preventDefault();event.stopPropagation();}},true);
+    dialog.addEventListener('keydown',event=>{if(!event.defaultPrevented&&(event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'&&textPreview?.editing){event.preventDefault();void saveText();}});
+    root.addEventListener('beforeunload',event=>{if(textDirty()||textPreview?.saving){event.preventDefault();event.returnValue='';}});
     function cover(item){
       const formats=(item.formats||[]).filter(format=>!['CSS','HTML','JS'].includes(format)).slice(0,3);
       const fallback=`<span class="design-cover-sheet"><b>${escape(formats[0]||'DESIGN')}</b><span>${escape(item.name)}</span><i></i><i></i><i></i></span><span class="design-cover-formats">${formats.map(format=>`<b>${escape(format)}</b>`).join('')}</span>`;
@@ -144,6 +202,12 @@ ${link}`;
         if(action==='attach')return filesForm(false);
         if(action==='use')return useDialog();
         if(action==='text-view'){showText(node.dataset.textView==='source');return;}
+        if(action==='edit-text')return editText();
+        if(action==='cancel-text')return cancelText();
+        if(action==='save-text')return saveText();
+        if(action==='find-text')return textPreview?.editor?.find();
+        if(action==='copy-text'){await root.navigator.clipboard.writeText(textPreview.editor.value());toast('Edits copied.');return;}
+        if(action==='reload-text'){if(root.confirm('Discard your edits and open the latest version?'))return openText(textPreview.file);return;}
         if(action==='preview-file'){
           const file=selected.files.find(file=>file.path===node.dataset.filePath);
           if(textFile(file))return openText(file);

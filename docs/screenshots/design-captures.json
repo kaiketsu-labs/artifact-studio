@@ -1,6 +1,6 @@
 {
   "fixture": "Original fictional design library",
-  "captured_at": "2026-11-03T22:17:44.003591+00:00",
+  "captured_at": "2026-11-04T10:43:27.565188+00:00",
   "native_share": "Simulated native API for the agent message",
   "screenshots": {
     "docs/assets/design-library.png": {
@@ -8,72 +8,104 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:42.462598+00:00",
-      "sha256": "6402904a5ca3e27178170c4bd9668fc84df716cc841842f0cf36a2b4080fc80f"
+      "captured_at": "2026-11-04T10:43:25.358032+00:00",
+      "sha256": "cfc3c6c4c6f17f104c8d2b448bba4e1324d795d9c9c65cac356e70f070a66f8a"
     },
     "docs/assets/add-design.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:42.779697+00:00",
-      "sha256": "3ef11b4a569f529ed1f65f8a7169cb3db0844572e0af677186476cad36a4734c"
+      "captured_at": "2026-11-04T10:43:25.573020+00:00",
+      "sha256": "ebf4f66f3ff0ca062282844d65591d89478d4411c30a46ef76b6a628ea6be719"
     },
     "docs/screenshots/add-design-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-03T22:17:42.873119+00:00",
-      "sha256": "d82dfd98c908e525bdfc68218493b5ae1f275260891a367a52afeace26d7bbb0"
+      "captured_at": "2026-11-04T10:43:25.730122+00:00",
+      "sha256": "b27b22f9325e01abb364b92d9dee6980a03c875e98278db26df5845abad41306"
     },
     "docs/assets/design-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:43.075213+00:00",
-      "sha256": "993a21e9b978546b768b6090b8366bc9dc30993846dc8365d7b5edb13897faf4"
+      "captured_at": "2026-11-04T10:43:25.955675+00:00",
+      "sha256": "6120980b673f9a3333d8aedbddc02e5751e7176cc5aac7fd5949b8e85e271921"
+    },
+    "docs/screenshots/design-text-preview.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.121391+00:00",
+      "sha256": "bf24cd7269a109f2b0f580ee3d531ab9b479bf74450f989b1d7ee74e81cd9be6"
+    },
+    "docs/assets/design-text-editor.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.326071+00:00",
+      "sha256": "14b54c77e4a0b144108e91be23d41a77c9e7caf1d86375760e31c6403bced075"
     },
     "docs/screenshots/design-context-dark.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:43.209823+00:00",
-      "sha256": "ac71f31fa079b1ed10876e556c0a224e4c0adf382e25caf11be9ab0b1fc3e6ae"
+      "captured_at": "2026-11-04T10:43:26.589357+00:00",
+      "sha256": "c2bcba8067f2a171e4733ece87889d61e1712eabd5dad909adf9aeb2b6c67582"
+    },
+    "docs/screenshots/design-text-editor-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "captured_at": "2026-11-04T10:43:26.766920+00:00",
+      "sha256": "b771b04320ccedc87db92f0eca19676ae4c6b84db79325972a98ea3d33c90557"
+    },
+    "docs/screenshots/design-text-editor-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "captured_at": "2026-11-04T10:43:26.836290+00:00",
+      "sha256": "ddaa39841c5418931b4b1a57d34f094695f08542c4dc04ec40b300a0322be3fc"
     },
     "docs/screenshots/design-file-preview.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:43.471046+00:00",
-      "sha256": "31cbf8fb6613117371eac24b5b17f44e961780826e7e74a13d0fc0d8ac5e9c96"
+      "captured_at": "2026-11-04T10:43:27.106466+00:00",
+      "sha256": "b15f06b863884e9cfe3c0734995abd44a8e31674904a512dd9776f02a4a743d3"
     },
     "docs/screenshots/design-use-agent.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:43.661253+00:00",
-      "sha256": "2b7d2fc893fcb87b216eedef021743bb90f005324d12c0c8ee5733e81955f33b"
+      "captured_at": "2026-11-04T10:43:27.259034+00:00",
+      "sha256": "bdff43c176c49268b059698c52d6a5fdaf146cc014dd453a8b03d16ae687ebb0"
     },
     "docs/screenshots/design-context-mobile.png": {
       "viewport": {
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-03T22:17:43.783105+00:00",
-      "sha256": "3e03f5344ecf300b8bb8c813a89f8f4f7c6b42b2d145433c36ab59cd8137cc99"
+      "captured_at": "2026-11-04T10:43:27.395472+00:00",
+      "sha256": "1635bac3a8ca0140572e3d128d8ce38f8fc457b885540db4efc86c90324ca5f1"
     },
     "docs/screenshots/design-pack-context.png": {
       "viewport": {
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-03T22:17:43.999994+00:00",
-      "sha256": "464c71402101490f728054ee55a30f1ce64a4f7168966ed564f9e2509d7b657c"
+      "captured_at": "2026-11-04T10:43:27.561471+00:00",
+      "sha256": "9b1cb9f566eb519b9836f48f676b2359914f67261beb96f2d9650b104ea46f46"
     }
   }
 }

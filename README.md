@@ -130,6 +130,10 @@ Open **Designs → Add design**, enter a name, then drop in reference files or c
 
 Click a design card to see the context files, add more, download a source or remove an attachment. **Use with agent** prepares a message you can copy into your connected agent's chat to use the design for your next task. If clipboard access is blocked, the message remains selected for manual copying. Registered slide design packs also offer **Open example slides**; the workspace default is marked. Normal presentations using a design remain in the artifact library.
 
+Click a text file to preview it, then **Edit** for a VS Code-style source editor with highlighting, line numbers, find/replace and undo/redo. **Save** updates the local file and any enabled backups; **Cancel** leaves it unchanged. Markdown keeps its formatted preview. Concurrent edits are protected, and truncated previews stay read-only.
+
+![Editing a Markdown design reference with line numbers, syntax highlighting and Save/Cancel.](docs/assets/design-text-editor.png)
+
 ![Design library with slide design packs and reference file collections.](docs/assets/design-library.png)
 
 The trash icon removes a design from the library; **Deleted designs** restores it. Existing presentations and source files are preserved. Agents discover designs with `list_design_contexts` and inspect their file inventory with `get_design_context`. For project work, pass `design_id` to `get_working_context` alongside the project or artifact ID. File pointers show what is available; the agent must open the actual files. Attaching references does not automatically apply their styling.
@@ -255,6 +259,6 @@ uv run ruff format --check artifact_studio tests
 node --test tests/*.cjs
 ```
 
-Node.js is needed only for frontend behavior tests. Documentation screenshots use fictional projects, not personal files. [CI](docs/CI.md) · [Screenshot inventory](docs/screenshots/README.md).
+Node.js is needed for frontend behavior tests and optional rebuilds of the vendored [text editor](docs/DESIGN-PACKS.md); it is not required to run the app. Documentation screenshots use fictional projects, not personal files. [CI](docs/CI.md) · [Screenshot inventory](docs/screenshots/README.md).
 
 </details>

@@ -2,6 +2,8 @@
 
 Screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
 
+Design reference captures also include the [formatted text preview](design-text-preview.png) and VS Code-style editor in [light](../assets/design-text-editor.png), [dark](design-text-editor-dark.png) and [narrow](design-text-editor-mobile.png) layouts. They use fictional Markdown and actual Edit, Save and Cancel actions.
+
 From the repository root, after the normal development installation:
 
 ```sh
