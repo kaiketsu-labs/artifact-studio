@@ -11,6 +11,7 @@ uv run playwright install chromium --only-shell
 uv run python -m scripts.capture_screenshots
 uv run python -m scripts.capture_design_library
 uv run python -m scripts.capture_sharing
+uv run python -m scripts.capture_slide_designs
 ```
 
 The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/artifact-studio-docs`.
@@ -56,3 +57,5 @@ The [README capture audit](readme-captures.json) verifies every PNG screenshot l
 The visual-review example uses the production snapshot sanitizer, readiness hook and contact-sheet composer with documentation Playwright captures. It does not exercise or bypass the production renderer's OS isolation. Dedicated renderer checks cover that boundary; see [visual-review verification](../VISUAL-REVIEW.md) and [CI](../CI.md). Screenshots document appearance and exercised paths, not complete application test coverage.
 
 The logo and conceptual [workflow diagram](../assets/workflow.svg) are artwork, not app screenshots, and are kept separately.
+
+[capture_slide_designs.py](../../scripts/capture_slide_designs.py) publishes three fictional whole-slide directions through the real MCP tool, then uses the real preview, hover, compare, choose and History controls. The [inventory](slide-designs-captures.json) records seven captures with viewports and byte hashes: [editor](../assets/slide-designs.png), [hover](slide-designs-hover.png), [comparison](slide-designs-compare.png), [narrow](slide-designs-mobile.png), [dark](slide-designs-dark.png), [chosen](slide-designs-chosen.png) and [History](slide-designs-history.png). Frozen proposal documents are real. Only the unrelated existing revision-timeline thumbnail uses a fictional PNG because its production renderer requires OS isolation unavailable on managed capture hosts. The earlier [UX prototype](../prototypes/slide-alternatives/README.md) records design exploration; these captures show the implementation.

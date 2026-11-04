@@ -149,6 +149,10 @@ def test_initialization_catalog_flat_schemas_and_bootstrap(gateway: GatewayFixtu
         "add_slide",
         "reorder_slides",
         "capture_artifact",
+        "publish_slide_designs",
+        "get_slide_designs",
+        "get_slide_design",
+        "capture_slide_design",
     } <= names
     assert not names & {
         "register_artifact",
@@ -229,6 +233,57 @@ def test_current_project_scope_is_checked_on_each_call(gateway: GatewayFixture) 
     denied = call(gateway.client, "get_artifact", {"artifact_id": gateway.selected.id})
     assert denied["isError"] is True
     assert gateway.selected.id not in json.dumps(data(call(gateway.client, "list_artifacts")))
+
+
+def test_design_proposals_use_flat_gateway_schema_and_enforce_project_scope(
+    gateway: GatewayFixture,
+) -> None:
+    """Publish through the actual cloud contract without exposing another project's proposals."""
+    current = object_value(
+        data(call(gateway.client, "get_slide", {"deck_id": DECK, "slide_id": "cover"}))
+    )
+    before = gateway.store.read(DECK)
+    arguments = {
+        "deck_id": DECK,
+        "slide_id": "cover",
+        "expected_content_hash": current["content_hash"],
+        "request_id": "gateway-design-proposal",
+        "options_json": json.dumps(
+            [{"name": "Editorial", "html": '<article class="slide"><h1>Editorial</h1></article>'}]
+        ),
+    }
+    group = object_value(data(call(gateway.client, "publish_slide_designs", arguments)))
+    assert data(call(gateway.client, "publish_slide_designs", arguments)) == group
+    options = [object_value(item) for item in list_value(group["options"])]
+    assert len(options) == 2 and gateway.store.read(DECK) == before
+    proposal = object_value(
+        data(
+            call(
+                gateway.client,
+                "get_slide_design",
+                {
+                    "deck_id": DECK,
+                    "slide_id": "cover",
+                    "design_id": options[1]["id"],
+                },
+            )
+        )
+    )
+    assert "Editorial" in str(proposal["html"])
+    assert "notes" not in proposal
+    _ = ArtifactStore(gateway.store).set_artifact_project(DECK, gateway.unrelated.project_id)
+    for name, args in (
+        ("publish_slide_designs", arguments),
+        ("get_slide_designs", {"deck_id": DECK, "slide_id": "cover"}),
+        ("get_slide_design", {"deck_id": DECK, "slide_id": "cover", "design_id": options[1]["id"]}),
+        (
+            "capture_slide_design",
+            {"deck_id": DECK, "slide_id": "cover", "design_id": options[1]["id"]},
+        ),
+    ):
+        denied = call(gateway.client, name, args)
+        assert denied["isError"] is True
+        assert "Editorial" not in json.dumps(denied)
 
 
 def test_owned_file_revision_roundtrip_and_conflict(gateway: GatewayFixture) -> None:

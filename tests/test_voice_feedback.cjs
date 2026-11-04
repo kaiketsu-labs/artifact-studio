@@ -115,3 +115,21 @@ test('stored segment validation rejects oversized, ambiguous and malformed conte
   state.setKey('deck/wrong-slide');assert.equal(state.queue.capture(),null);
   assert.equal(state.queue.insert('Misrouted',{...capture,key:'deck/wrong-slide'}),false);
 });
+
+test('late voice results retain the proposal identity across design switches and reload',()=>{
+  const values=new Map(),storage={keys:()=>[...values.keys()],getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};
+  const draftStore=createDrafts(storage);
+  let selection={...context(null),design_option_id:'a'.repeat(32),design_option_name:'Editorial'},number=0;
+  const queue=create({drafts:draftStore.feedback,key:()=> 'deck/cover',context:()=>selection,persist:draftStore.persist,uuid:()=>`proposal-voice-${++number}`});
+  const editorial=queue.capture();
+  selection={...context(null),design_option_id:'b'.repeat(32),design_option_name:'Bold'};
+  const bold=queue.capture();
+  queue.insert('Make Bold more spacious',bold);
+  queue.insert('Keep this typography',editorial);
+  const restored=createDrafts(storage).feedback.get('deck/cover').voice_segments;
+  assert.deepEqual(restored.map(item=>item.design_option_name),['Bold','Editorial']);
+  assert.deepEqual(restored.map(item=>item.design_option_id),['b'.repeat(32),'a'.repeat(32)]);
+  assert.equal(restored[1].request_id,editorial.request_id);
+  assert.ok(validSegments(restored));
+  assert.equal(!!validSegments([{...restored[0],target:heading}]),false);
+});

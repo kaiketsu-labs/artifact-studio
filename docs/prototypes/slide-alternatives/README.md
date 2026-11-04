@@ -1,5 +1,7 @@
 # Slide design alternatives — UX draft
 
+This is the earlier UX exploration. The implemented feature and current screenshots are in [Slide design alternatives](../../SLIDE-DESIGNS.md); the implementation uses a bold border and check for the chosen design.
+
 An interactive, fictional editor prototype for parallel **whole-slide designs**. Open `index.html` through a server rooted at the repository, for example:
 
 ```sh
