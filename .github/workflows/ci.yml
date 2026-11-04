@@ -78,7 +78,7 @@ jobs:
           - suite: artifacts-runtime
             tests: >-
               tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
-              tests/integration/test_artifact_workspace.py tests/integration/test_element_properties.py tests/integration/test_element_properties_layout.py
+              tests/integration/test_artifact_workspace.py tests/integration/test_artifact_sorting.py tests/integration/test_element_properties.py tests/integration/test_element_properties_layout.py
               tests/integration/test_native_sharing.py tests/integration/test_hub_context_menus.py tests/integration/test_version_recovery.py
               tests/integration/test_voice_input.py tests/integration/test_voice_hub.py tests/integration/test_artifact_downloads.py
               tests/integration/test_project_tree.py tests/integration/test_sharing_workspace.py

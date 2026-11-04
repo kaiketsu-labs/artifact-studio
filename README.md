@@ -26,6 +26,8 @@
 
 The **Library** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
 
+Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Created**, or **File type**. File type shows separate format groups; the arrow reverses the order. One choice is remembered in this browser across overviews. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
+
 | Artifact | Review it in its own format |
 | --- | --- |
 | Presentations | Slide thumbnails, element feedback, sections, notes, animations and a private presenter view. |

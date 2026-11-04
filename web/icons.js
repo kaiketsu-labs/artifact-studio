@@ -6,6 +6,7 @@
     sectionAdd:'M3 5h18M3 10h11M3 15h8M17 13v8M13 17h8',
     more:'M5 12h.01M12 12h.01M19 12h.01',
     menu:'M4 6h16M4 12h16M4 18h16',
+    sort:'M4 6h16M4 12h11M4 18h6',
     panelLeft:'M3 4h18v16H3zM8 4v16',
     chat:'M21 11a8 8 0 0 1-8 8H8l-5 3V6a3 3 0 0 1 3-3h7a8 8 0 0 1 8 8ZM7 8h10M7 12h7',
     question:'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM9.1 8a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4M12 17h.01',

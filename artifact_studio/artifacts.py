@@ -70,9 +70,10 @@ def file_inventory(files: dict[str, bytes]) -> list[ArtifactFile]:
     ]
 
 
-def legacy_inventory(folder: Path) -> tuple[list[ArtifactFile], bool]:
+def legacy_inventory(folder: Path) -> tuple[list[ArtifactFile], bool, float]:
     """Bound legacy discovery to file stats, skipping links without changing existing files."""
     inventory: list[ArtifactFile] = []
+    updated = 0.0
     for directory, subdirectories, filenames in folder.walk(follow_symlinks=False):
         subdirectories[:] = sorted(
             name for name in subdirectories if not (directory / name).is_symlink()
@@ -87,7 +88,8 @@ def legacy_inventory(folder: Path) -> tuple[list[ArtifactFile], bool]:
             if not stat.S_ISREG(details.st_mode):
                 continue
             if len(inventory) == MAX_FILES:
-                return inventory, False
+                return inventory, False, updated
+            updated = max(updated, details.st_mtime)
             inventory.append(
                 ArtifactFile(
                     path=relative,
@@ -96,7 +98,7 @@ def legacy_inventory(folder: Path) -> tuple[list[ArtifactFile], bool]:
                     mime_type=mimetypes.guess_type(relative)[0] or "application/octet-stream",
                 )
             )
-    return inventory, True
+    return inventory, True, updated
 
 
 def bundle_hash(files: list[ArtifactFile], entrypoint: str, kind: str) -> str:
@@ -442,8 +444,27 @@ class ArtifactStore:
             raise FileNotFoundError("Artifact does not exist.")
         approved = row["approved_hash"] == manifest.content_hash
         unseen = row["seen_hash"] != manifest.content_hash
+        timestamps = db.execute(
+            """SELECT
+                (SELECT json_extract(document, '$.created_at') FROM artifact_revisions
+                 WHERE artifact_id=? AND revision<=? ORDER BY revision LIMIT 1) AS created_at,
+                (SELECT json_extract(current.document, '$.created_at')
+                 FROM artifact_revisions AS current
+                 WHERE current.artifact_id=? AND current.revision<=? AND
+                   json_extract(current.document, '$.content_hash') IS NOT
+                   (SELECT json_extract(previous.document, '$.content_hash')
+                    FROM artifact_revisions AS previous
+                    WHERE previous.artifact_id=current.artifact_id
+                      AND previous.revision<current.revision
+                    ORDER BY previous.revision DESC LIMIT 1)
+                 ORDER BY current.revision DESC LIMIT 1) AS updated_at""",
+            (manifest.id, manifest.revision, manifest.id, manifest.revision),
+        ).fetchone()
+        created_at = cast(str | None, timestamps["created_at"]) or manifest.created_at
+        updated_at = cast(str | None, timestamps["updated_at"]) or created_at
         return ArtifactView(
-            **manifest.model_dump(),
+            **manifest.model_copy(update={"created_at": created_at}).model_dump(),
+            updated_at=updated_at,
             project_title=self._project(db, manifest.project_id).title,
             approved=approved,
             has_unseen_changes=unseen,
@@ -572,7 +593,7 @@ class ArtifactStore:
         """Adapt legacy review identities without scanning asset bytes or imposing bundle limits."""
         view = self.store.view(artifact_id, include_pending=False)
         folder = self.store.folder(artifact_id)
-        files, files_complete = legacy_inventory(folder)
+        files, files_complete, updated = legacy_inventory(folder)
         with self.store.connect() as db:
             row = db.execute(
                 "SELECT project_id FROM artifact_legacy_projects WHERE artifact_id=?",
@@ -580,6 +601,22 @@ class ArtifactStore:
             ).fetchone()
             project_id = cast(str, row[0]) if row else LEGACY_PROJECT
             project = self._project(db, project_id)
+            history = db.execute(
+                "SELECT MIN(created_at) FROM slide_version_metadata WHERE deck=?",
+                (artifact_id,),
+            ).fetchone()
+        folder_stat = folder.stat()
+        birth = getattr(folder_stat, "st_birthtime", None)
+        history_created = cast(str | None, history[0]) if history else None
+        candidates = [history_created] if history_created else []
+        if birth is not None:
+            candidates.append(datetime.fromtimestamp(birth, UTC).isoformat())
+        if not candidates:
+            candidates.append(
+                datetime.fromtimestamp((folder / "index.html").stat().st_mtime, UTC).isoformat()
+            )
+        created_at = min(candidates)
+        updated_at = datetime.fromtimestamp(updated, UTC).isoformat() if updated else created_at
         manifest = ArtifactManifest(
             id=artifact_id,
             project_id=project_id,
@@ -600,13 +637,14 @@ class ArtifactStore:
             context=view.context_markdown,
             context_hash=view.context_hash,
             original_source_path=str(folder),
-            created_at="",
+            created_at=created_at,
             viewer_version="legacy-presentation",
         )
         approved = all(slide.approved for slide in view.slides)
         unseen = any(slide.has_unseen_changes for slide in view.slides)
         return ArtifactView(
             **manifest.model_dump(),
+            updated_at=updated_at,
             project_title=project.title,
             source_path=str(folder),
             legacy_deck_id=artifact_id,
