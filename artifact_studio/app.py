@@ -112,6 +112,7 @@ from .slide_actions import SlideActionResult, SlideActions
 from .slide_design_api import design_routes
 from .slide_designs import DesignInput, DesignPage, DesignSet, DesignSource, SlideDesigns
 from .storage import ConflictError, Store, digest
+from .text_review import check_slide_text as review_captured_text
 from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status, capture_snapshot
 
 PROJECT = Path(__file__).resolve().parent.parent
@@ -373,6 +374,7 @@ def get_working_context(
                 "workflow",
                 "live_review",
                 "visual_review",
+                "text_review",
                 "interactive_html",
                 "design_import",
                 "design_guide",
@@ -454,6 +456,7 @@ def get_authoring_guide(
         "workflow",
         "live_review",
         "visual_review",
+        "text_review",
         "interactive_html",
         "design_import",
         "design_guide",
@@ -473,6 +476,7 @@ def get_authoring_guide(
         "workflow": "AGENT-GUIDE.md",
         "live_review": "LIVE-REVIEW.md",
         "visual_review": "VISUAL-REVIEW.md",
+        "text_review": "TEXT-REVIEW.md",
         "interactive_html": "INTERACTIVE-HTML.md",
         "design_import": "DESIGN-PACKS.md",
         "slide_designs": "SLIDE-DESIGNS.md",
@@ -655,10 +659,19 @@ def get_presentation_outline(
 
 @mcp.tool(annotations=READ)
 @tool_errors
-def get_slide(deck_id: str, slide_id: str, include_feedback: bool = False) -> AgentSlideView:
+def get_slide(
+    deck_id: str,
+    slide_id: str,
+    include_feedback: bool = False,
+    include_interactive_html: bool = True,
+) -> AgentSlideView:
     """Read complete slide source, notes and expected_hash for a safe revision.
     Read released comments via read_feedback; include_feedback=True adds slide discussion history.
     Use publish_slide_designs for alternatives; revise_slide changes the chosen slide.
+    include_interactive_html=False omits embedded interactive source (returned as empty with
+    an explicit inclusion marker, byte count and hash), preserving static HTML, notes and tokens.
+    Use it for static/notes inspection; request full source before editing interactive content.
+    An omitted empty field is not an instruction to clear it. Use outlines for status-only reads.
     """
     view = store.view_slide(
         deck_id,
@@ -666,7 +679,16 @@ def get_slide(deck_id: str, slide_id: str, include_feedback: bool = False) -> Ag
         include_pending=False,
         feedback=None if include_feedback else [],
     )
-    return AgentSlideView(**view.model_dump(), feedback_included=include_feedback)
+    fields = view.model_dump()
+    if not include_interactive_html:
+        fields["interactive_html"] = ""
+    return AgentSlideView(
+        **fields,
+        feedback_included=include_feedback,
+        interactive_html_included=include_interactive_html,
+        interactive_html_bytes=len(view.interactive_html.encode()),
+        interactive_html_hash=digest(view.interactive_html),
+    )
 
 
 @mcp.tool(annotations=WRITE)
@@ -855,9 +877,36 @@ def capture_contact_sheet(
 
 
 @mcp.tool(annotations=READ)
-def get_capture_status() -> dict[str, object]:
-    """Read capture queue activity and capacity without starting a browser or loading slides."""
-    return capture_queue_status()
+def get_capture_status(probe_renderer: bool = False) -> dict[str, object]:
+    """Read queue and last renderer readiness. probe_renderer=True tests sandbox launch now.
+    Default does not launch a browser. A successful probe does not verify any slide pixels.
+    """
+    return capture_queue_status(probe_renderer=probe_renderer)
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def check_slide_text(
+    deck_id: str,
+    slide_id: str,
+    capture_id: str,
+    expected_text: str,
+    language: str = "eng",
+) -> dict[str, object]:
+    """Compare existing full-resolution capture pixels with expected visible text using local OCR.
+    Read topic='text_review'. Requires optional Tesseract. Returns anchored mismatch candidates
+    and confidence for visual review, never approval or proof that glyphs are correct.
+    Supply expected text for this captured reveal stage; private notes are not read.
+    """
+    return review_captured_text(
+        store,
+        DATABASE.parent / "visual-reviews",
+        deck_id,
+        slide_id,
+        capture_id,
+        expected_text,
+        language,
+    )
 
 
 @mcp.tool(annotations=WRITE)
@@ -1082,14 +1131,14 @@ def update_presentation_theme(deck_id: str, css: str, expected_hash: str) -> dic
     return PresentationFiles(store).update_theme(deck_id, css, expected_hash)
 
 
-@mcp.tool(annotations=READ)
+@mcp.tool(annotations=WRITE)
 @tool_errors
 def list_presentation_assets(
     deck_id: str, prefix: str = "assets/", offset: int = 0, limit: int = 50
 ) -> dict[str, object]:
     """List actual deck-local assets with paths, sizes and replacement hashes; no binary data.
     get_design_assets lists brand source files; use this after adding assets to a deck.
-    import_directory is a deck-specific staging path for agent downloads/extracted dependencies.
+    Creates import_directory when missing: a deck-specific staging directory for downloads.
     """
     return PresentationFiles(store).assets(deck_id, prefix, offset, limit)
 

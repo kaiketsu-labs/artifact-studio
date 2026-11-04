@@ -12,6 +12,8 @@ The Python packages are locked with the app. Chromium is a separate official Pla
 
 ## Agent workflow
 
+Before a capture batch, `get_capture_status(probe_renderer=True)` tests the sandboxed renderer once. The default status read is cheap and returns the last observed readiness. Launch failures are cached briefly; an explicit probe retries after setup is repaired. No renderer setting is weakened.
+
 Call `get_working_context`, read the workspace rules, then read the deck and released feedback. Use `capture_contact_sheet(deck_id)` to scan up to 24 completed slides, including hidden ones. Follow `next_offset` until there are no pages left, or pass `slide_ids=[...]` to capture only affected slides in deck order. Offsets apply to that selected subset. Each tile has a slide number/title and a local frame path. The default `resolution="draft"` produces 800 × 450 frames; `resolution="full"` produces 1600 × 900 frames. Both preserve the same 1600 × 900 layout.
 
 Use `capture_slide(deck_id, slide_id)` for a 1600 × 900 completed-slide image. Inspect every slide at full size; a contact sheet does not verify chart labels or small text. The tool returns an image block plus metadata, including the slide ID, content hash, rendering-dependency hash, expected revision hash, renderer/runtime hash, capture time and diagnostics. If `stale` is true, capture again before drawing conclusions about the current slide.
@@ -50,3 +52,7 @@ This verifies slide content in Chromium. It does not verify presenter controls, 
 ## Custom interactive documents
 
 Slides with `interactive_html` are captured from their actual isolated custom document, not their static fallback. Provide `window.artifactStudioCapture` for reproducible time/final states and `window.artifactStudioReady` when local preparation is asynchronous. The diagnostics explicitly indicate that sandbox DOM inspection is unavailable. Inspect the image itself. See [custom HTML and interaction hooks](INTERACTIVE-HTML.md).
+
+## Optional text fidelity review
+
+After a full-size capture, `check_slide_text` compares its pixels with caller-supplied expected visible text using optional local Tesseract OCR. The capture and image hashes anchor the result; stale or modified captures require recapture. Mismatches and confidence need visual interpretation, and even a match does not prove glyph correctness. This catches candidates beyond resource-loading checks, without disabling ligatures or approving slides. Read `get_authoring_guide(topic="text_review")` or [TEXT-REVIEW.md](TEXT-REVIEW.md).

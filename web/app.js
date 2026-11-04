@@ -9,6 +9,8 @@
   let voice=null, voiceFeedback=null, editingVoiceSegment=false, voiceRecordingBase=null;
   const {targetsOf,groupTargets,selectTargets,isAdditive}=window.SlideSelection;
   const {svg,brand,button:iconButton}=window.SlideIcons;
+  const quickAccess=window.ProjectQuickAccess.create({menu:$('workspace-menu'),button:$('workspace-menu-button')});
+  let recentDeck=null;
   const upwardArrow='<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V4m-7 7 7-7 7 7"/></svg>';
   for(const [id,icon,label,show] of [
     ['instructions-button','rules','Instructions',true],['reload-instructions','refresh','Reload saved instructions',false],['close-instructions','close','Close',false],['save-instructions','save','Save',true],
@@ -18,7 +20,7 @@
     ['edit-element-text','edit','Edit text on slide',false],['move-element','move','Move element',false],['align-element','align','Align to slide',false],['commit-element-text','check','Send text change',false],['cancel-element-edit','close','Cancel edit',false],
     ['retry-preview','refresh','Retry loading design',false],['copy-start','copy','Copy agent prompt',true],['copy-agent-prompt','copy','Copy agent prompt',true],
     ['attach-brief','attach','Attach brief files',false],['toggle-design-chat','plus','Add a design',false],['attach-design','attach','Attach reference files',false],['send-design','send','Send design request',false],
-    ['new-button','plus','New presentation',true],['connect-button','plug','Connect an agent',true],['deck-design-references','attach','Design references',true],
+    ['new-button','plus','New presentation',true],['connect-button','plug','Agent connection',true],['deck-design-references','attach','Design references',true],
     ['present-link','present','Present',true],['fullscreen-button','fullscreen','Present fullscreen',false],['prev-slide','left','Previous slide',false],['next-slide','right','Next slide',false],
     ['save-notes','refresh','Retry saving notes',false],['clear-target','close','Clear element selection',false],
     ['select-parent','group','Select surrounding group',false],['load-update','refresh','Show update',true],
@@ -219,7 +221,8 @@
     feedbackDrafts.set(key(),{...previous,feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:(designContext?.content_hash||slide().content_hash),design_option_id:designContext?.design_option_id,design_option_name:designContext?.design_option_name,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     persistDrafts();
   }
-  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy();elementEditor.sync();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy();elementEditor.sync();$('feedback-text').disabled=!deck||switchingDeck||feedbackSending;$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||feedbackSending||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:!deck||feedbackSending||mutating});for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+
 
 
   /** Resolve a source relative to the canonical presentation folder. */
@@ -260,7 +263,7 @@
     }catch(error){toast(error.message,true);}
   }
   const updates=window.SlideUpdates.create({refresh,workflow:refreshWorkflow,onError:error=>toast(error.message,true)});
-  function watchDeck(id){updates.watch(id);}
+  function watchDeck(id){updates.watch(id);if(recentDeck!==id){recentDeck=id;void quickAccess.visit({artifact_id:id});}}
   /** Refresh time-limited agent availability without reloading slides or discussion history. */
   async function refreshWorkflow(id){
     if(deck?.id!==id||switchingDeck||isLoading||presentationActions.isBusy())return;

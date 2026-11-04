@@ -218,7 +218,7 @@
       if(!collapsedFolders.delete(id))return;
       root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));
       const row=doc.querySelector(`[data-tree-node="${id}"]`),copy=doc.createElement('div');copy.innerHTML=sidebar();
-      const children=copy.querySelector(`[data-folder-children="${id}"]`);if(row&&children){row.after(children);row.querySelector('[data-toggle-folder]').setAttribute('aria-expanded','true');row.querySelector('.project-tree-open>.ui-icon').outerHTML=icon('folderOpen');}
+      const children=copy.querySelector(`[data-folder-children="${id}"]`);if(row&&children){row.after(children);row.querySelector('[data-toggle-folder]').setAttribute('aria-expanded','true');row.querySelector('.project-tree-open>.ui-icon').outerHTML=icon('folderOpen');quickAccess.decorateProjects();}
     },onError:error=>toast(error.message,true)});
   function resetEditor(){if(!artifactEditor.reset())return false;properties?.clear();inspectorSelector=null;return true;}
   function syncInspector(){
@@ -235,6 +235,8 @@
     }
   } catch {}
   const selectedProject=id => state.projects.find(project=>project.id===id);
+  const quickAccess=root.ProjectQuickAccess.create({menu:doc.getElementById('hub-tools-menu'),button:doc.getElementById('hub-tools-button'),keyboard:true,onProject:id=>home(id),trackProjects:true});
+  let initialProjectRecorded=false;
   const projectTitle=id => id==='designs'?'Designs':state.projectTree.nodes.find(node=>'folder:'+node.id===id)?.title || selectedProject(id)?.title || (id === 'all' ? 'All artifacts' : 'Project');
   const selectedFolder=()=>state.project.startsWith('folder:')?state.project.slice(7):state.projectTree.nodes.find(node=>node.id===state.project)?.parent_id ?? null;
   function rememberFolders(){try{root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));}catch{}}
@@ -386,13 +388,14 @@
     }).join('');
   }
   function library() {
+    if(!initialProjectRecorded){initialProjectRecorded=true;if(selectedProject(state.project))void quickAccess.visit({project_id:state.project});}
     void voice.stop();
     properties?.destroy();properties=null;
     const designs=state.project==='designs';
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
-    for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],#hub-tools-button,.hub-top-actions [data-action="context"]'))node.hidden=designs;
+    for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],.hub-top-actions [data-action="context"]'))node.hidden=designs;
     content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><nav class="hub-chips" aria-label="Artifact formats" ${designs?'hidden':''}>${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div id="hub-grid" class="hub-grid">${cards()}</div></main></div>`;
-    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();
+    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();
   }
   function fileList(item) {
     return `<ul class="hub-file-list">${fileRecords(item).map(file=>`<li><a href="${escape(filePath(item,file.path || file.name))}" download>${icon('notes')}<span>${escape(file.path || file.name)}</span></a>${file.size!==undefined?`<small>${sizeLabel(file.size)}</small>`:''}</li>`).join('')}</ul>`;
@@ -443,7 +446,7 @@
     content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-element-properties" hidden></div><div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
     doc.title=`${item.title} · Artifact Studio`;
     properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getVoice:()=>voice,getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:async()=>{const panel=properties,id=state.active,loading=state.loading,generation=panel.selectionGeneration(),mode=state.detail.mode;if(!await panel.stopVoice()){toast('Recording ended without sending. Review your edit before sending.');return;}if(properties!==panel || state.active!==id || state.loading!==loading || panel.selectionGeneration()!==generation)return;if(state.detail.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return false;}return artifactEditor.send(mode);},onCancel:()=>{properties?.cancelVoice();artifactEditor.cancel();}});
-    inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();
+    inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();
   }
   /** Refresh review controls without replacing the preview, composer or dictated drafts. */
   function syncArtifactReview(detail) {
@@ -609,7 +612,7 @@
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
-    if(item?.legacy_deck_id){root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
+    if(item?.legacy_deck_id){await quickAccess.visit({project_id:item.project_id});root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}`;return;}
     const token=++state.loading;state.active=id;state.selecting=false;state.sourceView=false;state.newRevision=null;
     content.innerHTML='<main class="hub-loading" role="status">Opening artifact…</main>';
     try {
@@ -620,12 +623,13 @@
       if(kindOf(detail)==='markdown') {const response=await fetch(filePath(detail));if(!response.ok)throw new Error('The Markdown source could not be loaded.');source=await response.text();}
       if(token!==state.loading)return;
       state.detail=detail;state.source=source;state.project=detail.project_id;
+      void quickAccess.visit({project_id:detail.project_id});
       const value=draft(detail);if(!value.message && !value.targets.length){value.content_hash=detail.content_hash;value.revision=detail.revision;}
       workspace();if(push)updateHistory(id);
       if(detail.status==='updated')api(artifactPath(id,'/seen'),{content_hash:detail.content_hash}).then(()=>{const card=state.artifacts.find(item=>item.id===id);if(card)card.status='draft';if(state.detail===detail){detail.status='draft';const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(detail);}}).catch(()=>{});
     }catch(error){if(token===state.loading){state.active=null;state.detail=null;library();toast(error.message,true);}}
   }
-  function home(project='all',push=true) {if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(push)updateHistory(null);}
+  function home(project='all',push=true) {if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();void voice.stop();if((project==='designs')!==(state.project==='designs')){state.search='';state.kind='all';}++state.loading;state.designActive=null;state.active=null;state.detail=null;state.project=project;state.newRevision=null;library();if(selectedProject(project))void quickAccess.visit({project_id:project});if(push)updateHistory(null);}
   function modal(title,body,wide=false) {modalEpoch++;closeTreeMenu();void voice.stop();dialog.className=`hub-dialog ${wide?'hub-context-dialog':''}`;dialog.innerHTML=`<header class="hub-dialog-head"><h2 id="hub-dialog-title">${escape(title)}</h2>${button('close-dialog','','close','aria-label="Close dialog" title="Close"')}</header>${body}`;if(!dialog.open)dialog.showModal();voice.refresh();}
   /** Retain the explicit parent export handoff used by authored dashboards. */
   function exportDialog(file) {

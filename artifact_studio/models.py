@@ -308,9 +308,12 @@ class SlideView(Slide):
 
 
 class AgentSlideView(SlideView):
-    """Complete editable source with an explicit discussion-history inclusion marker."""
+    """Editable source with explicit markers for omitted discussion and interactive data."""
 
     feedback_included: bool
+    interactive_html_included: bool = True
+    interactive_html_bytes: int = 0
+    interactive_html_hash: str = ""
 
 
 class SlideReceipt(StrictModel):

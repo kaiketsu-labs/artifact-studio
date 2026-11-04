@@ -95,10 +95,10 @@ def test_create_fold_rename_move_remove_and_save_sections(
     page.get_by_role("button", name="Edit view", exact=True).click()
     with page.expect_download() as downloaded:
         page.get_by_role("button", name="Menu", exact=True).click()
-        page.get_by_role("menuitem", name="Save project", exact=True).click()
+        page.get_by_role("menuitem", name="Save presentation", exact=True).click()
     path = downloaded.value.path()
     page.get_by_role("button", name="Menu", exact=True).click()
-    page.get_by_role("menuitem", name="Open project", exact=True).click()
+    page.get_by_role("menuitem", name="Import presentation", exact=True).click()
     page.locator("#project-file").set_input_files(path)
     expect(page.locator("#project-dialog")).not_to_be_visible()
     expect(section(page, "Overview").locator(".section-toggle")).to_have_attribute(

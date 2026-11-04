@@ -17,7 +17,7 @@ corporate packs and model credentials are not required.
 
 The two browser suites run in parallel with `fail-fast: false` and independent
 15-minute timeouts. Their test-file sets are disjoint and together preserve all previously covered paths and add the audit regressions. Collection on 4 November 2026
-found 43 disjoint paths: 121 cases in `editor-review` and 153 in `artifacts-runtime`; voice checks run
+found 46 disjoint paths: 127 cases in `editor-review` and 172 in `artifacts-runtime`; voice checks run
 in both suites. These counts guide the split, not a measured runtime guarantee.
 Each suite installs the same locked dependencies and Chromium with OS support.
 

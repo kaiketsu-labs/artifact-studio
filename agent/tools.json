@@ -85,6 +85,7 @@
               "workflow",
               "live_review",
               "visual_review",
+              "text_review",
               "interactive_html",
               "design_import",
               "design_guide",
@@ -1421,7 +1422,7 @@
     },
     {
       "name": "get_slide",
-      "description": "Read complete slide source, notes and expected_hash for a safe revision.\nRead released comments via read_feedback; include_feedback=True adds slide discussion history.\nUse publish_slide_designs for alternatives; revise_slide changes the chosen slide.\n",
+      "description": "Read complete slide source, notes and expected_hash for a safe revision.\nRead released comments via read_feedback; include_feedback=True adds slide discussion history.\nUse publish_slide_designs for alternatives; revise_slide changes the chosen slide.\ninclude_interactive_html=False omits embedded interactive source (returned as empty with\nan explicit inclusion marker, byte count and hash), preserving static HTML, notes and tokens.\nUse it for static/notes inspection; request full source before editing interactive content.\nAn omitted empty field is not an instruction to clear it. Use outlines for status-only reads.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -1435,6 +1436,11 @@
           "include_feedback": {
             "default": false,
             "title": "Include Feedback",
+            "type": "boolean"
+          },
+          "include_interactive_html": {
+            "default": true,
+            "title": "Include Interactive Html",
             "type": "boolean"
           }
         },
@@ -1894,7 +1900,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Complete editable source with an explicit discussion-history inclusion marker.",
+        "description": "Editable source with explicit markers for omitted discussion and interactive data.",
         "properties": {
           "id": {
             "pattern": "^[a-z0-9][a-z0-9-]{0,79}$",
@@ -1981,6 +1987,21 @@
           "feedback_included": {
             "title": "Feedback Included",
             "type": "boolean"
+          },
+          "interactive_html_included": {
+            "default": true,
+            "title": "Interactive Html Included",
+            "type": "boolean"
+          },
+          "interactive_html_bytes": {
+            "default": 0,
+            "title": "Interactive Html Bytes",
+            "type": "integer"
+          },
+          "interactive_html_hash": {
+            "default": "",
+            "title": "Interactive Html Hash",
+            "type": "string"
           }
         },
         "required": [
@@ -3152,15 +3173,67 @@
     },
     {
       "name": "get_capture_status",
-      "description": "Read capture queue activity and capacity without starting a browser or loading slides.",
+      "description": "Read queue and last renderer readiness. probe_renderer=True tests sandbox launch now.\nDefault does not launch a browser. A successful probe does not verify any slide pixels.\n",
       "input_schema": {
-        "properties": {},
+        "properties": {
+          "probe_renderer": {
+            "default": false,
+            "title": "Probe Renderer",
+            "type": "boolean"
+          }
+        },
         "title": "get_capture_statusArguments",
         "type": "object"
       },
       "output_schema": {
         "additionalProperties": true,
         "title": "get_capture_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "check_slide_text",
+      "description": "Compare existing full-resolution capture pixels with expected visible text using local OCR.\nRead topic='text_review'. Requires optional Tesseract. Returns anchored mismatch candidates\nand confidence for visual review, never approval or proof that glyphs are correct.\nSupply expected text for this captured reveal stage; private notes are not read.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "capture_id": {
+            "title": "Capture Id",
+            "type": "string"
+          },
+          "expected_text": {
+            "title": "Expected Text",
+            "type": "string"
+          },
+          "language": {
+            "default": "eng",
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "capture_id",
+          "expected_text"
+        ],
+        "title": "check_slide_textArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "check_slide_textDictOutput",
         "type": "object"
       },
       "annotations": {
@@ -4845,7 +4918,7 @@
     },
     {
       "name": "list_presentation_assets",
-      "description": "List actual deck-local assets with paths, sizes and replacement hashes; no binary data.\nget_design_assets lists brand source files; use this after adding assets to a deck.\nimport_directory is a deck-specific staging path for agent downloads/extracted dependencies.\n",
+      "description": "List actual deck-local assets with paths, sizes and replacement hashes; no binary data.\nget_design_assets lists brand source files; use this after adding assets to a deck.\nCreates import_directory when missing: a deck-specific staging directory for downloads.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -4880,7 +4953,7 @@
         "type": "object"
       },
       "annotations": {
-        "read_only_hint": true,
+        "read_only_hint": false,
         "destructive_hint": false
       }
     },

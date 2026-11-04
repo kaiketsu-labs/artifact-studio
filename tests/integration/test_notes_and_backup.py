@@ -66,7 +66,7 @@ def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: 
         )
     assert live_app.store.read(DECK_ID).slides[0].notes == "Carry these notes to the next workspace"
     page.get_by_role("button", name="Menu", exact=True).click()
-    page.get_by_role("menuitem", name="Open project", exact=True).click()
+    page.get_by_role("menuitem", name="Import presentation", exact=True).click()
     page.locator("#project-file").set_input_files(downloaded.value.path())
     expect(page.locator("#project-dialog")).not_to_be_visible()
     expect(page.get_by_label("Speaker notes", exact=True)).to_have_value(

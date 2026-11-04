@@ -23,8 +23,8 @@
     const mac=/Mac|iPhone|iPad/.test(view.navigator.platform),primary=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
     const iconButton=view.SlideIcons.button;
     iconButton(button,'menu','Menu');button.title='Menu (F10)';
-    iconButton($('menu-open-project'),'folder','Open project',true);
-    iconButton($('menu-save-project'),'save','Save project',true);
+    iconButton($('menu-open-project'),'folder','Import presentation',true);
+    iconButton($('menu-save-project'),'save','Save presentation',true);
     for(const [id,key,shifted] of [['new-button','N',false],['menu-open-project','O',false],['menu-save-project','S',false],['project-button','S',true]]){
       const control=$(id);control.dataset.shortcut=(mac?(shifted?shift:'')+primary:primary+(shifted?shift:''))+key;
       control.setAttribute('aria-keyshortcuts',`${mac?'Meta':'Control'}+${shifted?'Shift+':''}${key}`);
@@ -33,7 +33,7 @@
     $('present-link').setAttribute('aria-keyshortcuts',mac?'Meta+Enter':'Shift+F5');
     let query='',queryTimer;
     const open=()=>panel.matches(':popover-open');
-    const rows=()=>[...panel.querySelectorAll('[role="menuitem"]')].filter(row=>!row.hidden&&!row.disabled);
+    const rows=()=>[...panel.querySelectorAll('[role="menuitem"]')].filter(row=>!row.hidden&&!row.disabled&&row.closest('[popover]')===panel);
     function sync(){projects.update();$('menu-save-project').disabled=blocked()||$('save-project').disabled;$('menu-open-project').disabled=blocked()||$('open-project').disabled;}
     function position(){const rect=button.getBoundingClientRect();panel.style.left=`${Math.max(8,Math.min(rect.right-panel.offsetWidth,view.innerWidth-panel.offsetWidth-8))}px`;panel.style.top=`${Math.max(8,Math.min(rect.bottom+8,view.innerHeight-panel.offsetHeight-8))}px`;}
     function close(focus=false){if(open())panel.hidePopover();if(focus)button.focus();}
@@ -41,7 +41,7 @@
     button.addEventListener('click',()=>open()?close(true):show());
     button.addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();event.stopPropagation();show(event.key==='ArrowUp');}});
     panel.addEventListener('toggle',()=>{button.setAttribute('aria-expanded',String(open()));if(!open()){query='';clearTimeout(queryTimer);}});
-    panel.addEventListener('click',event=>{const row=event.target.closest('[role="menuitem"]');if(row&&!row.disabled&&row.id!=='appearance-button')close(true);},true);
+    panel.addEventListener('click',event=>{const row=event.target.closest('[role="menuitem"]');if(row&&!row.disabled&&!row.hasAttribute('aria-haspopup')&&row.closest('[popover]')===panel)close(true);},true);
     $('menu-open-project').addEventListener('click',()=>projects.open());
     $('menu-save-project').addEventListener('click',()=>projects.save());
     panel.addEventListener('keydown',event=>{

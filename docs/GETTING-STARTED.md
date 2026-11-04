@@ -96,9 +96,9 @@ For [Claude Code](https://code.claude.com/docs/en/mcp), run from the project whe
 claude mcp add --transport http artifact-studio http://127.0.0.1:8790/mcp
 ```
 
-Use a new agent session if the newly added server is not visible in the current one. From the hub, **… → Presentation tools** opens the existing editor. Its **Menu → Connect an agent** provides a copyable presentation prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
+Use a new agent session if the newly added server is not visible in the current one. From the hub, **… → Presentation tools** opens the existing editor. Its **Menu → Agent connection** provides a copyable presentation prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
 
-For **Microsoft 365 Copilot**, choose the Microsoft 365 option in the hub menu or the editor's Connect an agent dialog. Follow the [Copilot Studio setup guide](MICROSOFT-COPILOT.md) for the separate authenticated gateway, project scope and HTTPS endpoint. Keep the ordinary local server private. A local agent can prepare this setup; Microsoft sign-in, credentials and tenant permissions remain explicit steps. Cloud feedback must be requested in the Copilot conversation; local lifecycle hooks do not apply.
+For **Microsoft 365 Copilot**, choose the Microsoft 365 option in the hub menu or the editor's Agent connection dialog. Follow the [Copilot Studio setup guide](MICROSOFT-COPILOT.md) for the separate authenticated gateway, project scope and HTTPS endpoint. Keep the ordinary local server private. A local agent can prepare this setup; Microsoft sign-in, credentials and tenant permissions remain explicit steps. Cloud feedback must be requested in the Copilot conversation; local lifecycle hooks do not apply.
 
 For general work, ask the agent to call `list_projects` and `list_artifacts`, then `get_working_context(project_id=..., artifact_id=...)` for the selected scope. It receives applicable rules, project/artifact context, source pointers and a delivery receipt. Read source files with `read_artifact_files`; load the generic guide through `get_authoring_guide(topic="artifacts")`.
 
@@ -163,7 +163,7 @@ An empty workspace on first launch is expected.
 2. Click **+** beside **Design library**. Send a PPTX, URL or reference files through the design chat. Then tell your connected agent: **“Read my pending design request in Artifact Studio, inspect the reference, and build and register the design.”** If the request stays **Queued**, resume the agent with that prompt; connecting an agent alone does not keep it listening. You can also provide the reference directly in the agent's chat. [Design import details](DESIGN-PACKS.md).
 3. Once the design appears, select it. Enter a title and a brief: audience, intended takeaway and key material. The **paperclip beside Brief** attaches reference files, up to five files, 25 MB each and 50 MB total.
 4. Click **Create presentation**. This creates one branded draft cover and saves the brief and files for the agent; it does not generate the rest of the presentation automatically.
-5. Use the **Menu → Connect an agent → Copy agent prompt**, paste it into your connected agent's chat, and ask it to draft the presentation. Review the slides as the agent updates them.
+5. Use the **Menu → Agent connection → Copy agent prompt**, paste it into your connected agent's chat, and ask it to draft the presentation. Review the slides as the agent updates them.
 
 Designs define a visual language, not locked layouts or a required slide count. Ask the agent to set a default design if you want it selected for future presentations. New installations have no brand-specific default.
 
@@ -176,9 +176,9 @@ The following controls apply to the presentation editor. Its top-right **Menu** 
 | Action | Mac | Windows/Linux |
 | --- | --- | --- |
 | New presentation | ⌘N | Ctrl+N |
-| Open project | ⌘O | Ctrl+O |
-| Save project | ⌘S | Ctrl+S |
-| Project files / choose format | ⇧⌘S | Ctrl+Shift+S |
+| Import presentation | ⌘O | Ctrl+O |
+| Save presentation | ⌘S | Ctrl+S |
+| Presentation files / choose format | ⇧⌘S | Ctrl+Shift+S |
 | Present from current slide | ⌘Return | Shift+F5 |
 | Present from beginning | ⇧⌘Return or F5 | F5 |
 
@@ -209,7 +209,7 @@ File and presentation bindings follow [PowerPoint's editing](https://support.mic
 | Appearance | Use **Menu → Appearance** to choose Light, Dark or System. Your choice is saved in this browser; slide designs keep their authored colours. |
 | Hidden slides during a show | Normal navigation, progress dots and the next-slide preview skip hidden slides. **See all slides** in the bottom toolbar, a slide right-click, or the private presenter filmstrip lets you select one manually. Starting on a hidden slide skips to a visible slide; an entirely hidden deck starts empty. |
 
-For automatic feedback in **Codex or Claude Code**, open **Menu → Connect an agent → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Optional user-level hooks are covered in the same guide. After setup, the agent automatically connects when it selects or works on your presentation; no separate start request is needed. Keep its review session open. The Live selector shows **Codex**, **Claude Code** or **Unavailable**; its tooltip identifies the connected review session. **Menu → Connect an agent → End review** stops listening and preserves comments. A green Mac menu-bar dot only reports server health. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
+For automatic feedback in **Codex or Claude Code**, open **Menu → Agent connection → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Optional user-level hooks are covered in the same guide. After setup, the agent automatically connects when it selects or works on your presentation; no separate start request is needed. Keep its review session open. The Live selector shows **Codex**, **Claude Code** or **Unavailable**; its tooltip identifies the connected review session. **Menu → Agent connection → End review** stops listening and preserves comments. The pixel Mac menu-bar icon reports server health; green dots beside Connected entries identify active review connections. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
 
 Present requests browser fullscreen directly from your click, without opening an intermediate page. Esc or End returns to the editor at the current slide, keeping unsent drafts. If the browser blocks or does not support fullscreen, the slideshow still fills its available viewport.
 
@@ -223,7 +223,7 @@ Open each deck in its own browser tab and use a separate agent chat with that de
 
 ## Files, persistence and backups
 
-In the presentation editor, use **Menu → Project files** for **Save project**, **Open project**, **Export HTML** and **Export PDF**. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
+In the presentation editor, use **Menu → Presentation files** for **Save presentation**, **Import presentation**, **Export HTML** and **Export PDF**. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
 
 For the whole workspace, open the storage icon and choose **Save workspace**. This local archive includes collection sources, retained artifact revisions, review history, approvals and app-owned private attachments. Browser-only unfinished edits remain separate. **Restore workspace** previews either a local archive or a connected current-source backup, then restores to a new sibling folder. It refuses an existing folder and leaves the running server on its current workspace. Configure the recovered collection/database explicitly to open it later; reconnect repositories and agents separately. GitHub backups contain current sources and navigation metadata, without private review state or earlier artifact revisions. [Recovery guarantees and limits](WORKSPACE-RECOVERY.md).
 
@@ -245,7 +245,17 @@ Back up **both the collection and the state folder**. If you override `ARTIFACT_
 
 ## Optional reference libraries and private sync
 
-From **… → Presentation tools**, open **Menu → Reference libraries**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
+From **… → Presentation tools**, open **Menu → Storage and backup**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
+
+### Switch projects quickly
+
+Open **Menu → Recent projects** in the hub or presentation editor, or **Recent Projects** in the Mac menu-bar app. Hover or click to see the last five projects you opened. With a keyboard, focus the submenu and press **→**; use **↑/↓** to choose, **Enter** to open, and **←/Escape** to go back. Recents are shared across the browser and Mac app for this workspace.
+
+Active agent reviews appear directly at the top under **Connected**, with a green dot and their project context. Selecting one opens that artifact; a recent project opens its overview. Ended or expired connections disappear automatically.
+
+A green plug beside a project in the sidebar or Recents means an agent is connected to work in that project. Hover the icon for the agent name.
+
+![Connected work and the Recent projects submenu](assets/quick-access.png)
 
 GitHub access requires [GitHub CLI](https://cli.github.com/) with `gh auth login` and `gh auth setup-git`. New connections are **reference only**: agents can use earlier presentations for tone, design and context. Enable **Back up all artifacts** beside the repository, or **Back up automatically** when connecting it, to upload saved workspace files to a **private** repository. Changes are grouped after eight quiet seconds while Artifact Studio is running; delivery resumes on the next launch. The storage icon beside Menu shows delivery status even with the dialog closed; open it for the destination timestamp and retry control. Existing manual destinations retain their current-deck and collection upload buttons until you change the setting. Local files remain the working copy. This is one-way versioned storage; private review state is excluded. See [reference and sync behavior](REPOSITORY-SYNC.md) for conflicts, exclusions and recovery.
 
