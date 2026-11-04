@@ -304,10 +304,10 @@ def handle_event(
             }
         if event != "Stop" or result.get("listening") is not True:
             return {}
-        if not isinstance(reason, str) or not reason:
-            return {}
         if result.get("feedback_available") is True:
-            return {"decision": "block", "reason": reason}
+            if isinstance(reason, str) and reason:
+                return {"decision": "block", "reason": reason}
+            return {}
         if result.get("feedback_available") is not False:
             return {}
         if time.monotonic() >= deadline:

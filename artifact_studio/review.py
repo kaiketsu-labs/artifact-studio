@@ -205,14 +205,15 @@ class Reviews:
                 if deck_id
                 else False
             )
+        if not events and not designs:
+            return ReviewHookReply(listening=True)
         reads: list[str] = []
-        if deck_id and (events or not designs):
+        if deck_id and events:
             reads.append(f"read_feedback(deck_id={deck_id!r}, after_delivery_id={cursor})")
-        if designs or not events:
+        if designs:
             reads.append(f"read_design_requests(after_event_id={design_cursor})")
-        status = "feedback" if events or designs else "idle renewal"
-        reason = f"Artifact Studio {status}: call {'; '.join(reads)}."
-        return ReviewHookReply(listening=True, feedback_available=events or designs, reason=reason)
+        reason = f"Artifact Studio feedback: call {'; '.join(reads)}."
+        return ReviewHookReply(listening=True, feedback_available=True, reason=reason)
 
     async def handle(self, body: ReviewHookInput, timeout: float = 25) -> ReviewHookReply:
         """Long-poll a stop hook without spending model requests on each polling interval."""

@@ -1,10 +1,12 @@
-# Optional text fidelity review
+# Text fidelity review
 
 Loaded fonts and matching source/DOM text do not prove that glyphs look right. A font can map C to an O-shaped glyph while every resource loads successfully. `check_slide_text` compares OCR of saved slide pixels with the visible text you expect. It returns **review candidates**, never approval or proof of correctness. Ligatures remain supported.
 
+Text fidelity review is required before declaring a slide visually reviewed. The OCR engine is optional; if it cannot run, report why and manually compare the image against independently expected text. If neither check can be completed, explicitly leave text fidelity unverified. A slide with no visible text may be marked not applicable after inspecting it.
+
 1. Capture the relevant slide at full resolution with `capture_slide`, selecting its reveal stage/time where needed. A full-resolution contact-sheet capture also retains suitable individual frames.
-2. Call `check_slide_text(deck_id=..., slide_id=..., capture_id=..., expected_text="...")`. Use the returned capture ID, not an image path. Supply the complete text expected to be visible at that exact stage; do not include private speaker notes or intentionally hidden builds.
-3. Inspect the original image and the returned mismatch candidates. Each candidate includes expected/recognized excerpts and image-relative OCR word boxes/confidence. Confirm the font, glyphs and source before changing anything.
+2. Call `check_slide_text(deck_id=..., slide_id=..., capture_id=..., expected_text="...")` when OCR is available. Use the returned capture ID, not an image path. Derive the complete expected visible text independently from approved content, the brief and source data, including chart labels and rendered CSS case. Never copy OCR output into `expected_text`; do not include private speaker notes or intentionally hidden builds.
+3. Inspect the original image and the returned mismatch candidates. Each candidate includes expected/recognized excerpts and image-relative OCR word boxes/confidence. Confirm the font, glyphs and source before changing anything. After a correction, recapture and rerun the affected check. Capture itself does not perform this comparison automatically.
 
 The optional local engine is Tesseract (`tesseract-ocr` on Debian/Ubuntu, `brew install tesseract` on macOS). Install the required language data locally; `language="eng"` is the default and `language="eng+deu"` selects installed combined languages. No OCR service or network request is used. A missing engine returns `status="unavailable"`; an unsupported/missing language reports an actionable error. Recognition is limited to 20 seconds, a 1600×900 PNG, and bounded text/output sizes.
 

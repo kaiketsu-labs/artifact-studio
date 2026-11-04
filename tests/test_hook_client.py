@@ -172,8 +172,8 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
     reason = "Artifact Studio feedback: call read_feedback(deck_id='d', after_delivery_id=7)."
     results = iter(
         [
-            {"listening": True, "feedback_available": False, "reason": "waiting"},
-            {"listening": True, "feedback_available": False, "reason": "waiting"},
+            {"listening": True, "feedback_available": False, "reason": ""},
+            {"listening": True, "feedback_available": False, "reason": ""},
             {"listening": True, "feedback_available": True, "reason": reason},
         ]
     )

@@ -218,14 +218,13 @@ def test_repeated_feedback_after_agent_response(
             DECK,
             False,
             False,
-            f"Artifact Studio idle renewal: call read_feedback(deck_id={DECK!r}, "
-            "after_delivery_id=0); read_design_requests(after_event_id=0).",
+            "",
         ),
         (
             "",
             False,
             False,
-            "Artifact Studio idle renewal: call read_design_requests(after_event_id=0).",
+            "",
         ),
         (
             DECK,
@@ -252,7 +251,7 @@ def test_repeated_feedback_after_agent_response(
 def test_compact_continuation_reads(
     store: Store, deck_id: str, feedback: bool, design: bool, expected_reason: str
 ) -> None:
-    """Wake only for pending queues and retain both cursor checks on idle renewal."""
+    """Wake only for pending queues; quiet polls have no continuation instruction."""
     reviews = Reviews(store)
     body = ReviewHookInput(
         harness="codex", session_id="s", event="PostToolUse", deck_id=deck_id, start_review=True
