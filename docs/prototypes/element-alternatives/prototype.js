@@ -51,7 +51,7 @@
     const pending=Object.values(state.pending).some(Boolean);$('options').hidden=!pending;$('options').querySelector('.pending-dot').hidden=!pending;
   }
   function contextLabel(){return trayOpen&&selected!==state.current[scope]?`${groups[scope].label} · ${groups[scope].options[selected].name}`:'';}
-  function renderFeedback(){const label=draftContext??contextLabel();$('feedback-scope').textContent=label;$('feedback-scope').hidden=!label;}
+  function renderFeedback(){const label=draftContext??contextLabel();$('feedback-scope').textContent=label;$('feedback-scope').hidden=!label;const refresh=$('refresh-options');if(refresh)refresh.textContent=$('draft-message').value.trim()?'Finish draft first':'Ask to refresh';}
   function renderMessages(){
     const audienceScenario=question||waitingForAgent||answeredAudience;
     const userText=audienceScenario?'Rewrite the headline for our new audience.':'Keep the story. Explore the headline, supporting text and process graphic.';
@@ -91,13 +91,13 @@
     if(!groups[key])return;
     if(inlineOpen&&scope===key){if(!byHover)openedByHover=false;$('scope-menu').hidePopover();return;}
     scope=key;selected=state.current[key];pinned=null;trayOpen=true;inlineOpen=key!=='slide';openedByHover=byHover;inlineAnchor=null;inlineAlignment=byHover?'end':'start';view=key==='slide'?'slide':'element';$('scope-menu').hidePopover();render();
-    if(focus&&!byHover)(inlineOpen?$(`inline-option-${selected}`):$(`option-${selected}`))?.focus({preventScroll:true});announce(groups[key].label+' options. The slide is unchanged.');
+    if(focus&&!byHover){(inlineOpen?$(`inline-option-${selected}`):$(`option-${selected}`))?.focus({preventScroll:true});if(inlineOpen)revealInlineChoice();}announce(groups[key].label+' options. The slide is unchanged.');
   }
   function selectElement(key){
     if(state.pending[key]){openScope(key);return;}
     scope=key;selected=state.current[key];trayOpen=false;inlineOpen=false;pinned=null;render();$('slide-stage').querySelector(`[data-scope="${key}"]`).classList.add('is-selected');announce(groups[key].label+' selected. Saved options are in History.');
   }
-  function preview(index,{focus=false}={}){selected=index;trayOpen=true;render();if(focus)$(`option-${index}`).focus({preventScroll:true});announce(groups[scope].options[index].name+' preview. The slide is unchanged.');}
+  function preview(index,{focus=false}={}){selected=index;trayOpen=true;if(inlineOpen)pinned=index;render();if(focus){(inlineOpen?$(`inline-option-${index}`):$(`option-${index}`)).focus({preventScroll:true});if(inlineOpen)revealInlineChoice();}announce(groups[scope].options[index].name+' preview. The slide is unchanged.');}
   function decide(index){
     if(state.stale[scope]&&index!==state.current[scope])return;
     previous=structuredClone(state);const changed=index!==state.current[scope];state.current[scope]=index;state.pending[scope]=false;
@@ -128,7 +128,7 @@
     const item=event.target.closest('[data-open-scope]'),target=event.target.closest('[data-scope]'),option=event.target.closest('[data-option]'),saved=event.target.closest('[data-saved-scope]');
     if(item)openScope(item.dataset.openScope);else if(target)selectElement(target.dataset.scope);else if(option)preview(Number(option.dataset.option),{focus:true});else if(saved){$('history-dialog').close();openScope(saved.dataset.savedScope);preview(Number(saved.dataset.savedIndex),{focus:true});}else if(event.target.closest('[data-open-history]')){$('scope-menu').hidePopover();openHistory();}
     const answer=event.target.closest('[data-answer]');if(answer)answerQuestion(answer.dataset.answer);
-    if(event.target.closest('#refresh-options')){$('draft-message').value=`Please refresh the ${groups[scope].label.toLowerCase()} options for the current slide design.`;draftContext='';renderFeedback();doc.querySelector('.draft-workspace').classList.add('chat-open');$('draft-message').focus();}
+    if(event.target.closest('#refresh-options')){if(!$('draft-message').value.trim()){$('draft-message').value=`Please refresh the ${groups[scope].label.toLowerCase()} options for the current slide design.`;draftContext='';renderFeedback();}else announce('Your unsent draft is preserved. Finish it before asking to refresh.');doc.querySelector('.draft-workspace').classList.add('chat-open');$('draft-message').focus();}
   });
   $('slide-stage').addEventListener('keydown',event=>{if(event.target.closest('[data-scope]')&&['Enter',' '].includes(event.key)){event.preventDefault();selectElement(event.target.closest('[data-scope]').dataset.scope);}});
   $('element-options').addEventListener('keydown',event=>{const count=groups[scope].options.length;if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();preview(event.key==='Home'?0:event.key==='End'?count-1:(selected+(event.key==='ArrowRight'?1:-1)+count)%count,{focus:true});});
@@ -160,27 +160,31 @@
   function renderInline(){
     const panel=$('inline-options');
     if(!inlineOpen){if(panel.matches(':popover-open'))panel.hidePopover();return;}
+    panel.dataset.kind=scope;
     const group=groups[scope],signature=JSON.stringify([scope,state.current[scope],group.options]);
     if(panel.dataset.signature!==signature){
       panel.dataset.signature=signature;
-      panel.innerHTML=`<header class="inline-header"><button type="button" class="inline-scope" id="inline-scope">${group.label}${icon('down')}</button><span class="inline-status" role="status">2 options</span><div><button class="icon-button" id="inline-compare" type="button" aria-label="Compare ${group.label.toLowerCase()} options" title="Compare">${icon('compare')}</button><button class="icon-button" id="inline-all" type="button" aria-label="Show all ${group.label.toLowerCase()} options" title="Show all options">${icon('grid')}</button><button class="icon-button" id="inline-close" type="button" aria-label="Close element options">${icon('close')}</button></div></header><div class="inline-choices" role="tablist" aria-label="${group.label} options">${group.options.map((item,index)=>`<button type="button" role="tab" id="inline-option-${index}" data-inline-option="${index}" data-chosen="${index===state.current[scope]}" aria-controls="slide-stage" aria-label="${escape(item.name+'. '+item.text+(index===state.current[scope]?', chosen option':''))}">${scope==='graphic'?`<span class="inline-graphic">${graphic(item.variant)}</span>`:''}<span>${item.name}${index===state.current[scope]?icon('check'):''}</span></button>`).join('')}</div><footer><button type="button" id="inline-keep" class="text-button">Keep current</button><button type="button" id="inline-use" class="draft-primary">Use ${scope==='graphic'?'graphic':scope}${icon('right')}</button></footer>`;
+      panel.innerHTML=`<header class="inline-header"><button type="button" class="inline-scope" id="inline-scope">${group.label}${icon('down')}</button><span class="inline-status" role="status">2 options</span><div><button class="icon-button" id="inline-compare" type="button" aria-label="Compare ${group.label.toLowerCase()} options" title="Compare">${icon('compare')}</button><button class="icon-button" id="inline-all" type="button" aria-label="Show all ${group.label.toLowerCase()} options" title="Show all options">${icon('grid')}</button><button class="icon-button" id="inline-close" type="button" aria-label="Close element options">${icon('close')}</button></div></header><div class="inline-choices" role="tablist" aria-label="${group.label} options">${group.options.map((item,index)=>`<button type="button" role="tab" id="inline-option-${index}" data-inline-option="${index}" data-chosen="${index===state.current[scope]}" aria-controls="slide-stage">${scope==='graphic'?`<span class="inline-graphic">${graphic(item.variant)}</span>`:''}<span class="inline-label">${escape(item.name)}${index===state.current[scope]?icon('check'):''}</span> ${scope!=='graphic'?`<span class="inline-copy">${escape(item.text)}</span>`:''}</button>`).join('')}</div><footer><button type="button" id="inline-keep" class="text-button">Keep current</button><button type="button" id="inline-use" class="draft-primary">Use ${scope==='graphic'?'graphic':scope}${icon('right')}</button></footer>`;
     }
-    for(const button of panel.querySelectorAll('[data-inline-option]')){const active=Number(button.dataset.inlineOption)===selected;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;const item=group.options[Number(button.dataset.inlineOption)];button.setAttribute('aria-label',button.textContent.replace(/\s+/g,' ').trim()+'. '+item.text+(button.dataset.chosen==='true'?', chosen option':''));}
+    for(const button of panel.querySelectorAll('[data-inline-option]')){const active=Number(button.dataset.inlineOption)===selected;button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;button.setAttribute('aria-label',button.textContent.replace(/\s+/g,' ').trim()+(button.dataset.chosen==='true'?', chosen option':''));}
     $('inline-use').disabled=selected===state.current[scope]||state.stale[scope];const status=panel.querySelector('.inline-status');status.textContent=selected===state.current[scope]?'2 options':'Preview';status.classList.toggle('is-preview',selected!==state.current[scope]);
     if(!panel.matches(':popover-open'))panel.showPopover();
     if(!inlineAnchor){const target=$('slide-stage').querySelector(`[data-scope="${scope}"]`);inlineAnchor=target?.getBoundingClientRect()||$('slide-stage').getBoundingClientRect();}
-    const width=Math.min(430,innerWidth-24);panel.style.width=width+'px';
-    const left=inlineAlignment==='end'?inlineAnchor.right-width:inlineAnchor.left;panel.style.left=Math.max(12,Math.min(left,innerWidth-width-12))+'px';
+    const width=Math.min(scope==='graphic'?430:640,innerWidth-24);panel.style.width=width+'px';
+    const frame=$('slide-stage').getBoundingClientRect(),fitsFrame=frame.width>=width,left=inlineAlignment==='end'?inlineAnchor.right-width:inlineAnchor.left;
+    panel.style.left=Math.max(fitsFrame?frame.left:12,Math.min(left,fitsFrame?frame.right-width:innerWidth-width-12))+'px';
     const above=inlineAnchor.top-panel.offsetHeight-8,minTop=scope==='headline'?64:Math.max(64,doc.querySelector('.draft-canvas-header').getBoundingClientRect().bottom+6);
-    panel.style.top=Math.max(8,Math.min(above>=minTop?above:inlineAnchor.bottom+12,innerHeight-panel.offsetHeight-12))+'px';
+    const headline=$('slide-stage').querySelector('[data-scope=headline]').getBoundingClientRect(),coversHeadline=scope!=='headline'&&above<headline.bottom&&inlineAnchor.top>headline.top;
+    panel.style.top=Math.max(8,Math.min(above>=minTop&&!coversHeadline?above:inlineAnchor.bottom+12,innerHeight-panel.offsetHeight-12))+'px';
   }
+  function revealInlineChoice(){const strip=$('inline-options').querySelector('.inline-choices'),button=$(`inline-option-${selected}`),box=button.getBoundingClientRect(),frame=strip.getBoundingClientRect();if(box.left<frame.left+2||box.right>frame.right-2)strip.scrollLeft+=box.left-frame.left-2;}
   function closeInline(){inlineOpen=false;pinned=null;selected=state.current[scope];trayOpen=false;render();}
   function scheduleInlineClose(){if(!openedByHover||pinned!==null)return;clearTimeout(hoverTimer);hoverTimer=setTimeout(()=>{if(!$('inline-options').matches(':hover')&&!doc.querySelector('.canvas-option-badge:hover'))closeInline();},220);}
   $('inline-options').addEventListener('pointerenter',()=>clearTimeout(hoverTimer));
   $('inline-options').addEventListener('pointerover',event=>{const button=event.target.closest('[data-inline-option]');if(!button||button.contains(event.relatedTarget))return;selected=Number(button.dataset.inlineOption);render();});
   $('inline-options').addEventListener('pointerleave',()=>{selected=pinned??state.current[scope];render();scheduleInlineClose();});
   $('inline-options').addEventListener('click',event=>{
-    const option=event.target.closest('[data-inline-option]');if(option){pinned=Number(option.dataset.inlineOption);selected=pinned;openedByHover=false;render();return;}
+    const option=event.target.closest('[data-inline-option]');if(option){pinned=Number(option.dataset.inlineOption);selected=pinned;openedByHover=false;render();revealInlineChoice();return;}
     if(event.target.closest('#inline-use'))decide(selected);
     else if(event.target.closest('#inline-keep')){if(state.pending[scope])decide(state.current[scope]);else closeInline();}
     else if(event.target.closest('#inline-close'))closeInline();
@@ -188,10 +192,10 @@
     else if(event.target.closest('#inline-all')){inlineOpen=false;pinned=selected;render();$(`option-${selected}`).focus({preventScroll:true});}
     else if(event.target.closest('#inline-scope'))showMenu($('inline-scope'));
   });
-  $('inline-options').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const count=groups[scope].options.length;selected=event.key==='Home'?0:event.key==='End'?count-1:(selected+(event.key==='ArrowRight'?1:-1)+count)%count;pinned=selected;render();$(`inline-option-${selected}`).focus({preventScroll:true});});
+  $('inline-options').addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const count=groups[scope].options.length;selected=event.key==='Home'?0:event.key==='End'?count-1:(selected+(event.key==='ArrowRight'?1:-1)+count)%count;pinned=selected;render();$(`inline-option-${selected}`).focus({preventScroll:true});revealInlineChoice();});
   doc.addEventListener('pointerdown',event=>{if(inlineOpen&&!event.target.closest('#inline-options,#scope-menu,[data-scope],[data-open-scope],dialog'))closeInline();},true);
   doc.addEventListener('keydown',event=>{if(event.key==='Escape'&&inlineOpen&&!doc.querySelector('dialog[open]')&&!$('scope-menu').matches(':popover-open')){event.preventDefault();closeInline();($('options').hidden?$('history'):$('options')).focus();}},true);
-  window.addEventListener('resize',()=>{inlineAnchor=null;if(inlineOpen)renderInline();});
+  window.addEventListener('resize',()=>{inlineAnchor=null;if(inlineOpen){renderInline();revealInlineChoice();}});
   function fitHolder(holder){
     const node=holder.querySelector(':scope > .fixed-canvas');if(!node)return;
     const factor=holder.clientWidth/1600;node.style.transform=`scale(${factor})`;node.style.setProperty('--inverse-scale',String(1/factor));

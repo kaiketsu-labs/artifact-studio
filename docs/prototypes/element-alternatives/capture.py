@@ -86,7 +86,18 @@ def main() -> None:
 
         try:
             _ = page.goto(url)
+            for index, wording in enumerate(
+                [
+                    "Good slides happen in the loop.",
+                    "A stronger story, every review.",
+                    "From first thought to a clear story.",
+                ]
+            ):
+                expect(option(index).locator(".inline-copy")).to_have_text(wording)
             option(1).hover()
+            expect(option(1)).to_have_attribute(
+                "aria-label", "Clearer promise A stronger story, every review."
+            )
             expect(page.locator("#slide-stage h2")).to_have_text("A stronger story, every review.")
             expect(page.locator("#inline-options [data-chosen=true]")).to_contain_text("Original")
             panel_box = page.locator("#inline-options").bounding_box()
@@ -182,8 +193,16 @@ def main() -> None:
             page.locator("#options").click()
             page.get_by_role("menuitem", name="Text 2 options", exact=False).click()
             option(2).click()
+            expect(option(2).locator(".inline-copy")).to_have_text(
+                "One shared brief. A few directions. A clearer result."
+            )
+            expect(page.locator("#slide-stage .body-copy")).to_have_text(
+                option(2).locator(".inline-copy").inner_text()
+            )
             capture("08-text")
             page.locator("#toggle-theme").click()
+            page.locator("#slide-stage [data-scope=text]").click()
+            option(2).click()
             capture("09-dark")
             page.locator("#toggle-theme").click()
             page.set_viewport_size({"width": 390, "height": 844})
@@ -195,11 +214,32 @@ def main() -> None:
                 ":scope > summary"
             ).click()
             page.locator("[data-saved-scope=headline][data-saved-index='2']").click()
+            active_box = option(2).bounding_box()
+            strip_box = page.locator(".inline-choices").bounding_box()
+            assert active_box and strip_box
+            assert active_box["x"] >= strip_box["x"]
+            assert active_box["x"] + active_box["width"] <= strip_box["x"] + strip_box["width"]
             capture("10-mobile")
             assert page.evaluate("document.documentElement.scrollWidth === innerWidth")
             control("compare").click()
             capture("11-mobile-compare")
             page.locator("#close-comparison").click()
+            page.locator("#inline-close").click()
+            page.locator("#slide-stage [data-scope=text]").click()
+            middle_box = option(1).bounding_box()
+            assert middle_box
+            page.mouse.click(middle_box["x"] + 12, middle_box["y"] + 18)
+            page.wait_for_timeout(400)
+            middle_box = option(1).bounding_box()
+            strip_box = page.locator(".inline-choices").bounding_box()
+            assert middle_box and strip_box
+            assert middle_box["x"] >= strip_box["x"]
+            assert middle_box["x"] + middle_box["width"] <= strip_box["x"] + strip_box["width"]
+            option(2).click()
+            expect(page.locator("#slide-stage .body-copy")).to_have_text(
+                option(2).locator(".inline-copy").inner_text()
+            )
+            capture("15-mobile-text")
             page.set_viewport_size({"width": 320, "height": 700})
             assert page.evaluate("document.documentElement.scrollWidth === innerWidth")
             control("compare").click()
@@ -235,6 +275,16 @@ def main() -> None:
             expect(page.locator(".canvas-context")).to_contain_text("Earlier design")
             expect(control("use")).to_be_disabled()
             capture("13-earlier-context")
+            page.locator("#draft-message").fill("My unsent thoughts")
+            page.locator("#inline-all").click()
+            expect(page.locator("#refresh-options")).to_have_text("Finish draft first")
+            page.locator("#refresh-options").click()
+            expect(page.locator("#draft-message")).to_have_value("My unsent thoughts")
+            page.locator("#draft-message").fill("")
+            page.locator("#refresh-options").click()
+            expect(page.locator("#draft-message")).to_have_value(
+                "Please refresh the headline options for the current slide design."
+            )
             control("keep").click()
             expect(page.locator("#component-tray")).to_be_hidden()
             expect(page.locator("#slide-stage .variant-bold")).to_be_visible()
@@ -264,6 +314,7 @@ def main() -> None:
                 _ = Path("/tmp/element-options-axe.json").write_text(
                     json.dumps(audits, indent=2) + "\n"
                 )
+                assert not any(audits.values()), "Axe violations: /tmp/element-options-axe.json"
             if args.standalone:
                 write_standalone(root, args.standalone)
         finally:
