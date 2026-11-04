@@ -44,6 +44,7 @@ from .models import (
     SlideTarget,
     SlideView,
 )
+from .slide_css import declarations, stylesheet
 
 DATA = re.compile(r'(<script id="deck-data" type="application/json">)(.*?)(</script>)', re.S)
 SAFE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
@@ -68,11 +69,15 @@ class ConflictError(ValueError):
 class SlideMarkup(HTMLParser):
     """Reject executable markup and external asset loads in agent-authored slides."""
 
+    def __init__(self) -> None:
+        """Track stylesheet bodies as well as ordinary markup attributes."""
+        super().__init__()
+        self.in_style = False
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Allow presentation markup while keeping code in the trusted runtime."""
         if tag.lower() in {
             "script",
-            "style",
             "iframe",
             "object",
             "embed",
@@ -103,8 +108,20 @@ class SlideMarkup(HTMLParser):
                 not (text.startswith("assets/") or text.startswith("#")) or ".." in text
             ):
                 raise ValueError("Slide assets must use local assets/ paths or SVG anchors.")
-            if name.lower() == "style" and re.search(r"url\s*\(|expression|@import", text, re.I):
-                raise ValueError("Use shared theme classes for image backgrounds.")
+            if name.lower() == "style":
+                declarations(text)
+        if tag.lower() == "style":
+            self.in_style = True
+
+    def handle_data(self, data: str) -> None:
+        """Validate parsed stylesheet tokens, including escaped resource URLs."""
+        if self.in_style:
+            _ = stylesheet(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        """Finish the current local stylesheet."""
+        if tag.lower() == "style":
+            self.in_style = False
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Apply the same rules to self-closing SVG and image elements."""

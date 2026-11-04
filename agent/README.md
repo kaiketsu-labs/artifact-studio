@@ -33,6 +33,8 @@ The opt-in Microsoft Copilot gateway has its own smaller tool surface and explic
 | `read_artifact_files` | Only explicitly requested files, optionally from a retained revision. Binary content uses base64. |
 | `read_artifact_feedback` | Released human messages with original targets, revision, attachments and a delivery cursor. Withheld Batch comments remain private. |
 | `get_presentation_outline` / `get_presentation` / `get_slide` | Existing deck, outline or slide reads, with their respective context and discussion options. |
+| `get_presentation_theme` / `update_presentation_theme` | Deck-specific author CSS with managed viewer styles and conflict hashes. |
+| `list_presentation_assets` / `import_presentation_asset` | Deck asset inventory, download staging directory and bounded source copies without binary echoes. |
 | `read_feedback` / `wait_for_feedback` | Existing presentation feedback, questions, attachments and delivery cursors. |
 | `get_authoring_guide(topic=...)` | A relevant detailed guide, as listed below. |
 

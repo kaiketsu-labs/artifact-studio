@@ -21,6 +21,7 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic import Field, TypeAdapter, field_validator
 
+from .css_assets import embed_css
 from .libraries import LibraryFile, inventory
 from .models import Deck, EditIntent, Feedback, FeedbackFile, SlideTarget, StrictModel
 from .slide_actions import SlideActionRecord, SlideActionResult, recover_pending
@@ -566,6 +567,8 @@ class AssetEmbedder:
         self.folder = folder.resolve()
         self.cache: dict[Path, str] = {}
         self.visiting: set[Path] = set()
+        self.css_bytes = 0
+        self.css_limit = 64 * 1024 * 1024
 
     def asset(self, url: str, directory: Path | None = None) -> str:
         """Embed a file relative to its declaring CSS or HTML document."""
@@ -597,29 +600,23 @@ class AssetEmbedder:
 
     def css(self, text: str, directory: Path | None = None) -> str:
         """Inline local font and image dependencies without changing animations."""
+        self.css_bytes += len(text.encode())
+        if self.css_bytes > self.css_limit:
+            raise ValueError("CSS expansion exceeds the portable document size limit.")
 
-        def import_css(match: re.Match[str]) -> str:
-            path = self.local_path(match[2] or match[4], directory)
+        def import_css(url: str) -> str:
+            path = self.local_path(url, directory)
             if path in self.visiting:
                 raise ValueError("CSS imports contain a circular dependency.")
+            if len(self.visiting) >= 64:
+                raise ValueError("CSS imports exceed the 64-level nesting limit.")
             self.visiting.add(path)
-            content = self.css(path.read_text(), path.parent)
-            self.visiting.remove(path)
-            media = match[5].strip()
-            return f"@media {media}{{{content}}}" if media else content
+            try:
+                return self.css(path.read_text(), path.parent)
+            finally:
+                self.visiting.remove(path)
 
-        text = re.sub(
-            r"@import\s+(?:url\(\s*(['\"]?)(.*?)\1\s*\)|(['\"])(.*?)\3)\s*([^;]*);",
-            import_css,
-            text,
-            flags=re.I,
-        )
-        return re.sub(
-            r"url\(\s*(['\"]?)(.*?)\1\s*\)",
-            lambda match: 'url("' + self.asset(match[2], directory) + '")',
-            text,
-            flags=re.I,
-        )
+        return embed_css(text, lambda url: self.asset(url, directory), import_css)
 
     def markup(self, text: str, directory: Path | None = None) -> str:
         """Inline HTML/SVG dependencies while preserving ordinary hyperlinks and markup."""
@@ -675,10 +672,12 @@ class EmbeddedMarkup(HTMLParser):
 
         def rewrite(match: re.Match[str]) -> str:
             name = match[2].lower()
-            if name not in {"src", "href", "xlink:href", "srcset", "style"}:
+            if name not in {"src", "href", "xlink:href", "srcset", "style", "poster", "srcdoc"}:
                 return match[0]
             value = unescape(next(value for value in match.group(4, 5, 6) if value is not None))
-            if name == "style":
+            if name == "srcdoc":
+                result = self.embedded_document(value)
+            elif name == "style":
                 result = self.embedder.css(value, self.directory)
             elif name == "srcset":
                 result = self.embedder.srcset(value, self.directory)
@@ -728,6 +727,10 @@ class EmbeddedMarkup(HTMLParser):
         if self.open_tags and self.open_tags[-1][0] == tag:
             _ = self.open_tags.pop()
         self.in_style = False
+
+    def embedded_document(self, html: str) -> str:
+        """Leave embedded documents untouched unless the custom-document preparer opts in."""
+        return html
 
     def handle_endtag(self, tag: str) -> None:
         """End a preserved markup element or inline CSS block."""
