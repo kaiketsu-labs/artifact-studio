@@ -38,12 +38,74 @@
   ];
   let current = 'original', selected = 'original', activeSlide = 1, previousChoice = null, approved = false;
   let compareTrigger = null, compareReference = current;
+  const peek = $('alternative-peek');
+  let peekTrigger = null, peekCloseTimer = null, suppressPeekFocus = false;
   const announce = text => { $('live-status').textContent = text; };
   const selectedIsCurrent = () => selected === current;
 
   function renderRail() {
-    $('slide-overview').innerHTML = slides.map((slide,index) => `${index === 0 || index === 3 ? `<div class="draft-section-label">${icon('down')}${index === 0 ? 'The story' : 'In the room'}<span>3</span></div>` : ''}<button class="draft-slide-thumb" data-slide="${index}" aria-label="Slide ${index+1}: ${slide.name}${index === 1 ? ', 3 alternative designs available' : ''}" ${index === activeSlide ? 'aria-current="true"' : ''}><div class="rail-slide-image" aria-hidden="true">${index === 1 ? design(current).html : slide.html}</div><span class="rail-slide-caption"><span class="rail-slide-number">0${index+1}</span><span>${slide.name}</span><span class="dot ${index === 0 || index === 2 ? 'green' : 'red'}"></span></span>${index === 1 ? `<span class="rail-alternatives">${icon('designs')}3 alternatives</span>` : ''}</button>`).join('');
+    closeAlternativePeek();
+    $('slide-overview').innerHTML = slides.map((slide,index) => `${index === 0 || index === 3 ? `<div class="draft-section-label">${icon('down')}${index === 0 ? 'The story' : 'In the room'}<span>3</span></div>` : ''}<div class="draft-slide-entry"><button class="draft-slide-thumb" data-slide="${index}" aria-label="Slide ${index+1}: ${slide.name}${index === 1 ? ', 3 alternative designs available' : ''}" ${index === activeSlide ? 'aria-current="true"' : ''}><div class="rail-slide-image" aria-hidden="true">${index === 1 ? design(current).html : slide.html}</div><span class="rail-slide-caption"><span class="rail-slide-number">0${index+1}</span><span>${slide.name}</span><span class="dot ${index === 0 || index === 2 ? 'green' : 'red'}"></span></span></button>${index === 1 ? `<button class="rail-alternatives" data-alternatives aria-label="View 3 alternative designs for slide 2" aria-expanded="false" aria-controls="alternative-peek" aria-describedby="alternative-peek-help">${icon('designs')}<span>3</span></button>` : ''}</div>`).join('');
   }
+
+  function closeAlternativePeek({restoreFocus = false} = {}) {
+    clearTimeout(peekCloseTimer);
+    if (peek.matches(':popover-open')) peek.hidePopover();
+    peekTrigger?.setAttribute('aria-expanded','false');
+    if (restoreFocus && peekTrigger?.isConnected) { suppressPeekFocus = true; peekTrigger.focus({preventScroll:true}); suppressPeekFocus = false; }
+  }
+
+  function positionAlternativePeek(point) {
+    const width = peek.offsetWidth, height = peek.offsetHeight;
+    let top = point.y-height-16;
+    if (top < 12) top = point.y+18;
+    peek.style.left = `${Math.max(16,Math.min(innerWidth-width-16,point.x-35))}px`;
+    peek.style.top = `${Math.max(16,Math.min(innerHeight-height-16,top))}px`;
+  }
+
+  function openAlternativePeek(trigger, point) {
+    clearTimeout(peekCloseTimer);
+    peekTrigger = trigger;
+    if (!peek.matches(':popover-open')) {
+      $('peek-fan').innerHTML = designs.filter(item => item.id !== current).map(item => `<span class="peek-slot"><button class="peek-card" data-peek-design="${item.id}" aria-label="Preview ${item.name} design"><span class="peek-card-image" aria-hidden="true">${item.html}</span><span class="peek-card-name">${item.name}</span></button></span>`).join('');
+      peek.showPopover();
+      trigger.setAttribute('aria-expanded','true');
+    }
+    const rect = trigger.getBoundingClientRect();
+    positionAlternativePeek(point || {x:rect.left+rect.width/2,y:rect.top});
+  }
+
+  function queuePeekClose() {
+    clearTimeout(peekCloseTimer);
+    peekCloseTimer = setTimeout(() => {
+      if (!peek.matches(':hover') && !peekTrigger?.matches(':hover') && !peek.contains(doc.activeElement) && doc.activeElement !== peekTrigger) closeAlternativePeek();
+    },240);
+  }
+
+  function openDesignOptions(id) {
+    closeAlternativePeek();
+    if (activeSlide !== 1) { activeSlide = 1; selected = current; renderSlide(); }
+    $('design-tray').hidden = false; $('design-toggle').setAttribute('aria-expanded','true');
+    doc.body.classList.remove('slides-open'); $('toggle-slides').setAttribute('aria-expanded','false');
+    preview(id || (selected !== current ? selected : designs.find(item => item.id !== current).id),{focus:true});
+    $('design-tray').scrollIntoView({block:'nearest'});
+  }
+
+  $('slide-overview').addEventListener('pointerover', event => { const trigger = event.target.closest('[data-alternatives]'); if (trigger && event.pointerType !== 'touch' && !trigger.contains(event.relatedTarget)) openAlternativePeek(trigger,{x:event.clientX,y:event.clientY}); });
+  $('slide-overview').addEventListener('pointermove', event => { if (event.target.closest('[data-alternatives]') && peek.matches(':popover-open')) positionAlternativePeek({x:event.clientX,y:event.clientY}); });
+  $('slide-overview').addEventListener('pointerout', event => { const trigger = event.target.closest('[data-alternatives]'); if (trigger && !trigger.contains(event.relatedTarget)) queuePeekClose(); });
+  $('slide-overview').addEventListener('focusin', event => { const trigger = event.target.closest('[data-alternatives]'); if (trigger && !suppressPeekFocus && trigger.matches(':focus-visible')) openAlternativePeek(trigger); });
+  $('slide-overview').addEventListener('focusout', queuePeekClose);
+  $('slide-overview').addEventListener('keydown', event => { if (event.key === 'ArrowDown' && event.target.closest('[data-alternatives]')) { event.preventDefault(); openAlternativePeek(event.target.closest('[data-alternatives]')); peek.querySelector('[data-peek-design]').focus(); } });
+  peek.addEventListener('pointerenter', () => clearTimeout(peekCloseTimer));
+  peek.addEventListener('pointerleave', queuePeekClose);
+  peek.addEventListener('focusout', queuePeekClose);
+  peek.addEventListener('click', event => { const option = event.target.closest('[data-peek-design]'); if (option) openDesignOptions(option.dataset.peekDesign); });
+  $('peek-all').addEventListener('click', () => openDesignOptions());
+  doc.addEventListener('pointerdown', event => { if (!peek.contains(event.target) && !event.target.closest('[data-alternatives]')) closeAlternativePeek(); });
+  doc.addEventListener('keydown', event => { if (event.key === 'Escape' && peek.matches(':popover-open')) { event.preventDefault(); event.stopImmediatePropagation(); closeAlternativePeek({restoreFocus:peek.contains(doc.activeElement) || doc.activeElement === peekTrigger}); } },true);
+  doc.addEventListener('scroll', () => closeAlternativePeek(),true);
+  window.addEventListener('resize', () => closeAlternativePeek());
 
   function optionMarkup(item, prefix) {
     return `<button class="design-option" role="tab" id="${prefix}-${item.id}" aria-selected="${item.id === selected}" ${prefix === 'design' ? 'aria-controls="slide-stage"' : 'aria-controls="compare-candidate"'} tabindex="${item.id === selected ? '0' : '-1'}" data-design="${item.id}" aria-label="${item.name}${item.id === current ? ', in slide' : ''}"><span class="design-option-image" aria-hidden="true">${item.html}</span><span class="design-option-label">${item.letter ? `<span class="option-letter" aria-hidden="true">${item.letter}</span>` : ''}<strong>${item.name}</strong></span>${item.id === current ? `<span class="in-slide-mark" aria-hidden="true">${icon('check')}In slide</span>` : ''}</button>`;
@@ -139,7 +201,7 @@
   $('close-compare').addEventListener('click', closeComparison);
   $('compare-dialog').addEventListener('close', () => { compareTrigger?.focus({preventScroll:true}); });
   $('design-toggle').addEventListener('click', () => { const expanded = $('design-toggle').getAttribute('aria-expanded') === 'true'; $('design-tray').hidden = expanded; $('design-toggle').setAttribute('aria-expanded',String(!expanded)); });
-  $('review-designs').addEventListener('click', () => { activeSlide = 1; renderSlide(); $('design-tray').hidden = false; $('design-toggle').setAttribute('aria-expanded','true'); preview(designs.find(item => item.id !== current).id,{focus:true}); $('design-tray').scrollIntoView({block:'nearest'}); });
+  $('review-designs').addEventListener('click', () => openDesignOptions());
   $('undo-choice').addEventListener('click', () => {
     if (previousChoice === null) return;
     current = previousChoice.id; approved = previousChoice.approved; selected = current; previousChoice = null;
@@ -166,7 +228,7 @@
     if (activeSlide === 1) { render(); $('design-toggle').setAttribute('aria-expanded','true'); }
     else { $('slide-stage').innerHTML = slides[activeSlide].html; $('slide-stage').removeAttribute('aria-labelledby'); $('slide-stage').setAttribute('role','region'); $('approve').hidden = false; }
   }
-  $('slide-overview').addEventListener('click', event => { const thumb = event.target.closest('[data-slide]'); if (!thumb) return; activeSlide = Number(thumb.dataset.slide); selected = current; renderSlide(); doc.body.classList.remove('slides-open'); $('toggle-slides').setAttribute('aria-expanded','false'); if (innerWidth > 600) doc.querySelector(`[data-slide="${activeSlide}"]`).focus({preventScroll:true}); else $('toggle-slides').focus(); });
+  $('slide-overview').addEventListener('click', event => { if (event.target.closest('[data-alternatives]')) { openDesignOptions(); return; } const thumb = event.target.closest('[data-slide]'); if (!thumb) return; activeSlide = Number(thumb.dataset.slide); selected = current; renderSlide(); doc.body.classList.remove('slides-open'); $('toggle-slides').setAttribute('aria-expanded','false'); if (innerWidth > 600) doc.querySelector(`[data-slide="${activeSlide}"]`).focus({preventScroll:true}); else $('toggle-slides').focus(); });
   $('toggle-theme').addEventListener('click', () => { const dark = doc.documentElement.dataset.theme !== 'dark'; doc.documentElement.dataset.theme = dark ? 'dark' : 'light'; $('toggle-theme').setAttribute('aria-label',`Switch to ${dark ? 'light' : 'dark'} appearance`); });
   $('toggle-slides').addEventListener('click', () => { const open = doc.body.classList.toggle('slides-open'); $('toggle-slides').setAttribute('aria-expanded',String(open)); });
   $('toggle-chat').addEventListener('click', () => { const narrow = innerWidth <= 1100; doc.body.classList.toggle(narrow ? 'chat-open' : 'chat-closed'); $('toggle-chat').setAttribute('aria-expanded',String(narrow ? doc.body.classList.contains('chat-open') : !doc.body.classList.contains('chat-closed'))); });

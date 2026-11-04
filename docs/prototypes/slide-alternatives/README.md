@@ -11,7 +11,7 @@ The chooser runs entirely in memory. It makes no product API calls, generates no
 
 ## Proposed experience
 
-1. **Discover.** The slide overview shows “3 alternatives”; the editor's Designs button counts the original plus those three. The agent's chat reply contains a visual entry point to the options. Alternatives are parallel design directions, separate from chronological version history.
+1. **Discover.** A compact stacked-cards control with a “3” sits on the slide thumbnail. Hovering reveals a fan of actual design previews just above the cursor, with subtle depth and a lift when hovering a card. Click a card to preview that design on the main canvas, or click/tap the count to open the chooser. Keyboard focus also exposes the fan; Arrow Down enters its previews and Escape dismisses it. Hovering alone keeps the canvas and chosen design unchanged. The editor's Designs button counts the original plus the three alternatives. The agent's chat reply also opens the options. Alternatives are parallel design directions, separate from chronological version history.
 2. **Preview.** Click a named thumbnail or use arrow keys, Home and End. A blue selection identifies the preview. “In slide” continues to mark the actual chosen design, including on its thumbnail. The preview state and **Use this design** stay beside the canvas even if the options row is collapsed. Escape returns to the chosen design.
 3. **Compare.** Compare the current design with a proposal, or any two proposals. Both previews share dimensions and alignment. Either visible design can be chosen directly. On phones the previews stack; short screens use the two dropdowns instead of squeezing in another thumbnail row. The decision controls remain available while previews scroll.
 4. **Choose.** **Use this design** changes the slide's chosen design, updates its overview thumbnail, preserves every proposal and offers **Undo**. It returns the slide to review; choosing a design and approving a slide are separate decisions. Approval is hidden while previewing. Present uses the chosen design.
@@ -23,6 +23,10 @@ The chooser runs entirely in memory. It makes no product API calls, generates no
 
 [Choice and Undo](screenshots/03-chosen.png) · [Dark appearance](screenshots/04-dark.png) · [Phone preview](screenshots/05-mobile.png) · [Phone comparison](screenshots/06-mobile-compare.png)
 
+![A compact count reveals clickable design previews around the cursor.](screenshots/08-hover-detail.png)
+
+[Full hover view](screenshots/07-hover.png) · [Hover in dark appearance](screenshots/09-hover-dark.png)
+
 ## Iterations made in the browser
 
 - Reduced the thumbnail row's width to preserve space for the slide and expanded notes.
@@ -30,6 +34,7 @@ The chooser runs entirely in memory. It makes no product API calls, generates no
 - Extended comparison from current-versus-proposal to any pair, with a direct choice of either design.
 - Aligned both comparison canvases and kept the decision controls visible on short screens.
 - Added dropdown switching on compact comparisons, kept the current-design marker visible, and corrected accessible names and muted footer contrast.
+- Replaced the filled “3 alternatives” badge with a quiet count on the thumbnail and a cursor-adjacent preview fan. Cards lift without shifting their hover area, remain clickable, and open a temporary canvas preview. Keyboard and touch retain direct access to the chooser; reduced-motion preferences disable the fan animation.
 
 ## Behavior to retain in implementation
 
@@ -45,6 +50,6 @@ Component proposals must be tied to one chosen slide design and a stable compone
 
 ## Verification
 
-Browser review covers mouse and keyboard switching, safe preview, either-side comparison choices, apply/undo, preserved notes, retained alternatives, presentation using the chosen design, and light/dark layouts at 1440, 768, 390 and 320 pixels. Axe-core 4.14.0 reported no A/AA violations across 17 sampled states; this is not a complete accessibility certification. The 320px comparison keeps its choice button inside the viewport. The standalone download was also exercised offline without external requests.
+Browser review covers mouse and keyboard switching, safe preview, either-side comparison choices, apply/undo, preserved notes, retained alternatives, presentation using the chosen design, and light/dark layouts at 1440, 768, 390 and 320 pixels. The hover review exercises pointer entry/exit, moving onto the cards, clicking all three proposals, Arrow Down/Enter, Escape with focus restoration, touch access, and reduced motion. Axe-core 4.14.0 reported no A/AA violations in 22 sampled states; this is not a complete accessibility certification. The 320px comparison keeps its choice button inside the viewport. The standalone download was exercised offline without external requests.
 
-Screenshots are direct Chromium captures of this prototype with fictional data; they are not images of an implemented product feature. [Capture provenance and sampled results](captures.json) accompany the six images. Physical-device and user usability testing remain follow-up work.
+Screenshots are direct Chromium captures of this prototype with fictional data; they are not images of an implemented product feature. [Capture provenance and sampled results](captures.json) accompany the nine images. Physical-device and user usability testing remain follow-up work.

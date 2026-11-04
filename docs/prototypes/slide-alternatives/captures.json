@@ -1,6 +1,6 @@
 {
-  "captured_at": "2026-11-04T10:07:41.916045+00:00",
-  "method": "Direct Chromium screenshots of the isolated fictional UX prototype; no DOM replacement or image retouching.",
+  "captured_at": "2026-11-04T10:40:37.857042+00:00",
+  "method": "Direct Chromium screenshots of the isolated fictional UX prototype; no DOM replacement or image retouching. Hover detail is a direct viewport-region capture.",
   "captures": [
     {
       "file": "01-preview.png",
@@ -9,7 +9,8 @@
         "height": 1000
       },
       "theme": "light",
-      "sha256": "e6388be68bf42c56963a82f759d5f2cf9634a207754a7fc03d4a44189ecacccf"
+      "clip": null,
+      "sha256": "d6e7a801e29fb1f3c6c14cfc59677d587e00af8267cc72cc540ffa8e4ab364dc"
     },
     {
       "file": "02-compare.png",
@@ -18,7 +19,8 @@
         "height": 1000
       },
       "theme": "light",
-      "sha256": "3b86452123c5cb40d5e024a837b1cb0b26476bac97179d54d8ce5054b39bf56e"
+      "clip": null,
+      "sha256": "0aafc5ac6fa17ae6444d4a88fc3fc1254b7ac4a0f0a215ff7650344c8a7b3f8b"
     },
     {
       "file": "03-chosen.png",
@@ -27,7 +29,8 @@
         "height": 1000
       },
       "theme": "light",
-      "sha256": "073124a819d82759dad185da79fb52a1c2dd3b23216dc09b549f37b93938bb00"
+      "clip": null,
+      "sha256": "f43bbbbe6af9419d3fa7061a87d56bb40715ea4f6e4900d2d376dab577ed8881"
     },
     {
       "file": "04-dark.png",
@@ -36,7 +39,8 @@
         "height": 1000
       },
       "theme": "dark",
-      "sha256": "c10f360f4b73f8694564b025f46df9faf0bce2d049e5b77e86dd0ad8ab35e1c3"
+      "clip": null,
+      "sha256": "cd3a7a4cd5773c3e102f6e43e41465a67d10d404e2a6b816a6c541c01c105494"
     },
     {
       "file": "05-mobile.png",
@@ -45,6 +49,7 @@
         "height": 844
       },
       "theme": "light",
+      "clip": null,
       "sha256": "2914a0e84deedee7745f8bdeab97f12e35371dc31f12889ced82253af2c13017"
     },
     {
@@ -54,7 +59,43 @@
         "height": 844
       },
       "theme": "light",
+      "clip": null,
       "sha256": "f7ba9fd54fe2fb8fea2d6675ece45f116296bdb3134d30d3fbebcbbaedccaf2d"
+    },
+    {
+      "file": "07-hover.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": null,
+      "sha256": "3a714129e133aed0740b56c0a09b1371b6498218ea764070a6b4a50ec86d7888"
+    },
+    {
+      "file": "08-hover-detail.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "light",
+      "clip": {
+        "x": 74,
+        "y": 154,
+        "width": 500,
+        "height": 340
+      },
+      "sha256": "8aacd7c291fa2e6981ab1868ce9d20fa25377909cc27233b1d883dd83e06cffa"
+    },
+    {
+      "file": "09-hover-dark.png",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "theme": "dark",
+      "clip": null,
+      "sha256": "e678902b2a5943f51d6a7731d10f93a2a41255a90f89e5255777074f3b65785f"
     }
   ],
   "accessibility_checks": [
@@ -124,6 +165,26 @@
     },
     {
       "state": "dark 768px compare",
+      "violations": []
+    },
+    {
+      "state": "light hover fan",
+      "violations": []
+    },
+    {
+      "state": "light lifted card",
+      "violations": []
+    },
+    {
+      "state": "dark hover fan",
+      "violations": []
+    },
+    {
+      "state": "dark lifted card",
+      "violations": []
+    },
+    {
+      "state": "keyboard preview fan",
       "violations": []
     }
   ],
