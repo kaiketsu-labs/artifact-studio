@@ -109,7 +109,9 @@ def test_offline_overview_preserves_slide_typography(
     expect(overview).not_to_be_visible()
     expect(page.locator("#stage h1")).to_have_text("Present with confidence")
     page.keyboard.press("ArrowLeft")
-    page.locator("#show-presenter").click()
+    with page.expect_popup():
+        page.locator("#show-presenter").click()
+    page.bring_to_front()
     expect(page.locator("#presenter-view")).to_be_visible()
     check_thumbnail("#presenter-filmstrip .film-slide")
     check_thumbnail("#presenter-current")
