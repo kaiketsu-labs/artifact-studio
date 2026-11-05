@@ -8,6 +8,11 @@ const { spawnSync } = require('node:child_process');
 const { runInNewContext } = require('node:vm');
 
 const workflow = fs.readFileSync(path.resolve(__dirname, '../../.github/workflows/release-please.yml'), 'utf8');
+test('release PR output can be empty when no PR was created', () => {
+  assert.match(workflow, /RELEASE_PR: \$\{\{ fromJSON\(steps\.release\.outputs\.pr \|\| '\{\}'\)\.number \}\}/);
+  assert.equal(JSON.parse('' || '{}').number, undefined);
+  assert.equal(JSON.parse('{"number":48}' || '{}').number, 48);
+});
 test('only an explicit manual publish on main enables publication', () => {
   assert.match(workflow, /default: prepare/);
   const prepare = workflow.match(/  prepare:\n[\s\S]*?    if: (.*)/)[1];
