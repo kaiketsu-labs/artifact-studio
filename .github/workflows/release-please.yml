@@ -44,7 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_PR: ${{ fromJSON(steps.release.outputs.pr).number }}
+          RELEASE_PR: ${{ fromJSON(steps.release.outputs.pr || '{}').number }}
         run: |
           branch=$(gh pr view "$RELEASE_PR" --json headRefName --jq .headRefName)
           gh workflow run ci.yml --ref "$branch"
