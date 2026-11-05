@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.1.0...v0.2.0) (2026-11-05)
+
+
+### Features
+
+* **chat:** preview image attachments and speed up artifact thumbnails ([1bb44d6](https://github.com/kaiketsu-labs/artifact-studio/commit/1bb44d607e94f6d39d651714c9233875561d7695))
+* **editor:** streamline alternatives and clarify version history ([#47](https://github.com/kaiketsu-labs/artifact-studio/issues/47)) ([454e75d](https://github.com/kaiketsu-labs/artifact-studio/commit/454e75d43c0728edbd5aa6ea117b328da30221f4))
+* **review:** wake connected agents for every artifact type ([76566c8](https://github.com/kaiketsu-labs/artifact-studio/commit/76566c80527fa193e08f4ccc07b2d85643eab0ff))
+
+
+### Documentation
+
+* **readme:** reuse pixel presentation visuals ([671ebd7](https://github.com/kaiketsu-labs/artifact-studio/commit/671ebd7d4d9ea7581a2fa01b6d72091e1c02bfec))
+
 ## 0.1.0 (2026-11-04)
 
 
