@@ -13,6 +13,7 @@
   /** Add local file selection and readable progress to the existing feedback send path. */
   function create(options){
     const {form,input,attachButton,fileInput,filesList,error: errorNode,status,key,escape,svg,onChange}=options;
+    const images=root.ChatImages?.create({document:filesList.ownerDocument,escape,svg});
     const drafts=new Map(),statuses=new Map();let disabled=false;
     const files=(context=key())=>drafts.get(context)||[];
     const state=(context=key())=>{if(!statuses.has(context))statuses.set(context,{processing:false,progress:'',error:''});return statuses.get(context);};
@@ -20,7 +21,11 @@
     function error(message='',context=key()){state(context).error=message;render();}
     function render(){
       const selected=files(),{processing,progress,error:message}=state();
-      filesList.innerHTML=selected.map((file,index)=>`<span class="chat-file-chip"><span class="chat-file-icon">${svg('attach')}</span><span class="chat-file-description"><span class="chat-file-name" title="${escape(file.name)}">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span><button type="button" data-chat-remove="${index}" aria-label="Remove ${escape(file.name)}" title="Remove ${escape(file.name)}" ${disabled||processing?'disabled':''}>${svg('close')}</button></span>`).join('');
+      images?.retain([...drafts.values()].flat());
+      filesList.innerHTML=selected.map((file,index)=>{
+        const remove=`<button type="button" data-chat-remove="${index}" aria-label="Remove ${escape(file.name)}" title="Remove ${escape(file.name)}" ${disabled||processing?'disabled':''}>${svg('close')}</button>`;
+        return images?.draft(file,remove) || `<span class="chat-file-chip"><span class="chat-file-icon">${svg('attach')}</span><span class="chat-file-description"><span class="chat-file-name" title="${escape(file.name)}">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${remove}</span>`;
+      }).join('');
       attachButton.disabled=disabled||processing;
       fileInput.disabled=disabled||processing;
       form.classList.toggle('has-files',selected.length>0);
@@ -64,7 +69,11 @@
       finally{pending.processing=false;render();}
     }
     /** Display only same-origin download routes supplied by the feedback endpoint. */
-    function sentFiles(comment){return (comment.files||[]).map(file=>/^\/api\/decks\/[a-z0-9-]+\/feedback\/\d+\/files\/\d+$/.test(file.download_url)?`<a class="chat-file-chip chat-sent-file" href="${escape(file.download_url)}" download title="Download ${escape(file.name)}">${svg('attach')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${svg('down')}</a>`:'').join('');}
+    function sentFiles(comment){
+      const files=(comment.files||[]).map(file=>images?.sent(file) || (/^\/api\/decks\/[a-z0-9-]+\/feedback\/\d+\/files\/\d+$/.test(file.download_url)?`<a class="chat-file-chip chat-sent-file" href="${escape(file.download_url)}" download title="Download ${escape(file.name)}">${svg('attach')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${svg('down')}</a>`:'')).join('');
+      return files?`<div class="chat-sent-images">${files}</div>`:'';
+    }
+
     render();
     return {
       add,payload,sentFiles,error,

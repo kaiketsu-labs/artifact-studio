@@ -53,17 +53,15 @@ def _embedded_thumbnail(path: Path) -> io.BytesIO:
         return io.BytesIO(data)
 
 
-def design_thumbnail(path: Path) -> bytes:
+def design_thumbnail(path: Path, *, filename: str = "", maximum: int = 640) -> bytes:
     """Return a bounded first-frame PNG or signal that no preview is available."""
     try:
-        if path.suffix.lower() in _POWERPOINT_SUFFIXES:
+        suffix = Path(filename).suffix.lower() if filename else path.suffix.lower()
+        if suffix in _POWERPOINT_SUFFIXES:
             source: Path | io.BytesIO = _embedded_thumbnail(path)
             formats = ["PNG", "JPEG"]
         else:
-            if (
-                path.suffix.lower() not in THUMBNAIL_SUFFIXES
-                or path.stat().st_size > _MAX_IMAGE_BYTES
-            ):
+            if suffix not in THUMBNAIL_SUFFIXES or path.stat().st_size > _MAX_IMAGE_BYTES:
                 raise ValueError("Unsupported or oversized image")
             source = path
             formats = _RASTER_FORMATS
@@ -73,7 +71,7 @@ def design_thumbnail(path: Path) -> bytes:
                 if image.width * image.height > _MAX_PIXELS:
                     raise ValueError("Image dimensions too large")
                 oriented = ImageOps.exif_transpose(image)
-                oriented.thumbnail((640, 640))
+                oriented.thumbnail((maximum, maximum))
                 has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
                 raster = oriented.convert("RGBA" if has_alpha else "RGB")
                 output = io.BytesIO()

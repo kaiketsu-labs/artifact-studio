@@ -58,6 +58,7 @@ from .element_alternatives import (
     ElementSource,
 )
 from .events import deck_events
+from .feedback_previews import feedback_image_response
 from .history_api import history_routes
 from .image_api import image_routes
 from .interactive import prepare_document
@@ -1662,9 +1663,16 @@ async def local_writes(request: Request, call_next: RequestResponseEndpoint) -> 
         response.headers["Content-Type"] = "application/octet-stream"
         response.headers["Content-Disposition"] = "attachment"
         response.headers["Content-Security-Policy"] = "sandbox; default-src 'none'"
-    response.headers["Cache-Control"] = (
-        "private, no-cache" if static_asset and not source_download else "no-store"
-    )
+    if (
+        request.method == "GET"
+        and response.status_code == 200
+        and getattr(request.state, "cache_cover", False)
+    ):
+        response.headers["Cache-Control"] = "private, max-age=3600"
+    else:
+        response.headers["Cache-Control"] = (
+            "private, no-cache" if static_asset and not source_download else "no-store"
+        )
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
@@ -1955,13 +1963,17 @@ def workspace_preferences() -> dict[str, str]:
 
 
 @app.get("/api/decks/{deck_id}/feedback/{event_id}/files/{file_index}")
-def feedback_attachment(deck_id: DeckID, event_id: int, file_index: int) -> FileResponse:
+def feedback_attachment(
+    deck_id: DeckID, event_id: int, file_index: int, preview: bool = False, full: bool = False
+) -> Response:
     """Download a private review file with its original name and inert content type."""
     _ = store.read(deck_id)
     comment = next((item for item in store.comments(deck_id) if item.event_id == event_id), None)
     if comment is None or not 0 <= file_index < len(comment.files):
         raise FileNotFoundError("Attachment not found.")
     file = comment.files[file_index]
+    if preview:
+        return feedback_image_response(file, Path(file.path), full=full)
     return FileResponse(
         file.path,
         filename=file.name,

@@ -1,12 +1,16 @@
 """Resize the real chat and render actual MCP agent messages in a browser."""
 
+import io
 import os
 from pathlib import Path
+from typing import Literal
 
 import pytest
+from PIL import Image, ImageDraw
 from playwright.sync_api import Page, Route, expect
 
 from artifact_studio.agent_client import Invocation
+from artifact_studio.artifacts import ArtifactStore
 from tests.integration.support import DECK_ID, RunningApp
 from tests.integration.test_browser import open_editor
 
@@ -238,3 +242,111 @@ def test_markdown_cannot_execute_html_or_load_images(page: Page, live_app: Runni
     )
     assert page.evaluate("window.chatExecuted") is None
     assert not requests
+
+
+@pytest.mark.parametrize("kind", ["presentation", "artifact"])
+@pytest.mark.parametrize(("width", "theme"), [(1280, "light"), (390, "dark")])
+def test_image_tiles_before_and_after_send(
+    page: Page,
+    live_app: RunningApp,
+    tmp_path: Path,
+    artifacts: Path,
+    kind: str,
+    width: int,
+    theme: Literal["light", "dark"],
+) -> None:
+    """Keep image previews compact, removable and keyboard-accessible without altering bytes."""
+    page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(color_scheme=theme)
+    item = None
+    if kind == "presentation":
+        open_editor(page, live_app)
+        toggle = page.get_by_role("button", name="Open chat", exact=True)
+        if toggle.is_visible():
+            toggle.click()
+        input_selector, files_selector, thread = (
+            "#feedback-file-input",
+            "#feedback-files",
+            "#feedback-list",
+        )
+        send = page.locator("#send-feedback")
+    else:
+        service = ArtifactStore(live_app.store)
+        project = service.create_project("Fictional image review")
+        source = tmp_path / "page"
+        source.mkdir()
+        _ = (source / "index.html").write_text("<h1>Image review</h1>")
+        item = service.register_artifact(project.id, "Image review", source, "index.html")
+        page.goto(f"{live_app.url}/?artifact={item.id}")
+        input_selector, files_selector, thread = (
+            "#hub-feedback-files",
+            "#hub-feedback-attachments",
+            "#hub-thread",
+        )
+        send = page.locator("#hub-send")
+    encoded = io.BytesIO()
+    image = Image.new("RGB", (1400, 800), "#edf3ff")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((100, 100, 1300, 190), fill="#315fce")
+    draw.rectangle((100, 300, 700, 650), fill="#2b9466")
+    draw.rectangle((760, 420, 1300, 650), fill="#e9a346")
+    image.save(encoded, format="PNG")
+    original = encoded.getvalue()
+    files = page.locator(input_selector)
+    files.set_input_files(
+        [
+            {"name": "chart.png", "mimeType": "image/png", "buffer": original},
+            {"name": "extra.png", "mimeType": "image/png", "buffer": original},
+            {"name": "context.txt", "mimeType": "text/plain", "buffer": b"Fictional context"},
+        ]
+    )
+    preview = page.locator(files_selector).get_by_role(
+        "button", name="Preview chart.png", exact=True
+    )
+    expect(preview.locator("img")).to_be_visible()
+    page.get_by_role("button", name="Remove extra.png", exact=True).click()
+    expect(page.locator(files_selector).locator(".chat-image-tile")).to_have_count(1)
+    expect(page.locator(files_selector)).to_contain_text("context.txt")
+    box = preview.bounding_box()
+    assert box is not None and box["width"] <= 96 and box["height"] <= 96
+    preview.click()
+    dialog = page.get_by_role("dialog", name="Image preview: chart.png", exact=True)
+    expect(dialog).to_be_visible()
+    expect(dialog.locator("img")).to_have_js_property("complete", True)
+    assert dialog.locator("img").evaluate("image => image.complete && image.naturalWidth > 0")
+    page.keyboard.press("Escape")
+    expect(dialog).not_to_be_visible()
+    expect(preview).to_be_focused()
+    panel = page.locator(".discussion" if kind == "presentation" else "#hub-chat")
+    _ = panel.screenshot(path=str(artifacts / "draft-images.png"))
+    send.click()
+    expect(page.locator(files_selector)).to_be_empty()
+    sent = page.locator(thread).get_by_role("button", name="Preview chart.png", exact=True)
+    expect(sent).to_be_visible()
+    download_url = sent.get_attribute("data-image-download")
+    assert download_url is not None
+    expect(sent.locator("img")).to_have_attribute("src", download_url + "?preview=true")
+    sent.click()
+    expect(dialog).to_be_visible()
+    expect(dialog.locator("img")).to_have_attribute("src", download_url + "?preview=true&full=true")
+    with page.expect_download() as pending:
+        dialog.get_by_role("link", name="Download original").click()
+    download = pending.value
+    path = download.path()
+    assert path and Path(path).read_bytes() == original
+    if item is not None and width == 1280:
+        _ = live_app.post(
+            f"/api/artifacts/{item.id}/feedback",
+            {
+                "message": "New review context",
+                "content_hash": item.content_hash,
+                "request_id": "image-focus-refresh",
+            },
+        )
+        expect(page.locator(thread).get_by_text("New review context", exact=True)).to_be_visible(
+            timeout=15000
+        )
+    page.keyboard.press("Escape")
+    expect(sent).to_be_focused()
+    assert page.locator("html").evaluate("element => element.scrollWidth <= innerWidth")
+    _ = panel.screenshot(path=str(artifacts / "chat-images.png"))
