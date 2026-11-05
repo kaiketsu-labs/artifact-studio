@@ -84,7 +84,7 @@ flowchart LR
     class files,db storage
 ```
 
-Feedback retains the selected artifact, targets and content hash. Agents read released feedback through MCP; automatic continuation requires configured presentation host hooks. Approval records the exact version reviewed.
+Feedback retains the selected artifact, targets and content hash. Agents read released feedback through MCP; automatic continuation requires loaded lifecycle hooks. Approval records the exact version reviewed.
 
 </details>
 
@@ -212,9 +212,11 @@ You can also ask for headline, supporting-text or graphic options. **Review alte
 
 **Live** releases each submitted comment immediately. **Batch** keeps comments and attachments private until you choose **Send batch**. Both retain the original artifact version and selected targets.
 
-Automatic host continuation currently applies to **presentation review only**, through the supported Codex/Claude Code hooks. General artifact feedback is durable, but does not automatically wake an agent. The Live availability indicator and tooltip distinguish these capabilities. Plain MCP cannot wake a closed chat.
+Loaded **Codex/Claude Code hooks** automatically continue the connected agent for every artifact type, including presentations, HTML, Markdown and images. The Live dot and tooltip show the connection; End review stops listening. Keep the agent chat and local server open. Plain MCP cannot start a closed chat.
 
 For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), the agent then connects automatically when it selects or works on the presentation. Copying a prompt alone does not configure or activate the host.
+
+For other artifacts, the same hooks attach when the agent reads `get_working_context(artifact_id=...)` or works on that artifact. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` to resume after End review. Batch comments remain private until Send batch.
 
 Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
 

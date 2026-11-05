@@ -7,6 +7,7 @@ import os
 import shlex
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Literal
 
@@ -16,9 +17,11 @@ from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 
 from artifact_studio.agent_client import Invocation, object_value
+from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.design_library import DesignDetail
 from artifact_studio.hook_client import configure
 from artifact_studio.models import DesignRequestInput, Slide
+from artifact_studio.review import ReviewHookInput, Reviews
 from tests.design_factory import make_design
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 
@@ -28,6 +31,134 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_AGENT_TESTS") != "1", reason="Opt-in agent integration"
     ),
 ]
+
+
+class ReviewHooks:
+    """Run the generated native hook command against this test's real HTTP service."""
+
+    def __init__(
+        self, live_app: RunningApp, artifacts: Path, harness: Literal["codex", "claude-code"]
+    ) -> None:
+        """Keep hook configuration and subprocess outputs inside disposable test folders."""
+        self.live_app = live_app
+        self.artifacts = artifacts
+        self.harness = harness
+        configuration = configure(harness, live_app.project, live_app.url, "artifact-studio", False)
+        self.hook_map = object_value(object_value(json.loads(configuration.read_text()))["hooks"])
+
+    def dispatch(self, event: str, **payload: object) -> dict[str, object]:
+        """Execute the exact generated launcher and retain its host-facing JSON response."""
+        groups = json.loads(json.dumps(self.hook_map[event]))
+        command = str(groups[-1]["hooks"][0]["command"])
+        result = subprocess.run(
+            shlex.split(command),
+            cwd=self.live_app.project,
+            input=json.dumps({"session_id": "ci-session", **payload}),
+            text=True,
+            capture_output=True,
+            timeout=10,
+            check=True,
+        )
+        _ = (self.artifacts / f"{self.harness}-{event}.json").write_text(result.stdout)
+        return object_value(json.loads(result.stdout))
+
+    def response(self, value: dict[str, object]) -> object:
+        """Use the structured Codex and string-wrapped Claude result envelopes."""
+        if self.harness == "codex":
+            return {"structuredContent": value}
+        return json.dumps([{"type": "text", "text": json.dumps(value)}])
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+@pytest.mark.parametrize("extension", ["html", "md"])
+def test_generated_artifact_hooks_wake_on_live_and_released_batch(
+    live_app: RunningApp,
+    artifacts: Path,
+    tmp_path: Path,
+    harness: Literal["codex", "claude-code"],
+    extension: str,
+) -> None:
+    """Wake a locally waiting native adapter for generic artifacts without exposing drafts."""
+    hooks = ReviewHooks(live_app, artifacts, harness)
+    project = live_app.call("create_project", title="Fictional review")
+    source = tmp_path / "authored"
+    source.mkdir()
+    entrypoint = "index." + extension
+    _ = (source / entrypoint).write_text("<h1>Example</h1>" if extension == "html" else "# Example")
+    item = live_app.call(
+        "register_artifact",
+        project_id=project["id"],
+        title="Example",
+        source_path=str(source),
+        entrypoint=entrypoint,
+    )
+    identifier = str(item["id"])
+    context = live_app.call("get_working_context", artifact_id=identifier)
+    assert (
+        hooks.dispatch(
+            "PostToolUse",
+            tool_name="mcp__artifact_studio__get_working_context",
+            tool_input={"artifact_id": identifier},
+            tool_response=hooks.response(context),
+        )
+        == {}
+    )
+    status = live_app.call("get_live_review_status", artifact_id=identifier)
+    assert status["review_session"] == "ci-session" and status["review_harness"] == harness
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        waiting = worker.submit(hooks.dispatch, "Stop")
+        _ = live_app.post(
+            f"/api/artifacts/{identifier}/feedback",
+            {
+                "message": "A human request",
+                "request_id": "artifact-live-request",
+                "content_hash": item["content_hash"],
+            },
+        )
+        wake = waiting.result(timeout=10)
+    assert wake["decision"] == "block"
+    assert f"read_artifact_feedback(artifact_id={identifier!r}, after_delivery_id=0)" in str(
+        wake["reason"]
+    )
+    assert "A human request" not in str(wake["reason"])
+    feed = live_app.call("read_artifact_feedback", artifact_id=identifier)
+    assert "A human request" in str(feed["events"])
+    _ = hooks.dispatch(
+        "PostToolUse",
+        tool_name="mcp__artifact_studio__read_artifact_feedback",
+        tool_input={"artifact_id": identifier},
+        tool_response=hooks.response(feed),
+    )
+    body = ReviewHookInput(harness=harness, session_id="ci-session", event="Stop")
+    assert not Reviews(live_app.store).pending(body).feedback_available
+    _ = live_app.call(
+        "reply_to_artifact_feedback",
+        artifact_id=identifier,
+        message="Agent reply",
+        request_id="artifact-agent-reply",
+        content_hash=item["content_hash"],
+    )
+    assert not Reviews(live_app.store).pending(body).feedback_available
+    _ = live_app.post(f"/api/artifacts/{identifier}/mode", {"mode": "batch"})
+    _ = live_app.post(
+        f"/api/artifacts/{identifier}/feedback",
+        {
+            "message": "Private until release",
+            "request_id": "artifact-batch-request",
+            "content_hash": item["content_hash"],
+        },
+    )
+    assert (
+        not ArtifactStore(live_app.store)
+        .feedback_feed(identifier, int(str(feed["next_cursor"])))
+        .events
+    )
+    assert not Reviews(live_app.store).pending(body).feedback_available
+    _ = live_app.post(f"/api/artifacts/{identifier}/release", {})
+    assert hooks.dispatch("Stop")["decision"] == "block"
+    _ = live_app.post(f"/api/artifacts/{identifier}/review/disconnect", {})
+    assert hooks.dispatch("Stop") == {}
+    assert not ArtifactStore(live_app.store).workflow(identifier).review_connected
 
 
 def test_agent_briefs_and_opening_messages_keep_their_real_author(live_app: RunningApp) -> None:
@@ -436,31 +567,8 @@ def test_generated_hooks_deliver_released_batch_and_end_session(
     live_app: RunningApp, artifacts: Path, harness: Literal["codex", "claude-code"]
 ) -> None:
     """Execute the generated launcher over HTTP for both native hook response formats."""
-    configuration = configure(harness, live_app.project, live_app.url, "artifact-studio", False)
-    hooks = object_value(json.loads(configuration.read_text()))["hooks"]
-    hook_map = object_value(hooks)
-
-    def dispatch(event: str, **payload: object) -> dict[str, object]:
-        """Run exactly the shell command generated for this harness and lifecycle event."""
-        groups = json.loads(json.dumps(hook_map[event]))
-        command = str(groups[-1]["hooks"][0]["command"])
-        result = subprocess.run(
-            shlex.split(command),
-            cwd=live_app.project,
-            input=json.dumps({"session_id": "ci-session", **payload}),
-            text=True,
-            capture_output=True,
-            timeout=10,
-            check=True,
-        )
-        _ = (artifacts / f"{harness}-{event}.json").write_text(result.stdout)
-        return object_value(json.loads(result.stdout))
-
-    def response(value: dict[str, object]) -> object:
-        """Use the structured Codex and string-wrapped Claude result envelopes."""
-        if harness == "codex":
-            return {"structuredContent": value}
-        return json.dumps([{"type": "text", "text": json.dumps(value)}])
+    hooks = ReviewHooks(live_app, artifacts, harness)
+    dispatch, response = hooks.dispatch, hooks.response
 
     start = live_app.call("get_working_context", deck_id=DECK_ID, include_discovery=False)
     assert not live_app.store.workflow(DECK_ID).review_connected

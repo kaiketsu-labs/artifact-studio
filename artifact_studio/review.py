@@ -2,10 +2,11 @@
 
 import asyncio
 import time
-from typing import Literal, cast
+from typing import Literal, Self, cast
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from .artifacts import ArtifactStore
 from .models import StrictModel
 from .storage import Store
 
@@ -17,10 +18,18 @@ class ReviewHookInput(StrictModel):
     session_id: str = Field(pattern=r"^[A-Za-z0-9:_-]{1,180}$")
     event: Literal["PostToolUse", "Stop", "SessionEnd", "Interrupt", "StopFailure"]
     deck_id: str | None = None
+    artifact_id: str | None = None
     seen_cursor: int | None = Field(default=None, ge=0)
     seen_design_cursor: int | None = Field(default=None, ge=0)
     start_review: bool = False
     auto_start: bool = False
+
+    @model_validator(mode="after")
+    def one_target(self) -> Self:
+        """Reject ambiguous target selection before changing a review connection."""
+        if self.deck_id and self.artifact_id:
+            raise ValueError("Select deck_id or artifact_id, not both.")
+        return self
 
 
 class ReviewHookReply(StrictModel):
@@ -32,11 +41,22 @@ class ReviewHookReply(StrictModel):
 
 
 class Reviews:
-    """Bind a review chat to a deck without relying on an MCP transport session."""
+    """Bind a review chat to an artifact without relying on an MCP transport session."""
 
     def __init__(self, store: Store) -> None:
         """Use the workspace's transactional state and canonical source files."""
         self.store = store
+        self.artifacts = ArtifactStore(store)
+
+    def target(self, deck_id: str = "", artifact_id: str = "") -> str:
+        """Validate an exact target while retaining shared identities for legacy decks."""
+        if deck_id and artifact_id:
+            raise ValueError("Select deck_id or artifact_id, not both.")
+        if artifact_id:
+            return self.artifacts.get_artifact(artifact_id).id
+        if deck_id:
+            _ = self.store.read(deck_id)
+        return deck_id
 
     def connection(self, deck_id: str) -> dict[str, str | bool | None]:
         """Report only a live hook lease for this exact target, excluding ordinary MCP waits."""
@@ -56,14 +76,17 @@ class Reviews:
         """Release review waits and prevent automatic rebinding until explicitly resumed."""
         with self.store.connect() as db:
             _ = db.execute(
+                "INSERT OR IGNORE INTO review_pauses SELECT harness,session_id,deck "
+                "FROM review_sessions WHERE deck=?",
+                (deck_id,),
+            )
+            _ = db.execute(
                 "UPDATE review_sessions SET enabled=0,expires_at=0 WHERE deck=?", (deck_id,)
             )
 
     def bind(self, body: ReviewHookInput) -> ReviewHookReply:
         """Associate a successful workspace tool call with the host's review chat."""
-        deck_id = body.deck_id or ""
-        if deck_id:
-            _ = self.store.read(deck_id)
+        deck_id = self.target(body.deck_id or "", body.artifact_id or "")
         with self.store.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             own = db.execute(
@@ -74,11 +97,15 @@ class Reviews:
                 body.auto_start
                 and bool(deck_id)
                 and (not own or own["enabled"] == 1 or own["deck"] != deck_id)
+                and not db.execute(
+                    "SELECT 1 FROM review_pauses WHERE harness=? AND session_id=? AND target=?",
+                    (body.harness, body.session_id, deck_id),
+                ).fetchone()
             )
             starting = body.start_review or automatic
             if not starting and (not own or not own["enabled"]):
                 return ReviewHookReply()
-            if body.deck_id is None and own and not starting:
+            if body.deck_id is None and body.artifact_id is None and own and not starting:
                 deck_id = cast(str, own["deck"])
             if own and own["deck"] != deck_id and not starting:
                 return ReviewHookReply()
@@ -89,9 +116,12 @@ class Reviews:
             ).fetchone()
             if other:
                 return ReviewHookReply(
-                    reason="This presentation already has a live reviewer."
-                    if body.start_review
-                    else ""
+                    reason="This artifact already has a live reviewer." if body.start_review else ""
+                )
+            if body.start_review:
+                _ = db.execute(
+                    "DELETE FROM review_pauses WHERE harness=? AND session_id=? AND target=?",
+                    (body.harness, body.session_id, deck_id),
                 )
             same_deck = bool(own and own["deck"] == deck_id)
             feedback_cursor = max(
@@ -119,6 +149,11 @@ class Reviews:
     def release(self, body: ReviewHookInput) -> ReviewHookReply:
         """End listening immediately after a host interruption or session failure."""
         with self.store.connect() as db:
+            _ = db.execute(
+                "INSERT OR IGNORE INTO review_pauses SELECT harness,session_id,deck "
+                "FROM review_sessions WHERE harness=? AND session_id=?",
+                (body.harness, body.session_id),
+            )
             _ = db.execute(
                 "UPDATE review_sessions SET expires_at=0,enabled=0 "
                 "WHERE harness=? AND session_id=?",
@@ -153,6 +188,9 @@ class Reviews:
                 )
             cursor = cast(int, row["feedback_cursor"])
             design_cursor = cast(int, row["design_cursor"])
+            generic = bool(
+                db.execute("SELECT 1 FROM artifact_items WHERE id=?", (deck_id,)).fetchone()
+            )
             designs = bool(
                 db.execute(
                     "SELECT 1 FROM design_chat WHERE id>? "
@@ -164,8 +202,15 @@ class Reviews:
             events = (
                 bool(
                     db.execute(
-                        "SELECT 1 FROM delivery d JOIN feedback f ON f.id=d.event_id "
-                        "WHERE d.id>? AND f.deck=? LIMIT 1",
+                        (
+                            "SELECT 1 FROM artifact_delivery d "
+                            "JOIN artifact_feedback f ON f.id=d.event_id "
+                            "WHERE d.id>? AND f.artifact_id=? AND f.author='user' "
+                            "AND f.released=1 LIMIT 1"
+                            if generic
+                            else "SELECT 1 FROM delivery d JOIN feedback f ON f.id=d.event_id "
+                            "WHERE d.id>? AND f.deck=? LIMIT 1"
+                        ),
                         (cursor, deck_id),
                     ).fetchone()
                 )
@@ -174,7 +219,8 @@ class Reviews:
             )
         reads: list[str] = []
         if deck_id and (events or not designs):
-            reads.append(f"read_feedback(deck_id={deck_id!r}, after_delivery_id={cursor})")
+            reader = "read_artifact_feedback(artifact_id" if generic else "read_feedback(deck_id"
+            reads.append(f"{reader}={deck_id!r}, after_delivery_id={cursor})")
         if designs or not events:
             reads.append(f"read_design_requests(after_event_id={design_cursor})")
         status = "feedback" if events or designs else "idle renewal"

@@ -973,7 +973,7 @@ class ArtifactStore:
             return self._view(db, manifest)
 
     def workflow(self, artifact_id: str) -> FeedbackWorkflow:
-        """Read delivery preferences without advertising unsupported automatic agent wakeups."""
+        """Read delivery preferences and this artifact's bounded host-hook connection."""
         with self.store.connect() as db:
             row = self._row(db, artifact_id)
             if row is not None:
@@ -982,8 +982,11 @@ class ArtifactStore:
                     "WHERE artifact_id=? AND released=0 AND author='user'",
                     (artifact_id,),
                 ).fetchone()
-                return FeedbackWorkflow(
-                    mode=cast(Literal["live", "batch"], row["mode"]), pending=cast(int, pending[0])
+                return self.store.workflow(artifact_id).model_copy(
+                    update={
+                        "mode": cast(Literal["live", "batch"], row["mode"]),
+                        "pending": cast(int, pending[0]),
+                    }
                 )
         _ = self.store.read(artifact_id)
         return self.store.workflow(artifact_id)

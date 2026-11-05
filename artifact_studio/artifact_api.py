@@ -33,6 +33,7 @@ from .design_thumbnails import design_thumbnail as make_design_thumbnail
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
 from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
+from .review import Reviews
 from .storage import Store
 from .visuals import capture
 
@@ -258,6 +259,14 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def assign_project(artifact_id: str, body: ProjectAssignment) -> ArtifactView:
         """Group related work without relocating canonical source files."""
         return artifacts().set_artifact_project(artifact_id, body.project_id)
+
+    @router.post("/api/artifacts/{artifact_id}/review/disconnect")
+    def end_review(artifact_id: str) -> FeedbackWorkflow:
+        """End this artifact's host-hook review without releasing or discarding comments."""
+        service = artifacts()
+        _ = service.get_artifact(artifact_id)
+        Reviews(get_store()).disconnect(artifact_id)
+        return service.workflow(artifact_id)
 
     @router.post("/api/artifacts/{artifact_id}/feedback")
     def comment(artifact_id: str, body: ArtifactFeedbackInput) -> ArtifactFeedback:

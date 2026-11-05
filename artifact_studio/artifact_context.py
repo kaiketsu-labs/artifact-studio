@@ -139,7 +139,7 @@ def artifact_context(
             "custom_html_css_javascript": True,
             "design_required": False,
             "external_network": False,
-            "generic_artifact_live_hooks": False,
+            "generic_artifact_live_hooks": True,
             "legacy_presentation_tools": True,
         },
         "context_policy": "Workspace rules are primary; project and artifact context are scoped. "
