@@ -35,8 +35,8 @@ test('file-type sorting groups actual formats and keeps names natural inside eac
   assert.equal(artifactType({kind:'markdown',entrypoint:'README'}).key,'md');
 });
 
-test('unusable stored sort preferences fall back to newest changes',()=>{
-  for(const value of [null,{},'name',{by:'__proto__',direction:'asc'},{by:'name',direction:'sideways'}])assert.deepEqual(validSort(value),{by:'updated',direction:'desc'});
+test('unusable stored sort preferences fall back to starred first',()=>{
+  for(const value of [null,{},'name',{by:'__proto__',direction:'asc'},{by:'name',direction:'sideways'}])assert.deepEqual(validSort(value),{by:'starred',direction:'desc'});
   assert.deepEqual(validSort({by:'type',direction:'asc'}),{by:'type',direction:'asc'});
 });
 
@@ -99,3 +99,10 @@ test('Markdown keeps authored HTML literal and uses immutable owned image resour
   assert.match(html,/rel="noopener noreferrer"/);
   assert.equal(filePath(item,'images/space name.png'),'/api/artifacts/guide/files/images/space%20name.png?revision=3');
 });
+
+ test('default starred sorting keeps recent changes within both groups and explicit sorts work',()=>{
+ const items=[{id:'a',title:'A',updated_at:'2026-01-03',starred:false},{id:'c',title:'C',updated_at:'2026-01-01',starred:true},{id:'b',title:'B',updated_at:'2026-01-02',starred:true},{id:'d',title:'D',updated_at:'2026-01-01'}];
+ assert.deepEqual(sortArtifacts(items).map(item=>item.id),['b','c','a','d']);
+ assert.deepEqual(sortArtifacts(items,{by:'updated',direction:'desc'}).map(item=>item.id),['a','b','c','d']);
+ assert.deepEqual(sortArtifacts(items,{by:'name',direction:'asc'}).map(item=>item.id),['a','b','c','d']);
+ });

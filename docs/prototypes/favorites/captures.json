@@ -1,0 +1,82 @@
+{
+  "artifacts.png": {
+    "sha256": "e9d574874c89738d955b1884225f365e16723a6a921f835ac88665d81800bbf6",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-05T15:16:50.240816+00:00",
+    "axe_violations": [
+      {
+        "id": "region",
+        "impact": "moderate",
+        "tags": [
+          "cat.keyboard",
+          "best-practice"
+        ],
+        "description": "Ensure all page content is contained by landmarks",
+        "help": "All page content should be contained by landmarks",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region?application=axeAPI",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "region",
+                "data": {
+                  "isIframe": false
+                },
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Some page content is not contained by landmarks"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<div class=\"workspace-panel-resize panel-left\" role=\"separator\" aria-orientation=\"vertical\" aria-label=\"Resize sidebar\" tabindex=\"0\" aria-valuemin=\"120\" aria-valuemax=\"650\" aria-valuenow=\"205\" aria-valuetext=\"Sidebar width 205 pixels\" style=\"left: 201px; top: 65px; height: 935px;\"></div>",
+            "target": [
+              "div[aria-label=\"Resize sidebar\"]"
+            ],
+            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+          }
+        ]
+      }
+    ]
+  },
+  "library.png": {
+    "sha256": "50fd88ecab725ce347f8ebbd2dfbab1261987443307b2c1b6633e29958d4dddb",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-05T15:16:51.348083+00:00",
+    "axe_violations": []
+  },
+  "picker.png": {
+    "sha256": "f3410f47548133b6132f4a3cc679f690f9bb4006726f2a2e7cbe51b9ca60e4f3",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-05T15:16:53.573139+00:00",
+    "axe_violations": []
+  },
+  "chat.png": {
+    "sha256": "cc4e98680b5467feb5c906c4280081b6cd05231fadc0e112c97543d678ecfcfc",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-05T15:16:54.572631+00:00",
+    "axe_violations": []
+  },
+  "mobile-dark.png": {
+    "sha256": "4f1f6e8d9ec237c89fc297d2aec3268ecf7ae2c97d8d7114fd35d8edc8964d69",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "captured_at": "2026-11-05T15:16:56.066428+00:00",
+    "axe_violations": []
+  }
+}
