@@ -100,7 +100,7 @@ Implemented generic operations are registered in [artifact_studio/artifact_tools
 
 Writes return compact identity/version/destination receipts. They do not echo complete file trees or base64 assets. Current tool annotations, descriptions and parameter models remain the capability contract. Guides and optional skills explain workflow rather than defining an allowed catalogue of visual components.
 
-Plain MCP is stateless and does not wake a closed agent chat. Generic Live means immediate release; Batch requires explicit release. Existing presentation lifecycle hooks remain supported without claiming equivalent generic host continuation.
+Plain MCP is stateless and does not wake a closed agent chat. Live releases feedback immediately; Batch requires explicit release. Loaded Codex/Claude Code lifecycle hooks attach to selected artifacts of every file type, wait locally between responses and continue on released feedback. Presentation and generic artifact queues retain separate delivery cursors.
 
 ## History, backups and recovery
 

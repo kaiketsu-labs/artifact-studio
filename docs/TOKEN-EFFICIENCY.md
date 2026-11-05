@@ -42,9 +42,9 @@ Draft capture frames have 360,000 pixels instead of 1,440,000 (75% fewer), prese
 | Check order/status later | `get_presentation_outline(deck_id=...)` — no slide HTML or conversation history. |
 | Edit one slide | `get_slide`, then `revise_slide` with only changed fields. |
 | Create or reorder | `create_presentation` / `reorder_slides` return deck identity and ordered `slide_ids`, without slide source. |
-| Automatic review | Loaded hooks attach on selected presentation context or authoring calls, without a separate start call. Read live_review only for setup; use `start_live_review` to resume after End review. |
+| Automatic review | Loaded hooks attach on selected artifact/presentation context or authoring calls, without a separate start call. Read live_review only for setup; use `start_live_review` with the selected ID to resume after End review. |
 | Continue reviewing | `read_feedback`/`wait_for_feedback` with `after_delivery_id=next_cursor`. |
-| Read general artifact feedback | `read_artifact_feedback` with its own `after_delivery_id=next_cursor`; generic artifacts have no automatic host hook. |
+| Read general artifact feedback | `read_artifact_feedback` with its own `after_delivery_id=next_cursor`; loaded lifecycle hooks attach to selected artifacts and send only the needed read call and cursor. |
 | Edit an owned artifact | `get_artifact`, then `read_artifact_files` for relevant paths and `revise_artifact` for changed files with an expected revision/hash and unique request ID. |
 | Add continuation context | `append_presentation_context` with a short Markdown addition and current `context_hash`. |
 
