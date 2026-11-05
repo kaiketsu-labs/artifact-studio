@@ -18,13 +18,15 @@
   <a href="docs/KEYBOARD-CONTROLS.md">Keyboard shortcuts</a>
 </p>
 
-![Artifact Studio library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
+![Working with agents: you steer, the agent builds, and every change stays reviewable.](docs/assets/agents-cover.png)
 
 **Local files · Free composition · Stateless MCP · Human approval**
 
 [Voice input](docs/VOICE-INPUT.md) lets you dictate into text fields with your browser. Spoken feedback retains the object or group selected for each section; review it before sending.
 
 The **Library** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
+
+![Artifact Studio library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
 
 Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Created**, or **File type**. File type shows separate format groups; the arrow reverses the order. One choice is remembered in this browser across overviews. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
 
@@ -41,6 +43,13 @@ Agents choose their tools, code and layouts. Import a file or folder, or have th
 Presentation composition is free within a fixed 16:9 canvas. Slides support local CSS/backgrounds and isolated custom documents with scripts, styles, iframe content and media. Agents can update a deck's theme and import staged fonts/images/assets through MCP. [Authoring capabilities and examples](docs/INTERACTIVE-HTML.md).
 
 ## How it works
+
+![You provide the brief; the agent drafts and visually checks it; you review, request revisions and approve.](docs/assets/agents-loop.png)
+
+Give your agent a brief and files. Ask it to draft the artifact and check the rendered result. Point to what should change, iterate together, then approve the version you reviewed. Approval records that version; later revisions need review again.
+
+<details>
+<summary>Architecture: local files and stateless MCP</summary>
 
 ```mermaid
 flowchart LR
@@ -75,7 +84,9 @@ flowchart LR
     class files,db storage
 ```
 
-Feedback retains the selected artifact, targets and content hash. **Live** releases submitted comments immediately; **Batch** releases them when you choose **Send batch**. Agents read released feedback through MCP; automatic continuation requires configured presentation host hooks. Approval records the exact version reviewed.
+Feedback retains the selected artifact, targets and content hash. Agents read released feedback through MCP; automatic continuation requires configured presentation host hooks. Approval records the exact version reviewed.
+
+</details>
 
 ## Quick start
 
@@ -106,6 +117,10 @@ Versions and changelogs are prepared with Release Please, starting at **0.1.0**.
 Publishing a GitHub release is a separate manual action. See [Versions and releases](docs/RELEASING.md).
 
 ## Connect your agent
+
+![Workspace rules, an optional design reference, your brief and files, and secondary learned preferences give the agent context for its draft.](docs/assets/agents-context.png)
+
+Your brief and workspace rules guide the work. Add a design when you want a particular visual language; learned preferences stay secondary to explicit rules.
 
 Both clients use **Streamable HTTP** at `http://127.0.0.1:8790/mcp`.
 
@@ -193,10 +208,9 @@ You can also ask for headline, supporting-text or graphic options. **Review alte
 
 ## Live or Batch
 
-| Live | Batch |
-| --- | --- |
-| Each submitted comment is released immediately. | Comments and their attachments stay private until **Send batch**. |
-| The agent can read released feedback using its delivery cursor. | The agent receives the released batch together. |
+![Live releases each submitted comment immediately; Batch collects comments until you choose Send batch.](docs/assets/agents-modes.png)
+
+**Live** releases each submitted comment immediately. **Batch** keeps comments and attachments private until you choose **Send batch**. Both retain the original artifact version and selected targets.
 
 Automatic host continuation currently applies to **presentation review only**, through the supported Codex/Claude Code hooks. General artifact feedback is durable, but does not automatically wake an agent. The Live availability indicator and tooltip distinguish these capabilities. Plain MCP cannot wake a closed chat.
 

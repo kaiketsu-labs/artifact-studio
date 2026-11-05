@@ -1,0 +1,73 @@
+{
+  "source": "Working with agents product presentation",
+  "deck_id": "2026-11-04-artifact-studio-agents",
+  "design": "Pixel Studio",
+  "scope": "Four audience-facing illustrations selected for the repository README at the user's request; excludes notes, chat and source/design bundles.",
+  "rendering": "Trusted shared slide renderer. Static completed frames only; differing copied runtime does not establish slideshow or animation equivalence.",
+  "illustrations": {
+    "docs/assets/agents-cover.png": {
+      "slide_id": "cover",
+      "title": "Working with agents",
+      "captured_at": "2026-11-05T06:46:06.771363+00:00",
+      "content_hash": "bc2daddad95e250345890a835c8945f1f8399adcd3fabde287229af897bf5b63",
+      "revision_hash": "c08f1de6db7b1fb1d3e777c1ab94f24fff907501ce4ad1c856fbc111326b7353",
+      "render_hash": "c20a9f2cf38a81055768b8128714532023678ae96ac38d83f3339656b9a1c1e3",
+      "runtime_hash": "0348a65aaa111aca13aee3b5d05383e2b667dd74bf6f4f066199415c401358e3",
+      "runtime_matches_deck": false,
+      "pixels": [
+        1600,
+        900
+      ],
+      "sha256": "27078c2f7190c134129f4890af165b740c67e45c62e803de2fe80c1eeefa38a8",
+      "state": "completed; reduced motion"
+    },
+    "docs/assets/agents-loop.png": {
+      "slide_id": "loop",
+      "title": "One loop, two roles",
+      "captured_at": "2026-11-05T06:46:06.245033+00:00",
+      "content_hash": "1b15248ea50802a7d5dbd889b7e2605f455978172c5eb1d9c67c9df7d6be290f",
+      "revision_hash": "3025e3ae69afcb2f37ca4aee10155b1c2b908140661d04a8f0abb805506396df",
+      "render_hash": "34148d2041a008e3e58e5da9acddf9ce90f37399bde61c9defa8e7816456f15e",
+      "runtime_hash": "0348a65aaa111aca13aee3b5d05383e2b667dd74bf6f4f066199415c401358e3",
+      "runtime_matches_deck": false,
+      "pixels": [
+        1600,
+        900
+      ],
+      "sha256": "e29bd6a7eb94c63ac35c7763eedf7fa321a7350e21ace0bc4b29aa38eebb61f9",
+      "state": "completed; reduced motion"
+    },
+    "docs/assets/agents-context.png": {
+      "slide_id": "context",
+      "title": "The agent starts with context",
+      "captured_at": "2026-11-05T06:46:07.271013+00:00",
+      "content_hash": "1e53f5ef37e8c62b06fd209bbd7610fd3994be7dd2be05dceb067b5950d16524",
+      "revision_hash": "fd670b1f75d82cb07d667560b54c610f87b1ee123990e724c4678ffdaba5fd55",
+      "render_hash": "2549f792d00b26b1a18ba4ed221845b3540d69ef79f0d30af1d163262ab13b84",
+      "runtime_hash": "0348a65aaa111aca13aee3b5d05383e2b667dd74bf6f4f066199415c401358e3",
+      "runtime_matches_deck": false,
+      "pixels": [
+        1600,
+        900
+      ],
+      "sha256": "0f84b43d8b53810f06cbfbcb250b4d76ad483961865e3d271d0ea0700b18c2ca",
+      "state": "completed; reduced motion"
+    },
+    "docs/assets/agents-modes.png": {
+      "slide_id": "modes",
+      "title": "Live or batch: you choose",
+      "captured_at": "2026-11-05T06:46:08.602875+00:00",
+      "content_hash": "52c6c88bd807bc8751ccf046d7860c8b8d4356ce8851ae97c5e24e0fd513d15f",
+      "revision_hash": "0a294c2d2192a03d5fc1edb0f0045cd65ae4397839cafb2325cae02c13b4b593",
+      "render_hash": "0243af7e7414b7a0daf3d4598462cdffb172e3f88d3f5aa3a7908d67771483a6",
+      "runtime_hash": "0348a65aaa111aca13aee3b5d05383e2b667dd74bf6f4f066199415c401358e3",
+      "runtime_matches_deck": false,
+      "pixels": [
+        1600,
+        900
+      ],
+      "sha256": "a37705bfe192f106f9e60103205f34e6817c9953f6c5d32bc6d16a27e15bf426",
+      "state": "completed; reduced motion"
+    }
+  }
+}
