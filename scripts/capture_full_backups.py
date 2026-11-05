@@ -34,7 +34,7 @@ def main() -> None:
             _ = seed(app)
             browser = playwright.chromium.launch()
             context = browser.new_context(
-                viewport={"width": 1440, "height": 1200},
+                viewport={"width": 1440, "height": 900},
                 color_scheme="light",
                 reduced_motion="reduce",
                 locale="en-GB",
@@ -71,6 +71,7 @@ def main() -> None:
                 "url": "",
             }
             writes: list[dict[str, object]] = []
+            checks: list[dict[str, object]] = []
 
             def settings(route: Route) -> None:
                 body = object_value(route.request.post_data_json)
@@ -83,12 +84,18 @@ def main() -> None:
                 )
                 route.fulfill(json=state)
 
+            def check_unchanged(route: Route) -> None:
+                checks.append(object_value(route.request.post_data_json))
+                route.fulfill(json={**state, "phase": "queued"})
+                state.update(phase="unchanged", next_backup_at="2026-11-06T10:30:00Z")
+
             page.route(
                 "**/api/libraries", lambda route: route.fulfill(json=[collection, repository])
             )
             page.route("**/api/library-sync", lambda route: route.fulfill(json=[]))
             page.route("**/api/workspace/github-backups", lambda route: route.fulfill(json=[state]))
             page.route(f"**/api/libraries/{library_id}/full-backup/settings", settings)
+            page.route(f"**/api/libraries/{library_id}/full-backup/run", check_unchanged)
             assets = [
                 {
                     "asset_id": 301,
@@ -138,14 +145,21 @@ def main() -> None:
                 page.locator("#storage-status").click()
                 dialog = page.get_by_role("dialog", name="Storage and backup")
                 full = dialog.locator(f'details[data-full-backup="{library_id}"]')
-                full.locator("summary").click()
-                full.get_by_role("checkbox", name="Back up full workspace", exact=True).check()
-                full.get_by_role("button", name="Save backup settings", exact=True).click()
-                expect(full).to_contain_text("Full workspace backed up")
-                expect(full.get_by_role("spinbutton", name="Every (hours)")).to_have_value("24")
-                expect(full.get_by_role("spinbutton", name="Keep latest backups")).to_have_value(
+                full.locator(":scope > summary").click()
+                full.get_by_role("checkbox", name="Enable full backups", exact=True).check()
+                full.get_by_role("button", name="Save settings", exact=True).click()
+                expect(full).to_contain_text("Backed up")
+                expect(full.get_by_role("spinbutton", name="Check every (hours)")).to_have_value(
+                    "24"
+                )
+                expect(full.get_by_role("spinbutton", name="Keep latest (backups)")).to_have_value(
                     "7"
                 )
+                help_details = full.locator(".full-backup-help")
+                expect(help_details.locator("p")).to_be_hidden()
+                help_details.locator("summary").click()
+                expect(help_details.locator("p")).to_be_visible()
+                help_details.locator("summary").click()
                 full.scroll_into_view_if_needed()
                 capture("full-github-backup.png")
                 appearance("Dark")
@@ -156,8 +170,16 @@ def main() -> None:
                 assert full.evaluate("node => node.scrollWidth <= node.clientWidth")
                 assert dialog.evaluate("node => node.scrollWidth <= node.clientWidth")
                 capture("full-github-backup-mobile.png")
-                page.set_viewport_size({"width": 1440, "height": 1200})
+                page.set_viewport_size({"width": 1440, "height": 900})
                 appearance("Light")
+                full.get_by_role("button", name="Check now", exact=True).click()
+                expect(full).to_contain_text("No changes since last backup")
+                expect(full.locator('time[datetime="2026-11-05T09:30:00Z"]')).to_be_visible()
+                expect(full.locator('time[datetime="2026-11-06T10:30:00Z"]')).to_be_visible()
+                expect(page.locator("#storage-status")).to_have_attribute("data-phase", "synced")
+                expect(full.get_by_role("button", name="Check now")).to_be_enabled()
+                full.scroll_into_view_if_needed()
+                capture("full-github-backup-unchanged.png")
                 dialog.get_by_role("button", name="Restore workspace", exact=True).click()
                 recovery = page.locator("dialog.workspace-recovery")
                 recovery.get_by_role("combobox", name="Recovery source").select_option(
@@ -168,6 +190,7 @@ def main() -> None:
                 expect(recovery.get_by_role("button", name="Preview full backup")).to_be_enabled()
                 capture("full-github-backup-restore.png")
                 assert writes == [{"enabled": True, "interval_hours": 24, "keep_count": 7}]
+                assert checks == [{}]
                 if errors:
                     raise RuntimeError("\n".join(errors))
                 if args.axe and any(audits.values()):
@@ -183,7 +206,8 @@ def main() -> None:
                             "remote_boundary": "GitHub API responses use fictional fixtures; "
                             "no repository is connected and no private data is uploaded.",
                             "verification": "Actual UI opens, expands, opts in, saves, changes "
-                            "appearance, loads remote backup fixtures, and selects another PC. "
+                            "appearance, checks an unchanged workspace while preserving the last "
+                            "backup time, loads remote backup fixtures, and selects another PC. "
                             "Screenshots are direct browser pixels with no DOM replacement.",
                             "screenshots": captures,
                             "axe": audits if args.axe else "Not requested",

@@ -48,6 +48,7 @@ HOST_TABLES = frozenset(
         "review_sessions",
         "review_pauses",
         "design_presence",
+        "artifact_context_receipts",
     }
 )
 SECRET_NAMES = frozenset({"credentials.json", "secrets.json", "secrets.txt", ".env"})
@@ -120,6 +121,8 @@ class ArchiveSummary(StrictModel):
     files: int
     objects: int
     bytes: int
+    fingerprint: str = ""
+    unchanged: bool = False
 
 
 def _identifier(value: str) -> str:
@@ -335,13 +338,82 @@ def _sanitize_database(database: Path, replacements: list[tuple[str, str]]) -> N
                                 (updated, row[0]),
                             )
             if table == "workflow":
-                _ = db.execute("UPDATE workflow SET waiting_until=0")
+                _ = db.execute("UPDATE workflow SET waiting_until=0,last_check=NULL")
+                _ = db.execute("DELETE FROM workflow WHERE mode='live'")
         from .version_history import install_artifact_history, install_slide_history
 
         if "revisions" in tables:
             install_slide_history(db)
         if "artifact_revisions" in tables:
             install_artifact_history(db)
+
+
+def _logical_database_hash(database: Path) -> str:
+    """Identify durable SQLite schema and typed rows independently of physical pages."""
+    hasher = hashlib.sha256()
+
+    def append(value: object) -> None:
+        hasher.update(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+        hasher.update(b"\n")
+
+    with sqlite3.connect(database) as db:
+        tables = [table for table in _database_tables(db) if table not in HOST_TABLES]
+        append(["application_id", db.execute("PRAGMA application_id").fetchone()[0]])
+        append(["user_version", db.execute("PRAGMA user_version").fetchone()[0]])
+        for kind, name, table, sql in db.execute(
+            "SELECT type,name,tbl_name,sql FROM sqlite_master "
+            "WHERE name NOT GLOB 'sqlite_*' ORDER BY type,name"
+        ):
+            if table not in HOST_TABLES:
+                append(["schema", kind, name, table, sql])
+        for table in tables:
+            columns = [
+                cast(str, row[1]) for row in db.execute(f"PRAGMA table_info({_quoted(table)})")
+            ]
+            # Explicit types break numeric comparison ties; BINARY avoids application
+            # collations, and no implicit rowid participates in durable content identity.
+            order = ",".join(
+                [f"{_quoted(column)} COLLATE BINARY" for column in columns]
+                + [f"typeof({_quoted(column)}) COLLATE BINARY" for column in columns]
+            )
+            append(["table", table, columns])
+            for row in db.execute(f"SELECT * FROM {_quoted(table)} ORDER BY {order}"):
+                append(
+                    [
+                        ["blob", value.hex()]
+                        if isinstance(value, bytes)
+                        else [type(value).__name__, value]
+                        for value in row
+                    ]
+                )
+        if db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='sqlite_sequence'"
+        ).fetchone():
+            for name, sequence in db.execute("SELECT name,seq FROM sqlite_sequence ORDER BY name"):
+                if name in tables:
+                    append(["sequence", name, sequence])
+    return hasher.hexdigest()
+
+
+def _archive_fingerprint(files: list[RecoveryFile], directories: list[str], database: Path) -> str:
+    """Hash the prepared archive inventory while ignoring timestamps and SQLite layout."""
+    document = {
+        "format": "artifact-studio-workspace-content-v1",
+        "directories": sorted(directories),
+        "files": [
+            [
+                item.area,
+                item.path,
+                _logical_database_hash(database) if item.area == "database" else item.sha256,
+                None if item.area == "database" else item.size,
+                item.mode,
+            ]
+            for item in sorted(files, key=lambda item: (item.area, item.path))
+        ],
+    }
+    return hashlib.sha256(
+        json.dumps(document, ensure_ascii=False, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 class WorkspaceRecovery:
@@ -606,6 +678,27 @@ class WorkspaceRecovery:
                 return manifest
         except BadZipFile as error:
             raise ValueError("The file is not a valid workspace archive.") from error
+
+    def fingerprint_archive(self, source: Path) -> str:
+        """Validate a prior archive and identify its saved content without restoring files."""
+        source = source.expanduser().absolute()
+        manifest = self._archive(source)
+        database_entry = next(item for item in manifest.files if item.area == "database")
+        with tempfile.TemporaryDirectory(prefix="workspace-fingerprint-") as temporary:
+            stage = Path(temporary).resolve()
+            database_only = manifest.model_copy(
+                update={"files": [database_entry], "directories": []}
+            )
+            self._extract(source, database_only, stage)
+            database = stage / "database" / "review.sqlite3"
+            database.chmod(0o600)
+            try:
+                # Older archives retain listening timestamps and context delivery
+                # receipts, which follow the current archive's host-state policy.
+                _sanitize_database(database, [])
+                return _archive_fingerprint(manifest.files, manifest.directories, database)
+            except sqlite3.DatabaseError as error:
+                raise ValueError("The recovery database is not a valid SQLite database.") from error
 
     def preview(
         self, source: Path, *, mode: Literal["current", "archive"] = "current"
@@ -882,6 +975,23 @@ class WorkspaceRecovery:
 
     def _export_archive(self, destination: Path) -> ArchiveSummary:
         """Stream a deduplicated archive while the caller holds the workspace write lock."""
+        return self._prepare_archive(destination)
+
+    def export_archive_if_changed(
+        self, destination: Path, previous_fingerprint: str
+    ) -> ArchiveSummary:
+        """Create an archive only when its prepared saved content differs from a checkpoint."""
+        with self.store.connect() as db:
+            _ = _database_tables(db)
+        _ = self.write_portable_metadata()
+        with self.store.connect() as lock:
+            _ = lock.execute("BEGIN IMMEDIATE")
+            return self._prepare_archive(destination, previous_fingerprint)
+
+    def _prepare_archive(
+        self, destination: Path, previous_fingerprint: str | None = None
+    ) -> ArchiveSummary:
+        """Use one locked source inventory for content comparison and archive construction."""
         destination = destination.expanduser().absolute()
         if destination.exists() or destination.is_symlink():
             raise ConflictError("Choose a new archive filename; existing files are never replaced.")
@@ -950,6 +1060,17 @@ class WorkspaceRecovery:
             sources.append((_entry("database", "review.sqlite3", database), database))
             files = [item for item, _ in sources]
             _bound(files)
+            fingerprint = _archive_fingerprint(files, directories, database)
+            if fingerprint == previous_fingerprint:
+                return ArchiveSummary(
+                    path=str(destination),
+                    sha256="",
+                    files=len(files),
+                    objects=len({item.sha256 for item in files}),
+                    bytes=sum(item.size for item in files),
+                    fingerprint=fingerprint,
+                    unchanged=True,
+                )
             manifest = WorkspaceArchive(
                 created_at=datetime.now(UTC).isoformat(),
                 source_root=str(self.store.root),
@@ -998,4 +1119,5 @@ class WorkspaceRecovery:
             files=len(files),
             objects=len(seen),
             bytes=sum(item.size for item in files),
+            fingerprint=fingerprint,
         )

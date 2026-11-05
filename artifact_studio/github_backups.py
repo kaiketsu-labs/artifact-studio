@@ -60,9 +60,9 @@ class BackupStatus(StrictModel):
 
     library_id: str
     settings: FullBackupSettings = Field(default_factory=FullBackupSettings)
-    phase: Literal["disabled", "scheduled", "queued", "backing_up", "backed_up", "error"] = (
-        "disabled"
-    )
+    phase: Literal[
+        "disabled", "scheduled", "queued", "backing_up", "backed_up", "unchanged", "error"
+    ] = "disabled"
     last_backup_at: str | None = None
     next_backup_at: str | None = None
     error: str = ""
@@ -87,6 +87,15 @@ class _Checkpoint(StrictModel):
     due_at: float | None = None
     failures: int = 0
     revision: int = 0
+    verified_fingerprint: str = ""
+
+
+class _BackupAttempt(StrictModel):
+    """The exported snapshot becomes a checkpoint only after remote verification."""
+
+    uploaded: RemoteBackup | None = None
+    fingerprint: str = ""
+    unchanged: bool = False
 
 
 class GitHubCommandError(ValueError):
@@ -554,13 +563,59 @@ class GitHubBackups:
         if size != asset.size or hasher.hexdigest() != match[4]:
             raise ValueError("The downloaded archive checksum or size does not match.")
 
-    def _upload(self, library_id: str, now: float) -> RemoteBackup | None:
+    def _verified_baseline(
+        self, library_id: str, recovery: WorkspaceRecovery, destination: Path
+    ) -> str:
+        """Recover an older checkpoint from its verified archive without uploading a duplicate."""
+        checkpoint = self._record(library_id)
+        if checkpoint.verified_fingerprint or checkpoint.status.last_backup_at is None:
+            return checkpoint.verified_fingerprint
+        name = checkpoint.status.archive_name
+        identity = ARCHIVE_NAME.fullmatch(name)
+        if identity is None or identity[1] != self.workspace_id:
+            raise ValueError("The last confirmed backup has an invalid archive identity.")
+        matches = [
+            asset
+            for asset in self.archives(library_id)
+            if asset.name == name and asset.workspace_id == self.workspace_id
+        ]
+        if not matches:
+            # The confirmed recovery point was removed remotely. Replace it with a
+            # verified upload before any retention, rather than seeding an absent archive.
+            return ""
+        if len(matches) != 1:
+            raise ValueError(
+                "The last confirmed backup archive is ambiguous in the managed release."
+            )
+        self._download_verified(self._repository(library_id), matches[0], destination)
+        try:
+            fingerprint = recovery.fingerprint_archive(destination)
+        except ValueError as failure:
+            raise ValueError(
+                f"The last confirmed backup archive could not be validated: {failure}"
+            ) from failure
+
+        def seed(record: _Checkpoint) -> None:
+            if (
+                record.status.archive_name != name
+                or record.status.last_backup_at != checkpoint.status.last_backup_at
+            ):
+                raise ValueError("The last confirmed backup changed while it was being checked.")
+            if not record.verified_fingerprint:
+                record.verified_fingerprint = fingerprint
+
+        return self._change(library_id, seed).verified_fingerprint
+
+    def _upload(self, library_id: str, now: float) -> _BackupAttempt:
         repository = self._repository(library_id)
-        _ = self._private(repository)
         with tempfile.TemporaryDirectory(prefix="github-workspace-backup-") as temporary:
             folder = Path(temporary)
             archive = folder / "workspace.zip"
-            summary = WorkspaceRecovery(self.store).export_archive(archive)
+            recovery = WorkspaceRecovery(self.store)
+            fingerprint = self._verified_baseline(library_id, recovery, folder / "previous.zip")
+            summary = recovery.export_archive_if_changed(archive, fingerprint)
+            if summary.unchanged:
+                return _BackupAttempt(fingerprint=summary.fingerprint, unchanged=True)
             size = archive.stat().st_size
             if size > MAX_ARCHIVE_BYTES:
                 raise ValueError(
@@ -574,12 +629,12 @@ class GitHubBackups:
             destination = folder / name
             archive.rename(destination)
             if not self._record(library_id).status.settings.enabled:
-                return None
+                return _BackupAttempt()
             _ = self._private(repository)
             release = self._release(repository, create=True)
             assert release is not None
             if not self._record(library_id).status.settings.enabled:
-                return None
+                return _BackupAttempt()
             _ = self._private(repository)
             _ = gh(
                 "release",
@@ -602,7 +657,7 @@ class GitHubBackups:
                 )
             if matches[0].asset_id not in verified:
                 self._download_verified(repository, matches[0], folder / "verified.zip")
-            return matches[0]
+            return _BackupAttempt(uploaded=matches[0], fingerprint=summary.fingerprint)
 
     def _retain(self, library_id: str, uploaded: RemoteBackup) -> str:
         repository = self._repository(library_id)
@@ -672,18 +727,18 @@ class GitHubBackups:
             if record.status.settings.enabled:
                 record.status.phase = "backing_up"
                 record.status.error = ""
-                record.status.warning = ""
 
         started = self._change(library_id, start)
         if not started.status.settings.enabled:
             return
-        uploaded: RemoteBackup | None = None
+        attempt = _BackupAttempt()
         error = ""
         warning = ""
         try:
-            uploaded = self._upload(library_id, now)
+            attempt = self._upload(library_id, now)
         except (OSError, ValueError) as failure:
             error = str(failure)
+        uploaded = attempt.uploaded
         if uploaded is not None:
             try:
                 warning = self._retain(library_id, uploaded)
@@ -692,6 +747,7 @@ class GitHubBackups:
 
         def finish(record: _Checkpoint) -> None:
             if uploaded is not None:
+                record.verified_fingerprint = attempt.fingerprint
                 record.status.last_backup_at = _iso(now)
                 record.status.archive_name = uploaded.name
                 record.status.url = uploaded.url
@@ -711,6 +767,11 @@ class GitHubBackups:
             elif uploaded is not None:
                 record.status.phase = "backed_up"
                 record.status.error = ""
+                record.due_at = now + record.status.settings.interval_hours * 3600
+            elif attempt.unchanged:
+                record.status.phase = "unchanged"
+                record.status.error = ""
+                record.failures = 0
                 record.due_at = now + record.status.settings.interval_hours * 3600
 
         _ = self._change(library_id, finish)

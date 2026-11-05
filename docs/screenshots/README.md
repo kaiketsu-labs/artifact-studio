@@ -60,7 +60,7 @@ The [README capture audit](readme-captures.json) checks README PNG references ag
 | [Notes conflict](notes-conflict.png), [retry](notes-retry.png) | Actual HTTP conflict handling and a simulated connection failure, with both recovery paths exercised. |
 | [Storage and backup](storage-backup.png) | The temporary working folder and reference/backup settings. No live repository is opted in. |
 | [Retry backup](storage-backup-retry.png) | Upload and reference-refresh actions have distinct icons; the tooltip explains retry. |
-| [Full GitHub backup](full-github-backup.png), [dark](full-github-backup-dark.png), [narrow](full-github-backup-mobile.png), [restore](full-github-backup-restore.png) | Separate full-state opt-in, schedule, retention, delivery status and another-computer recovery. |
+| [Full GitHub backup](full-github-backup.png), [dark](full-github-backup-dark.png), [narrow](full-github-backup-mobile.png), [unchanged](full-github-backup-unchanged.png), [restore](full-github-backup-restore.png) | Separate full-state opt-in, schedule, retention, skipped unchanged checks and another-computer recovery. |
 | [Visual review](../assets/visual-review.png) | Four sanitized slide renders composed by the app's contact-sheet helper. |
 
 The visual-review example uses the production snapshot sanitizer, readiness hook and contact-sheet composer with documentation Playwright captures. It does not exercise or bypass the production renderer's OS isolation. Dedicated renderer checks cover that boundary; see [visual-review verification](../VISUAL-REVIEW.md) and [CI](../CI.md). Screenshots document appearance and exercised paths, not complete application test coverage.
