@@ -18,6 +18,7 @@ from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 from starlette.types import Receive, Scope, Send
 
+from .github_backups import GitHubBackups
 from .libraries import Libraries, file_hash, inventory
 from .models import StrictModel
 from .storage import ConflictError, Store
@@ -66,6 +67,12 @@ class RecoveryCommit(StrictModel):
     """Confirm the exact source and empty destination displayed in preview."""
 
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class GitHubArchiveSource(BackupSource):
+    """Select a managed release asset in a connected repository for verified recovery."""
+
+    asset_id: int = Field(gt=0)
 
 
 class PreparedRecovery(StrictModel):
@@ -270,6 +277,21 @@ def recovery_routes(current_store: Callable[[], Store]) -> APIRouter:
                         if size != item.size:
                             raise ConflictError("The backup changed. Preview it again.")
                 return prepare(source, directory, body.name, "current")
+            except BaseException:
+                shutil.rmtree(directory, ignore_errors=True)
+                raise
+
+    @router.post("/api/workspace/recovery/github-archive")
+    def github_archive_source(body: GitHubArchiveSource) -> PreparedRecovery:
+        """Download and validate a full archive before exposing the normal restore preview."""
+        with lock:
+            expire()
+            directory = Path(tempfile.mkdtemp(prefix="artifact-github-recovery-")).resolve()
+            try:
+                source = GitHubBackups(current_store()).download(
+                    body.library_id, body.asset_id, directory / "workspace.zip"
+                )
+                return prepare(source, directory, body.name, "archive")
             except BaseException:
                 shutil.rmtree(directory, ignore_errors=True)
                 raise

@@ -1,8 +1,8 @@
 # Artifact Studio — architecture and implementation status
 
-Status: **implementation available, 3 November 2026**. The visual library, project folders, adaptive viewers, generic MCP tools, retained-version timeline and workspace recovery are implemented. The original clickable concept remains a design reference.
+Status: **implementation available, 5 November 2026**. The visual library, project folders, adaptive viewers, generic MCP tools, retained-version timeline and workspace recovery are implemented. The original clickable concept remains a design reference.
 
-The hub preserves existing presentation locations, editor links and review history. Opening it does not migrate personal sources or enable uploads. Local full workspace archives and explicitly enabled current-source GitHub backup are available. General artifact host hooks remain outside the implemented scope.
+The hub preserves existing presentation locations, editor links and review history. Opening it does not migrate personal sources or enable uploads. Full workspace archives can be downloaded locally or explicitly scheduled to a private GitHub repository; current-source Git backup remains separate. General artifact host hooks remain outside the implemented scope.
 
 ## Implemented surface
 
@@ -19,8 +19,8 @@ The hub preserves existing presentation locations, editor links and review histo
 | Context menus and element edits | Contextual library/project/folder, slide and object actions; local unsent previews with explicit Send | HTML direct edits remain single-object. Slide groups submit one version-anchored feedback request; unsupported arrangement layouts and group alignment have no final-layout preview. |
 | Revisions | Immutable snapshots, expected-version writes, idempotent retries and out-of-band source reconciliation | SQLite publishes the current revision pointer; the adjacent manifest is a readable mirror. Arbitrary external file writes are not a multi-file transaction. |
 | Version timeline | Paginated metadata, isolated selected-version preview, Content changes/All saves and restore as a new revision | Filters preserve every retained save. Historical slide previews reuse current shared theme/assets. |
-| Workspace archive and recovery | Local full archives; previewed recovery from an archive or connected current-source backup into a new folder | Recovery writes a separate collection/database and leaves the running workspace active. It does not restore connected sessions or upload permissions. |
-| Repository backup | Explicitly opted-in, one-way current-source snapshots including artifacts, projects and navigation | Connections default to reference only. Review state and retained artifact revision directories remain local. |
+| Workspace archive and recovery | Local full archives; previewed recovery from local/GitHub full archives or current-source snapshots into a new folder | Recovery writes a separate collection/database and leaves the running workspace active. It does not restore connected sessions or upload permissions. |
+| Repository backup | Separate explicit opt-ins for current-source Git snapshots and scheduled full ZIP release assets | Private repositories required for uploads. Full archives include saved private review state and retained revisions; current-source snapshots exclude them. Connections default to reference only. |
 | Context | Scoped paths/hashes, available sources and latest recorded delivery | A returned pointer is not proof of reading or retention. |
 | Visual inspection | `capture_artifact` with exact revision, viewport, elapsed time and optional full-page output | A fresh offline capture does not reproduce every user interaction. Inspect those states in a browser. |
 | Existing decks | Original editor, slide tools, design guidance, presenter, archives and audience exports | Keep specialized presentation operations for presentation changes. |
@@ -106,9 +106,11 @@ Plain MCP is stateless and does not wake a closed agent chat. Live releases feed
 
 The history timeline reads small, paginated save summaries and loads one selected preview. **Content changes** filters consecutive identical-content saves; **All saves** includes internal-title/source-only saves and repeated restores. Filtering deletes no versions. Restore creates a new revision with a concurrency check, clears approval and preserves current human notes, visibility/order and artifact project context. Artifact revisions retain their local dependencies; historical slides reuse current shared theme/assets. A current-only backup cannot supply missing earlier revisions.
 
-**Save workspace** streams a local archive containing collection sources, retained revisions, saved private review state and app-owned attachments. **Restore workspace** previews a local archive or connected current-source backup and writes recovered files/database into a new sibling folder. It refuses an existing destination and leaves the active server unchanged. Running the recovered workspace requires explicit collection/database configuration; repositories, upload permissions and agent sessions must be reconnected. Browser-only unfinished edits remain separate. [Recovery guarantees](WORKSPACE-RECOVERY.md).
+**Save workspace** streams a local archive containing collection sources, retained revisions, saved private review state and app-owned attachments. The separate **Full workspace backups** setting uploads the same archive. **Restore workspace** previews a local archive, a full GitHub backup or a connected current-source snapshot and writes recovered files/database into a new sibling folder. It refuses an existing destination and leaves the active server unchanged. Running the recovered workspace requires explicit collection/database configuration; repositories, upload permissions and agent sessions must be reconnected. Browser-only unfinished edits remain separate. Export serializes application writes; direct external filesystem edits do not share that transaction and changing source files abort the export. [Recovery guarantees](WORKSPACE-RECOVERY.md).
 
-GitHub backup requires explicit opt-in to a private destination. It includes current owned bundles, project manifests/briefs, presentations and navigation metadata, including `workspace-recovery.json`. Review databases, private chats/approvals and retained artifact revision directories are excluded. Connections remain reference-only until enabled, and backup never publishes a website or merges remote changes into local working files. [Backup scope](REPOSITORY-SYNC.md).
+Current-source Git backup requires explicit opt-in to a private destination. It includes current owned bundles, project manifests/briefs, presentations and navigation metadata, including `workspace-recovery.json`. Review databases, private chats/approvals and retained artifact revision directories are excluded from this mode.
+
+Full GitHub backup is independently off by default. Its settings and checkpoints live in a separate SQLite database under the excluded library cache, so disabling uploads stays responsive while the source database is locked for export. Durable per-destination settings hold a 1–720-hour interval (24 by default), a 1–100 retention count (7 by default), next due time and delivery/error status. The server starts the first backup when enabled, runs due work while open and catches up one missed run after restart. Failed uploads retry with increasing delays and can be retried manually. ZIPs below 2,000,000,000 bytes are release assets under the fixed `artifact-studio-workspace-backups` tag in the backup repository, outside Git object history and separate from application releases. Asset names encode workspace identity, time, unique ID and SHA-256. Verified upload precedes workspace-specific retention; failed uploads preserve earlier backups and cleanup failures report warnings. Restore verifies the download hash and uses the existing archive validation/preview path. Connections remain reference-only until explicitly enabled, and neither mode publishes a website or merges remote changes into local working files. [Backup scope](REPOSITORY-SYNC.md).
 
 ## Review identity and source ownership
 
@@ -144,6 +146,7 @@ artifact_studio/
   version_history.py, history_api.py   Retained-save metadata, previews and restores
   workspace_recovery.py, recovery_api.py   Local archives and separate-folder recovery
   autosync.py, libraries.py        Opted-in current-source repository backup
+  github_backups.py                Scheduled full archives as private release assets
 web/
   hub.html, hub.js, hub.css        Library and adaptive workspace
   artifact-bridge.js              Scoped selection bridge

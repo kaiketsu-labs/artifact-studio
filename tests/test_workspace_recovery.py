@@ -356,6 +356,9 @@ def test_archive_database_contains_no_live_upload_permissions(tmp_path: Path) ->
     with store.connect() as db:
         _ = db.execute("CREATE TABLE library_auto_sync(id TEXT PRIMARY KEY, document TEXT)")
         _ = db.execute("INSERT INTO library_auto_sync VALUES ('host','{}')")
+        for table in ("github_backup_settings", "github_backup_state"):
+            _ = db.execute(f"CREATE TABLE {table}(id TEXT PRIMARY KEY, document TEXT)")
+            _ = db.execute(f"INSERT INTO {table} VALUES ('host','{{}}')")
     archive_path = tmp_path / "backup.zip"
     _ = WorkspaceRecovery(store).export_archive(archive_path)
     with ZipFile(archive_path) as archive:
@@ -365,8 +368,12 @@ def test_archive_database_contains_no_live_upload_permissions(tmp_path: Path) ->
         _ = database.write_bytes(archive.read("objects/" + entry.sha256))
     with sqlite3.connect(database) as db:
         assert db.execute("SELECT COUNT(*) FROM library_auto_sync").fetchone() == (0,)
+        for table in ("github_backup_settings", "github_backup_state"):
+            assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone() == (0,)
     with store.connect() as db:
         assert db.execute("SELECT COUNT(*) FROM library_auto_sync").fetchone()[0] == 1
+        for table in ("github_backup_settings", "github_backup_state"):
+            assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 1
 
 
 def test_full_archive_preserves_legacy_asset_mtimes_and_approvals(tmp_path: Path) -> None:
