@@ -10,6 +10,11 @@
 * **review:** wake connected agents for every artifact type ([76566c8](https://github.com/kaiketsu-labs/artifact-studio/commit/76566c80527fa193e08f4ccc07b2d85643eab0ff))
 
 
+### Bug Fixes
+
+* **notes:** prevent editing before the saved slide notes have loaded
+
+
 ### Documentation
 
 * **readme:** reuse pixel presentation visuals ([671ebd7](https://github.com/kaiketsu-labs/artifact-studio/commit/671ebd7d4d9ea7581a2fa01b6d72091e1c02bfec))

@@ -113,6 +113,28 @@ def test_local_save_timestamp_persists_and_updates(
     _ = page.screenshot(path=str(artifacts / "local-save-time.png"))
 
 
+def test_notes_wait_for_initial_slide_before_accepting_input(
+    page: Page, live_app: RunningApp
+) -> None:
+    """Notes become editable only after their saved baseline is available."""
+    pending: list[Route] = []
+    page.route(f"**/api/decks/{DECK_ID}", lambda route: pending.append(route), times=1)
+    with page.expect_request(f"**/api/decks/{DECK_ID}"):
+        page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    notes = page.get_by_label("Speaker notes", exact=True)
+    page.locator("#notes-panel").evaluate("element => element.open = true")
+    expect(notes).to_be_disabled()
+    assert len(pending) == 1
+    pending[0].continue_()
+    expect(notes).to_be_enabled()
+    notes.fill("A note entered as soon as the slide is ready")
+    expect(page.locator("#notes-state")).to_have_text("Saved")
+    assert (
+        live_app.store.read(DECK_ID).slides[0].notes
+        == "A note entered as soon as the slide is ready"
+    )
+
+
 def test_notes_save_on_pause_switch_and_reload(page: Page, live_app: RunningApp) -> None:
     """Persist notes in canonical files while preserving slide context and approval."""
     open_editor(page, live_app)
