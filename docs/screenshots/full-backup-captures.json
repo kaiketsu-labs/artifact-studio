@@ -1,0 +1,62 @@
+{
+  "fixture": "Original fictional Studio Blue presentation and repository",
+  "captured_at": "2026-11-05T14:11:08.384127+00:00",
+  "remote_boundary": "GitHub API responses use fictional fixtures; no repository is connected and no private data is uploaded.",
+  "verification": "Actual UI opens, expands, opts in, saves, changes appearance, loads remote backup fixtures, and selects another PC. Screenshots are direct browser pixels with no DOM replacement.",
+  "screenshots": {
+    "docs/screenshots/full-github-backup.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "pixels": [
+        1440,
+        1200
+      ],
+      "captured_at": "2026-11-05T14:11:04.359250+00:00",
+      "sha256": "b6f509c4bf38749bc2528dfd53993b935f1a19196d09b22e53c0b7d6cf88c858"
+    },
+    "docs/screenshots/full-github-backup-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "pixels": [
+        1440,
+        1200
+      ],
+      "captured_at": "2026-11-05T14:11:05.489362+00:00",
+      "sha256": "48c01c5a83b37bdd0810f584a94466950a62c210e7fe3e62e14f0942cd45a65d"
+    },
+    "docs/screenshots/full-github-backup-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pixels": [
+        390,
+        844
+      ],
+      "captured_at": "2026-11-05T14:11:06.327940+00:00",
+      "sha256": "c410e371671002ce9368a4987403c8f2237cbba649172b665a18eba4511e0be4"
+    },
+    "docs/screenshots/full-github-backup-restore.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "pixels": [
+        1440,
+        1200
+      ],
+      "captured_at": "2026-11-05T14:11:07.750082+00:00",
+      "sha256": "c33d24c4cddb333751885df547fa65bfd1ad94e60073f25b8a2082454dce31a4"
+    }
+  },
+  "axe": {
+    "full-github-backup.png": [],
+    "full-github-backup-dark.png": [],
+    "full-github-backup-mobile.png": [],
+    "full-github-backup-restore.png": []
+  }
+}

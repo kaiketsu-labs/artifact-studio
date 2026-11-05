@@ -2,22 +2,29 @@
 
 Use **Restore workspace** to review a backup and restore its files into a new sibling folder. The running workspace and its database stay active. Opening the recovered folder does not switch server configuration. To run the recovered workspace later, explicitly configure its collection and database paths.
 
-Two sources have different recovery guarantees:
+Current-source snapshots and full archives have different recovery guarantees:
 
 | Source | What returns | What cannot return |
 | --- | --- | --- |
-| Connected backup repository or local snapshot | Projects and briefs, folder hierarchy and sibling order, current artifact files, current artifact registry, legacy presentations and portable memberships/archived visibility/default design | Private comments, approvals, connected sessions, earlier artifact revisions, private attachments excluded from the snapshot |
-| Downloaded local full workspace archive | Collection files, retained artifact revisions, database review history and drafts, approvals, navigation, and app-owned attachments both inside and outside the collection | Host credentials, Git configuration, reference-library checkouts, upload opt-ins and connected agent sessions |
+| Connected current-source Git backup or local source snapshot | Projects and briefs, folder hierarchy and sibling order, current artifact files, current artifact registry, legacy presentations and portable memberships/archived visibility/default design | Private comments, approvals, connected sessions, earlier artifact revisions, private attachments excluded from the snapshot |
+| Full workspace archive, saved locally or explicitly uploaded through Full workspace backups | Collection files, retained artifact revisions, saved database review history and drafts, approvals, navigation, and app-owned attachments both inside and outside the collection | Host credentials, Git configuration, reference-library checkouts, upload opt-ins, connected agent sessions and unsaved browser-only edits |
 
 A current-source restore keeps the original artifact ID, project membership, physical `storage_project_id`, revision number and content identity. It reconstructs one immutable snapshot for that current revision and clears approval/seen state. It does not create missing earlier revisions. Legacy deck source files are recovered in place within the new collection. Snapshots made before portable recovery metadata existed cannot recover legacy memberships or archived visibility; preview explains that limitation.
 
-Full archives are local files, never a new GitHub payload. They include private review material. Keep them in a suitable local backup location. The HTTP upload path accepts archives below 2 GB; the backend archive format permits up to 20 GB expanded, 100,000 files and 2 GB per individual source file. Export/download streams to disk and does not base64-encode the workspace. SHA-256 objects are deduplicated across working files, revisions and attachments.
+**Save workspace** downloads a local full archive. The separate, off-by-default **Full workspace backups** setting uploads the same archive to a connected private repository on a configurable schedule, with a limit on how many backups to keep. These archives include private review material; choose a suitable local location or private repository. GitHub archives and HTTP uploads must be below **2,000,000,000 bytes**. The backend archive format permits up to 20 GB expanded, 100,000 files and 2 GB per individual source file. Export/download streams to disk and does not base64-encode the workspace. SHA-256 objects are deduplicated across working files, revisions and attachments. [Schedule, retention and dedicated GitHub release](REPOSITORY-SYNC.md#scheduled-full-workspace-backups).
 
 ## In the app
 
 Open the storage icon, then **Save workspace** for a local full archive or **Restore workspace** to choose an archive or connected backup. Choose a new folder name, review the project/artifact/folder counts and destination, and click **Restore files**. Existing folders are refused. Recovery does not switch the Mac app or stop the running server.
 
-The recovered folder includes its own `.artifact-studio/review.sqlite3`. To run that workspace later, select its collection folder and database through setup, or start a separate instance with `ARTIFACT_STUDIO_COLLECTION` and `ARTIFACT_STUDIO_DATABASE` pointing to those paths. Repository connections and upload permissions must be set up explicitly again.
+To recover a full GitHub backup on another computer:
+
+1. Install and start Artifact Studio, authenticate GitHub CLI with access to the private backup repository, and connect that repository as **reference only** in **Storage and backup**. Upload opt-in is not needed to read backups.
+2. Open **Restore workspace**, set **Recovery source** to **Full GitHub backup**, select the **Full backup repository** and click **Load backups**.
+3. Select a **Workspace backup** and click **Preview full backup**. The download's SHA-256 is checked, and the archive is validated before the normal recovery preview appears.
+4. Review the contents and new destination, then click **Restore files**. The running workspace remains active.
+
+The recovered folder includes its own `.artifact-studio/review.sqlite3`. To run that workspace later, select **both** its collection folder and database through setup, or start a separate instance with `ARTIFACT_STUDIO_COLLECTION` pointing to the recovered folder and `ARTIFACT_STUDIO_DATABASE` pointing to its `.artifact-studio/review.sqlite3`. Reconnect repositories and agents, and explicitly re-enable any desired upload permissions or backup schedules. Restoration does not merge two workspaces.
 
 ## Version timeline
 

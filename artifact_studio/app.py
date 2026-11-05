@@ -59,6 +59,7 @@ from .element_alternatives import (
 )
 from .events import deck_events
 from .feedback_previews import feedback_image_response
+from .github_backups import BackupStatus, FullBackupSettings, GitHubBackups, RemoteBackup
 from .history_api import history_routes
 from .image_api import image_routes
 from .interactive import prepare_document
@@ -1597,12 +1598,15 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Run MCP and explicitly opted-in repository sync while the local server is open."""
     async with mcp.session_manager.run():
         stop = asyncio.Event()
-        task = asyncio.create_task(AutoSync(store).run(stop))
+        tasks = [
+            asyncio.create_task(AutoSync(store).run(stop)),
+            asyncio.create_task(GitHubBackups(store).run(stop)),
+        ]
         try:
             yield
         finally:
             stop.set()
-            await task
+            await asyncio.gather(*tasks)
 
 
 app = FastAPI(title="Artifact Studio", version=__version__, lifespan=lifespan)
@@ -2070,6 +2074,30 @@ def configure_library_sync(library_id: str, body: LibrarySyncSettings) -> Librar
 def library_sync_status() -> list[SyncStatus]:
     """Expose durable local sync outcomes without treating connection as successful delivery."""
     return AutoSync(store).statuses()
+
+
+@app.get("/api/workspace/github-backups")
+def full_backup_statuses() -> list[BackupStatus]:
+    """Read local full-backup settings and checkpoints without contacting GitHub."""
+    return GitHubBackups(store).statuses()
+
+
+@app.post("/api/libraries/{library_id}/full-backup/settings")
+def configure_full_backup(library_id: str, body: FullBackupSettings) -> BackupStatus:
+    """Explicitly opt into private full archives, their schedule and retention count."""
+    return GitHubBackups(store).configure(library_id, body)
+
+
+@app.post("/api/libraries/{library_id}/full-backup/run")
+def queue_full_backup(library_id: str) -> BackupStatus:
+    """Queue one full archive for an already opted-in private destination."""
+    return GitHubBackups(store).queue(library_id)
+
+
+@app.get("/api/libraries/{library_id}/full-backup/archives")
+def list_full_backups(library_id: str) -> list[RemoteBackup]:
+    """List managed archives for deliberate recovery, including other computers' series."""
+    return GitHubBackups(store).archives(library_id)
 
 
 @app.post("/api/libraries/{library_id}/retry")

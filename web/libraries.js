@@ -1,14 +1,15 @@
 /* References, local persistence and explicitly opted-in GitHub backups. */
 ((root)=>{
   'use strict';
-  function backupSummary(libraries,statuses,local='saved',unavailable=false){
+  function backupSummary(libraries,statuses,local='saved',unavailable=false,fullStatuses=[]){
     if(local==='error')return {phase:'error',icon:'info',text:'Some notes have not saved. Open storage to review them.'};
     if(local==='pending')return {phase:'pending',icon:'save',text:'Saving notes on this device…'};
     if(unavailable)return {phase:'error',icon:'info',text:'Backup status unavailable. Check the connection.'};
     if(libraries===null)return {phase:'checking',icon:'folder',text:'Checking storage and backup…'};
     const enabled=libraries.filter(item=>item.auto_sync_enabled),states=new Map(statuses.map(item=>[item.library_id,item]));
-    if(!enabled.length)return {phase:'local',icon:'folder',text:'Saved on this device. Automatic GitHub backup is off.'};
-    const phases=enabled.map(item=>states.get(item.id)?.phase||'pending');
+    const full=fullStatuses.filter(item=>item.settings?.enabled),phases=enabled.map(item=>states.get(item.id)?.phase||'pending');
+    if(!enabled.length&&!full.length)return {phase:'local',icon:'folder',text:'Saved on this device. Automatic GitHub backup is off.'};
+    phases.push(...full.map(item=>item.phase==='backing_up'?'syncing':item.phase==='queued'?'pending':item.phase==='error'?'error':item.last_backup_at?'synced':'pending'));
     if(phases.includes('error'))return {phase:'error',icon:'info',text:'Saved on this device. GitHub backup needs attention.'};
     if(phases.includes('syncing'))return {phase:'syncing',icon:'upload',text:'Saved on this device. Backing up to GitHub…'};
     if(phases.some(phase=>phase!=='synced'))return {phase:'pending',icon:'upload',text:'Saved on this device. GitHub backup is pending.'};
@@ -59,7 +60,8 @@
     button($('libraries-button'),'folder','Storage and backup',true);
     button($('close-libraries'),'close','Close');button($('add-library'),'plus','Connect library');
     $('add-library').removeAttribute('title');
-    let busy=false,rendered='',revision=0,libraries=null,statuses=[],localState='saved',unavailable=false,polling=false;
+    let busy=false,revision=0,libraries=null,statuses=[],fullStatuses=[],localState='saved',unavailable=false,polling=false;
+    const rowMarkup=new WeakMap(),fullDrafts=new Map();
     const tips=actionTips($('library-dialog'));
     const recovery=root.WorkspaceRecoveryUI.create({api,getLibraries:()=>libraries||[]});
     const archiveActions=document.createElement('div');archiveActions.className='workspace-archive-actions';
@@ -72,23 +74,53 @@
       $('library-sync-setting').hidden=!github;if(!github)$('library-sync').checked=false;
     }
     function summary(){
-      const state=backupSummary(libraries,statuses,localState,unavailable),control=$('storage-status');
+      const state=backupSummary(libraries,statuses,localState,unavailable,fullStatuses),control=$('storage-status');
       button(control,state.icon,'Storage and backup: '+state.text);control.dataset.phase=state.phase;control.title=state.text;
     }
     function timestamp(value,seconds=false){
       if(!value)return '';
       const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:seconds?'medium':'short'}).format(date);
     }
+    function fullSettings(state){return state?.settings||{enabled:false,interval_hours:24,keep_count:7};}
+    function fullState(id){return fullStatuses.find(item=>item.library_id===id);}
+    function fullControls(details){
+      const state=fullState(details.dataset.fullBackup),draft=fullDrafts.get(details.dataset.fullBackup),running=['queued','backing_up'].includes(state?.phase);
+      details.querySelectorAll('input,[data-full-save]').forEach(control=>control.disabled=busy);
+      details.querySelector('[data-full-run]').disabled=busy||!fullSettings(state).enabled||draft.dirty||running;
+    }
+    function updateFullBackup(details){
+      const state=fullState(details.dataset.fullBackup),settings=fullSettings(state),draft=fullDrafts.get(details.dataset.fullBackup);
+      if(!draft.dirty&&!details.contains(document.activeElement)){
+        details.querySelector('[data-full-enabled]').checked=settings.enabled;
+        details.querySelector('[data-full-interval]').value=settings.interval_hours;
+        details.querySelector('[data-full-keep]').value=settings.keep_count;
+      }
+      details.querySelector('[data-full-label]').textContent=settings.enabled?'On':'Off';
+      details.querySelector('[data-full-unsaved]').hidden=!draft.dirty;
+      const status=details.querySelector('[data-full-status]');status.hidden=!settings.enabled;
+      const phase=({disabled:'Full workspace backups are off',scheduled:state?.last_backup_at?'Scheduled':'Waiting for first full backup',queued:'Full workspace backup queued',backing_up:'Backing up full workspace…',backed_up:'Full workspace backed up',error:'Full workspace backup needs attention'})[state?.phase]||'Waiting for first full backup';
+      const statusMarkup=`<p class="sync-state sync-${state?.phase==='backed_up'?'synced':escape(state?.phase||'scheduled')}">${phase}</p><p>Last successful backup · ${state?.last_backup_at?`<time datetime="${escape(state.last_backup_at)}">${escape(timestamp(state.last_backup_at))}</time>`:'None yet'}</p>${state?.next_backup_at?`<p>Next scheduled backup · <time datetime="${escape(state.next_backup_at)}">${escape(timestamp(state.next_backup_at))}</time></p>`:''}${state?.error?`<p class="sync-error" role="alert">${escape(state.error)}</p>`:''}${state?.warning?`<p class="full-backup-warning">${escape(state.warning)}</p>`:''}`;
+      if(status.innerHTML!==statusMarkup)status.innerHTML=statusMarkup;
+      details.querySelector('[data-full-error]').textContent=draft.error;
+      fullControls(details);
+    }
+    function createFullBackup(id){
+      const details=document.createElement('details');details.className='full-backup-settings';details.dataset.fullBackup=id;
+      details.innerHTML=`<summary>Full workspace backups <span data-full-label>Off</span></summary><div class="full-backup-content"><label class="library-auto"><input type="checkbox" data-full-enabled><span>Back up full workspace</span></label><p>Upload all saved workspace content, saved chats, approvals, attachments and version history to this private GitHub repository.</p><div class="full-backup-fields"><label>Every (hours)<input type="number" data-full-interval min="1" max="720" step="1" value="24" required></label><label>Keep latest backups<input type="number" data-full-keep min="1" max="100" step="1" value="7" required></label></div><p>Backups run while Studio is open. A missed backup runs the next time Studio starts.</p><p>After a successful new backup, older managed backups from this workspace are removed to keep the number you choose.</p><div class="full-backup-actions"><button type="button" data-full-save>Save backup settings</button><button type="button" data-full-run>Back up full workspace now</button></div><p data-full-unsaved hidden>Unsaved settings. Save to apply them.</p><div class="full-backup-status" data-full-status role="status" hidden></div><p class="sync-error" data-full-error role="alert"></p></div>`;
+      fullDrafts.set(id,{dirty:false,error:''});return details;
+    }
     function renderRows(force=false){
       if(!libraries||busy&&!force)return;
       const states=new Map(statuses.map(item=>[item.library_id,item]));
       const localLabel=localState==='error'?'Some notes need attention':localState==='pending'?'Saving notes…':
-        libraries.some(item=>item.auto_sync_enabled)?'Saved on this device':'Saved on this device · Automatic backup off';
-      const markup=libraries.map(item=>{
+        libraries.some(item=>item.auto_sync_enabled)||fullStatuses.some(item=>item.settings?.enabled)?'Saved on this device':'Saved on this device · Automatic backup off';
+      const list=$('library-list'),existing=new Map([...list.children].map(row=>[row.dataset.libraryRow,row]));
+      libraries.forEach(item=>{
         const state=states.get(item.id),collection=item.id==='collection';
         const lastSaved=collection?timestamp(item.last_saved_at,true):'';
-        const type=collection?'Working folder':item.kind==='github'?(item.auto_sync_enabled?'Private GitHub backup':item.sync_enabled?'Manual GitHub backup':'GitHub reference · read-only'):'Local reference · read-only';
-        return `<article class="library-row"><span class="library-symbol">${svg(item.kind==='github'?'github':'folder')}</span>
+        const fullEnabled=fullSettings(fullState(item.id)).enabled;
+        const type=collection?'Working folder':item.kind==='github'?(fullEnabled?(item.auto_sync_enabled?'Private GitHub · artifact and full workspace backups':'Private GitHub · full workspace backups'):item.auto_sync_enabled?'Private GitHub backup':item.sync_enabled?'Manual GitHub backup':'GitHub reference · read-only'):'Local reference · read-only';
+        const markup=`<span class="library-symbol">${svg(item.kind==='github'?'github':'folder')}</span>
           <div class="library-description"><strong>${escape(collection?'On this device':item.location)}</strong><small>${type}</small>
           ${collection?`<small class="library-path">${escape(item.location)}</small><small>${localLabel}</small><small class="local-save-time">Last saved · ${lastSaved?`<time datetime="${escape(item.last_saved_at)}">${escape(lastSaved)}</time>`:'—'}</small>`:''}
           ${item.kind==='github'?`<label class="library-auto"><input type="checkbox" data-auto-sync="${escape(item.id)}" ${item.auto_sync_enabled?'checked':''}><span>Back up all artifacts</span></label>`:''}
@@ -97,27 +129,33 @@
             ${state?.error?`<small class="sync-error" role="alert">${escape(state.error)}</small>`:''}`:''}</div>
           <div class="library-actions">${collection?`<button type="button" data-library="collection" data-action="copy" aria-label="Copy working folder path" title="Copy working folder path">${svg('copy')}</button>${localState==='error'?`<button type="button" data-library="collection" data-action="notes" aria-label="Review unsaved notes" title="Review unsaved notes">${svg('info')}</button>`:''}`:''}
           ${item.kind==='github'?`<a class="icon-control icon-only" data-library="${escape(item.id)}" data-action="open" href="https://github.com/${escape(item.location)}" target="_blank" rel="noopener" aria-label="Open repository" title="Open repository">${svg('external')}</a><button type="button" data-library="${escape(item.id)}" data-action="refresh" aria-label="Refresh references" title="Refresh references">${svg('refresh')}</button>`:''}
-          ${item.auto_sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="retry" aria-label="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}" title="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}">${svg('upload')}</button>`:item.sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="current" aria-label="Back up current presentation" title="Back up current presentation" ${currentDeck()?'':'disabled'}>${svg('upload')}</button><button type="button" data-library="${escape(item.id)}" data-action="all" aria-label="Back up all artifacts" title="Back up all artifacts">${svg('batch')}</button>`:''}</div></article>`;
-      }).join('');
-      if(markup===rendered)return;
-      const list=$('library-list'),focused=document.activeElement,focus=list.contains(focused)?focused?.dataset:null;
-      tips.hide();list.innerHTML=markup;rendered=markup;
-      for(const control of list.querySelectorAll('.library-actions [data-action]'))control.removeAttribute('title');
+          ${item.auto_sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="retry" aria-label="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}" title="${state?.phase==='error'?'Retry GitHub backup':'Back up now'}">${svg('upload')}</button>`:item.sync_enabled?`<button type="button" data-library="${escape(item.id)}" data-action="current" aria-label="Back up current presentation" title="Back up current presentation" ${currentDeck()?'':'disabled'}>${svg('upload')}</button><button type="button" data-library="${escape(item.id)}" data-action="all" aria-label="Back up all artifacts" title="Back up all artifacts">${svg('batch')}</button>`:''}</div>`;
+        let row=existing.get(item.id);existing.delete(item.id);
+        if(!row){row=document.createElement('article');row.className='library-row';row.dataset.libraryRow=item.id;const main=document.createElement('div');main.className='library-main';row.append(main);if(item.kind==='github')row.append(createFullBackup(item.id));list.append(row);}
+        const main=row.querySelector('.library-main');
+        if(rowMarkup.get(row)!==markup){
+          const focused=document.activeElement,focus=main.contains(focused)?focused?.dataset:null;tips.hide();main.innerHTML=markup;rowMarkup.set(row,markup);
+          for(const control of main.querySelectorAll('.library-actions [data-action]'))control.removeAttribute('title');
+          const selector=focus?.autoSync?`[data-auto-sync="${CSS.escape(focus.autoSync)}"]`:focus?.library?`[data-library="${CSS.escape(focus.library)}"][data-action="${CSS.escape(focus.action)}"]`:null;
+          if(selector&&!busy)main.querySelector(selector)?.focus();
+        }
+        const details=row.querySelector('[data-full-backup]');if(details)updateFullBackup(details);
+      });
+      for(const [id,row] of existing){row.remove();fullDrafts.delete(id);}
       if(busy)working(true);
-      const selector=focus?.autoSync?`[data-auto-sync="${CSS.escape(focus.autoSync)}"]`:focus?.library?`[data-library="${CSS.escape(focus.library)}"][data-action="${CSS.escape(focus.action)}"]`:null;
-      if(selector&&!busy)list.querySelector(selector)?.focus();
     }
     async function refresh(force=false){
       const request=++revision;
       try{
-        const data=await Promise.all([api('/api/libraries'),api('/api/library-sync')]);
+        const data=await Promise.all([api('/api/libraries'),api('/api/library-sync'),api('/api/workspace/github-backups')]);
         if(request!==revision)return;
-        [libraries,statuses]=data;unavailable=false;summary();renderRows(force);
+        [libraries,statuses,fullStatuses]=data;unavailable=false;summary();renderRows(force);
       }catch(error){if(request!==revision)return;unavailable=true;summary();throw error;}
     }
     function working(value,message=''){
       busy=value;$('library-status').textContent=message;$('library-dialog').setAttribute('aria-busy',String(value));
       $('library-dialog').querySelectorAll('button:not(#close-libraries),input').forEach(element=>element.disabled=value||element.dataset.action==='current'&&!currentDeck());
+      $('library-list').querySelectorAll('[data-full-backup]').forEach(fullControls);
     }
     async function open(){
       $('library-dialog').showModal();$('library-error').textContent='';syncOption();
@@ -126,6 +164,23 @@
     $('libraries-button').addEventListener('click',()=>void open());$('storage-status').addEventListener('click',()=>void open());
     $('close-libraries').addEventListener('click',()=>$('library-dialog').close());
     $('library-location').addEventListener('input',syncOption);
+    $('library-list').addEventListener('input',event=>{
+      const details=event.target.closest('[data-full-backup]');if(!details||busy)return;
+      const draft=fullDrafts.get(details.dataset.fullBackup);draft.dirty=true;draft.error='';updateFullBackup(details);
+    });
+    $('library-list').addEventListener('click',async event=>{
+      const control=event.target.closest('[data-full-save],[data-full-run]');if(!control||busy)return;
+      const details=control.closest('[data-full-backup]'),id=details.dataset.fullBackup,draft=fullDrafts.get(id),save=control.hasAttribute('data-full-save');
+      if(save&&![...details.querySelectorAll('input')].every(input=>input.reportValidity()))return;
+      const settings={enabled:details.querySelector('[data-full-enabled]').checked,interval_hours:Number(details.querySelector('[data-full-interval]').value),keep_count:Number(details.querySelector('[data-full-keep]').value)};
+      ++revision;working(true,save?'Saving full backup settings…':'Queueing full workspace backup…');draft.error='';
+      try{
+        const state=await api(`/api/libraries/${encodeURIComponent(id)}/full-backup/${save?'settings':'run'}`,save?settings:{});
+        fullStatuses=fullStatuses.filter(item=>item.library_id!==id).concat(state);if(save)draft.dirty=false;
+        summary();renderRows(true);toast(save?'Full backup settings saved.':'Full workspace backup queued.');
+      }catch(error){draft.error=error.message;updateFullBackup(details);}
+      finally{working(false);if($('library-dialog').open)(control.disabled?details.querySelector('summary'):control).focus();}
+    });
     $('library-list').addEventListener('change',async event=>{
       const control=event.target.closest('input[data-auto-sync]');if(!control||busy)return;
       const enabled=control.checked;working(true,enabled?'Enabling GitHub backup…':'Turning off automatic backup…');$('library-error').textContent='';

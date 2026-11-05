@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-11-05T07:51:39.982654+00:00",
-  "fixture": "Fictional app screenshots; separately documented user-authorized product-presentation illustrations",
+  "generated_at": "2026-11-05T14:13:30.910843+00:00",
+  "fixture": "Fictional Studio Blue and Team launch fixtures; previously selected audience presentation illustrations",
   "verification": "README local links resolve; screenshot and illustration bytes match current provenance manifests.",
-  "readme_screenshot_count": 11,
+  "readme_screenshot_count": 20,
   "readme_illustration_count": 4,
-  "documentation_screenshots_verified": 70,
+  "documentation_screenshots_verified": 78,
   "screenshots": {
     "docs/assets/workspace.png": {
       "viewport": {
@@ -771,7 +771,7 @@
         1100
       ],
       "manifest": "docs/screenshots/element-alternatives-captures.json",
-      "readme_reference": false
+      "readme_reference": true
     },
     "docs/screenshots/element-alternatives-graphic.png": {
       "viewport": {
@@ -785,7 +785,7 @@
         1100
       ],
       "manifest": "docs/screenshots/element-alternatives-captures.json",
-      "readme_reference": false
+      "readme_reference": true
     },
     "docs/screenshots/element-alternatives-compare.png": {
       "viewport": {
@@ -799,7 +799,7 @@
         1100
       ],
       "manifest": "docs/screenshots/element-alternatives-captures.json",
-      "readme_reference": false
+      "readme_reference": true
     },
     "docs/screenshots/element-alternatives-full-slide.png": {
       "viewport": {
@@ -855,7 +855,7 @@
         1100
       ],
       "manifest": "docs/screenshots/element-alternatives-captures.json",
-      "readme_reference": false
+      "readme_reference": true
     },
     "docs/screenshots/element-alternatives-mobile.png": {
       "viewport": {
@@ -869,7 +869,7 @@
         844
       ],
       "manifest": "docs/screenshots/element-alternatives-captures.json",
-      "readme_reference": false
+      "readme_reference": true
     },
     "docs/screenshots/sorter-header.png": {
       "viewport": {
@@ -1052,6 +1052,106 @@
       ],
       "manifest": "docs/screenshots/slide-designs-captures.json",
       "readme_reference": false
+    },
+    "docs/screenshots/full-github-backup.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "pixels": [
+        1440,
+        1200
+      ],
+      "captured_at": "2026-11-05T14:11:04.359250+00:00",
+      "sha256": "b6f509c4bf38749bc2528dfd53993b935f1a19196d09b22e53c0b7d6cf88c858",
+      "manifest": "docs/screenshots/full-backup-captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/full-github-backup-dark.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "pixels": [
+        1440,
+        1200
+      ],
+      "captured_at": "2026-11-05T14:11:05.489362+00:00",
+      "sha256": "48c01c5a83b37bdd0810f584a94466950a62c210e7fe3e62e14f0942cd45a65d",
+      "manifest": "docs/screenshots/full-backup-captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/full-github-backup-mobile.png": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pixels": [
+        390,
+        844
+      ],
+      "captured_at": "2026-11-05T14:11:06.327940+00:00",
+      "sha256": "c410e371671002ce9368a4987403c8f2237cbba649172b665a18eba4511e0be4",
+      "manifest": "docs/screenshots/full-backup-captures.json",
+      "readme_reference": false
+    },
+    "docs/screenshots/full-github-backup-restore.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 1200
+      },
+      "pixels": [
+        1440,
+        1200
+      ],
+      "captured_at": "2026-11-05T14:11:07.750082+00:00",
+      "sha256": "c33d24c4cddb333751885df547fa65bfd1ad94e60073f25b8a2082454dce31a4",
+      "manifest": "docs/screenshots/full-backup-captures.json",
+      "readme_reference": false
+    },
+    "docs/assets/agents-cover.png": {
+      "sha256": "27078c2f7190c134129f4890af165b740c67e45c62e803de2fe80c1eeefa38a8",
+      "captured_at": "2026-11-05T06:46:06.771363+00:00",
+      "pixels": [
+        1600,
+        900
+      ],
+      "manifest": "docs/screenshots/presentation-illustrations.json",
+      "kind": "presentation-illustration",
+      "readme_reference": true
+    },
+    "docs/assets/agents-modes.png": {
+      "sha256": "a37705bfe192f106f9e60103205f34e6817c9953f6c5d32bc6d16a27e15bf426",
+      "captured_at": "2026-11-05T06:46:08.602875+00:00",
+      "pixels": [
+        1600,
+        900
+      ],
+      "manifest": "docs/screenshots/presentation-illustrations.json",
+      "kind": "presentation-illustration",
+      "readme_reference": true
+    },
+    "docs/assets/agents-loop.png": {
+      "sha256": "e29bd6a7eb94c63ac35c7763eedf7fa321a7350e21ace0bc4b29aa38eebb61f9",
+      "captured_at": "2026-11-05T06:46:06.245033+00:00",
+      "pixels": [
+        1600,
+        900
+      ],
+      "manifest": "docs/screenshots/presentation-illustrations.json",
+      "kind": "presentation-illustration",
+      "readme_reference": true
+    },
+    "docs/assets/agents-context.png": {
+      "sha256": "0f84b43d8b53810f06cbfbcb250b4d76ad483961865e3d271d0ea0700b18c2ca",
+      "captured_at": "2026-11-05T06:46:07.271013+00:00",
+      "pixels": [
+        1600,
+        900
+      ],
+      "manifest": "docs/screenshots/presentation-illustrations.json",
+      "kind": "presentation-illustration",
+      "readme_reference": true
     }
   },
   "illustrations": {

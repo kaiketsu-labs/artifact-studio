@@ -1,5 +1,6 @@
 """Exercise recovery HTTP boundaries with fictional workspaces and streamed archives."""
 
+import shutil
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -9,7 +10,8 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from artifact_studio.artifacts import ArtifactStore
-from artifact_studio.libraries import Libraries, LibraryInput
+from artifact_studio.github_backups import GitHubBackups
+from artifact_studio.libraries import Libraries, Library, LibraryInput
 from artifact_studio.recovery_api import recovery_routes
 from artifact_studio.storage import ConflictError, Store
 from artifact_studio.workspace_recovery import WorkspaceRecovery
@@ -80,6 +82,111 @@ def test_archive_download_stream_restore_and_original_untouched(
     assert ArtifactStore(recovered).get_artifact(artifact_id).approved
     assert ArtifactStore(store).get_artifact(artifact_id) == original
     assert recovered.root != store.root
+
+
+def test_github_archive_preview_and_full_restore(
+    context: tuple[Store, TestClient], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A downloaded full GitHub archive follows the same guarded, private-state recovery."""
+    store, client = context
+    _, _, artifact_id = populate(store, tmp_path)
+    archive = tmp_path / "remote-workspace.zip"
+    _ = WorkspaceRecovery(store).export_archive(archive)
+
+    def download(_self: GitHubBackups, library_id: str, asset_id: int, destination: Path) -> Path:
+        assert library_id == "fictional-backup" and asset_id == 42
+        _ = shutil.copyfile(archive, destination)
+        return destination
+
+    monkeypatch.setattr(GitHubBackups, "download", download)
+    response = client.post(
+        "/api/workspace/recovery/github-archive",
+        json={"library_id": "fictional-backup", "asset_id": 42, "name": "From GitHub"},
+    )
+    assert response.status_code == 200, response.text
+    data = object_json(response)
+    preview = cast(dict[str, object], data["preview"])
+    assert preview["mode"] == "archive" and preview["can_restore"] is True
+    restored = client.post(
+        f"/api/workspace/recovery/{data['token']}/restore",
+        json={"content_hash": preview["content_hash"]},
+    )
+    assert restored.status_code == 200, restored.text
+    recovered = Store(Path(str(data["destination"])), Path(str(data["database"])))
+    assert ArtifactStore(recovered).get_artifact(artifact_id).approved
+    assert ArtifactStore(store).get_artifact(artifact_id).approved
+    assert recovered.root != store.root
+
+
+def test_github_archive_download_failure_creates_no_destination(
+    context: tuple[Store, TestClient], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failed or tampered remote downloads cannot reserve a restorable workspace."""
+    _, client = context
+
+    def download(
+        _self: GitHubBackups, _library_id: str, _asset_id: int, _destination: Path
+    ) -> Path:
+        raise ValueError("The downloaded backup failed its checksum.")
+
+    monkeypatch.setattr(GitHubBackups, "download", download)
+    response = client.post(
+        "/api/workspace/recovery/github-archive",
+        json={"library_id": "fictional-backup", "asset_id": 42, "name": "Not restored"},
+    )
+    assert response.status_code == 400 and "checksum" in response.text
+    assert not (tmp_path / "Not restored").exists()
+    assert (
+        client.post(
+            "/api/workspace/recovery/github-archive",
+            json={"library_id": "fictional-backup", "asset_id": -1},
+        ).status_code
+        == 422
+    )
+
+
+def test_full_backup_http_opt_in_schedule_and_manual_queue(
+    context: tuple[Store, TestClient], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Full archives require their own persisted opt-in and never enable source Git uploads."""
+    from artifact_studio import app as service
+
+    store, _ = context
+    libraries = Libraries(store)
+    library = Library(
+        id="fictional-backup",
+        kind="github",
+        location="fictional/private-backup",
+        path=str(tmp_path / "reference-checkout"),
+    )
+    with libraries.store.connect() as db:
+        _ = db.execute(
+            "INSERT INTO libraries VALUES (?,?)", (library.id, library.model_dump_json())
+        )
+
+    def private(_self: GitHubBackups, _repository: str) -> dict[str, object]:
+        return {"isPrivate": True, "defaultBranchRef": {"name": "main"}}
+
+    monkeypatch.setattr(service, "store", store)
+    monkeypatch.setattr(GitHubBackups, "_private", private)
+    client = TestClient(service.app)
+    prefix = f"/api/libraries/{library.id}/full-backup"
+    assert client.post(prefix + "/run", json={}).status_code == 400
+    response = client.post(
+        prefix + "/settings", json={"enabled": True, "interval_hours": 6, "keep_count": 3}
+    )
+    assert response.status_code == 200, response.text
+    states = client.get("/api/workspace/github-backups").json()
+    assert states[0]["settings"] == {"enabled": True, "interval_hours": 6, "keep_count": 3}
+    assert not Libraries(store).get(library.id).auto_sync_enabled
+    assert client.post(prefix + "/run", json={}).json()["phase"] == "queued"
+    assert (
+        client.post(prefix + "/settings", json={"enabled": True, "keep_count": 0}).status_code
+        == 422
+    )
+    disabled = client.post(prefix + "/settings", json={"enabled": False})
+    assert disabled.json()["phase"] == "disabled"
+    assert client.post(prefix + "/run", json={}).status_code == 400
 
 
 def test_registered_current_source_restore_rebuilds_registry_without_private_history(
