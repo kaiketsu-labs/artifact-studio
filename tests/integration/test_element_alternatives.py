@@ -357,6 +357,7 @@ def test_element_choices_preserve_siblings_notes_and_saved_history(
     assert current.notes == "Notes typed while reviewing the proposals."
     expect(page.locator(f'[data-ea-badge="{groups["graphic"]["id"]}"]')).to_be_visible()
     page.reload()
+    expect(page.locator("#notes")).to_be_enabled()
     expect(page.locator(f'[data-ea-badge="{groups["headline"]["id"]}"]')).to_have_count(0)
     history_chrome_thumbnail(page)
     page.get_by_role("button", name="Version history", exact=True).click()
