@@ -14,6 +14,8 @@ private struct UpdateReply: Decodable, Sendable {
     let current: String?
     let target: String?
     let commits: Int?
+    let release_tag: String?
+    let ahead: Bool?
     let error: String?
     let restart_safe: Bool?
 }
@@ -563,14 +565,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     throw BackupRequestError.response("The update check returned no version. See Show Logs.")
                 }
                 guard current != target else {
-                    showInformation("You’re up to date", "Artifact Studio is on the latest main version (\(current.prefix(8))).")
+                    let release = plan.release_tag ?? "the latest available version"
+                    let detail = plan.ahead == true
+                        ? "This checkout is newer than \(release). No downgrade was installed."
+                        : "Artifact Studio is on \(release)."
+                    showInformation("You’re up to date", detail)
                     updating = false; updateMenu(); return
                 }
                 restoreRunning = process?.isRunning == true
                 if restoreRunning {
                     let alert = NSAlert()
                     alert.messageText = "Update Artifact Studio?"
-                    alert.informativeText = "The server will stop, update and restart. Active agent connections will be interrupted. Save your work and finish active tasks before continuing."
+                    let release = plan.release_tag ?? "the latest available version"
+                    alert.informativeText = "Install \(release)? The server will stop, update and restart. Active agent connections will be interrupted. Save your work and finish active tasks before continuing."
                     alert.alertStyle = .warning
                     alert.addButton(withTitle: "Update and Restart")
                     alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
@@ -600,6 +607,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     "--application", Bundle.main.bundleURL.path,
                     "--collection", configuration.collection, "--database", configuration.database,
                     "--port", String(configuration.port)]
+                if let release = plan.release_tag { arguments += ["--release-tag", release] }
                 if configuration.launchAtLogin { arguments.append("--launch-at-login") }
                 if Bundle.main.bundleIdentifier?.hasSuffix(".qa") == true { arguments.append("--qa") }
                 let shouldRestart = restoreRunning

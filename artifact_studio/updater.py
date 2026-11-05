@@ -4,6 +4,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,8 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+RELEASE_REFS = "refs/artifact-studio/releases/"
 
 
 class UpdateError(RuntimeError):
@@ -29,6 +32,8 @@ class UpdatePlan:
     current: str
     target: str
     commits: int
+    release_tag: str = ""
+    ahead: bool = False
 
 
 @dataclass(frozen=True)
@@ -98,21 +103,58 @@ def clean_checkout(project: Path) -> str:
     return git(project, "rev-parse", "HEAD")
 
 
-def check_update(project: Path) -> UpdatePlan:
-    """Fetch main and report only updates that can be fast-forwarded safely."""
-    with update_lock(project):
-        current = clean_checkout(project)
-        git(project, "fetch", "origin", "main")
-        target = git(project, "rev-parse", "origin/main")
+def release_plan(project: Path) -> UpdatePlan:
+    """Resolve origin's highest stable release without changing local tags or source."""
+    current = clean_checkout(project)
+    git(
+        project,
+        "fetch",
+        "--prune",
+        "--no-tags",
+        "origin",
+        "+refs/heads/main:refs/remotes/origin/main",
+        f"+refs/tags/*:{RELEASE_REFS}*",
+    )
+    tags = git(project, "for-each-ref", "--format=%(refname:strip=3)", RELEASE_REFS)
+    releases: list[tuple[tuple[int, ...], str]] = []
+    for tag in tags.splitlines():
+        if len(tag) > 80:
+            continue
+        match = re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag)
+        if match:
+            releases.append((tuple(int(part) for part in match.groups()), tag))
+    if not releases:
+        raise UpdateError("No stable release tag (vX.Y.Z) has been published on origin yet.")
+    _, tag = max(releases)
+    target = git(project, "rev-parse", "--verify", f"{RELEASE_REFS}{tag}^{{commit}}")
+    try:
+        git(project, "merge-base", "--is-ancestor", target, "origin/main")
+    except UpdateError as error:
+        raise UpdateError(
+            f"Release {tag} is not part of origin/main; no update was installed."
+        ) from error
+    try:
+        git(project, "merge-base", "--is-ancestor", current, "origin/main")
+    except UpdateError as error:
+        raise UpdateError("Local main has commits that need reconciling with GitHub.") from error
+    try:
+        git(project, "merge-base", "--is-ancestor", current, target)
+    except UpdateError:
         try:
-            git(project, "merge-base", "--is-ancestor", current, target)
+            git(project, "merge-base", "--is-ancestor", target, current)
         except UpdateError as error:
-            raise UpdateError(
-                "Local main has commits that need reconciling with GitHub."
-            ) from error
-        return UpdatePlan(
-            current, target, int(git(project, "rev-list", "--count", f"{current}..{target}"))
-        )
+            raise UpdateError(f"This checkout cannot fast-forward to release {tag}.") from error
+        # Older controllers also see a no-op rather than attempting a downgrade.
+        return UpdatePlan(current, current, 0, tag, ahead=True)
+    return UpdatePlan(
+        current, target, int(git(project, "rev-list", "--count", f"{current}..{target}")), tag
+    )
+
+
+def check_update(project: Path) -> UpdatePlan:
+    """Offer only a stable release tag that can be fast-forwarded safely."""
+    with update_lock(project):
+        return release_plan(project)
 
 
 def sync_environment(project: Path) -> None:
@@ -151,9 +193,11 @@ def build_controller(project: Path, settings: AppSettings, destination: Path) ->
 def apply_update(project: Path, plan: UpdatePlan, settings: AppSettings | None = None) -> str:
     """Install a pinned update, restoring code and dependencies if installation fails."""
     with update_lock(project):
+        checked = release_plan(project)
         if (
-            clean_checkout(project) != plan.current
-            or git(project, "rev-parse", "origin/main") != plan.target
+            checked.current != plan.current
+            or checked.target != plan.target
+            or (plan.release_tag and checked.release_tag != plan.release_tag)
         ):
             raise UpdateError(
                 "The checkout changed since the update was checked. Try Update again."
@@ -234,6 +278,7 @@ def main() -> int:
     parser.add_argument("operation", choices=("check", "apply"))
     parser.add_argument("--current")
     parser.add_argument("--target")
+    parser.add_argument("--release-tag", default="")
     parser.add_argument("--application", type=Path)
     parser.add_argument("--collection", type=Path)
     parser.add_argument("--database", type=Path)
@@ -260,7 +305,9 @@ def main() -> int:
                     args.launch_at_login,
                     args.qa,
                 )
-            target = apply_update(project, UpdatePlan(args.current, args.target, 0), settings)
+            target = apply_update(
+                project, UpdatePlan(args.current, args.target, 0, args.release_tag), settings
+            )
             print(json.dumps({"target": target, "updated": True}))
         return 0
     except (OSError, UpdateError) as error:

@@ -1,15 +1,16 @@
 # Versions and releases
 
 Artifact Studio uses [Release Please](https://github.com/googleapis/release-please)
-to prepare version bumps, `CHANGELOG.md` and GitHub release notes. The first
-release is **0.1.0**, tagged **v0.1.0**. It has not been published by this setup.
+to prepare version bumps, `CHANGELOG.md` and GitHub release notes. Stable releases
+use **vMAJOR.MINOR.PATCH** tags.
 
 `pyproject.toml` is the application's version source. The health endpoint,
 server metadata and Mac app bundle read it. Release Please updates that file
 and only Artifact Studio's entry in `uv.lock`; dependency versions stay intact.
-The initially empty `.release-please-manifest.json` means there is no previous
-release. Release Please fills it when preparing the first release PR. Do not
-seed it with `0.1.0`, which would make the tool propose a later version.
+`.release-please-manifest.json` tracks the version managed by Release Please.
+Version files can advance when a release PR is merged, before its tag is published;
+their contents alone do not establish that a release exists. Let Release Please
+update the manifest rather than changing it to simulate publication.
 
 ## Prepare and publish
 
@@ -55,11 +56,23 @@ footer; avoid a permanent `release-as` setting that would pin future releases.
 ## Installation and verification
 
 GitHub releases identify source snapshots. The supported installation remains a
-source checkout with `uv sync --locked`. The Mac **Update** command continues to
-follow the latest `main` commit; it does not switch to a release-only channel.
-A checkout between releases reports its checked-in project version, not a promise
-that the commit is a published release. The corresponding `v*` tag identifies
-the published snapshot.
+source checkout with `uv sync --locked`. The Mac **Update** command follows the
+highest stable `vMAJOR.MINOR.PATCH` tag published on `origin`, ordered numerically;
+it ignores prerelease/non-version tags and untagged `main` commits. Publishing the
+stable Git tag is the update channel's release boundary, so do not push a stable
+version tag for a draft or an unverified build. The release workflow above creates
+that tag only during publication.
+
+The updater fetches release refs separately from local tags, validates ancestry
+against `origin/main`, and installs the selected commit by fast-forward. It refuses
+an absent or changed release, and never automatically downgrades a newer checkout.
+It uses the existing authenticated Git connection rather than a GitHub API token.
+A checkout between releases still reports its checked-in project version; that
+version alone does not mean the commit was published.
+
+Existing installations with the old main-following updater need to receive this
+updater change once (through their current Update command or a manual source update
+and controller rebuild). Subsequent update checks follow stable release tags.
 
 CI runs offline simulations with the same Release Please version bundled in the
 pinned action. They exercise the first and subsequent releases and check the real
