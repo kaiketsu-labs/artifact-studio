@@ -186,6 +186,8 @@ For multiple slide objects, **Delete selection** and supported layer changes pre
 
 The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds a line. Attach files through the paperclip, drag-and-drop or paste, including file-only messages. Limits are five files, 25 MB each and 50 MB together. Unsent file selections stay in browser memory; sent attachments are stored locally. Draft text and targets stay with their artifact.
 
+Images appear as compact thumbnails before and after sending. Click one to enlarge it; **Esc** closes the preview, and **Download original** keeps the original file.
+
 **Auto-update** is on by default: incoming revisions appear while preserving feedback drafts and their original targets. Direct element edits, moves and animation previews finish before the slide changes. Turn it off to load new versions manually; the choice is remembered in this browser. General artifact viewers check for changes periodically, so updates can take a few seconds.
 
 **Updated** is an orange revision marker until you open that version. **Approve** records the exact version you reviewed. Source files, the content hash and context are available in **Sources & files**. The **Agent context** inspector shows scope, canonical paths, hashes and recorded delivery; an available pointer is never labelled as proof that an agent read it.

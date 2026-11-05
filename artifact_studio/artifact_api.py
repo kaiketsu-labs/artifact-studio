@@ -30,6 +30,7 @@ from .design_library import (
 from .design_references import ReferenceInput, RemoveReferenceInput
 from .design_thumbnails import THUMBNAIL_SUFFIXES
 from .design_thumbnails import design_thumbnail as make_design_thumbnail
+from .feedback_previews import feedback_image_response
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
 from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
@@ -274,7 +275,9 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         return artifacts().add_feedback(artifact_id, body, author="user")
 
     @router.get("/api/artifacts/{artifact_id}/feedback/{event_id}/files/{index}")
-    def feedback_file(artifact_id: str, event_id: int, index: int) -> FileResponse:
+    def feedback_file(
+        artifact_id: str, event_id: int, index: int, preview: bool = False, full: bool = False
+    ) -> Response:
         """Download human-visible attachments separately from executable artifact bundles."""
         path, metadata = artifacts().resolve_feedback_file(
             artifact_id,
@@ -282,6 +285,8 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
             index,
             include_pending=True,
         )
+        if preview:
+            return feedback_image_response(metadata, path, full=full)
         return FileResponse(
             path,
             filename=metadata.name,
@@ -360,6 +365,7 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         """Cache actual cover-slide captures without mounting an iframe per library card."""
         service = artifacts()
         view = service.get_artifact(artifact_id)
+        request.state.cache_cover = request.query_params.get("v") == view.content_hash
         if view.kind in {"image", "svg"}:
             return serve_file(
                 artifact_id,
@@ -369,6 +375,8 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
             )
         store = get_store()
         cache = store.database.parent / "artifact-previews" / f"{view.content_hash}.png"
+        if cache.exists():
+            return FileResponse(cache, media_type="image/png")
         with _THUMBNAILS:
             if not cache.exists():
                 if view.legacy_deck_id:
@@ -391,7 +399,10 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
                 else:
                     raise FileNotFoundError("This file has no visual preview.")
                 cache.parent.mkdir(parents=True, exist_ok=True)
-                _ = shutil.copyfile(source, cache)
+                with tempfile.TemporaryDirectory(dir=cache.parent) as temporary:
+                    staged = Path(temporary) / "preview.png"
+                    _ = shutil.copyfile(source, staged)
+                    _ = staged.replace(cache)
         return FileResponse(cache, media_type="image/png")
 
     return router

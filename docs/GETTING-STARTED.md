@@ -141,6 +141,8 @@ Choose **Select**, then click an element or text block, select document text, or
 
 Write feedback in the artifact's conversation. **Enter** sends and **Shift+Enter** adds a line. Use the paperclip, drop files or paste an image; a file-only message is supported. Limits are five files, 25 MB each and 50 MB combined. Remove an unsent file with its ×; sent files can be downloaded from the message. Text and target drafts persist in browser storage; unsent file selections remain in browser memory.
 
+Images show small thumbnails in the composer and message history, in both presentation and artifact chats. Click a thumbnail for a larger preview, press **Esc** to return, or choose **Download original**. Preview generation leaves the original file unchanged.
+
 **Live** releases a message immediately. **Batch** keeps messages and attachments private until **Send batch**. Loaded Codex/Claude Code lifecycle hooks continue the connected agent for every artifact type. The Live dot's tooltip identifies the connection; **End review** stops listening. Agents read released requests through `read_artifact_feedback`. An ordinary MCP connection cannot start a closed chat. See [hook setup](LIVE-REVIEW.md).
 
 **Auto-update** is on by default and remembered in this browser. Incoming previews keep your feedback draft and its original target/version context. Slide updates wait for direct element edits, moves and animation playback; HTML previews wait while you interact inside them. Turn Auto-update off to open revisions manually. Generic viewers check periodically, so changes can take a few seconds.

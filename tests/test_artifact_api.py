@@ -2,7 +2,10 @@
 
 import base64
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -10,6 +13,7 @@ from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
 from artifact_studio import app as service
+from artifact_studio import artifact_api
 from artifact_studio import artifacts as artifact_module
 from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
 from artifact_studio.artifacts import ArtifactStore
@@ -56,6 +60,92 @@ def import_page(client: TestClient) -> ArtifactView:
     )
     assert response.status_code == 200, response.text
     return ArtifactView.model_validate_json(response.text)
+
+
+def test_cover_cache_publishes_atomically_without_blocking_warm_covers(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep cached covers responsive and never serve a partially copied cold cover."""
+    warm = import_page(client)
+    cold = import_page(client)
+    cold = ArtifactStore(service.store).revise_artifact(
+        cold.id,
+        [ArtifactFileInput(path="app.js", text="window.example = 2")],
+        1,
+        "fixture-revision",
+    )
+    cache_dir = tmp_path / "artifact-previews"
+    cache_dir.mkdir()
+    (cache_dir / f"{warm.content_hash}.png").write_bytes(b"warm cover")
+    source = tmp_path / "capture.png"
+    source.write_bytes(b"complete cold cover")
+    copying = threading.Event()
+    release = threading.Event()
+    calls: list[str] = []
+
+    def fake_capture(*args: object, **kwargs: object) -> SimpleNamespace:
+        calls.append("capture")
+        return SimpleNamespace(path=source)
+
+    def slow_copy(src: str | Path, dst: str | Path) -> str:
+        Path(dst).write_bytes(b"partial")
+        copying.set()
+        assert release.wait(5)
+        Path(dst).write_bytes(Path(src).read_bytes())
+        return str(dst)
+
+    monkeypatch.setattr(artifact_api, "capture_artifact_image", fake_capture)
+    monkeypatch.setattr(artifact_api.shutil, "copyfile", slow_copy)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        first = pool.submit(client.get, f"/api/hub/previews/{cold.id}")
+        try:
+            assert copying.wait(5)
+            assert not (cache_dir / f"{cold.content_hash}.png").exists()
+            second = pool.submit(client.get, f"/api/hub/previews/{cold.id}")
+            cached = pool.submit(client.get, f"/api/hub/previews/{warm.id}")
+            assert cached.result(timeout=2).content == b"warm cover"
+            assert not second.done()
+        finally:
+            release.set()
+        assert first.result(timeout=5).content == b"complete cold cover"
+        assert second.result(timeout=5).content == b"complete cold cover"
+    assert calls == ["capture"]
+
+
+def test_cover_browser_cache_requires_current_fingerprint(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """Cache only a cover URL matching the freshly checked artifact version."""
+    artifact = import_page(client)
+    cache_dir = tmp_path / "artifact-previews"
+    cache_dir.mkdir()
+    (cache_dir / f"{artifact.content_hash}.png").write_bytes(b"first cover")
+    url = f"/api/hub/previews/{artifact.id}"
+    assert client.get(url).headers["cache-control"] == "no-store"
+    assert client.get(url, params={"v": "wrong"}).headers["cache-control"] == "no-store"
+    assert client.get(url, params={"v": artifact.content_hash}).headers["cache-control"] == (
+        "private, max-age=3600"
+    )
+    revised = ArtifactStore(service.store).revise_artifact(
+        artifact.id,
+        [ArtifactFileInput(path="app.js", text="window.example = 3")],
+        1,
+        "fixture-revision",
+    )
+    assert revised.content_hash != artifact.content_hash
+    (cache_dir / f"{revised.content_hash}.png").write_bytes(b"revised cover")
+    stale = client.get(url, params={"v": artifact.content_hash})
+    assert stale.content == b"revised cover" and stale.headers["cache-control"] == "no-store"
+    current = client.get(url, params={"v": revised.content_hash})
+    assert current.content == b"revised cover"
+    assert current.headers["cache-control"] == "private, max-age=3600"
+    assert client.get("/api/hub").headers["cache-control"] == "no-store"
+    assert (
+        client.get("/api/hub/previews/missing", params={"v": revised.content_hash}).headers[
+            "cache-control"
+        ]
+        == "no-store"
+    )
 
 
 def test_import_preview_and_immutable_source_routes(client: TestClient) -> None:
