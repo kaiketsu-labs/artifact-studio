@@ -257,14 +257,17 @@ document.getElementById('state').textContent=value;window.artifactStudio.emitSta
             current.get_by_label("Text").fill("A")
             current.get_by_label("Text").press("x")
             assert page.locator("#single-counter").inner_text() == "1 / 2"
-            current.locator("#increment").press("ArrowRight")
+            # Navigation disposes the frame, so dispatch keys outside its element action.
+            current.locator("#increment").focus()
+            page.keyboard.press("ArrowRight")
             page.wait_for_function(
                 "() => document.getElementById('single-counter').textContent==='2 / 2'"
             )
             assert page.locator("#stage > .runtime-slide-canvas > iframe").count() == 0
             page.keyboard.press("ArrowLeft")
             current.locator("#state").get_by_text("1", exact=True).wait_for()
-            current.locator("#increment").press("Escape")
+            current.locator("#increment").focus()
+            page.keyboard.press("Escape")
             page.wait_for_function("() => !document.body.classList.contains('single-screen')")
         finally:
             browser.close()

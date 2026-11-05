@@ -44,7 +44,9 @@ jobs:
       - name: Strict type checks
         run: uv run --no-sync basedpyright
       - name: Python unit tests
-        run: uv run --no-sync pytest --junitxml=test-results/unit.xml
+        run: >-
+          uv run --no-sync pytest -n 2 --dist worksteal --max-worker-restart=0
+          --durations=15 --junitxml=test-results/unit.xml
       - name: Frontend behavior tests
         run: node --test tests/*.cjs
       - name: JavaScript syntax
@@ -73,6 +75,7 @@ jobs:
       matrix:
         include:
           - suite: editor
+            browsers: chromium
             tests: >-
               tests/integration/test_browser.py tests/integration/test_chat.py tests/integration/test_questions.py tests/integration/test_zoom.py tests/integration/test_quick_access.py
               tests/integration/test_sections.py tests/integration/test_feedback_delivery.py tests/integration/test_audience_preview.py
@@ -84,6 +87,7 @@ jobs:
               tests/integration/test_element_alternative_layout.py tests/integration/test_element_alternative_motion.py
               tests/integration/test_presentation_displays.py
           - suite: runtime
+            browsers: chromium firefox
             tests: >-
               tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
               tests/integration/test_artifact_workspace.py tests/integration/test_artifact_sorting.py tests/integration/test_element_properties.py
@@ -109,27 +113,38 @@ jobs:
           cache-suffix: "browser-${{ matrix.suite }}"
       - run: uv sync --locked
       - name: Cache Playwright browsers
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache/restore@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.suite }}-${{ hashFiles('uv.lock') }}
-      - name: Install Chromium and OS dependencies
-        run: uv run --no-sync playwright install --with-deps chromium --only-shell
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('.venv/lib/python*/site-packages/playwright/driver/package/browsers.json') }}
+      - name: Install browser OS dependencies
+        run: uv run --no-sync playwright install-deps ${{ matrix.browsers }}
       - name: Install text review engine
+        if: matrix.suite == 'runtime'
         run: sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+      - name: Install pinned browsers on cache miss
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: uv run --no-sync playwright install --only-shell ${{ matrix.browsers }}
+      - name: Save browsers before running tests
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Browser journeys and sandboxed renderer tests
         run: >-
-          uv run --no-sync pytest ${{ matrix.tests }}
+          uv run --no-sync pytest -n 2 --dist worksteal --max-worker-restart=0 ${{ matrix.tests }}
+          --durations=15
           --junitxml=test-results/browser-${{ matrix.suite }}.xml
-      - name: Install Firefox for presentation compatibility
-        if: matrix.suite == 'runtime'
-        run: uv run --no-sync playwright install --with-deps firefox
       - name: Firefox presentation journeys
         if: matrix.suite == 'runtime'
         env:
           ARTIFACT_STUDIO_TEST_BROWSER: firefox
-        run: uv run --no-sync pytest tests/integration/test_presentation_displays.py --junitxml=test-results/browser-firefox.xml
+        run: >-
+          uv run --no-sync pytest -n 2 --dist worksteal --max-worker-restart=0
+          tests/integration/test_presentation_displays.py --durations=15
+          --junitxml=test-results/browser-firefox.xml
       - name: Upload screenshots, Playwright traces and server logs on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

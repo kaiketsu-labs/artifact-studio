@@ -16,7 +16,27 @@ corporate packs and model credentials are not required.
 | Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
 
 The two browser suites run in parallel with `fail-fast: false` and independent
-25-minute timeouts, with Chromium and Firefox coverage and Playwright browser caching.
+25-minute timeouts. Each suite and the Python unit step use two pytest-xdist workers
+with work stealing, so a long test file cannot hold up an otherwise idle worker.
+Every selected case still runs once; worker crashes fail the check instead of
+silently restarting workers. The agent integration step remains sequential.
+
+`tests/conftest.py` isolates each worker's default collection, database and explicit
+artifact directory by run ID and worker ID before application imports. Existing
+per-test temporary stores, servers and browser contexts remain isolated too.
+Do not increase the worker count without checking runner CPU and memory limits.
+
+Browser cache keys follow the installed Playwright browser manifest, architecture
+and suite, so an unrelated Python lockfile update does not download browsers again.
+OS dependencies are still installed on every runner. The runtime suite prepares
+Chromium and Firefox together, avoiding a second package-index refresh, and matching
+caches skip browser downloads. Chromium renderer sandboxing remains enabled.
+Only the runtime suite installs Tesseract, where the real OCR checks run.
+Completed browser installs are cached before tests, so a later test failure does
+not force the next attempt to download the browsers again.
+
+Pytest prints the 15 slowest setup/call/teardown durations in each test step's log
+to help distinguish test time from installation and cache time in subsequent runs.
 Test results, screenshots, and Playwright traces are uploaded only upon failure (`if: failure()`)
 with a 1-day retention period to conserve organization storage quotas.
 
@@ -53,7 +73,7 @@ uv sync --locked --python 3.14
 uv run ruff check artifact_studio tests
 uv run ruff format --check artifact_studio tests
 uv run basedpyright
-uv run pytest
+uv run pytest -n 2 --dist worksteal --max-worker-restart=0
 node --test tests/*.cjs
 ```
 
@@ -61,9 +81,9 @@ Enable the browser and agent suites explicitly:
 
 ```sh
 uv run playwright install chromium --only-shell
-ARTIFACT_STUDIO_BROWSER_TESTS=1 uv run pytest tests/integration -m browser
+ARTIFACT_STUDIO_BROWSER_TESTS=1 uv run pytest -n 2 --dist worksteal --max-worker-restart=0 tests/integration -m browser
 uv run playwright install firefox
-ARTIFACT_STUDIO_BROWSER_TESTS=1 ARTIFACT_STUDIO_TEST_BROWSER=firefox uv run pytest tests/integration/test_presentation_displays.py
+ARTIFACT_STUDIO_BROWSER_TESTS=1 ARTIFACT_STUDIO_TEST_BROWSER=firefox uv run pytest -n 2 --dist worksteal --max-worker-restart=0 tests/integration/test_presentation_displays.py
 ARTIFACT_STUDIO_AGENT_TESTS=1 uv run pytest tests/integration/test_agents.py
 ARTIFACT_STUDIO_RENDER_TESTS=1 uv run pytest tests/test_visuals.py tests/test_interactive.py tests/test_element_rotation_dom.py
 ```
