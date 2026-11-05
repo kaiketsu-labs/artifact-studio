@@ -5,7 +5,7 @@
   function start(){
     const entries=[...doc.querySelectorAll('[data-app-about]')];if(!entries.length)return;
     const dialog=doc.createElement('dialog');dialog.className='app-about';dialog.setAttribute('aria-labelledby','app-about-title');
-    dialog.innerHTML='<header><h2 id="app-about-title">About Artifact Studio</h2><button type="button" aria-label="Close">×</button></header><p class="app-about-version" data-installed-version>Version unavailable</p><p class="app-about-status" role="status" aria-live="polite">Checking for updates…</p><p data-update-help hidden>Mac app: choose <strong>Update…</strong> in the menu bar. For other installations, see the release notes.</p><a class="app-release-link" target="_blank" rel="noopener noreferrer" hidden>View release notes</a>';
+    dialog.innerHTML='<header><h2 id="app-about-title">About Artifact Studio</h2><button type="button" aria-label="Close">×</button></header><div class="app-version-row"><p class="app-about-version" data-installed-version>Version unavailable</p><a class="app-release-link" target="_blank" rel="noopener noreferrer" hidden>View release notes</a></div><p class="app-about-status" role="status" aria-live="polite">Checking for updates…</p><p data-update-help hidden>Mac app: choose <strong>Update…</strong> in the menu bar. For other installations, see the release notes.</p>';
     doc.body.append(dialog);
     const version=dialog.querySelector('[data-installed-version]'),status=dialog.querySelector('[role="status"]'),release=dialog.querySelector('a'),help=dialog.querySelector('[data-update-help]');
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);

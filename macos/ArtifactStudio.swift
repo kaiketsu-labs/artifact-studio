@@ -137,7 +137,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var navigationUpdated = Date.distantPast
     private var navigationEnabled = false
     private let status = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let versionItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let startItem = NSMenuItem(title: "Start", action: #selector(start), keyEquivalent: "")
     private let stopItem = NSMenuItem(title: "Stop", action: #selector(stop), keyEquivalent: "")
     private let restartItem = NSMenuItem(title: "Restart", action: #selector(restart), keyEquivalent: "")
@@ -188,8 +187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         backupItem.submenu = backupMenu
         status.isEnabled = false
         menu.addItem(status)
-        versionItem.isEnabled = false
-        menu.addItem(versionItem)
+        updateItem.target = self
+        updateItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
+        menu.addItem(updateItem)
         menu.addItem(.separator())
         add("Open Artifact Studio", symbol: "arrow.up.right.square", action: #selector(openWorkspace), key: "o")
         for (item, symbol) in [(startItem, "play.fill"), (stopItem, "stop.fill"), (restartItem, "arrow.clockwise")] {
@@ -197,9 +197,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             menu.addItem(item)
         }
-        updateItem.target = self
-        updateItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
-        menu.addItem(updateItem)
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
@@ -241,9 +238,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateMenu() {
         status.title = updating ? updateLabel : external ? "Running · started elsewhere" : state.rawValue
         status.toolTip = errorMessage.isEmpty ? workspaceURL.absoluteString : errorMessage
-        versionItem.title = "Version \(installedVersion)"
-        versionItem.toolTip = "Installed version: \(installedVersion)"
-        versionItem.image = newerVersion == nil ? nil : NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: "Update available")
         statusItem.button?.toolTip = "Artifact Studio · \(status.title)"
         statusItem.button?.setAccessibilityValue(status.title)
         statusItem.button?.image = menuBarImage(state: updating ? .starting : state)
@@ -258,7 +252,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startItem.isHidden = hasServer
         stopItem.isHidden = !hasServer
         updateItem.isEnabled = !updating && state != .starting && state != .stopping
-        updateItem.title = updating ? updateLabel : newerVersion.map { "Update… (v\($0) available)" } ?? "Update…"
+        let updateAction = updating ? updateLabel : newerVersion.map { "Update… (v\($0) available)" } ?? "Update…"
+        updateItem.title = "Version \(installedVersion)    \(updateAction)"
+        updateItem.toolTip = "Installed version: \(installedVersion). \(updateAction)"
         updateItem.image = NSImage(systemSymbolName: newerVersion == nil ? "arrow.down.circle" : "arrow.down.circle.fill", accessibilityDescription: newerVersion == nil ? nil : "Update available")
         let login = SMAppService.mainApp.status
         loginItem.state = login == .enabled ? .on : login == .requiresApproval ? .mixed : .off

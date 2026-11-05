@@ -33,8 +33,8 @@ Closing a browser tab does not stop the server. Stopping or restarting the serve
 
 ## Existing workspaces and updates
 
-The Mac menu always shows the installed app's **Version**, including while the
-server is stopped. A filled download-circle icon and the available version appear
+The Mac menu keeps the installed app's **Version** and **Update…** action on one
+row, including while the server is stopped. A filled download-circle icon and the available version appear
 when a newer stable release is found. In the web library or slide editor, choose
 **Menu → About Artifact Studio** for the running app version and release notes;
 a small blue dot on Menu indicates an available update. The menu-bar controller

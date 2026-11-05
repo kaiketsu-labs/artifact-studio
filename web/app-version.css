@@ -10,8 +10,11 @@ dialog.app-about::backdrop{background:#10182866}
 .app-about h2{margin:0;font-size:19px;line-height:1.4}
 .app-about header button{font-size:22px;line-height:1;padding:5px 9px;min-width:32px;border:0;background:transparent;color:inherit}
 .app-about p{margin:12px 0;line-height:1.6;font-size:14px}
-.app-about .app-about-version{font-size:24px;font-weight:600}
+.app-version-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.app-about .app-about-version{margin:0;font-size:clamp(16px,5vw,24px);font-weight:600;white-space:nowrap}
 .app-about .app-about-status{color:var(--hub-muted,var(--subtle,#5f6b7a))}
-.app-about a{display:inline-block;margin-top:12px;color:var(--hub-blue,var(--link,#315fce));font-size:14px}
+.app-about a{display:inline-flex;align-items:center;justify-content:center;padding:7px 9px;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:6px;color:var(--hub-blue,var(--link,#315fce));font-size:12px;white-space:nowrap;flex-shrink:0}
+@media(max-width:360px){dialog.app-about{padding:18px}.app-version-row{gap:8px}.app-about a{padding:7px 8px;font-size:11px}}
 .app-about [hidden]{display:none!important}
+@media(max-width:600px){.app-about .app-release-link{min-height:44px}}
 .app-version-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}

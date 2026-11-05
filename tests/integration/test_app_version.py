@@ -23,6 +23,7 @@ pytestmark = [
         ("hub", "light", 1280, 800),
         ("hub", "dark", 1280, 800),
         ("hub", "dark", 390, 844),
+        ("hub", "light", 320, 700),
         ("editor", "light", 1280, 800),
         ("editor", "dark", 390, 844),
     ],
@@ -62,6 +63,21 @@ def test_installed_version_and_update_menu(
     expect(dialog.get_by_role("link", name="View release notes")).to_have_attribute(
         "href", "https://github.com/kaiketsu-labs/artifact-studio/releases/tag/v9.0.0"
     )
+    version_bounds = dialog.locator("[data-installed-version]").bounding_box()
+    update_bounds = dialog.get_by_role("link", name="View release notes").bounding_box()
+    assert version_bounds and update_bounds
+    assert (
+        abs(
+            version_bounds["y"]
+            + version_bounds["height"] / 2
+            - update_bounds["y"]
+            - update_bounds["height"] / 2
+        )
+        <= 2
+    )
+    assert version_bounds["x"] + version_bounds["width"] <= update_bounds["x"]
+    if width <= 600:
+        assert update_bounds["height"] >= 44
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     page.screenshot(path=str(artifacts / f"version-{surface}-{theme}-{width}.png"))
     page.keyboard.press("Escape")
