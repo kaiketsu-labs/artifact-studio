@@ -12,14 +12,13 @@ corporate packs and model credentials are not required.
 | --- | --- |
 | Ruff, types, unit tests & release simulation | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests, JavaScript syntax and offline Release Please simulations. |
 | Playwright user journeys and rendering (editor) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation, drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input, structural undo, element commands and whole-slide design alternatives. |
-| Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, voice input, sandboxed renderer, interactive-content, DOM checks, and authoring recovery. |
-| Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, and slide insertion. |
+| Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
+| Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
 
 The two browser suites run in parallel with `fail-fast: false` and independent
-15-minute timeouts on Chromium runners with Playwright browser caching.
+25-minute timeouts, with Chromium and Firefox coverage and Playwright browser caching.
 Test results, screenshots, and Playwright traces are uploaded only upon failure (`if: failure()`)
-with a 1-day retention period to conserve organization storage quotas. Changes touching only
-documentation (`docs/**`, `*.md`) skip the full CI run automatically.
+with a 1-day retention period to conserve organization storage quotas.
 
 The native Codex CLI must accept the HTTP MCP configuration using its invocation
 override. The native Claude Code CLI must register its project-local connection
@@ -38,10 +37,10 @@ they do not simulate host trust or claim an authenticated model session has run.
 Model-driven changes, host hook approval/loading, automatic continuation inside a
 signed-in desktop/CLI session, physical displays and the macOS controller still
 need their own application checks. CI does not bypass native trust or start paid
-model requests. The tested client versions are recorded in the artifacts; update
-the matrix versions deliberately when supporting a new client release.
+model requests. The tested client versions are recorded in failure artifacts; update
+the pinned versions deliberately when supporting a new client release.
 
-Presentation window journeys run in Chromium and an independent Firefox job. Editor journeys are split between workspace/review and object/presenter suites so compatibility checks run in parallel. They check explicit audience-window opening, denied or unavailable screen access, blocked pop-ups, synchronized navigation, private notes, audience fullscreen and returning to editing. Granted-screen cases use simulated display metadata; physical monitor placement still requires a hardware check.
+Presentation window journeys run in Chromium and Firefox. They check explicit audience-window opening, denied or unavailable screen access, blocked pop-ups, synchronized navigation, private notes, audience fullscreen and returning to editing. Granted-screen cases use simulated display metadata; physical monitor placement still requires a hardware check.
 
 ## Run locally
 
@@ -78,14 +77,14 @@ as unavailable locally; keep the sandbox enabled in CI.
 For the native checks, install the two exact package versions from the workflow,
 then run `ARTIFACT_STUDIO_NATIVE_CLIENT_TESTS=1 uv run pytest
 tests/integration/test_native_clients.py`. Set `ARTIFACT_STUDIO_NATIVE_CLIENT` to
-`codex` or `claude-code` to select one client, as CI does. Missing executables fail
+`codex` or `claude-code` to select one client; CI runs both. Missing executables fail
 an enabled native check; they are not silently skipped.
 
 Set `ARTIFACT_STUDIO_ARTIFACTS=test-results/integration` to retain per-test server logs,
 browser screenshots, Playwright traces and client logs. In CI, failed runs upload
 these diagnostics with 1-day retention. Browser
 artifacts are named `browser-results-<suite>` for `editor` and `runtime`; their JUnit files are
-`browser-<suite>.xml`. View a
+`browser-<suite>.xml`, with `browser-firefox.xml` for Firefox. View a
 trace with `uv run playwright show-trace path/to/trace.zip`.
 
 ## Before committing
@@ -98,7 +97,7 @@ uvx pre-commit run --all-files
 ```
 
 Adding a workflow does not change GitHub branch protection. To require these
-checks before merge, select the six expanded CI job names in the repository's branch
+checks before merge, select the four expanded CI job names in the repository's branch
 rules after their first successful run.
 
 The separate [Release Please workflow](RELEASING.md) prepares release PRs on pushes
