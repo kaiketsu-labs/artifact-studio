@@ -19,22 +19,8 @@ env:
   ARTIFACT_STUDIO_ARTIFACTS: test-results/integration
 
 jobs:
-  release-config:
-    name: Release version simulations
-    runs-on: ubuntu-22.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: "24"
-          cache: npm
-          cache-dependency-path: scripts/release/package-lock.json
-      - run: npm ci --prefix scripts/release --ignore-scripts --no-audit --no-fund
-      - run: node --test scripts/release/*.cjs
-
   quality:
-    name: Ruff, types and unit tests
+    name: Ruff, types, unit tests & release simulation
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
@@ -44,9 +30,12 @@ jobs:
           version: "0.12.23"
           python-version: "3.14"
           enable-cache: true
+          cache-suffix: "quality"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: scripts/release/package-lock.json
       - run: uv sync --locked
       - name: Ruff lint
         run: uv run --no-sync ruff check artifact_studio tests
@@ -54,7 +43,7 @@ jobs:
         run: uv run --no-sync ruff format --check artifact_studio tests
       - name: Strict type checks
         run: uv run --no-sync basedpyright
-      - name: Python tests
+      - name: Python unit tests
         run: uv run --no-sync pytest --junitxml=test-results/unit.xml
       - name: Frontend behavior tests
         run: node --test tests/*.cjs
@@ -63,58 +52,53 @@ jobs:
           git ls-files '*.js' '*.cjs' | while IFS= read -r file; do
             node --check "$file" || exit 1
           done
-      - name: Upload test results
-        if: always()
+      - name: Release version simulations
+        run: |
+          npm ci --prefix scripts/release --ignore-scripts --no-audit --no-fund
+          node --test scripts/release/*.cjs
+      - name: Upload test results on failure
+        if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: unit-results
           path: test-results/
-          retention-days: 7
+          retention-days: 1
 
   browser:
     name: Playwright user journeys and rendering (${{ matrix.suite }})
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
         include:
-          - suite: editor-review
+          - suite: editor
             tests: >-
               tests/integration/test_browser.py tests/integration/test_chat.py tests/integration/test_questions.py tests/integration/test_zoom.py tests/integration/test_quick_access.py
               tests/integration/test_sections.py tests/integration/test_feedback_delivery.py tests/integration/test_audience_preview.py
               tests/integration/test_notes_and_backup.py tests/integration/test_editor_layout.py tests/integration/test_sorter_header.py
-          - suite: editor-objects
-            tests: >-
-              tests/integration/test_structural_undo.py
-              tests/integration/test_element_commands.py tests/integration/test_group_object_commands.py tests/integration/test_slide_context_menus.py
-              tests/integration/test_voice_rich.py tests/integration/test_voice_presenter.py tests/integration/test_sharing_render.py
-              tests/integration/test_feedback_mode_sync.py
-              tests/integration/test_element_mode_guard.py
-              tests/integration/test_slide_designs.py
-              tests/integration/test_element_alternatives.py
+              tests/integration/test_structural_undo.py tests/integration/test_element_commands.py tests/integration/test_group_object_commands.py
+              tests/integration/test_slide_context_menus.py tests/integration/test_voice_rich.py tests/integration/test_voice_presenter.py
+              tests/integration/test_sharing_render.py tests/integration/test_feedback_mode_sync.py tests/integration/test_element_mode_guard.py
+              tests/integration/test_slide_designs.py tests/integration/test_element_alternatives.py
               tests/integration/test_element_alternative_layout.py tests/integration/test_element_alternative_motion.py
               tests/integration/test_presentation_displays.py
-          - suite: presenter-firefox
-            tests: tests/integration/test_presentation_displays.py
-          - suite: artifacts-runtime
+          - suite: runtime
             tests: >-
               tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
-              tests/integration/test_artifact_workspace.py tests/integration/test_artifact_sorting.py tests/integration/test_element_properties.py tests/integration/test_element_properties_layout.py
-              tests/integration/test_native_sharing.py tests/integration/test_hub_context_menus.py tests/integration/test_version_recovery.py
-              tests/integration/test_voice_input.py tests/integration/test_voice_hub.py tests/integration/test_artifact_downloads.py
-              tests/integration/test_project_tree.py tests/integration/test_sharing_workspace.py
-              tests/integration/test_ui_contrast.py tests/integration/test_accessible_labels.py
-              tests/integration/test_marquee_export.py tests/integration/test_presentation_authoring.py
-              tests/integration/test_agent_workflow_gaps.py
-              tests/integration/test_audit_followups.py tests/test_text_review.py
-              tests/test_visuals.py tests/test_interactive.py tests/test_presentation_authoring.py
-              tests/test_element_rotation_dom.py tests/test_copilot_capture.py
+              tests/integration/test_artifact_workspace.py tests/integration/test_artifact_sorting.py tests/integration/test_element_properties.py
+              tests/integration/test_element_properties_layout.py tests/integration/test_native_sharing.py tests/integration/test_hub_context_menus.py
+              tests/integration/test_version_recovery.py tests/integration/test_voice_input.py tests/integration/test_voice_hub.py
+              tests/integration/test_artifact_downloads.py tests/integration/test_project_tree.py tests/integration/test_sharing_workspace.py
+              tests/integration/test_ui_contrast.py tests/integration/test_accessible_labels.py tests/integration/test_marquee_export.py
+              tests/integration/test_presentation_authoring.py tests/integration/test_agent_workflow_gaps.py
+              tests/integration/test_audit_followups.py tests/test_text_review.py tests/test_visuals.py tests/test_interactive.py
+              tests/test_presentation_authoring.py tests/test_element_rotation_dom.py tests/test_copilot_capture.py
               tests/test_element_alternative_tools.py
     env:
       ARTIFACT_STUDIO_BROWSER_TESTS: "1"
       ARTIFACT_STUDIO_RENDER_TESTS: "1"
-      ARTIFACT_STUDIO_TEST_BROWSER: ${{ matrix.suite == 'presenter-firefox' && 'firefox' || 'chromium' }}
+      ARTIFACT_STUDIO_TEST_BROWSER: chromium
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
@@ -122,43 +106,44 @@ jobs:
           version: "0.12.23"
           python-version: "3.14"
           enable-cache: true
+          cache-suffix: "browser-${{ matrix.suite }}"
       - run: uv sync --locked
+      - name: Cache Playwright browsers
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.suite }}-${{ hashFiles('uv.lock') }}
       - name: Install Chromium and OS dependencies
-        if: matrix.suite != 'presenter-firefox'
         run: uv run --no-sync playwright install --with-deps chromium --only-shell
-      - name: Install optional text review engine
+      - name: Install text review engine
         run: sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
-      - name: Install Firefox for presentation compatibility
-        if: matrix.suite == 'presenter-firefox'
-        run: uv run --no-sync playwright install --with-deps firefox
       - name: Browser journeys and sandboxed renderer tests
         run: >-
           uv run --no-sync pytest ${{ matrix.tests }}
           --junitxml=test-results/browser-${{ matrix.suite }}.xml
-      - name: Upload screenshots, Playwright traces and server logs
-        if: always()
+      - name: Install Firefox for presentation compatibility
+        if: matrix.suite == 'runtime'
+        run: uv run --no-sync playwright install --with-deps firefox
+      - name: Firefox presentation journeys
+        if: matrix.suite == 'runtime'
+        env:
+          ARTIFACT_STUDIO_TEST_BROWSER: firefox
+        run: uv run --no-sync pytest tests/integration/test_presentation_displays.py --junitxml=test-results/browser-firefox.xml
+      - name: Upload screenshots, Playwright traces and server logs on failure
+        if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: browser-results-${{ matrix.suite }}
           path: test-results/
-          retention-days: 7
+          retention-days: 1
 
   agents:
-    name: Agent integration (${{ matrix.harness }})
+    name: Agent integration
     runs-on: ubuntu-22.04
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - harness: codex
-            package: "@openai/codex@0.166.0"
-          - harness: claude-code
-            package: "@anthropic-ai/claude-code@2.1.316"
     env:
       ARTIFACT_STUDIO_AGENT_TESTS: "1"
-      ARTIFACT_STUDIO_NATIVE_CLIENT_TESTS: "1"
-      ARTIFACT_STUDIO_NATIVE_CLIENT: ${{ matrix.harness }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
@@ -166,21 +151,26 @@ jobs:
           version: "0.12.23"
           python-version: "3.14"
           enable-cache: true
+          cache-suffix: "agents"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "24"
       - run: uv sync --locked
-      - name: Install pinned native agent CLI
-        run: npm install --global --no-audit --no-fund '${{ matrix.package }}'
-      - name: MCP protocol, guarded edits, native configuration and real hook launchers
+      - name: Install pinned native agent CLIs
+        run: npm install --global --no-audit --no-fund '@openai/codex@0.166.0' '@anthropic-ai/claude-code@2.1.316'
+      - name: MCP protocol, guarded edits, authoring recovery and slide insertion
         run: >-
           uv run --no-sync pytest tests/integration/test_agents.py tests/integration/test_authoring_recovery.py
-          tests/integration/test_native_clients.py tests/integration/test_slide_insertion.py
+          tests/integration/test_slide_insertion.py
           --junitxml=test-results/agents.xml
-      - name: Upload client versions, hook output and server logs
-        if: always()
+      - name: Native Codex and Claude Code clients
+        env:
+          ARTIFACT_STUDIO_NATIVE_CLIENT_TESTS: "1"
+        run: uv run --no-sync pytest tests/integration/test_native_clients.py --junitxml=test-results/native-clients.xml
+      - name: Upload client logs on failure
+        if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: agent-results-${{ matrix.harness }}
+          name: agent-results
           path: test-results/
-          retention-days: 7
+          retention-days: 1
