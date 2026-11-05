@@ -12,12 +12,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import NotRequired, TypedDict, cast
+from typing import Literal, Never, NotRequired, TypedDict, cast
 from urllib.parse import parse_qs, urlsplit
+from zipfile import ZipFile
 
 import pytest
 
-from artifact_studio import github_backups
+from artifact_studio import github_backups, workspace_recovery
 from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.github_backups import FullBackupSettings, GitHubBackups
@@ -227,6 +228,21 @@ def archive_name(series: str, *, stamp: str = "20250101T000000Z", token: str = "
     return f"workspace-{series}-{stamp}-{token}-{checksum}.artifact-studio.zip"
 
 
+def forget_verified_fingerprint(service: GitHubBackups, identifier: str) -> None:
+    """Represent a checkpoint saved by an installation predating content fingerprints."""
+    with service._connect() as db:  # pyright: ignore[reportPrivateUsage]
+        row = db.execute(
+            "SELECT document FROM github_backup_state WHERE id=?", (identifier,)
+        ).fetchone()
+        assert row is not None
+        document = cast(dict[str, object], json.loads(str(row[0])))
+        _ = document.pop("verified_fingerprint")
+        _ = db.execute(
+            "UPDATE github_backup_state SET document=? WHERE id=?",
+            (json.dumps(document), identifier),
+        )
+
+
 def test_backup_permission_is_separate_and_defaults_off(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -367,13 +383,295 @@ def test_schedule_survives_restart_and_disabled_setting(
     restarted.tick(now=due - 1)
     assert len(remote.assets) == 1
     restarted.tick(now=due + 1)
-    assert len(remote.assets) == 2
+    unchanged = restarted.state(library.id)
+    assert unchanged.phase == "unchanged"
+    assert unchanged.last_backup_at == first.last_backup_at
+    assert unchanged.archive_name == first.archive_name and unchanged.url == first.url
+    assert len(remote.assets) == 1
     restarted.tick(now=due + 2)
-    assert len(remote.assets) == 2
+    assert len(remote.assets) == 1
     _ = restarted.configure(library.id, FullBackupSettings(enabled=False))
     GitHubBackups(service.store).tick(now=due + 1_000_000)
-    assert len(remote.assets) == 2
+    assert len(remote.assets) == 1
     assert restarted.state(library.id).phase == "disabled"
+
+
+def test_unchanged_scheduled_and_manual_checks_skip_zip_network_and_retention(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated checks keep the confirmed recovery point without creating another ZIP."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True, interval_hours=2))
+    service.tick(now=1_000)
+    first = service.state(library.id)
+    assert first.next_backup_at is not None
+    due = datetime.fromisoformat(first.next_backup_at).timestamp()
+    remote.calls.clear()
+
+    def forbid_zip(*_args: object, **_kwargs: object) -> Never:
+        raise AssertionError("An unchanged workspace must not create a ZIP")
+
+    with monkeypatch.context() as unchanged_patch:
+        unchanged_patch.setattr(workspace_recovery, "ZipFile", forbid_zip)
+        restarted = GitHubBackups(service.store)
+        restarted.tick(now=due)
+        assert restarted.state(library.id).phase == "unchanged"
+        assert restarted.state(library.id).next_backup_at == github_backups._iso(  # pyright: ignore[reportPrivateUsage]
+            due + 2 * 3600
+        )
+        _ = restarted.queue(library.id)
+        restarted.tick(now=due + 1)
+        _ = restarted.configure(
+            library.id, FullBackupSettings(enabled=True, interval_hours=3, keep_count=1)
+        )
+        _ = restarted.queue(library.id)
+        restarted.tick(now=due + 2)
+        state = restarted.state(library.id)
+        assert state.phase == "unchanged" and not state.error
+        assert state.last_backup_at == first.last_backup_at
+        assert state.archive_name == first.archive_name and state.url == first.url
+        assert state.next_backup_at == github_backups._iso(due + 2 + 3 * 3600)  # pyright: ignore[reportPrivateUsage]
+        assert not remote.calls and not remote.deleted
+        assert len(remote.assets) == 1
+
+    _ = service.store.post_design_request(
+        DesignRequestInput(message="A saved discussion changed", request_id="later-change")
+    )
+    _ = service.queue(library.id)
+    service.tick(now=due + 3)
+    assert service.state(library.id).phase == "backed_up"
+    assert service.state(library.id).archive_name != first.archive_name
+    assert len(remote.assets) == 1 and len(remote.deleted) == 1
+
+
+def test_unchanged_check_clears_error_but_preserves_retention_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skipping a duplicate does not claim that an earlier cleanup warning was resolved."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = remote.add(archive_name(service.workspace_id))
+    remote.fail_delete = True
+    _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
+    service.tick(now=1_000)
+    first = service.state(library.id)
+    assert first.warning and first.next_backup_at is not None
+
+    def previous_error(record: github_backups._Checkpoint) -> None:  # pyright: ignore[reportPrivateUsage]
+        record.status.error = "An earlier local check failed"
+        record.status.phase = "error"
+        record.due_at = 2_000
+
+    _ = service._change(library.id, previous_error)  # pyright: ignore[reportPrivateUsage]
+    remote.calls.clear()
+    remote.fail_delete = False
+    GitHubBackups(service.store).tick(now=2_000)
+    state = service.state(library.id)
+    assert state.phase == "unchanged" and not state.error
+    assert state.warning == first.warning
+    assert state.last_backup_at == first.last_backup_at
+    assert not remote.calls and not remote.deleted
+
+
+def test_failed_changed_upload_does_not_checkpoint_its_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed changed snapshot is retried until its remote checksum is confirmed."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True))
+    service.tick(now=1_000)
+    _ = service.store.post_design_request(
+        DesignRequestInput(message="Must be backed up", request_id="retry-change")
+    )
+    _ = service.queue(library.id)
+    remote.wrong_upload_digest = True
+    service.tick(now=2_000)
+    assert service.state(library.id).phase == "error"
+    assert len(remote.assets) == 2
+    remote.wrong_upload_digest = False
+    # Remove the deliberately invalid acknowledgement; it is not a usable recovery point.
+    remote.assets.pop()
+    _ = service.queue(library.id)
+    GitHubBackups(service.store).tick(now=3_000)
+    assert service.state(library.id).phase == "backed_up"
+    assert len(remote.assets) == 2
+    remote.calls.clear()
+    _ = service.queue(library.id)
+    service.tick(now=4_000)
+    assert service.state(library.id).phase == "unchanged" and not remote.calls
+
+
+def test_change_during_upload_is_saved_by_the_next_backup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The verified checkpoint describes the exported snapshot, not later workspace edits."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True))
+    remote.upload_continue.clear()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        exporting = executor.submit(service.tick, 1_000)
+        assert remote.upload_started.wait(timeout=5)
+        try:
+            _ = service.store.post_design_request(
+                DesignRequestInput(message="Edited during upload", request_id="during-upload")
+            )
+        finally:
+            remote.upload_continue.set()
+        exporting.result(timeout=5)
+    first = service.state(library.id)
+    assert first.phase == "backed_up"
+    _ = service.queue(library.id)
+    GitHubBackups(service.store).tick(now=2_000)
+    assert service.state(library.id).phase == "backed_up"
+    assert len(remote.assets) == 2
+    remote.calls.clear()
+    _ = service.queue(library.id)
+    service.tick(now=3_000)
+    assert service.state(library.id).phase == "unchanged" and not remote.calls
+
+
+def test_older_checkpoint_verifies_its_archive_and_skips_duplicate_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An upgrade derives the checkpoint from the existing archive instead of duplicating it."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True))
+    service.tick(now=1_000)
+    first = service.state(library.id)
+    forget_verified_fingerprint(service, library.id)
+    original_zip = workspace_recovery.ZipFile
+
+    def read_only_zip(
+        source: Path,
+        mode: Literal["r", "w", "x", "a"] = "r",
+        compression: int = 0,
+        *,
+        compresslevel: int | None = None,
+    ) -> ZipFile:
+        assert mode == "r", "Migration must not create a duplicate ZIP archive"
+        return original_zip(source, mode, compression, compresslevel=compresslevel)
+
+    monkeypatch.setattr(workspace_recovery, "ZipFile", read_only_zip)
+    remote.calls.clear()
+    restarted = GitHubBackups(service.store)
+    _ = restarted.queue(library.id)
+    restarted.tick(now=2_000)
+    state = restarted.state(library.id)
+    assert state.phase == "unchanged" and len(remote.assets) == 1
+    assert state.last_backup_at == first.last_backup_at
+    assert state.archive_name == first.archive_name and state.url == first.url
+    assert any("Accept: application/octet-stream" in call for call in remote.calls)
+    assert not any(call[:2] == ("release", "upload") for call in remote.calls)
+    assert not remote.deleted
+    remote.calls.clear()
+    again = GitHubBackups(service.store)
+    _ = again.queue(library.id)
+    again.tick(now=3_000)
+    assert again.state(library.id).phase == "unchanged" and not remote.calls
+
+
+def test_older_checkpoint_uploads_changed_content_after_verifying_previous_archive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Migration preserves the distinction between the prior archive and current saved edits."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
+    service.tick(now=1_000)
+    first = service.state(library.id)
+    forget_verified_fingerprint(service, library.id)
+    _ = service.store.post_design_request(
+        DesignRequestInput(message="Changed before upgrading", request_id="upgrade-change")
+    )
+    remote.calls.clear()
+    restarted = GitHubBackups(service.store)
+    _ = restarted.queue(library.id)
+    restarted.tick(now=2_000)
+    state = restarted.state(library.id)
+    assert state.phase == "backed_up" and state.archive_name != first.archive_name
+    assert len(remote.assets) == 1 and len(remote.deleted) == 1
+    download_index = next(
+        index
+        for index, call in enumerate(remote.calls)
+        if "Accept: application/octet-stream" in call
+    )
+    upload_index = next(
+        index for index, call in enumerate(remote.calls) if call[:2] == ("release", "upload")
+    )
+    assert download_index < upload_index
+    remote.calls.clear()
+    _ = restarted.queue(library.id)
+    restarted.tick(now=3_000)
+    assert restarted.state(library.id).phase == "unchanged" and not remote.calls
+
+
+def test_older_checkpoint_missing_archive_creates_a_verified_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remotely removed recovery point is replaced without requiring a checkpoint reset."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
+    service.tick(now=1_000)
+    first = service.state(library.id)
+    forget_verified_fingerprint(service, library.id)
+    remote.assets.clear()
+    remote.fail_upload = True
+    _ = service.queue(library.id)
+    service.tick(now=2_000)
+    assert service.state(library.id).phase == "error"
+    assert not service._record(library.id).verified_fingerprint  # pyright: ignore[reportPrivateUsage]
+    assert not remote.deleted
+    remote.fail_upload = False
+    _ = service.queue(library.id)
+    GitHubBackups(service.store).tick(now=3_000)
+    state = service.state(library.id)
+    assert state.phase == "backed_up" and state.archive_name != first.archive_name
+    assert len(remote.assets) == 1 and not remote.deleted
+    remote.calls.clear()
+    _ = service.queue(library.id)
+    GitHubBackups(service.store).tick(now=4_000)
+    assert service.state(library.id).phase == "unchanged" and not remote.calls
+
+
+@pytest.mark.parametrize("failure", ["corrupt", "invalid_archive"])
+def test_older_checkpoint_requires_a_valid_previous_archive_before_seeding_fingerprint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    """An untrusted old recovery point cannot suppress uploads or permit pruning."""
+    service, library, remote = setup(tmp_path, monkeypatch)
+    _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
+    service.tick(now=1_000)
+    first = service.state(library.id)
+    forget_verified_fingerprint(service, library.id)
+    if failure == "corrupt":
+        remote.corrupt_download = True
+    else:
+        invalid = b"This is not a workspace archive."
+        digest = hashlib.sha256(invalid).hexdigest()
+        name = (
+            first.archive_name[: -len(".artifact-studio.zip") - 64]
+            + digest
+            + ".artifact-studio.zip"
+        )
+        asset = remote.assets[0]
+        asset["name"] = name
+        asset["size"] = len(invalid)
+        asset["digest"] = "sha256:" + digest
+        remote.contents[asset["id"]] = invalid
+
+        def invalid_receipt(record: github_backups._Checkpoint) -> None:  # pyright: ignore[reportPrivateUsage]
+            record.status.archive_name = name
+
+        _ = service._change(library.id, invalid_receipt)  # pyright: ignore[reportPrivateUsage]
+    remote.calls.clear()
+    restarted = GitHubBackups(service.store)
+    _ = restarted.queue(library.id)
+    restarted.tick(now=2_000)
+    state = restarted.state(library.id)
+    assert state.phase == "error" and state.error and state.next_backup_at is not None
+    assert datetime.fromisoformat(state.next_backup_at).timestamp() > 2_000
+    assert state.last_backup_at == first.last_backup_at
+    assert not restarted._record(library.id).verified_fingerprint  # pyright: ignore[reportPrivateUsage]
+    assert not any(call[:2] == ("release", "upload") for call in remote.calls)
+    assert not remote.deleted
 
 
 def test_failed_schedule_retries_after_persistent_backoff(
@@ -407,6 +705,9 @@ def test_private_repository_checked_before_every_upload_and_download(
     service.tick(now=1_000)
     assert len(remote.assets) == 1
     remote.private = False
+    _ = service.store.post_design_request(
+        DesignRequestInput(message="Changed private discussion", request_id="private-change")
+    )
     _ = service.queue(library.id)
     service.tick(now=2_000)
     assert service.state(library.id).phase == "error"
@@ -592,15 +893,17 @@ def test_disabling_during_export_prevents_upload_and_retention(
     """Disabling backups takes effect before a completed local ZIP can leave this machine."""
     service, library, remote = setup(tmp_path, monkeypatch)
     old = remote.add(archive_name(service.workspace_id))
-    original_export = WorkspaceRecovery.export_archive
+    original_export = WorkspaceRecovery.export_archive_if_changed
 
-    def export_and_disable(recovery: WorkspaceRecovery, destination: Path) -> ArchiveSummary:
-        summary = original_export(recovery, destination)
+    def export_and_disable(
+        recovery: WorkspaceRecovery, destination: Path, previous_fingerprint: str
+    ) -> ArchiveSummary:
+        summary = original_export(recovery, destination, previous_fingerprint)
         assert destination.is_file()
         _ = service.configure(library.id, FullBackupSettings(enabled=False))
         return summary
 
-    monkeypatch.setattr(WorkspaceRecovery, "export_archive", export_and_disable)
+    monkeypatch.setattr(WorkspaceRecovery, "export_archive_if_changed", export_and_disable)
     _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
     service.tick(now=1_000)
     state = service.state(library.id)
@@ -618,22 +921,24 @@ def test_disable_from_new_service_completes_while_workspace_export_is_locked(
     export_started = threading.Event()
     export_continue = threading.Event()
     original_export = cast(
-        Callable[[WorkspaceRecovery, Path], ArchiveSummary],
-        WorkspaceRecovery._export_archive,  # pyright: ignore[reportPrivateUsage]
+        Callable[[WorkspaceRecovery, Path, str | None], ArchiveSummary],
+        WorkspaceRecovery._prepare_archive,  # pyright: ignore[reportPrivateUsage]
     )
 
-    def pause_locked_export(recovery: WorkspaceRecovery, destination: Path) -> ArchiveSummary:
+    def pause_locked_export(
+        recovery: WorkspaceRecovery, destination: Path, previous_fingerprint: str | None = None
+    ) -> ArchiveSummary:
         export_started.set()
         if not export_continue.wait(timeout=5):
             raise ValueError("Fictional export was not released")
-        return original_export(recovery, destination)
+        return original_export(recovery, destination, previous_fingerprint)
 
     def disable_from_new_service() -> None:
         fresh = GitHubBackups(service.store)
         state = fresh.configure(library.id, FullBackupSettings(enabled=False))
         assert state.phase == "disabled" and not state.settings.enabled
 
-    monkeypatch.setattr(WorkspaceRecovery, "_export_archive", pause_locked_export)
+    monkeypatch.setattr(WorkspaceRecovery, "_prepare_archive", pause_locked_export)
     _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
     with ThreadPoolExecutor(max_workers=2) as executor:
         exporting = executor.submit(service.tick, 1_000)

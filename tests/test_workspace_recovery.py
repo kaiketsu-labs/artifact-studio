@@ -1,7 +1,9 @@
 """Disaster recovery checks using fictional, isolated workspace collections."""
 
 import base64
+import hashlib
 import json
+import os
 import shutil
 import sqlite3
 from pathlib import Path
@@ -10,6 +12,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
+from artifact_studio.artifact_context import artifact_context
 from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.libraries import Libraries, LibraryInput
@@ -87,6 +90,27 @@ def snapshot(store: Store, destination: Path) -> Path:
         target = destination / item.path
         target.parent.mkdir(parents=True, exist_ok=True)
         _ = shutil.copyfile(item.local_path, target)
+    return destination
+
+
+def archive_with_database(source: Path, destination: Path, database: Path) -> Path:
+    """Replace a fictional archive's database while retaining valid object checksums."""
+    data = database.read_bytes()
+    checksum = hashlib.sha256(data).hexdigest()
+    with ZipFile(source) as archive:
+        manifest = WorkspaceArchive.model_validate_json(archive.read(ARCHIVE_MANIFEST))
+        objects = {item.sha256: archive.read("objects/" + item.sha256) for item in manifest.files}
+    manifest.files = [
+        item.model_copy(update={"sha256": checksum, "size": len(data)})
+        if item.area == "database"
+        else item
+        for item in manifest.files
+    ]
+    objects[checksum] = data
+    with ZipFile(destination, "w", ZIP_DEFLATED) as archive:
+        archive.writestr(ARCHIVE_MANIFEST, manifest.model_dump_json())
+        for checksum in {item.sha256 for item in manifest.files}:
+            archive.writestr("objects/" + checksum, objects[checksum])
     return destination
 
 
@@ -492,3 +516,244 @@ def test_local_archive_excludes_generated_dependencies_but_keeps_authoring_sourc
     (authoring / "external.html").symlink_to(tmp_path / "outside.html")
     with pytest.raises(ValueError, match="symbolic links"):
         _ = WorkspaceRecovery(store).export_archive(tmp_path / "unsafe.zip")
+
+
+def test_archive_fingerprint_skips_timestamp_and_host_only_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repeated checks ignore leases, context receipts, file times and SQLite page layout."""
+    store = workspace(tmp_path / "original")
+    _, _, artifact_id = populate(store, tmp_path)
+    note = store.root / "notes.txt"
+    _ = note.write_text("Saved notes")
+    recovery = WorkspaceRecovery(store)
+    first = recovery.export_archive(tmp_path / "first.zip")
+    repeated = recovery.export_archive(tmp_path / "second.zip")
+    assert first.fingerprint == repeated.fingerprint and len(first.fingerprint) == 64
+    assert not first.unchanged and not repeated.unchanged
+    assert first.sha256 != repeated.sha256
+    os.utime(note, ns=(note.stat().st_atime_ns, note.stat().st_mtime_ns + 1_000_000_000))
+    store.mark_agent_check("fictional-deck", 30)
+    _ = artifact_context(store, artifact_id=artifact_id, record_delivery=True)
+    _ = artifact_context(store, artifact_id=artifact_id, record_delivery=True)
+    with store.connect() as db:
+        _ = db.execute(
+            "INSERT INTO review_sessions(harness,session_id,deck,expires_at) "
+            "VALUES ('codex','fictional-host','fictional-deck',9999999999)"
+        )
+        _ = db.execute("CREATE TABLE github_backup_state(id TEXT PRIMARY KEY, document TEXT)")
+        _ = db.execute("INSERT INTO github_backup_state VALUES ('host',?)", ("x" * 200_000,))
+    with store.connect() as db:
+        _ = db.execute("DELETE FROM github_backup_state")
+    with store.connect() as db:
+        _ = db.execute("VACUUM")
+
+    def unexpected_archive(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise AssertionError("Unchanged workspace must not construct a ZIP archive")
+
+    monkeypatch.setattr("artifact_studio.workspace_recovery.ZipFile", unexpected_archive)
+    destination = tmp_path / "unchanged.zip"
+    result = recovery.export_archive_if_changed(destination, first.fingerprint)
+    assert result.unchanged and result.fingerprint == first.fingerprint
+    assert result.sha256 == "" and result.path == str(destination)
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "file",
+        "directory",
+        "mode",
+        "workspace_context",
+        "project_context",
+        "chat",
+        "approval",
+        "attachment",
+        "retained_revision",
+        "workflow_mode",
+        "sequence",
+    ],
+)
+def test_archive_fingerprint_tracks_saved_full_workspace_state(tmp_path: Path, change: str) -> None:
+    """Each saved archive area participates, including private state and old source revisions."""
+    store = workspace(tmp_path / "original")
+    _, project_id, artifact_id = populate(store, tmp_path)
+    note = store.root / "notes.txt"
+    _ = note.write_text("Saved notes")
+    registry = ArtifactStore(store)
+    artifact = registry.get_artifact(artifact_id)
+    recovery = WorkspaceRecovery(store)
+    first = recovery.export_archive(tmp_path / "first.zip")
+    if change == "file":
+        _ = note.write_text("Edited notes")
+    elif change == "directory":
+        (store.root / "empty-folder").mkdir()
+    elif change == "mode":
+        note.chmod(0o755)
+    elif change == "workspace_context":
+        with store.connect() as db:
+            _ = db.execute(
+                "INSERT INTO workspace_settings VALUES ('authoring_instructions','Saved context')"
+            )
+    elif change == "project_context":
+        project = next(project for project in registry.list_projects() if project.id == project_id)
+        _ = (Path(project.source_path) / "README.md").write_text("Edited project context")
+    elif change == "chat":
+        _ = store.post_design_request(
+            DesignRequestInput(message="Saved discussion", request_id="fingerprint-chat-001")
+        )
+    elif change == "approval":
+        _ = registry.approve(artifact_id, artifact.content_hash, False)
+    elif change == "attachment":
+        _ = store.save_feedback_files("fictional-deck", [("saved.txt", b"Saved attachment")])
+    elif change == "retained_revision":
+        retained = Path(artifact.source_path).parent / "revisions/1/files/index.html"
+        _ = retained.write_text("Edited retained source")
+    elif change == "workflow_mode":
+        _ = store.set_mode("fictional-deck", "batch")
+    elif change == "sequence":
+        with store.connect() as db:
+            _ = db.execute("INSERT INTO design_chat VALUES (50,'removed','hash','{}')")
+            _ = db.execute("DELETE FROM design_chat WHERE id=50")
+    else:
+        raise AssertionError(change)
+    destination = tmp_path / "changed.zip"
+    result = recovery.export_archive_if_changed(destination, first.fingerprint)
+    assert not result.unchanged and result.fingerprint != first.fingerprint
+    assert destination.is_file()
+    unchanged = tmp_path / "unchanged.zip"
+    assert recovery.export_archive_if_changed(unchanged, result.fingerprint).unchanged
+    assert not unchanged.exists()
+
+
+def test_conditional_archive_still_rejects_forged_database_schema(tmp_path: Path) -> None:
+    """A matching checkpoint never bypasses the archive's untrusted-schema validation."""
+    store = workspace(tmp_path / "original")
+    _ = populate(store, tmp_path)
+    recovery = WorkspaceRecovery(store)
+    first = recovery.export_archive(tmp_path / "first.zip")
+    with store.connect() as db:
+        _ = db.execute("CREATE VIEW forged AS SELECT * FROM artifact_projects")
+    destination = tmp_path / "forged.zip"
+    with pytest.raises(ValueError, match="cannot contain views"):
+        _ = recovery.export_archive_if_changed(destination, first.fingerprint)
+    assert not destination.exists()
+
+
+def test_archive_fingerprint_canonicalizes_typed_database_rows(tmp_path: Path) -> None:
+    """Rowids and insertion order are physical; SQLite value types and schema are saved state."""
+    store = workspace(tmp_path / "original")
+    with store.connect() as db:
+        _ = db.execute("CREATE TABLE saved_values(value)")
+        _ = db.executemany(
+            "INSERT INTO saved_values VALUES (?)", [(1,), (1.0,), ("1",), (b"1",), (None,)]
+        )
+    recovery = WorkspaceRecovery(store)
+    first = recovery.export_archive(tmp_path / "first.zip")
+    with store.connect() as db:
+        _ = db.execute("DELETE FROM saved_values")
+        _ = db.executemany(
+            "INSERT INTO saved_values VALUES (?)", [(None,), (b"1",), ("1",), (1.0,), (1,)]
+        )
+    assert recovery.export_archive_if_changed(
+        tmp_path / "reordered.zip", first.fingerprint
+    ).unchanged
+    with store.connect() as db:
+        _ = db.execute("DELETE FROM saved_values WHERE typeof(value)='integer'")
+        _ = db.execute("INSERT INTO saved_values VALUES (1.0)")
+    changed = recovery.export_archive_if_changed(tmp_path / "typed.zip", first.fingerprint)
+    assert not changed.unchanged and changed.fingerprint != first.fingerprint
+    with store.connect() as db:
+        _ = db.execute("CREATE INDEX saved_value_index ON saved_values(value)")
+    schema = recovery.export_archive_if_changed(tmp_path / "schema.zip", changed.fingerprint)
+    assert not schema.unchanged and schema.fingerprint != changed.fingerprint
+
+
+def test_fingerprint_archive_matches_export_and_extracts_only_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Existing verified archives establish the same checkpoint without restoring authored files."""
+    store = workspace(tmp_path / "original")
+    _ = populate(store, tmp_path)
+    recovery = WorkspaceRecovery(store)
+    summary = recovery.export_archive(tmp_path / "previous.zip")
+    extract = WorkspaceRecovery._extract  # pyright: ignore[reportPrivateUsage]
+
+    def database_only(
+        source: Path, manifest: WorkspaceArchive, stage: Path, *, metadata_only: bool = False
+    ) -> None:
+        assert [item.area for item in manifest.files] == ["database"]
+        assert not manifest.directories
+        extract(source, manifest, stage, metadata_only=metadata_only)
+
+    monkeypatch.setattr(WorkspaceRecovery, "_extract", staticmethod(database_only))
+    assert recovery.fingerprint_archive(Path(summary.path)) == summary.fingerprint
+    _ = (store.root / "new-notes.txt").write_text("Changed since previous archive")
+    assert recovery.fingerprint_archive(Path(summary.path)) == summary.fingerprint
+
+
+def test_fingerprint_older_archive_normalizes_transient_saved_database_state(
+    tmp_path: Path,
+) -> None:
+    """Pre-checkpoint archives' listening timestamps and delivery receipts are not saved edits."""
+    store = workspace(tmp_path / "original")
+    _, _, artifact_id = populate(store, tmp_path)
+    recovery = WorkspaceRecovery(store)
+    summary = recovery.export_archive(tmp_path / "previous.zip")
+    store.mark_agent_check("fictional-deck", 30)
+    _ = artifact_context(store, artifact_id=artifact_id, record_delivery=True)
+    database = tmp_path / "older.sqlite3"
+    with store.connect() as source, sqlite3.connect(database) as destination:
+        source.backup(destination)
+    older = archive_with_database(Path(summary.path), tmp_path / "older.zip", database)
+    assert recovery.fingerprint_archive(older) == summary.fingerprint
+    assert recovery.export_archive_if_changed(
+        tmp_path / "unchanged.zip", summary.fingerprint
+    ).unchanged
+
+
+@pytest.mark.parametrize(
+    "forgery", ["view", "trigger", "invalid_database", "corrupt_object", "path"]
+)
+def test_fingerprint_archive_rejects_forged_metadata_schema_and_objects(
+    tmp_path: Path, forgery: str
+) -> None:
+    """A migration checkpoint requires every archive object and the database schema to validate."""
+    store = workspace(tmp_path / "original")
+    _ = populate(store, tmp_path)
+    recovery = WorkspaceRecovery(store)
+    summary = recovery.export_archive(tmp_path / "previous.zip")
+    archive_path = Path(summary.path)
+    if forgery in {"view", "trigger", "invalid_database"}:
+        database = tmp_path / "forged.sqlite3"
+        if forgery == "invalid_database":
+            _ = database.write_bytes(b"invalid database bytes")
+        else:
+            with store.connect() as source, sqlite3.connect(database) as destination:
+                source.backup(destination)
+                if forgery == "view":
+                    _ = destination.execute("CREATE VIEW forged AS SELECT * FROM artifact_projects")
+                else:
+                    _ = destination.execute(
+                        "CREATE TRIGGER forged AFTER UPDATE ON artifact_items "
+                        "BEGIN DELETE FROM artifact_projects; END"
+                    )
+        archive_path = archive_with_database(archive_path, tmp_path / "forged.zip", database)
+    else:
+        with ZipFile(archive_path) as archive:
+            content = {name: archive.read(name) for name in archive.namelist()}
+        manifest = WorkspaceArchive.model_validate_json(content[ARCHIVE_MANIFEST])
+        if forgery == "path":
+            manifest.files[0].path = "../escape"
+            content[ARCHIVE_MANIFEST] = manifest.model_dump_json().encode()
+        else:
+            item = next(item for item in manifest.files if item.area == "collection")
+            content["objects/" + item.sha256] = b"x" * item.size
+        archive_path = tmp_path / "forged.zip"
+        with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+            for name, data in content.items():
+                archive.writestr(name, data)
+    with pytest.raises(ValueError):
+        _ = recovery.fingerprint_archive(archive_path)

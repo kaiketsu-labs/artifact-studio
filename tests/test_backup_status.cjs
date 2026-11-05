@@ -36,3 +36,14 @@ test('a full backup cannot hide an artifact sync failure or local unsaved notes'
   assert.equal(backupSummary(libraries,[{library_id:'one',phase:'error'}],'saved',false,full).phase,'error');
   assert.equal(backupSummary(libraries,[{library_id:'one',phase:'synced'}],'pending',false,full).phase,'pending');
 });
+test('an unchanged workspace reports success only after a verified full backup exists',()=>{
+  const libraries=[repo('one',false)],full=[{library_id:'one',settings:{enabled:true},phase:'unchanged',last_backup_at:''}];
+  const summary=()=>backupSummary(libraries,[],'saved',false,full);
+  assert.equal(summary().phase,'pending');
+  assert.doesNotMatch(summary().text,/succeeded/);
+  full[0].last_backup_at='2026-11-05T10:30:00Z';
+  assert.equal(summary().phase,'synced');
+  assert.match(summary().text,/Last GitHub backup succeeded/);
+  assert.equal(backupSummary(libraries,[],'pending',false,full).phase,'pending');
+  assert.equal(backupSummary(libraries,[],'saved',true,full).phase,'error');
+});

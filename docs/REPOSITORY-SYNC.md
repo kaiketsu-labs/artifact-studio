@@ -2,7 +2,7 @@
 
 The **storage icon in the library or beside Menu in the slide editor** opens **Storage and backup**; **Menu → Storage and backup** opens the same dialog. It shows the actual working-folder path, a copy-path control, local save status, connected references and GitHub backup outcomes. Connections default to **reference only**. Agents can inspect earlier decks, brand masters, assets and writing tone without uploading your workspace. Public repositories may be references; uploads require a private repository. Local reference folders remain read-only and their latest files are read directly.
 
-Hover or focus an icon for its explanation. The circular arrow **Refresh references** downloads the latest reference copies from GitHub; the upload arrow **Back up now** sends current saved source files to the private repository. A failed source backup keeps the upload icon for **Retry GitHub backup**. Full workspace archives have separate settings and a **Back up full workspace now** action. **Esc** dismisses a tooltip, then closes the dialog on a second press.
+Hover or focus an icon for its explanation. The circular arrow **Refresh references** downloads the latest reference copies from GitHub; the upload arrow **Back up now** sends current saved source files to the private repository. A failed source backup keeps the upload icon for **Retry GitHub backup**. Full workspace archives have separate settings and a **Check now** action. **Esc** dismisses a tooltip, then closes the dialog on a second press.
 
 ## Local saving and handoff
 
@@ -18,11 +18,15 @@ To transfer one presentation, use **Save presentation** and **Import presentatio
 
 **Full workspace backups** is a separate, off-by-default setting for each connected private GitHub repository. It uploads the same full ZIP as **Save workspace**: collection sources, saved review chats and drafts, approvals, retained revisions, navigation and app-owned attachments. This includes private material that current-source Git backup excludes. Host credentials, connected agent sessions, reference checkouts and upload permissions are excluded. Use a repository whose collaborators may access that private material.
 
-Connect the repository as a reference first, expand **Full workspace backups**, and check **Back up full workspace**. Set **Every (hours)** to **1–720** (default **24**) and **Keep latest backups** to **1–100** (default **7**), then choose **Save backup settings**. GitHub CLI must already be authenticated with `gh auth login`; the same GitHub credentials are used for release assets. Enabling starts the first backup. **Back up full workspace now** runs another backup; the section shows the last result, next scheduled time and any error or cleanup warning.
+Connect the repository as a reference, expand **Full workspace backups**, and choose **Enable full backups**. Set **Check every (hours)** to **1–720** (default **24**) and **Keep latest (backups)** to **1–100** (default **7**), then choose **Save settings**. GitHub CLI must already be authenticated with `gh auth login`. Enabling starts the first check; **Check now** runs one on demand. Only changes since the last verified backup create a new archive. The card shows **Last backup**, **Next check** and any error or cleanup warning; **Details** explains the schedule and retention.
 
 ![Full GitHub backup settings with a schedule, retention limit and delivery status.](screenshots/full-github-backup.png)
 
-The schedule runs while the Studio server is running, including with the browser tab closed. It cannot run while Studio is stopped or the computer is asleep. The next scheduled time survives a restart; if it was missed, reopening runs one backup rather than recreating every missed interval. Failed uploads retain earlier backups and retry automatically with increasing delays; **Back up full workspace now** also retries on demand. Export may take time and serialize application writes while it captures saved state. Save unfinished browser edits and pause direct filesystem edits before backing up; those external edits are not an atomic part of the database snapshot.
+**No changes since last backup** skips ZIP creation, upload and retention cleanup, preserves the last backup's timestamp and link, and advances **Next check**. Saved sources, notes, chats, approvals, retained history, attachments, directories and file modes count as changes. Status polling, delivery bookkeeping, file modification times alone and SQLite's physical layout do not. **Save workspace** always creates the requested local download.
+
+![An unchanged full GitHub backup keeps the last backup time and shows the next scheduled check.](screenshots/full-github-backup-unchanged.png)
+
+Checks run while the Studio server is running, including with the browser tab closed. The next check survives a restart; reopening catches up one missed check without creating duplicate archives. Failed uploads retain earlier backups and retry with increasing delays; **Check now** also retries. Only a verified upload advances the saved-content checkpoint. Save unfinished browser edits and pause direct filesystem edits before backing up: export serializes application writes, but external edits do not share that transaction.
 
 ### Where GitHub stores the archives
 

@@ -81,6 +81,8 @@ def test_full_backup_requires_save_and_preserves_drafts_during_polling(
     if narrow:
         page.set_viewport_size({"width": 390, "height": 844})
         page.emulate_media(color_scheme="dark")
+    else:
+        page.set_viewport_size({"width": 1440, "height": 900})
     if editor:
         open_editor(page, live_app)
     else:
@@ -91,22 +93,30 @@ def test_full_backup_requires_save_and_preserves_drafts_during_polling(
     page.locator("#storage-status").click()
     dialog = page.get_by_role("dialog", name="Storage and backup")
     full = dialog.locator(f'details[data-full-backup="{LIBRARY_ID}"]')
-    expect(full.locator("summary")).to_contain_text("Full workspace backups")
-    full.locator("summary").click()
-    enabled = full.get_by_role("checkbox", name="Back up full workspace", exact=True)
-    interval = full.get_by_role("spinbutton", name="Every (hours)", exact=True)
-    retained = full.get_by_role("spinbutton", name="Keep latest backups", exact=True)
+    expect(full.locator(":scope > summary")).to_contain_text("Full workspace backups")
+    full.locator(":scope > summary").click()
+    enabled = full.get_by_role("checkbox", name="Enable full backups", exact=True)
+    interval = full.get_by_role("spinbutton", name="Check every (hours)", exact=True)
+    retained = full.get_by_role("spinbutton", name="Keep latest (backups)", exact=True)
     expect(enabled).not_to_be_checked()
     expect(interval).to_have_value("24")
     expect(retained).to_have_value("7")
     expect(interval).to_have_attribute("min", "1")
     expect(interval).to_have_attribute("max", "720")
     expect(retained).to_have_attribute("max", "100")
-    expect(full).to_contain_text("saved chats")
+    expect(full).to_contain_text("Saved files, chats")
     expect(full).to_contain_text("approvals")
     expect(full).to_contain_text("attachments")
-    expect(full).to_contain_text("version history")
-    expect(full).to_contain_text("private GitHub")
+    expect(full).to_contain_text("history")
+    expect(full).to_contain_text("Stored in this private repository.")
+    expect(full).to_contain_text("Only changed workspaces are backed up.")
+    help_details = full.locator(".full-backup-help")
+    expect(help_details.locator("p")).to_be_hidden()
+    help_details.locator("summary").click()
+    expect(help_details.locator("p")).to_be_visible()
+    expect(help_details).to_contain_text("Studio must be running")
+    expect(help_details).to_contain_text("after a verified upload")
+    help_details.locator("summary").click()
     enabled.focus()
     enabled.press("Space")
     interval.fill("6")
@@ -114,15 +124,28 @@ def test_full_backup_requires_save_and_preserves_drafts_during_polling(
     with page.expect_request("**/api/workspace/github-backups"):
         expect(enabled).to_be_checked()
     assert writes == []
-    save = full.get_by_role("button", name="Save backup settings", exact=True)
+    save = full.get_by_role("button", name="Save settings", exact=True)
     retained.focus()
     retained.press("Tab")
     expect(save).to_be_focused()
     save.press("Enter")
     expect(full).to_contain_text("Next")
+    # Keep the normal opt-in actions reachable without another scroll on a
+    # typical desktop. The narrow card still fits one readable group of fields.
+    assert full.evaluate("node => node.getBoundingClientRect().height <= 420") is True
+    if not narrow:
+        assert (
+            full.locator(".full-backup-actions").evaluate(
+                "node => { const box = node.getBoundingClientRect(); "
+                "const dialog = node.closest('dialog').getBoundingClientRect(); "
+                "return box.top >= dialog.top && "
+                "box.bottom <= Math.min(dialog.bottom, innerHeight); }"
+            )
+            is True
+        )
     assert writes == [("settings", {"enabled": True, "interval_hours": 6, "keep_count": 3})]
     with page.expect_response(f"**/api/libraries/{LIBRARY_ID}/full-backup/run"):
-        full.get_by_role("button", name="Back up full workspace now", exact=True).click()
+        full.get_by_role("button", name="Check now", exact=True).click()
     assert writes[-1] == ("run", {})
     state.update(
         phase="backed_up",
@@ -147,6 +170,75 @@ def test_full_backup_requires_save_and_preserves_drafts_during_polling(
     assert dialog.evaluate("dialog => dialog.scrollWidth <= dialog.clientWidth") is True
     assert full.evaluate("details => details.scrollWidth <= details.clientWidth") is True
     _ = page.screenshot(path=str(artifacts / "full-backup-settings.png"))
+
+
+@pytest.mark.parametrize("narrow", [False, True])
+def test_unchanged_manual_check_preserves_success_and_saved_settings(
+    page: Page, live_app: RunningApp, artifacts: Path, narrow: bool
+) -> None:
+    """A completed no-change check keeps the last delivery and remains usable."""
+    state, writes = backup_fixture(page, live_app)
+    state.update(
+        settings={"enabled": True, "interval_hours": 6, "keep_count": 3},
+        phase="backed_up",
+        last_backup_at="2026-11-05T10:30:00Z",
+        next_backup_at="2026-11-05T16:30:00Z",
+        archive_name="fictional-verified-workspace.artifact-studio.zip",
+        url="https://github.com/fictional-studio/private-workspace/releases/301",
+    )
+    if narrow:
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.emulate_media(color_scheme="dark")
+    open_editor(page, live_app)
+    storage = page.locator("#storage-status")
+    expect(storage).to_have_attribute("data-phase", "synced")
+    storage.click()
+    dialog = page.get_by_role("dialog", name="Storage and backup")
+    full = dialog.locator(f'details[data-full-backup="{LIBRARY_ID}"]')
+    full.locator(":scope > summary").click()
+    status = full.locator("[data-full-status]")
+    delivered = status.locator('time[datetime="2026-11-05T10:30:00Z"]')
+    expect(delivered).to_be_visible()
+    delivered_text = delivered.inner_text()
+    run = full.get_by_role("button", name="Check now", exact=True)
+    run.click()
+    expect(full).to_contain_text("Check queued")
+    expect(run).to_be_disabled()
+    assert writes == [("run", {})]
+    state.update(phase="unchanged", next_backup_at="2026-11-05T17:30:00Z")
+    expect(full).to_contain_text("No changes since last backup")
+    expect(status.locator(".sync-state")).to_have_class("sync-state sync-synced")
+    expect(storage).to_have_attribute("data-phase", "synced")
+    expect(storage).to_have_attribute(
+        "title", "Saved on this device. Last GitHub backup succeeded."
+    )
+    expect(delivered).to_have_text(delivered_text)
+    expect(status).to_contain_text("Next check")
+    expect(status.locator('time[datetime="2026-11-05T17:30:00Z"]')).to_be_visible()
+    expect(status.locator('time[datetime="2026-11-05T16:30:00Z"]')).to_have_count(0)
+    expect(full.get_by_role("checkbox", name="Enable full backups", exact=True)).to_be_checked()
+    expect(full.get_by_role("spinbutton", name="Check every (hours)", exact=True)).to_have_value(
+        "6"
+    )
+    expect(full.get_by_role("spinbutton", name="Keep latest (backups)", exact=True)).to_have_value(
+        "3"
+    )
+    expect(full.locator("[data-full-unsaved]")).to_be_hidden()
+    expect(run).to_be_enabled()
+    # A second keyboard invocation proves a no-change result is terminal and does
+    # not strand the manual control in its queued/disabled state.
+    run.focus()
+    run.press("Enter")
+    expect(full).to_contain_text("Check queued")
+    assert writes == [("run", {}), ("run", {})]
+    state.update(phase="unchanged", next_backup_at="2026-11-05T18:30:00Z")
+    expect(full).to_contain_text("No changes since last backup")
+    expect(run).to_be_enabled()
+    expect(delivered).to_have_text(delivered_text)
+    expect(status.locator('time[datetime="2026-11-05T18:30:00Z"]')).to_be_visible()
+    assert dialog.evaluate("node => node.scrollWidth <= node.clientWidth") is True
+    assert full.evaluate("node => node.scrollWidth <= node.clientWidth") is True
+    _ = page.screenshot(path=str(artifacts / "full-backup-unchanged.png"))
 
 
 def test_full_github_backup_loads_on_demand_and_restores_another_workspace(

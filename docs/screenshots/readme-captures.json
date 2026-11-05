@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-11-05T14:13:30.910843+00:00",
+  "generated_at": "2026-11-05T14:33:20.624145+00:00",
   "fixture": "Fictional Studio Blue and Team launch fixtures; previously selected audience presentation illustrations",
   "verification": "README local links resolve; screenshot and illustration bytes match current provenance manifests.",
   "readme_screenshot_count": 20,
   "readme_illustration_count": 4,
-  "documentation_screenshots_verified": 78,
+  "documentation_screenshots_verified": 79,
   "screenshots": {
     "docs/assets/workspace.png": {
       "viewport": {
@@ -1056,28 +1056,28 @@
     "docs/screenshots/full-github-backup.png": {
       "viewport": {
         "width": 1440,
-        "height": 1200
+        "height": 900
       },
       "pixels": [
         1440,
-        1200
+        900
       ],
-      "captured_at": "2026-11-05T14:11:04.359250+00:00",
-      "sha256": "b6f509c4bf38749bc2528dfd53993b935f1a19196d09b22e53c0b7d6cf88c858",
+      "captured_at": "2026-11-05T14:32:27.958761+00:00",
+      "sha256": "0855f5d5e936f0a4ab859b022be70a2ab06d386de862d70e5aaf62b23f496eed",
       "manifest": "docs/screenshots/full-backup-captures.json",
       "readme_reference": false
     },
     "docs/screenshots/full-github-backup-dark.png": {
       "viewport": {
         "width": 1440,
-        "height": 1200
+        "height": 900
       },
       "pixels": [
         1440,
-        1200
+        900
       ],
-      "captured_at": "2026-11-05T14:11:05.489362+00:00",
-      "sha256": "48c01c5a83b37bdd0810f584a94466950a62c210e7fe3e62e14f0942cd45a65d",
+      "captured_at": "2026-11-05T14:32:29.195871+00:00",
+      "sha256": "c1de4aa5b38e837e79617ef76cae6c6b820f1c23c85975df5d243eb0c29a7195",
       "manifest": "docs/screenshots/full-backup-captures.json",
       "readme_reference": false
     },
@@ -1090,22 +1090,22 @@
         390,
         844
       ],
-      "captured_at": "2026-11-05T14:11:06.327940+00:00",
-      "sha256": "c410e371671002ce9368a4987403c8f2237cbba649172b665a18eba4511e0be4",
+      "captured_at": "2026-11-05T14:32:30.098461+00:00",
+      "sha256": "1fc2b5ee37784c78292ad541d4bee2ef9b434d2fc8a91e11994866236ba25e63",
       "manifest": "docs/screenshots/full-backup-captures.json",
       "readme_reference": false
     },
     "docs/screenshots/full-github-backup-restore.png": {
       "viewport": {
         "width": 1440,
-        "height": 1200
+        "height": 900
       },
       "pixels": [
         1440,
-        1200
+        900
       ],
-      "captured_at": "2026-11-05T14:11:07.750082+00:00",
-      "sha256": "c33d24c4cddb333751885df547fa65bfd1ad94e60073f25b8a2082454dce31a4",
+      "captured_at": "2026-11-05T14:32:36.262716+00:00",
+      "sha256": "a44c402d3913bd757d3ee70995d0388a7e0e52838ea3bf1a01f8ff3655386abb",
       "manifest": "docs/screenshots/full-backup-captures.json",
       "readme_reference": false
     },
@@ -1152,6 +1152,20 @@
       "manifest": "docs/screenshots/presentation-illustrations.json",
       "kind": "presentation-illustration",
       "readme_reference": true
+    },
+    "docs/screenshots/full-github-backup-unchanged.png": {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "pixels": [
+        1440,
+        900
+      ],
+      "captured_at": "2026-11-05T14:32:35.114530+00:00",
+      "sha256": "6e87138ee0643bfea1421e33495a3cac35741f82469096a0a4a8b3382d3ff20f",
+      "manifest": "docs/screenshots/full-backup-captures.json",
+      "readme_reference": false
     }
   },
   "illustrations": {
