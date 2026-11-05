@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.integration.support import DECK_ID, RunningApp
+from artifact_studio.models import SlidePatch
+from artifact_studio.storage import digest
+from tests.integration.support import DECK_ID, RunningApp, markup
 from tests.integration.test_artifact_workspace import register
 from tests.integration.test_browser import open_editor
 
@@ -243,6 +245,19 @@ def test_phone_history_preview_and_restore_are_not_clipped(
     live_app: RunningApp, page: Page, artifacts: Path, width: int, height: int
 ) -> None:
     """Stack the history list above a full-width preview and usable restore controls."""
+    current = live_app.store.read(DECK_ID).slides[0]
+    for index in range(2):
+        current = live_app.store.revise(
+            DECK_ID,
+            current.id,
+            digest(current.model_dump_json()),
+            f"phone-history-{index}",
+            SlidePatch(
+                html=markup("Review together").replace(
+                    "Create, review and present.", f"Saved context {index + 1}."
+                )
+            ),
+        )
     # Exercise actual history/preview/layout; thumbnail capture has its own renderer checks.
     page.route(
         "**/history/thumbnail?*",
@@ -258,7 +273,7 @@ def test_phone_history_preview_and_restore_are_not_clipped(
     open_editor(page, live_app)
     page.get_by_role("button", name="Version history", exact=True).click()
     timeline = page.locator("dialog.version-history")
-    timeline.locator(".version-list summary").filter(has_text="Earlier save").click()
+    timeline.locator(".version-list details[data-group] > summary").click()
     timeline.locator(".version-list [data-version]").last.click()
     restore = timeline.get_by_role("button", name="Restore version", exact=True)
     expect(restore).to_be_enabled()
@@ -293,7 +308,7 @@ def test_phone_history_preview_and_restore_are_not_clipped(
     if width == 320 and height == 844:
         before = live_app.store.read(DECK_ID).slides[0].revision
         page.get_by_role("button", name="Version history", exact=True).click()
-        timeline.locator(".version-list summary").filter(has_text="Earlier save").click()
+        timeline.locator(".version-list details[data-group] > summary").click()
         timeline.locator(".version-list [data-version]").last.click()
         timeline.get_by_role("button", name="Restore version", exact=True).click()
         timeline.get_by_role("button", name="Restore", exact=True).click()

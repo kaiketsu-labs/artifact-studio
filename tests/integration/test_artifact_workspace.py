@@ -4,12 +4,14 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from playwright.sync_api import Page, expect
 
 from artifact_studio.artifact_models import ArtifactView, ProjectView
 from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.review import ReviewHookInput, Reviews
 from tests.integration.support import RunningApp
 
 pytestmark = [
@@ -41,6 +43,54 @@ def register(
     _ = (markdown / "index.md").write_text("# Fictional notes\n\nA useful paragraph.")
     notes = store.register_artifact(first.id, "Fictional notes", markdown, "index.md")
     return store, artifact, notes, second, source
+
+
+@pytest.mark.parametrize(("width", "theme"), [(1280, "light"), (390, "dark")])
+def test_artifact_live_connection_preserves_draft_when_review_ends(
+    live_app: RunningApp,
+    page: Page,
+    tmp_path: Path,
+    artifacts: Path,
+    width: int,
+    theme: Literal["light", "dark"],
+) -> None:
+    """Show real lease availability and end listening without discarding a typed comment."""
+    _, item, _, _, _ = register(live_app, tmp_path)
+    reviews = Reviews(live_app.store)
+    body = ReviewHookInput(
+        harness="codex",
+        session_id="browser-review",
+        event="PostToolUse",
+        artifact_id=item.id,
+        auto_start=True,
+    )
+    assert reviews.bind(body).listening
+    page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(color_scheme=theme)
+    page.goto(f"{live_app.url}/?artifact={item.id}")
+    live = page.locator('[data-mode="live"]')
+    expect(live).to_have_attribute("title", "Codex connected · browser-review")
+    expect(page.get_by_role("button", name="End review", exact=True)).to_be_visible()
+    feedback = page.get_by_role("textbox", name="Feedback for Fictional page")
+    page.locator('[data-mode="batch"]').click()
+    expect(page.locator('[data-mode="batch"]')).to_have_attribute("aria-pressed", "true")
+    feedback.fill("A private batch request")
+    feedback.press("Enter")
+    release = page.get_by_role("button", name="Send batch", exact=False)
+    expect(release).to_be_enabled()
+    assert page.locator("html").evaluate("element => element.scrollWidth <= innerWidth")
+    bounds = release.bounding_box()
+    assert bounds is not None and bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= width
+    _ = page.screenshot(path=str(artifacts / "artifact-live-connected.png"), full_page=True)
+    feedback.fill("Keep my unsent draft")
+    page.get_by_role("button", name="End review", exact=True).click()
+    expect(live).to_have_attribute("title", "Automatic continuation unavailable")
+    expect(feedback).to_have_value("Keep my unsent draft")
+    assert not reviews.pending(body).listening
+    assert not reviews.bind(body).listening
+    assert reviews.bind(body.model_copy(update={"start_review": True})).listening
+    page.reload()
+    expect(live).to_have_attribute("title", "Codex connected · browser-review")
 
 
 def test_direct_edit_and_clean_view(live_app: RunningApp, page: Page, tmp_path: Path) -> None:

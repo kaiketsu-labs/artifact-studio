@@ -39,7 +39,9 @@ MAX_TOTAL_BYTES = 20_000_000_000
 CHUNK_BYTES = 1024 * 1024
 MAX_METADATA_BYTES = 16_000_000
 STATE_DIRECTORIES = ("feedback-files", "design-inbox")
-HOST_TABLES = frozenset({"libraries", "library_auto_sync", "review_sessions", "design_presence"})
+HOST_TABLES = frozenset(
+    {"libraries", "library_auto_sync", "review_sessions", "review_pauses", "design_presence"}
+)
 SECRET_NAMES = frozenset({"credentials.json", "secrets.json", "secrets.txt", ".env"})
 PATH_KEYS = frozenset({"path", "local_path", "source_path", "original_source_path", "source_root"})
 

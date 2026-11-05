@@ -36,6 +36,12 @@ AUTO_REVIEW_TOOLS = {
     "append_slides",
     "reply_to_feedback",
     "reply_to_presentation_feedback",
+    "get_artifact",
+    "register_artifact",
+    "revise_artifact",
+    "capture_artifact",
+    "read_artifact_feedback",
+    "reply_to_artifact_feedback",
 }
 
 
@@ -236,19 +242,29 @@ def normalize(
     if tool == "start_live_review":
         message["start_review"] = True
     deck = arguments.get("deck_id")
+    artifact = arguments.get("artifact_id")
     if tool == "get_working_context" and not deck:
         deck = _object(response.get("presentation_context")).get("deck_id")
-        if not deck and (arguments.get("artifact_id") or arguments.get("project_id")):
+        artifact = artifact or _object(response.get("artifact")).get("id")
+        if not deck and not artifact and arguments.get("project_id"):
             return {}
+    if tool == "get_artifact":
+        deck = response.get("legacy_deck_id") or deck
+    if tool == "register_artifact":
+        artifact = response.get("id")
     if isinstance(deck, str) and deck:
         message["deck_id"] = deck
+        if tool in AUTO_REVIEW_TOOLS:
+            message["auto_start"] = True
+    elif isinstance(artifact, str) and artifact:
+        message["artifact_id"] = artifact
         if tool in AUTO_REVIEW_TOOLS:
             message["auto_start"] = True
     elif tool in INBOX_TOOLS:
         message["deck_id"] = None
     else:
         return {}
-    if tool in {"read_feedback", "wait_for_feedback"}:
+    if tool in {"read_feedback", "wait_for_feedback", "read_artifact_feedback"}:
         cursor = response.get("next_cursor")
         if isinstance(cursor, int) and not isinstance(cursor, bool):
             message["seen_cursor"] = cursor

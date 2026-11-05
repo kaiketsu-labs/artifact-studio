@@ -1,6 +1,8 @@
 # Documentation screenshots
 
-Screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
+App screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
+
+The README also reuses four audience-facing slides from the product presentation **Working with agents**, with the user's explicit permission: the [cover](../assets/agents-cover.png), [workflow](../assets/agents-loop.png), [agent context](../assets/agents-context.png) and [Live/Batch](../assets/agents-modes.png). These are static illustrations in the presentation's Pixel Studio styling, distinct from app screenshots. Completed 1600 × 900 captures preserve the original typography, colours and pixel artwork; notes, chats, source documents and design assets are excluded. [Illustration provenance](presentation-illustrations.json) records source slide IDs, revision hashes and image hashes. The canonical presentation remains local and unchanged. GitHub displays the completed frames; these PNGs do not contain the presentation's animations.
 
 Design reference captures also include the [formatted text preview](design-text-preview.png) and VS Code-style editor in [light](../assets/design-text-editor.png), [dark](design-text-editor-dark.png) and [narrow](design-text-editor-mobile.png) layouts. They use fictional Markdown and actual Edit, Save and Cancel actions.
 

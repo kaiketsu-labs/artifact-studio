@@ -165,11 +165,17 @@ def tool_errors[**P, T](function: Callable[P, T]) -> Callable[P, T]:
     return wrapped
 
 
-def workspace_links(deck_id: str, ctx: Context[None, Request] | None) -> dict[str, str]:
+def workspace_links(
+    deck_id: str, ctx: Context[None, Request] | None, artifact_id: str = ""
+) -> dict[str, str]:
     """Use the actual MCP request origin; direct Python calls receive relative URLs."""
     request = ctx.request_context.request if ctx else None
     origin = str(request.base_url).rstrip("/") if request else ""
-    query = "?" + urlencode({"deck": deck_id}) if deck_id else ""
+    query = ""
+    if artifact_id:
+        query = "?" + urlencode({"artifact": artifact_id})
+    elif deck_id:
+        query = "?" + urlencode({"deck": deck_id})
     links = {"workspace_url": f"{origin}/{query}", "mcp_url": f"{origin}/mcp"}
     if deck_id:
         links["audience_url"] = f"{origin}/api/decks/{deck_id}/audience"
@@ -1395,15 +1401,16 @@ def start_live_review(
     deck_id: str = "",
     ctx: Context[None, Request] | None = None,
     include_guide: bool = False,
+    artifact_id: str = "",
 ) -> dict[str, object]:
-    """Request installed Codex/Claude Code review hooks for this deck or the design inbox.
+    """Request installed Codex/Claude Code hooks for an artifact, deck or design inbox.
 
     Read get_authoring_guide(topic="live_review") for one-time hook setup and host trust.
     This call alone cannot wake an idle client or install its hooks.
     The host's PostToolUse hook connects after this response; check get_live_review_status next.
     include_guide=True adds the full setup guide; normally load its topic on demand.
     """
-    result = get_live_review_status(deck_id, ctx)
+    result = get_live_review_status(deck_id, ctx, artifact_id=artifact_id)
     result["status"] = "awaiting_host_hook"
     return {
         **result,
@@ -1422,20 +1429,22 @@ def start_live_review(
 @mcp.tool(annotations=READ)
 @tool_errors
 def get_live_review_status(
-    deck_id: str = "", ctx: Context[None, Request] | None = None
+    deck_id: str = "", ctx: Context[None, Request] | None = None, artifact_id: str = ""
 ) -> dict[str, object]:
     """Check a target's active host hook lease without starting or renewing review.
 
-    Omit deck_id for the design inbox. A connected reviewer can belong to another host session.
+    Select artifact_id or deck_id; omit both for the design inbox.
+    A connected reviewer can belong to another host session.
     """
-    if deck_id:
-        _ = store.read(deck_id)
-    connection = Reviews(store).connection(deck_id)
+    reviews = Reviews(store)
+    target = reviews.target(deck_id, artifact_id)
+    connection = reviews.connection(target)
     return {
         "deck_id": deck_id,
+        **({"artifact_id": artifact_id} if artifact_id else {}),
         "status": "connected" if connection["review_connected"] else "unavailable",
         **connection,
-        **workspace_links(deck_id, ctx),
+        **workspace_links(deck_id, ctx, artifact_id),
     }
 
 

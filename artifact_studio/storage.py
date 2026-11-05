@@ -186,6 +186,9 @@ class Store:
                     design_cursor INTEGER NOT NULL DEFAULT 0,
                     expires_at REAL NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
                     PRIMARY KEY(harness, session_id));
+                CREATE TABLE IF NOT EXISTS review_pauses (
+                    harness TEXT NOT NULL, session_id TEXT NOT NULL, target TEXT NOT NULL,
+                    PRIMARY KEY(harness, session_id, target));
                 CREATE TABLE IF NOT EXISTS approvals (
                     deck TEXT, slide TEXT, content_hash TEXT,
                     PRIMARY KEY(deck, slide));

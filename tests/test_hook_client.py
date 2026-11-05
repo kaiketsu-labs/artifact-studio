@@ -26,15 +26,16 @@ def test_successful_presentation_work_requests_automatic_binding(harness: str, t
     assert client.normalize(harness, "PostToolUse", "artifact-studio", payload) == {}
 
 
-def test_artifact_context_binds_only_an_explicit_legacy_presentation() -> None:
-    """Do not attach the design inbox or a generic artifact from an unrelated context read."""
+def test_artifact_context_binds_the_selected_artifact_or_legacy_deck() -> None:
+    """Attach only the selected artifact, preserving legacy deck and discovery behavior."""
     payload: dict[str, object] = {
         "session_id": "author",
         "tool_name": "mcp__artifact_studio__get_working_context",
         "tool_input": {"artifact_id": "artifact-one"},
         "tool_response": {"structuredContent": {"artifact": {"id": "artifact-one"}}},
     }
-    assert client.normalize("codex", "PostToolUse", "artifact-studio", payload) == {}
+    normalized = client.normalize("codex", "PostToolUse", "artifact-studio", payload)
+    assert normalized["artifact_id"] == "artifact-one" and normalized["auto_start"] is True
     payload["tool_response"] = {
         "structuredContent": {
             "presentation_context": {"deck_id": "2026-11-04-story"},
@@ -45,6 +46,43 @@ def test_artifact_context_binds_only_an_explicit_legacy_presentation() -> None:
     payload["tool_input"] = {}
     payload["tool_response"] = {"structuredContent": {"designs": []}}
     assert "auto_start" not in client.normalize("codex", "PostToolUse", "artifact-studio", payload)
+
+
+@pytest.mark.parametrize("harness", ["codex", "claude-code"])
+@pytest.mark.parametrize(
+    "tool",
+    [
+        "get_artifact",
+        "register_artifact",
+        "revise_artifact",
+        "capture_artifact",
+        "read_artifact_feedback",
+        "reply_to_artifact_feedback",
+    ],
+)
+def test_generic_authoring_and_feedback_attach_without_echoing_content(
+    harness: str, tool: str
+) -> None:
+    """Normalize common artifact tools and acknowledge only successful delivery-feed reads."""
+    arguments = {} if tool == "register_artifact" else {"artifact_id": "artifact-one"}
+    payload: dict[str, object] = {
+        "session_id": "author",
+        "tool_name": "mcp__artifact_studio__" + tool,
+        "tool_input": arguments,
+        "tool_response": {
+            "structuredContent": {
+                "id": "artifact-one",
+                "next_cursor": 17,
+                "message": "private body",
+            }
+        },
+    }
+    result = client.normalize(harness, "PostToolUse", "artifact-studio", payload)
+    assert result["artifact_id"] == "artifact-one" and result["auto_start"] is True
+    assert ("seen_cursor" in result) is (tool == "read_artifact_feedback")
+    assert "private body" not in json.dumps(result)
+    payload["tool_response"] = {"isError": True, "structuredContent": {"id": "artifact-one"}}
+    assert client.normalize(harness, "PostToolUse", "artifact-studio", payload) == {}
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])

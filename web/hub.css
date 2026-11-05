@@ -29,3 +29,7 @@
 .hub-type-group h2>.ui-icon{width:16px;height:16px;color:var(--hub-muted)}
 .hub-type-group h2>span{font-size:11px;font-weight:400;color:var(--hub-muted);margin-left:2px}
 @media(max-width:650px){.hub-library-toolbar{gap:10px;margin-bottom:20px}.hub-library-toolbar .hub-chips{flex-basis:100%}.hub-sort{margin-left:auto}}
+
+.hub-live-dot.is-connected{background:var(--hub-green);border-color:var(--hub-green)}
+.hub-end-review{margin-left:auto;margin-right:16px;padding:4px}
+.hub-release{white-space:nowrap}
