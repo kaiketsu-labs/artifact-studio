@@ -34,6 +34,8 @@ caches skip browser downloads. Chromium renderer sandboxing remains enabled.
 Only the runtime suite installs Tesseract, where the real OCR checks run.
 Completed browser installs are cached before tests, so a later test failure does
 not force the next attempt to download the browsers again.
+Isolated integration servers disable automatic upstream release checks; the version
+journeys simulate release metadata at the network boundary while exercising the real UI.
 
 Pytest prints the 15 slowest setup/call/teardown durations in each test step's log
 to help distinguish test time from installation and cache time in subsequent runs.

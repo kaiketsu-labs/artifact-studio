@@ -17,6 +17,31 @@ from pathlib import Path
 RELEASE_REFS = "refs/artifact-studio/releases/"
 
 
+def stable_version(tag: str) -> tuple[int, ...] | None:
+    """Parse the stable release tag format used by the update channel."""
+    if len(tag) > 80:
+        return None
+    match = re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag)
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def latest_release_tag(tags: list[str]) -> str | None:
+    """Ignore prereleases and order versions numerically."""
+    releases = [(version, tag) for tag in tags if (version := stable_version(tag)) is not None]
+    return max(releases)[1] if releases else None
+
+
+def discover_release(project: Path) -> str | None:
+    """Read remote tags without changing source, local tags or the current branch."""
+    output = command(project, "/usr/bin/git", "ls-remote", "--tags", "origin", timeout=15)
+    tags = [
+        parts[1].removeprefix("refs/tags/")
+        for line in output.splitlines()
+        if len(parts := line.split()) == 2 and parts[1].startswith("refs/tags/")
+    ]
+    return latest_release_tag(tags)
+
+
 class UpdateError(RuntimeError):
     """Report an update failure and whether the previous server can restart."""
 
@@ -116,16 +141,9 @@ def release_plan(project: Path) -> UpdatePlan:
         f"+refs/tags/*:{RELEASE_REFS}*",
     )
     tags = git(project, "for-each-ref", "--format=%(refname:strip=3)", RELEASE_REFS)
-    releases: list[tuple[tuple[int, ...], str]] = []
-    for tag in tags.splitlines():
-        if len(tag) > 80:
-            continue
-        match = re.fullmatch(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag)
-        if match:
-            releases.append((tuple(int(part) for part in match.groups()), tag))
-    if not releases:
+    tag = latest_release_tag(tags.splitlines())
+    if tag is None:
         raise UpdateError("No stable release tag (vX.Y.Z) has been published on origin yet.")
-    _, tag = max(releases)
     target = git(project, "rev-parse", "--verify", f"{RELEASE_REFS}{tag}^{{commit}}")
     try:
         git(project, "merge-base", "--is-ancestor", target, "origin/main")

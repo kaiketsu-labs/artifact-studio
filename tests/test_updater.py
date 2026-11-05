@@ -326,3 +326,17 @@ def test_native_check_apply_protocol_carries_the_selected_release(
     assert updater.main() == 0
     assert json.loads(capsys.readouterr().out) == {"target": checkout.target, "updated": True}
     assert_private_state(checkout)
+
+
+def test_release_badge_discovery_is_read_only_on_dirty_feature_branches(checkout: Checkout) -> None:
+    """Version checks can run during development without changing refs or source."""
+    updater.git(checkout.project, "checkout", "-b", "fictional-work")
+    source = checkout.project / "app.txt"
+    source.write_text("unfinished work")
+    refs = updater.git(checkout.project, "for-each-ref", "--format=%(refname) %(objectname)")
+    assert updater.discover_release(checkout.project) == "v0.2.0"
+    assert updater.git(checkout.project, "branch", "--show-current") == "fictional-work"
+    assert (
+        updater.git(checkout.project, "for-each-ref", "--format=%(refname) %(objectname)") == refs
+    )
+    assert source.read_text() == "unfinished work"

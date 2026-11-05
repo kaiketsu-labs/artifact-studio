@@ -33,6 +33,23 @@ Closing a browser tab does not stop the server. Stopping or restarting the serve
 
 ## Existing workspaces and updates
 
+The Mac menu always shows the installed app's **Version**, including while the
+server is stopped. A filled download-circle icon and the available version appear
+when a newer stable release is found. In the web library or slide editor, choose
+**Menu → About Artifact Studio** for the running app version and release notes;
+a small blue dot on Menu indicates an available update. The menu-bar controller
+reads its installed bundle version; the web app reads the running server version.
+They normally match after updating the server and controller together.
+
+![Web menu with installed version and update indicator](screenshots/app-version-menu.png)
+
+The [narrow About dialog](screenshots/app-version-mobile.png) also fits the editor.
+These captures use a fictional newer release to demonstrate the available-update state.
+
+Release checks are read-only and cached for an hour. Offline checks leave the
+installed version visible without claiming that the app is up to date. Set
+`ARTIFACT_STUDIO_UPDATE_CHECKS=0` on the server to disable automatic release checks.
+
 The defaults are `~/Documents/Artifacts`, this checkout's `.state/review.sqlite3`, and port 8790. Override them at installation with `--collection`, `--database` and `--port`. App configuration lives in `Contents/Resources/configuration.json`; logs live in `~/Library/Logs/labs.kaiketsu.artifact-studio/server.log`.
 
 Keep this checkout and its `.venv` in place. Choose **Update…** in the Mac menu to update the server, browser interface and native controller together. It selects the highest stable `vMAJOR.MINOR.PATCH` release tag published on `origin`, using numeric version order. Prerelease tags and non-version tags are ignored; untagged changes on `main` are not installed. The confirmation names the selected release. No new GitHub API login is needed: the updater reuses the checkout's Git connection.

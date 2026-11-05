@@ -35,6 +35,7 @@ from .agent_io import (
     rule_fields,
     slide_receipt,
 )
+from .app_info import AppInfo
 from .artifact_api import artifact_routes
 from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
@@ -1610,6 +1611,9 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(title="Artifact Studio", version=__version__, lifespan=lifespan)
+app_info = AppInfo(
+    PROJECT, __version__, enabled=os.environ.get("ARTIFACT_STUDIO_UPDATE_CHECKS", "1") != "0"
+)
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
 
 
@@ -1708,6 +1712,12 @@ def copilot_setup_document(document: Literal["guide", "instructions"]) -> FileRe
 def health() -> dict[str, str]:
     """Identify a ready local server without loading presentations or exposing private context."""
     return {"service": "artifact-studio", "status": "ready", "version": __version__}
+
+
+@app.get("/api/app-info")
+def application_info() -> dict[str, str | bool | None]:
+    """Expose installed version and cached public release metadata, without workspace data."""
+    return app_info.status()
 
 
 @app.get("/api/decks")
