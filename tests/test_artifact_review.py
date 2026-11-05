@@ -10,6 +10,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import ValidationError
 
 from artifact_studio import app as service
+from artifact_studio import artifacts as artifact_module
 from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactView
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.review import ReviewHookInput, Reviews
@@ -154,3 +155,26 @@ def test_artifact_switch_resets_only_target_cursor_and_rejects_ambiguous_targets
         _ = service.get_live_review_status(artifact_id=first.id, deck_id="some-deck")
     with pytest.raises(ToolError):
         _ = service.start_live_review(artifact_id="missing")
+
+
+def test_binding_and_status_do_not_rescan_artifact_files(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep connection setup and lease reads independent of artifact bundle size."""
+    item = artifact(store, tmp_path, "html")
+
+    def forbid_scan(*args: object, **kwargs: object) -> object:
+        """Fail if a lifecycle metadata operation attempts to read authored file bodies."""
+        pytest.fail("Review connection must not rescan artifact files.")
+
+    monkeypatch.setattr(artifact_module, "read_tree", forbid_scan)
+    reviews = Reviews(store)
+    body = ReviewHookInput(
+        harness="codex",
+        session_id="metadata-only",
+        event="PostToolUse",
+        artifact_id=item.id,
+        auto_start=True,
+    )
+    assert reviews.bind(body).listening
+    assert service.get_live_review_status(artifact_id=item.id)["status"] == "connected"

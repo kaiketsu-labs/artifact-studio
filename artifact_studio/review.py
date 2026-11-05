@@ -53,7 +53,10 @@ class Reviews:
         if deck_id and artifact_id:
             raise ValueError("Select deck_id or artifact_id, not both.")
         if artifact_id:
-            return self.artifacts.get_artifact(artifact_id).id
+            with self.store.connect() as db:
+                if db.execute("SELECT 1 FROM artifact_items WHERE id=?", (artifact_id,)).fetchone():
+                    return artifact_id
+            deck_id = artifact_id
         if deck_id:
             _ = self.store.read(deck_id)
         return deck_id
