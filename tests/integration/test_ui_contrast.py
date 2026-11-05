@@ -179,7 +179,7 @@ def test_library_design_badges_and_history_metadata(
         readable(label)
     page.goto(f"{live_app.url}/?artifact={artifact['id']}")
     page.get_by_role("button", name="Version history", exact=True).click()
-    readable(page.locator(".version-list summary small"))
+    readable(page.locator(".version-list .version-group-date"))
     readable(page.locator('.version-list [aria-current="true"] .version-caption small'))
     page.keyboard.press("Escape")
     page.goto(live_app.url + "/?view=designs")
