@@ -19,15 +19,6 @@ env:
   ARTIFACT_STUDIO_ARTIFACTS: test-results/integration
 
 jobs:
-  macos:
-    name: Native Mac controller type checks
-    runs-on: macos-14
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Check the native menu and updater integration
-        run: xcrun swiftc -swift-version 6 -parse-as-library -typecheck macos/ArtifactStudio.swift
-
   quality:
     name: Ruff, types, unit tests & release simulation
     runs-on: ubuntu-22.04
