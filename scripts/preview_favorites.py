@@ -13,7 +13,7 @@ from pathlib import Path
 from playwright.sync_api import Browser, sync_playwright
 
 from artifact_studio.artifacts import ArtifactStore
-from artifact_studio.favorites import Favorites, StarInput
+from artifact_studio.favorites import DescriptionInput, Favorites, StarInput
 from scripts.screenshot_fixture import seed
 from tests.integration.support import DECK_ID, RunningApp, running_app
 
@@ -52,6 +52,13 @@ def seed_favorites(app: RunningApp, root: Path) -> None:
     _ = favorite.set(StarInput(kind="artifact", artifact_id=DECK_ID, starred=True))
     for deck, slide in ((DECK_ID, "workflow"), (DECK_ID, "interactive"), (other.id, "story")):
         _ = favorite.set(StarInput(kind="slide", artifact_id=deck, slide_id=slide, starred=True))
+    for deck, slide, description in (
+        (DECK_ID, "workflow", "Clear three-step process."),
+        (other.id, "story", "Two-column comparison with space for evidence."),
+    ):
+        _ = favorite.describe(
+            deck, slide, DescriptionInput(description=description, expected_description="")
+        )
 
 
 def prepare_covers(app: RunningApp, browser: Browser) -> None:

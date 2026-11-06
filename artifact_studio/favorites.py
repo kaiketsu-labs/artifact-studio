@@ -11,7 +11,7 @@ from pydantic import Field
 from .artifacts import ArtifactStore
 from .interactive import prepare_document
 from .models import FileInput, Slide, StrictModel
-from .storage import Store, digest
+from .storage import ConflictError, Store, digest
 from .visuals import CaptureOptions, snapshot
 
 
@@ -30,6 +30,13 @@ class ReferenceInput(StrictModel):
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class DescriptionInput(StrictModel):
+    """A short human description, scoped to a single favorite slide."""
+
+    description: str = Field(max_length=300)
+    expected_description: str = Field(max_length=300)
+
+
 class FavoriteSlide(StrictModel):
     """Discover references without sending their source or notes into startup context."""
 
@@ -39,6 +46,7 @@ class FavoriteSlide(StrictModel):
     title: str
     number: int
     content_hash: str
+    description: str = ""
     reference_error: str = ""
 
 
@@ -48,11 +56,17 @@ class Favorites:
     def __init__(self, store: Store) -> None:
         self.store = store
         with store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
             _ = db.execute(
                 "CREATE TABLE IF NOT EXISTS favorites ("
                 "kind TEXT NOT NULL, artifact TEXT NOT NULL, slide TEXT NOT NULL, "
+                "description TEXT NOT NULL DEFAULT '', "
                 "PRIMARY KEY(kind, artifact, slide))"
             )
+            if "description" not in {row[1] for row in db.execute("PRAGMA table_info(favorites)")}:
+                _ = db.execute(
+                    "ALTER TABLE favorites ADD COLUMN description TEXT NOT NULL DEFAULT ''"
+                )
 
     def index(self) -> dict[str, list[str]]:
         """Return only bookmark identifiers, including temporarily unavailable slides."""
@@ -80,7 +94,7 @@ class Favorites:
         with self.store.connect() as db:
             if body.starred:
                 _ = db.execute(
-                    "INSERT OR IGNORE INTO favorites VALUES (?,?,?)",
+                    "INSERT OR IGNORE INTO favorites(kind, artifact, slide) VALUES (?,?,?)",
                     (body.kind, body.artifact_id, body.slide_id),
                 )
             else:
@@ -90,9 +104,46 @@ class Favorites:
                 )
         return self.index()
 
+    def _descriptions(self) -> dict[str, str]:
+        """Read only human bookmark context, never presentation notes or agent guidance."""
+        with self.store.connect() as db:
+            return {
+                cast(str, row[0]) + "/" + cast(str, row[1]): cast(str, row[2])
+                for row in db.execute(
+                    "SELECT artifact, slide, description FROM favorites WHERE kind='slide'"
+                )
+            }
+
+    def describe(self, deck_id: str, slide_id: str, body: DescriptionInput) -> str:
+        """Save or clear a description without overwriting another editor's change."""
+        description = body.description.strip()
+        with self.store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT description FROM favorites WHERE kind='slide' AND artifact=? AND slide=?",
+                (deck_id, slide_id),
+            ).fetchone()
+            if row is None:
+                raise ValueError("This slide is no longer a favorite. Reopen Favorite slides.")
+            if row[0] not in {body.expected_description, description}:
+                raise ConflictError(
+                    "Description changed elsewhere. Reopen it to see the latest version."
+                )
+            _ = db.execute(
+                "UPDATE favorites SET description=? WHERE kind='slide' AND artifact=? AND slide=?",
+                (description, deck_id, slide_id),
+            )
+        return description
+
+    @staticmethod
+    def _reference_token(visual_token: str, description: str) -> str:
+        """Bind an optional description to the exact source selected in the picker."""
+        return digest(visual_token + "\n" + description) if description else visual_token
+
     def slides(self) -> list[FavoriteSlide]:
         """Resolve bookmarks by stable IDs, keeping presentation order within each deck."""
-        wanted = set(self.index()["slides"])
+        descriptions = self._descriptions()
+        wanted = set(descriptions)
         result: list[FavoriteSlide] = []
         for item in self.store.list_decks():
             deck_id = item["id"]
@@ -101,9 +152,11 @@ class Favorites:
             deck = self.store.read(deck_id)
             for number, slide in enumerate(deck.slides, 1):
                 if deck_id + "/" + slide.id in wanted:
+                    description = descriptions[deck_id + "/" + slide.id]
                     token, error = "", ""
                     try:
                         _, token = self._prepare(deck_id, slide, number)
+                        token = self._reference_token(token, description)
                     except (ValueError, FileNotFoundError) as reason:
                         error = str(reason)
                     result.append(
@@ -114,6 +167,7 @@ class Favorites:
                             title=slide.title,
                             number=number,
                             content_hash=token,
+                            description=description,
                             reference_error=error,
                         )
                     )
@@ -134,16 +188,15 @@ class Favorites:
 
     def reference(self, deck_id: str, slide_id: str, expected: str) -> FileInput:
         """Freeze one chosen visual as an owned chat attachment, without private notes."""
-        if deck_id + "/" + slide_id not in self.index()["slides"]:
+        description = self._descriptions().get(deck_id + "/" + slide_id)
+        if description is None:
             raise ValueError("This slide is no longer a favorite. Reopen Favorite slides.")
         deck = self.store.read(deck_id)
         slide = self.store.locate(deck, slide_id)
         original_hash = self.store.content_hash(deck_id, slide)
         document, token = self._prepare(deck_id, slide, deck.slides.index(slide) + 1)
-        if token != expected:
-            raise ValueError(
-                "This slide changed. Reopen Favorite slides to see the latest version."
-            )
+        if self._reference_token(token, description) != expected:
+            raise ValueError("This slide or its description changed. Reopen Favorite slides.")
         provenance = json.dumps(
             {
                 "role": "read-only visual reference",
@@ -153,17 +206,20 @@ class Favorites:
                 "title": slide.title,
                 "content_hash": original_hash,
                 "reference_hash": expected,
+                **({"description": description} if description else {}),
             }
         ).replace("<", r"\u003c")
         document = document.replace(
-            "</head>",
-            '<script type="application/json" id="artifact-studio-slide-reference">'
-            + provenance
-            + "</script></head>",
+            '<meta charset="utf-8">',
+            '<meta charset="utf-8"><script type="application/json" '
+            'id="artifact-studio-slide-reference">' + provenance + "</script>",
             1,
         )
         current = self.store.locate(self.store.read(deck_id), slide_id)
-        if self.store.content_hash(deck_id, current) != original_hash:
+        if (
+            self.store.content_hash(deck_id, current) != original_hash
+            or self._descriptions().get(deck_id + "/" + slide_id) != description
+        ):
             raise ValueError("This slide changed while attaching. Reopen Favorite slides.")
         data = document.encode()
         if len(data) > 25_000_000:
@@ -190,6 +246,10 @@ def favorite_routes(get_store: Callable[[], Store]) -> APIRouter:
     @router.get("/api/favorites/slides")
     def slides() -> list[FavoriteSlide]:
         return Favorites(get_store()).slides()
+
+    @router.post("/api/favorites/slides/{deck_id}/{slide_id}/description")
+    def description(deck_id: str, slide_id: str, body: DescriptionInput) -> dict[str, str]:
+        return {"description": Favorites(get_store()).describe(deck_id, slide_id, body)}
 
     @router.post("/api/favorites/slides/{deck_id}/{slide_id}/reference")
     def reference(deck_id: str, slide_id: str, body: ReferenceInput) -> FileInput:

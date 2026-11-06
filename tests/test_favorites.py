@@ -1,13 +1,15 @@
 """Bookmark metadata must not change source; references must retain the chosen visual."""
 
 import base64
+import json
+import re
 from pathlib import Path
 
 import pytest
 
-from artifact_studio.favorites import Favorites, StarInput
+from artifact_studio.favorites import DescriptionInput, Favorites, StarInput
 from artifact_studio.models import Slide, SlidePatch
-from artifact_studio.storage import Store, digest
+from artifact_studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
 
 DECK = "2026-11-05-favorites"
@@ -172,3 +174,87 @@ def test_reference_rejects_changed_root_script_even_when_native_slide_hash_is_un
     assert original == store.content_hash(DECK, store.read(DECK).slides[0])
     with pytest.raises(ValueError, match="changed"):
         _ = favorites.reference(DECK, slide.id, before)
+
+
+def test_description_migrates_old_bookmarks_and_preserves_slide_state(favorites: Favorites) -> None:
+    store = favorites.store
+    with store.connect() as db:
+        _ = db.execute("DROP TABLE favorites")
+        _ = db.execute(
+            "CREATE TABLE favorites(kind TEXT, artifact TEXT, slide TEXT, "
+            "PRIMARY KEY(kind, artifact, slide))"
+        )
+        _ = db.execute("INSERT INTO favorites VALUES ('slide', ?, 'cover')", (DECK,))
+    restored = Favorites(store)
+    assert restored.slides()[0].description == ""
+    before = store.view(DECK), (store.folder(DECK) / "index.html").read_bytes()
+    assert (
+        restored.describe(
+            DECK,
+            "cover",
+            DescriptionInput(
+                description="  A spacious comparison layout.  ", expected_description=""
+            ),
+        )
+        == "A spacious comparison layout."
+    )
+    assert Favorites(store).slides()[0].description == "A spacious comparison layout."
+    assert "description" not in restored.index()
+    assert (store.view(DECK), (store.folder(DECK) / "index.html").read_bytes()) == before
+    # Idempotent re-starring retains context; explicitly removing the favorite clears it.
+    star(restored)
+    assert restored.slides()[0].description == "A spacious comparison layout."
+    star(restored, active=False)
+    star(restored)
+    assert restored.slides()[0].description == ""
+
+
+def test_description_conflicts_clear_and_absent_bookmarks(favorites: Favorites) -> None:
+    star(favorites)
+    body = DescriptionInput(description="Use this for comparison", expected_description="")
+    assert favorites.describe(DECK, "cover", body) == body.description
+    assert favorites.describe(DECK, "cover", body) == body.description
+    with pytest.raises(ConflictError, match="changed elsewhere"):
+        _ = favorites.describe(
+            DECK,
+            "cover",
+            DescriptionInput(description="Stale replacement", expected_description=""),
+        )
+    assert (
+        favorites.describe(
+            DECK, "cover", DescriptionInput(description="", expected_description=body.description)
+        )
+        == ""
+    )
+    star(favorites, active=False)
+    with pytest.raises(ValueError, match="no longer"):
+        _ = favorites.describe(DECK, "cover", body)
+    with pytest.raises(ValueError):
+        _ = DescriptionInput(description="x" * 301, expected_description="")
+
+
+def test_reference_freezes_description_and_rejects_a_stale_picker(favorites: Favorites) -> None:
+    star(favorites)
+    before = favorites.slides()[0]
+    description = "Comparison layout </script><p>with evidence</p>"
+    _ = favorites.describe(
+        DECK, "cover", DescriptionInput(description=description, expected_description="")
+    )
+    with pytest.raises(ValueError, match="description changed"):
+        _ = favorites.reference(DECK, "cover", before.content_hash)
+    entry = favorites.slides()[0]
+    source = base64.b64decode(
+        favorites.reference(DECK, "cover", entry.content_hash).data_base64
+    ).decode()
+    metadata = re.search(r'id="artifact-studio-slide-reference">(.*?)</script>', source)
+    assert metadata and json.loads(metadata[1])["description"] == description
+    assert source.index('id="artifact-studio-slide-reference"') < source.index("<style>")
+    assert "PRIVATE SPEAKER NOTES" not in source
+    _ = favorites.describe(
+        DECK,
+        "cover",
+        DescriptionInput(description="New description", expected_description=description),
+    )
+    assert json.loads(metadata[1])["description"] == description
+    with pytest.raises(ValueError, match="description changed"):
+        _ = favorites.reference(DECK, "cover", entry.content_hash)

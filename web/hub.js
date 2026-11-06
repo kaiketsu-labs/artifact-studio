@@ -497,7 +497,7 @@
     chatImages.retain([...attachments.values()].flat());
     return (attachments.get(id) || []).map((file,index)=>{
       const remove=`<button type="button" data-remove-file="${index}" aria-label="Remove ${escape(file.name)}" title="Remove ${escape(file.name)}">${icon('close')}</button>`;
-      return (file.slideReference?`<span class="hub-attachment">${icon('star')}<span>${escape(file.slideReference.title)}<small class="favorite-reference-label">Slide reference · ${escape(file.slideReference.deckTitle)}</small></span>${remove}</span>`:'') || chatImages.draft(file,remove) || `<span class="hub-attachment"><span title="${escape(file.name)}">${escape(file.name)}</span>${remove}</span>`;
+      return (file.slideReference?`<span class="hub-attachment">${icon('star')}<span>${escape(file.slideReference.title)}<small class="favorite-reference-label">Slide reference · ${escape(file.slideReference.deckTitle)}</small>${file.slideReference.description?`<small class="favorite-reference-description">${escape(file.slideReference.description)}</small>`:''}</span>${remove}</span>`:'') || chatImages.draft(file,remove) || `<span class="hub-attachment"><span title="${escape(file.name)}">${escape(file.name)}</span>${remove}</span>`;
     }).join('');
   }
   function targetsMarkup(value,item) {

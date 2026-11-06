@@ -30,7 +30,7 @@ def main() -> None:
             errors: list[str] = []
             page.on("pageerror", lambda error: errors.append(str(error)))
 
-            def capture(name: str) -> None:
+            def capture(name: str, *, keep_pointer: bool = False) -> None:
                 _ = page.evaluate("document.fonts.ready")
                 page.wait_for_function(
                     "[...document.querySelectorAll('#hub-grid img')]"
@@ -38,7 +38,8 @@ def main() -> None:
                 )
                 for frame in page.locator(".favorites-dialog[open] iframe").all():
                     expect(frame.content_frame.locator(".slide")).to_be_visible()
-                page.mouse.move(1, 1)
+                if not keep_pointer:
+                    page.mouse.move(1, 1)
                 data = page.screenshot(path=output / name, animations="disabled")
                 violations: object = []
                 if args.axe:
@@ -58,8 +59,24 @@ def main() -> None:
             page.get_by_role("button", name="Favorite slides", exact=True).click()
             expect(page.locator(".favorite-card")).to_have_count(3)
             capture("library.png")
+            page.get_by_role(
+                "button", name="Edit description for One slide. One clear idea.", exact=True
+            ).click()
+            capture("description.png")
+            page.get_by_role("dialog", name="Slide description", exact=True).get_by_role(
+                "button", name="Cancel", exact=True
+            ).click()
+            page.get_by_role("searchbox", name="Search favorite slides").fill("evidence")
+            expect(page.locator(".favorite-card")).to_have_count(1)
+            capture("description-search.png")
             page.keyboard.press("Escape")
             page.goto(f"{app.url}/?deck={DECK_ID}#workflow")
+            star = page.locator('.slide-star[data-star-slide="workflow"]')
+            expect(star).to_have_attribute("aria-pressed", "true")
+            capture("slide-stars-rest.png")
+            star.hover()
+            expect(star.locator(".ui-icon")).to_have_css("opacity", "1")
+            capture("slide-stars-hover.png", keep_pointer=True)
             page.get_by_role("button", name="Reference favorite slides", exact=True).click()
             expect(page.locator("[data-favorite-pick]")).to_have_count(3)
             page.locator("[data-favorite-pick]").first.click()

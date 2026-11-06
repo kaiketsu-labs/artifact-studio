@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from artifact_studio.favorites import Favorites, StarInput
+from artifact_studio.favorites import DescriptionInput, Favorites, StarInput
 from artifact_studio.models import FeedbackFeed, SlidePatch
 from artifact_studio.storage import digest
 from scripts.preview_favorites import prepare_covers, seed_favorites
@@ -106,12 +106,29 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
     page.get_by_role("button", name="Reference favorite slides", exact=True).click()
     picker = page.get_by_role("dialog", name="Favorite slides", exact=True)
     expect(picker.locator("[data-favorite-pick]")).to_have_count(3)
+    picker.get_by_role(
+        "button", name="Edit description for One slide. One clear idea.", exact=True
+    ).click()
+    editor = page.get_by_role("dialog", name="Slide description", exact=True)
+    editor.get_by_role("textbox", name="What makes this slide useful?").fill(
+        "A comparison layout with a strong hierarchy."
+    )
+    editor.get_by_role("button", name="Save", exact=True).click()
+    expect(editor).to_be_hidden()
+    search = picker.get_by_role("searchbox", name="Search favorite slides")
+    search.fill("strong hierarchy")
+    expect(picker.locator("[data-favorite-pick]")).to_have_count(1)
+    search.fill("")
+    expect(picker.locator("[data-favorite-pick]")).to_have_count(3)
     picker.locator("[data-favorite-pick]").first.click()
     picker.locator("[data-favorite-pick]").last.click()
     expect(picker.get_by_role("status")).to_have_text("2 selected")
     picker.get_by_role("button", name="Add references", exact=True).click()
     expect(picker).to_be_hidden()
     expect(page.locator(".is-slide-reference")).to_have_count(2)
+    expect(page.locator(".favorite-reference-description").last).to_have_text(
+        "A comparison layout with a strong hierarchy."
+    )
     page.locator('.slide-thumb[data-id="cover"]').click()
     expect(page.locator(".is-slide-reference")).to_have_count(0)
     page.locator('.slide-thumb[data-id="workflow"]').click()
@@ -125,6 +142,14 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
         digest(source.model_dump_json()),
         "changed-after-attach",
         SlidePatch(html='<article class="slide">NEW SOURCE VERSION</article>'),
+    )
+    _ = Favorites(prepared.store).describe(
+        other,
+        "story",
+        DescriptionInput(
+            description="A newer description",
+            expected_description="A comparison layout with a strong hierarchy.",
+        ),
     )
     _ = Favorites(prepared.store).set(
         StarInput(kind="slide", artifact_id=other, slide_id="story", starred=False)
@@ -146,6 +171,8 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
     assert "One slide. One clear idea." in bodies[1]
     assert "NEW SOURCE VERSION" not in bodies[1]
     assert '"role": "read-only visual reference"' in bodies[1]
+    assert '"description": "A comparison layout with a strong hierarchy."' in bodies[1]
+    assert "A newer description" not in bodies[1]
     assert "Pause on the contrast" not in bodies[1]
 
 
@@ -170,3 +197,40 @@ def test_slide_star_and_native_artifact_chat_reference(page: Page, prepared: Run
     page.locator("#hub-send").click()
     expect(page.locator(".hub-message-body")).to_contain_text("Use this as the visual direction.")
     expect(page.locator(".hub-message .hub-attachment")).to_have_count(1)
+
+
+def test_description_save_cancel_search_persistence_and_clear(
+    page: Page, prepared: RunningApp
+) -> None:
+    page.goto(prepared.url)
+    page.get_by_role("button", name="Favorite slides", exact=True).click()
+    picker = page.get_by_role("dialog", name="Favorite slides", exact=True)
+    add = picker.get_by_role("button", name="Add description for Let the story move", exact=True)
+    add.click()
+    editor = page.get_by_role("dialog", name="Slide description", exact=True)
+    textbox = editor.get_by_role("textbox", name="What makes this slide useful?")
+    expect(textbox).to_be_focused()
+    textbox.fill("A searchable before-and-after chart.")
+    editor.get_by_role("button", name="Save", exact=True).click()
+    expect(editor).to_be_hidden()
+    edit = picker.get_by_role("button", name="Edit description for Let the story move", exact=True)
+    expect(edit).to_be_focused()
+    edit.click()
+    textbox.fill("Do not save this draft")
+    page.keyboard.press("Escape")
+    expect(editor).to_be_hidden()
+    expect(edit).to_contain_text("A searchable before-and-after chart.")
+    page.keyboard.press("Escape")
+    page.reload()
+    page.get_by_role("button", name="Favorite slides", exact=True).click()
+    search = picker.get_by_role("searchbox", name="Search favorite slides")
+    search.fill("before-and-after")
+    expect(picker.locator(".favorite-card")).to_have_count(1)
+    edit.click()
+    textbox.fill("")
+    editor.get_by_role("button", name="Save", exact=True).click()
+    expect(editor).to_be_hidden()
+    expect(search).to_be_focused()
+    expect(picker.get_by_text("No matching slides", exact=True)).to_be_visible()
+    search.fill("")
+    expect(add).to_be_visible()
