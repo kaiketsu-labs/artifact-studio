@@ -175,7 +175,9 @@ def tree_inventory(folder: Path) -> list[ArtifactFile]:
         )
         if len(result) > MAX_FILES:
             raise ValueError("Keep bundles below 300 MB and 5,000 files.")
-    return result
+    # Manifest identity uses POSIX filename order, not Path component order:
+    # "assets.js" sorts before "assets/icon.svg" in existing saved manifests.
+    return sorted(result, key=lambda item: item.path)
 
 
 def write_tree(folder: Path, files: dict[str, bytes]) -> None:
