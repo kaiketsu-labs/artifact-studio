@@ -1,5 +1,7 @@
 # Documentation screenshots
 
+The [default-design controls](default-design.png) were reviewed in actual Chromium at 1440 × 844 with two fictional slide design packs and a reference-only collection. The filled star and Default badge identify the saved workspace preference.
+
 The [version menu](app-version-menu.png) and [narrow About dialog](app-version-mobile.png)
 use the actual library/editor with fictional data. A `v0.3.0` release response is
 simulated at the network boundary to show the update indicator; these images are

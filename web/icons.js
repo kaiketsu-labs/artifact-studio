@@ -1,6 +1,7 @@
 /* Shared, local SVG vocabulary for review and presentation controls. */
 (() => {
   const paths={
+    star:'m12 3 2.8 5.7 6.3.9-4.6 4.4 1.1 6.3L12 17.3l-5.6 3 1.1-6.3L3 9.6l6.2-.9Z',
     share:'M12 15V3m-4 4 4-4 4 4M5 11H3v10h18V11h-2',
     mail:'M3 5h18v14H3zM3 6l9 7 9-7',
     sectionAdd:'M3 5h18M3 10h11M3 15h8M17 13v8M13 17h8',

@@ -168,6 +168,12 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     def design_context(design_id: str) -> DesignDetail:
         return DesignLibrary(get_store()).get(design_id)
 
+    @router.post("/api/design-library/{design_id}/default")
+    def default_design(design_id: str) -> dict[str, str]:
+        """Choose the workspace default for future presentations without changing existing work."""
+        store = get_store()
+        return {"default_design_id": store.set_default_design(design_id)}
+
     @router.post("/api/design-library")
     def add_design(body: DesignCreate) -> DesignDetail:
         return DesignLibrary(get_store()).create(body)
