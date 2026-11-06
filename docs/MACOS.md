@@ -23,7 +23,8 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 | Settings → Include Nightly Builds | Opts into preview releases from main. Off by default; shared with the web About dialog and saved across restarts. |
 | Settings → Launch at Login | Toggles automatic startup; a checkmark means enabled. If macOS needs approval, the same submenu opens Login Items. |
 | Settings → GitHub Backup | Repository delivery status, last successful backup, Automatic Backup, Sync Now/Retry, and Open Backup Settings. Uses the server’s shared settings. |
-| Show Logs | Reveals the local server log in Finder. |
+| Show Logs | Reveals the local server and update logs in Finder. |
+| Clear Diagnostic Logs… | Confirms removal of server/update logs and rotated copies. Works while running or stopped; disabled during an update. |
 | Quit Artifact Studio | Gracefully stops its server and closes the menu-bar app. Launch at Login remains configured. |
 
 The controller checks `/api/health` every two seconds. Compact navigation metadata refreshes every ten seconds and when the menu opens; backup settings/status load on opening. It does not read artifact bodies, feedback or private notes. Connected entries require an unexpired review connection; merely configuring an MCP server does not create one. Opening a project or artifact records its project in the shared recent list. Agent tool calls do not change Recents, and the list survives restarts in the workspace database.
@@ -76,6 +77,24 @@ The checkout must be clean and on `main`, and the release must be part of `origi
 The updater preserves the previous environment while installing locked dependencies and Chromium, and builds the new controller before replacing the app. Installation failures restore the previous source and environment; a concurrent source edit is preserved and requires manual recovery instead of being reset. **Show Logs** reveals server and update logs. Updating a server started elsewhere is refused; stop it in its original controller first.
 
 The controller relaunches after a successful update and restores the prior running/stopped state. It remains a local source installation requiring `uv` and Apple's Command Line Tools, rather than a self-contained, notarized distribution. To rebuild a controller manually, quit it, move the old `.app` aside, and rerun the installer. Removing the app does not delete artifacts; turn Launch at Login off before removal.
+
+## Diagnostic log retention
+
+The Mac controller bounds `server.log` and `update.log` automatically. Each file holds at most **10 MB** (10,000,000 bytes); each stream retains **five files total**, including the active file and `.1` through `.4`. `.1` is the newest rotated copy. The limit is **50 MB per stream**, or **100 MB combined**. Rotation continues during long-running server sessions and update commands. When logging opens, existing oversized managed files keep only their newest 10 MB.
+
+Choose **Clear Diagnostic Logs…** beside **Show Logs** to reclaim that space. **Cancel** keeps the logs. **Clear Logs** removes only these two streams and their four rotated copies each. Projects, conversations, version history, backups and unrelated files remain available. The server keeps running, and the next diagnostic output creates a new active log. New output can appear immediately after clearing. Linked files or directories at a managed log path produce an error instead of being followed or removed.
+
+![Illustrative layout of the diagnostic-log menu action and confirmation.](screenshots/diagnostic-logs-preview.png)
+
+This is a browser-rendered layout preview, not a native macOS screenshot. [Preview and verification limits](prototypes/diagnostic-logs/README.md). Terminal runs write to the terminal and follow its output settings.
+
+Run the real Foundation-only storage and subprocess-pipe tests on macOS or Linux with Swift 6:
+
+```sh
+uv run --no-sync python scripts/test_macos_logs.py
+```
+
+The macOS controller workflow runs these tests and builds/signs a disposable controller when native sources, their tests or build dependencies change. Desktop interaction checks require macOS.
 
 ## Parallel decks
 
