@@ -51,6 +51,14 @@ Request-scoped reuse of legacy presentation summaries avoids duplicate discovery
 
 This benchmark cannot prove successful-render fidelity on this host. The sandbox-capable renderer lane runs [test_hub_cover_rendering.py](../../tests/test_hub_cover_rendering.py), which checks actual full-resolution pixels, authored JavaScript/local assets and saved-cover reuse. [test_hub_previews.py](../../tests/test_hub_previews.py) checks version identities, retained last-good covers, failure cooldown and worker restart behavior. Browser scheduling and interaction acceptance are tested separately; synthetic warm entries in this benchmark must not be cited as rendered-preview evidence.
 
+## Browser review
+
+Three fresh Terra reviewers exercised desktop and mobile browsing, search/sort, scrolling, slow requests, keyboard retry, and saved-preview recovery. They found and rechecked fixes for overlapping Share/Retry controls and a renderer outage incorrectly delaying raster covers. After rebasing onto Favorites, a reviewer also clicked Favorite, Share, Retry and Open in light/dark views and checked a 250 px card for overlapping controls.
+
+The real raster backend was exercised through creation, a source revision, a mixed-library renderer outage, and a server restart. Browser failure states used fictional PNG responses; these screenshots show the implemented UI, not proof of rendered HTML fidelity. The automated sandboxed-renderer tests cover that separate requirement.
+
+[Mobile saved preview](screenshots/library-mobile.png) · [Desktop dark saved preview](screenshots/library-desktop-dark.png)
+
 ## Reproduce
 
 Run from the development checkout with its locked dependencies installed:
