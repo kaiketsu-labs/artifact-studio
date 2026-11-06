@@ -30,7 +30,7 @@ The **Library** is the home screen. Browse all your work, filter by project or f
 
 Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Created**, or **File type**. File type shows separate format groups; the arrow reverses the order. One choice is remembered in this browser across overviews. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
 
-Library covers are saved locally and reused across reloads and app restarts. Changed content queues a background update while the earlier preview stays visible. Cards near the viewport load first; you can search, sort and open artifacts while previews update. If an update fails, the retry icon becomes available after a short cooldown. [Preview behavior and measurements](docs/performance/library-preview-results.md).
+Library covers are saved locally and reused across reloads and app restarts. Changed content queues a background update while the earlier preview stays visible. Cards near the viewport load first; you can search, sort and open artifacts while previews update. Temporary renderer and network failures retry automatically after a cooldown, up to six times; manual retry remains available. Hover over the retry icon for renderer setup details. [Preview behavior and measurements](docs/performance/library-preview-results.md).
 
 The editor and Favorites load nearby slide previews and release offscreen or closed previews. Feedback polling, scoped agent reads and paused backups also avoid unnecessary work while retaining source verification and history. [Resource review, measurements and remaining opportunities](docs/performance/runtime-efficiency.md).
 
@@ -246,7 +246,7 @@ The editor keeps tools in one row. Top-bar icons toggle the slide list and conve
 
 The hub's **… → Presentation tools** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
 
-Star artifacts to keep them first in the library. Star individual slide thumbnails to save them in **Favorite slides**, across presentations. Add an optional description to explain why a slide is useful; search finds descriptions and titles. In either chat, **type @** to search projects, artifacts, presentations and slides by path. Use **Tab** to browse into a project or presentation, then **Enter** to attach the selection. Hover over a suggestion for a preview beside the cursor. The **★ beside the paperclip** also opens the favorite-slide picker. References preserve the selected source and description for the agent. [Chat references](docs/CHAT-REFERENCES.md).
+Star artifacts to keep them first in the library. Star individual slide thumbnails to save them in **Favorite slides**, across presentations. Add an optional description to explain why a slide is useful; search finds descriptions and titles. In either chat, **type @** to search projects, artifacts, presentations and slides by path. **Tab** or **Enter** attaches the highlighted result as a compact title pill; **→** browses into a project or presentation. Hover over a suggestion for a preview beside the cursor. The **★ beside the paperclip** also opens the favorite-slide picker. References preserve the selected source and description for the agent. [Chat references](docs/CHAT-REFERENCES.md).
 
 ## Your files stay local
 

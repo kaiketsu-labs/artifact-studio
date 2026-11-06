@@ -78,7 +78,7 @@
       const duplicate=matches.some(other=>other!==item&&other.path===item.path),identity=[item.project_id,item.artifact_id,item.slide_id].filter(Boolean).join('/');
       return `<button type="button" role="option" tabindex="-1" id="chat-reference-option-${index}" data-reference-index="${index}" aria-selected="${index===0}" aria-label="${escape(item.path)}${duplicate?' · '+escape(identity):''}"><span class="chat-reference-kind" aria-hidden="true">${item.starred?'★':item.kind==='project'?'▸':'@'}</span><span class="chat-reference-row-text"><strong>${escape(item.title)}</strong><small>${escape(item.path)}</small></span><span class="chat-reference-type">${escape(item.kind)}${duplicate?'<br>'+escape(identity):''}</span></button>`;
     }).join('');
-    menu.querySelector('[role=status]').textContent=matches.length?'↑ ↓ select · Enter attach · Tab browse':'No matching references. Try another name or path.';
+    menu.querySelector('[role=status]').textContent=matches.length?'↑ ↓ select · Enter / Tab attach · → browse':'No matching references. Try another name or path.';
     highlight();position();
   }
   async function update(input){
@@ -97,8 +97,6 @@
     if(!active||busy||!matches[index])return;
     const current=active,{input,binding,part,context}=current,item=matches[index],original=input.value;
     if(item.reference_error){menu.querySelector('[role=status]').textContent=item.reference_error;return;}
-    const token='@'+JSON.stringify(item.path)+' ';
-    if(input.maxLength>0&&original.length-(part.end-part.start)+token.length>input.maxLength){menu.querySelector('[role=status]').textContent='Shorten the message before adding a reference.';return;}
     busy=true;pending=current;hidePreview();input.readOnly=true;menu.querySelector('[role=status]').textContent='Adding reference…';
     try{
       const result=await api({kind:item.kind,project_id:item.project_id,artifact_id:item.artifact_id,slide_id:item.slide_id,token:item.token});
@@ -106,7 +104,7 @@
       const bytes=Uint8Array.from(atob(result.file.data_base64),c=>c.charCodeAt(0));
       const file=new File([bytes],result.file.name,{type:result.file.name.endsWith('.html')?'text/html':'application/json'});file.workspaceReference=result.entry;
       if(binding.attach([file])===false){menu.querySelector('[role=status]').textContent='Could not attach this reference. Check the attachment limits.';return;}
-      input.setRangeText(token,part.start,part.end,'end');close();input.readOnly=false;input.focus({preventScroll:true});input.dispatchEvent(new Event('input',{bubbles:true}));
+      input.setRangeText('',part.start,part.end,'end');close();input.readOnly=false;input.focus({preventScroll:true});input.dispatchEvent(new Event('input',{bubbles:true}));
     }catch(error){if(active===current){entries=[];matches=[];loaded=false;menu.querySelector('[role=listbox]').replaceChildren();menu.querySelector('[role=status]').textContent=error.message;position();}}
     finally{input.readOnly=false;busy=false;pending=null;}
   }
@@ -126,7 +124,8 @@
       selected=(selected+(event.key==='ArrowDown'?1:-1)+matches.length)%matches.length;highlight();
       const row=doc.getElementById(`chat-reference-option-${selected}`);row.scrollIntoView({block:'nearest'});const box=menu.getBoundingClientRect();showPreview(selected,box.right,box.top+20);return;
     }
-    if(event.key==='Tab'&&!event.shiftKey&&matches.length&&!busy){if(browse()){event.preventDefault();event.stopImmediatePropagation();}else close();return;}
+    if(event.key==='ArrowRight'&&!busy&&active.input.selectionStart===active.part.end&&browse()){event.preventDefault();event.stopImmediatePropagation();return;}
+    if(event.key==='Tab'&&!event.shiftKey&&matches.length){event.preventDefault();event.stopImmediatePropagation();if(!busy)void choose(selected);return;}
     if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();event.stopImmediatePropagation();if(matches.length)void choose(selected);return;}
     if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key))close();
   },true);
@@ -135,10 +134,15 @@
   doc.addEventListener('focusin',event=>{if(active&&event.target!==active.input&&!menu.contains(event.target))close();});
   root.addEventListener('resize',()=>{hidePreview();position();});
   function chip(file,remove,className='chat-file-chip'){
-    const item=file.workspaceReference;if(!item)return '';
-    return `<span class="${className} is-path-reference"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-description"><span class="chat-file-name">${escape(item.title)}</span><small class="favorite-reference-label" title="${escape(item.path)}">${escape(item.path)}</small>${item.description?`<small class="favorite-reference-description">${escape(item.description)}</small>`:''}</span>${remove}</span>`;
+    const item=file.workspaceReference||file.slideReference;if(!item)return '';
+    return `<span class="${className} is-path-reference${file.slideReference?' is-slide-reference':''}" title="${escape(item.path||item.deckTitle)}"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(item.title)}</span>${remove}</span>`;
+  }
+  function sent(file,className='chat-file-chip'){
+    const match=/^(.+) - (project|artifact|presentation|slide) reference\.(json|html)$/.exec(file.name||'');
+    const url=file.download_url;if(!match||!root.ChatImages.downloadURL(url))return '';
+    return `<a class="${className} is-path-reference" href="${escape(url)}" download title="Download ${escape(match[2])} reference: ${escape(match[1])}"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(match[1])}</span></a>`;
   }
   function register(options){bindings.set(options.inputId,options);}
   doc.addEventListener('focusin',event=>{if(bindings.has(event.target.id)){event.target.setAttribute('aria-autocomplete','list');event.target.setAttribute('aria-controls','chat-reference-options');event.target.setAttribute('aria-haspopup','listbox');ensure();void update(event.target);}});
-  root.ChatReferences={register,chip};
+  root.ChatReferences={register,chip,sent};
 })(window);

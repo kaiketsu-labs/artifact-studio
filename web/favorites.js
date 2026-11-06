@@ -165,7 +165,8 @@
         for(const item of entries.filter(item=>chosen.has(item.deck_id+'/'+item.slide_id))){
           const result=await api(`/api/favorites/slides/${encodeURIComponent(item.deck_id)}/${encodeURIComponent(item.slide_id)}/reference`,{content_hash:item.content_hash});
           const bytes=Uint8Array.from(atob(result.data_base64),char=>char.charCodeAt(0));
-          const file=new File([bytes],result.name,{type:'text/html'});
+          const title=String(item.title).replace(/[/\\:\x00-\x1f]/g,'-').trim().slice(0,160)||'Slide';
+          const file=new File([bytes],`${title} - slide reference.html`,{type:'text/html'});
           file.slideReference={title:item.title,deckTitle:item.deck_title,description:item.description||''};files.push(file);
         }
         if(await attach(files)!==false)picker.close();

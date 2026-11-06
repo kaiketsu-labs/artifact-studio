@@ -7,5 +7,8 @@
 .chat-reference-status{padding:8px 14px;color:var(--subtle,var(--hub-muted,#64748b));font-size:11px;border-top:1px solid var(--line,var(--hub-line,#dce2ea))}
 .chat-reference-preview{width:322px;pointer-events:none;z-index:10030}.chat-reference-cover{width:320px;aspect-ratio:16/9;background:var(--bg,var(--hub-bg,#f4f6fa))}.chat-reference-cover img{display:block;width:100%;height:100%;object-fit:contain}.chat-reference-cover img[hidden]{display:none}.chat-reference-frame{width:320px;height:180px;overflow:hidden;pointer-events:none}.chat-reference-frame iframe{border:0;display:block;width:1280px;height:720px;transform:scale(.25);transform-origin:top left;pointer-events:none}
 .chat-reference-preview-caption{padding:10px 12px}.chat-reference-preview-caption strong,.chat-reference-preview-caption small{display:block;overflow-wrap:anywhere}.chat-reference-preview-caption small{color:var(--subtle,var(--hub-muted,#64748b));font-size:11px;margin-top:3px}.chat-reference-preview-caption p{font-size:12px;margin:7px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:100px;overflow:hidden}
-.reference-symbol{font-weight:600;color:var(--subtle,var(--hub-muted,#64748b));flex:none}.is-path-reference .favorite-reference-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.reference-symbol{font-weight:600;color:var(--subtle,var(--hub-muted,#64748b));flex:none}
+.chat-file-chip.is-path-reference,.hub-attachment.is-path-reference{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;padding:5px 9px;border-radius:16px;font-size:12px;line-height:18px;text-decoration:none}
+.is-path-reference .chat-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.is-path-reference button{flex:none}
 @media(max-width:639px){.chat-reference-preview{display:none}}

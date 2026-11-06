@@ -126,8 +126,9 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
     picker.get_by_role("button", name="Add references", exact=True).click()
     expect(picker).to_be_hidden()
     expect(page.locator(".is-slide-reference")).to_have_count(2)
-    expect(page.locator(".favorite-reference-description").last).to_have_text(
-        "A comparison layout with a strong hierarchy."
+    expect(page.locator(".is-slide-reference small,.is-slide-reference img")).to_have_count(0)
+    expect(page.locator(".is-slide-reference .chat-file-name").last).to_have_text(
+        "One slide. One clear idea."
     )
     page.locator('.slide-thumb[data-id="cover"]').click()
     expect(page.locator(".is-slide-reference")).to_have_count(0)
@@ -174,6 +175,9 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
     assert '"description": "A comparison layout with a strong hierarchy."' in bodies[1]
     assert "A newer description" not in bodies[1]
     assert "Pause on the contrast" not in bodies[1]
+    assert message.files[1].name == "One slide. One clear idea. - slide reference.html"
+    expect(page.locator("#feedback-list .is-path-reference")).to_have_count(2)
+    expect(page.locator("#feedback-list")).not_to_contain_text(" - slide reference.html")
 
 
 def test_slide_star_and_native_artifact_chat_reference(page: Page, prepared: RunningApp) -> None:
@@ -192,11 +196,16 @@ def test_slide_star_and_native_artifact_chat_reference(page: Page, prepared: Run
     expect(page.frame_locator(".favorite-card iframe").first.locator(".slide")).to_be_visible()
     picker.locator("[data-favorite-pick]").first.click()
     picker.get_by_role("button", name="Add references", exact=True).click()
-    expect(page.locator("#hub-feedback-attachments")).to_contain_text("Slide reference")
+    pill = page.locator("#hub-feedback-attachments .is-slide-reference")
+    expect(pill).to_have_count(1)
+    title = pill.locator(".chat-file-name").inner_text()
+    expect(pill.locator("small,img,iframe")).to_have_count(0)
     page.locator("#hub-feedback-text").fill("Use this as the visual direction.")
     page.locator("#hub-send").click()
     expect(page.locator(".hub-message-body")).to_contain_text("Use this as the visual direction.")
     expect(page.locator(".hub-message .hub-attachment")).to_have_count(1)
+    expect(page.locator(".hub-message .is-path-reference .chat-file-name")).to_have_text(title)
+    expect(page.locator(".hub-message")).not_to_contain_text(" - slide reference.html")
 
 
 def test_description_save_cancel_search_persistence_and_clear(
