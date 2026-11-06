@@ -79,11 +79,14 @@ The gateway exposes a smaller tool set than the local agent connection:
 | Work | Available remotely |
 | --- | --- |
 | Context | Shared project brief, workspace rules, scoped artifact catalog and released feedback |
+| Chat references | Read saved attachments from released messages in the shared project, including slides chosen from other presentations |
 | Files | Create and revise owned HTML, CSS, SVG, JavaScript, Markdown and media from inline file contents |
 | Presentations | Read, revise, add and reorder existing slides with current revision checks |
 | Visual review | Owned artifact screenshots; audience-only slide captures at the completed state or a selected reveal step |
 
-There is no shell, arbitrary host-file import, approval control, workspace-settings access or automatic local review hook. Feedback attachment contents are not exposed yet. File requests are limited to 2 MiB; read files in smaller groups when needed. New artifact creation needs an existing shared project.
+There is no shell, arbitrary host-file import, approval control, workspace-settings access or automatic local review hook. File requests are limited to 2 MiB; read files in smaller groups when needed. New artifact creation needs an existing shared project.
+
+Use `read_feedback_attachment(artifact_id, event_id, file_index)` for a released chat attachment. Pass the destination presentation ID as `artifact_id` for presentation chat. File indices start at zero. The reader returns up to 16 KiB of text by default, with a byte `next_offset` for another page; `null` means complete. A slide reference's first page includes `section_offsets`: jump to `section_offsets.slide` to skip embedded fonts and read its markup. These are navigation hints from the saved source; ambiguous markers are omitted. Set `encoding="base64"` for binary files, and request at most 64 KiB per call. The reader verifies the saved size and hash. Unreleased Batch messages remain private. A saved slide reference preserves the selected description, theme and assets without granting access to the source presentation's other content.
 
 Slide captures use the trusted viewer with `theme.css` and regular files under `assets/`. Private notes, review history and README files are excluded. Custom viewer changes or assets outside that convention require a local check. Capture metadata states that limitation; a screenshot does not verify physical screen placement or presenter controls.
 

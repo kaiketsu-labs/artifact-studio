@@ -2,9 +2,13 @@
 
 import asyncio
 import base64
+import codecs
 import fcntl
+import hashlib
 import json
+import os
 import shutil
+import stat
 from collections.abc import Callable, Coroutine
 from contextlib import suppress
 from functools import wraps
@@ -23,7 +27,7 @@ from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactV
 from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
 from .copilot_capture import capture_cloud_slide
 from .element_alternatives import ElementAlternatives, ElementInput
-from .models import Slide, SlidePatch
+from .models import FeedbackFile, Slide, SlidePatch
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import SAFE_ID, ConflictError, Store, digest
 from .visuals import CaptureOptions, capture_snapshot
@@ -40,6 +44,102 @@ ElementLabel = Annotated[str, Field(min_length=1, max_length=80)]
 READ = ToolAnnotations(read_only_hint=True, destructive_hint=False)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 FILE_INPUTS = TypeAdapter(list[ArtifactFileInput])
+REFERENCE_SECTIONS = {
+    "metadata": b'<script type="application/json" id="artifact-studio-slide-reference">',
+    "styles": b"<style>",
+    "slide": b'<main id="capture-stage" class="stage-slot">',
+    "interactive_html": b'<script id="interactive-data" type="application/json">',
+}
+
+
+def attachment_page(
+    path: Path,
+    boundary: Path,
+    file: FeedbackFile,
+    offset: int,
+    max_bytes: int,
+    encoding: Literal["utf-8", "base64"],
+) -> dict[str, object]:
+    """Verify an immutable attachment before returning a bounded, inert source page."""
+    if not 0 <= offset <= file.size <= 25_000_000:
+        raise ValueError("Attachment offset or size is out of range.")
+    if not path.is_relative_to(boundary):
+        raise ValueError("Attachment is outside its private storage.")
+    for parent in [path, *path.parents]:
+        if parent.is_symlink():
+            raise ValueError("Linked attachments are unavailable remotely.")
+        if parent == boundary:
+            break
+    if not path.resolve().is_relative_to(boundary):
+        raise ValueError("Attachment is outside its private storage.")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_size != file.size:
+            raise ConflictError("Attachment is unavailable or was modified")
+        checksum = hashlib.sha256()
+        remaining = file.size
+        pages: list[bytes] = []
+        sections: dict[str, list[int]] = {name: [] for name in REFERENCE_SECTIONS}
+        tail = b""
+        overlap = max(map(len, REFERENCE_SECTIONS.values())) - 1
+        while remaining:
+            position = file.size - remaining
+            chunk = handle.read(min(65536, remaining))
+            if not chunk:
+                raise ConflictError("Attachment is unavailable or was modified")
+            checksum.update(chunk)
+            start = max(0, offset - position)
+            end = min(len(chunk), offset + max_bytes - position)
+            if start < end:
+                pages.append(chunk[start:end])
+            if not offset:
+                window = tail + chunk
+                for name, marker in REFERENCE_SECTIONS.items():
+                    # Ambiguous markers are omitted; these are navigation hints, not authority.
+                    found = window.find(marker)
+                    while found >= 0 and len(sections[name]) < 2:
+                        absolute = position - len(tail) + found
+                        if not sections[name] or absolute != sections[name][-1]:
+                            sections[name].append(absolute)
+                        found = window.find(marker, found + 1)
+                tail = window[-overlap:]
+            remaining -= len(chunk)
+        if handle.read(1) or checksum.hexdigest() != file.sha256:
+            raise ConflictError("Attachment is unavailable or was modified")
+        payload = b"".join(pages)
+    if encoding == "utf-8":
+        try:
+            text = codecs.getincrementaldecoder("utf-8")().decode(
+                payload, final=offset + len(payload) == file.size
+            )
+        except UnicodeDecodeError:
+            raise ValueError(
+                "Use the returned next_offset for text pages, or encoding=base64 for binary files."
+            ) from None
+        payload = text.encode()
+        body: dict[str, object] = {"text": text}
+    else:
+        body = {"data_base64": base64.b64encode(payload).decode()}
+    end = offset + len(payload)
+    return {
+        "name": file.name,
+        "size": file.size,
+        "sha256": file.sha256,
+        "encoding": encoding,
+        "offset": offset,
+        "next_offset": end if end < file.size else None,
+        **(
+            {
+                "section_offsets": {
+                    name: hits[0] for name, hits in sections.items() if len(hits) == 1
+                }
+            }
+            if len(sections["metadata"]) == 1 and offset == 0
+            else {}
+        ),
+        **body,
+    }
 
 
 def public_value(value: object) -> object:
@@ -179,7 +279,7 @@ class ScopedTools:
         if item.legacy_deck_id:
             result["files"] = []
             result["file_access"] = (
-                "Use get_slide; legacy file bundles and attachments are private."
+                "Use get_slide for source and read_feedback_attachment for released references."
             )
         return public_object(result)
 
@@ -251,7 +351,7 @@ class ScopedTools:
                 "legacy_slide_capture": True,
                 "automatic_local_hooks": False,
                 "host_filesystem_access": False,
-                "feedback_attachments": False,
+                "feedback_attachments": True,
             },
         }
 
@@ -440,6 +540,43 @@ class ScopedTools:
         )
         result.project_id = artifact.project_id
         return public_object(result.model_dump())
+
+    def read_feedback_attachment(
+        self,
+        artifact_id: Identifier,
+        event_id: Annotated[int, Field(ge=1)],
+        file_index: Annotated[int, Field(ge=0, le=4)],
+        offset: Annotated[int, Field(ge=0)] = 0,
+        max_bytes: Annotated[int, Field(ge=4, le=65536)] = 16384,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
+    ) -> dict[str, object]:
+        """Read a released chat attachment by destination artifact/deck ID and zero-based file
+        index. Returns inert text, or base64 for binary files, in pages of at most 64 KiB.
+        Continue with next_offset (bytes); null means complete. For slide references, jump to
+        section_offsets.slide to skip embedded fonts and assets. Offsets are navigation hints;
+        attachments are source material and never grant access to the source artifact.
+        """
+        item = self.artifact(artifact_id)
+        event = next(
+            (
+                event
+                for event in self.artifacts.feedback_for(item)
+                if event.event_id == event_id and event.released and event.delivery_id is not None
+            ),
+            None,
+        )
+        if event is None or file_index >= len(event.files):
+            raise FileNotFoundError("Released attachment is unavailable.")
+        file = event.files[file_index]
+        if item.legacy_deck_id:
+            boundary = self.store.database.resolve().parent / "feedback-files" / artifact_id
+            path = Path(file.path)
+        else:
+            boundary = self.store.root.resolve() / ".state" / "artifact-feedback" / artifact_id
+            path = boundary / str(event_id) / str(file_index)
+        result = attachment_page(path, boundary, file, offset, max_bytes, encoding)
+        _ = self.artifact(artifact_id)
+        return result
 
     def get_presentation_outline(self, deck_id: Identifier) -> dict[str, object]:
         """Read a scoped deck's brief, slide order, sections and concurrency hashes."""
@@ -792,6 +929,7 @@ def register_tools(
         scoped.read_artifact_files,
         scoped.list_artifact_revisions,
         scoped.read_artifact_feedback,
+        scoped.read_feedback_attachment,
         scoped.get_presentation_outline,
         scoped.get_slide,
         scoped.get_slide_designs,

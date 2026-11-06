@@ -64,6 +64,8 @@
   <link rel="stylesheet" href="/web/chat-images.css">
   <script src="/web/chat-images.js" defer></script>
   <script src="/web/chat-composer.js" defer></script>
+  <link rel="stylesheet" href="/web/favorites.css">
+  <script src="/web/favorites.js" defer></script>
   <script src="/web/vendor/marked-18.1.2.js" defer></script>
   <script src="/web/chat-markdown.js" defer></script>
   <script src="/web/chat-resize.js" defer></script>
@@ -189,7 +191,7 @@
         <button id="stop-feedback-voice" type="button" aria-label="Stop recording" title="Stop recording"></button>
         <button id="send-feedback-voice" type="button" aria-label="Send dictated feedback" title="Send dictated feedback"></button>
       </div>
-      <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
+      <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="reference-slides" type="button" aria-label="Reference favorite slides" title="Reference favorite slides"></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
       <p id="batch-delivery-help" class="compose-delivery-help" hidden>Comments stay private until you choose Send batch.</p>
     </form>
   </aside>

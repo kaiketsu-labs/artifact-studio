@@ -58,7 +58,7 @@
     const query = search.trim().toLocaleLowerCase();
     return artifacts.filter(item => (projectIds?projectIds.includes(item.project_id):project === 'all' || item.project_id === project) && (kind === 'all' || kindOf(item) === kind) && `${item.title} ${item.project_title || ''} ${item.entrypoint || ''}`.toLocaleLowerCase().includes(query));
   }
-  const sortLabels={name:'Name',updated:'Last changed',created:'Created',type:'File type'};
+  const sortLabels={starred:'Starred first',name:'Name',updated:'Last changed',created:'Created',type:'File type'};
   const names=new Intl.Collator(undefined,{numeric:true,sensitivity:'base'});
   /** Group by the entrypoint's file format, keeping slide decks together. */
   function artifactType(item) {
@@ -70,10 +70,11 @@
     return {key,label,icon:kinds[kindOf(item)].icon};
   }
   /** Sort a copy with natural names and stable ties; unknown dates always stay last. */
-  function sortArtifacts(artifacts, {by='updated',direction='desc'}={}) {
+  function sortArtifacts(artifacts, {by='starred',direction='desc'}={}) {
     const sign=direction==='asc'?1:-1;
     const title=(a,b)=>names.compare(a.title || '',b.title || '') || String(a.id).localeCompare(String(b.id));
     return [...artifacts].sort((a,b)=>{
+      if(by==='starred' && !!a.starred!==!!b.starred)return a.starred?-1:1;
       if(by==='name')return sign*title(a,b);
       if(by==='type')return sign*names.compare(artifactType(a).label,artifactType(b).label) || title(a,b);
       const first=Date.parse(a[by==='created'?'created_at':'updated_at']),second=Date.parse(b[by==='created'?'created_at':'updated_at']);
@@ -83,7 +84,7 @@
   }
   /** Ignore stale or malformed browser preferences without affecting saved artifacts. */
   function validSort(value) {
-    return value && Object.hasOwn(sortLabels,value.by) && ['asc','desc'].includes(value.direction)?{by:value.by,direction:value.direction}:{by:'updated',direction:'desc'};
+    return value && Object.hasOwn(sortLabels,value.by) && ['asc','desc'].includes(value.direction)?{by:value.by,direction:value.direction}:{by:'starred',direction:'desc'};
   }
   /** Search registered visual languages independently of presentation artifacts. */
   function filterDesigns(designs, search='') {
@@ -396,7 +397,7 @@
       const item=state.detail;
       return `<aside class="hub-sidebar" aria-label="Project artifacts">${button('home','Library','grid','class="hub-library-link"')}<label class="hub-project-picker">${icon('project')}<select id="hub-project-picker" aria-label="Choose project">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><nav class="hub-project-artifacts" aria-label="Related artifacts">${state.artifacts.filter(other=>other.project_id===item.project_id).map(other=>`<button type="button" data-artifact="${escape(other.id)}" aria-current="${other.id===item.id}" title="${escape(other.title)}">${icon(kinds[kindOf(other)].icon)}<span>${escape(other.title)}</span>${other.status==='updated'?`<span class="hub-status updated" title="Updated">${icon('updated')}</span>`:''}</button>`).join('')}</nav></aside>`;
     }
-    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><div class="hub-sidebar-label">Projects${button('project-add','','plus','aria-label="Add project or folder" title="Add project or folder" aria-haspopup="menu"')}</div>${root.ProjectNavigation.markup({tree:state.projectTree,projects:state.projects,selected:state.project,collapsed:collapsedFolders,icon})}</aside>`;
+    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><button type="button" data-action="favorite-slides">${icon('star')}<span>Favorite slides</span></button><div class="hub-sidebar-label">Projects${button('project-add','','plus','aria-label="Add project or folder" title="Add project or folder" aria-haspopup="menu"')}</div>${root.ProjectNavigation.markup({tree:state.projectTree,projects:state.projects,selected:state.project,collapsed:collapsedFolders,icon})}</aside>`;
   }
   function filteredArtifacts(){return sortArtifacts(filterArtifacts(state.artifacts,{...state,projectIds:state.project.startsWith('folder:')?root.ProjectNavigation.projectsIn(state.projectTree,state.project.slice(7)):null}),sort);}
   function visibleItems() {
@@ -411,7 +412,7 @@
     return ['updated','created'].includes(sort.by)?(sort.direction==='desc'?'Oldest first':'Newest first'):(sort.direction==='asc'?'Z to A':'A to Z');
   }
   function sortControl() {
-    return `<div class="hub-sort">${icon('sort')}<select id="hub-sort" aria-label="Sort artifacts" title="Sort artifacts">${Object.entries(sortLabels).map(([key,label])=>`<option value="${key}" ${sort.by===key?'selected':''}>${label}</option>`).join('')}</select>${button('sort-direction','',sort.direction==='asc'?'up':'down',`aria-label="${reverseSortLabel()}" title="${reverseSortLabel()}"`)}</div>`;
+    return `<div class="hub-sort">${icon('sort')}<select id="hub-sort" aria-label="Sort artifacts" title="Sort artifacts">${Object.entries(sortLabels).map(([key,label])=>`<option value="${key}" ${sort.by===key?'selected':''}>${label}</option>`).join('')}</select>${button('sort-direction','',sort.direction==='asc'?'up':'down',`aria-label="${reverseSortLabel()}" title="${reverseSortLabel()}" ${sort.by==='starred'?'hidden':''}`)}</div>`;
   }
   function refreshCards() {
     const grid=doc.getElementById('hub-grid');grid.classList.toggle('is-grouped',state.project!=='designs' && sort.by==='type');grid.innerHTML=cards();
@@ -423,7 +424,7 @@
     const control=doc.querySelector('.hub-sort');
     if(control){
       control.querySelector('select').value=sort.by;
-      const toggle=control.querySelector('button');toggle.innerHTML=icon(sort.direction==='asc'?'up':'down');toggle.setAttribute('aria-label',reverseSortLabel());toggle.title=reverseSortLabel();
+      const toggle=control.querySelector('button');toggle.innerHTML=icon(sort.direction==='asc'?'up':'down');toggle.setAttribute('aria-label',reverseSortLabel());toggle.title=reverseSortLabel();toggle.hidden=sort.by==='starred';
     }
     refreshCards();
   }
@@ -434,7 +435,7 @@
     const card=item=>{
       const kind=kinds[kindOf(item)], preview=item.preview_url || (kindOf(item)==='image'?filePath(item):kindOf(item)==='file'?'':`/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
       const safePreview=typeof preview==='string' && preview.startsWith('/api/') && !preview.startsWith('//')?preview:'';
-      return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img src="${escape(safePreview)}" alt="" draggable="false" loading="lazy" decoding="async" data-preview-image>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button><button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
+      return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img src="${escape(safePreview)}" alt="" draggable="false" loading="lazy" decoding="async" data-preview-image>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
     };
     if(sort.by!=='type')return items.map(card).join('');
     const groups=Map.groupBy(items,item=>artifactType(item).key);
@@ -490,13 +491,13 @@
   }
   function chatMarkup(item) {
     const value=draft(item),mode=item.mode || 'batch';
-    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation${button('end-review','','stop',`id="hub-end-review" class="hub-end-review" aria-label="End review" title="End review" ${item.delivery?.live_available?'':'hidden'}`)}</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)} · version ${escape(item.revision || 1)}</p></header>${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${(item.feedback || []).length?item.feedback.map(message=>messageMarkup(message,item)).join(''):''}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="What would you change?" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
+    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation${button('end-review','','stop',`id="hub-end-review" class="hub-end-review" aria-label="End review" title="End review" ${item.delivery?.live_available?'':'hidden'}`)}</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)} · version ${escape(item.revision || 1)}</p></header>${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${(item.feedback || []).length?item.feedback.map(message=>messageMarkup(message,item)).join(''):''}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="What would you change?" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}${button('reference-slides','','star','aria-label="Reference favorite slides" title="Reference favorite slides"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
   }
   function attachmentMarkup(id) {
     chatImages.retain([...attachments.values()].flat());
     return (attachments.get(id) || []).map((file,index)=>{
       const remove=`<button type="button" data-remove-file="${index}" aria-label="Remove ${escape(file.name)}" title="Remove ${escape(file.name)}">${icon('close')}</button>`;
-      return chatImages.draft(file,remove) || `<span class="hub-attachment"><span title="${escape(file.name)}">${escape(file.name)}</span>${remove}</span>`;
+      return (file.slideReference?`<span class="hub-attachment">${icon('star')}<span>${escape(file.slideReference.title)}<small class="favorite-reference-label">Slide reference · ${escape(file.slideReference.deckTitle)}</small>${file.slideReference.description?`<small class="favorite-reference-description">${escape(file.slideReference.description)}</small>`:''}</span>${remove}</span>`:'') || chatImages.draft(file,remove) || `<span class="hub-attachment"><span title="${escape(file.name)}">${escape(file.name)}</span>${remove}</span>`;
     }).join('');
   }
   function targetsMarkup(value,item) {
@@ -669,7 +670,7 @@
     }
   }
   async function loadRegistry() {
-    const data=await api('/api/hub');state.projects=data.projects || [];state.projectTree=data.project_tree || {nodes:state.projects.map(project=>({id:project.id,kind:'project',parent_id:null})),content_hash:''};state.artifacts=data.artifacts || [];state.designs=data.designs || [];
+    const [data]=await Promise.all([api('/api/hub'),root.FavoriteSlides.refresh()]);state.projects=data.projects || [];state.projectTree=data.project_tree || {nodes:state.projects.map(project=>({id:project.id,kind:'project',parent_id:null})),content_hash:''};state.artifacts=(data.artifacts || []).map(item=>({...item,starred:root.FavoriteSlides.has('artifact',item.id)}));state.designs=data.designs || [];
     if(!['all','designs'].includes(state.project) && !state.projects.some(project=>project.id===state.project) && !state.projectTree.nodes.some(node=>'folder:'+node.id===state.project))state.project='all';
   }
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');!id&&!['all','designs'].includes(state.project)?url.searchParams.set('project',state.project):url.searchParams.delete('project');root.history.pushState({},'',url);}
@@ -798,13 +799,19 @@
     }catch(reason){if(reason.status===409)await refreshArtifactReview(item.id);error.textContent=reason.message;renderVoiceSegments(item.id);}finally{sending.delete(item.id);for(const control of controls)if(!control.closest('.voice-input-controls'))control.disabled=false;lockComposer();if(state.active===item.id)doc.getElementById('hub-feedback-text')?.focus();}
   }
   function addAttachments(incoming) {
-    if(sending.has(state.active))return;
+    if(sending.has(state.active))return false;
     const selected=[...(attachments.get(state.active) || []),...incoming],error=root.SlideChatComposer.selectionError(selected);
-    if(error){doc.getElementById('hub-feedback-error').textContent=error;return;}
-    attachments.set(state.active,selected);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);
+    if(error){doc.getElementById('hub-feedback-error').textContent=error;return false;}
+    attachments.set(state.active,selected);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);return true;
   }
   const versions=root.VersionTimeline.create({api,onRestored:async target=>{await openArtifact(target.artifactId,false);toast('Version restored.');}});
+  root.FavoriteSlides.onChange(()=>{
+    state.artifacts=state.artifacts.map(item=>({...item,starred:root.FavoriteSlides.has('artifact',item.id)}));
+    if(!state.active && !state.designActive && doc.getElementById('hub-grid')){const focus=doc.activeElement?.dataset.starId;refreshCards();if(focus)[...doc.querySelectorAll('[data-star-id]')].find(node=>node.dataset.starId===focus)?.focus();}
+  });
   async function action(name,node) {
+    if(name==='favorite-slides')return root.FavoriteSlides.open();
+    if(name==='reference-slides'){const id=state.active;return root.FavoriteSlides.open({attach:files=>id===state.active&&addAttachments(files)});}
     if(name==='sort-direction'){updateSort({...sort,direction:sort.direction==='asc'?'desc':'asc'});return;}
     if(name==='history'){if(!artifactEditor.finish())return;versions.open({kind:'artifact',artifactId:state.detail.id,title:state.detail.title});return;}
     if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
@@ -893,7 +900,7 @@
   });
   doc.addEventListener('change',event=>{
     const node=event.target;
-    if(node.id==='hub-sort')updateSort({by:node.value,direction:['updated','created'].includes(node.value)?'desc':'asc'});
+    if(node.id==='hub-sort')updateSort({by:node.value,direction:['starred','updated','created'].includes(node.value)?'desc':'asc'});
     if(node.id==='hub-project-picker')home(node.value);
     if(node.id==='hub-viewport'){state.viewport=node.value;const frame=doc.getElementById('hub-html-preview');frame.style.width=node.value==='fluid'?'100%':`${node.value}px`;}
     if(['hub-import-files','hub-import-folder'].includes(node.id))setImportFiles([...node.files]);

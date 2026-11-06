@@ -55,7 +55,7 @@ def test_sorting_dates_names_groups_and_persistence(
     project = sorting_project(live_app, tmp_path)
     page.goto(f"{live_app.url}/?project={project.id}")
     control = page.get_by_role("combobox", name="Sort artifacts")
-    expect(control).to_have_value("updated")
+    expect(control).to_have_value("starred")
     expect(page.locator("#hub-grid .hub-card")).to_have_count(3)
     assert titles(page) == ["Orbit 10", "Beacon", "Orbit 2"]
     control.select_option("created")

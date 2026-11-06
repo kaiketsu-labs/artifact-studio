@@ -59,6 +59,7 @@ from .element_alternatives import (
     ElementSource,
 )
 from .events import deck_events
+from .favorites import favorite_routes
 from .feedback_previews import feedback_image_response
 from .github_backups import BackupStatus, FullBackupSettings, GitHubBackups, RemoteBackup
 from .history_api import history_routes
@@ -1695,7 +1696,8 @@ def workspace(request: Request, deck: str = "", editor: bool = False) -> FileRes
         PROJECT / "web/hub.html",
         headers={
             "Content-Security-Policy": (
-                f"frame-src {origin}/api/artifacts/ {origin}/api/designs/; object-src 'none'"
+                f"frame-src {origin}/api/artifacts/ {origin}/api/designs/ "
+                f"{origin}/api/decks/; object-src 'none'"
             ),
         },
     )
@@ -2277,6 +2279,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 
 
 app.include_router(artifact_routes(lambda: store))
+app.include_router(favorite_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
 app.include_router(design_routes(lambda: store))
