@@ -278,6 +278,9 @@ def test_missing_renderer_reports_setup_and_releases_slot(
     with pytest.raises(ValueError, match="playwright install chromium"):
         capture(store, DECK, tmp_path / "captures", slide_id="cover")
     assert not (tmp_path / "captures").exists()
+    status = visuals.capture_queue_status()
+    assert status["running"] is False and status["queued"] == 0
+    renderer_health.HEALTH.retry_at = 0
     with visuals.render_slot():
         pass
 

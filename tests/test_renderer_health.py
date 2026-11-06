@@ -12,7 +12,13 @@ from playwright.sync_api import Browser, Playwright
 from playwright.sync_api import Error as BrowserError
 
 from artifact_studio import renderer_health, visuals
-from artifact_studio.renderer_health import RendererHealth, sandboxed_browser
+from artifact_studio.renderer_health import (
+    RendererHealth,
+    RendererUnavailable,
+    check_renderer_available,
+    ensure_renderer_ready,
+    sandboxed_browser,
+)
 
 
 def test_concurrent_launch_failure_is_shared_and_sanitized() -> None:
@@ -122,3 +128,54 @@ def test_probe_checks_startup_only_and_page_failure_keeps_readiness(
         raise BrowserError("The slide script timed out")
     assert health.status()["status"] == "ready"
     assert calls[-1] == "close"
+
+
+def test_cold_cover_probe_is_shared_and_warm_readiness_does_not_launch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Probe once before source work, then reuse readiness without another startup tax."""
+    health = RendererHealth()
+    monkeypatch.setattr(renderer_health, "HEALTH", health)
+    calls: list[str] = []
+
+    def launch(*, headless: bool, chromium_sandbox: bool, timeout: int) -> Browser:
+        assert headless and chromium_sandbox and timeout == 15_000
+        calls.append("launch")
+        return cast(Browser, SimpleNamespace(close=lambda: calls.append("close")))
+
+    @contextmanager
+    def factory() -> Generator[Playwright]:
+        yield cast(Playwright, SimpleNamespace(chromium=SimpleNamespace(launch=launch)))
+
+    ensure_renderer_ready(factory)
+    ensure_renderer_ready(factory)
+    check_renderer_available()
+    assert calls == ["launch", "close"]
+    assert health.status()["status"] == "ready"
+
+
+def test_known_launch_failure_rejects_preparation_before_joining_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A broken host must not make every subsequent cover load its large source first."""
+    health = RendererHealth()
+    monkeypatch.setattr(renderer_health, "HEALTH", health)
+
+    def missing() -> Never:
+        raise BrowserError("Executable doesn't exist")
+
+    with pytest.raises(RendererUnavailable):
+        health.attempt(missing)
+    with pytest.raises(RendererUnavailable) as unavailable, visuals.render_slot():
+        pytest.fail("The source preparation body must remain untouched.")
+    assert 1 <= unavailable.value.retry_after_seconds <= 30
+    status = visuals.capture_queue_status()
+    assert status["running"] is False and status["queued"] == 0
+
+    @contextmanager
+    def untouched() -> Generator[Playwright]:
+        pytest.fail("The cached failure must prevent creating Playwright.")
+        yield cast(Playwright, None)
+
+    with pytest.raises(RendererUnavailable):
+        ensure_renderer_ready(untouched)

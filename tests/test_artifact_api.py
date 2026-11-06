@@ -13,11 +13,17 @@ from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
 from artifact_studio import app as service
-from artifact_studio import artifact_api
+from artifact_studio import artifact_api, hub_previews
 from artifact_studio import artifacts as artifact_module
-from artifact_studio.artifact_models import ArtifactFileInput, ArtifactView, ProjectView
+from artifact_studio.artifact_models import (
+    ArtifactFile,
+    ArtifactFileInput,
+    ArtifactView,
+    ProjectView,
+)
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.design_library import DesignCreate, DesignLibrary
+from artifact_studio.hub_previews import CoverWorker, cover_path, cover_token, cover_url
 from artifact_studio.models import FileInput
 from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -65,7 +71,7 @@ def import_page(client: TestClient) -> ArtifactView:
 def test_cover_cache_publishes_atomically_without_blocking_warm_covers(
     client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Keep cached covers responsive and never serve a partially copied cold cover."""
+    """Cold work is asynchronous and coalesced; warm covers never wait for Chromium."""
     warm = import_page(client)
     cold = import_page(client)
     cold = ArtifactStore(service.store).revise_artifact(
@@ -74,13 +80,18 @@ def test_cover_cache_publishes_atomically_without_blocking_warm_covers(
         1,
         "fixture-revision",
     )
-    cache_dir = tmp_path / "artifact-previews"
-    cache_dir.mkdir()
-    (cache_dir / f"{warm.content_hash}.png").write_bytes(b"warm cover")
+    worker = CoverWorker()
+    monkeypatch.setattr(hub_previews, "WORKER", worker)
+    monkeypatch.setattr(hub_previews, "ensure_renderer_ready", lambda: None)
+    monkeypatch.setattr(hub_previews, "check_renderer_available", lambda: None)
+    warm_token = cover_token(service.store, warm)
+    cold_token = cover_token(service.store, cold)
+    warm_cache = cover_path(service.store, warm.id, warm_token)
+    warm_cache.parent.mkdir()
+    warm_cache.write_bytes(b"warm cover")
     source = tmp_path / "capture.png"
     source.write_bytes(b"complete cold cover")
-    copying = threading.Event()
-    release = threading.Event()
+    copying, release = threading.Event(), threading.Event()
     calls: list[str] = []
 
     def fake_capture(*args: object, **kwargs: object) -> SimpleNamespace:
@@ -95,35 +106,36 @@ def test_cover_cache_publishes_atomically_without_blocking_warm_covers(
         return str(dst)
 
     monkeypatch.setattr(artifact_api, "capture_artifact_image", fake_capture)
-    monkeypatch.setattr(artifact_api.shutil, "copyfile", slow_copy)
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        first = pool.submit(client.get, f"/api/hub/previews/{cold.id}")
-        try:
-            assert copying.wait(5)
-            assert not (cache_dir / f"{cold.content_hash}.png").exists()
-            second = pool.submit(client.get, f"/api/hub/previews/{cold.id}")
-            cached = pool.submit(client.get, f"/api/hub/previews/{warm.id}")
-            assert cached.result(timeout=2).content == b"warm cover"
-            assert not second.done()
-        finally:
-            release.set()
-        assert first.result(timeout=5).content == b"complete cold cover"
-        assert second.result(timeout=5).content == b"complete cold cover"
+    monkeypatch.setattr(hub_previews.shutil, "copyfile", slow_copy)
+    url = cover_url(cold.id, cold_token)
+    assert client.get(url).status_code == 202
+    try:
+        assert copying.wait(5)
+        assert not cover_path(service.store, cold.id, cold_token).exists()
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            second = pool.submit(client.get, url)
+            warm_response = pool.submit(client.get, cover_url(warm.id, warm_token))
+            assert second.result(timeout=2).status_code == 202
+            assert warm_response.result(timeout=2).content == b"warm cover"
+    finally:
+        release.set()
+        worker.jobs.join()
+    assert client.get(url).content == b"complete cold cover"
     assert calls == ["capture"]
+    assert not list(warm_cache.parent.glob("pending-*"))
 
 
-def test_cover_browser_cache_requires_current_fingerprint(
-    client: TestClient, tmp_path: Path
-) -> None:
-    """Cache only a cover URL matching the freshly checked artifact version."""
+def test_cover_browser_cache_keeps_exact_version_bytes(client: TestClient, tmp_path: Path) -> None:
+    """An immutable version URL never substitutes a new slide under an old image key."""
     artifact = import_page(client)
-    cache_dir = tmp_path / "artifact-previews"
-    cache_dir.mkdir()
-    (cache_dir / f"{artifact.content_hash}.png").write_bytes(b"first cover")
+    first_token = cover_token(service.store, artifact)
+    first = cover_path(service.store, artifact.id, first_token)
+    first.parent.mkdir()
+    first.write_bytes(b"first cover")
     url = f"/api/hub/previews/{artifact.id}"
-    assert client.get(url).headers["cache-control"] == "no-store"
+    assert client.get(url).status_code == 409
     assert client.get(url, params={"v": "wrong"}).headers["cache-control"] == "no-store"
-    assert client.get(url, params={"v": artifact.content_hash}).headers["cache-control"] == (
+    assert client.get(url, params={"v": first_token}).headers["cache-control"] == (
         "private, max-age=3600"
     )
     revised = ArtifactStore(service.store).revise_artifact(
@@ -132,20 +144,49 @@ def test_cover_browser_cache_requires_current_fingerprint(
         1,
         "fixture-revision",
     )
-    assert revised.content_hash != artifact.content_hash
-    (cache_dir / f"{revised.content_hash}.png").write_bytes(b"revised cover")
-    stale = client.get(url, params={"v": artifact.content_hash})
-    assert stale.content == b"revised cover" and stale.headers["cache-control"] == "no-store"
-    current = client.get(url, params={"v": revised.content_hash})
+    next_token = cover_token(service.store, revised)
+    assert next_token != first_token
+    cover_path(service.store, revised.id, next_token).write_bytes(b"revised cover")
+    assert client.get(url, params={"v": first_token}).content == b"first cover"
+    current = client.get(url, params={"v": next_token})
     assert current.content == b"revised cover"
     assert current.headers["cache-control"] == "private, max-age=3600"
-    assert client.get("/api/hub").headers["cache-control"] == "no-store"
-    assert (
-        client.get("/api/hub/previews/missing", params={"v": revised.content_hash}).headers[
-            "cache-control"
-        ]
-        == "no-store"
-    )
+    listing = client.get("/api/hub")
+    assert listing.headers["cache-control"] == "no-store"
+    assert listing.json()["artifacts"][0]["preview_url"] == cover_url(revised.id, next_token)
+    assert listing.json()["artifacts"][0]["preview_cached"] is True
+    assert client.get("/api/hub/previews/missing", params={"v": next_token}).status_code == 404
+
+
+def test_hub_discovers_legacy_presentations_once_per_request(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reuse small summaries within one response without caching deck content across requests."""
+    folder = service.store.root / "fictional-presentation"
+    make_design(folder)
+    (folder / "design.json").unlink()
+    original = Store.list_decks
+    discoveries: list[bool] = []
+
+    def tracked(store: Store, *, archived: bool = False) -> list[dict[str, str]]:
+        discoveries.append(True)
+        return original(store, archived=archived)
+
+    monkeypatch.setattr(Store, "list_decks", tracked)
+    response = client.get("/api/hub")
+    assert response.is_success, response.text
+    assert discoveries == [True]
+    assert response.json()["artifacts"][0]["id"] == folder.name
+    assert response.json()["projects"][0]["artifact_count"] == 1
+    registry = ArtifactStore(service.store)
+    assert registry.list_projects()[0].artifact_count == 1
+    assert registry.list_artifacts()[0].id == folder.name
+    assert len(discoveries) == 3
+    deck = service.store.read(folder.name)
+    deck.title = "Updated outside the library"
+    service.store.write(folder.name, deck)
+    assert client.get("/api/hub").json()["artifacts"][0]["title"] == deck.title
+    assert len(discoveries) == 4
 
 
 def test_import_preview_and_immutable_source_routes(client: TestClient) -> None:
@@ -240,15 +281,15 @@ def test_detail_reads_each_bundle_once_and_preserves_pending_feedback(
             "request_id": "detail-scan-feedback",
         },
     ).is_success
-    original_read = artifact_module.read_tree
+    original_read = artifact_module.tree_inventory
     reads: list[Path] = []
 
-    def tracked_read(folder: Path) -> dict[str, bytes]:
-        """Count whole-bundle reads independently of file size or filesystem speed."""
+    def tracked_read(folder: Path) -> list[ArtifactFile]:
+        """Count streaming inventory passes independently of file size or disk speed."""
         reads.append(folder)
         return original_read(folder)
 
-    monkeypatch.setattr(artifact_module, "read_tree", tracked_read)
+    monkeypatch.setattr(artifact_module, "tree_inventory", tracked_read)
     response = client.get(f"/api/artifacts/{artifact.id}")
     assert response.is_success
     assert reads == [

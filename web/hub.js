@@ -140,6 +140,7 @@
   const icon=name => extraIcons[name]?`<svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${extraIcons[name]}"/>${name==='updated'?'<circle cx="20" cy="17" r="2" fill="currentColor" stroke="none"/>':''}</svg>`:root.SlideIcons.svg(name);
   const sizeLabel=size => root.SlideChatComposer.sizeLabel(Number(size) || 0);
   const chatImages=root.ChatImages.create({document:doc,escape,svg:icon});
+  const coverLoader=root.HubCovers.create({onChanged:()=>void refresh()});
   const state={designActive:null,projects:[],projectTree:{nodes:[],content_hash:''},artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
   let sort=validSort(null);
   try{sort=validSort(JSON.parse(root.localStorage.getItem('artifact-studio:library-sort')));}catch{}
@@ -416,7 +417,7 @@
   }
   function refreshCards() {
     const grid=doc.getElementById('hub-grid');grid.classList.toggle('is-grouped',state.project!=='designs' && sort.by==='type');grid.innerHTML=cards();
-    doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);
+    doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);coverLoader.mount(grid);
   }
   function updateSort(value) {
     sort=validSort(value);
@@ -433,9 +434,9 @@
     const items=filteredArtifacts();
     if(!items.length)return `<div class="hub-empty">${icon(state.search?'eye':'folder')}<h2>${state.search || state.kind!=='all'?'No matching artifacts':state.project==='all'?'A place for your work':'This project is ready'}</h2><p>${state.search || state.kind!=='all'?'Try another search or format.':'Import a page, document, image, presentation or a bundle of files.'}</p>${state.search || state.kind!=='all'?'':`<div class="hub-empty-actions">${button('import','Import files','upload','class="hub-primary"')}</div>`}</div>`;
     const card=item=>{
-      const kind=kinds[kindOf(item)], preview=item.preview_url || (kindOf(item)==='image'?filePath(item):kindOf(item)==='file'?'':`/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
-      const safePreview=typeof preview==='string' && preview.startsWith('/api/') && !preview.startsWith('//')?preview:'';
-      return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img src="${escape(safePreview)}" alt="" draggable="false" loading="lazy" decoding="async" data-preview-image>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
+      const kind=kinds[kindOf(item)],preview=kindOf(item)==='file'?'':item.preview_url || `/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`;
+      const safePreview=root.HubCovers.coverURL(preview),fallback=root.HubCovers.coverURL(item.preview_fallback_url);
+      return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img alt="" draggable="false" decoding="async" data-preview-image data-cover-url="${escape(safePreview)}" data-cover-fallback="${escape(fallback)}" data-cover-cached="${item.preview_cached===true}" data-cover-renderer="${item.kind!=='image'}" hidden><span class="hub-cover-status" data-cover-status hidden></span>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}${safePreview?`<button type="button" class="hub-cover-retry" data-action="retry-cover" data-cover-retry="${escape(safePreview)}" aria-label="Retry preview for ${escape(item.title)}" title="Retry preview" hidden>${icon('refresh')}</button>`:''}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
     };
     if(sort.by!=='type')return items.map(card).join('');
     const groups=Map.groupBy(items,item=>artifactType(item).key);
@@ -452,7 +453,7 @@
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
     for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],.hub-top-actions [data-action="context"]'))node.hidden=designs;
     content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div><label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label></header><div class="hub-library-toolbar" ${designs?'hidden':''}><nav class="hub-chips" aria-label="Artifact formats">${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav>${sortControl()}</div><div id="hub-grid" class="hub-grid ${!designs && sort.by==='type'?'is-grouped':''}">${cards()}</div></main></div>`;
-    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();
+    doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();coverLoader.mount(doc.getElementById('hub-grid'));
   }
   function fileList(item) {
     return `<ul class="hub-file-list">${fileRecords(item).map(file=>`<li><a href="${escape(filePath(item,file.path || file.name))}" download>${icon('notes')}<span>${escape(file.path || file.name)}</span></a>${file.size!==undefined?`<small>${sizeLabel(file.size)}</small>`:''}</li>`).join('')}</ul>`;
@@ -676,7 +677,7 @@
   }
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');!id&&!['all','designs'].includes(state.project)?url.searchParams.set('project',state.project):url.searchParams.delete('project');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
-    if(!resetEditor())return;closeTreeMenu();workspacePanels.exitView();
+    if(!resetEditor())return;coverLoader.clear();closeTreeMenu();workspacePanels.exitView();
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
@@ -725,7 +726,7 @@
     await loadRegistry();if(id)return openDesign(id,false);home('designs');
   }});
   async function openDesign(id,push=true){
-    if(!resetEditor())return;workspacePanels.exitView();
+    if(!resetEditor())return;coverLoader.clear();workspacePanels.exitView();
     void voice.stop();const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
     try{
       const item=await api(`/api/design-library/${encodeURIComponent(id)}`);if(token!==state.loading)return;
@@ -815,6 +816,7 @@
   async function action(name,node) {
     if(name==='favorite-slides')return root.FavoriteSlides.open();
     if(name==='reference-slides'){const id=state.active;return root.FavoriteSlides.open({attach:files=>id===state.active&&addAttachments(files)});}
+    if(name==='retry-cover'){coverLoader.retry(node.dataset.coverRetry);return;}
     if(name==='sort-direction'){updateSort({...sort,direction:sort.direction==='asc'?'desc':'asc'});return;}
     if(name==='history'){if(!artifactEditor.finish())return;versions.open({kind:'artifact',artifactId:state.detail.id,title:state.detail.title});return;}
     if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
@@ -933,7 +935,7 @@
       if(form.id==='hub-move-form'){const id=form.dataset.artifactId;await api(artifactPath(id,'/project'),{project_id:String(fields.get('project_id'))});await loadRegistry();dialog.close();if(state.active===id)await openArtifact(id,false);else if(state.active){const aside=content.querySelector('aside.hub-sidebar');if(aside)aside.outerHTML=sidebar(true);}else library();toast('Artifact moved to the selected project.');}
     })().catch(reason=>{error.textContent=reason.message;submit.textContent=form.id==='hub-import-form'?'Import artifact':submit.textContent;}).finally(()=>{submit.disabled=false;});
   });
-  content.addEventListener('error',event=>{if(event.target.matches?.('[data-preview-image]'))event.target.remove();},true);
+  content.addEventListener('error',event=>{if(event.target.matches?.('[data-preview-image]'))coverLoader.imageFailed(event.target);},true);
   content.addEventListener('click',event=>{
     if(!state.selecting || kindOf(state.detail || {})!=='markdown' || state.sourceView)return;
     const block=event.target.closest('#hub-markdown [data-target-index]');if(!block)return;
