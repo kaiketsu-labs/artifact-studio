@@ -104,6 +104,22 @@ test('pending saved covers honor Retry-After and settle without repeated grid re
   f.loader.destroy();
 });
 
+test('reference previews use their visible container without a hub card and stop retries on dismissal',async()=>{
+  const f=fixture(),reference=card(url('reference'));
+  reference.image.closest=selector=>selector==='[data-cover-container],.hub-cover'?reference.cover:null;
+  f.mount([reference]);
+  assert.equal(f.requests.length,1,'The hidden image must use its visible reference container');
+  assert.deepEqual(f.observers[0].targets,[reference.cover]);
+  f.requests[0].answer(result(202,'cover_pending'));await flush();
+  f.loader.clear();await f.advance(5000);assert.equal(f.requests.length,1);
+  f.mount([reference]);assert.equal(f.requests.length,2);
+  f.requests[1].answer(png());await flush();
+  assert.equal(reference.image.hidden,false);assert.equal(reference.image.src,'blob:cover-1');
+  f.loader.clear();f.mount([reference]);
+  assert.equal(f.requests.length,2,'Reopening a reference reuses its decoded cover');
+  f.loader.destroy();
+});
+
 test('admission retries are bounded and terminal failures survive grid rebuilding',async()=>{
   const f=fixture({retryLimit:2}),one=card(url());f.mount([one]);
   f.requests[0].answer(result(202,'cover_busy'));await flush();await f.advance(1000);

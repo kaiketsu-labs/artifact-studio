@@ -12,7 +12,7 @@ corporate packs and model credentials are not required.
 | --- | --- |
 | Ruff, types, unit tests & release simulation | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests, JavaScript syntax and offline Release Please simulations. |
 | Playwright user journeys and rendering (editor) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation, drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input, structural undo, element commands and whole-slide design alternatives. |
-| Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
+| Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus and cover loading, chat path references and pending/cached hover previews, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
 | Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
 
 The two browser suites run in parallel with `fail-fast: false` and independent
