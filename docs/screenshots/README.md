@@ -24,6 +24,7 @@ uv run python -m scripts.capture_sharing
 uv run python -m scripts.capture_slide_designs
 uv run python -m scripts.capture_element_alternatives
 uv run python -m scripts.capture_full_backups
+uv run python -m scripts.capture_chat_references
 ```
 
 The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/artifact-studio-docs`.
@@ -76,5 +77,13 @@ The visual-review example uses the production snapshot sanitizer, readiness hook
 [capture_element_alternatives.py](../../scripts/capture_element_alternatives.py) captures the pending-review control, headline/text/graphic choices, comparison, saved choices, narrow layout, sorter title, grouped history and backup retry. Its [inventory](element-alternatives-captures.json) records 14 captures and their accessibility audits. The grouped timeline's thumbnail endpoint receives browser captures of the exact fictional revisions; the earlier element-history capture uses a placeholder PNG. Both leave production renderer isolation unchanged. Backup status uses a fictional repository and connection failure without running a backup.
 
 The logo and conceptual [workflow diagram](../assets/workflow.svg) are artwork, not app screenshots, and are kept separately.
+
+[capture_chat_references.py](../../scripts/capture_chat_references.py) captures
+the actual [cursor preview](chat-reference-hover.png) and [attached references](chat-reference-chips.png)
+using fictional projects and slides. The [inventory](chat-reference-captures.json)
+records viewports, hashes and accessibility findings; pass `--axe /path/to/axe.min.js`
+to include the audit. Cover caches contain browser captures of the fixture because
+the managed host cannot launch the production renderer's OS isolation. The slide
+preview itself uses the actual iframe endpoint. No user collection is opened.
 
 [capture_slide_designs.py](../../scripts/capture_slide_designs.py) publishes three fictional whole-slide directions through the real MCP tool, then uses the real preview, hover, compare, choose and History controls. The [inventory](slide-designs-captures.json) records seven captures with viewports and byte hashes: [editor](../assets/slide-designs.png), [hover](slide-designs-hover.png), [comparison](slide-designs-compare.png), [narrow](slide-designs-mobile.png), [dark](slide-designs-dark.png), [chosen](slide-designs-chosen.png) and [History](slide-designs-history.png). Frozen proposal documents are real. Only the unrelated existing revision-timeline thumbnail uses a fictional PNG because its production renderer requires OS isolation unavailable on managed capture hosts. The earlier [UX prototype](../prototypes/slide-alternatives/README.md) records design exploration; these captures show the implementation.

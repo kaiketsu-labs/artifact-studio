@@ -24,6 +24,7 @@
       images?.retain([...drafts.values()].flat());
       filesList.innerHTML=selected.map((file,index)=>{
         const remove=`<button type="button" data-chat-remove="${index}" aria-label="Remove ${escape(file.name)}" title="Remove ${escape(file.name)}" ${disabled||processing?'disabled':''}>${svg('close')}</button>`;
+        const reference=root.ChatReferences?.chip(file,remove);if(reference)return reference;
         return (file.slideReference?`<span class="chat-file-chip is-slide-reference">${svg('star')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.slideReference.title)}</span><small>Slide reference · ${escape(file.slideReference.deckTitle)}</small>${file.slideReference.description?`<small class="favorite-reference-description">${escape(file.slideReference.description)}</small>`:''}</span>${remove}</span>`:'') || images?.draft(file,remove) || `<span class="chat-file-chip"><span class="chat-file-icon">${svg('attach')}</span><span class="chat-file-description"><span class="chat-file-name" title="${escape(file.name)}">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${remove}</span>`;
       }).join('');
       attachButton.disabled=disabled||processing;
@@ -35,6 +36,7 @@
     }
     function add(incoming){
       if(disabled||state().processing||!key())return false;
+      incoming=incoming.filter(file=>!file.workspaceReference||!files().some(saved=>saved.workspaceReference?.token===file.workspaceReference.token));
       const selected=[...files(),...incoming],message=selectionError(selected);
       if(message){error(message);return false;}
       drafts.set(key(),selected);error();changed();return true;

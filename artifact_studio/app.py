@@ -41,6 +41,7 @@ from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
 from .artifacts import ArtifactStore
 from .autosync import AutoSync, SyncStatus
+from .chat_references import chat_reference_routes
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
 from .design_references import (
@@ -2280,6 +2281,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 
 app.include_router(artifact_routes(lambda: store))
 app.include_router(favorite_routes(lambda: store))
+app.include_router(chat_reference_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
 app.include_router(design_routes(lambda: store))
