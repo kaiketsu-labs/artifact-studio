@@ -66,6 +66,8 @@
   <script src="/web/chat-composer.js" defer></script>
   <link rel="stylesheet" href="/web/favorites.css">
   <script src="/web/favorites.js" defer></script>
+  <link rel="stylesheet" href="/web/chat-references.css">
+  <script src="/web/chat-references.js" defer></script>
   <script src="/web/vendor/marked-18.1.2.js" defer></script>
   <script src="/web/chat-markdown.js" defer></script>
   <script src="/web/chat-resize.js" defer></script>
@@ -181,7 +183,7 @@
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>
       <div id="voice-feedback-segments" class="voice-segments" aria-label="Dictated feedback" hidden></div>
-      <textarea id="feedback-text" placeholder="Message your agent…" maxlength="10000" disabled></textarea>
+      <textarea id="feedback-text" placeholder="Message your agent… Type @ to reference" maxlength="10000" disabled></textarea>
       <div id="feedback-error" role="alert"></div>
       <div id="feedback-upload-status" role="status"></div>
       <input id="feedback-file-input" type="file" multiple hidden>

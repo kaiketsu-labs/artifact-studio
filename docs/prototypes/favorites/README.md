@@ -12,6 +12,10 @@ five artifacts and three favorite slides. Stop it with Ctrl+C to remove that wor
 
 ## Using favorites
 
+To reference other work directly from chat, type **@**. The path picker supports
+projects, artifacts, whole presentations and unstarred slides, with previews beside
+the cursor. [Path references and keyboard controls](../../CHAT-REFERENCES.md).
+
 | Area | Behavior |
 | --- | --- |
 | Artifact library | Click a star on a card. **Starred first** is the new default; each group keeps the existing last-changed order. Explicit saved sort choices still apply. |
