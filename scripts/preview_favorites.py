@@ -14,6 +14,7 @@ from playwright.sync_api import Browser, sync_playwright
 
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.favorites import DescriptionInput, Favorites, StarInput
+from artifact_studio.hub_previews import cover_path, cover_token
 from scripts.screenshot_fixture import seed
 from tests.integration.support import DECK_ID, RunningApp, running_app
 
@@ -73,7 +74,7 @@ def prepare_covers(app: RunningApp, browser: Browser) -> None:
                 url = f"{app.url}/api/artifacts/{item.id}/files/{item.entrypoint}"
             page.goto(url)
             _ = page.evaluate("document.fonts.ready")
-            path = app.store.database.parent / "artifact-previews" / (item.content_hash + ".png")
+            path = cover_path(app.store, item.id, cover_token(app.store, item))
             path.parent.mkdir(exist_ok=True)
             _ = page.screenshot(path=path)
     finally:

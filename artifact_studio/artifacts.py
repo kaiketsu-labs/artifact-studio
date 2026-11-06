@@ -224,6 +224,8 @@ class ArtifactStore:
                 CREATE TABLE IF NOT EXISTS artifact_feedback (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, artifact_id TEXT NOT NULL,
                     document TEXT NOT NULL, released INTEGER NOT NULL, author TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS artifact_feedback_pending
+                    ON artifact_feedback(artifact_id,released,author);
                 CREATE TABLE IF NOT EXISTS artifact_delivery (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER UNIQUE NOT NULL);
             """)
@@ -557,14 +559,72 @@ class ArtifactStore:
 
     def snapshot_files(self, artifact_id: str, revision: int | None = None) -> dict[str, bytes]:
         """Pin a complete verified snapshot in memory for isolated capture and export tooling."""
-        artifact = (
-            self.get_artifact(artifact_id)
-            if revision is None
-            else self.get_artifact_revision(artifact_id, revision)
-        )
-        if artifact.legacy_deck_id:
-            raise ValueError("Use presentation-specific capture for legacy decks.")
-        return self._snapshot_contents(artifact)
+        return self.verified_snapshot(artifact_id, revision)[1]
+
+    def _selected_snapshot_contents(
+        self, artifact: ArtifactManifest, paths: list[str]
+    ) -> dict[str, bytes]:
+        """Materialize only requested bytes after full verification, checking each read again."""
+        metadata = {file.path: file for file in artifact.files}
+        contents: dict[str, bytes] = {}
+        for path in paths:
+            path = relative_path(path)
+            if path not in metadata:
+                raise FileNotFoundError("File is not owned by this artifact revision.")
+            recorded = metadata[path]
+            if not 0 <= recorded.size <= MAX_FILE_SIZE:
+                raise ValueError("Keep individual artifact files at or below 50 MB.")
+            target = self._owned(self._snapshot(artifact) / path)
+            with target.open("rb") as source:
+                data = source.read(recorded.size + 1)
+            if len(data) != recorded.size or hashlib.sha256(data).hexdigest() != recorded.sha256:
+                raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
+            contents[path] = data
+        return contents
+
+    def verified_snapshot(
+        self,
+        artifact_id: str,
+        revision: int | None = None,
+        *,
+        paths: list[str] | Literal["entrypoint", "preview"] | None = None,
+    ) -> tuple[ArtifactView, dict[str, bytes]]:
+        """Verify every file; preview mode retains text while images remain revision URLs."""
+
+        def selection(manifest: ArtifactManifest) -> list[str] | None:
+            if paths == "entrypoint":
+                return [manifest.entrypoint]
+            if paths == "preview":
+                entry = next(item for item in manifest.files if item.path == manifest.entrypoint)
+                return [] if entry.mime_type.startswith("image/") else [manifest.entrypoint]
+            return paths
+
+        if revision is None:
+            artifact = self.get_artifact(artifact_id)
+            if artifact.legacy_deck_id:
+                raise ValueError("Use presentation-specific capture for legacy decks.")
+            selected = selection(artifact)
+            contents = (
+                self._snapshot_contents(artifact)
+                if selected is None
+                else self._selected_snapshot_contents(artifact, selected)
+            )
+            return artifact, contents
+        with self.store.connect() as db:
+            row = db.execute(
+                "SELECT document FROM artifact_revisions WHERE artifact_id=? AND revision=?",
+                (self._id(artifact_id), revision),
+            ).fetchone()
+            if row is None:
+                raise FileNotFoundError("Artifact revision does not exist.")
+            manifest = ArtifactManifest.model_validate_json(cast(str, row[0]))
+            selected = selection(manifest)
+            if selected is None:
+                contents = self._snapshot_contents(manifest)
+            else:
+                self._verify_snapshot(manifest)
+                contents = self._selected_snapshot_contents(manifest, selected)
+            return self._view(db, manifest), contents
 
     def register_artifact(
         self,
@@ -734,14 +794,27 @@ class ArtifactStore:
             if project_id:
                 _ = self._project(db, project_id)
             ids = [
-                cast(str, row[0]) for row in db.execute("SELECT id FROM artifact_items ORDER BY id")
+                cast(str, row[0])
+                for row in db.execute(
+                    "SELECT id FROM artifact_items "
+                    + ("WHERE project_id=? " if project_id else "")
+                    + "ORDER BY id",
+                    (project_id,) if project_id else (),
+                )
             ]
+            bindings = {
+                cast(str, row[0]): cast(str, row[1])
+                for row in db.execute("SELECT artifact_id,project_id FROM artifact_legacy_projects")
+            }
         items = [self.get_artifact(artifact_id) for artifact_id in ids]
+        if project_id and project_id != LEGACY_PROJECT and project_id not in bindings.values():
+            return items
         items.extend(
             self._legacy(deck["id"])
             for deck in (self.presentation_summaries() if presentations is None else presentations)
+            if not project_id or bindings.get(deck["id"], LEGACY_PROJECT) == project_id
         )
-        return [item for item in items if not project_id or item.project_id == project_id]
+        return items
 
     def resolve_file(self, artifact_id: str, path: str, revision: int | None = None) -> Path:
         """Resolve declared files, rejecting traversal, symlinks and altered snapshots."""
@@ -774,7 +847,9 @@ class ArtifactStore:
             else self.get_artifact_revision(artifact_id, revision)
         )
         metadata = {file.path: file for file in artifact.files}
-        contents = {} if artifact.legacy_deck_id else self._snapshot_contents(artifact)
+        contents = (
+            {} if artifact.legacy_deck_id else self._selected_snapshot_contents(artifact, paths)
+        )
         result: list[ArtifactFileContent] = []
         for path in paths:
             path = relative_path(path)
@@ -860,6 +935,7 @@ class ArtifactStore:
             working: Path | None = None
             mirror: Path | None = None
             mirror_bytes: bytes | None = None
+            committed = False
             try:
                 row = self._row(db, artifact_id)
                 if row is not None:
@@ -951,6 +1027,7 @@ class ArtifactStore:
                     (artifact_id, request_id, payload_hash, current.model_dump_json()),
                 )
                 db.commit()
+                committed = True
                 return current
             except BaseException:
                 if backup is not None and backup.exists():
@@ -965,7 +1042,7 @@ class ArtifactStore:
                 db.rollback()
                 raise
             finally:
-                if temporary is not None and (backup is None or not backup.exists()):
+                if temporary is not None and (committed or backup is None or not backup.exists()):
                     shutil.rmtree(temporary, ignore_errors=True)
 
     @staticmethod
@@ -1135,14 +1212,18 @@ class ArtifactStore:
         return self.feedback_for(artifact, include_pending=include_pending)
 
     def feedback_for(
-        self, artifact: ArtifactView, *, include_pending: bool = False
+        self,
+        artifact: ArtifactView,
+        *,
+        include_pending: bool = False,
+        after_delivery_id: int | None = None,
     ) -> list[ArtifactFeedback]:
         """Read discussion against a just-validated view without rescanning its source trees."""
         artifact_id = artifact.id
         if artifact.legacy_deck_id:
             return [
                 self._legacy_feedback(artifact, event)
-                for event in self.store.comments(artifact_id)
+                for event in self.store.comments(artifact_id, after_delivery_id=after_delivery_id)
                 if include_pending or event.released
             ]
         with self.store.connect() as db:
@@ -1150,8 +1231,16 @@ class ArtifactStore:
                 "SELECT artifact_feedback.document,artifact_delivery.id AS delivery_id "
                 "FROM artifact_feedback LEFT JOIN artifact_delivery "
                 "ON artifact_feedback.id=artifact_delivery.event_id "
-                "WHERE artifact_id=? AND (? OR released=1) ORDER BY artifact_feedback.id",
-                (artifact_id, include_pending),
+                "WHERE artifact_id=? AND (? OR released=1) "
+                + (
+                    "AND artifact_delivery.id>? AND released=1 AND author='user' "
+                    "ORDER BY artifact_delivery.id"
+                    if after_delivery_id is not None
+                    else "ORDER BY artifact_feedback.id"
+                ),
+                (artifact_id, include_pending, after_delivery_id)
+                if after_delivery_id is not None
+                else (artifact_id, include_pending),
             ).fetchall()
         events: list[ArtifactFeedback] = []
         for row in rows:
@@ -1163,14 +1252,8 @@ class ArtifactStore:
 
     def feedback_feed(self, artifact_id: str, after_delivery_id: int = 0) -> ArtifactFeedbackFeed:
         """Read released human feedback in delivery order, never exposing pending drafts."""
-        events = sorted(
-            (
-                event
-                for event in self.feedback(artifact_id)
-                if event.delivery_id is not None and event.delivery_id > after_delivery_id
-            ),
-            key=lambda event: event.delivery_id or 0,
-        )
+        artifact = self.get_artifact(artifact_id)
+        events = self.feedback_for(artifact, after_delivery_id=after_delivery_id)
         return ArtifactFeedbackFeed(
             events=events,
             next_cursor=max(

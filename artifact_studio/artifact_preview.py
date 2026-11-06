@@ -5,6 +5,7 @@ from html.parser import HTMLParser
 from pathlib import PurePosixPath
 from urllib.parse import quote, urlsplit
 
+from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
 from .local_http import validate_local_url
 
@@ -117,16 +118,17 @@ def preview_document(
 ) -> str:
     """Render owned HTML, Markdown, images or text without exposing project context."""
     origin = _origin(origin)
-    artifact = (
-        store.get_artifact(artifact_id)
-        if revision is None
-        else store.get_artifact_revision(artifact_id, revision)
-    )
+    artifact, files = store.verified_snapshot(artifact_id, revision, paths="preview")
+    return preview_document_from_source(artifact, origin, files.get(artifact.entrypoint, b""))
+
+
+def preview_document_from_source(artifact: ArtifactView, origin: str, data: bytes) -> str:
+    """Build a preview from an already verified revision and its pinned entrypoint bytes."""
+    origin = _origin(origin)
     if artifact.legacy_deck_id:
         raise ValueError("Use the presentation viewer for a legacy presentation.")
     files = artifact_files_url(artifact.id, artifact.revision, origin)
     entrypoint = PurePosixPath(artifact.entrypoint)
-    entry = store.resolve_file(artifact.id, artifact.entrypoint, revision=artifact.revision)
     mime_type = next(item.mime_type for item in artifact.files if item.path == artifact.entrypoint)
     directory = entrypoint.parent.as_posix()
     base = files if directory == "." else files + quote(directory, safe="/") + "/"
@@ -140,7 +142,7 @@ def preview_document(
         )
     else:
         try:
-            text = entry.read_text(encoding="utf-8-sig", newline="")
+            text = data.decode("utf-8-sig")
         except UnicodeDecodeError as error:
             raise ValueError(
                 "This file has no HTML, image, Markdown or UTF-8 text preview."

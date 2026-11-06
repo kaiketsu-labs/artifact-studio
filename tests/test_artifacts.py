@@ -4,6 +4,7 @@ import base64
 import hashlib
 import os
 import sqlite3
+import tracemalloc
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,7 +13,13 @@ import pytest
 from pydantic import ValidationError
 
 from artifact_studio import artifacts as artifact_module
-from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactTarget
+from artifact_studio.artifact_models import (
+    ArtifactFeedback,
+    ArtifactFeedbackInput,
+    ArtifactFileInput,
+    ArtifactTarget,
+    ArtifactView,
+)
 from artifact_studio.artifacts import ArtifactStore, artifact_revision_hash
 from artifact_studio.models import FileInput
 from artifact_studio.storage import ConflictError, Store
@@ -452,6 +459,7 @@ def test_failed_revision_restores_working_files_and_manifest(
             artifacts.revise_artifact(initial.id, changes, initial.revision, "revision-failure")
 
     assert mirror.read_bytes() == original_manifest
+    assert not list(mirror.parent.glob("tmp*"))
     assert artifacts.get_artifact(initial.id).revision == initial.revision
     assert artifacts.read_artifact_files(initial.id, ["app.js"])[0].text == (
         "document.body.dataset.state='ready'"
@@ -462,6 +470,160 @@ def test_failed_revision_restores_working_files_and_manifest(
         artifacts.revise_artifact(initial.id, changes, initial.revision, "revision-failure")
         == updated
     )
+    assert not list(mirror.parent.glob("tmp*"))
+
+
+def test_successful_revisions_cleanup_only_their_rollback_working_directory(
+    artifacts: ArtifactStore, tmp_path: Path
+) -> None:
+    """Do not duplicate media per edit or remove unrelated retained recovery material."""
+    project = artifacts.create_project("Project")
+    initial = artifacts.register_artifact(project.id, "Page", bundle(tmp_path), "index.html")
+    folder = Path(initial.source_path).parent
+    old = folder / "tmp-existing-recovery"
+    old.mkdir()
+    (old / "retained.txt").write_text("Existing recovery material")
+    current = initial
+    changes: list[ArtifactFileInput] = []
+    for index in range(4):
+        changes = [ArtifactFileInput(path="app.js", text=f"window.changed={index}")]
+        previous = current
+        current = artifacts.revise_artifact(
+            initial.id, changes, current.revision, f"cleanup-{index}"
+        )
+        assert (
+            artifacts.revise_artifact(initial.id, changes, previous.revision, f"cleanup-{index}")
+            == current
+        )
+        assert list(folder.glob("tmp*")) == [old]
+    unchanged = artifacts.revise_artifact(initial.id, changes, current.revision, "cleanup-noop")
+    assert unchanged == current
+    restored = artifacts.restore_artifact(
+        initial.id,
+        1,
+        artifact_revision_hash(current.id, current.revision, current.content_hash),
+        "cleanup-restore",
+    )
+    assert restored.revision > current.revision
+    assert list(folder.glob("tmp*")) == [old]
+    assert (old / "retained.txt").read_text() == "Existing recovery material"
+    for revision in range(1, restored.revision + 1):
+        assert artifacts.read_artifact_files(initial.id, ["image.bin"], revision)[0].data_base64
+
+
+def test_scoped_listing_does_not_open_other_projects_sources(
+    artifacts: ArtifactStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = artifacts.create_project("Selected")
+    other = artifacts.create_project("Unrelated")
+    source = bundle(tmp_path)
+    selected = artifacts.register_artifact(project.id, "Selected page", source, "index.html")
+    unrelated = artifacts.register_artifact(other.id, "Other page", source, "index.html")
+    make_design(artifacts.store.root / TEMPLATE_ID)
+    chosen_deck = artifacts.store.create("2026-11-06-selected-deck", "Selected legacy")
+    other_deck = artifacts.store.create("2026-11-06-other-deck", "Other legacy")
+    artifacts.set_artifact_project(chosen_deck.id, project.id)
+    artifacts.set_artifact_project(other_deck.id, other.id)
+    original_get = artifacts.get_artifact
+    original_legacy = artifacts._legacy  # pyright: ignore[reportPrivateUsage]
+    inspected: list[str] = []
+
+    def get(identifier: str) -> ArtifactView:
+        assert identifier == selected.id
+        inspected.append(identifier)
+        return original_get(identifier)
+
+    def legacy(identifier: str) -> ArtifactView:
+        assert identifier == chosen_deck.id
+        inspected.append(identifier)
+        return original_legacy(identifier)
+
+    monkeypatch.setattr(artifacts, "get_artifact", get)
+    monkeypatch.setattr(artifacts, "_legacy", legacy)
+    # Broken source in a different project must not affect scoped discovery.
+    (Path(unrelated.source_path) / "index.html").unlink()
+    result = artifacts.list_artifacts(project.id)
+    assert {item.id for item in result} == {selected.id, chosen_deck.id}
+    assert inspected == [selected.id, chosen_deck.id]
+
+
+def test_selected_reads_verify_the_whole_snapshot_without_materializing_unused_files(
+    artifacts: ArtifactStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = artifacts.create_project("Project")
+    item = artifacts.register_artifact(project.id, "Page", bundle(tmp_path), "index.html")
+
+    def forbidden(folder: Path) -> dict[str, bytes]:
+        raise AssertionError("Selected reads must not retain the whole source bundle")
+
+    monkeypatch.setattr(artifact_module, "read_tree", forbidden)
+    tracemalloc.start()
+    try:
+        assert artifacts.read_artifact_files(item.id, ["app.js"], 1)[0].text
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    # A tiny requested file must not preallocate the 50 MB maximum-file buffer.
+    assert peak < 8 * 1024 * 1024
+    view, files = artifacts.verified_snapshot(item.id, 1, paths="entrypoint")
+    assert view.content_hash == item.content_hash and set(files) == {"index.html"}
+    snapshot = Path(item.source_path).parent / "revisions" / "1" / "files"
+    (snapshot / "image.bin").write_bytes(b"\xff\x00\x82")
+    with pytest.raises(ConflictError, match="immutable"):
+        artifacts.read_artifact_files(item.id, ["app.js"], 1)
+
+
+def test_selected_bytes_are_rechecked_after_full_integrity_verification(
+    artifacts: ArtifactStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = artifacts.create_project("Project")
+    item = artifacts.register_artifact(project.id, "Page", bundle(tmp_path), "index.html")
+    inventory = artifact_module.tree_inventory
+    snapshot = Path(item.source_path).parent / "revisions" / "1" / "files"
+
+    def mutate_after_verify(folder: Path):
+        result = inventory(folder)
+        if folder == snapshot:
+            (folder / "app.js").write_text("tampered during request")
+        return result
+
+    monkeypatch.setattr(artifact_module, "tree_inventory", mutate_after_verify)
+    with pytest.raises(ConflictError, match="immutable"):
+        artifacts.read_artifact_files(item.id, ["app.js"], 1)
+
+
+def test_image_preview_snapshot_retains_no_original_image_bytes(
+    artifacts: ArtifactStore, tmp_path: Path
+) -> None:
+    project = artifacts.create_project("Project")
+    source = tmp_path / "image.png"
+    source.write_bytes(b"Fictional image; no decoding in the source inventory")
+    item = artifacts.register_artifact(project.id, "Image", source, "image.png")
+    view, files = artifacts.verified_snapshot(item.id, 1, paths="preview")
+    assert view.kind == "image" and files == {}
+
+
+def test_caught_up_owned_feedback_does_not_deserialize_retained_history(
+    artifacts: ArtifactStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = artifacts.create_project("Project")
+    item = artifacts.register_artifact(project.id, "Page", bundle(tmp_path), "index.html")
+    saved = artifacts.add_feedback(
+        item.id,
+        ArtifactFeedbackInput(
+            message="Retained message",
+            request_id="retained-message",
+            content_hash=item.content_hash,
+        ),
+    )
+    assert saved.delivery_id is not None
+
+    def forbidden(*args: object, **kwargs: object) -> ArtifactFeedback:
+        raise AssertionError("An empty feed must not deserialize retained comments")
+
+    monkeypatch.setattr(ArtifactFeedback, "model_validate_json", forbidden)
+    result = artifacts.feedback_feed(item.id, saved.delivery_id)
+    assert result.events == [] and result.next_cursor == saved.delivery_id
 
 
 def test_structured_edit_intent_round_trips_with_revision(

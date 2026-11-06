@@ -23,7 +23,7 @@ from .artifact_preview import (
     MARQUEE_PATH,
     artifact_file_headers,
     artifact_files_url,
-    preview_document,
+    preview_document_from_source,
     preview_headers,
 )
 from .artifacts import ArtifactStore
@@ -74,7 +74,7 @@ def capture_resources(
         raise ValueError("Use the presentation capture for a legacy presentation.")
     if sum(item.size for item in artifact.files) > MAX_DEPENDENCY_BYTES:
         raise ValueError("Artifact capture dependencies exceed 64 MiB. Resize assets first.")
-    files = store.snapshot_files(artifact.id, artifact.revision)
+    artifact, files = store.verified_snapshot(artifact.id, artifact.revision)
     base = artifact_files_url(artifact.id, artifact.revision, origin)
     headers = artifact_file_headers(artifact.id, artifact.revision, origin)
     resources = {
@@ -88,7 +88,7 @@ def capture_resources(
             (PROJECT / name.lstrip("/")).read_bytes(), "text/javascript", headers
         )
     resources[origin + "/__artifact_capture__"] = CaptureResource(
-        preview_document(store, artifact.id, origin, artifact.revision).encode(),
+        preview_document_from_source(artifact, origin, files[artifact.entrypoint]).encode(),
         "text/html",
         preview_headers(artifact.id, artifact.revision, origin),
     )

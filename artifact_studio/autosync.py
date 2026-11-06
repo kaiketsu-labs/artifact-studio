@@ -110,7 +110,11 @@ class AutoSync:
 
     def _tick(self, now: float) -> None:
         """Wait for a quiet interval and preserve failed deliveries for explicit attention."""
-        enabled = [item for item in self.libraries.list() if item.auto_sync_enabled]
+        enabled = [
+            item
+            for item in self.libraries.list()
+            if item.auto_sync_enabled and self.state(item.id).phase != "error"
+        ]
         if not enabled:
             return
         for library in enabled:

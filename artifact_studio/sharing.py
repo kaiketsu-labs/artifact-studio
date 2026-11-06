@@ -15,7 +15,9 @@ from playwright.sync_api import sync_playwright
 from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
 from .projects import audience_html
+from .renderer_health import check_renderer_available, sandboxed_browser
 from .storage import ConflictError, Store
+from .visuals import render_slot
 
 ShareFormat = Literal["html", "pdf"]
 
@@ -81,17 +83,13 @@ def _audience_files(files: dict[str, bytes]) -> tuple[dict[str, bytes], tuple[st
 def _pdf(html: str) -> bytes:
     """Render the local print document as a real PDF without external requests."""
     try:
-        with sync_playwright() as renderer:
-            browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
-            try:
-                page = browser.new_page()
-                page.route("**/*", lambda route: route.abort())
-                page.set_content(html, wait_until="load")
-                page.emulate_media(media="print")
-                page.wait_for_function("document.documentElement.dataset.printReady === 'true'")
-                return page.pdf(print_background=True, prefer_css_page_size=True)
-            finally:
-                browser.close()
+        with render_slot(), sandboxed_browser(sync_playwright) as browser:
+            page = browser.new_page()
+            page.route("**/*", lambda route: route.abort())
+            page.set_content(html, wait_until="load")
+            page.emulate_media(media="print")
+            page.wait_for_function("document.documentElement.dataset.printReady === 'true'")
+            return page.pdf(print_background=True, prefer_css_page_size=True)
     except BrowserTimeoutError as exc:
         raise ValueError(
             "The PDF did not finish rendering. Check the interactive content."
@@ -116,6 +114,8 @@ class SharingService:
         if artifact.legacy_deck_id:
             if format not in {"html", "pdf"}:
                 raise ValueError("Choose HTML or PDF for presentations.")
+            if format == "pdf":
+                check_renderer_available()
             document = audience_html(self.store, artifact.legacy_deck_id, printing=format == "pdf")
             current = self.artifacts.get_artifact(artifact.id)
             if current.content_hash != artifact.content_hash:
