@@ -19,7 +19,8 @@ If a Terminal server is running, stop it with **Ctrl+C** before opening the app.
 | Recent Projects → | Hover to open your last five projects. A green plug identifies connected projects. The same recent list appears in the app's Menu. |
 | Open Artifact Studio | Opens the workspace in your default browser. |
 | Start / Stop / Restart | Controls the server started by this menu-bar app. Stop waits for a graceful shutdown. |
-| Update… | Checks GitHub main, installs an available update and rebuilds the controller. A running server requires confirmation before it stops and restarts. A stopped server stays stopped. |
+| Version / Update… | Shows the installed version. The Update action and download icon appear only when a newer eligible release is available. A running server requires confirmation before it stops and restarts. A stopped server stays stopped. |
+| Settings → Include Nightly Builds | Opts into preview releases from main. Off by default; shared with the web About dialog and saved across restarts. |
 | Settings → Launch at Login | Toggles automatic startup; a checkmark means enabled. If macOS needs approval, the same submenu opens Login Items. |
 | Settings → GitHub Backup | Repository delivery status, last successful backup, Automatic Backup, Sync Now/Retry, and Open Backup Settings. Uses the server’s shared settings. |
 | Show Logs | Reveals the local server log in Finder. |
@@ -33,9 +34,10 @@ Closing a browser tab does not stop the server. Stopping or restarting the serve
 
 ## Existing workspaces and updates
 
-The Mac menu keeps the installed app's **Version** and **Update…** action on one
-row, including while the server is stopped. A filled download-circle icon and the available version appear
-when a newer stable release is found. In the web library or slide editor, choose
+The Mac menu keeps the installed app's **Version** visible, including while the
+server is stopped. **Update…**, its download icon and the available tag appear
+only when a newer eligible release is found. The version row is otherwise plain,
+noninteractive information. In the web library or slide editor, choose
 **Menu → About Artifact Studio** for the running app version and release notes;
 a small blue dot on Menu indicates an available update. The menu-bar controller
 reads its installed bundle version; the web app reads the running server version.
@@ -46,13 +48,28 @@ They normally match after updating the server and controller together.
 The [narrow About dialog](screenshots/app-version-mobile.png) also fits the editor.
 These captures use a fictional newer release to demonstrate the available-update state.
 
-Release checks are read-only and cached for an hour. Offline checks leave the
+Release checks refresh private Git refs and are cached for an hour; they never
+move the checked-out branch or change source files or local tags. Offline checks leave the
 installed version visible without claiming that the app is up to date. Set
 `ARTIFACT_STUDIO_UPDATE_CHECKS=0` on the server to disable automatic release checks.
 
 The defaults are `~/Documents/Artifacts`, this checkout's `.state/review.sqlite3`, and port 8790. Override them at installation with `--collection`, `--database` and `--port`. App configuration lives in `Contents/Resources/configuration.json`; logs live in `~/Library/Logs/labs.kaiketsu.artifact-studio/server.log`.
 
-Keep this checkout and its `.venv` in place. Choose **Update…** in the Mac menu to update the server, browser interface and native controller together. It selects the highest stable `vMAJOR.MINOR.PATCH` release tag published on `origin`, using numeric version order. Prerelease tags and non-version tags are ignored; untagged changes on `main` are not installed. The confirmation names the selected release. No new GitHub API login is needed: the updater reuses the checkout's Git connection.
+Keep this checkout and its `.venv` in place. When **Update…** appears in the Mac menu,
+it updates the server, browser interface and native controller together. Stable
+`vMAJOR.MINOR.PATCH` tags are the default. Enable **Include Nightly Builds** in Mac
+Settings or **Menu → About Artifact Studio** to also consider
+`nightly-YYYYMMDD.RUN` prereleases. Other prerelease formats and untagged changes
+are excluded. The confirmation names the selected tag. No new GitHub API login
+is needed: the updater reuses the checkout's Git connection.
+
+Nightlies are preview builds and may be less stable. The newest eligible source
+commit wins; a stable tag wins when both channels identify the same source. The
+installed nightly is identified by its tag, so unchanged project version numbers
+do not cause repeated update offers. Turning the option off waits for a stable
+release that can advance the installation; it never downgrades a newer nightly.
+With the server stopped, a previously discovered update remains usable; start the
+server to refresh discovery or change the shared channel preference.
 
 The checkout must be clean and on `main`, and the release must be part of `origin/main`. Updates fast-forward to the selected tag's commit; a checkout already newer than the latest release is left unchanged. With no stable tag, the check reports that no release is available. If the tag changes, disappears or is replaced by a newer release before installation, check again. The updater preserves local tags, does not auto-commit, discard edits or reconcile divergent branches, and retains your collection/database paths. Active server and agent connections are interrupted only after you confirm **Update and Restart**. Refresh browser tabs and resume agent review afterward.
 

@@ -47,7 +47,7 @@ uv run --no-sync python scripts/install_macos.py --launch-at-login
 
 If you already started the server in Terminal, stop it with **Ctrl+C** first. Open `~/Applications/Artifact Studio.app` in Finder, then choose **Open Artifact Studio** from the artifact icon beside the clock. The app starts the server and registers login startup; approve it in System Settings if macOS asks.
 
-A filled status square means the server is responding. Start/Stop and Restart control its server. **Update…** installs GitHub main; it warns before stopping a running server. **Settings** contains Launch at Login and GitHub Backup. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
+A filled status square means the server is responding. Start/Stop and Restart control its server. **Update…** appears when a newer release is available; it warns before stopping a running server. **Settings** contains Launch at Login, GitHub Backup and the optional nightly update channel. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
 
 ### Terminal
 
@@ -273,7 +273,12 @@ Current-source GitHub snapshots include owned artifact bundles, project briefs/m
 
 ## Update an existing installation
 
-In the Mac menu, choose **Update…**. A running server asks for confirmation before updating and restarting; a stopped server stays stopped. Commit or move unfinished source edits first. The menu-bar app also updates itself. Refresh the browser and resume agent review afterward.
+When the Mac menu offers **Update…**, choose it to install the available release.
+A running server asks for confirmation before updating and restarting; a stopped
+server stays stopped. Commit or move unfinished source edits first. The menu-bar
+app also updates itself. Refresh the browser and resume agent review afterward.
+Stable releases are the default; **Include Nightly Builds** in Mac Settings or the
+web About dialog opts into preview releases.
 
 For a Terminal installation, save your work and back up the collection and state folder. From a checkout without uncommitted changes:
 

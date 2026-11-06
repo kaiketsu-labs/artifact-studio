@@ -299,15 +299,23 @@ def test_apply_cannot_install_an_untagged_main_commit(checkout: Checkout) -> Non
         updater.apply_update(checkout.project, updater.UpdatePlan(checkout.current, unreleased, 0))
 
 
+@pytest.mark.parametrize("include_nightly", [False, True])
 def test_native_check_apply_protocol_carries_the_selected_release(
-    checkout: Checkout, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    checkout: Checkout,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    include_nightly: bool,
 ) -> None:
     """The native controller receives a release label and can apply that exact plan."""
+    target = publish_nightly(checkout) if include_nightly else checkout.target
+    tag = "nightly-20261106.123" if include_nightly else "v0.2.0"
+    channel = ["--include-nightly"] if include_nightly else []
     monkeypatch.chdir(checkout.project)
-    monkeypatch.setattr(sys, "argv", ["updater", "check"])
+    monkeypatch.setattr(sys, "argv", ["updater", "check", *channel])
     assert updater.main() == 0
     plan = json.loads(capsys.readouterr().out)
-    assert plan["release_tag"] == "v0.2.0" and plan["ahead"] is False
+    assert plan["release_tag"] == tag and plan["ahead"] is False
+    assert plan["include_nightly"] is include_nightly
     monkeypatch.setattr(
         sys,
         "argv",
@@ -320,23 +328,103 @@ def test_native_check_apply_protocol_carries_the_selected_release(
             plan["target"],
             "--release-tag",
             plan["release_tag"],
+            *channel,
         ],
     )
     monkeypatch.setattr(updater, "sync_environment", install_dependencies)
     assert updater.main() == 0
-    assert json.loads(capsys.readouterr().out) == {"target": checkout.target, "updated": True}
+    assert json.loads(capsys.readouterr().out) == {"target": target, "updated": True}
     assert_private_state(checkout)
 
 
 def test_release_badge_discovery_is_read_only_on_dirty_feature_branches(checkout: Checkout) -> None:
-    """Version checks can run during development without changing refs or source."""
+    """Version checks may refresh private refs but preserve user tags, branches and edits."""
     updater.git(checkout.project, "checkout", "-b", "fictional-work")
     source = checkout.project / "app.txt"
     source.write_text("unfinished work")
-    refs = updater.git(checkout.project, "for-each-ref", "--format=%(refname) %(objectname)")
+    refs = updater.git(checkout.project, "show-ref", "--tags")
     assert updater.discover_release(checkout.project) == "v0.2.0"
     assert updater.git(checkout.project, "branch", "--show-current") == "fictional-work"
-    assert (
-        updater.git(checkout.project, "for-each-ref", "--format=%(refname) %(objectname)") == refs
-    )
+    assert updater.git(checkout.project, "show-ref", "--tags") == refs
     assert source.read_text() == "unfinished work"
+
+
+def publish_nightly(checkout: Checkout, tag: str = "nightly-20261106.123") -> str:
+    (checkout.author / "app.txt").write_text(tag)
+    updater.git(checkout.author, "commit", "-am", "feat(test): nightly change")
+    updater.git(checkout.author, "push", "origin", "main")
+    publish_tag(checkout.author, tag, annotated=True)
+    return updater.git(checkout.author, "rev-parse", "HEAD")
+
+
+def test_nightly_channel_installs_once_and_opt_out_never_downgrades(
+    checkout: Checkout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    nightly = publish_nightly(checkout)
+    assert updater.check_update(checkout.project).release_tag == "v0.2.0"
+    assert updater.discover_update(checkout.project).latest_tag == "v0.2.0"
+    status = updater.discover_update(checkout.project, True)
+    assert status.latest_tag == "nightly-20261106.123" and status.update_available
+    plan = updater.check_update(checkout.project, True)
+    assert plan.target == nightly and plan.include_nightly
+    with pytest.raises(updater.UpdateError, match="changed since"):
+        updater.apply_update(checkout.project, updater.UpdatePlan(plan.current, nightly, 0))
+    monkeypatch.setattr(updater, "sync_environment", install_dependencies)
+    updater.apply_update(checkout.project, plan)
+    # pyproject need not change for the installed nightly to stop advertising itself.
+    installed = updater.discover_update(checkout.project, True)
+    assert not installed.update_available and installed.installed_tag == plan.release_tag
+    assert not updater.discover_update(checkout.project).update_available
+    stable = updater.check_update(checkout.project)
+    assert stable.ahead and stable.target == nightly
+    assert_private_state(checkout)
+
+
+def test_stable_release_supersedes_older_nightly_by_source_ancestry(checkout: Checkout) -> None:
+    _ = publish_nightly(checkout)
+    # A stable tag at the same commit is preferred over its nightly alias.
+    publish_tag(checkout.author, "v0.3.0")
+    assert updater.check_update(checkout.project, True).release_tag == "v0.3.0"
+    # An even newer stable commit wins without relying on incompatible tag strings.
+    (checkout.author / "app.txt").write_text("stable after nightly")
+    updater.git(checkout.author, "commit", "-am", "fix(test): stable after nightly")
+    updater.git(checkout.author, "push", "origin", "main")
+    publish_tag(checkout.author, "v0.3.1")
+    assert updater.check_update(checkout.project, True).release_tag == "v0.3.1"
+
+
+def test_nightly_without_stable_release_is_explicitly_opt_in(checkout: Checkout) -> None:
+    _ = publish_nightly(checkout)
+    updater.git(checkout.author, "push", "origin", ":refs/tags/v0.1.0", ":refs/tags/v0.2.0")
+    assert updater.discover_update(checkout.project).latest_tag is None
+    with pytest.raises(updater.UpdateError, match="No stable release"):
+        updater.check_update(checkout.project)
+    assert updater.check_update(checkout.project, True).release_tag == "nightly-20261106.123"
+
+
+def test_changed_nightly_is_rejected_and_failure_restores_installation(
+    checkout: Checkout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _ = publish_nightly(checkout)
+    plan = updater.check_update(checkout.project, True)
+    _ = publish_nightly(checkout, "nightly-20261107.124")
+    with pytest.raises(updater.UpdateError, match="changed since"):
+        updater.apply_update(checkout.project, plan)
+    plan = updater.check_update(checkout.project, True)
+
+    def fail(_: Path) -> None:
+        raise updater.UpdateError("fictional install failure")
+
+    monkeypatch.setattr(updater, "sync_environment", fail)
+    with pytest.raises(updater.UpdateError, match="previous installation was restored"):
+        updater.apply_update(checkout.project, plan)
+    assert updater.git(checkout.project, "rev-parse", "HEAD") == checkout.current
+    assert_private_state(checkout)
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ["nightly-20260230.1", "nightly-20261106.0", "nightly-20261106.01", "nightly", "v1.0.0-beta.1"],
+)
+def test_malformed_nightly_tags_are_not_releases(tag: str) -> None:
+    assert updater.nightly_version(tag) is None
