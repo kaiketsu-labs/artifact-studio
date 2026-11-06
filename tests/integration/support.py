@@ -102,6 +102,7 @@ def running_app(root: Path, logs: Path) -> Generator[RunningApp]:
         **os.environ,
         "ARTIFACT_STUDIO_COLLECTION": str(collection),
         "ARTIFACT_STUDIO_DATABASE": str(database),
+        "ARTIFACT_STUDIO_UPDATE_CHECKS": "0",
     }
     logs.parent.mkdir(parents=True, exist_ok=True)
     with logs.open("w") as output:

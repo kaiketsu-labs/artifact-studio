@@ -14,6 +14,8 @@ The storage icon remains visible while the dialog is closed. A pending or failed
 
 To transfer one presentation, use **Save presentation** and **Import presentation** on the other device. For the whole workspace, use **Save workspace** or explicitly enable full GitHub backups below; both include saved private review state and retained revisions. Current-source Git backup carries current artifact/project and presentation files, without private review history. Unsaved browser-only edits are separate from full workspace archives. Refreshing a GitHub reference updates its cache; applying remote content to the working collection remains an explicit action. Neither backup mode provides bidirectional workspace sync.
 
+**Two computers:** do not enable current-source uploads from independent working collections to the same repository branch. A stale computer can replace newer Studio-managed files and remove projects from the latest backup commit, even when the computers edit different projects. Use one shared Studio server, separate current-source destinations, or full archive backups with explicit handoff. [Verified scenarios and safe workflows](MULTI-COMPUTER.md).
+
 ## Scheduled full workspace backups
 
 **Full workspace backups** is a separate, off-by-default setting for each connected private GitHub repository. It uploads the same full ZIP as **Save workspace**: collection sources, saved review chats and drafts, approvals, retained revisions, navigation and app-owned attachments. This includes private material that current-source Git backup excludes. Host credentials, connected agent sessions, reference checkouts and upload permissions are excluded. Use a repository whose collaborators may access that private material.
@@ -44,7 +46,7 @@ While the local server runs, it checks saved files and groups changes after eigh
 
 The destination shows waiting, backing up, backed up or an actionable error. The header icon also reports pending delivery and failures. A delivery failure pauses that destination until you use **Retry GitHub backup**. Further edits do not silently dismiss the error. Normal file replacements/removals are re-observed and retried after the quiet interval. Reverted edits clear a pending marker when the saved tree matches the confirmed backup. There is no browser-tab or active-agent requirement.
 
-Automatic sync also removes files previously managed by Artifact Studio when they are removed locally, but only if their remote hash still matches the last delivered version. Git history retains the earlier versions. Independently changed remote files cause a conflict; unrelated repository files are preserved. This is one-way sync, never a remote overwrite of local working files.
+Automatic sync also removes files listed in the destination's managed-file manifest when they are absent locally, but only if their remote hash still matches that manifest. Git history retains the earlier versions. Remote edits that disagree with the manifest cause a conflict; unrelated repository files are preserved. A second Studio instance updates the files and manifest together, so this check does not protect against another computer's stale snapshot. [Multi-computer limitation](MULTI-COMPUTER.md#why-the-stale-upload-is-accepted). This is one-way sync, never a remote overwrite of local working files.
 
 ## Current-source included files
 
@@ -52,7 +54,7 @@ Current-source snapshots include current owned artifact bundles of any file type
 
 Saving rules or learned preferences in the frontend writes the collection's `INSTRUCTIONS.md` and `LEARNED-PREFERENCES.md`. Automatic whole-workspace sync includes both files after the quiet interval. Without auto-sync, the edits stay on the filesystem until an explicit manual whole-workspace sync; a single-deck sync does not include workspace rules. External edits to these Markdown files appear when you reopen or reload the editor.
 
-A `.artifact-studio-manifest.json` in the destination records hashes of managed files. Content hashes detect replacements even if their size and modification time stay unchanged. Every delivery verifies that the repository is still private and checks for independent remote changes before writing. No force push is used.
+A `.artifact-studio-manifest.json` in the destination records hashes of managed files. Content hashes detect replacements even if their size and modification time stay unchanged. Every delivery verifies that the repository is still private and checks remote files against this manifest before writing. There is no per-computer remote baseline or continuous remote-change detection. No force push is used.
 
 The Mac menu-bar app’s **GitHub Backup** submenu reads the same server settings. It shows each repository’s delivery state and last successful time, an **Automatic Backup** checkmark, **Sync Now** or **Retry Backup**, and **Open Backup Settings…**. It does not maintain a separate native preference.
 

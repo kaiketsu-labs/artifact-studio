@@ -20,6 +20,11 @@ private struct UpdateReply: Decodable, Sendable {
     let restart_safe: Bool?
 }
 
+private struct AppInfo: Decodable {
+    let latest_version: String?
+    let update_check: String
+}
+
 private struct BackupLibrary: Decodable {
     let id: String
     let kind: String
@@ -113,6 +118,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var external = false
     private var updating = false
     private var updateLabel = ""
+    private var latestVersion: String?
+    private var appInfoUpdated = Date.distantPast
+    private var appInfoLoading = false
     private var errorMessage = ""
     private let menu = NSMenu()
     private let settingsMenu = NSMenu(title: "Settings")
@@ -137,6 +145,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let approvalItem = NSMenuItem(title: "Allow in System Settings…", action: #selector(loginSettings), keyEquivalent: "")
 
     private var workspaceURL: URL { URL(string: "http://127.0.0.1:\(configuration.port)/")! }
+    private var installedVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+    }
+    private var newerVersion: String? {
+        guard let latest = latestVersion, installedVersion != "Unknown",
+              latest.compare(installedVersion, options: .numeric) == .orderedDescending else { return nil }
+        return latest
+    }
     private var logURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs/\(Bundle.main.bundleIdentifier!)/server.log")
@@ -171,6 +187,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         backupItem.submenu = backupMenu
         status.isEnabled = false
         menu.addItem(status)
+        updateItem.target = self
+        updateItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
+        menu.addItem(updateItem)
         menu.addItem(.separator())
         add("Open Artifact Studio", symbol: "arrow.up.right.square", action: #selector(openWorkspace), key: "o")
         for (item, symbol) in [(startItem, "play.fill"), (stopItem, "stop.fill"), (restartItem, "arrow.clockwise")] {
@@ -178,9 +197,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
             menu.addItem(item)
         }
-        updateItem.target = self
-        updateItem.image = NSImage(systemSymbolName: "arrow.down.circle", accessibilityDescription: nil)
-        menu.addItem(updateItem)
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
         settings.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
@@ -236,7 +252,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startItem.isHidden = hasServer
         stopItem.isHidden = !hasServer
         updateItem.isEnabled = !updating && state != .starting && state != .stopping
-        updateItem.title = updating ? updateLabel : "Update…"
+        let updateAction = updating ? updateLabel : newerVersion.map { "Update… (v\($0) available)" } ?? "Update…"
+        updateItem.title = "Version \(installedVersion)    \(updateAction)"
+        updateItem.toolTip = "Installed version: \(installedVersion). \(updateAction)"
+        updateItem.image = NSImage(systemSymbolName: newerVersion == nil ? "arrow.down.circle" : "arrow.down.circle.fill", accessibilityDescription: newerVersion == nil ? nil : "Update available")
         let login = SMAppService.mainApp.status
         loginItem.state = login == .enabled ? .on : login == .requiresApproval ? .mixed : .off
         approvalItem.isHidden = login != .requiresApproval
@@ -302,7 +321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             navigationItems.append(.separator())
         }
-        for (offset, item) in navigationItems.enumerated() { menu.insertItem(item, at: 2 + offset) }
+        for (offset, item) in navigationItems.enumerated() { menu.insertItem(item, at: 3 + offset) }
     }
 
     @objc private func openNavigation(_ sender: NSMenuItem) {
@@ -461,6 +480,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch { return false }
     }
 
+    private func refreshAppInfo() async {
+        guard state == .running, !appInfoLoading,
+              Date().timeIntervalSince(appInfoUpdated) >= 60 else { return }
+        appInfoLoading = true
+        appInfoUpdated = Date()
+        defer { appInfoLoading = false; updateMenu() }
+        do {
+            let info = try JSONDecoder().decode(AppInfo.self, from: await request("api/app-info", timeout: 5))
+            latestVersion = ["ok", "checking"].contains(info.update_check) ? info.latest_version : nil
+        } catch { latestVersion = nil }
+    }
+
     private func poll() async {
         guard !updating, !polling, state != .stopping else { return }
         polling = true
@@ -475,6 +506,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             external = false
         }
         updateMenu()
+        if ready { await refreshAppInfo() }
         if ready && Date().timeIntervalSince(navigationUpdated) > 10 { await refreshNavigation() }
     }
 

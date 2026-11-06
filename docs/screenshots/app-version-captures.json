@@ -1,0 +1,18 @@
+{
+  "captured_at": "2026-11-05T15:33:56.319816+00:00",
+  "method": "Real isolated app and Chromium mouse/keyboard journeys; fictional collection; v0.3.0 release metadata mocked at HTTP boundary. Not a release announcement.",
+  "captures": [
+    {
+      "file": "app-version-menu.png",
+      "width": 1280,
+      "height": 800,
+      "sha256": "f47fb240ab7455fdf882326117c82973d4a0b9c6cd6d6512585e1e7eed254592"
+    },
+    {
+      "file": "app-version-mobile.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4eee6ccad28d925ab26e4943771b0629edb55af1deaffa51d1295fd361fe10e5"
+    }
+  ]
+}

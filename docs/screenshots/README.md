@@ -1,5 +1,11 @@
 # Documentation screenshots
 
+The [version menu](app-version-menu.png) and [narrow About dialog](app-version-mobile.png)
+use the actual library/editor with fictional data. A `v0.3.0` release response is
+simulated at the network boundary to show the update indicator; these images are
+not a release announcement. Their [capture inventory](app-version-captures.json)
+is maintained separately. Native Mac menu compilation and appearance require macOS.
+
 App screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
 
 The README also reuses four audience-facing slides from the product presentation **Working with agents**, with the user's explicit permission: the [cover](../assets/agents-cover.png), [workflow](../assets/agents-loop.png), [agent context](../assets/agents-context.png) and [Live/Batch](../assets/agents-modes.png). These are static illustrations in the presentation's Pixel Studio styling, distinct from app screenshots. Completed 1600 × 900 captures preserve the original typography, colours and pixel artwork; notes, chats, source documents and design assets are excluded. [Illustration provenance](presentation-illustrations.json) records source slide IDs, revision hashes and image hashes. The canonical presentation remains local and unchanged. GitHub displays the completed frames; these PNGs do not contain the presentation's animations.
