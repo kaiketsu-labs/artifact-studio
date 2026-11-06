@@ -47,7 +47,7 @@ def _archive(files: dict[str, bytes]) -> bytes:
     return output.getvalue()
 
 
-def _audience_files(files: dict[str, bytes]) -> tuple[dict[str, bytes], tuple[str, ...]]:
+def audience_files(files: dict[str, bytes]) -> tuple[dict[str, bytes], tuple[str, ...]]:
     """Exclude recognized private metadata and reject references to excluded files."""
     blocked = {
         "package.json",
@@ -127,7 +127,7 @@ class SharingService:
                 data,
                 ((artifact.id, artifact.revision),),
             )
-        files, excluded = _audience_files(
+        files, excluded = audience_files(
             self.artifacts.snapshot_files(artifact.id, artifact.revision)
         )
         if artifact.entrypoint not in files:
