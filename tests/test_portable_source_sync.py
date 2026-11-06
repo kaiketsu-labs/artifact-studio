@@ -44,7 +44,8 @@ def restore_replica(libraries: Libraries, identifier: str, tmp_path: Path) -> Li
 
 
 def test_restored_replica_publishes_identical_portable_metadata_without_touching_local_state(
-    library_setup: tuple[Libraries, Path], tmp_path: Path,
+    library_setup: tuple[Libraries, Path],
+    tmp_path: Path,
 ) -> None:
     libraries, remote = library_setup
     project_id, artifact_id = owned_workspace(libraries, tmp_path)
@@ -58,15 +59,18 @@ def test_restored_replica_publishes_identical_portable_metadata_without_touching
     project_path = f"projects/{project_id}/project.json"
     artifact_path = f"projects/{project_id}/artifacts/{artifact_id}/artifact.json"
     assert json.loads(remote_file(remote, project_path)) == {
-        "id": project_id, "title": "Shared project", "legacy": False,
+        "id": project_id,
+        "title": "Shared project",
+        "legacy": False,
     }
     manifest = ArtifactManifest.model_validate_json(remote_file(remote, artifact_path))
     assert manifest.original_source_path == ""
     assert manifest.content_hash == artifact.content_hash and manifest.revision == artifact.revision
     assert "source_root" not in json.loads(remote_file(remote, PORTABLE_METADATA))
-    assert remote_file(remote, artifact_path.replace("artifact.json", "files/data.json")) == (
-        local / artifact_path.replace("artifact.json", "files/data.json")
-    ).read_text()
+    assert (
+        remote_file(remote, artifact_path.replace("artifact.json", "files/data.json"))
+        == (local / artifact_path.replace("artifact.json", "files/data.json")).read_text()
+    )
     replica = restore_replica(libraries, identifier, tmp_path)
     second_id = register(replica)
     second = replica.sync(second_id, automatic=True)
@@ -79,12 +83,15 @@ def test_restored_replica_publishes_identical_portable_metadata_without_touching
 
 
 def test_legacy_host_paths_migrate_without_baseline_and_preserve_pending_commit_receipts(
-    library_setup: tuple[Libraries, Path], tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    library_setup: tuple[Libraries, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     libraries, remote = library_setup
     project_id, artifact_id = owned_workspace(libraries, tmp_path)
     identifier = register(libraries)
     normalize = recovery_module.portable_source_metadata
+
     def legacy_metadata(_relative: str, _source: Path) -> None:
         """Model the previous release's raw metadata transport."""
 
@@ -122,7 +129,9 @@ def test_legacy_host_paths_migrate_without_baseline_and_preserve_pending_commit_
 
 @pytest.mark.parametrize("changed", ["title", "brief", "unknown", "source"])
 def test_unknown_replica_still_rejects_real_changes_including_authored_path_fields(
-    library_setup: tuple[Libraries, Path], tmp_path: Path, changed: str,
+    library_setup: tuple[Libraries, Path],
+    tmp_path: Path,
+    changed: str,
 ) -> None:
     libraries, remote = library_setup
     project_id, artifact_id = owned_workspace(libraries, tmp_path)
@@ -142,10 +151,13 @@ def test_unknown_replica_still_rejects_real_changes_including_authored_path_fiel
         artifact = registry.get_artifact(artifact_id)
         _ = registry.revise_artifact(
             artifact_id,
-            [ArtifactFileInput(
-                path="data.json", text='{"source_path":"different authored value"}'
-            )],
-            artifact.content_hash, "independent-authoring-change",
+            [
+                ArtifactFileInput(
+                    path="data.json", text='{"source_path":"different authored value"}'
+                )
+            ],
+            artifact.content_hash,
+            "independent-authoring-change",
         )
     with pytest.raises(ValueError, match="Remote changes"):
         _ = replica.sync(second_id)

@@ -202,14 +202,17 @@ def test_renderer_failure_keeps_old_preview_and_automatically_recovers(
     ("width", "height", "scheme"), [(1440, 1000, "light"), (390, 1000, "dark")]
 )
 def test_cold_library_cover_recovers_from_outage_with_real_renderer(
-    live_app: RunningApp, browser: Browser, tmp_path: Path, artifacts: Path,
-    width: int, height: int, scheme: Literal["light", "dark"],
+    live_app: RunningApp,
+    browser: Browser,
+    tmp_path: Path,
+    artifacts: Path,
+    width: int,
+    height: int,
+    scheme: Literal["light", "dark"],
 ) -> None:
     """Cold HTML and slide covers recover without opening, reloading or seeded images."""
     _ = gallery(live_app, tmp_path, count=1)
-    context = browser.new_context(
-        viewport={"width": width, "height": height}, color_scheme=scheme
-    )
+    context = browser.new_context(viewport={"width": width, "height": height}, color_scheme=scheme)
     page = context.new_page()
     attempts: Counter[str] = Counter()
 
@@ -217,7 +220,8 @@ def test_cold_library_cover_recovers_from_outage_with_real_renderer(
         attempts[route.request.url] += 1
         if attempts[route.request.url] == 1:
             route.fulfill(
-                status=503, content_type="application/json",
+                status=503,
+                content_type="application/json",
                 body=json.dumps({"code": "renderer_unavailable"}),
                 headers={"Retry-After": "3"},
             )

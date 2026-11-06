@@ -63,9 +63,7 @@ def test_disabled_conflict_status_preserves_receipt_and_retry_policy(
     worker.tick(100)
     assert worker.state(library.id) == receipt
     assert not uploads
-    enabled = client.post(
-        f"/api/libraries/{library.id}/settings", json={"auto_sync_enabled": True}
-    )
+    enabled = client.post(f"/api/libraries/{library.id}/settings", json={"auto_sync_enabled": True})
     assert enabled.status_code == 200
     queued = worker.state(library.id)
     assert queued.phase == "pending" and queued.error == ""

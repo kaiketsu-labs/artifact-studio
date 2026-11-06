@@ -380,12 +380,15 @@ def test_tab_attaches_highlighted_title_pill_and_keeps_prose(
 
 @pytest.mark.parametrize("width", [320, 390])
 def test_narrow_artifact_sidebar_and_chat_controls_are_independently_clickable(
-    page: Page, prepared: RunningApp, width: int,
+    page: Page,
+    prepared: RunningApp,
+    width: int,
 ) -> None:
     """Wrapped headers and full-width sidebars must not put both toggles in one corner."""
     page.set_viewport_size({"width": width, "height": 844})
     item = next(
-        item for item in ArtifactStore(prepared.store).list_artifacts()
+        item
+        for item in ArtifactStore(prepared.store).list_artifacts()
         if item.title == "Launch brief"
     )
     page.goto(f"{prepared.url}/?artifact={item.id}")
