@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.2.0...v0.3.0) (2026-11-06)
+
+
+### Features
+
+* add chat path references with cursor previews ([#61](https://github.com/kaiketsu-labs/artifact-studio/issues/61)) ([e1801e7](https://github.com/kaiketsu-labs/artifact-studio/commit/e1801e70ab6f234590406f889948631baf23b366))
+* add favorites and cross-presentation chat references ([#57](https://github.com/kaiketsu-labs/artifact-studio/issues/57)) ([598b18a](https://github.com/kaiketsu-labs/artifact-studio/commit/598b18a4baf8a6229b5ade27d8804789a0528d09))
+* add opt-in nightly releases and conditional update actions ([#63](https://github.com/kaiketsu-labs/artifact-studio/issues/63)) ([d12bc04](https://github.com/kaiketsu-labs/artifact-studio/commit/d12bc041b7cd428a7071d8ce2388284628ee95e7))
+* **app:** show installed versions and stable release update indicators ([d249213](https://github.com/kaiketsu-labs/artifact-studio/commit/d24921310e30547f7981aab069b918e438fba3b5))
+* **designs:** choose the workspace default in the library ([73aa0ae](https://github.com/kaiketsu-labs/artifact-studio/commit/73aa0ae5ef9ad66d795390ad017726219e72a68b))
+* **designs:** choose the workspace default in the library ([#59](https://github.com/kaiketsu-labs/artifact-studio/issues/59)) ([21269d5](https://github.com/kaiketsu-labs/artifact-studio/commit/21269d523b0b529a169af7bb45761a021ef816e4))
+
+
+### Bug Fixes
+
+* **backup:** prevent stale workspace snapshot overwrites ([6347905](https://github.com/kaiketsu-labs/artifact-studio/commit/6347905c5db4d2b87b5448fdb430ef47fac6a0e6))
+* **backup:** release database writes before archive compression ([91d5107](https://github.com/kaiketsu-labs/artifact-studio/commit/91d51071897713d732bfc2f61e9e39b3dd23ccae))
+* **backup:** release database writes before archive compression ([#64](https://github.com/kaiketsu-labs/artifact-studio/issues/64)) ([44da804](https://github.com/kaiketsu-labs/artifact-studio/commit/44da804133a4b1377df6d1fff3425807c73a1239))
+* **macos:** bound diagnostic logs and add safe cleanup ([#65](https://github.com/kaiketsu-labs/artifact-studio/issues/65)) ([d65791d](https://github.com/kaiketsu-labs/artifact-studio/commit/d65791d761b701013adef6facc2c65eef13b2d34))
+* persist library thumbnails and bound background rendering ([#60](https://github.com/kaiketsu-labs/artifact-studio/issues/60)) ([3417fad](https://github.com/kaiketsu-labs/artifact-studio/commit/3417fadc8a3e20571c89a68a8adf6e7a0a74dca5))
+* **ui:** keep update actions beside the installed version ([1494bf9](https://github.com/kaiketsu-labs/artifact-studio/commit/1494bf95743a38ae7b61b6b28aa759e5cff1b572))
+
+
+### Performance Improvements
+
+* reduce retained previews and repeated workspace work ([#62](https://github.com/kaiketsu-labs/artifact-studio/issues/62)) ([80eed27](https://github.com/kaiketsu-labs/artifact-studio/commit/80eed27aad814e586db93826350b3c2e9b550c76))
+
+
+### Documentation
+
+* explain verified multi-computer backup conflicts ([af536c0](https://github.com/kaiketsu-labs/artifact-studio/commit/af536c08e4205aa37f3e289bef491779e4092fda))
+
 ## [0.2.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.1.0...v0.2.0) (2026-11-05)
 
 
