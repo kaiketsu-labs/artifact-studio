@@ -1,0 +1,57 @@
+name: macOS controller
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'macos/**'
+      - 'tests/native/**'
+      - 'scripts/install_macos.py'
+      - 'scripts/test_macos_logs.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/macos.yml'
+  pull_request:
+    paths:
+      - 'macos/**'
+      - 'tests/native/**'
+      - 'scripts/install_macos.py'
+      - 'scripts/test_macos_logs.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/macos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controller:
+    name: Swift logs and native app build
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: '0.12.23'
+          python-version: '3.14'
+          enable-cache: true
+          cache-suffix: macos
+      - run: uv sync --locked
+      - name: Exercise bounded diagnostic files and live subprocess output
+        run: uv run --no-sync python scripts/test_macos_logs.py
+      - name: Build and sign a disposable native controller
+        run: >-
+          uv run --no-sync python scripts/install_macos.py --qa
+          --destination "$RUNNER_TEMP/Artifact Studio QA.app"
+          --collection "$RUNNER_TEMP/log-check/collection"
+          --database "$RUNNER_TEMP/log-check/review.sqlite3"
+      - name: Launch native icon rendering without starting a server
+        run: |
+          "$RUNNER_TEMP/Artifact Studio QA.app/Contents/MacOS/ArtifactStudio" --icon-preview "$RUNNER_TEMP/artifact-studio-icon.png"
+          test -s "$RUNNER_TEMP/artifact-studio-icon.png"

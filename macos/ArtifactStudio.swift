@@ -16,7 +16,7 @@ private struct UpdateReply: Decodable, Sendable {
     let commits: Int?
     let release_tag: String?
     let ahead: Bool?
-    let error: String?
+    var error: String?
     let restart_safe: Bool?
 }
 
@@ -112,7 +112,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private var timer: Timer?
     private var process: Process?
-    private var serverLog: FileHandle?
+    private var serverLog: DiagnosticLogCapture?
+    private var diagnosticLogs: DiagnosticLogs?
     private var state: ServerState = .stopped
     private var polling = false
     private var restartPending = false
@@ -150,6 +151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let nightlyItem = NSMenuItem(title: "Include Nightly Builds", action: #selector(toggleNightly), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let approvalItem = NSMenuItem(title: "Allow in System Settings…", action: #selector(loginSettings), keyEquivalent: "")
+    private let clearLogsItem = NSMenuItem(title: "Clear Diagnostic Logs…", action: #selector(clearDiagnosticLogs), keyEquivalent: "")
 
     private var workspaceURL: URL { URL(string: "http://127.0.0.1:\(configuration.port)/")! }
     private var installedVersion: String {
@@ -162,6 +164,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .appendingPathComponent("Library/Logs/\(Bundle.main.bundleIdentifier!)/server.log")
     }
     private var updateLogURL: URL { logURL.deletingLastPathComponent().appendingPathComponent("update.log") }
+    private func logs() throws -> DiagnosticLogs {
+        if let diagnosticLogs { return diagnosticLogs }
+        let logs = try DiagnosticLogs(directory: logURL.deletingLastPathComponent())
+        diagnosticLogs = logs
+        return logs
+    }
     private var childEnvironment: [String: String] {
         var environment = ProcessInfo.processInfo.environment
         environment["ARTIFACT_STUDIO_COLLECTION"] = configuration.collection
@@ -217,6 +225,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsMenu.addItem(.separator())
         settingsMenu.addItem(backupItem)
         add("Show Logs", symbol: "doc.text", action: #selector(showLogs))
+        clearLogsItem.target = self
+        clearLogsItem.image = NSImage(systemSymbolName: "trash", accessibilityDescription: nil)
+        menu.addItem(clearLogsItem)
         menu.addItem(.separator())
         add("Quit Artifact Studio", symbol: "power", action: #selector(quit), key: "q")
         statusItem.menu = menu
@@ -255,6 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startItem.isEnabled = !updating && (state == .stopped || state == .failed)
         stopItem.isEnabled = !updating && process?.isRunning == true && state != .stopping
         restartItem.isEnabled = !updating && process?.isRunning == true && state == .running
+        clearLogsItem.isEnabled = !updating
         let hasServer = process?.isRunning == true || state == .running || state == .starting
         startItem.isHidden = hasServer
         stopItem.isHidden = !hasServer
@@ -537,6 +549,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             state = process?.isRunning == true ? .starting : .stopped
             external = false
         }
+        if let failure = serverLog?.failureMessage { errorMessage = "Diagnostic logging: \(failure)" }
         updateMenu()
         if ready { await refreshAppInfo() }
         if ready && Date().timeIntervalSince(navigationUpdated) > 10 { await refreshNavigation() }
@@ -561,25 +574,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func launchServer() {
         do {
-            try FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if !FileManager.default.fileExists(atPath: logURL.path) {
-                FileManager.default.createFile(atPath: logURL.path, contents: nil)
-            }
-            let log = try FileHandle(forWritingTo: logURL)
-            try log.seekToEnd()
+            let log = try DiagnosticLogCapture(logs: logs(), stream: .server)
             let child = Process()
             child.executableURL = URL(fileURLWithPath: configuration.python)
             child.currentDirectoryURL = URL(fileURLWithPath: configuration.project)
             child.arguments = ["-m", "uvicorn", "artifact_studio.app:app", "--host", "127.0.0.1", "--port", String(configuration.port), "--no-access-log", "--timeout-graceful-shutdown", "10"]
             child.environment = childEnvironment
             child.standardInput = FileHandle.nullDevice
-            child.standardOutput = log
-            child.standardError = log
-            child.terminationHandler = { [weak self] terminated in
+            child.standardOutput = log.pipe
+            child.standardError = log.pipe
+            child.terminationHandler = { [weak self, log] terminated in
                 let code = terminated.terminationStatus
-                Task { @MainActor in self?.serverEnded(code: code) }
+                log.finish()
+                Task { @MainActor in self?.serverEnded(code: code, logFailure: log.failureMessage) }
             }
-            try child.run()
+            do { try child.run() }
+            catch { log.finish(); throw error }
+            try? log.pipe.fileHandleForWriting.close()
             serverLog = log
             process = child
         } catch {
@@ -590,14 +601,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func serverEnded(code: Int32) {
+    private func serverEnded(code: Int32, logFailure: String?) {
         let expected = state == .stopping
         process = nil
-        try? serverLog?.close()
         serverLog = nil
         external = false
         state = expected ? .stopped : .failed
         if !expected { errorMessage = "Server exited (\(code)). See Show Logs." }
+        if let logFailure { errorMessage += " Diagnostic logging: \(logFailure)" }
         updateMenu()
         if quitting { NSApp.reply(toApplicationShouldTerminate: true) }
         else if restartPending { restartPending = false; start() }
@@ -697,18 +708,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func runUpdater(_ arguments: [String]) async throws -> UpdateReply {
         let python = configuration.python, project = configuration.project
-        let environment = childEnvironment, log = updateLogURL
-        return try await Task.detached {
-            try Self.executeUpdater(python: python, project: project, arguments: arguments, environment: environment, log: log)
+        let environment = childEnvironment, diagnostics = try logs()
+        var result = try await Task.detached {
+            try Self.executeUpdater(python: python, project: project, arguments: arguments, environment: environment, logs: diagnostics)
         }.value
+        if let failure = result.logFailure {
+            if let error = result.reply.error {
+                result.reply.error = "\(error) Diagnostic logging: \(failure)"
+            } else {
+                showInformation("Update diagnostics unavailable", "The update command finished, but its diagnostic log could not be saved: \(failure)")
+            }
+        }
+        return result.reply
     }
 
-    nonisolated private static func executeUpdater(python: String, project: String, arguments: [String], environment: [String: String], log: URL) throws -> UpdateReply {
-        try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if !FileManager.default.fileExists(atPath: log.path) { FileManager.default.createFile(atPath: log.path, contents: nil) }
-        let output = Pipe(), errors = try FileHandle(forWritingTo: log)
-        defer { try? errors.close() }
-        try errors.seekToEnd()
+    nonisolated private static func executeUpdater(python: String, project: String, arguments: [String], environment: [String: String], logs: DiagnosticLogs) throws -> (reply: UpdateReply, logFailure: String?) {
+        let output = Pipe(), errors = try DiagnosticLogCapture(logs: logs, stream: .update)
+        defer { errors.finish(); try? output.fileHandleForReading.close() }
         let child = Process()
         child.executableURL = URL(fileURLWithPath: python)
         child.currentDirectoryURL = URL(fileURLWithPath: project)
@@ -716,14 +732,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         child.environment = environment
         child.standardInput = FileHandle.nullDevice
         child.standardOutput = output
-        child.standardError = errors
+        child.standardError = errors.pipe
         try child.run()
+        try? errors.pipe.fileHandleForWriting.close()
         let data = output.fileHandleForReading.readDataToEndOfFile()
         child.waitUntilExit()
+        errors.finish()
         guard let reply = try? JSONDecoder().decode(UpdateReply.self, from: data) else {
+            if let failure = errors.failureMessage {
+                throw BackupRequestError.response("The updater returned an unreadable response. Diagnostic logging: \(failure)")
+            }
             throw BackupRequestError.response("The updater could not finish. See update.log beside the server log.")
         }
-        return reply
+        return (reply, errors.failureMessage)
     }
 
     private func relaunchAfterUpdate(running: Bool) throws {
@@ -750,6 +771,21 @@ for _ in range(200):
 
     @objc private func openWorkspace() { NSWorkspace.shared.open(workspaceURL) }
     @objc private func showLogs() { NSWorkspace.shared.activateFileViewerSelecting([logURL, updateLogURL].filter { FileManager.default.fileExists(atPath: $0.path) }) }
+    @objc private func clearDiagnosticLogs() {
+        guard !updating else { return }
+        let alert = NSAlert()
+        alert.messageText = "Clear diagnostic logs?"
+        alert.informativeText = "Deletes server and update logs, including their rotated copies. Projects, conversations, version history and backups are kept. New diagnostics continue to be recorded."
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\u{1b}"
+        alert.window.defaultButtonCell = cancel.cell as? NSButtonCell
+        alert.addButton(withTitle: "Clear Logs").hasDestructiveAction = true
+        guard alert.runModal() == .alertSecondButtonReturn else { return }
+        do {
+            try logs().clear()
+            showInformation("Diagnostic logs cleared", "New diagnostics will be recorded as needed.")
+        } catch { showError("Could not clear all diagnostic logs. Some may already be cleared. \(error.localizedDescription)") }
+    }
     @objc private func loginSettings() { SMAppService.openSystemSettingsLoginItems() }
     @objc private func quit() { NSApp.terminate(nil) }
 

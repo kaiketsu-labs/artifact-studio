@@ -15,6 +15,11 @@ corporate packs and model credentials are not required.
 | Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus and cover loading, chat path references and pending/cached hover previews, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
 | Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
 
+The separate `macos.yml` workflow runs for native-source, native-test and build-dependency
+changes. It exercises real diagnostic-file rotation and live subprocess output with
+Swift 6, then builds/signs a disposable native controller and runs native icon rendering.
+Unrelated changes do not start an additional macOS runner.
+
 The two browser suites run in parallel with `fail-fast: false` and independent
 25-minute timeouts. Each suite and the Python unit step use two pytest-xdist workers
 with work stealing, so a long test file cannot hold up an otherwise idle worker.
@@ -57,7 +62,7 @@ including the durable acknowledged feedback cursor;
 they do not simulate host trust or claim an authenticated model session has run.
 
 Model-driven changes, host hook approval/loading, automatic continuation inside a
-signed-in desktop/CLI session, physical displays and the macOS controller still
+signed-in desktop/CLI session, physical displays and macOS menu/alert interaction still
 need their own application checks. CI does not bypass native trust or start paid
 model requests. The tested client versions are recorded in failure artifacts; update
 the pinned versions deliberately when supporting a new client release.

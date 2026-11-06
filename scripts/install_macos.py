@@ -76,6 +76,8 @@ def install(
             "-sdk",
             sdk,
             str(project / "macos/ArtifactStudio.swift"),
+            str(project / "macos/DiagnosticLogs.swift"),
+            str(project / "macos/DiagnosticLogCapture.swift"),
             "-framework",
             "AppKit",
             "-framework",
