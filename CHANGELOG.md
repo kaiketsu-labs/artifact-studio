@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.0...v0.3.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **artifacts:** preserve canonical snapshot inventory order ([10419e3](https://github.com/kaiketsu-labs/artifact-studio/commit/10419e306ec324d8338f3325d31a4d09e7ce41d8))
+
 ## [0.3.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.2.0...v0.3.0) (2026-11-06)
 
 
