@@ -54,7 +54,7 @@ def sync_workspace(
         if args[:2] == ("branch", "--show-current"):
             return "main"
         if args[:2] == ("rev-parse", "HEAD"):
-            return "fictional-commit"
+            return "1" * 40
         return "snapshot.json" if args[:2] == ("diff", "--cached") else ""
 
     monkeypatch.setattr(libraries, "verify_repository", verify)

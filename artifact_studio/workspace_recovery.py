@@ -43,6 +43,7 @@ HOST_TABLES = frozenset(
     {
         "libraries",
         "library_auto_sync",
+        "library_sync_checkpoints",
         "github_backup_settings",
         "github_backup_state",
         "review_sessions",

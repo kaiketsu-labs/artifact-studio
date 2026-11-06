@@ -1,8 +1,8 @@
 # Working on two computers
 
-Artifact Studio's GitHub backups do not keep two independent working collections in sync. **Do not enable current-source uploads from two computers to the same repository branch.** A second computer with stale files can replace newer Studio-managed source and remove projects from the latest backup commit. Earlier commits and the first computer's local files remain available for recovery.
+Artifact Studio's GitHub backups do not keep two independent working collections in sync. Current-source uploads now compare remote files with a baseline stored in this computer's private database. An upload that would replace newer remote content stops for review; a project never acknowledged by this computer is not treated as a local deletion.
 
-This limitation was reproduced against `1494bf9` on 2026-11-05 using two isolated stores, independent checkouts and real disposable Git remotes. It also affects alternating between computers, without simultaneous edits.
+**Update every computer that uploads.** Older versions can still replace newer Studio-managed files and remove projects from the latest backup commit. That defect was reproduced against `1494bf9` on 2026-11-05 and guarded against on 2026-11-06. It affects alternating computers as well as simultaneous sessions. Earlier commits and the first computer's local files remain available for recovery.
 
 ## What refreshes automatically
 
@@ -16,7 +16,9 @@ This limitation was reproduced against `1494bf9` on 2026-11-05 using two isolate
 
 “Backed up” confirms delivery of a particular local snapshot at its recorded time. It is not confirmation that the current remote branch still matches that snapshot.
 
-## Simulated active-session results
+## Simulated active-session results before the fix
+
+The following table records the original behavior at `1494bf9`, before local baseline checks were added.
 
 | Scenario | Observed result |
 | --- | --- |
@@ -32,13 +34,38 @@ This limitation was reproduced against `1494bf9` on 2026-11-05 using two isolate
 
 These are backend and real-Git simulations, including parallel worker threads. They do not simulate two physical Macs or authenticated live GitHub push races. GitHub archive discovery, retention and recovery checks used the existing simulated GitHub transport.
 
-## Why the stale upload is accepted
+## Local backup baselines
 
-[`Libraries.sync`](../artifact_studio/libraries.py) pulls the destination, then reads `.artifact-studio-manifest.json` from that freshly updated checkout. The manifest records the most recent Studio-managed hashes in the repository, rather than this computer's last acknowledged hashes.
+The fixed [`Libraries.sync`](../artifact_studio/libraries.py) keeps each destination's acknowledged file hashes and commit in the local `library_sync_checkpoints` table. The checkpoint is bound to this collection and branch. Fetching or refreshing a reference never advances it.
 
-When A publishes through Studio, both its files and that manifest change. B then pulls them together. B's checks see that the remote files match the manifest and allow replacement with B's stale local snapshot. Automatic deletion uses the same remote manifest, so it can also treat A-only files as files removed locally on B.
+| Situation at upload time | Current behavior |
+| --- | --- |
+| Remote bytes equal the intended local bytes | Acknowledges those matching files without replacing them. |
+| Remote bytes equal this computer's last acknowledged bytes | Allows this computer's saved update or automatic deletion. |
+| Remote bytes changed or disappeared since this computer acknowledged them | Stops before writing the new snapshot; preserves local files and remote content. |
+| A remote file has never been acknowledged here | Preserves it when absent locally; refuses to replace differing existing content. |
+| A manual upload covers only one presentation | Acknowledges only that presentation, retaining earlier ownership of other paths without adopting newly fetched ones. |
+| A full automatic backup would remove an A-only project missing on B | Preserves the unowned project files. Another conflicting path can still stop the entire backup. |
 
-Git's normal push protection catches a branch changing after the fetch. It cannot detect this sequential stale replacement, because B has already incorporated A's commit into the checkout history before creating its own commit. Fetching more frequently, retrying or force-pushing does not solve the missing local baseline.
+The destination manifest remains a managed-file inventory; it grants no permission to overwrite. Automatic deletions require local ownership and a matching remote hash. Git still rejects competing pushes without force-pushing. These guards stop stale publishing; they do not merge remote edits into open projects.
+
+New local paths absent remotely can still be backed up as new files. This guard does not reconstruct deletions that happened before this replica ever acknowledged a path; that requires deletion history and explicit merge semantics.
+
+Before a push, Studio stores the exact prepared commit locally. A lost acknowledgement is reconciled only when that commit is confirmed in remote history. A failed push can retry the exact prepared snapshot from its original remote base, then validate later local changes normally. Unexplained unpublished commits, changed branch history and divergent checkouts require review.
+
+On upgrade, an existing automatic-backup receipt can seed the baseline from its exact last confirmed commit, limited to paths present in the first requested snapshot. Absent legacy paths are preserved because the old global manifest cannot prove deletion ownership. A first deck-scoped migration covers only that deck; other paths may need review later. Legacy manual backups without a confirmed receipt stop on differing existing files rather than guessing ownership. Newly connected computers can acknowledge matching files, but cannot overwrite a different existing backup merely by enabling uploads.
+
+Checkpoints are host state: full workspace archives remove them and omit them from saved-content fingerprints. Restoring or refreshing a backup does not grant upload ownership.
+
+If **Remote changes need review** appears, save a full archive of local work, preserve the remote backup, and inspect both versions before applying the intended changes. Retry after reconciliation; retries do not bypass the guard. A new backup repository is also available when the workspaces should remain independent. Differences in workspace recovery metadata, including device-specific paths, can require review even when slide content matches.
+
+The regression tests cover stale replicas, unknown and deleted remote files, reference refresh, partial uploads, legacy migration, unpublished commits, lost acknowledgements and parallel pushes: [conflicts](../tests/test_library_sync_conflicts.py), [checkpoint recovery](../tests/test_sync_checkpoint_recovery.py).
+
+## Why the stale upload was accepted
+
+The earlier implementation pulled `.artifact-studio-manifest.json` together with the remote files, then trusted its hashes as permission to replace them. A Studio upload from A changed both its files and that manifest, so stale B saw a matching manifest and replaced them with its own old snapshot. Automatic deletion used the same global inventory.
+
+Git's push protection caught branch changes after a fetch, but not a stale replacement committed after pulling A's changes. The local baseline fixes that missing comparison. More frequent polling alone would not.
 
 ## Safe ways to work now
 
@@ -67,16 +94,14 @@ Use the supported archive recovery path instead of cloning the private state/cac
 
 Full archives include saved private review material. Repository access determines who can download it. Keep content backups separate from the application source repository.
 
-## Changes needed for independent computers to sync safely
+## Remaining work for live synchronization
 
-The first change should prevent stale publishing, before adding automatic downloads:
+The local baseline guard prevents stale publishing. Independent computers still need additional features for convenient live synchronization:
 
-1. Persist a repository-specific baseline locally for each replica: last confirmed remote commit, managed paths and content hashes. Do not replace it with a newly pulled remote manifest. A new replica connecting to an existing backup needs an explicit adoption step.
-2. Before publishing, compare the local baseline, local files and fetched remote files. Stop for review when remote changes would be replaced. Never infer deletion from a file that this replica has never acknowledged. Advance the baseline only after confirmed delivery; handle a lost push acknowledgement by reconciliation.
-3. Offer explicit **Compare / Pull / Resolve** actions that preserve local edits, notes and retained history. Keep full archives before applying changes. A remote-only change must be shown or explicitly adopted, rather than silently overwritten or silently merged.
-4. Distinguish **Last uploaded**, **Remote changed** and **Conflict** in status. Read-only background remote checks can report staleness without waking an agent or modifying working files.
-5. For actual multi-writer synchronization, merge project/navigation metadata and deletion records as well as artifact files. Independent databases can assign the same revision number to different content; content hashes and replica identity must remain part of conflict detection. Private review events and approvals need explicit merge semantics too.
+1. Offer explicit **Compare / Pull / Resolve** actions that preserve local edits, notes and retained history. Keep full archives before applying changes. A remote-only change must be shown or explicitly adopted, rather than silently overwritten or silently merged.
+2. Distinguish **Last uploaded**, **Remote changed** and **Conflict** in status. Read-only background remote checks can report staleness without waking an agent or modifying working files.
+3. For actual multi-writer synchronization, merge project/navigation metadata and deletion records as well as artifact files. Independent databases can assign the same revision number to different content; content hashes and replica identity must remain part of conflict detection. Private review events and approvals need explicit merge semantics too.
 
 An alternative for independent backups is per-replica source directories and manifests within a shared repository. That isolates snapshots but still does not provide live project synchronization. Human-readable device/workspace labels would also make archive selection safer.
 
-The simulation documents an open runtime defect. It does not implement the baseline guard, remote polling or two-way merge. See [backup controls](REPOSITORY-SYNC.md) and [workspace recovery](WORKSPACE-RECOVERY.md) for the current supported actions.
+The overwrite/deletion guard is implemented. Background remote polling and two-way merge remain unimplemented. See [backup controls](REPOSITORY-SYNC.md) and [workspace recovery](WORKSPACE-RECOVERY.md) for the current supported actions.

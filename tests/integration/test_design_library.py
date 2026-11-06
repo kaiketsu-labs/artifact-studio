@@ -12,7 +12,7 @@ from playwright.sync_api import Browser, Page, expect
 from artifact_studio.design_library import DesignCreate, DesignLibrary
 from artifact_studio.design_references import ReferenceInput
 from artifact_studio.models import FileInput
-from tests.design_factory import powerpoint_source
+from tests.design_factory import make_design, powerpoint_source
 from tests.integration.support import DECK_ID, RunningApp
 
 pytestmark = [
@@ -21,6 +21,65 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+def test_default_design_failure_keeps_keyboard_focus_and_can_retry(
+    browser: Browser, live_app: RunningApp
+) -> None:
+    """A failed save preserves the current choice and a focused keyboard retry."""
+    make_design(live_app.store.root / "2026-11-06-blue-design", "blue-brand")
+    context = browser.new_context()
+    try:
+        page = context.new_page()
+        page.route(
+            "**/api/design-library/blue-brand/default",
+            lambda route: route.fulfill(status=503, json={"detail": "Please retry"}),
+            times=1,
+        )
+        page.goto(live_app.url + "/?view=designs")
+        choose = page.get_by_role("button", name="Set blue-brand as default", exact=True)
+        choose.focus()
+        choose.press("Enter")
+        expect(page.locator("#hub-toast")).to_have_text("Please retry")
+        expect(choose).to_be_focused()
+        expect(choose).to_be_enabled()
+        assert live_app.store.default_design_id() == "test-brand"
+        choose.press("Enter")
+        selected = page.get_by_role("button", name="blue-brand is the default design", exact=True)
+        expect(selected).to_be_focused()
+        assert live_app.store.default_design_id() == "blue-brand"
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_default_design_can_be_changed_from_cards_and_detail(
+    page: Page, live_app: RunningApp, artifacts: Path, width: int
+) -> None:
+    """Choose a default with mouse or keyboard and keep feedback visible across reloads."""
+    make_design(live_app.store.root / "2026-11-06-blue-design", "blue-brand")
+    page.set_viewport_size({"width": width, "height": 1000 if width > 700 else 844})
+    page.goto(live_app.url + "/?view=designs")
+    choose = page.get_by_role("button", name="Set blue-brand as default", exact=True)
+    choose.click()
+    selected = page.get_by_role("button", name="blue-brand is the default design", exact=True)
+    expect(selected).to_have_attribute("aria-pressed", "true")
+    expect(selected).to_be_focused()
+    assert live_app.store.default_design_id() == "blue-brand"
+    page.reload()
+    expect(selected).to_be_visible()
+    page.get_by_role("button", name="Open test-brand design", exact=True).click()
+    choose = page.get_by_role("button", name="Set test-brand as default", exact=True)
+    choose.focus()
+    choose.press("Enter")
+    expect(
+        page.get_by_role("button", name="test-brand is the default design", exact=True)
+    ).to_be_focused()
+    assert live_app.store.default_design_id() == "test-brand"
+    page.locator("#appearance-button").click()
+    page.locator('[data-appearance="dark"]').click()
+    _ = page.screenshot(path=str(artifacts / "default-design-dark.png"))
+    assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
 
 
 @pytest.mark.parametrize("width", [1440, 390])

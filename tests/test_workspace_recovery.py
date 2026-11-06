@@ -380,7 +380,7 @@ def test_archive_database_contains_no_live_upload_permissions(tmp_path: Path) ->
     with store.connect() as db:
         _ = db.execute("CREATE TABLE library_auto_sync(id TEXT PRIMARY KEY, document TEXT)")
         _ = db.execute("INSERT INTO library_auto_sync VALUES ('host','{}')")
-        for table in ("github_backup_settings", "github_backup_state"):
+        for table in ("github_backup_settings", "github_backup_state", "library_sync_checkpoints"):
             _ = db.execute(f"CREATE TABLE {table}(id TEXT PRIMARY KEY, document TEXT)")
             _ = db.execute(f"INSERT INTO {table} VALUES ('host','{{}}')")
     archive_path = tmp_path / "backup.zip"
@@ -392,11 +392,11 @@ def test_archive_database_contains_no_live_upload_permissions(tmp_path: Path) ->
         _ = database.write_bytes(archive.read("objects/" + entry.sha256))
     with sqlite3.connect(database) as db:
         assert db.execute("SELECT COUNT(*) FROM library_auto_sync").fetchone() == (0,)
-        for table in ("github_backup_settings", "github_backup_state"):
+        for table in ("github_backup_settings", "github_backup_state", "library_sync_checkpoints"):
             assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone() == (0,)
     with store.connect() as db:
         assert db.execute("SELECT COUNT(*) FROM library_auto_sync").fetchone()[0] == 1
-        for table in ("github_backup_settings", "github_backup_state"):
+        for table in ("github_backup_settings", "github_backup_state", "library_sync_checkpoints"):
             assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 1
 
 
@@ -543,6 +543,8 @@ def test_archive_fingerprint_skips_timestamp_and_host_only_changes(
         )
         _ = db.execute("CREATE TABLE github_backup_state(id TEXT PRIMARY KEY, document TEXT)")
         _ = db.execute("INSERT INTO github_backup_state VALUES ('host',?)", ("x" * 200_000,))
+        _ = db.execute("CREATE TABLE library_sync_checkpoints(id TEXT PRIMARY KEY, document TEXT)")
+        _ = db.execute("INSERT INTO library_sync_checkpoints VALUES ('host','prepared backup')")
     with store.connect() as db:
         _ = db.execute("DELETE FROM github_backup_state")
     with store.connect() as db:

@@ -107,6 +107,29 @@ class SyncResult(StrictModel):
     files_changed: int
 
 
+class SyncBaseline(StrictModel):
+    """Hashes acknowledged by this local workspace, never by a fetched manifest."""
+
+    commit: str = Field(default="", pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})?$")
+    files: dict[str, str] = Field(default_factory=dict)
+
+
+class PendingSync(SyncBaseline):
+    """An exact prepared commit whose push outcome may still be unknown."""
+
+    commit: str = Field(pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})$")
+    base_commit: str = Field(pattern=r"^(?:[a-f0-9]{40}|[a-f0-9]{64})?$")
+
+
+class SyncCheckpoint(StrictModel):
+    """Keep publication ownership local and bound to its collection and branch."""
+
+    collection: str
+    branch: str
+    confirmed: SyncBaseline = Field(default_factory=SyncBaseline)
+    pending: PendingSync | None = None
+
+
 def command(*args: str, cwd: Path | None = None) -> str:
     """Run a bounded command without a shell or interactive credential prompts."""
     try:
@@ -390,6 +413,10 @@ class Libraries:
             _ = db.execute(
                 "CREATE TABLE IF NOT EXISTS libraries (id TEXT PRIMARY KEY, document TEXT)"
             )
+            _ = db.execute(
+                "CREATE TABLE IF NOT EXISTS library_sync_checkpoints "
+                "(id TEXT PRIMARY KEY, document TEXT NOT NULL)"
+            )
 
     @contextmanager
     def locked(self) -> Generator[None]:
@@ -589,6 +616,133 @@ class Libraries:
                 _verify_snapshot_artifacts(frozen, hashes)
             yield frozen
 
+    @staticmethod
+    def _ref_commit(destination: Path, ref: str) -> str:
+        """Resolve an exact ref, including an unborn branch without a commit."""
+        for line in git(
+            destination, "for-each-ref", "--format=%(refname) %(objectname)", ref
+        ).splitlines():
+            name, commit = line.split(" ", 1)
+            if name == ref:
+                return commit
+        return ""
+
+    @staticmethod
+    def _contains_commit(destination: Path, tip: str, commit: str) -> bool:
+        """Require known publication history to remain reachable on the remote branch."""
+        if not tip:
+            return False
+        try:
+            _ = git(destination, "merge-base", "--is-ancestor", commit, tip)
+        except ValueError:
+            return False
+        return True
+
+    @staticmethod
+    def _manifest_files(destination: Path, content: str) -> dict[str, str]:
+        """Validate managed inventory without treating it as local upload permission."""
+        files = TypeAdapter(dict[str, str]).validate_json(content, strict=True)
+        for relative, checksum in files.items():
+            _ = snapshot_target(destination, relative)
+            if not re.fullmatch(r"[a-f0-9]{64}", checksum):
+                raise ValueError("The sync manifest contains an invalid content hash.")
+        return files
+
+    def _save_checkpoint(self, identifier: str, checkpoint: SyncCheckpoint) -> None:
+        """Persist a prepared push before sending it and acknowledge only verified delivery."""
+        with self.store.connect() as db:
+            _ = db.execute(
+                "INSERT OR REPLACE INTO library_sync_checkpoints VALUES (?, ?)",
+                (identifier, checkpoint.model_dump_json()),
+            )
+
+    def _checkpoint(
+        self, library: Library, branch: str, remote: str, current_paths: set[str]
+    ) -> SyncCheckpoint:
+        """Migrate only locally confirmed automatic uploads, never a cached checkout HEAD."""
+        with self.store.connect() as db:
+            row = db.execute(
+                "SELECT document FROM library_sync_checkpoints WHERE id=?", (library.id,)
+            ).fetchone()
+            if row:
+                return SyncCheckpoint.model_validate_json(str(row[0]))
+            legacy = None
+            if db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='library_auto_sync'"
+            ).fetchone():
+                legacy = db.execute(
+                    "SELECT document FROM library_auto_sync WHERE id=?", (library.id,)
+                ).fetchone()
+        checkpoint = SyncCheckpoint(collection=str(self.store.root.resolve()), branch=branch)
+        if legacy:
+            from .autosync import SyncStatus
+
+            commit = SyncStatus.model_validate_json(str(legacy[0])).commit
+            if commit:
+                destination = Path(library.path)
+                if not re.fullmatch(
+                    r"[a-f0-9]{40}|[a-f0-9]{64}", commit
+                ) or not self._contains_commit(destination, remote, commit):
+                    raise ValueError(
+                        "Remote changes need review: the last backup is no longer reachable."
+                    )
+                files = self._manifest_files(
+                    destination,
+                    git(destination, "show", f"{commit}:.artifact-studio-manifest.json"),
+                )
+                # Legacy manifests are global inventories. They cannot prove that
+                # absent files were ever owned locally, so do not migrate deletions.
+                checkpoint.confirmed = SyncBaseline(
+                    commit=commit,
+                    files={
+                        path: checksum for path, checksum in files.items() if path in current_paths
+                    },
+                )
+        return checkpoint
+
+    def _prepare_sync(
+        self, library: Library, current_paths: set[str]
+    ) -> tuple[SyncCheckpoint, str]:
+        """Reconcile exact pending commits before comparing the current remote with our baseline."""
+        destination = Path(library.path)
+        branch = git(destination, "branch", "--show-current")
+        if not branch:
+            raise ValueError("The library cache must be on the repository default branch.")
+        remote = self._ref_commit(destination, f"refs/remotes/origin/{branch}")
+        checkpoint = self._checkpoint(library, branch, remote, current_paths)
+        if checkpoint.collection != str(self.store.root.resolve()) or checkpoint.branch != branch:
+            raise ValueError(
+                "Remote changes need review: this backup belongs to another collection or branch."
+            )
+        pending = checkpoint.pending
+        if pending:
+            if self._contains_commit(destination, remote, pending.commit):
+                # A successful push may have lost its acknowledgement. The exact
+                # prepared commit being on the remote is independent confirmation.
+                pass
+            elif (
+                self._ref_commit(destination, f"refs/heads/{branch}") == pending.commit
+                and remote == pending.base_commit
+            ):
+                # Deliver only the exact previously validated snapshot. Later local
+                # edits are compared with its confirmed baseline below.
+                git(destination, "push", "-u", "origin", branch)
+                remote = pending.commit
+            else:
+                raise ValueError("Remote changes need review before retrying the prepared backup.")
+            checkpoint.confirmed = SyncBaseline(commit=pending.commit, files=pending.files)
+            checkpoint.pending = None
+            self._save_checkpoint(library.id, checkpoint)
+        if self._ref_commit(destination, f"refs/heads/{branch}") != remote:
+            raise ValueError(
+                "The library cache has an unconfirmed commit. Review it before syncing."
+            )
+        if checkpoint.confirmed.commit and not self._contains_commit(
+            destination, remote, checkpoint.confirmed.commit
+        ):
+            raise ValueError("Remote changes need review: the last backup is no longer reachable.")
+        return checkpoint, remote
+
     def sync(
         self, identifier: str, deck_id: str | None = None, *, automatic: bool = False
     ) -> SyncResult:
@@ -596,6 +750,8 @@ class Libraries:
         library = self.get(identifier)
         if library.kind != "github" or not library.sync_enabled:
             raise ValueError("Enable sync on a private GitHub library first.")
+        if automatic and deck_id is not None:
+            raise ValueError("Automatic sync requires a complete workspace snapshot.")
         with self.locked(), self._frozen_snapshot(deck_id) as files:
             library = self.get(identifier)
             if not library.sync_enabled or automatic and not library.auto_sync_enabled:
@@ -603,46 +759,50 @@ class Libraries:
             self.verify_repository(library.location, True)
             self.refresh_checkout(library)
             destination = Path(library.path)
+            current_paths = {item.path for item in files}
+            checkpoint, remote_commit = self._prepare_sync(library, current_paths)
+            owned = checkpoint.confirmed.files.copy()
             manifest = destination / ".artifact-studio-manifest.json"
             previous: dict[str, str] = {}
             if manifest.is_symlink():
                 raise ValueError("The sync manifest cannot be a symbolic link.")
             if manifest.exists():
-                previous = TypeAdapter(dict[str, str]).validate_json(
-                    manifest.read_text(), strict=True
-                )
+                previous = self._manifest_files(destination, manifest.read_text())
             if not files and not previous:
                 raise ValueError("No presentation files were found to sync.")
-            current_paths = {item.path for item in files}
             removals: list[tuple[Path, str]] = []
             if automatic:
-                for relative in previous.keys() - current_paths:
+                for relative in owned.keys() - current_paths:
                     if revision_directory(Path(relative)):
                         continue
                     target = snapshot_target(destination, relative)
                     if target.exists():
-                        if not target.is_file() or file_hash(target) != previous[relative]:
+                        if not target.is_file() or file_hash(target) != owned[relative]:
                             raise ValueError(
                                 f"Remote changes need review before syncing: {relative}"
                             )
                         removals.append((target, relative))
-                previous = {
-                    path: value
-                    for path, value in previous.items()
-                    if path in current_paths or revision_directory(Path(path))
-                }
+                    _ = previous.pop(relative, None)
+                    _ = owned.pop(relative)
             updates: list[tuple[Path, Path, str, str]] = []
             for item in files:
                 original = Path(item.local_path)
                 relative = item.path
                 target = snapshot_target(destination, relative)
                 current_hash = file_hash(original)
+                if target.exists() and not target.is_file():
+                    raise ValueError(f"Remote changes need review before syncing: {relative}")
                 remote_hash = file_hash(target) if target.is_file() else None
                 if remote_hash != current_hash:
-                    if remote_hash != previous.get(relative):
-                        raise ValueError(f"Remote changes need review before syncing: {relative}")
+                    if remote_hash != owned.get(relative):
+                        raise ValueError(
+                            f"Remote changes need review before syncing: {relative}. "
+                            "Save a workspace archive and reconcile the local and GitHub copies "
+                            "before retrying."
+                        )
                     updates.append((original, target, relative, current_hash))
                 previous[relative] = current_hash
+                owned[relative] = current_hash
             for original, target, _, _ in updates:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 _ = shutil.copy2(original, target)
@@ -659,8 +819,13 @@ class Libraries:
                     "chore(presentations): sync local presentation snapshot",
                 )
             branch = git(destination, "branch", "--show-current")
-            git(destination, "push", "-u", "origin", branch)
             commit = git(destination, "rev-parse", "HEAD")
+            checkpoint.pending = PendingSync(commit=commit, base_commit=remote_commit, files=owned)
+            self._save_checkpoint(library.id, checkpoint)
+            git(destination, "push", "-u", "origin", branch)
+            checkpoint.confirmed = SyncBaseline(commit=commit, files=owned)
+            checkpoint.pending = None
+            self._save_checkpoint(library.id, checkpoint)
             return SyncResult(
                 repository=library.location,
                 commit=commit,

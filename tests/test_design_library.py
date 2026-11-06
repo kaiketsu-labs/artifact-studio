@@ -151,6 +151,27 @@ def test_http_and_mcp_design_context_are_the_same_inert_files(
     assert client.post(f"/api/design-library/{item['id']}/restore", json={}).status_code == 200
 
 
+def test_http_default_design_changes_future_work_only(
+    library: DesignLibrary, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Persist one valid default while preserving existing presentations and references."""
+    make_design(library.store.root / TEMPLATE_ID)
+    make_design(library.store.root / "2026-11-06-blue-design", "blue-brand")
+    deck = library.store.create("2026-11-06-existing-work", "Existing", "test-brand")
+    source = (library.store.folder(deck.id) / "index.html").read_bytes()
+    monkeypatch.setattr(service, "store", library.store)
+    client = TestClient(service.app, base_url="http://127.0.0.1")
+    response = client.post("/api/design-library/blue-brand/default", json={})
+    assert response.status_code == 200
+    assert response.json()["default_design_id"] == "blue-brand"
+    assert library.store.default_design_id() == "blue-brand"
+    assert library.store.create("2026-11-06-new-work", "New").design_id == "blue-brand"
+    assert (library.store.folder(deck.id) / "index.html").read_bytes() == source
+    reference = library.create(DesignCreate(name="Reference files"))
+    assert client.post(f"/api/design-library/{reference.id}/default", json={}).status_code >= 400
+    assert library.store.default_design_id() == "blue-brand"
+
+
 def test_design_preview_serves_only_inert_images(
     library: DesignLibrary, monkeypatch: pytest.MonkeyPatch
 ) -> None:
