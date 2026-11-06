@@ -240,6 +240,8 @@ The editor keeps tools in one row. Top-bar icons toggle the slide list and conve
 
 The hub's **… → Presentation tools** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
 
+Star artifacts to keep them first in the library. Star individual slide thumbnails to save them in **Favorite slides**, across presentations. Add an optional description to explain why a slide is useful; search finds descriptions and titles. In either chat, click **★ beside the paperclip**, select up to five slides, and choose **Add references** before sending. References preserve the selected slide version and description for the agent. [Favorite slides and chat references](docs/prototypes/favorites/README.md).
+
 ## Your files stay local
 
 | What | Default location |

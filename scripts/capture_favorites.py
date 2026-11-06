@@ -41,7 +41,7 @@ def main() -> None:
                 if not keep_pointer:
                     page.mouse.move(1, 1)
                 data = page.screenshot(path=output / name, animations="disabled")
-                violations: object = []
+                violations: object = None
                 if args.axe:
                     _ = page.add_script_tag(path=str(args.axe))
                     violations = page.evaluate("async()=> (await axe.run()).violations")
@@ -49,6 +49,7 @@ def main() -> None:
                     "sha256": hashlib.sha256(data).hexdigest(),
                     "viewport": page.viewport_size,
                     "captured_at": datetime.now(UTC).isoformat(),
+                    "axe_ran": bool(args.axe),
                     "axe_violations": violations,
                 }
                 print("Captured " + name, flush=True)

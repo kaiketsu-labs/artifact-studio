@@ -1,11 +1,12 @@
 {
   "artifacts.png": {
-    "sha256": "ce55930f080fc58080629f6939b588b7d13168343671d812b75b70ec6a0dfb22",
+    "sha256": "4aab9ac1c9abc7a0768a704a9686bc90eab88585ae8a763c2e859dbfc6f07e1f",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:38.123681+00:00",
+    "captured_at": "2026-11-06T09:17:31.753108+00:00",
+    "axe_ran": true,
     "axe_violations": [
       {
         "id": "region",
@@ -65,39 +66,43 @@
     ]
   },
   "library.png": {
-    "sha256": "45ef77c8356c5831514fab03787d65af14b33d705f8c1d52fb992554a16c0767",
+    "sha256": "a62f964db85cc5b66a471aeb81b443e7e5a569a0f8f487b95c6c072ac365437f",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:39.170423+00:00",
+    "captured_at": "2026-11-06T09:17:32.362984+00:00",
+    "axe_ran": true,
     "axe_violations": []
   },
   "description.png": {
-    "sha256": "90f85567f22f80c15c325e99bc3fba03b8c2e782ed1323bb042e3d490ccfde44",
+    "sha256": "65cc705391d61fb0009ab6656fbc2e3582a6b0818eb3e91c2f2b1631186266cc",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:40.233890+00:00",
+    "captured_at": "2026-11-06T09:17:32.975208+00:00",
+    "axe_ran": true,
     "axe_violations": []
   },
   "description-search.png": {
-    "sha256": "8717e0fb73331ec8ff3e2c458f20a60ca772e0c84ce45871d0efad0880ea6a27",
+    "sha256": "4654f81717ac5d06013e0b775724f213a9d4174159dc5d6ce3363eb03653bbbb",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:40.913996+00:00",
+    "captured_at": "2026-11-06T09:17:33.564119+00:00",
+    "axe_ran": true,
     "axe_violations": []
   },
   "slide-stars-rest.png": {
-    "sha256": "4c23235dcf9cfac7711381147080638582cca419601390dc3f1ac8adfb5e63d3",
+    "sha256": "991998f147fa7155aac18cddfad7d46b1256c3df4a897029d39efdef49d03ea1",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:42.344434+00:00",
+    "captured_at": "2026-11-06T09:17:34.886307+00:00",
+    "axe_ran": true,
     "axe_violations": [
       {
         "id": "region",
@@ -136,12 +141,13 @@
     ]
   },
   "slide-stars-hover.png": {
-    "sha256": "aae9747c6b9c54025df3b56a9a67f9dff7b5b6b5f83fcd03bbd22976689ffea2",
+    "sha256": "a09dad127d1ed0474b76b0f1fe632a444168cdba14e526023185d32ded21f330",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:43.302006+00:00",
+    "captured_at": "2026-11-06T09:17:35.820564+00:00",
+    "axe_ran": true,
     "axe_violations": [
       {
         "id": "region",
@@ -180,12 +186,13 @@
     ]
   },
   "picker.png": {
-    "sha256": "853a75212d77e21ceaaaba687ad513b10625e362973d4cca3857b2cb694af6d9",
+    "sha256": "21d7aa578c451be17adf90a9063b0fe11e0592118c3f83a658786a98f1fe1305",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:44.668322+00:00",
+    "captured_at": "2026-11-06T09:17:37.100695+00:00",
+    "axe_ran": true,
     "axe_violations": [
       {
         "id": "region",
@@ -224,12 +231,13 @@
     ]
   },
   "chat.png": {
-    "sha256": "46b351c674f46f8046e449b5d8e93e4988d0af80f156d453d4b8c4a9326eaf08",
+    "sha256": "c339ed382eac3fa983fb9271a85544325f79d92754b525096c2ebf13ac1dac4e",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T08:15:45.579882+00:00",
+    "captured_at": "2026-11-06T09:17:37.947122+00:00",
+    "axe_ran": true,
     "axe_violations": [
       {
         "id": "region",
@@ -268,12 +276,13 @@
     ]
   },
   "mobile-dark.png": {
-    "sha256": "b22ca34cb5bdd6e373a715a3020f066f2248a27cd6a1f44ec2ef52c1ecb21efb",
+    "sha256": "6c9847a74f73475ee47ec101cdd045efe39612d36255f1edca8d2d9154165a77",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-06T08:15:46.721344+00:00",
+    "captured_at": "2026-11-06T09:17:38.933175+00:00",
+    "axe_ran": true,
     "axe_violations": [
       {
         "id": "region",

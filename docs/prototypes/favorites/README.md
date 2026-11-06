@@ -1,7 +1,7 @@
-# Stars and favorite slides — working draft
+# Stars, favorite slides and chat references
 
-This prototype uses the real application, persistence and local MCP feedback path.
-It is ready for UX review; it is not a release.
+Stars and chat references use the real application, persistence and feedback path.
+Try the feature with a disposable fictional workspace:
 
 ```sh
 uv run python -m scripts.preview_favorites
@@ -10,7 +10,7 @@ uv run python -m scripts.preview_favorites
 Open the printed URL. The command creates a temporary fictional workspace with
 five artifacts and three favorite slides. Stop it with Ctrl+C to remove that workspace.
 
-## Proposed experience
+## Using favorites
 
 | Area | Behavior |
 | --- | --- |
@@ -55,14 +55,17 @@ privacy and per-slide drafts. Local MCP agents receive the saved file path in
 read-only visual reference. Its description and source identity appear at the
 start of the HTML as structured reference metadata, before styles and assets.
 The local agent reads that attachment source to use this context. Reading it
-gives context, not permission to edit the source presentation. Favorites add
-**no agent startup context**. Slide source is
+gives context, not permission to edit the source presentation. Favorite contents
+are **never preloaded into agent startup context**. Slide source is
 prepared only when the human opens the picker and delivered only when selected.
 
-The hosted cloud agent currently receives attachment metadata without access to
-file bodies. This draft does not claim hosted reference support; that requires a
-scoped attachment-read tool before a production rollout. Existing attachment
-limits apply: five files per message, 25 MB each, 50 MB combined. References with
+Hosted agents use `read_feedback_attachment` with the destination artifact or
+presentation ID, released event ID and zero-based file index. It returns bounded
+pages from the verified saved attachment. Section offsets let the agent jump to
+slide markup without reading through embedded fonts or images. Reading a reference from another
+presentation does not grant access to that presentation's other content. Batch
+drafts remain private until released. Existing attachment limits apply: five
+files per message, 25 MB each, 50 MB combined. References with
 unavailable dependencies show an error rather than silently losing their assets.
 
 Stars live in the private workspace database and travel with full workspace
@@ -78,6 +81,9 @@ and is unstarred. Backend tests cover approval preservation, unavailable sources
 concurrent edits and changed interactive dependencies.
 Description checks cover schema upgrades, search, cancellation, conflicting
 edits, clearing, selection retention and frozen descriptions in released references.
+Hosted attachment checks use the authenticated MCP transport, covering both chat
+types, project boundaries, Batch release, Unicode pagination and altered files.
+The external Microsoft Copilot tenant connection is not part of this local test.
 
 Fresh-context Terra reviewers checked backend correctness and distinct desktop
 and mobile journeys, including description editing, search and chat handoff.
