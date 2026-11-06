@@ -408,7 +408,7 @@ class Libraries:
         """Reuse the workspace database and isolate repository checkouts in local state."""
         self.store = store
         self.cache = store.database.parent / "libraries"
-        self.cache.mkdir(parents=True, exist_ok=True)
+        self.cache.mkdir(exist_ok=True)
         with store.connect() as db:
             _ = db.execute(
                 "CREATE TABLE IF NOT EXISTS libraries (id TEXT PRIMARY KEY, document TEXT)"
@@ -421,7 +421,7 @@ class Libraries:
     @contextmanager
     def locked(self) -> Generator[None]:
         """Prevent concurrent clone, refresh and sync operations across server processes."""
-        with (self.cache / ".lock").open("a") as lock:
+        with (self.store.database.parent / ".library-operations.lock").open("a") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
@@ -429,6 +429,7 @@ class Libraries:
                     "A library operation is running. Try again when it finishes."
                 ) from error
             try:
+                self.cache.mkdir(exist_ok=True)
                 yield
             finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)

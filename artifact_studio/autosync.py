@@ -98,7 +98,7 @@ class AutoSync:
 
     def tick(self, now: float | None = None) -> None:
         """Publish stable saved changes once, with one worker across server processes."""
-        with (self.libraries.cache / ".auto-sync.lock").open("a") as lock:
+        with (self.store.database.parent / ".auto-sync.lock").open("a") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
