@@ -59,6 +59,8 @@ Checkpoints are host state: full workspace archives remove them and omit them fr
 
 Current-source uploads omit machine-specific locators from the reserved project, current artifact and workspace recovery manifests. Project context, context hashes and counts are rebuilt from the README and registry during recovery instead of being duplicated in the uploaded project view. Local files, immutable revisions, approval hashes and full archives retain their existing data. Authored JSON inside a bundle is never rewritten.
 
+Artifacts also retain their saved MIME declarations when verified or edited on another host. Different operating-system MIME registries do not create synthetic revisions or invalidate unchanged snapshots. File paths, sizes, SHA-256 hashes and the saved manifest identity are still verified; actual tampering is rejected. New files receive their MIME type when first registered.
+
 Existing backups with host-specific paths migrate only when their normalized metadata exactly matches the intended upload. This allows a recovered copy on another computer to acknowledge identical content without an inherited upload checkpoint. Different titles, briefs, navigation, source bytes or unknown metadata fields still require review. Pending uploads retain their exact original commit and hashes until delivery is confirmed.
 
 If **Remote changes need review** appears, save a full archive of local work, preserve the remote backup, and inspect both versions before applying the intended changes. Retry after reconciliation; retries do not bypass the guard. A new backup repository is also available when the workspaces should remain independent.
