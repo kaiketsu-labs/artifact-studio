@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from artifact_studio import app as service
 from artifact_studio import libraries as module
-from artifact_studio.autosync import QUIET_SECONDS, AutoSync
+from artifact_studio.autosync import QUIET_SECONDS, AutoSync, SyncStatus
 from artifact_studio.libraries import (
     Libraries,
     LibraryInput,
@@ -331,6 +331,63 @@ def test_auto_sync_reports_failures_and_retries_only_when_requested(
     worker.tick(300)
     worker.tick(300 + QUIET_SECONDS)
     assert attempts == [library.id, library.id]
+
+
+def test_paused_auto_sync_does_not_scan_files_until_explicit_retry(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An error awaiting human attention must not rehash a workspace on every idle tick."""
+    libraries, _ = library_setup
+    library = libraries.register(LibraryInput(location="test/slides", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    worker.save(SyncStatus(library_id=library.id, phase="error", error="Resolve remote changes."))
+    observed: list[bool] = []
+    original = worker.fingerprint
+
+    def fingerprint() -> str:
+        observed.append(True)
+        return original()
+
+    monkeypatch.setattr(worker, "fingerprint", fingerprint)
+    for now in (100, 103, 106):
+        worker.tick(now)
+    assert not observed
+    assert worker.state(library.id).error == "Resolve remote changes."
+    _ = worker.queue(library.id)
+    worker.tick(200)
+    assert observed == [True]
+    assert worker.state(library.id).phase == "pending"
+
+
+def test_active_sync_continues_beside_a_paused_destination(
+    library_setup: tuple[Libraries, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Skipping paused work must not suppress a second opted-in destination or crash recovery."""
+    libraries, _ = library_setup
+    paused = libraries.register(LibraryInput(location="test/paused", auto_sync_enabled=True))
+    active = libraries.register(LibraryInput(location="test/active", auto_sync_enabled=True))
+    worker = AutoSync(libraries.store)
+    worker.save(SyncStatus(library_id=paused.id, phase="error", error="Resolve remote changes."))
+    worker.save(SyncStatus(library_id=active.id, phase="syncing", observed="old", synced="old"))
+    delivered: list[str] = []
+
+    def sync(identifier: str, *, automatic: bool = False) -> SyncResult:
+        assert automatic
+        delivered.append(identifier)
+        return SyncResult(
+            repository="test/active",
+            commit="fictional",
+            url="https://example.invalid",
+            files_changed=1,
+        )
+
+    monkeypatch.setattr(worker.libraries, "sync", sync)
+    worker.tick(100)
+    worker.tick(100 + QUIET_SECONDS)
+    assert delivered == [active.id]
+    assert worker.state(active.id).phase == "synced"
+    assert worker.state(paused.id).phase == "error"
+    assert worker.state(paused.id).error == "Resolve remote changes."
 
 
 def test_auto_sync_settings_http_and_cache_exclusion(

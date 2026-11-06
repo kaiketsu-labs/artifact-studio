@@ -1,0 +1,1097 @@
+{
+  "provenance": "Fictional isolated fixtures; baseline app source at 2ccc1b3 (same application source as 7644722), revised runtime-efficiency working tree. Python allocations, browser CDP heap, aggregate RSS, and disk bytes are different metrics; timings are local descriptive observations, not universal capacity limits. See runtime-efficiency.md for methods and limitations.",
+  "measurements": {
+    "backend_before": {
+      "scoped_project_listing": {
+        "median_ms": 169.02,
+        "cpu_ms": 168.96,
+        "allocation_peak_mib": 2.26,
+        "retained_mib": 0.04,
+        "result": 1,
+        "streamed_mib": 192.003,
+        "full_read_mib": 0.0,
+        "inventory_passes": 8,
+        "full_read_passes": 0
+      },
+      "scoped_working_context": {
+        "median_ms": 170.73,
+        "cpu_ms": 170.67,
+        "allocation_peak_mib": 2.29,
+        "retained_mib": 0.04,
+        "result": 0,
+        "streamed_mib": 192.004,
+        "full_read_mib": 0.0,
+        "inventory_passes": 10,
+        "full_read_passes": 0
+      },
+      "read_one_26_byte_file": {
+        "median_ms": 66.17,
+        "cpu_ms": 66.12,
+        "allocation_peak_mib": 32.08,
+        "retained_mib": 0.02,
+        "result": 28,
+        "streamed_mib": 32.0,
+        "full_read_mib": 32.0,
+        "inventory_passes": 1,
+        "full_read_passes": 1
+      },
+      "resolve_twenty_tiny_revision_files": {
+        "median_ms": 556.78,
+        "cpu_ms": 556.37,
+        "allocation_peak_mib": 2.24,
+        "retained_mib": 0.05,
+        "result": 20,
+        "streamed_mib": 640.009,
+        "full_read_mib": 0.0,
+        "inventory_passes": 20,
+        "full_read_passes": 0
+      },
+      "legacy_caught_up_feedback_poll": {
+        "median_ms": 162.06,
+        "cpu_ms": 161.94,
+        "allocation_peak_mib": 48.14,
+        "retained_mib": 0.02,
+        "result": 0,
+        "streamed_mib": 0.0,
+        "full_read_mib": 0.0,
+        "inventory_passes": 0,
+        "full_read_passes": 0
+      },
+      "owned_caught_up_feedback_poll": {
+        "median_ms": 85.9,
+        "cpu_ms": 85.8,
+        "allocation_peak_mib": 39.74,
+        "retained_mib": 0.15,
+        "result": 0,
+        "streamed_mib": 0.001,
+        "full_read_mib": 0.0,
+        "inventory_passes": 2,
+        "full_read_passes": 0
+      },
+      "fixture": {
+        "root": "/tmp/artifact-backend-audit-erul7qnl",
+        "large_artifacts": 3,
+        "mib_each": 32,
+        "retained_messages_per_thread": 10000,
+        "message_bytes": 1029
+      }
+    },
+    "backend_after": {
+      "scoped_project_listing": {
+        "median_ms": 3.31,
+        "cpu_ms": 3.3,
+        "allocation_peak_mib": 1.21,
+        "retained_mib": 0.03,
+        "result": 1,
+        "streamed_mib": 0.001,
+        "full_read_mib": 0.0,
+        "inventory_passes": 2,
+        "full_read_passes": 0
+      },
+      "scoped_working_context": {
+        "median_ms": 9.45,
+        "cpu_ms": 9.45,
+        "allocation_peak_mib": 1.24,
+        "retained_mib": 0.04,
+        "result": 0,
+        "streamed_mib": 0.002,
+        "full_read_mib": 0.0,
+        "inventory_passes": 4,
+        "full_read_passes": 0
+      },
+      "read_one_26_byte_file": {
+        "median_ms": 29.07,
+        "cpu_ms": 29.07,
+        "allocation_peak_mib": 2.2,
+        "retained_mib": 0.02,
+        "result": 28,
+        "streamed_mib": 32.0,
+        "full_read_mib": 0.0,
+        "inventory_passes": 1,
+        "full_read_passes": 0
+      },
+      "resolve_twenty_tiny_revision_files": {
+        "median_ms": 601.29,
+        "cpu_ms": 601.24,
+        "allocation_peak_mib": 2.24,
+        "retained_mib": 0.05,
+        "result": 20,
+        "streamed_mib": 640.009,
+        "full_read_mib": 0.0,
+        "inventory_passes": 20,
+        "full_read_passes": 0
+      },
+      "legacy_caught_up_feedback_poll": {
+        "median_ms": 4.06,
+        "cpu_ms": 4.04,
+        "allocation_peak_mib": 0.14,
+        "retained_mib": 0.01,
+        "result": 0,
+        "streamed_mib": 0.0,
+        "full_read_mib": 0.0,
+        "inventory_passes": 0,
+        "full_read_passes": 0
+      },
+      "owned_caught_up_feedback_poll": {
+        "median_ms": 6.96,
+        "cpu_ms": 6.96,
+        "allocation_peak_mib": 1.2,
+        "retained_mib": 0.02,
+        "result": 0,
+        "streamed_mib": 0.001,
+        "full_read_mib": 0.0,
+        "inventory_passes": 2,
+        "full_read_passes": 0
+      },
+      "fixture": {
+        "root": "/tmp/artifact-backend-audit-c1_9wlxr",
+        "large_artifacts": 3,
+        "mib_each": 32,
+        "retained_messages_per_thread": 10000,
+        "message_bytes": 1029
+      }
+    },
+    "capture_before": {
+      "fixture": {
+        "bundle_bytes": 16777287,
+        "files": 9
+      },
+      "one_requested_small_file_current": {
+        "seconds": 0.0586,
+        "peak_python_mib": 16.041,
+        "streamed_inventory_scans": 2,
+        "materialized_bundle_reads": 1
+      },
+      "one_requested_small_file_revision": {
+        "seconds": 0.0315,
+        "peak_python_mib": 16.039,
+        "streamed_inventory_scans": 1,
+        "materialized_bundle_reads": 1
+      },
+      "empty_file_request_revision": {
+        "seconds": 0.0304,
+        "peak_python_mib": 16.039,
+        "streamed_inventory_scans": 1,
+        "materialized_bundle_reads": 1
+      },
+      "preview_document_revision": {
+        "seconds": 0.0363,
+        "peak_python_mib": 2.175,
+        "streamed_inventory_scans": 2,
+        "materialized_bundle_reads": 0
+      },
+      "capture_resources_existing_view": {
+        "seconds": 0.067,
+        "peak_python_mib": 18.259,
+        "streamed_inventory_scans": 3,
+        "materialized_bundle_reads": 1
+      },
+      "nine_revision_file_resolutions": {
+        "seconds": 0.1691,
+        "peak_python_mib": 2.176,
+        "streamed_inventory_scans": 9,
+        "materialized_bundle_reads": 0
+      },
+      "twelve_slide_preparation_no_browser": {
+        "seconds": 1.0068,
+        "peak_python_mib": 106.411,
+        "retained_document_mib": 32.958,
+        "shared_asset_reads": 12
+      }
+    },
+    "capture_after": {
+      "fixture": {
+        "bundle_bytes": 16777287,
+        "files": 9
+      },
+      "one_requested_small_file_current": {
+        "seconds": 0.0296,
+        "peak_python_mib": 2.167,
+        "streamed_inventory_scans": 2,
+        "materialized_bundle_reads": 0
+      },
+      "one_requested_small_file_revision": {
+        "seconds": 0.0162,
+        "peak_python_mib": 2.163,
+        "streamed_inventory_scans": 1,
+        "materialized_bundle_reads": 0
+      },
+      "empty_file_request_revision": {
+        "seconds": 0.0154,
+        "peak_python_mib": 2.163,
+        "streamed_inventory_scans": 1,
+        "materialized_bundle_reads": 0
+      },
+      "preview_document_revision": {
+        "seconds": 0.0162,
+        "peak_python_mib": 2.164,
+        "streamed_inventory_scans": 1,
+        "materialized_bundle_reads": 0
+      },
+      "capture_resources_existing_view": {
+        "seconds": 0.0179,
+        "peak_python_mib": 16.164,
+        "streamed_inventory_scans": 0,
+        "materialized_bundle_reads": 1
+      },
+      "nine_revision_file_resolutions": {
+        "seconds": 0.1713,
+        "peak_python_mib": 2.176,
+        "streamed_inventory_scans": 9,
+        "materialized_bundle_reads": 0
+      },
+      "twelve_slide_preparation_no_browser": {
+        "seconds": 0.8143,
+        "peak_python_mib": 106.411,
+        "retained_document_mib": 32.958,
+        "shared_asset_reads": 12
+      }
+    },
+    "share_before": {
+      "project_share": {
+        "seconds": 0.6082,
+        "peak_python_mib": 30.159,
+        "output_bytes": 8391800,
+        "zip_compression_calls_input_bytes": [
+          4194368,
+          4194368,
+          8388736
+        ],
+        "final_uncompressed_file_bytes": 8388736,
+        "final_entries": 4
+      },
+      "pdf_stub_concurrency_no_browser_launched": {
+        "active_launches": 0,
+        "peak_concurrent_browsers": 3,
+        "launches": 3,
+        "closes": 3
+      }
+    },
+    "share_after": {
+      "project_share": {
+        "seconds": 0.3866,
+        "peak_python_mib": 30.159,
+        "output_bytes": 8391800,
+        "zip_compression_calls_input_bytes": [
+          4194368,
+          4194368,
+          8388736
+        ],
+        "final_uncompressed_file_bytes": 8388736,
+        "final_entries": 4
+      },
+      "pdf_stub_concurrency_no_browser_launched": {
+        "active_launches": 0,
+        "peak_concurrent_browsers": 1,
+        "launches": 3,
+        "closes": 3
+      }
+    },
+    "autosync_before": {
+      "workload": "8 x 32 MiB fictional media; one opted-in GitHub destination already error; no network calls",
+      "ticks": [
+        {
+          "wall_ms": 246.2,
+          "cpu_ms": 246.1,
+          "hashed_mib": 256.0,
+          "hash_calls": 9,
+          "phase": "error"
+        },
+        {
+          "wall_ms": 225.1,
+          "cpu_ms": 223.1,
+          "hashed_mib": 256.0,
+          "hash_calls": 9,
+          "phase": "error"
+        },
+        {
+          "wall_ms": 204.2,
+          "cpu_ms": 204.1,
+          "hashed_mib": 256.0,
+          "hash_calls": 9,
+          "phase": "error"
+        },
+        {
+          "wall_ms": 203.8,
+          "cpu_ms": 202.8,
+          "hashed_mib": 256.0,
+          "hash_calls": 9,
+          "phase": "error"
+        }
+      ],
+      "steady_wall_median_ms": 204.2,
+      "steady_cpu_median_ms": 204.1,
+      "peak_rss_mib": 52.7
+    },
+    "autosync_after": {
+      "workload": "8 x 32 MiB fictional media; one opted-in GitHub destination already error; no network calls",
+      "ticks": [
+        {
+          "wall_ms": 2.0,
+          "cpu_ms": 2.0,
+          "hashed_mib": 0.0,
+          "hash_calls": 0,
+          "phase": "error"
+        },
+        {
+          "wall_ms": 1.0,
+          "cpu_ms": 1.0,
+          "hashed_mib": 0.0,
+          "hash_calls": 0,
+          "phase": "error"
+        },
+        {
+          "wall_ms": 0.9,
+          "cpu_ms": 0.9,
+          "hashed_mib": 0.0,
+          "hash_calls": 0,
+          "phase": "error"
+        },
+        {
+          "wall_ms": 0.9,
+          "cpu_ms": 0.9,
+          "hashed_mib": 0.0,
+          "hash_calls": 0,
+          "phase": "error"
+        }
+      ],
+      "steady_wall_median_ms": 0.9,
+      "steady_cpu_median_ms": 0.9,
+      "peak_rss_mib": 51.4
+    },
+    "backup_before": {
+      "large_file_paths": [
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/files/media.png",
+          699579,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/1/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/10/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/11/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/12/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/13/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/14/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/15/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/16/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/17/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/18/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/19/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/2/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/20/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/21/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/3/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/4/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/5/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/6/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/7/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/8/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/revisions/9/files/media.png",
+          699291,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp0c6agl7z/previous/media.png",
+          699489,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp2a86ib9q/previous/media.png",
+          699403,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp2jy60_kd/previous/media.png",
+          699336,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp5s9ypi10/previous/media.png",
+          699303,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp6rfni6o6/previous/media.png",
+          699446,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp8rulkxhv/previous/media.png",
+          699546,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmp_8j__tep/previous/media.png",
+          699314,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpaxoj6vkf/previous/media.png",
+          699535,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpb43ton25/previous/media.png",
+          699392,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpby9v4bw0/previous/media.png",
+          699414,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpe2bl50hy/previous/media.png",
+          699325,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpecq7rgvv/previous/media.png",
+          699557,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpfgurdscv/previous/media.png",
+          699358,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpfhavv7rz/previous/media.png",
+          699369,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpma3l4cow/previous/media.png",
+          699524,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpqcuqsi6s/previous/media.png",
+          699435,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpu5dfiwqa/previous/media.png",
+          699347,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpugcbje5v/previous/media.png",
+          699568,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpvphgvabf/previous/media.png",
+          699380,
+          16777216
+        ],
+        [
+          "collection/projects/project-b6f5da8e647f47cb/artifacts/artifact-7e4a2910a1a646bd/tmpyaycyywo/previous/media.png",
+          699285,
+          16777216
+        ]
+      ],
+      "workload": "1 owned artifact,16MiB media unchanged across21revisions, text-only revisions; unchanged full backup compares",
+      "results": [
+        {
+          "wall_ms": 584.8,
+          "cpu_ms": 584.2,
+          "hashed_mib": 672.397,
+          "unique_inode_mib": 352.397,
+          "hash_calls": 110,
+          "unique_inodes": 90,
+          "unchanged": true
+        },
+        {
+          "wall_ms": 540.7,
+          "cpu_ms": 540.4,
+          "hashed_mib": 672.397,
+          "unique_inode_mib": 352.397,
+          "hash_calls": 110,
+          "unique_inodes": 90,
+          "unchanged": true
+        },
+        {
+          "wall_ms": 548.6,
+          "cpu_ms": 546.1,
+          "hashed_mib": 672.397,
+          "unique_inode_mib": 352.397,
+          "hash_calls": 110,
+          "unique_inodes": 90,
+          "unchanged": true
+        }
+      ],
+      "peak_rss_mib": 68.9
+    },
+    "backup_after": {
+      "large_file_paths": [
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/files/media.png",
+          690638,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/1/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/10/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/11/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/12/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/13/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/14/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/15/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/16/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/17/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/18/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/19/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/2/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/20/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/21/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/3/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/4/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/5/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/6/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/7/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/8/files/media.png",
+          690353,
+          16777216
+        ],
+        [
+          "collection/projects/project-4076547c0c144426/artifacts/artifact-6b85cc086a374808/revisions/9/files/media.png",
+          690353,
+          16777216
+        ]
+      ],
+      "workload": "1 owned artifact,16MiB media unchanged across21revisions, text-only revisions; unchanged full backup compares",
+      "results": [
+        {
+          "wall_ms": 337.6,
+          "cpu_ms": 326.3,
+          "hashed_mib": 352.396,
+          "unique_inode_mib": 32.396,
+          "hash_calls": 70,
+          "unique_inodes": 50,
+          "unchanged": true
+        },
+        {
+          "wall_ms": 323.5,
+          "cpu_ms": 323.5,
+          "hashed_mib": 352.396,
+          "unique_inode_mib": 32.396,
+          "hash_calls": 70,
+          "unique_inodes": 50,
+          "unchanged": true
+        },
+        {
+          "wall_ms": 324.4,
+          "cpu_ms": 324.2,
+          "hashed_mib": 352.396,
+          "unique_inode_mib": 32.396,
+          "hash_calls": 70,
+          "unique_inodes": 50,
+          "unchanged": true
+        }
+      ],
+      "peak_rss_mib": 68.9
+    },
+    "navigation": {
+      "fixture_bytes": 33554477,
+      "baseline": {
+        "median": {
+          "cpu_ms": 41.51834500000001,
+          "wall_ms": 41.53962800046429,
+          "peak_python_mib": 64.12695693969727
+        },
+        "samples": [
+          {
+            "cpu_ms": 54.22719299999998,
+            "wall_ms": 54.25120599102229,
+            "peak_python_mib": 64.12699508666992
+          },
+          {
+            "cpu_ms": 40.83115599999998,
+            "wall_ms": 40.97647700109519,
+            "peak_python_mib": 64.1269645690918
+          },
+          {
+            "cpu_ms": 47.58317899999997,
+            "wall_ms": 47.594753006706014,
+            "peak_python_mib": 64.12695693969727
+          },
+          {
+            "cpu_ms": 41.07645900000001,
+            "wall_ms": 41.08929701033048,
+            "peak_python_mib": 64.12694931030273
+          },
+          {
+            "cpu_ms": 41.51834500000001,
+            "wall_ms": 41.53962800046429,
+            "peak_python_mib": 64.12693405151367
+          }
+        ]
+      },
+      "revised": {
+        "median": {
+          "cpu_ms": 0.09759499999995036,
+          "wall_ms": 0.10371700045652688,
+          "peak_python_mib": 0.25197792053222656
+        },
+        "samples": [
+          {
+            "cpu_ms": 0.1320859999999202,
+            "wall_ms": 0.1403119822498411,
+            "peak_python_mib": 0.2520160675048828
+          },
+          {
+            "cpu_ms": 0.13107500000009153,
+            "wall_ms": 0.1376979926135391,
+            "peak_python_mib": 0.2519855499267578
+          },
+          {
+            "cpu_ms": 0.09759499999995036,
+            "wall_ms": 0.10371700045652688,
+            "peak_python_mib": 0.25197792053222656
+          },
+          {
+            "cpu_ms": 0.07851600000008396,
+            "wall_ms": 0.08312601130455732,
+            "peak_python_mib": 0.2519702911376953
+          },
+          {
+            "cpu_ms": 0.0861269999999914,
+            "wall_ms": 0.09084702469408512,
+            "peak_python_mib": 0.25196266174316406
+          }
+        ]
+      },
+      "method": "Five sequential fictional local-file runs, tracemalloc Python allocation peak (not RSS); unchanged marker near document start. Initial document creation excluded."
+    },
+    "favorites_before": [
+      {
+        "label": "library_before",
+        "preview_requests": 0,
+        "iframe_nodes": 0,
+        "frames": 1,
+        "documents": 2,
+        "nodes": 727,
+        "listeners": 161,
+        "heap_MiB": 1.09,
+        "browser_RSS_sum_MiB": 432.3,
+        "task_seconds": 0.168
+      },
+      {
+        "label": "favorites_open_40",
+        "preview_requests": 30,
+        "iframe_nodes": 40,
+        "frames": 41,
+        "documents": 42,
+        "nodes": 11255,
+        "listeners": 183,
+        "heap_MiB": 12.18,
+        "browser_RSS_sum_MiB": 534.7,
+        "task_seconds": 0.798
+      },
+      {
+        "label": "filter_10",
+        "preview_requests": 40,
+        "iframe_nodes": 10,
+        "frames": 11,
+        "documents": 12,
+        "nodes": 4170,
+        "listeners": 183,
+        "heap_MiB": 5.49,
+        "browser_RSS_sum_MiB": 512.1,
+        "task_seconds": 1.022
+      },
+      {
+        "label": "clear_40",
+        "preview_requests": 70,
+        "iframe_nodes": 40,
+        "frames": 41,
+        "documents": 42,
+        "nodes": 11260,
+        "listeners": 183,
+        "heap_MiB": 12.22,
+        "browser_RSS_sum_MiB": 541.3,
+        "task_seconds": 1.511
+      },
+      {
+        "label": "favorites_closed",
+        "preview_requests": 70,
+        "iframe_nodes": 40,
+        "frames": 41,
+        "documents": 42,
+        "nodes": 11262,
+        "listeners": 183,
+        "heap_MiB": 12.26,
+        "browser_RSS_sum_MiB": 530.6,
+        "task_seconds": 1.627
+      },
+      {
+        "label": "favorites_reopened",
+        "preview_requests": 100,
+        "iframe_nodes": 40,
+        "frames": 41,
+        "documents": 48,
+        "nodes": 5369,
+        "listeners": 183,
+        "heap_MiB": 5.94,
+        "browser_RSS_sum_MiB": 535.5,
+        "task_seconds": 1.887
+      },
+      {
+        "label": "closed_again",
+        "preview_requests": 100,
+        "iframe_nodes": 40,
+        "frames": 41,
+        "documents": 42,
+        "nodes": 11262,
+        "listeners": 183,
+        "heap_MiB": 12.3,
+        "browser_RSS_sum_MiB": 530.8,
+        "task_seconds": 2.19
+      }
+    ],
+    "favorites_after": [
+      {
+        "label": "library_before",
+        "preview_requests": 0,
+        "iframe_nodes": 0,
+        "frames": 1,
+        "documents": 2,
+        "nodes": 727,
+        "listeners": 164,
+        "heap_MiB": 1.09,
+        "browser_RSS_sum_MiB": 433.1,
+        "task_seconds": 0.137
+      },
+      {
+        "label": "favorites_open_40",
+        "preview_requests": 5,
+        "iframe_nodes": 5,
+        "frames": 6,
+        "documents": 7,
+        "nodes": 3426,
+        "listeners": 196,
+        "heap_MiB": 3.82,
+        "browser_RSS_sum_MiB": 500.0,
+        "task_seconds": 0.318
+      },
+      {
+        "label": "filter_10",
+        "preview_requests": 5,
+        "iframe_nodes": 5,
+        "frames": 6,
+        "documents": 7,
+        "nodes": 2621,
+        "listeners": 196,
+        "heap_MiB": 3.85,
+        "browser_RSS_sum_MiB": 500.0,
+        "task_seconds": 0.35
+      },
+      {
+        "label": "clear_40",
+        "preview_requests": 5,
+        "iframe_nodes": 5,
+        "frames": 6,
+        "documents": 7,
+        "nodes": 3431,
+        "listeners": 196,
+        "heap_MiB": 3.87,
+        "browser_RSS_sum_MiB": 489.6,
+        "task_seconds": 0.403
+      },
+      {
+        "label": "favorites_closed",
+        "preview_requests": 5,
+        "iframe_nodes": 0,
+        "frames": 1,
+        "documents": 2,
+        "nodes": 772,
+        "listeners": 186,
+        "heap_MiB": 2.2,
+        "browser_RSS_sum_MiB": 472.9,
+        "task_seconds": 0.445
+      },
+      {
+        "label": "favorites_reopened",
+        "preview_requests": 10,
+        "iframe_nodes": 5,
+        "frames": 6,
+        "documents": 7,
+        "nodes": 3434,
+        "listeners": 196,
+        "heap_MiB": 3.91,
+        "browser_RSS_sum_MiB": 500.7,
+        "task_seconds": 0.608
+      },
+      {
+        "label": "closed_again",
+        "preview_requests": 10,
+        "iframe_nodes": 0,
+        "frames": 1,
+        "documents": 2,
+        "nodes": 772,
+        "listeners": 186,
+        "heap_MiB": 2.22,
+        "browser_RSS_sum_MiB": 484.2,
+        "task_seconds": 0.652
+      }
+    ],
+    "rail_before": [
+      {
+        "label": "editor_40_after_2s",
+        "preview_requests": 0,
+        "iframe_nodes": 41,
+        "frames": 42,
+        "documents": 43,
+        "nodes": 16727,
+        "listeners": 433,
+        "heap_MiB": 16.46,
+        "browser_RSS_sum_MiB": 564.8,
+        "task_seconds": 1.048
+      },
+      {
+        "label": "editor_40_after_12s",
+        "preview_requests": 0,
+        "iframe_nodes": 41,
+        "frames": 42,
+        "documents": 43,
+        "nodes": 16727,
+        "listeners": 459,
+        "heap_MiB": 17.8,
+        "browser_RSS_sum_MiB": 562.1,
+        "task_seconds": 1.261
+      },
+      {
+        "label": "editor_40_scrolled_end",
+        "preview_requests": 0,
+        "iframe_nodes": 41,
+        "frames": 42,
+        "documents": 43,
+        "nodes": 16734,
+        "listeners": 459,
+        "heap_MiB": 17.87,
+        "browser_RSS_sum_MiB": 563.6,
+        "task_seconds": 1.422
+      }
+    ],
+    "rail_after": [
+      {
+        "label": "editor_40_after_2s",
+        "preview_requests": 0,
+        "iframe_nodes": 8,
+        "frames": 9,
+        "documents": 10,
+        "nodes": 6235,
+        "listeners": 436,
+        "heap_MiB": 5.04,
+        "browser_RSS_sum_MiB": 482.0,
+        "task_seconds": 0.558
+      },
+      {
+        "label": "editor_40_after_12s",
+        "preview_requests": 0,
+        "iframe_nodes": 8,
+        "frames": 9,
+        "documents": 10,
+        "nodes": 6235,
+        "listeners": 462,
+        "heap_MiB": 6.38,
+        "browser_RSS_sum_MiB": 476.4,
+        "task_seconds": 0.674
+      },
+      {
+        "label": "editor_40_scrolled_end",
+        "preview_requests": 0,
+        "iframe_nodes": 8,
+        "frames": 9,
+        "documents": 10,
+        "nodes": 6242,
+        "listeners": 462,
+        "heap_MiB": 6.44,
+        "browser_RSS_sum_MiB": 477.2,
+        "task_seconds": 0.89
+      }
+    ],
+    "project_zip_before": {
+      "seconds": 0.4178,
+      "peak_python_mib": 30.161,
+      "output_bytes": 8391800,
+      "archive_helper_calls_input_bytes": [
+        4194368,
+        4194368,
+        8388736
+      ],
+      "zip_member_writes": 8,
+      "total_zip_compression_input_bytes": 16777472,
+      "final_uncompressed_file_bytes": 8388736,
+      "final_entries": 4
+    },
+    "project_zip_after": {
+      "seconds": 0.2452,
+      "peak_python_mib": 18.117,
+      "output_bytes": 8391800,
+      "archive_helper_calls_input_bytes": [],
+      "zip_member_writes": 4,
+      "total_zip_compression_input_bytes": 8388736,
+      "final_uncompressed_file_bytes": 8388736,
+      "final_entries": 4
+    }
+  }
+}

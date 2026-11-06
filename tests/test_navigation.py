@@ -137,3 +137,32 @@ def test_navigation_http_keeps_invalid_and_cross_origin_visits_out(
         ).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize("prefix", [0, 65_530, 131_071])
+def test_deck_detection_preserves_markers_across_read_boundaries(
+    navigation: Navigation, prefix: int
+) -> None:
+    """A late or split marker remains discoverable without assuming a particular template."""
+    source = navigation.store.folder("2026-11-04-navigation") / "index.html"
+    _ = source.write_text(" " * prefix + '<script id="deck-data">{}</script>')
+    assert navigation.visit(NavigationVisit(project_id="legacy-presentations")).recent
+    _ = source.write_text(" " * prefix + '<script id="ordinary-data">{}</script>')
+    assert not navigation.snapshot().recent
+
+
+def test_navigation_does_not_materialize_large_deck_source(
+    navigation: Navigation, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Quick-access polling needs a presence marker, not an entire presentation allocation."""
+    source = navigation.store.folder("2026-11-04-navigation") / "index.html"
+    original = Path.read_text
+
+    def read_text(path: Path, *args: object, **kwargs: object) -> str:
+        if path == source:
+            raise AssertionError("Navigation must stream deck discovery")
+        return original(path)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    result = navigation.visit(NavigationVisit(project_id="legacy-presentations"))
+    assert result.recent[0].project_id == "legacy-presentations"

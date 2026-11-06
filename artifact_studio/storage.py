@@ -263,6 +263,9 @@ class Store:
                 "CREATE INDEX IF NOT EXISTS feedback_replies ON feedback(reply_to,author)"
             )
             _ = db.execute(
+                "CREATE INDEX IF NOT EXISTS feedback_pending ON feedback(deck,released,author)"
+            )
+            _ = db.execute(
                 "INSERT OR IGNORE INTO delivery(event_id) SELECT id FROM feedback "
                 "WHERE released=1 AND author='user' ORDER BY id"
             )
@@ -440,8 +443,21 @@ class Store:
             raise ValueError("Slide ID does not exist.")
         return slide
 
-    def comments(self, deck_id: str, after_event_id: int = 0) -> list[Feedback]:
-        """Read a replayable feedback queue using a durable event cursor."""
+    def comments(
+        self, deck_id: str, after_event_id: int = 0, *, after_delivery_id: int | None = None
+    ) -> list[Feedback]:
+        """Read comment history, or only human events beyond a durable delivery cursor."""
+        delivery_filter = (
+            " AND delivery.id>? AND feedback.author='user' AND feedback.released=1"
+            if after_delivery_id is not None
+            else ""
+        )
+        order = "delivery.id" if after_delivery_id is not None else "feedback.id"
+        parameters: tuple[str, int] | tuple[str, int, int] = (
+            (deck_id, after_event_id, after_delivery_id)
+            if after_delivery_id is not None
+            else (deck_id, after_event_id)
+        )
         with self.connect() as db:
             rows = db.execute(
                 "SELECT feedback.*,delivery.id AS delivery_id,o.name AS design_option_name,"
@@ -452,9 +468,8 @@ class Store:
                 "LEFT JOIN element_alternative_options e ON e.id=feedback.element_option_id "
                 "LEFT JOIN element_alternative_sets es ON es.id=e.set_id "
                 "AND es.deck=feedback.deck AND es.slide=feedback.slide "
-                "WHERE feedback.deck=? AND feedback.id>? "
-                "ORDER BY feedback.id",
-                (deck_id, after_event_id),
+                "WHERE feedback.deck=? AND feedback.id>?" + delivery_filter + " ORDER BY " + order,
+                parameters,
             ).fetchall()
         return [
             Feedback(
@@ -1689,26 +1704,24 @@ class Store:
 
     def feedback_feed(self, deck_id: str, after_delivery_id: int = 0) -> FeedbackFeed:
         """Return only released human feedback with a cursor that cannot skip late batches."""
-        events = sorted(
-            (
-                item
-                for item in self.comments(deck_id)
-                if item.delivery_id is not None and item.delivery_id > after_delivery_id
-            ),
-            key=lambda item: item.delivery_id or 0,
-        )
+        events = self.comments(deck_id, after_delivery_id=after_delivery_id)
         return FeedbackFeed(
             events=events,
             next_cursor=max((item.delivery_id or 0 for item in events), default=after_delivery_id),
             mode=self.workflow(deck_id).mode,
             authoring_instructions=self.authoring_instructions(),
             learned_preferences=self.learned_preferences(),
-            design_requests=[
-                message
-                for message in self.design_inbox().messages
-                if message.author == "user" and message.status == "queued"
-            ],
+            design_requests=self.queued_design_requests(),
         )
+
+    def queued_design_requests(self) -> list[DesignMessage]:
+        """Load actionable design handoffs without rebuilding unrelated conversation history."""
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT document FROM design_chat WHERE json_extract(document,'$.author')='user' "
+                "AND COALESCE(json_extract(document,'$.status'),'queued')='queued' ORDER BY id"
+            ).fetchall()
+        return [DesignMessage.model_validate_json(cast(str, row[0])) for row in rows]
 
     def design_inbox(self, after_event_id: int = 0) -> DesignInbox:
         """Read the shared design conversation and a bounded listening presence."""

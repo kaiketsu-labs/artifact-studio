@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 import pytest
 from PIL import Image
 
+from artifact_studio import artifacts as artifact_storage
 from artifact_studio.artifact_capture import (
     CAPTURE_ORIGIN,
     CAPTURE_URL,
@@ -24,7 +25,7 @@ from artifact_studio.artifact_preview import (
     preview_headers,
 )
 from artifact_studio.artifacts import ArtifactStore
-from artifact_studio.storage import Store
+from artifact_studio.storage import ConflictError, Store
 
 ORIGIN = "http://127.0.0.1:8793"
 
@@ -224,6 +225,40 @@ def test_capture_allowlist_pins_bytes_and_blocks_workspace_or_network_access(
     )
     assert capture_resource(resources, files + "assets/app.js") == resource
     assert capture_resources(artifacts, artifact)[files + "assets/app.js"] == resource
+
+
+def test_capture_prepares_one_verified_snapshot_without_reopening_preview_source(
+    artifacts: ArtifactStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A capture verifies once and constructs HTML from the same bytes as its resource map."""
+    source = (
+        "\ufeff<!doctype html><html><head></head><body>\r\n"
+        '<script>window.x="<head>";</script>\r\n</body></html>'
+    )
+    artifact = register(artifacts, tmp_path, "pages/index.html", source)
+    expected = preview_document(artifacts, artifact.id, CAPTURE_ORIGIN, artifact.revision)
+    original = artifact_storage.read_tree
+    calls: list[Path] = []
+
+    def read_once(folder: Path) -> dict[str, bytes]:
+        files = original(folder)
+        calls.append(folder)
+        # After pinning, even an external rewrite cannot substitute unverified HTML.
+        _ = (folder / artifact.entrypoint).write_text("<h1>Changed after pinning</h1>")
+        return files
+
+    def no_scan(_folder: Path) -> object:
+        pytest.fail("A capture must verify its pinned bytes without rescanning the bundle.")
+
+    monkeypatch.setattr(artifact_storage, "read_tree", read_once)
+    monkeypatch.setattr(artifact_storage, "tree_inventory", no_scan)
+    resources = capture_resources(artifacts, artifact)
+    assert len(calls) == 1
+    assert resources[CAPTURE_URL].body.decode() == expected
+    url = artifact_files_url(artifact.id, artifact.revision, CAPTURE_ORIGIN) + artifact.entrypoint
+    assert resources[url].body == source.encode()
+    with pytest.raises(ConflictError, match="modified"):
+        _ = capture_resources(artifacts, artifact)
 
 
 def test_bridge_preserves_interaction_and_authenticates_parent_selection() -> None:

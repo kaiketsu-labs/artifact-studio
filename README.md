@@ -32,6 +32,10 @@ Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Cr
 
 Library covers are saved locally and reused across reloads and app restarts. Changed content queues a background update while the earlier preview stays visible. Cards near the viewport load first; you can search, sort and open artifacts while previews update. If an update fails, the retry icon becomes available after a short cooldown. [Preview behavior and measurements](docs/performance/library-preview-results.md).
 
+The editor and Favorites load nearby slide previews and release offscreen or closed previews. Feedback polling, scoped agent reads and paused backups also avoid unnecessary work while retaining source verification and history. [Resource review, measurements and remaining opportunities](docs/performance/runtime-efficiency.md).
+
+For SageMaker Studio Code Editor, use the [single-worker setup and read-only resource diagnostic](docs/SAGEMAKER.md) to check the app against the space's actual container limits.
+
 | Artifact | Review it in its own format |
 | --- | --- |
 | Presentations | Slide thumbnails, element feedback, sections, notes, animations and a private presenter view. |

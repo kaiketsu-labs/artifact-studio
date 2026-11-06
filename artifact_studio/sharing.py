@@ -15,7 +15,9 @@ from playwright.sync_api import sync_playwright
 from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
 from .projects import audience_html
+from .renderer_health import check_renderer_available, sandboxed_browser
 from .storage import ConflictError, Store
+from .visuals import render_slot
 
 ShareFormat = Literal["html", "pdf"]
 
@@ -81,17 +83,13 @@ def audience_files(files: dict[str, bytes]) -> tuple[dict[str, bytes], tuple[str
 def _pdf(html: str) -> bytes:
     """Render the local print document as a real PDF without external requests."""
     try:
-        with sync_playwright() as renderer:
-            browser = renderer.chromium.launch(headless=True, chromium_sandbox=True)
-            try:
-                page = browser.new_page()
-                page.route("**/*", lambda route: route.abort())
-                page.set_content(html, wait_until="load")
-                page.emulate_media(media="print")
-                page.wait_for_function("document.documentElement.dataset.printReady === 'true'")
-                return page.pdf(print_background=True, prefer_css_page_size=True)
-            finally:
-                browser.close()
+        with render_slot(), sandboxed_browser(sync_playwright) as browser:
+            page = browser.new_page()
+            page.route("**/*", lambda route: route.abort())
+            page.set_content(html, wait_until="load")
+            page.emulate_media(media="print")
+            page.wait_for_function("document.documentElement.dataset.printReady === 'true'")
+            return page.pdf(print_background=True, prefer_css_page_size=True)
     except BrowserTimeoutError as exc:
         raise ValueError(
             "The PDF did not finish rendering. Check the interactive content."
@@ -116,6 +114,8 @@ class SharingService:
         if artifact.legacy_deck_id:
             if format not in {"html", "pdf"}:
                 raise ValueError("Choose HTML or PDF for presentations.")
+            if format == "pdf":
+                check_renderer_available()
             document = audience_html(self.store, artifact.legacy_deck_id, printing=format == "pdf")
             current = self.artifacts.get_artifact(artifact.id)
             if current.content_hash != artifact.content_hash:
@@ -155,29 +155,47 @@ class SharingService:
         """Prepare the current artifact revision for download or an email draft."""
         return self._prepare(self.artifacts.get_artifact(artifact_id), format)
 
+    def _write_project_artifact(
+        self, archive: ZipFile, folder: str, artifact: ArtifactView, format: ShareFormat | None
+    ) -> tuple[str, ...]:
+        """Check and write one artifact, releasing its captured bytes before the next."""
+        if artifact.legacy_deck_id:
+            item = self._prepare(artifact, format)
+            archive.writestr(f"{folder}/{item.filename}", item.data)
+            return item.excluded
+        files, excluded = audience_files(
+            self.artifacts.snapshot_files(artifact.id, artifact.revision)
+        )
+        if artifact.entrypoint not in files:
+            raise ValueError("The artifact entrypoint is not an audience-shareable web file.")
+        if len(files) == 1:
+            filename = f"{_filename(artifact.title)}{PurePosixPath(artifact.entrypoint).suffix}"
+            archive.writestr(f"{folder}/{filename}", files[artifact.entrypoint])
+        else:
+            for name in sorted(files):
+                archive.writestr(f"{folder}/{name}", files[name])
+        return excluded
+
     def prepare_project(self, project_id: str, format: ShareFormat | None = None) -> PreparedShare:
         """Prepare a ZIP containing audience exports of all project artifacts."""
         artifacts = self.artifacts.list_artifacts(project_id)
         if not artifacts:
             raise ValueError("This project has no artifacts to share.")
-        prepared = [self._prepare(artifact, format) for artifact in artifacts]
         project = next(item for item in self.artifacts.list_projects() if item.id == project_id)
-        files: dict[str, bytes] = {}
-        excluded: list[str] = []
-        for index, (artifact, item) in enumerate(zip(artifacts, prepared, strict=True), 1):
-            folder = f"{index:02d}-{_filename(artifact.title)}"
-            if item.bundle:
-                with ZipFile(BytesIO(item.data)) as bundle:
-                    files.update(
-                        {f"{folder}/{name}": bundle.read(name) for name in bundle.namelist()}
-                    )
-            else:
-                files[f"{folder}/{item.filename}"] = item.data
-            excluded.extend(f"{folder}/{path}" for path in item.excluded)
+        members = [
+            (f"{index:02d}-{_filename(artifact.title)}", artifact)
+            for index, artifact in enumerate(artifacts, 1)
+        ]
+        excluded: dict[str, tuple[str, ...]] = {}
+        output = BytesIO()
+        with ZipFile(output, "w", ZIP_DEFLATED) as archive:
+            # Preserve the original full-path ordering, including indices above 99.
+            for folder, artifact in sorted(members, key=lambda item: item[0]):
+                excluded[folder] = self._write_project_artifact(archive, folder, artifact, format)
         return PreparedShare(
             f"{_filename(project.title)}.zip",
             "application/zip",
-            _archive(files),
-            tuple(revision for item in prepared for revision in item.revisions),
-            tuple(excluded),
+            output.getvalue(),
+            tuple((artifact.id, artifact.revision) for artifact in artifacts),
+            tuple(f"{folder}/{path}" for folder, _ in members for path in excluded[folder]),
         )

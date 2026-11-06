@@ -2,6 +2,7 @@
 
 import json
 import time
+from pathlib import Path
 from typing import Self, cast
 from urllib.parse import urlencode
 
@@ -13,6 +14,19 @@ from .models import StrictModel
 from .storage import Store
 
 RECENT_KEY = "navigation:recent-projects"
+
+
+def _has_deck_data(path: Path) -> bool:
+    """Find the existing deck marker without allocating a complete presentation document."""
+    marker = 'id="deck-data"'
+    tail = ""
+    with path.open(encoding="utf-8") as source:
+        while chunk := source.read(64 * 1024):
+            value = tail + chunk
+            if marker in value:
+                return True
+            tail = value[-(len(marker) - 1) :]
+    return False
 
 
 class NavigationEntry(StrictModel):
@@ -74,7 +88,7 @@ class Navigation:
             path.parent.name not in excluded
             and not (path.parent / "design.json").exists()
             and not (path.parent / "design-context.json").exists()
-            and 'id="deck-data"' in path.read_text()
+            and _has_deck_data(path)
             for path in self.store.root.glob("*/index.html")
         ):
             projects[LEGACY_PROJECT] = ProjectView(
