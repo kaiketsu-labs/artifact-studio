@@ -2,12 +2,14 @@
 
 import json
 import os
+from collections import Counter
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Browser, Page, expect
+from playwright.sync_api import Browser, Page, Route, expect
 
 from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.hub_previews import cover_path, cover_token, cover_url
 from scripts.preview_favorites import prepare_covers, seed_favorites
 from tests.integration.support import DECK_ID, RunningApp
 
@@ -88,6 +90,174 @@ def test_hover_preview_tracks_cursor_and_clamps_to_viewport(
     expect(page.get_by_role("listbox", name="Workspace references")).to_be_hidden()
     text.fill("Contact editor@example.test")
     expect(page.get_by_role("listbox", name="Workspace references")).to_be_hidden()
+
+
+def test_artifact_hover_waits_for_pending_cover_and_reuses_decoded_image(
+    page: Page, prepared: RunningApp
+) -> None:
+    """The actual artifact cover replaces a pending response and survives another hover."""
+    item = next(
+        item
+        for item in ArtifactStore(prepared.store).list_artifacts()
+        if item.title == "Brand direction"
+    )
+    token = cover_token(prepared.store, item)
+    url = prepared.url + cover_url(item.id, token)
+    png = cover_path(prepared.store, item.id, token).read_bytes()
+    attempts = 0
+
+    def image(route: Route) -> None:
+        nonlocal attempts
+        attempts += 1
+        assert route.request.url == url
+        if attempts == 1:
+            route.fulfill(
+                status=202,
+                content_type="application/json",
+                body=json.dumps({"code": "cover_pending", "detail": "Updating preview."}),
+                headers={"Retry-After": "1"},
+            )
+        else:
+            route.fulfill(status=200, content_type="image/png", body=png)
+
+    page.route("**/api/hub/previews/**", image)
+    page.goto(f"{prepared.url}/?deck={DECK_ID}#workflow")
+    text = page.locator("#feedback-text")
+    text.fill("@Brand direction")
+    assert attempts == 0
+    row = page.get_by_role("option", name="/Fieldnotes/Brand direction", exact=True)
+    with page.expect_response(url) as response:
+        row.hover()
+    assert response.value.status == 202
+    preview = page.locator(".chat-reference-preview")
+    expect(preview).to_be_visible()
+    expect(preview).to_contain_text(item.title)
+    cover = preview.locator("img")
+    expect(cover).to_be_visible()
+    assert cover.evaluate("image => image.complete && image.naturalWidth > 0")
+    assert attempts == 2
+    original_url = cover.get_attribute("src")
+    assert original_url is not None and original_url.startswith("blob:")
+    text.hover()
+    expect(preview).to_be_hidden()
+    expect(preview.locator("img")).to_have_count(0)
+    row.hover()
+    expect(cover).to_be_visible()
+    expect(cover).to_have_attribute("src", original_url)
+    assert attempts == 2
+
+
+@pytest.mark.parametrize("dismiss", ["pointerleave", "Escape"])
+def test_artifact_hover_dismissal_stops_pending_retries(
+    page: Page, prepared: RunningApp, dismiss: str
+) -> None:
+    """Leaving the suggestion or closing it removes its image and pending retry demand."""
+    attempts = 0
+
+    def pending(route: Route) -> None:
+        nonlocal attempts
+        attempts += 1
+        route.fulfill(
+            status=202,
+            content_type="application/json",
+            body=json.dumps({"code": "cover_pending", "detail": "Updating preview."}),
+            headers={"Retry-After": "1"},
+        )
+
+    page.route("**/api/hub/previews/**", pending)
+    page.goto(f"{prepared.url}/?deck={DECK_ID}#workflow")
+    text = page.locator("#feedback-text")
+    text.fill("@Brand direction")
+    with page.expect_response("**/api/hub/previews/**") as response:
+        page.get_by_role("option", name="/Fieldnotes/Brand direction", exact=True).hover()
+    assert response.value.status == 202
+    preview = page.locator(".chat-reference-preview")
+    expect(preview).to_be_visible()
+    expect(preview.locator("img")).to_be_hidden()
+    if dismiss == "pointerleave":
+        text.hover()
+    else:
+        text.press("Escape")
+    expect(preview).to_be_hidden()
+    expect(preview.locator("img")).to_have_count(0)
+    page.wait_for_timeout(1500)
+    assert attempts == 1
+
+
+def test_artifact_hover_keeps_saved_cover_and_loads_cached_cover_during_renderer_failure(
+    browser: Browser, prepared: RunningApp
+) -> None:
+    """A renderer failure keeps the caption and saved image without blocking cached work."""
+    items = ArtifactStore(prepared.store).list_artifacts()
+    item = next(item for item in items if item.title == "Brand direction")
+    ready = next(item for item in items if item.title == "Launch brief")
+    token, ready_token = cover_token(prepared.store, item), cover_token(prepared.store, ready)
+    current = prepared.url + cover_url(item.id, token)
+    fallback = cover_url(item.id, "1" * 64)
+    cached = prepared.url + cover_url(ready.id, ready_token)
+    images = {
+        prepared.url + fallback: cover_path(prepared.store, item.id, token).read_bytes(),
+        cached: cover_path(prepared.store, ready.id, ready_token).read_bytes(),
+    }
+    requests: Counter[str] = Counter()
+    errors: list[str] = []
+
+    def catalog(route: Route) -> None:
+        response = route.fetch()
+        data = response.json()
+        for entry in data:
+            if entry["artifact_id"] == item.id:
+                entry["preview_fallback_url"] = fallback
+                entry["preview_cached"] = False
+        route.fulfill(response=response, body=json.dumps(data), content_type="application/json")
+
+    def image(route: Route) -> None:
+        url = route.request.url
+        requests[url] += 1
+        if url == current:
+            route.fulfill(
+                status=503,
+                content_type="application/json",
+                body=json.dumps(
+                    {"code": "renderer_unavailable", "detail": "Preview temporarily unavailable."}
+                ),
+                headers={"Retry-After": "30"},
+            )
+        else:
+            route.fulfill(status=200, content_type="image/png", body=images[url])
+
+    context = browser.new_context(viewport={"width": 1600, "height": 1000}, color_scheme="dark")
+    page = context.new_page()
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.clock.install()
+    page.route("**/api/chat-references", catalog)
+    page.route("**/api/hub/previews/**", image)
+    try:
+        page.goto(f"{prepared.url}/?deck={DECK_ID}#workflow")
+        text = page.locator("#feedback-text")
+        text.fill("@Brand direction")
+        with page.expect_response(current) as response:
+            page.get_by_role("option", name="/Fieldnotes/Brand direction", exact=True).hover()
+        assert response.value.status == 503
+        preview = page.locator(".chat-reference-preview")
+        expect(preview).to_contain_text(item.title)
+        expect(preview.locator("img")).to_be_visible()
+        saved_url = preview.locator("img").get_attribute("src")
+        assert saved_url is not None
+        text.fill("@Launch brief")
+        page.get_by_role("option", name="/Fieldnotes/Launch brief", exact=True).hover()
+        expect(preview.locator("img")).to_be_visible()
+        assert requests[cached] == 1
+        text.fill("@Brand direction")
+        page.get_by_role("option", name="/Fieldnotes/Brand direction", exact=True).hover()
+        expect(preview.locator("img")).to_have_attribute("src", saved_url)
+        page.clock.fast_forward(31_000)
+        page.wait_for_timeout(100)
+        assert requests[current] == 1
+        assert requests[prepared.url + fallback] == 1
+        assert not errors, errors
+    finally:
+        context.close()
 
 
 def test_touch_native_artifact_reference_keeps_focus_and_saved_context(

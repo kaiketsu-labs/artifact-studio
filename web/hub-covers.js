@@ -3,6 +3,7 @@
   'use strict';
   const MiB=1024*1024;
   const coverURL=value=>typeof value==='string' && /^\/api\/hub\/previews\/[^/?#]+\?v=[^#]+$/.test(value)?value:'';
+  const anchor=image=>image.closest('[data-cover-container],.hub-cover') || image;
   function create({view=root,document=view.document,concurrency=2,maxEntries=32,maxBytes=24*MiB,maxItemBytes=8*MiB,retryLimit=6,onChanged=()=>{},now=()=>Date.now()}={}){
     const cache=new Map(),failures=new Map(),active=new Map(),changed=new Set();
     let records=new Map(),observed=new Map(),observer=null,container=null,bytes=0,wakeTimer=null,paused=false,destroyed=false,blockedUntil=0;
@@ -10,8 +11,8 @@
     const connected=record=>record.image.isConnected!==false;
     const rendererBlocked=record=>blockedUntil>now() && record.renderer && !record.cached;
     const desired=key=>!paused && !destroyed && [...records.values()].some(record=>(record.key===key || record.fallback===key && record.loadedKey!==record.key) && record.visible && connected(record));
-    function visible(image,margin=120){const box=(image.closest('.hub-cover') || image).getBoundingClientRect();return box.width>0 && box.height>0 && box.bottom>=-margin && box.top<=view.innerHeight+margin && box.right>=0 && box.left<=view.innerWidth;}
-    function distance(record){const box=(record.image.closest('.hub-cover') || record.image).getBoundingClientRect();return Math.max(0,-box.bottom,box.top-view.innerHeight);}
+    function visible(image,margin=120){const box=anchor(image).getBoundingClientRect();return box.width>0 && box.height>0 && box.bottom>=-margin && box.top<=view.innerHeight+margin && box.right>=0 && box.left<=view.innerWidth;}
+    function distance(record){const box=anchor(record.image).getBoundingClientRect();return Math.max(0,-box.bottom,box.top-view.innerHeight);}
     function remember(key,value){failures.delete(key);failures.set(key,value);while(failures.size>256)failures.delete(failures.keys().next().value);}
     function touch(key){const entry=cache.get(key);if(entry){cache.delete(key);cache.set(key,entry);}return entry;}
     function drop(key){const entry=cache.get(key);if(entry){bytes-=entry.size;view.URL.revokeObjectURL(entry.url);cache.delete(key);}}
@@ -157,7 +158,7 @@
       records=new Map();observed=new Map();
       for(const [order,image] of [...(next?.querySelectorAll('[data-cover-url]') || [])].entries()){
         const key=coverURL(image.dataset.coverUrl);if(!key)continue;
-        const record={image,key,fallback:coverURL(image.dataset.coverFallback),cached:image.dataset.coverCached==='true',renderer:image.dataset.coverRenderer!=='false',order,visible:visible(image),loadedKey:null};records.set(image,record);observed.set(image.closest('.hub-cover') || image,record);if(record.visible)touch(key);if(record.cached && failures.get(key)?.code==='renderer_unavailable')failures.delete(key);
+        const record={image,key,fallback:coverURL(image.dataset.coverFallback),cached:image.dataset.coverCached==='true',renderer:image.dataset.coverRenderer!=='false',order,visible:visible(image),loadedKey:null};records.set(image,record);observed.set(anchor(image),record);if(record.visible)touch(key);if(record.cached && failures.get(key)?.code==='renderer_unavailable')failures.delete(key);
       }
       paused=!!document?.hidden;
       if(view.IntersectionObserver){

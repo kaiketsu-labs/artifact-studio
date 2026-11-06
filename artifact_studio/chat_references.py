@@ -13,6 +13,7 @@ from pydantic import Field
 from .artifact_models import ArtifactView, ProjectView
 from .artifacts import ArtifactStore
 from .favorites import Favorites
+from .hub_previews import cover_metadata
 from .interactive import InteractiveMarkup, prepare_document
 from .models import FileInput, StrictModel
 from .projects import audience_html, root_tag
@@ -46,6 +47,9 @@ class ReferenceEntry(ReferenceRequest):
     description: str = ""
     starred: bool = False
     preview_url: str = ""
+    preview_fallback_url: str = ""
+    preview_cached: bool = False
+    preview_renderer: bool = True
     preview_kind: Literal["image", "slide", "project"] = "image"
     detail: str = ""
     reference_error: str = ""
@@ -103,6 +107,7 @@ class ChatReferences:
     def _artifact(self, item: ArtifactView) -> ReferenceEntry:
         kind = "presentation" if item.legacy_deck_id else "artifact"
         path = "/" + item.project_title + "/" + item.title
+        preview = cover_metadata(self.store, item)
         return ReferenceEntry(
             kind=kind,
             project_id=item.project_id,
@@ -110,7 +115,10 @@ class ChatReferences:
             title=item.title,
             path=path,
             token=digest(json.dumps([path, item.project_id, self._summary(item)], sort_keys=True)),
-            preview_url=f"/api/hub/previews/{item.id}?v={item.content_hash}",
+            preview_url=str(preview["preview_url"]),
+            preview_fallback_url=str(preview["preview_fallback_url"]),
+            preview_cached=preview["preview_cached"] is True,
+            preview_renderer=item.kind != "image",
             detail="Presentation" if item.legacy_deck_id else item.kind.replace("_", " ").title(),
         )
 
@@ -266,7 +274,16 @@ class ChatReferences:
             "format": "artifact-studio-reference/v1",
             "role": "read-only context reference",
             **entry.model_dump(
-                exclude={"preview_url", "preview_kind", "starred", "detail", "reference_error"}
+                exclude={
+                    "preview_url",
+                    "preview_fallback_url",
+                    "preview_cached",
+                    "preview_renderer",
+                    "preview_kind",
+                    "starred",
+                    "detail",
+                    "reference_error",
+                }
             ),
         }
         if entry.kind == "slide":

@@ -3,7 +3,7 @@
   'use strict';
   const doc=root.document, bindings=new Map();
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let active=null,pending=null,entries=[],matches=[],selected=0,epoch=0,busy=false,loading=false,loaded=false,menu=null,preview=null,hoverTimer=null;
+  let active=null,pending=null,entries=[],matches=[],selected=0,epoch=0,busy=false,loading=false,loaded=false,menu=null,preview=null,hoverTimer=null,coverLoader=null;
   function fragment(input){
     if(input.selectionStart!==input.selectionEnd)return null;
     const end=input.selectionStart,line=input.value.slice(0,end);
@@ -37,7 +37,7 @@
     });
     menu.addEventListener('pointerleave',hidePreview);
   }
-  function hidePreview(){clearTimeout(hoverTimer);if(preview){preview.hidden=true;preview.dataset.key='';preview.replaceChildren();}}
+  function hidePreview(){clearTimeout(hoverTimer);coverLoader?.clear();if(preview){preview.hidden=true;preview.dataset.key='';preview.replaceChildren();}}
   function close(){
     epoch++;hidePreview();if(menu)menu.hidden=true;
     if(active)active.input.removeAttribute('aria-activedescendant');
@@ -58,10 +58,11 @@
   function showPreview(index,x,y){
     if(!active || busy || !matches[index] || root.innerWidth<640)return;
     const item=matches[index];hidePreview();preview.dataset.key=String(index);
-    const visual=item.preview_url?(item.preview_kind==='slide'?`<div class="chat-reference-frame"><iframe sandbox tabindex="-1" aria-hidden="true" src="${escape(item.preview_url)}"></iframe></div>`:`<img src="${escape(item.preview_url)}" alt="Preview of ${escape(item.title)}">`):'';
+    const visual=item.preview_url?(item.preview_kind==='slide'?`<div class="chat-reference-frame"><iframe sandbox tabindex="-1" aria-hidden="true" src="${escape(item.preview_url)}"></iframe></div>`:`<div class="chat-reference-cover" data-cover-container><img hidden data-cover-url="${escape(item.preview_url)}" data-cover-fallback="${escape(item.preview_fallback_url)}" data-cover-cached="${item.preview_cached===true}" data-cover-renderer="${item.preview_renderer!==false}" alt="Preview of ${escape(item.title)}"></div>`):'';
     preview.innerHTML=`${visual}<div class="chat-reference-preview-caption"><strong>${escape(item.title)}</strong><small>${escape(item.detail)}</small>${item.description?`<p>${escape(item.description)}</p>`:''}</div>`;
-    const img=preview.querySelector('img');if(img)img.addEventListener('error',()=>{img.hidden=true;});
     preview.hidden=false;placePreview(x,y);
+    const img=preview.querySelector('img');
+    if(img){coverLoader ||= root.HubCovers.create();img.addEventListener('error',()=>coverLoader.imageFailed(img));coverLoader.mount(preview);}
   }
   function highlight(){
     for(const row of menu.querySelectorAll('[data-reference-index]'))row.setAttribute('aria-selected',String(Number(row.dataset.referenceIndex)===selected));
