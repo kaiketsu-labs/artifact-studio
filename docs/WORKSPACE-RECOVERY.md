@@ -2,6 +2,8 @@
 
 Use **Restore workspace** to review a backup and restore its files into a new sibling folder. The running workspace and its database stay active. Opening the recovered folder does not switch server configuration. To run the recovered workspace later, explicitly configure its collection and database paths.
 
+Full archives stage one verified copy of each distinct file with the database snapshot before compression. The write lock is released for ZIP compression and final archive copying, so review and editing can continue while that work finishes. Inventory, hashing and staging still serialize edits and use temporary disk space; a very large or slow snapshot can still delay writes. If SQLite reports a temporary lock timeout, HTTP requests return 503 with Retry-After instead of an unhandled server error. Check the saved state before retrying a write.
+
 Current-source snapshots and full archives have different recovery guarantees:
 
 | Source | What returns | What cannot return |

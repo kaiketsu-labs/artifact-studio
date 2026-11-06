@@ -38,6 +38,7 @@ MAX_FILE_BYTES = 2_000_000_000
 MAX_TOTAL_BYTES = 20_000_000_000
 CHUNK_BYTES = 1024 * 1024
 MAX_METADATA_BYTES = 16_000_000
+HOST_LOCK_FILES = (".auto-sync.lock", ".library-operations.lock")
 STATE_DIRECTORIES = ("feedback-files", "design-inbox")
 HOST_TABLES = frozenset(
     {
@@ -970,12 +971,6 @@ class WorkspaceRecovery:
         with self.store.connect() as db:
             _ = _database_tables(db)
         _ = self.write_portable_metadata()
-        with self.store.connect() as lock:
-            _ = lock.execute("BEGIN IMMEDIATE")
-            return self._export_archive(destination)
-
-    def _export_archive(self, destination: Path) -> ArchiveSummary:
-        """Stream a deduplicated archive while the caller holds the workspace write lock."""
         return self._prepare_archive(destination)
 
     def export_archive_if_changed(
@@ -985,14 +980,12 @@ class WorkspaceRecovery:
         with self.store.connect() as db:
             _ = _database_tables(db)
         _ = self.write_portable_metadata()
-        with self.store.connect() as lock:
-            _ = lock.execute("BEGIN IMMEDIATE")
-            return self._prepare_archive(destination, previous_fingerprint)
+        return self._prepare_archive(destination, previous_fingerprint)
 
     def _prepare_archive(
         self, destination: Path, previous_fingerprint: str | None = None
     ) -> ArchiveSummary:
-        """Use one locked source inventory for content comparison and archive construction."""
+        """Stage a verified snapshot under lock, then compress it without blocking edits."""
         destination = destination.expanduser().absolute()
         if destination.exists() or destination.is_symlink():
             raise ConflictError("Choose a new archive filename; existing files are never replaced.")
@@ -1003,82 +996,113 @@ class WorkspaceRecovery:
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="workspace-backup-") as temporary:
             stage = Path(temporary).resolve()
-            database = stage / "review.sqlite3"
-            with self.store.connect() as source, sqlite3.connect(database) as backup:
-                source.backup(backup)
-            _sanitize_database(database, [])
-            sources: list[tuple[RecoveryFile, Path]] = []
-            state = self.store.database.parent.resolve()
-            excluded = {
-                state / name
-                for name in (
-                    *STATE_DIRECTORIES,
-                    "libraries",
-                    "artifact-previews",
-                    "artifact-captures",
-                    "copilot-captures",
-                    self.store.database.name,
-                    *(self.store.database.name + suffix for suffix in ("-wal", "-shm", "-journal")),
-                )
-            }
-            local_state = self.store.root / ".state"
-            if (
-                state.is_relative_to(self.store.root)
-                and state != self.store.root
-                and state != local_state
-            ):
-                excluded.add(state)
-            if local_state.is_dir() and not local_state.is_symlink():
-                excluded.update(
-                    path for path in local_state.iterdir() if path.name != "artifact-feedback"
-                )
-            directories: list[str] = []
-            for path in _regular_files(self.store.root, frozenset(excluded), directories):
-                relative = path.relative_to(self.store.root)
-                if path.is_relative_to(state):
-                    state_relative = path.relative_to(state)
-                    if state != self.store.root and state_relative.parts[0] != "artifact-feedback":
-                        continue
-                    if state_relative.parts[0] in {
+            with self.store.connect() as lock:
+                _ = lock.execute("BEGIN IMMEDIATE")
+                database = stage / "review.sqlite3"
+                with self.store.connect() as source, sqlite3.connect(database) as backup:
+                    source.backup(backup)
+                _sanitize_database(database, [])
+                sources: list[tuple[RecoveryFile, Path]] = []
+                state = self.store.database.parent.resolve()
+                excluded = {
+                    state / name
+                    for name in (
                         *STATE_DIRECTORIES,
+                        "libraries",
+                        "artifact-previews",
+                        "artifact-captures",
+                        "copilot-captures",
+                        *HOST_LOCK_FILES,
                         self.store.database.name,
                         *(
                             self.store.database.name + suffix
                             for suffix in ("-wal", "-shm", "-journal")
                         ),
-                    }:
-                        continue
-                if relative.parts[0] == ".state" and relative.parts[1:2] != ("artifact-feedback",):
-                    continue
-                sources.append((_entry("collection", relative.as_posix(), path), path))
-            for directory in STATE_DIRECTORIES:
-                folder = state / directory
-                if folder.exists():
-                    sources.extend(
-                        (_entry("state", path.relative_to(state).as_posix(), path), path)
-                        for path in _regular_files(folder)
                     )
-            sources.append((_entry("database", "review.sqlite3", database), database))
-            files = [item for item, _ in sources]
-            _bound(files)
-            fingerprint = _archive_fingerprint(files, directories, database)
-            if fingerprint == previous_fingerprint:
-                return ArchiveSummary(
-                    path=str(destination),
-                    sha256="",
-                    files=len(files),
-                    objects=len({item.sha256 for item in files}),
-                    bytes=sum(item.size for item in files),
-                    fingerprint=fingerprint,
-                    unchanged=True,
+                }
+                local_state = self.store.root / ".state"
+                if (
+                    state.is_relative_to(self.store.root)
+                    and state != self.store.root
+                    and state != local_state
+                ):
+                    excluded.add(state)
+                if local_state.is_dir() and not local_state.is_symlink():
+                    excluded.update(
+                        path for path in local_state.iterdir() if path.name != "artifact-feedback"
+                    )
+                directories: list[str] = []
+                for path in _regular_files(self.store.root, frozenset(excluded), directories):
+                    relative = path.relative_to(self.store.root)
+                    if path.is_relative_to(state):
+                        state_relative = path.relative_to(state)
+                        if (
+                            state != self.store.root
+                            and state_relative.parts[0] != "artifact-feedback"
+                        ):
+                            continue
+                        if state_relative.parts[0] in {
+                            *STATE_DIRECTORIES,
+                            *HOST_LOCK_FILES,
+                            self.store.database.name,
+                            *(
+                                self.store.database.name + suffix
+                                for suffix in ("-wal", "-shm", "-journal")
+                            ),
+                        }:
+                            continue
+                    if relative.parts[0] == ".state" and relative.parts[1:2] != (
+                        "artifact-feedback",
+                    ):
+                        continue
+                    sources.append((_entry("collection", relative.as_posix(), path), path))
+                for directory in STATE_DIRECTORIES:
+                    folder = state / directory
+                    if folder.exists():
+                        sources.extend(
+                            (_entry("state", path.relative_to(state).as_posix(), path), path)
+                            for path in _regular_files(folder)
+                        )
+                sources.append((_entry("database", "review.sqlite3", database), database))
+                files = [item for item, _ in sources]
+                _bound(files)
+                fingerprint = _archive_fingerprint(files, directories, database)
+                if fingerprint == previous_fingerprint:
+                    return ArchiveSummary(
+                        path=str(destination),
+                        sha256="",
+                        files=len(files),
+                        objects=len({item.sha256 for item in files}),
+                        bytes=sum(item.size for item in files),
+                        fingerprint=fingerprint,
+                        unchanged=True,
+                    )
+                staged: dict[str, Path] = {}
+                for item, path in sources:
+                    if item.sha256 not in staged:
+                        target = stage / "objects" / item.sha256
+                        _copy_verified(path, target, item)
+                        staged[item.sha256] = target
+                for item, path in sources:
+                    if (
+                        path.is_symlink()
+                        or path.resolve() != path
+                        or not stat.S_ISREG(path.stat().st_mode)
+                        or path.stat().st_size != item.size
+                        or stat.S_IMODE(path.stat().st_mode) & 0o777 != item.mode
+                        or file_hash(path) != item.sha256
+                    ):
+                        raise ConflictError(
+                            "Workspace changed during backup. Retry when edits finish."
+                        )
+                sources = [(item, staged[item.sha256]) for item, _ in sources]
+                manifest = WorkspaceArchive(
+                    created_at=datetime.now(UTC).isoformat(),
+                    source_root=str(self.store.root),
+                    source_state=str(state),
+                    files=files,
+                    directories=directories,
                 )
-            manifest = WorkspaceArchive(
-                created_at=datetime.now(UTC).isoformat(),
-                source_root=str(self.store.root),
-                source_state=str(state),
-                files=files,
-                directories=directories,
-            )
             archive_path = stage / "workspace.zip"
             seen: set[str] = set()
             with ZipFile(archive_path, "w", ZIP_DEFLATED, compresslevel=6) as archive:

@@ -1,7 +1,9 @@
 """Local review UI and a stateless MCP interface over the same presentation files."""
 
 import asyncio
+import logging
 import os
+import sqlite3
 import time
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
@@ -1632,6 +1634,20 @@ async def missing_file(_: Request, error: FileNotFoundError) -> JSONResponse:
     """Report a missing local presentation without exposing traceback details."""
     return JSONResponse(
         {"detail": "The requested local presentation or asset was not found."}, status_code=404
+    )
+
+
+@app.exception_handler(sqlite3.OperationalError)
+async def database_contention(_: Request, error: sqlite3.OperationalError) -> JSONResponse:
+    """Report temporary lock contention as retryable while preserving unexpected failures."""
+    code: object = getattr(error, "sqlite_errorcode", None)
+    if not isinstance(code, int) or code & 0xFF not in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
+        raise error
+    logging.getLogger(__name__).warning("Workspace database is busy; the request can be retried.")
+    return JSONResponse(
+        {"detail": "The workspace is busy. Try again shortly."},
+        status_code=503,
+        headers={"Retry-After": "1"},
     )
 
 

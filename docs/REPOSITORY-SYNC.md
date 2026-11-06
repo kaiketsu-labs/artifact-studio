@@ -16,6 +16,8 @@ To transfer one presentation, use **Save presentation** and **Import presentatio
 
 **Two computers:** current-source uploads use a baseline stored on each computer to stop stale replacements and preserve remote projects absent locally. Update every uploading computer; older versions retain the overwrite defect. This is conflict protection, not live synchronization: remote files are not merged into open projects. Use one shared Studio server, separate current-source destinations, or full archive backups with explicit handoff. [Verified scenarios and safe workflows](MULTI-COMPUTER.md).
 
+Library operations and automatic sync keep their process locks beside the workspace database, outside the removable reference cache. A missing cache directory can be recreated without replacing an active lock; missing workspace state is not silently recreated.
+
 ## Scheduled full workspace backups
 
 **Full workspace backups** is a separate, off-by-default setting for each connected private GitHub repository. It uploads the same full ZIP as **Save workspace**: collection sources, saved review chats and drafts, approvals, retained revisions, navigation and app-owned attachments. This includes private material that current-source Git backup excludes. Host credentials, connected agent sessions, reference checkouts and upload permissions are excluded. Use a repository whose collaborators may access that private material.

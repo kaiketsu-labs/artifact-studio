@@ -7,7 +7,6 @@ import os
 import sys
 import threading
 import time
-from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -920,25 +919,23 @@ def test_disable_from_new_service_completes_while_workspace_export_is_locked(
     old = remote.add(archive_name(service.workspace_id))
     export_started = threading.Event()
     export_continue = threading.Event()
-    original_export = cast(
-        Callable[[WorkspaceRecovery, Path, str | None], ArchiveSummary],
-        WorkspaceRecovery._prepare_archive,  # pyright: ignore[reportPrivateUsage]
-    )
+    original_copy = workspace_recovery._copy_verified  # pyright: ignore[reportPrivateUsage]
 
-    def pause_locked_export(
-        recovery: WorkspaceRecovery, destination: Path, previous_fingerprint: str | None = None
-    ) -> ArchiveSummary:
-        export_started.set()
-        if not export_continue.wait(timeout=5):
-            raise ValueError("Fictional export was not released")
-        return original_export(recovery, destination, previous_fingerprint)
+    def pause_locked_copy(
+        source: Path, destination: Path, expected: workspace_recovery.RecoveryFile
+    ) -> None:
+        if destination.parent.name == "objects" and not export_started.is_set():
+            export_started.set()
+            if not export_continue.wait(timeout=5):
+                raise ValueError("Fictional export was not released")
+        original_copy(source, destination, expected)
 
     def disable_from_new_service() -> None:
         fresh = GitHubBackups(service.store)
         state = fresh.configure(library.id, FullBackupSettings(enabled=False))
         assert state.phase == "disabled" and not state.settings.enabled
 
-    monkeypatch.setattr(WorkspaceRecovery, "_prepare_archive", pause_locked_export)
+    monkeypatch.setattr(workspace_recovery, "_copy_verified", pause_locked_copy)
     _ = service.configure(library.id, FullBackupSettings(enabled=True, keep_count=1))
     with ThreadPoolExecutor(max_workers=2) as executor:
         exporting = executor.submit(service.tick, 1_000)
