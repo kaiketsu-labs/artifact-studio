@@ -30,6 +30,8 @@ The **Library** is the home screen. Browse all your work, filter by project or f
 
 Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Created**, or **File type**. File type shows separate format groups; the arrow reverses the order. One choice is remembered in this browser across overviews. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
 
+Library covers are saved locally and reused across reloads and app restarts. Changed content queues a background update while the earlier preview stays visible. Cards near the viewport load first; you can search, sort and open artifacts while previews update. If an update fails, the retry icon becomes available after a short cooldown. [Preview behavior and measurements](docs/performance/library-preview-results.md).
+
 | Artifact | Review it in its own format |
 | --- | --- |
 | Presentations | Slide thumbnails, element feedback, sections, notes, animations and a private presenter view. |
@@ -109,7 +111,7 @@ Choose **one** way to run it:
 | On macOS 13+ with Apple's Command Line Tools, run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Artifact Studio.app`. | Run `uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
 | Status, Open, Start/Stop/Restart, Update, and Settings for launch at login and backup. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
 
-Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before switching to the Mac controller. Chromium enables cached rendered previews and agent capture tools; the library can show format fallbacks when no preview is available.
+Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before switching to the Mac controller. Chromium creates new or changed HTML/slide previews and supports agent capture tools. Saved library previews load without Chromium; raster images use a smaller image cover. The library shows a format icon when no preview is available.
 
 The supported installation is this source checkout. The Mac controller needs the checkout and `.venv` to remain in place. No standalone notarized download, npm package or PyPI release is published by this project yet.
 

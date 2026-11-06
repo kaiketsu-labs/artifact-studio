@@ -3,15 +3,13 @@
 import base64
 import binascii
 import mimetypes
-import shutil
 import tempfile
-import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import Field
 
 from .artifact_capture import capture_artifact_image
@@ -31,14 +29,13 @@ from .design_references import ReferenceInput, RemoveReferenceInput
 from .design_thumbnails import THUMBNAIL_SUFFIXES
 from .design_thumbnails import design_thumbnail as make_design_thumbnail
 from .feedback_previews import feedback_image_response
+from .hub_previews import cover_metadata, request_cover
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
 from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .review import Reviews
 from .storage import Store
 from .visuals import capture
-
-_THUMBNAILS = threading.Lock()
 
 
 class ProjectInput(StrictModel):
@@ -136,13 +133,17 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         service = artifacts()
         store = get_store()
         default_design = store.default_design_id()
-        projects = service.list_projects()
+        presentations = service.presentation_summaries()
+        projects = service.list_projects(presentations=presentations)
         return {
             "projects": [item.model_dump(exclude={"context"}) for item in projects],
             "project_tree": ProjectTree(store).view([item.id for item in projects]).model_dump(),
             "artifacts": [
-                item.model_dump(exclude={"files", "context", "original_source_path"})
-                for item in service.list_artifacts()
+                {
+                    **item.model_dump(exclude={"files", "context", "original_source_path"}),
+                    **cover_metadata(store, item),
+                }
+                for item in service.list_artifacts(presentations=presentations)
             ],
             "designs": [
                 {**design.model_dump(), "is_default": design.id == default_design}
@@ -367,48 +368,43 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         return serve_file(artifact_id, path, str(request.base_url).rstrip("/"), revision)
 
     @router.get("/api/hub/previews/{artifact_id}")
-    def thumbnail(artifact_id: str, request: Request) -> FileResponse:
-        """Cache actual cover-slide captures without mounting an iframe per library card."""
+    def thumbnail(artifact_id: str, request: Request) -> Response:
+        """Serve a saved exact-version cover or queue one bounded background update."""
         service = artifacts()
-        view = service.get_artifact(artifact_id)
-        request.state.cache_cover = request.query_params.get("v") == view.content_hash
-        if view.kind in {"image", "svg"}:
-            return serve_file(
-                artifact_id,
-                view.entrypoint,
-                str(request.base_url).rstrip("/"),
-                view.revision,
-            )
         store = get_store()
-        cache = store.database.parent / "artifact-previews" / f"{view.content_hash}.png"
-        if cache.exists():
-            return FileResponse(cache, media_type="image/png")
-        with _THUMBNAILS:
-            if not cache.exists():
-                if view.legacy_deck_id:
-                    deck = store.read(view.legacy_deck_id)
-                    source = capture(
+
+        def render(view: ArtifactView, output: Path) -> Path:
+            """Keep original capture geometry and source files; intermediates are temporary."""
+            if view.kind == "image":
+                source = service.resolve_file(view.id, view.entrypoint, revision=view.revision)
+                target = output / "raster.png"
+                _ = target.write_bytes(make_design_thumbnail(source, maximum=1280))
+                return target
+            if view.legacy_deck_id:
+                return Path(
+                    capture(
                         store,
-                        deck.id,
-                        cache.parent,
-                        slide_id=deck.slides[0].id,
+                        view.legacy_deck_id,
+                        output,
+                        slide_id=store.read(view.legacy_deck_id).slides[0].id,
                     ).path
-                elif view.kind in {"html", "markdown"}:
-                    source = capture_artifact_image(
-                        service,
-                        artifact_id,
-                        cache.parent,
-                        width=1280,
-                        height=800,
-                        revision=view.revision,
+                )
+            if view.kind in {"html", "markdown", "svg"}:
+                return Path(
+                    capture_artifact_image(
+                        service, view.id, output, width=1280, height=800, revision=view.revision
                     ).path
-                else:
-                    raise FileNotFoundError("This file has no visual preview.")
-                cache.parent.mkdir(parents=True, exist_ok=True)
-                with tempfile.TemporaryDirectory(dir=cache.parent) as temporary:
-                    staged = Path(temporary) / "preview.png"
-                    _ = shutil.copyfile(source, staged)
-                    _ = staged.replace(cache)
-        return FileResponse(cache, media_type="image/png")
+                )
+            raise FileNotFoundError("This file has no visual preview.")
+
+        reply = request_cover(store, artifact_id, request.query_params.get("v", ""), render)
+        if reply.path is not None:
+            request.state.cache_cover = True
+            return FileResponse(reply.path, media_type="image/png")
+        return JSONResponse(
+            {"code": reply.code, "message": reply.message},
+            status_code=reply.status,
+            headers={"Retry-After": str(reply.retry_after), "Cache-Control": "no-store"},
+        )
 
     return router

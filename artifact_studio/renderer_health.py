@@ -12,6 +12,14 @@ from playwright.sync_api import Browser, Playwright, sync_playwright
 from playwright.sync_api import Error as BrowserError
 
 
+class RendererUnavailable(ValueError):
+    """A recent infrastructure failure, safe to defer before loading any source assets."""
+
+    def __init__(self, message: str, retry_after_seconds: int) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = max(1, retry_after_seconds)
+
+
 def launch_failure(error: BrowserError) -> tuple[str, str]:
     """Translate infrastructure failures without copying unsafe browser launch advice."""
     detail = str(error).lower()
@@ -56,14 +64,22 @@ class RendererHealth:
                 "retry_after_seconds": max(0, math.ceil(self.retry_at - time.monotonic())),
             }
 
+    def require_available(self) -> None:
+        """Fail cheaply during cooldown, without taking the launch lock or reading content."""
+        with self.lock:
+            remaining = math.ceil(self.retry_at - time.monotonic())
+            if self.state == "unavailable" and remaining > 0:
+                raise RendererUnavailable(
+                    self.message + " Recent launch failure is cached; check get_capture_status.",
+                    remaining,
+                )
+
     def attempt[T](self, launch: Callable[[], T], *, force: bool = False) -> T:
         """Cache only startup failures; page rendering occurs after this guard is released."""
         with self.launch_lock:
+            if not force:
+                self.require_available()
             with self.lock:
-                if not force and self.state == "unavailable" and time.monotonic() < self.retry_at:
-                    raise ValueError(
-                        self.message + " Recent launch failure is cached; check get_capture_status."
-                    )
                 self.launching = True
             try:
                 result = launch()
@@ -73,7 +89,7 @@ class RendererHealth:
                     self.reason, self.message = launch_failure(error)
                     self.checked_at = datetime.now(UTC).isoformat()
                     self.retry_at = time.monotonic() + self.cooldown
-                raise ValueError(self.message) from error
+                raise RendererUnavailable(self.message, math.ceil(self.cooldown)) from error
             finally:
                 with self.lock:
                     self.launching = False
@@ -93,6 +109,21 @@ HEALTH = RendererHealth()
 def renderer_status() -> dict[str, object]:
     """Read process-local observations without launching Chromium."""
     return HEALTH.status()
+
+
+def check_renderer_available() -> None:
+    """Reject a known startup failure before allocating a render document."""
+    HEALTH.require_available()
+
+
+def ensure_renderer_ready(
+    factory: Callable[[], AbstractContextManager[Playwright]] = sync_playwright,
+) -> None:
+    """Probe an unknown or recovered host before a cold library cover loads large assets."""
+    check_renderer_available()
+    if HEALTH.status()["status"] != "ready":
+        with sandboxed_browser(factory):
+            pass
 
 
 @contextmanager
