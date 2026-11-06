@@ -35,7 +35,7 @@ from .agent_io import (
     rule_fields,
     slide_receipt,
 )
-from .app_info import AppInfo
+from .app_info import AppInfo, UpdatePreferences
 from .artifact_api import artifact_routes
 from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
@@ -1720,7 +1720,13 @@ def health() -> dict[str, str]:
 @app.get("/api/app-info")
 def application_info() -> dict[str, str | bool | None]:
     """Expose installed version and cached public release metadata, without workspace data."""
-    return app_info.status()
+    return app_info.settings(store)
+
+
+@app.post("/api/app-info/settings")
+def application_update_settings(body: UpdatePreferences) -> dict[str, str | bool | None]:
+    """Choose the update channel; publication and installation remain separate actions."""
+    return app_info.settings(store, body)
 
 
 @app.get("/api/decks")

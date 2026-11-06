@@ -12,6 +12,7 @@ import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 RELEASE_REFS = "refs/artifact-studio/releases/"
@@ -31,15 +32,21 @@ def latest_release_tag(tags: list[str]) -> str | None:
     return max(releases)[1] if releases else None
 
 
+def nightly_version(tag: str) -> tuple[int, int] | None:
+    """Recognize only the immutable nightly tags produced by our release workflow."""
+    match = re.fullmatch(r"nightly-([0-9]{8})\.([1-9][0-9]{0,11})", tag)
+    if match is None:
+        return None
+    try:
+        _ = datetime.strptime(match[1], "%Y%m%d")
+    except ValueError:
+        return None
+    return int(match[1]), int(match[2])
+
+
 def discover_release(project: Path) -> str | None:
-    """Read remote tags without changing source, local tags or the current branch."""
-    output = command(project, "/usr/bin/git", "ls-remote", "--tags", "origin", timeout=15)
-    tags = [
-        parts[1].removeprefix("refs/tags/")
-        for line in output.splitlines()
-        if len(parts := line.split()) == 2 and parts[1].startswith("refs/tags/")
-    ]
-    return latest_release_tag(tags)
+    """Discover stable updates without changing checked-out source or local tags."""
+    return discover_update(project).latest_tag
 
 
 class UpdateError(RuntimeError):
@@ -59,6 +66,16 @@ class UpdatePlan:
     commits: int
     release_tag: str = ""
     ahead: bool = False
+    include_nightly: bool = False
+
+
+@dataclass(frozen=True)
+class ReleaseStatus:
+    """Compare exact commits, including nightlies whose project version is unchanged."""
+
+    latest_tag: str | None = None
+    installed_tag: str | None = None
+    update_available: bool = False
 
 
 @dataclass(frozen=True)
@@ -128,9 +145,8 @@ def clean_checkout(project: Path) -> str:
     return git(project, "rev-parse", "HEAD")
 
 
-def release_plan(project: Path) -> UpdatePlan:
-    """Resolve origin's highest stable release without changing local tags or source."""
-    current = clean_checkout(project)
+def release_inventory(project: Path) -> list[str]:
+    """Refresh private refs only; never replace the user's tags or checked-out files."""
     git(
         project,
         "fetch",
@@ -140,17 +156,81 @@ def release_plan(project: Path) -> UpdatePlan:
         "+refs/heads/main:refs/remotes/origin/main",
         f"+refs/tags/*:{RELEASE_REFS}*",
     )
-    tags = git(project, "for-each-ref", "--format=%(refname:strip=3)", RELEASE_REFS)
-    tag = latest_release_tag(tags.splitlines())
-    if tag is None:
-        raise UpdateError("No stable release tag (vX.Y.Z) has been published on origin yet.")
-    target = git(project, "rev-parse", "--verify", f"{RELEASE_REFS}{tag}^{{commit}}")
+    return git(project, "for-each-ref", "--format=%(refname:strip=3)", RELEASE_REFS).splitlines()
+
+
+def release_target(project: Path, tags: list[str], include_nightly: bool) -> tuple[str, str] | None:
+    """Choose the newest eligible source, preferring stable when both tag the same commit."""
+    stable = latest_release_tag(tags)
+    nightlies = [(version, tag) for tag in tags if (version := nightly_version(tag))]
+    nightly = max(nightlies)[1] if nightlies and include_nightly else None
+    selected: tuple[str, str] | None = None
+    for tag in (stable, nightly):
+        if tag is None:
+            continue
+        target = git(project, "rev-parse", "--verify", f"{RELEASE_REFS}{tag}^{{commit}}")
+        try:
+            git(project, "merge-base", "--is-ancestor", target, "origin/main")
+        except UpdateError as error:
+            raise UpdateError(
+                f"Release {tag} is not part of origin/main; no update was installed."
+            ) from error
+        if selected is None:
+            selected = tag, target
+        elif selected[1] != target:
+            try:
+                git(project, "merge-base", "--is-ancestor", target, selected[1])
+            except UpdateError:
+                git(project, "merge-base", "--is-ancestor", selected[1], target)
+                selected = tag, target
+    return selected
+
+
+def installed_release_tag(project: Path) -> str | None:
+    """Identify the current source using commit-matching release refs, without networking."""
     try:
-        git(project, "merge-base", "--is-ancestor", target, "origin/main")
-    except UpdateError as error:
-        raise UpdateError(
-            f"Release {tag} is not part of origin/main; no update was installed."
-        ) from error
+        # --points-at also peels annotated tags. Local tags are display metadata only.
+        refs = git(
+            project,
+            "for-each-ref",
+            "--points-at=HEAD",
+            "--format=%(refname)",
+            RELEASE_REFS,
+            "refs/tags/",
+        )
+    except UpdateError:
+        return None
+    tags = [ref.rsplit("/", 1)[-1] for ref in refs.splitlines()]
+    stable = latest_release_tag(tags)
+    nightlies = [(version, tag) for tag in tags if (version := nightly_version(tag))]
+    return stable or (max(nightlies)[1] if nightlies else None)
+
+
+def discover_update(project: Path, include_nightly: bool = False) -> ReleaseStatus:
+    """Refresh cached release metadata without moving HEAD, source files or local tags."""
+    with update_lock(project):
+        selected = release_target(project, release_inventory(project), include_nightly)
+        installed = installed_release_tag(project)
+        if selected is None:
+            return ReleaseStatus(installed_tag=installed)
+        tag, target = selected
+        current = git(project, "rev-parse", "HEAD")
+        try:
+            git(project, "merge-base", "--is-ancestor", target, current)
+        except UpdateError:
+            git(project, "merge-base", "--is-ancestor", current, target)
+            return ReleaseStatus(tag, installed, True)
+        return ReleaseStatus(tag, installed)
+
+
+def release_plan(project: Path, include_nightly: bool = False) -> UpdatePlan:
+    """Resolve the selected channel while retaining clean-main and ancestry guards."""
+    current = clean_checkout(project)
+    selected = release_target(project, release_inventory(project), include_nightly)
+    if selected is None:
+        channel = "stable or nightly release" if include_nightly else "stable release tag (vX.Y.Z)"
+        raise UpdateError(f"No {channel} has been published on origin yet.")
+    tag, target = selected
     try:
         git(project, "merge-base", "--is-ancestor", current, "origin/main")
     except UpdateError as error:
@@ -163,16 +243,20 @@ def release_plan(project: Path) -> UpdatePlan:
         except UpdateError as error:
             raise UpdateError(f"This checkout cannot fast-forward to release {tag}.") from error
         # Older controllers also see a no-op rather than attempting a downgrade.
-        return UpdatePlan(current, current, 0, tag, ahead=True)
+        return UpdatePlan(current, current, 0, tag, ahead=True, include_nightly=include_nightly)
     return UpdatePlan(
-        current, target, int(git(project, "rev-list", "--count", f"{current}..{target}")), tag
+        current,
+        target,
+        int(git(project, "rev-list", "--count", f"{current}..{target}")),
+        tag,
+        include_nightly=include_nightly,
     )
 
 
-def check_update(project: Path) -> UpdatePlan:
-    """Offer only a stable release tag that can be fast-forwarded safely."""
+def check_update(project: Path, include_nightly: bool = False) -> UpdatePlan:
+    """Offer only an explicitly selected channel that can be fast-forwarded safely."""
     with update_lock(project):
-        return release_plan(project)
+        return release_plan(project, include_nightly)
 
 
 def sync_environment(project: Path) -> None:
@@ -211,7 +295,7 @@ def build_controller(project: Path, settings: AppSettings, destination: Path) ->
 def apply_update(project: Path, plan: UpdatePlan, settings: AppSettings | None = None) -> str:
     """Install a pinned update, restoring code and dependencies if installation fails."""
     with update_lock(project):
-        checked = release_plan(project)
+        checked = release_plan(project, plan.include_nightly)
         if (
             checked.current != plan.current
             or checked.target != plan.target
@@ -297,6 +381,7 @@ def main() -> int:
     parser.add_argument("--current")
     parser.add_argument("--target")
     parser.add_argument("--release-tag", default="")
+    parser.add_argument("--include-nightly", action="store_true")
     parser.add_argument("--application", type=Path)
     parser.add_argument("--collection", type=Path)
     parser.add_argument("--database", type=Path)
@@ -307,7 +392,7 @@ def main() -> int:
     project = Path.cwd()
     try:
         if args.operation == "check":
-            print(json.dumps(asdict(check_update(project))))
+            print(json.dumps(asdict(check_update(project, args.include_nightly))))
         else:
             if not args.current or not args.target:
                 raise UpdateError("The checked current and target commits are required.")
@@ -324,7 +409,15 @@ def main() -> int:
                     args.qa,
                 )
             target = apply_update(
-                project, UpdatePlan(args.current, args.target, 0, args.release_tag), settings
+                project,
+                UpdatePlan(
+                    args.current,
+                    args.target,
+                    0,
+                    args.release_tag,
+                    include_nightly=args.include_nightly,
+                ),
+                settings,
             )
             print(json.dumps({"target": target, "updated": True}))
         return 0

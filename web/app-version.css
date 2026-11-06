@@ -13,6 +13,7 @@ dialog.app-about::backdrop{background:#10182866}
 .app-version-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .app-about .app-about-version{margin:0;font-size:clamp(16px,5vw,24px);font-weight:600;white-space:nowrap}
 .app-about .app-about-status{color:var(--hub-muted,var(--subtle,#5f6b7a))}
+.app-nightly-option{display:flex;align-items:center;gap:9px;font-size:14px;min-height:36px;cursor:pointer}.app-nightly-option input{width:16px;height:16px;accent-color:var(--hub-blue,var(--blue,#315fce))}.app-about .app-nightly-help{font-size:12px;color:var(--hub-muted,var(--subtle,#5f6b7a));margin:0 0 12px 25px}.app-about .app-installed-build{font-size:12px;overflow-wrap:anywhere}
 .app-about a{display:inline-flex;align-items:center;justify-content:center;padding:7px 9px;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:6px;color:var(--hub-blue,var(--link,#315fce));font-size:12px;white-space:nowrap;flex-shrink:0}
 @media(max-width:360px){dialog.app-about{padding:18px}.app-version-row{gap:8px}.app-about a{padding:7px 8px;font-size:11px}}
 .app-about [hidden]{display:none!important}

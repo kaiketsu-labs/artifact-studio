@@ -7,9 +7,14 @@ import platform
 import plistlib
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 from pathlib import Path
+
+# Keep direct script invocation working without installing the repository as a package.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from artifact_studio.updater import installed_release_tag  # noqa: E402
 
 
 def run(*arguments: str, env: dict[str, str] | None = None) -> str:
@@ -112,6 +117,7 @@ def install(
                     "CFBundlePackageType": "APPL",
                     "CFBundleShortVersionString": version,
                     "CFBundleVersion": version,
+                    "ArtifactStudioReleaseTag": installed_release_tag(project) or "",
                     "CFBundleIconFile": "ArtifactStudio.icns",
                     "LSMinimumSystemVersion": "13.0",
                     "LSUIElement": True,

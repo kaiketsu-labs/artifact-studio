@@ -21,8 +21,10 @@ private struct UpdateReply: Decodable, Sendable {
 }
 
 private struct AppInfo: Decodable {
-    let latest_version: String?
+    let latest_tag: String?
+    let update_available: Bool
     let update_check: String
+    let include_nightly: Bool
 }
 
 private struct BackupLibrary: Decodable {
@@ -118,9 +120,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var external = false
     private var updating = false
     private var updateLabel = ""
-    private var latestVersion: String?
+    private var latestTag: String?
+    private var updateAvailable = false
+    private var includeNightly = false
+    private var updatePreferenceLoading = false
     private var appInfoUpdated = Date.distantPast
     private var appInfoLoading = false
+    private var appInfoGeneration = 0
     private var errorMessage = ""
     private let menu = NSMenu()
     private let settingsMenu = NSMenu(title: "Settings")
@@ -141,17 +147,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let stopItem = NSMenuItem(title: "Stop", action: #selector(stop), keyEquivalent: "")
     private let restartItem = NSMenuItem(title: "Restart", action: #selector(restart), keyEquivalent: "")
     private let updateItem = NSMenuItem(title: "Update…", action: #selector(updateApplication), keyEquivalent: "")
+    private let nightlyItem = NSMenuItem(title: "Include Nightly Builds", action: #selector(toggleNightly), keyEquivalent: "")
     private let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLogin), keyEquivalent: "")
     private let approvalItem = NSMenuItem(title: "Allow in System Settings…", action: #selector(loginSettings), keyEquivalent: "")
 
     private var workspaceURL: URL { URL(string: "http://127.0.0.1:\(configuration.port)/")! }
     private var installedVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
-    }
-    private var newerVersion: String? {
-        guard let latest = latestVersion, installedVersion != "Unknown",
-              latest.compare(installedVersion, options: .numeric) == .orderedDescending else { return nil }
-        return latest
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Unknown"
+        let tag = Bundle.main.object(forInfoDictionaryKey: "ArtifactStudioReleaseTag") as? String ?? ""
+        return version + (tag.hasPrefix("nightly-") ? " · Nightly" : "")
     }
     private var logURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -207,6 +211,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsMenu.addItem(loginItem)
         approvalItem.target = self
         settingsMenu.addItem(approvalItem)
+        nightlyItem.target = self
+        nightlyItem.toolTip = "Include preview builds from main. May be less stable."
+        settingsMenu.addItem(nightlyItem)
         settingsMenu.addItem(.separator())
         settingsMenu.addItem(backupItem)
         add("Show Logs", symbol: "doc.text", action: #selector(showLogs))
@@ -251,11 +258,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let hasServer = process?.isRunning == true || state == .running || state == .starting
         startItem.isHidden = hasServer
         stopItem.isHidden = !hasServer
-        updateItem.isEnabled = !updating && state != .starting && state != .stopping
-        let updateAction = updating ? updateLabel : newerVersion.map { "Update… (v\($0) available)" } ?? "Update…"
-        updateItem.title = "Version \(installedVersion)    \(updateAction)"
-        updateItem.toolTip = "Installed version: \(installedVersion). \(updateAction)"
-        updateItem.image = NSImage(systemSymbolName: newerVersion == nil ? "arrow.down.circle" : "arrow.down.circle.fill", accessibilityDescription: newerVersion == nil ? nil : "Update available")
+        updateItem.isEnabled = updateAvailable && !updating && state != .starting && state != .stopping
+        let updateAction = updating ? updateLabel : updateAvailable ? "Update… (\(latestTag ?? "New version"))" : ""
+        updateItem.title = "Version \(installedVersion)" + (updateAction.isEmpty ? "" : "    \(updateAction)")
+        updateItem.toolTip = "Installed version: \(installedVersion)" + (updateAction.isEmpty ? "" : ". \(updateAction)")
+        updateItem.image = updateAvailable ? NSImage(systemSymbolName: "arrow.down.circle.fill", accessibilityDescription: "Update available") : nil
+        nightlyItem.state = includeNightly ? .on : .off
+        nightlyItem.isEnabled = state == .running && !updating && !updatePreferenceLoading
         let login = SMAppService.mainApp.status
         loginItem.state = login == .enabled ? .on : login == .requiresApproval ? .mixed : .off
         approvalItem.isHidden = login != .requiresApproval
@@ -265,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard menu === self.menu, state == .running else { return }
         Task { await refreshBackup() }
         Task { await refreshNavigation() }
+        Task { await refreshAppInfo() }
     }
 
     private func refreshNavigation() async {
@@ -481,15 +491,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func refreshAppInfo() async {
-        guard state == .running, !appInfoLoading,
+        guard state == .running, !appInfoLoading, !updatePreferenceLoading,
               Date().timeIntervalSince(appInfoUpdated) >= 60 else { return }
         appInfoLoading = true
+        let generation = appInfoGeneration
         appInfoUpdated = Date()
         defer { appInfoLoading = false; updateMenu() }
         do {
             let info = try JSONDecoder().decode(AppInfo.self, from: await request("api/app-info", timeout: 5))
-            latestVersion = ["ok", "checking"].contains(info.update_check) ? info.latest_version : nil
-        } catch { latestVersion = nil }
+            if generation == appInfoGeneration { applyAppInfo(info) }
+        } catch { if generation == appInfoGeneration { latestTag = nil; updateAvailable = false } }
+    }
+
+    private func applyAppInfo(_ info: AppInfo) {
+        includeNightly = info.include_nightly
+        latestTag = info.latest_tag
+        updateAvailable = ["ok", "checking"].contains(info.update_check) && info.update_available
+        if info.update_check == "checking" { appInfoUpdated = .distantPast }
+    }
+
+    @objc private func toggleNightly() {
+        guard state == .running, !updating, !updatePreferenceLoading else { return }
+        updatePreferenceLoading = true
+        appInfoGeneration += 1
+        updateMenu()
+        Task {
+            defer { updatePreferenceLoading = false; updateMenu() }
+            do {
+                let data = try await request("api/app-info/settings", body: ["include_nightly": !includeNightly])
+                applyAppInfo(try JSONDecoder().decode(AppInfo.self, from: data))
+            } catch { showError("Could not save the update preference: \(error.localizedDescription)") }
+        }
     }
 
     private func poll() async {
@@ -581,7 +613,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func restart() { restartPending = true; stop() }
 
     @objc private func updateApplication() {
-        guard !updating, state != .starting, state != .stopping else { return }
+        guard updateAvailable, !updating, state != .starting, state != .stopping else { return }
+        let selectedNightly = includeNightly
         updating = true
         updateLabel = "Checking for updates…"
         updateMenu()
@@ -591,7 +624,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if await isReady(), process?.isRunning != true {
                     throw BackupRequestError.response("This server was started elsewhere. Stop it there before updating.")
                 }
-                let plan = try await runUpdater(["check"])
+                let plan = try await runUpdater(["check"] + (selectedNightly ? ["--include-nightly"] : []))
                 if let error = plan.error { throw BackupRequestError.response(error) }
                 guard let current = plan.current, let target = plan.target else {
                     throw BackupRequestError.response("The update check returned no version. See Show Logs.")
@@ -602,6 +635,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         ? "This checkout is newer than \(release). No downgrade was installed."
                         : "Artifact Studio is on \(release)."
                     showInformation("You’re up to date", detail)
+                    updateAvailable = false
                     updating = false; updateMenu(); return
                 }
                 restoreRunning = process?.isRunning == true
@@ -640,6 +674,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     "--collection", configuration.collection, "--database", configuration.database,
                     "--port", String(configuration.port)]
                 if let release = plan.release_tag { arguments += ["--release-tag", release] }
+                if selectedNightly { arguments.append("--include-nightly") }
                 if configuration.launchAtLogin { arguments.append("--launch-at-login") }
                 if Bundle.main.bundleIdentifier?.hasSuffix(".qa") == true { arguments.append("--qa") }
                 let shouldRestart = restoreRunning

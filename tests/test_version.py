@@ -12,8 +12,9 @@ import pytest
 from scripts import install_macos
 
 
+@pytest.mark.parametrize("release_tag", [None, "nightly-20261106.123"])
 def test_version_from_project_reaches_runtime_and_bundle(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, release_tag: str | None
 ) -> None:
     """A future release version is used without editing another version constant."""
     project = tmp_path / "checkout"
@@ -47,6 +48,11 @@ def test_version_from_project_reaches_runtime_and_bundle(
         return ""
 
     monkeypatch.setattr(install_macos, "run", mock_run)
+
+    def installed_release(_: Path) -> str | None:
+        return release_tag
+
+    monkeypatch.setattr(install_macos, "installed_release_tag", installed_release)
     destination = tmp_path / "Artifact Studio.app"
     install_macos.install(
         destination,
@@ -60,3 +66,19 @@ def test_version_from_project_reaches_runtime_and_bundle(
         info = plistlib.load(plist_file)
     assert info["CFBundleShortVersionString"] == "2.3.4"
     assert info["CFBundleVersion"] == "2.3.4"
+    assert info["ArtifactStudioReleaseTag"] == (release_tag or "")
+
+
+def test_installer_direct_entrypoint_does_not_require_package_install(tmp_path: Path) -> None:
+    environment = os.environ.copy()
+    environment.pop("PYTHONPATH", None)
+    script = Path(__file__).resolve().parents[1] / "scripts/install_macos.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--help"],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "--destination" in result.stdout

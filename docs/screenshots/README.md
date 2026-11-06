@@ -2,11 +2,13 @@
 
 The [default-design controls](default-design.png) were reviewed in actual Chromium at 1440 × 844 with two fictional slide design packs and a reference-only collection. The filled star and Default badge identify the saved workspace preference.
 
-The [version menu](app-version-menu.png) and [narrow About dialog](app-version-mobile.png)
-use the actual library/editor with fictional data. A `v0.3.0` release response is
-simulated at the network boundary to show the update indicator; these images are
-not a release announcement. Their [capture inventory](app-version-captures.json)
-is maintained separately. Native Mac menu compilation and appearance require macOS.
+The [version menu](app-version-menu.png), [current version](app-version-current.png),
+[nightly option](app-version-nightly.png) and [narrow About dialog](app-version-mobile.png)
+use the actual UI with fictional data. Stable and nightly release responses are
+simulated at the network boundary; channel changes use the real persisted settings.
+These images are not a release announcement. [capture_app_version.py](../../scripts/capture_app_version.py)
+maintains the [capture inventory and accessibility audit](app-version-captures.json).
+Native Mac menu compilation and appearance require macOS.
 
 App screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
 
@@ -25,6 +27,7 @@ uv run python -m scripts.capture_slide_designs
 uv run python -m scripts.capture_element_alternatives
 uv run python -m scripts.capture_full_backups
 uv run python -m scripts.capture_chat_references
+uv run python -m scripts.capture_app_version
 ```
 
 The command starts the real server on a free loopback port with a temporary collection and database, then uses real UI actions and MCP replies. It never opens the configured user collection or connects an agent CLI. The server, browser and temporary files are cleaned up when it exits. To review captures outside the checkout, add `--output /tmp/artifact-studio-docs`.

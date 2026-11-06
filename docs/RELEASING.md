@@ -32,10 +32,39 @@ update the manifest rather than changing it to simulate publication.
    changed since the run was requested. A newer passing commit cannot substitute
    for passing CI on the commit being tagged.
 
-Publishing is never run on a push, and the default manual action only prepares.
+Stable publishing is never run on a push, and the default manual action only prepares.
 No package registry upload, binary installer or automatic merge is configured.
 The generated changelog is the release notes source; review the first entry for
 older commits that did not use Conventional Commits.
+
+## Nightly prereleases
+
+The separate **Nightly release** workflow runs daily at 02:17 UTC (03:17 in Berlin
+in winter, 04:17 in summer), and can be run manually on `main`. It publishes only
+when CI has succeeded for that exact main commit and the source has changed since
+its last nightly. A changed main during publication is deferred to the next run.
+Rerunning an unchanged commit skips publication; an interrupted publication can
+reuse its existing tag without moving it.
+
+Nightly tags use **nightly-YYYYMMDD.RUN**, where the date is UTC and RUN is the
+workflow run number. Each is an immutable GitHub prerelease with `latest=false`;
+it does not replace the latest stable release, bump version files, edit the
+Release Please manifest, or publish packages. The tagged source remains an exact
+commit from main. The nightly tag supplements the numeric project version in
+installed build information.
+
+Stable updates remain the default. **Include nightly builds** in the web About
+dialog or Mac Settings opts into the nightly channel. Checks compare source
+commits and ancestry across both channels; a stable release wins when it contains
+the same source. An already-installed nightly does not advertise itself again,
+and opting out never downgrades the checkout. The setting persists in the
+workspace database and is passed to both update checking and installation.
+
+The publisher can be tested without contacting GitHub or creating releases:
+
+```sh
+uv run pytest tests/test_nightly_release.py tests/test_updater.py tests/test_app_info.py
+```
 
 ## Choose the next version
 
@@ -57,8 +86,9 @@ footer; avoid a permanent `release-as` setting that would pin future releases.
 
 GitHub releases identify source snapshots. The supported installation remains a
 source checkout with `uv sync --locked`. The Mac **Update** command follows the
-highest stable `vMAJOR.MINOR.PATCH` tag published on `origin`, ordered numerically;
-it ignores prerelease/non-version tags and untagged `main` commits. Publishing the
+highest stable `vMAJOR.MINOR.PATCH` tag published on `origin`, ordered numerically,
+unless nightly builds are explicitly enabled. Other prerelease/non-version tags
+and untagged `main` commits are excluded. Publishing the
 stable Git tag is the update channel's release boundary, so do not push a stable
 version tag for a draft or an unverified build. The release workflow above creates
 that tag only during publication.

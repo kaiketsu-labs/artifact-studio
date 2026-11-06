@@ -1,12 +1,14 @@
 """Installed version and release availability in the real library and editor."""
 
 import os
+import re
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Browser, Page, Route, expect
 
 from artifact_studio import __version__
+from scripts.preview_favorites import prepare_covers
 from tests.integration.support import DECK_ID, RunningApp
 
 pytestmark = [
@@ -15,6 +17,12 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+@pytest.fixture(autouse=True)
+def fixture_covers(live_app: RunningApp, browser: Browser) -> None:
+    """Version controls do not depend on the production renderer's OS sandbox."""
+    prepare_covers(live_app, browser)
 
 
 @pytest.mark.parametrize(
@@ -46,6 +54,8 @@ def test_installed_version_and_update_menu(
         "latest_version": "9.0.0",
         "update_available": True,
         "update_check": "ok",
+        "include_nightly": False,
+        "installed_tag": None,
     }
     page.route("**/api/app-info", lambda route: route.fulfill(json=info))
     page.goto(live_app.url + (f"/?deck={DECK_ID}" if surface == "editor" else "/"))
@@ -92,3 +102,97 @@ def test_installed_version_and_update_menu(
     expect(dialog).to_contain_text("Update information is unavailable.")
     expect(menu).not_to_have_attribute("data-app-update", "")
     expect(dialog.locator("[data-installed-version]")).to_have_text("Version " + __version__)
+
+
+@pytest.mark.parametrize("surface,width", [("hub", 1280), ("editor", 390)])
+def test_nightly_preference_persists_and_controls_update_offer(
+    live_app: RunningApp, page: Page, surface: str, width: int
+) -> None:
+    """Persist real settings while simulating only the remote release discovery result."""
+    page.set_viewport_size({"width": width, "height": 844})
+    page.add_init_script("localStorage.setItem('artifact-studio:appearance','dark')")
+
+    def fixture_release(route: Route) -> None:
+        response = route.fetch()
+        info = response.json()
+        nightly = info["include_nightly"]
+        info.update(
+            latest_tag="nightly-20261106.123" if nightly else "v" + __version__,
+            update_available=nightly,
+            update_check="ok",
+        )
+        route.fulfill(response=response, json=info)
+
+    page.route(re.compile(r"/api/app-info(?:/settings)?$"), fixture_release)
+    page.goto(live_app.url + (f"/?deck={DECK_ID}" if surface == "editor" else "/"))
+    menu = page.get_by_role("button", name="Menu", exact=True)
+    expect(menu).not_to_have_attribute("data-app-update", "")
+    menu.click()
+    entry = page.locator("[data-app-about]")
+    expect(entry.locator(".app-update-icon")).to_be_hidden()
+    entry.click()
+    dialog = page.get_by_role("dialog", name="About Artifact Studio")
+    expect(dialog).to_contain_text("You’re up to date.")
+    expect(dialog.get_by_role("link", name="View release notes")).to_be_hidden()
+    checkbox = dialog.get_by_role("checkbox", name="Include nightly builds")
+    expect(checkbox).not_to_be_checked()
+    checkbox.check()
+    expect(dialog).to_contain_text("Update available: nightly-20261106.123")
+    expect(menu).to_have_attribute("data-app-update", "")
+    expect(dialog.get_by_role("link", name="View release notes")).to_have_attribute(
+        "href", "https://github.com/kaiketsu-labs/artifact-studio/releases/tag/nightly-20261106.123"
+    )
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.reload()
+    menu.click()
+    page.locator("[data-app-about]").click()
+    expect(checkbox).to_be_checked()
+    checkbox.uncheck()
+    expect(dialog).to_contain_text("You’re up to date.")
+    expect(menu).not_to_have_attribute("data-app-update", "")
+    expect(dialog.get_by_role("link", name="View release notes")).to_be_hidden()
+
+
+def test_failed_update_requests_recover_without_a_stale_offer(
+    live_app: RunningApp, browser: Browser
+) -> None:
+    """Intentional HTTP failures leave the preference intact and clear stale offers."""
+    context = browser.new_context()
+    page = context.new_page()
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    try:
+        page.route(
+            "**/api/app-info",
+            lambda route: route.fulfill(
+                json={
+                    "version": __version__,
+                    "update_available": True,
+                    "latest_tag": "v9.0.0",
+                    "update_check": "ok",
+                    "include_nightly": False,
+                }
+            ),
+        )
+        page.goto(live_app.url)
+        menu = page.get_by_role("button", name="Menu", exact=True)
+        menu.click()
+        page.locator("[data-app-about]").click()
+        dialog = page.get_by_role("dialog", name="About Artifact Studio")
+        expect(dialog).to_contain_text("Update available: v9.0.0")
+        page.route("**/api/app-info/settings", lambda route: route.fulfill(status=503))
+        checkbox = dialog.get_by_role("checkbox", name="Include nightly builds")
+        checkbox.check()
+        expect(dialog).to_contain_text("Could not save the update preference.")
+        expect(checkbox).not_to_be_checked()
+        expect(checkbox).to_be_enabled()
+        page.route("**/api/app-info", lambda route: route.fulfill(status=503))
+        page.keyboard.press("Escape")
+        menu.click()
+        page.locator("[data-app-about]").click()
+        expect(dialog).to_contain_text("Update information is unavailable.")
+        expect(menu).not_to_have_attribute("data-app-update", "")
+        expect(dialog.get_by_role("link", name="View release notes")).to_be_hidden()
+        assert not errors
+    finally:
+        context.close()
