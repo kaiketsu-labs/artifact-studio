@@ -57,7 +57,11 @@ On upgrade, an existing automatic-backup receipt can seed the baseline from its 
 
 Checkpoints are host state: full workspace archives remove them and omit them from saved-content fingerprints. Restoring or refreshing a backup does not grant upload ownership.
 
-If **Remote changes need review** appears, save a full archive of local work, preserve the remote backup, and inspect both versions before applying the intended changes. Retry after reconciliation; retries do not bypass the guard. A new backup repository is also available when the workspaces should remain independent. Differences in workspace recovery metadata, including device-specific paths, can require review even when slide content matches.
+Current-source uploads omit machine-specific locators from the reserved project, current artifact and workspace recovery manifests. Project context, context hashes and counts are rebuilt from the README and registry during recovery instead of being duplicated in the uploaded project view. Local files, immutable revisions, approval hashes and full archives retain their existing data. Authored JSON inside a bundle is never rewritten.
+
+Existing backups with host-specific paths migrate only when their normalized metadata exactly matches the intended upload. This allows a recovered copy on another computer to acknowledge identical content without an inherited upload checkpoint. Different titles, briefs, navigation, source bytes or unknown metadata fields still require review. Pending uploads retain their exact original commit and hashes until delivery is confirmed.
+
+If **Remote changes need review** appears, save a full archive of local work, preserve the remote backup, and inspect both versions before applying the intended changes. Retry after reconciliation; retries do not bypass the guard. A new backup repository is also available when the workspaces should remain independent.
 
 The regression tests cover stale replicas, unknown and deleted remote files, reference refresh, partial uploads, legacy migration, unpublished commits, lost acknowledgements and parallel pushes: [conflicts](../tests/test_library_sync_conflicts.py), [checkpoint recovery](../tests/test_sync_checkpoint_recovery.py).
 

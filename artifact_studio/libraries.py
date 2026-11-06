@@ -575,7 +575,7 @@ class Libraries:
     @contextmanager
     def _frozen_snapshot(self, deck_id: str | None) -> Generator[list[LibraryFile]]:
         """Freeze complete local source under the database lock before any network operation."""
-        from .workspace_recovery import WorkspaceRecovery
+        from .workspace_recovery import WorkspaceRecovery, portable_source_metadata
 
         recovery = WorkspaceRecovery(self.store)
         if deck_id is None:
@@ -608,6 +608,10 @@ class Libraries:
                         raise ValueError(
                             f"File is changing during sync; retry when saved: {relative}"
                         )
+                    portable = portable_source_metadata(relative, snapshot)
+                    if portable is not None:
+                        _ = snapshot.write_bytes(portable)
+                        expected = file_hash(snapshot)
                     frozen.append(
                         LibraryFile(
                             path=relative, local_path=str(snapshot), size=snapshot.stat().st_size
@@ -748,6 +752,8 @@ class Libraries:
         self, identifier: str, deck_id: str | None = None, *, automatic: bool = False
     ) -> SyncResult:
         """Publish saved files while protecting independent remote changes."""
+        from .workspace_recovery import portable_source_metadata
+
         library = self.get(identifier)
         if library.kind != "github" or not library.sync_enabled:
             raise ValueError("Enable sync on a private GitHub library first.")
@@ -796,11 +802,19 @@ class Libraries:
                 remote_hash = file_hash(target) if target.is_file() else None
                 if remote_hash != current_hash:
                     if remote_hash != owned.get(relative):
-                        raise ValueError(
-                            f"Remote changes need review before syncing: {relative}. "
-                            "Save a workspace archive and reconcile the local and GitHub copies "
-                            "before retrying."
+                        # Adopt a legacy host-specific manifest only when its portable
+                        # meaning exactly matches this snapshot. This grants no right
+                        # to replace independent titles, source or other metadata.
+                        portable = (
+                            portable_source_metadata(relative, target) if remote_hash else None
                         )
+                        if portable is None or portable != original.read_bytes():
+                            raise ValueError(
+                                f"Remote changes need review before syncing: {relative}. "
+                                "Save a workspace archive and reconcile the local and GitHub "
+                                "copies "
+                                "before retrying."
+                            )
                     updates.append((original, target, relative, current_hash))
                 previous[relative] = current_hash
                 owned[relative] = current_hash

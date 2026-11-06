@@ -72,6 +72,7 @@ class AutoSync:
             state = self.state(library.id)
             if not library.auto_sync_enabled:
                 state.phase = "disabled"
+                state.error = ""
             result.append(state)
         return result
 
