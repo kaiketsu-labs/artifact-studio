@@ -84,6 +84,7 @@ The logo and conceptual [workflow diagram](../assets/workflow.svg) are artwork, 
 [capture_chat_references.py](../../scripts/capture_chat_references.py) captures
 the actual [cursor preview](chat-reference-hover.png), [compact draft pills](chat-reference-chips.png),
 [sent pills](chat-reference-sent.png) and [dark narrow artifact composer](chat-reference-artifact-mobile.png)
+plus saved-pill thumbnails in [light](chat-reference-pill-hover.png) and [dark](chat-reference-pill-hover-dark.png)
 using fictional projects and slides. The [inventory](chat-reference-captures.json)
 records viewports, hashes and accessibility findings; pass `--axe /path/to/axe.min.js`
 to include the audit. Cover caches contain browser captures of the fixture because

@@ -11,4 +11,6 @@
 .chat-file-chip.is-path-reference,.hub-attachment.is-path-reference{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;padding:5px 9px;border-radius:16px;font-size:12px;line-height:18px;text-decoration:none}
 .is-path-reference .chat-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .is-path-reference button{flex:none}
+.is-path-reference[data-reference-preview]{cursor:help}.is-path-reference[data-reference-preview]:focus-visible{outline:2px solid var(--hub-blue,var(--accent,#315fce));outline-offset:2px}
+.chat-saved-reference-preview .chat-reference-preview-caption{max-height:220px;overflow:hidden}
 @media(max-width:639px){.chat-reference-preview{display:none}}

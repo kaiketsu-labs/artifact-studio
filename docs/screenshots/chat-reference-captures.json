@@ -5,7 +5,7 @@
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T17:47:11.274348+00:00",
+    "captured_at": "2026-11-06T18:11:14.717380+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
@@ -15,27 +15,47 @@
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T17:47:11.873160+00:00",
+    "captured_at": "2026-11-06T18:11:15.312249+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
-  "chat-reference-sent.png": {
-    "sha256": "28323f328349a17c50358ab907aa805026724445ec1b079e5a1f625d902440aa",
+  "chat-reference-pill-hover.png": {
+    "sha256": "f3594fe1c31296a62778b5a8d8824dd7e86a3700267a33097be3de737cf7761e",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T17:47:12.058653+00:00",
+    "captured_at": "2026-11-06T18:11:15.686192+00:00",
+    "axe_ran": false,
+    "axe_violations": null
+  },
+  "chat-reference-sent.png": {
+    "sha256": "5d370f80acc67b82dbc8da5e3ba8e87f4d19872b5333f3d960d4774153d47f10",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-06T18:11:15.909784+00:00",
+    "axe_ran": false,
+    "axe_violations": null
+  },
+  "chat-reference-pill-hover-dark.png": {
+    "sha256": "4aaed2cc3a6a40be528f1a3e01c92ec986a8cf9535dc43f9876665ab05ce84b6",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-06T18:11:16.743042+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
   "chat-reference-artifact-mobile.png": {
-    "sha256": "c3982e96de12189807209e6af17b35d421c5ab1fcd9c44c8d454e05a8b7c5a6c",
+    "sha256": "68bd7d8d3a63d7ea9311f25ccc95acd0846df0f07a9db202338c2d0c9d6746a4",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-06T17:47:12.654368+00:00",
+    "captured_at": "2026-11-06T18:11:16.843270+00:00",
     "axe_ran": false,
     "axe_violations": null
   }

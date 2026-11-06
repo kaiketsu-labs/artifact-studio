@@ -18,14 +18,22 @@ their live slide preview. The title and reference remain available if a cover
 cannot be rendered.
 
 The selected query becomes a compact pill showing the slide, project or artifact
-title. Full paths stay out of your message; hover over a draft pill to see its
-path. Remove it with its **×**. Sent references remain title pills you can click
+title. Full paths stay out of your message. Hover over a pill, or focus it with
+the keyboard, to preview the saved reference. Move away or press **Escape** to
+close the preview. Remove a draft pill with its **×**. Sent references remain title pills you can click
 to download the frozen source. Repeating the same version in one message reuses
 its attachment. Up to five attachments fit in one message.
 
 You can still click **★ beside the paperclip** to choose several favorite slides
 at once, including slides from other presentations. These use the same compact
 title pills; descriptions stay inside the frozen reference delivered to your agent.
+
+Pill previews use the attachment captured when you selected the reference, even
+after its source changes or disappears. Slides show their saved canvas;
+presentations show the first saved slide. HTML artifacts show a static thumbnail
+with saved styles and images; scripts stay paused. Project references show their
+saved brief and artifact index. Unsupported or large sources remain available to
+download. Touch selection and removal work without hover.
 
 ## What the agent receives
 
@@ -51,3 +59,5 @@ workspace reference catalog is not added to agent startup context.
 ![Compact title pills in chat](screenshots/chat-reference-chips.png)
 ![Sent reference title pills retain download links](screenshots/chat-reference-sent.png)
 ![Compact reference pill in dark artifact chat on a narrow screen](screenshots/chat-reference-artifact-mobile.png)
+![Hovering a compact slide pill shows its saved thumbnail](screenshots/chat-reference-pill-hover.png)
+![Saved artifact thumbnail from a title pill in dark chat](screenshots/chat-reference-pill-hover-dark.png)
