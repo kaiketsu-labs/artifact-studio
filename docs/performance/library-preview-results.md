@@ -59,6 +59,19 @@ The real raster backend was exercised through creation, a source revision, a mix
 
 [Mobile saved preview](screenshots/library-mobile.png) · [Desktop dark saved preview](screenshots/library-desktop-dark.png)
 
+## Temporary failure recovery
+
+The follow-up regression checks start with no saved covers, inject one renderer outage,
+then send retries to the real background renderer. Both HTML and legacy presentation
+covers appear without opening or reloading the artifact. Separate tests bound repeated
+failures and keep the earlier image during a failed replacement. Two fresh Terra reviews
+exercised desktop light and narrow dark browsing, automatic recovery and keyboard retry.
+The renderer diagnostic was also checked as plain text in the tooltip and accessible
+description. These Linux checks do not establish renderer availability on another host.
+
+[Real cold covers, desktop light](screenshots/cold-preview-recovery-light.png) ·
+[Real cold covers, narrow dark](screenshots/cold-preview-recovery-dark.png)
+
 ## Reproduce
 
 Run from the development checkout with its locked dependencies installed:
