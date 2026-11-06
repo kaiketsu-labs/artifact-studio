@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.2](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.1...v0.3.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **chat:** preview saved references when hovering title pills ([#69](https://github.com/kaiketsu-labs/artifact-studio/issues/69)) ([d56e36c](https://github.com/kaiketsu-labs/artifact-studio/commit/d56e36c09b3a438ae1faa82f98b00ddea82ea977))
+* restore thumbnail recovery, portable backups and compact references ([#67](https://github.com/kaiketsu-labs/artifact-studio/issues/67)) ([312ac55](https://github.com/kaiketsu-labs/artifact-studio/commit/312ac55fef73bb64ae103295ec84228dd63d7c68))
+
 ## [0.3.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.0...v0.3.1) (2026-11-06)
 
 
