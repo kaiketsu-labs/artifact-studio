@@ -31,7 +31,7 @@ function fixture(options={}){
       observe(target){this.targets.push(target);}disconnect(){this.targets=[];}
     },
     fetch(key,{signal}){return new Promise((resolve,reject)=>{
-      const request={key,signal,settled:false,answer(response){this.settled=true;resolve(response);}};
+      const request={key,signal,settled:false,fail(){this.settled=true;reject(new Error("Network unavailable"));},answer(response){this.settled=true;resolve(response);}};
       requests.push(request);maxActive=Math.max(maxActive,requests.filter(item=>!item.settled).length);
       signal.addEventListener('abort',()=>{if(!options.ignoreAbort){request.settled=true;reject(new Error('Aborted'));}},{once:true});
     });},
@@ -140,10 +140,11 @@ test('renderer outages suppress cold requests and manual storms but keep saved p
   assert.equal(first.retry.disabled,true);assert.equal(cold.retry.disabled,true);
   f.loader.retry(url('first'));f.mount([first,cold,saved]);assert.equal(f.requests.length,2);
   f.requests[1].answer(png());await flush();assert.equal(saved.node.dataset.previewState,'ready');
-  await f.advance(30000);assert.equal(f.requests.at(-1).key,url('cold'));
+  await f.advance(30000);assert.equal(f.requests.at(-1).key,url('first'));
   f.requests.at(-1).answer(png());await flush();
-  assert.equal(first.retry.disabled,false);assert.equal(first.retry.hidden,false);
-  f.loader.retry(url('first'));assert.equal(f.requests.at(-1).key,url('first'));
+  assert.equal(first.node.dataset.previewState,'ready');
+  assert.equal(f.requests.at(-1).key,url('cold'));
+  f.requests.at(-1).answer(png());await flush();
   f.loader.destroy();await flush();
 });
 
@@ -214,4 +215,43 @@ test('hidden pages stop demand and only resume for the current viewport',async()
   f.document.hidden=false;f.listeners.get('visibilitychange')();assert.equal(f.requests.length,2);
   f.listeners.get('pagehide')();assert.equal(f.requests[1].signal.aborted,true);await flush();
   f.loader.destroy();assert.equal(f.listeners.size,0);
+});
+
+// A single infrastructure failure must not poison an exact cover identity forever.
+test('temporary cover failures recover automatically but repeated outages stay bounded',async()=>{
+  const f=fixture({retryLimit:2}),one=card(url());f.mount([one]);
+  for(let attempt=0;attempt<3;attempt++){
+    f.requests.at(-1).answer(result(503,'cover_unavailable','2'));await flush();
+    assert.equal(one.node.dataset.previewState,'unavailable');
+    await f.advance(1999);assert.equal(f.requests.length,attempt+1);
+    await f.advance(1);
+  }
+  assert.equal(f.requests.length,3,'Stop automatic retries after the configured recovery budget');
+  assert.equal(one.retry.disabled,false);
+  f.loader.retry(url());assert.equal(f.requests.length,4);
+  f.requests.at(-1).answer(png());await flush();assert.equal(one.node.dataset.previewState,'ready');
+  f.loader.destroy();
+});
+
+test('a temporary fetch failure recovers after cooldown without leaving the library',async()=>{
+  const f=fixture(),one=card(url());f.mount([one]);
+  f.requests[0].fail();await flush();
+  assert.equal(one.node.dataset.previewState,'unavailable');
+  await f.advance(29999);assert.equal(f.requests.length,1);
+  await f.advance(1);assert.equal(f.requests.length,2);
+  f.requests[1].answer(png());await flush();
+  assert.equal(one.node.dataset.previewState,'ready');
+  f.loader.destroy();
+});
+
+test('renderer setup instructions reach the existing retry tooltip and accessible description',async()=>{
+  const f=fixture(),one=card(url());f.mount([one]);
+  const message='Install the local renderer: uv run playwright install chromium --only-shell';
+  f.requests[0].answer(new Response(JSON.stringify({code:'renderer_unavailable',message}),{
+    status:503,headers:{'Content-Type':'application/json','Retry-After':'30'}
+  }));await flush();
+  assert.ok(one.retry.title.includes(message));
+  assert.ok(one.open.attributes['aria-description'].includes(message));
+  assert.equal(one.retry.disabled,true);
+  f.loader.destroy();
 });

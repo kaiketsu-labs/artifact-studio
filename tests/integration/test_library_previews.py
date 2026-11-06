@@ -5,6 +5,7 @@ import json
 import os
 from collections import Counter
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from PIL import Image
@@ -124,10 +125,10 @@ def test_search_and_sort_reuse_loaded_covers_without_repeated_requests(
         context.close()
 
 
-def test_renderer_failure_keeps_old_preview_and_explicit_retry_recovers(
+def test_renderer_failure_keeps_old_preview_and_automatically_recovers(
     live_app: RunningApp, browser: Browser, tmp_path: Path, artifacts: Path
 ) -> None:
-    """A failed replacement retains the saved image and never loops on search or sort."""
+    """A failed replacement retains the saved image and recovers after its cooldown."""
     project = gallery(live_app, tmp_path, count=1)
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page()
@@ -187,14 +188,69 @@ def test_renderer_failure_keeps_old_preview_and_explicit_retry_recovers(
         recovering = True
         expect(retry).to_be_disabled()
         page.clock.fast_forward(31_000)
-        expect(retry).to_be_enabled()
-        retry.focus()
-        retry.press("Enter")
         expect(retry).to_be_hidden()
         expect(page.locator("#hub-grid img")).to_be_visible()
         assert attempts == 2
         assert original_url is not None
         expect(page.locator("#hub-grid img")).not_to_have_attribute("src", original_url)
         _ = page.screenshot(path=str(artifacts / "preview-recovered.png"), full_page=True)
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("width", "height", "scheme"), [(1440, 1000, "light"), (390, 1000, "dark")]
+)
+def test_cold_library_cover_recovers_from_outage_with_real_renderer(
+    live_app: RunningApp, browser: Browser, tmp_path: Path, artifacts: Path,
+    width: int, height: int, scheme: Literal["light", "dark"],
+) -> None:
+    """Cold HTML and slide covers recover without opening, reloading or seeded images."""
+    _ = gallery(live_app, tmp_path, count=1)
+    context = browser.new_context(
+        viewport={"width": width, "height": height}, color_scheme=scheme
+    )
+    page = context.new_page()
+    attempts: Counter[str] = Counter()
+
+    def outage(route: Route) -> None:
+        attempts[route.request.url] += 1
+        if attempts[route.request.url] == 1:
+            route.fulfill(
+                status=503, content_type="application/json",
+                body=json.dumps({"code": "renderer_unavailable"}),
+                headers={"Retry-After": "3"},
+            )
+        else:
+            route.continue_()
+
+    page.route("**/api/hub/previews/**", outage)
+    try:
+        page.goto(live_app.url)
+        cards = [
+            page.locator("#hub-grid .hub-card").filter(
+                has=page.get_by_role("button", name=title, exact=True)
+            )
+            for title in [
+                "Open Preview 00, HTML page, Preview lab",
+                "Open CI workflow, Presentation, Presentations",
+            ]
+        ]
+        for card in cards:
+            expect(card).to_be_visible()
+        expect(cards[0]).to_have_attribute("data-preview-state", "unavailable")
+        _ = page.screenshot(path=str(artifacts / "cold-preview-before.png"), full_page=True)
+        dimensions: list[int] = []
+        for card in cards:
+            card.scroll_into_view_if_needed()
+            expect(card).to_have_attribute("data-preview-state", "ready", timeout=35000)
+            image = card.locator("img")
+            expect(image).to_be_visible()
+            dimensions.append(image.evaluate("node => node.naturalWidth"))
+        assert dimensions == [1280, 1600]
+        assert len(attempts) >= 2 and min(attempts.values()) >= 2
+        assert len(list((live_app.store.database.parent / "artifact-previews").glob("*.png"))) >= 2
+        page.evaluate("scrollTo(0, 0)")
+        _ = page.screenshot(path=str(artifacts / "cold-preview-after.png"), full_page=True)
     finally:
         context.close()
