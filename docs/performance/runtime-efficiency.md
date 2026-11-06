@@ -26,6 +26,8 @@ Python memory values are peak `tracemalloc` allocations, not total process RSS. 
 
 Backend timing rows use three local repetitions, navigation five. The capture/share and frontend profiles are single instrumented runs with deterministic fictional inputs; their timing differences are directional. [Raw evidence](runtime-efficiency-evidence.json) retains the detailed counters and methods. Source for the baseline is `2ccc1b3` / `7644722` (identical application code); the revised source is this change.
 
+A separate [17-phase browser/server session](runtime-session-results.md) exercises ordinary idle, library, owned HTML, editor, history, chat and design-dialog flows. The 20-slide editor used 22 → 10 browser frames and 1.11 → 0.73 seconds of browser CPU during loading. Ordinary idle remained similar. That report includes all phase results, limitations and a reproducible benchmark script.
+
 The New presentation dialog also skips hidden-page polling, prevents overlapping refreshes and removes design previews on close. An epoch guard prevents a late response from recreating closed previews. Draft text, attachments and design-reference flows remain intact. Visibility guards were exercised by a browser test override; physical backgrounding and native macOS energy usage were not measured.
 
 ## Coverage and behavior checks
