@@ -1068,6 +1068,30 @@
         "browser_RSS_sum_MiB": 477.2,
         "task_seconds": 0.89
       }
-    ]
+    ],
+    "project_zip_before": {
+      "seconds": 0.4178,
+      "peak_python_mib": 30.161,
+      "output_bytes": 8391800,
+      "archive_helper_calls_input_bytes": [
+        4194368,
+        4194368,
+        8388736
+      ],
+      "zip_member_writes": 8,
+      "total_zip_compression_input_bytes": 16777472,
+      "final_uncompressed_file_bytes": 8388736,
+      "final_entries": 4
+    },
+    "project_zip_after": {
+      "seconds": 0.2452,
+      "peak_python_mib": 18.117,
+      "output_bytes": 8391800,
+      "archive_helper_calls_input_bytes": [],
+      "zip_member_writes": 4,
+      "total_zip_compression_input_bytes": 8388736,
+      "final_uncompressed_file_bytes": 8388736,
+      "final_entries": 4
+    }
   }
 }

@@ -34,6 +34,8 @@ Library covers are saved locally and reused across reloads and app restarts. Cha
 
 The editor and Favorites load nearby slide previews and release offscreen or closed previews. Feedback polling, scoped agent reads and paused backups also avoid unnecessary work while retaining source verification and history. [Resource review, measurements and remaining opportunities](docs/performance/runtime-efficiency.md).
 
+For SageMaker Studio Code Editor, use the [single-worker setup and read-only resource diagnostic](docs/SAGEMAKER.md) to check the app against the space's actual container limits.
+
 | Artifact | Review it in its own format |
 | --- | --- |
 | Presentations | Slide thumbnails, element feedback, sections, notes, animations and a private presenter view. |

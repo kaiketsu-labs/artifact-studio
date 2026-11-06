@@ -21,12 +21,13 @@ This review follows the [persistent library-cover fix](library-preview-results.m
 | Unchanged full-backup scan of that fixture | 672 MiB; 549 ms | 352 MiB; 324 ms | Eliminate leaked temporary copies, retain all revisions |
 | Navigation marker lookup in a 32 MiB presentation | 64.1 MiB allocation | 0.25 MiB allocation | Stream until the marker, including split/late markers |
 | Three concurrent PDF requests, simulated browser lifecycle | Three simultaneous browsers | One | Share the existing render queue, cooldown and cleanup |
+| Project ZIP with two 4 MiB bundles | 16 MiB compressed; 30.2 MiB allocation | 8 MiB compressed; 18.1 MiB allocation | Compress members once, one verified artifact at a time |
 
 Python memory values are peak `tracemalloc` allocations, not total process RSS. Browser heap values are CDP measurements after explicit GC. Browser frame counts depend on viewport: a compact sorter showing all slides can legitimately keep all visible thumbnails mounted. CPU values are process time, not a claim about a particular laptop's battery life.
 
 Backend timing rows use three local repetitions, navigation five. The capture/share and frontend profiles are single instrumented runs with deterministic fictional inputs; their timing differences are directional. [Raw evidence](runtime-efficiency-evidence.json) retains the detailed counters and methods. Source for the baseline is `2ccc1b3` / `7644722` (identical application code); the revised source is this change.
 
-A separate [17-phase browser/server session](runtime-session-results.md) exercises ordinary idle, library, owned HTML, editor, history, chat and design-dialog flows. The 20-slide editor used 22 → 10 browser frames and 1.11 → 0.73 seconds of browser CPU during loading. Ordinary idle remained similar. That report includes all phase results, limitations and a reproducible benchmark script.
+A separate [17-phase browser/server session](runtime-session-results.md) exercises ordinary idle, library, owned HTML, editor, history, chat and design-dialog flows. The 20-slide editor used 22 → 10 browser frames and 1.11 → 0.73 seconds of browser CPU during loading. Ordinary idle remained similar. That report includes all phase results, limitations and a reproducible benchmark script. The later project-ZIP experiment took 0.418 → 0.245 seconds in one instrumented run and retained the same archive entries, order, exclusions and revision provenance; it is not a whole-session timing claim.
 
 The New presentation dialog also skips hidden-page polling, prevents overlapping refreshes and removes design previews on close. An epoch guard prevents a late response from recreating closed previews. Draft text, attachments and design-reference flows remain intact. Visibility guards were exercised by a browser test override; physical backgrounding and native macOS energy usage were not measured.
 
@@ -44,7 +45,7 @@ Healthy existing behavior includes ordinary library/editor visibility guards, hi
 
 | Area | Evidence and next step |
 | --- | --- |
-| Project ZIP sharing | Two 4 MiB bundles cause 16 MiB of compression input through ZIP/unzip/re-ZIP and about 30 MiB peak Python allocation. Stream one archive with an early size/concurrency budget, preserving exact paths and exclusions. |
+| Large project exports | Double compression and all-artifact retention are fixed. The final ZIP and one verified artifact snapshot still coexist in memory; further spooling needs an early size/concurrency budget and the same paths, exclusions and provenance. |
 | Contact sheets | Twelve slides sharing a 2 MiB image retain about 33 MiB of data-URL HTML and peak near 106 MiB before Chromium. Share verified request-local dependencies and prepare frames incrementally; preserve reveal states, viewport and stale-source checks. |
 | Independent immutable asset URLs | Twenty tiny URLs in a 32 MiB bundle still stream 640 MiB for whole-snapshot verification. A reusable integrity mechanism needs an explicit invalidation contract; a timestamp-only or TTL cache would weaken current tamper detection. |
 | History/design thumbnails | Some warm paths prepare source before finding their cache; reference thumbnails decode again. Apply content-keyed saved previews while preserving EXIF orientation, formats and same-size external-edit detection. |
@@ -53,3 +54,5 @@ Healthy existing behavior includes ordinary library/editor visibility guards, hi
 | Native controller and update | Source review: health every 2 s; navigation every 10 s with faster retries after errors; updates preserve a whole-environment rollback copy. Native CPU/energy and physical-device testing remain required before tuning these behaviors. |
 
 These are documented follow-up work, not claimed improvements. Active sync still hashes content to detect changes even when size and timestamps are preserved. No changes were made to billing, live port 8790, the signed Mac app or any user collection.
+
+For SageMaker Studio Code Editor, [the deployment guide](../SAGEMAKER.md) covers one worker, persistent EBS state and a read-only diagnostic for actual process-tree usage and visible container limits. Project-local editor settings exclude generated caches from file watching and search; no measured Code Editor memory reduction is claimed.
