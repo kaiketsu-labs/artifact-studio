@@ -310,7 +310,7 @@
     $('target-members').hidden=targets.length<2;
     $('target-members').innerHTML=targets.length>1?targets.map((target,index)=>`<span class="target-member" title="${escape(target.quote||target.label)}"><span>${escape(target.label)}</span><button type="button" data-remove-target="${index}" aria-label="Remove ${escape(target.label)} from selection" title="Remove from selection">${svg('close')}</button></span>`).join(''):'';
     $('select-parent').hidden=!selectedElement?.parentElement||selectedElement.parentElement.matches('body,html,.slide');
-    $('feedback-text').placeholder=targeted?'What should change here?':needsBrief()?'Audience, takeaway, key points or links…':'Message your agent…';
+    $('feedback-text').placeholder=targeted?'What should change here? Type @ to reference':needsBrief()?'Audience, takeaway or @reference…':'Message your agent… Type @ to reference';
   }
 
   /** Draw individual outlines; only a single complete anchor exposes manipulation controls. */
@@ -896,6 +896,7 @@
   /** Send chat messages with Enter while preserving multiline and composition input. */
   function bindMessageEnter(inputId,buttonId,send){$(inputId).addEventListener('keydown',event=>{if(event.key!=='Enter'||event.shiftKey||event.altKey||event.isComposing||event.keyCode===229)return;event.preventDefault();if(!event.repeat&&!$(buttonId).disabled)send();});}
   iconButton($('reference-slides'),'star','Reference favorite slides');
+  window.ChatReferences.register({inputId:'feedback-text',key,attach:files=>chatComposer.add(files)});
   $('reference-slides').addEventListener('click',()=>{const context=key();void window.FavoriteSlides.open({attach:files=>context===key()&&chatComposer.add(files)});});
   void window.FavoriteSlides.refresh().catch(error=>toast(error.message,true));
   bindMessageEnter('feedback-text','send-feedback',()=>$('feedback-form').requestSubmit());

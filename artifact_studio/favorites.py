@@ -104,7 +104,7 @@ class Favorites:
                 )
         return self.index()
 
-    def _descriptions(self) -> dict[str, str]:
+    def descriptions(self) -> dict[str, str]:
         """Read only human bookmark context, never presentation notes or agent guidance."""
         with self.store.connect() as db:
             return {
@@ -142,7 +142,7 @@ class Favorites:
 
     def slides(self) -> list[FavoriteSlide]:
         """Resolve bookmarks by stable IDs, keeping presentation order within each deck."""
-        descriptions = self._descriptions()
+        descriptions = self.descriptions()
         wanted = set(descriptions)
         result: list[FavoriteSlide] = []
         for item in self.store.list_decks():
@@ -186,11 +186,21 @@ class Favorites:
             )
         return document, digest(prepared.frame.render_hash + embedded)
 
-    def reference(self, deck_id: str, slide_id: str, expected: str) -> FileInput:
+    def selection_token(self, deck_id: str, slide_id: str) -> str:
+        """Pin any selected slide's current visual and optional favorite description."""
+        deck = self.store.read(deck_id)
+        slide = self.store.locate(deck, slide_id)
+        _, token = self._prepare(deck_id, slide, deck.slides.index(slide) + 1)
+        return self._reference_token(token, self.descriptions().get(deck_id + "/" + slide_id, ""))
+
+    def reference(
+        self, deck_id: str, slide_id: str, expected: str, *, require_favorite: bool = True
+    ) -> FileInput:
         """Freeze one chosen visual as an owned chat attachment, without private notes."""
-        description = self._descriptions().get(deck_id + "/" + slide_id)
-        if description is None:
+        description = self.descriptions().get(deck_id + "/" + slide_id)
+        if description is None and require_favorite:
             raise ValueError("This slide is no longer a favorite. Reopen Favorite slides.")
+        description = description or ""
         deck = self.store.read(deck_id)
         slide = self.store.locate(deck, slide_id)
         original_hash = self.store.content_hash(deck_id, slide)
@@ -216,9 +226,11 @@ class Favorites:
             1,
         )
         current = self.store.locate(self.store.read(deck_id), slide_id)
+        descriptions = self.descriptions()
         if (
             self.store.content_hash(deck_id, current) != original_hash
-            or self._descriptions().get(deck_id + "/" + slide_id) != description
+            or descriptions.get(deck_id + "/" + slide_id, "") != description
+            or (require_favorite and deck_id + "/" + slide_id not in descriptions)
         ):
             raise ValueError("This slide changed while attaching. Reopen Favorite slides.")
         data = document.encode()
