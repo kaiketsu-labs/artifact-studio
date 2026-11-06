@@ -11,6 +11,12 @@ Choose a suggestion to attach its saved context.
 - Hover over a suggestion for a preview next to the cursor. Keyboard selection
   shows the preview beside the list. Touch selection works without hover.
 
+Artifact and presentation previews reuse saved library covers. When a cover is
+being updated, the previous saved preview can stay visible; moving away or
+dismissing suggestions stops waiting for the update. Individual slides retain
+their live slide preview. The title and reference remain available if a cover
+cannot be rendered.
+
 The selected path is inserted into the message, with quotes added automatically
 for names containing spaces or punctuation. A reference chip shows what will be
 included. Remove it with its **×**. Repeating the same version in one message

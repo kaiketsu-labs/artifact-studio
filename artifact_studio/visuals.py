@@ -22,7 +22,7 @@ from pydantic import Field
 
 from .models import Slide, StrictModel
 from .projects import AssetEmbedder, root_tag
-from .renderer_health import renderer_status, sandboxed_browser
+from .renderer_health import check_renderer_available, renderer_status, sandboxed_browser
 from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .storage import SlideMarkup, Store, digest
 
@@ -96,7 +96,7 @@ def capture_queue_status(probe_renderer: bool = False) -> dict[str, object]:
     """Return queue occupancy and last launch status; explicitly probe without loading a deck."""
     if probe_renderer:
         try:
-            with render_slot(), sandboxed_browser(sync_playwright, force=True):
+            with _RENDER_QUEUE.slot(), sandboxed_browser(sync_playwright, force=True):
                 pass
         except ValueError as error:
             return {
@@ -144,7 +144,9 @@ class ReviewEmbedder(AssetEmbedder):
 @contextmanager
 def render_slot() -> Generator[int]:
     """Serialize preparation, rendering and persistence so concurrent requests stay bounded."""
+    check_renderer_available()
     with _RENDER_QUEUE.slot() as waited_ms:
+        check_renderer_available()
         yield waited_ms
 
 

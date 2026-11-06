@@ -140,6 +140,44 @@ def read_tree(folder: Path) -> dict[str, bytes]:
     return result
 
 
+def tree_inventory(folder: Path) -> list[ArtifactFile]:
+    """Verify owned bundle identity with bounded buffers instead of retaining every file."""
+    if folder.is_symlink() or not folder.is_dir():
+        raise ValueError("An artifact bundle must be a real directory.")
+    result: list[ArtifactFile] = []
+    total = 0
+    for path in sorted(folder.rglob("*")):
+        if path.is_symlink():
+            raise ValueError("Artifact bundles cannot contain symlinks.")
+        if path.is_dir():
+            continue
+        if not path.is_file():
+            raise ValueError("Artifact bundles contain only ordinary files.")
+        name = relative_path(path.relative_to(folder).as_posix())
+        if path.stat().st_size > MAX_FILE_SIZE:
+            raise ValueError("Keep individual artifact files at or below 50 MB.")
+        checksum = hashlib.sha256()
+        size = 0
+        with path.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                size += len(chunk)
+                total += len(chunk)
+                if size > MAX_FILE_SIZE or total > MAX_BUNDLE_SIZE:
+                    raise ValueError("Keep bundles below 300 MB and 5,000 files.")
+                checksum.update(chunk)
+        result.append(
+            ArtifactFile(
+                path=name,
+                size=size,
+                sha256=checksum.hexdigest(),
+                mime_type=mimetypes.guess_type(name)[0] or "application/octet-stream",
+            )
+        )
+        if len(result) > MAX_FILES:
+            raise ValueError("Keep bundles below 300 MB and 5,000 files.")
+    return result
+
+
 def write_tree(folder: Path, files: dict[str, bytes]) -> None:
     """Write already-validated bytes into a newly owned staging directory."""
     folder.mkdir(parents=True, exist_ok=False)
@@ -244,12 +282,14 @@ class ArtifactStore:
             raise ValueError("Keep the project brief at or below 100,000 characters.")
         return project.model_copy(update={"context": context, "context_hash": digest(context)})
 
-    def _presentations(self) -> list[dict[str, str]]:
+    def presentation_summaries(self) -> list[dict[str, str]]:
         """Keep registered design examples out of work listings without moving their files."""
         designs = {design.folder_id for design in self.store.designs(include_archived=True)}
         return [deck for deck in self.store.list_decks() if deck["id"] not in designs]
 
-    def list_projects(self) -> list[ProjectView]:
+    def list_projects(
+        self, *, presentations: list[dict[str, str]] | None = None
+    ) -> list[ProjectView]:
         """List briefs and counts while keeping the legacy collection virtual and in place."""
         with self.store.connect() as db:
             projects = [
@@ -266,7 +306,7 @@ class ArtifactStore:
                     "SELECT project_id,COUNT(*) FROM artifact_items GROUP BY project_id"
                 )
             }
-        for deck in self._presentations():
+        for deck in self.presentation_summaries() if presentations is None else presentations:
             project_id = bindings.get(deck["id"], LEGACY_PROJECT)
             counts[project_id] = counts.get(project_id, 0) + 1
         if counts.get(LEGACY_PROJECT):
@@ -476,13 +516,12 @@ class ArtifactStore:
         """Capture out-of-band working edits before reviewing or accepting another write."""
         manifest = ArtifactManifest.model_validate_json(cast(str, row["document"]))
         self._verify_snapshot(manifest)
-        files = read_tree(self._owned(self._folder(manifest) / "files"))
-        if manifest.entrypoint not in files:
+        folder = self._owned(self._folder(manifest) / "files")
+        inventory = tree_inventory(folder)
+        if manifest.entrypoint not in {item.path for item in inventory}:
             raise ConflictError("The artifact entrypoint is missing from its working source.")
-        if (
-            bundle_hash(file_inventory(files), manifest.entrypoint, manifest.kind)
-            != manifest.content_hash
-        ):
+        if bundle_hash(inventory, manifest.entrypoint, manifest.kind) != manifest.content_hash:
+            files = read_tree(folder)
             manifest = self._manifest(
                 artifact_id=manifest.id,
                 project_id=manifest.project_id,
@@ -502,7 +541,9 @@ class ArtifactStore:
 
     def _verify_snapshot(self, manifest: ArtifactManifest) -> None:
         """Detect direct snapshot tampering instead of silently blessing changed history."""
-        _ = self._snapshot_contents(manifest)
+        inventory = tree_inventory(self._snapshot(manifest))
+        if bundle_hash(inventory, manifest.entrypoint, manifest.kind) != manifest.content_hash:
+            raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
 
     def _snapshot_contents(self, manifest: ArtifactManifest) -> dict[str, bytes]:
         """Capture and verify snapshot bytes once for bounded downstream dependency reads."""
@@ -591,8 +632,16 @@ class ArtifactStore:
 
     def _legacy(self, artifact_id: str) -> ArtifactView:
         """Adapt legacy review identities without scanning asset bytes or imposing bundle limits."""
-        view = self.store.view(artifact_id, include_pending=False)
+        deck = self.store.read(artifact_id)
+        design_hash = self.store.visual_hash(artifact_id)
+        hashes = [
+            (slide.id, self.store.content_hash(artifact_id, slide, design_hash=design_hash))
+            for slide in deck.slides
+        ]
+        approved_hashes, seen_hashes = self.store.review_hashes(artifact_id)
         folder = self.store.folder(artifact_id)
+        context_file = folder / "README.md"
+        context = context_file.read_text() if context_file.exists() else ""
         files, files_complete, updated = legacy_inventory(folder)
         with self.store.connect() as db:
             row = db.execute(
@@ -620,28 +669,28 @@ class ArtifactStore:
         manifest = ArtifactManifest(
             id=artifact_id,
             project_id=project_id,
-            title=view.title,
+            title=deck.title,
             kind="presentation",
             entrypoint="index.html",
-            revision=max(slide.revision for slide in view.slides),
+            revision=max(slide.revision for slide in deck.slides),
             content_hash=digest(
                 json.dumps(
                     [
-                        view.title,
-                        view.design_hash,
-                        [(slide.id, slide.content_hash) for slide in view.slides],
+                        deck.title,
+                        design_hash,
+                        hashes,
                     ]
                 )
             ),
             files=files,
-            context=view.context_markdown,
-            context_hash=view.context_hash,
+            context=context,
+            context_hash=digest(context),
             original_source_path=str(folder),
             created_at=created_at,
             viewer_version="legacy-presentation",
         )
-        approved = all(slide.approved for slide in view.slides)
-        unseen = any(slide.has_unseen_changes for slide in view.slides)
+        approved = all(approved_hashes.get(identifier) == value for identifier, value in hashes)
+        unseen = any(seen_hashes.get(identifier) != value for identifier, value in hashes)
         return ArtifactView(
             **manifest.model_dump(),
             updated_at=updated_at,
@@ -677,7 +726,9 @@ class ArtifactStore:
             self._verify_snapshot(manifest)
             return self._view(db, manifest)
 
-    def list_artifacts(self, project_id: str = "") -> list[ArtifactView]:
+    def list_artifacts(
+        self, project_id: str = "", *, presentations: list[dict[str, str]] | None = None
+    ) -> list[ArtifactView]:
         """List work without reusable design examples, source bodies or feedback."""
         with self.store.connect() as db:
             if project_id:
@@ -686,7 +737,10 @@ class ArtifactStore:
                 cast(str, row[0]) for row in db.execute("SELECT id FROM artifact_items ORDER BY id")
             ]
         items = [self.get_artifact(artifact_id) for artifact_id in ids]
-        items.extend(self._legacy(deck["id"]) for deck in self._presentations())
+        items.extend(
+            self._legacy(deck["id"])
+            for deck in (self.presentation_summaries() if presentations is None else presentations)
+        )
         return [item for item in items if not project_id or item.project_id == project_id]
 
     def resolve_file(self, artifact_id: str, path: str, revision: int | None = None) -> Path:

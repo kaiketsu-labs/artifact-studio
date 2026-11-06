@@ -11,6 +11,7 @@ from artifact_studio.artifact_models import ArtifactFeedbackInput, ArtifactFileI
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.chat_references import ChatReferences, ReferenceRequest
 from artifact_studio.favorites import DescriptionInput, StarInput
+from artifact_studio.hub_previews import cover_metadata, cover_path, cover_token, cover_url
 from artifact_studio.models import Slide, SlidePatch
 from artifact_studio.storage import ConflictError, Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -61,6 +62,72 @@ def test_catalog_is_small_and_duplicate_paths_keep_distinct_ids(references: Chat
     assert str(references.store.root) not in serialized
 
 
+@pytest.mark.parametrize("kind", ["artifact", "presentation"])
+def test_reference_covers_share_exact_cache_identity_without_changing_frozen_context(
+    references: ChatReferences, kind: str
+) -> None:
+    entry = next(entry for entry in references.catalog() if entry.kind == kind)
+    item = references.artifacts.get_artifact(entry.artifact_id)
+    token = cover_token(references.store, item)
+    assert entry.preview_url == cover_url(item.id, token)
+    assert token != item.content_hash
+    assert not entry.preview_cached and entry.preview_renderer
+    before = references.prepare(request(entry))
+    path = cover_path(references.store, item.id, token)
+    path.parent.mkdir(exist_ok=True)
+    _ = path.write_bytes(b"cached fixture cover")
+    cached = next(
+        value
+        for value in references.catalog()
+        if value.kind == kind and value.artifact_id == item.id
+    )
+    assert cached.preview_cached and cached.token == entry.token
+    assert cached.preview_url == entry.preview_url
+    after = references.prepare(request(cached))
+    if kind == "presentation":
+        marker = 'id="artifact-studio-workspace-reference">'
+        metadata = [
+            base64.b64decode(prepared.file.data_base64)
+            .decode()
+            .split(marker, 1)[1]
+            .split("</script>", 1)[0]
+            for prepared in (before, after)
+        ]
+        assert metadata[0] == metadata[1]
+        assert '"preview_' not in metadata[0]
+    else:
+        assert after.file == before.file
+
+
+def test_reference_covers_expose_saved_fallback_for_a_changed_artifact(
+    references: ChatReferences,
+) -> None:
+    entry = next(entry for entry in references.catalog() if entry.kind == "artifact")
+    item = references.artifacts.get_artifact(entry.artifact_id)
+    token = cover_token(references.store, item)
+    path = cover_path(references.store, item.id, token)
+    path.parent.mkdir(exist_ok=True)
+    _ = path.write_bytes(b"saved fixture cover")
+    _ = (path.parent / f"last-{item.id}.json").write_text(json.dumps({"token": token}))
+    changed = references.artifacts.revise_artifact(
+        item.id,
+        [ArtifactFileInput(path="app.js", text="window.changed=true")],
+        item.revision,
+        "reference-cover-revision",
+    )
+    current = next(
+        value
+        for value in references.catalog()
+        if value.kind == "artifact" and value.artifact_id == item.id
+    )
+    assert current.model_dump(
+        include={"preview_url", "preview_fallback_url", "preview_cached"}
+    ) == cover_metadata(references.store, changed)
+    assert current.preview_url != entry.preview_url
+    assert current.preview_fallback_url == entry.preview_url
+    assert not current.preview_cached
+
+
 def test_project_reference_freezes_only_brief_and_index(references: ChatReferences) -> None:
     entry = next(
         entry
@@ -75,6 +142,7 @@ def test_project_reference_freezes_only_brief_and_index(references: ChatReferenc
     assert "Artifact source" not in json.dumps(content)
     assert content["project_id"] == entry.project_id
     assert content["path"] == entry.path
+    assert not any(key.startswith("preview_") for key in content)
 
 
 def test_artifact_reference_retains_dependencies_and_excludes_notes(
@@ -90,6 +158,7 @@ def test_artifact_reference_retains_dependencies_and_excludes_notes(
     assert content["files"][-1]["path"] == "image.png"
     assert any(file.get("text") == "window.frozen='original'" for file in content["files"])
     assert content["context"] == "Artifact context"
+    assert not any(key.startswith("preview_") for key in content)
     _ = references.artifacts.revise_artifact(
         entry.artifact_id,
         [ArtifactFileInput(path="app.js", text="new source")],
@@ -128,6 +197,7 @@ def test_unstarred_slide_and_presentation_keep_audience_dependencies(
         assert "PRIVATE SPEAKER NOTES" not in document
         assert "document.body.dataset.frozen" in document
         assert 'src=\\"assets/widget.js\\"' not in document
+        assert '"preview_' not in document
     assert not references.favorites.index()["slides"]
 
 
