@@ -93,7 +93,7 @@ jobs:
               tests/integration/test_artifact_workspace.py tests/integration/test_artifact_sorting.py tests/integration/test_snapshot_inventory.py tests/integration/test_element_properties.py
               tests/integration/test_element_properties_layout.py tests/integration/test_native_sharing.py tests/integration/test_hub_context_menus.py
               tests/integration/test_version_recovery.py tests/integration/test_voice_input.py tests/integration/test_voice_hub.py
-              tests/integration/test_full_backup_ui.py tests/integration/test_library_previews.py tests/integration/test_favorites.py tests/integration/test_favorite_preview_lifecycle.py tests/integration/test_chat_references.py
+              tests/integration/test_full_backup_ui.py tests/integration/test_library_previews.py tests/integration/test_favorites.py tests/integration/test_favorite_preview_lifecycle.py tests/integration/test_chat_references.py tests/integration/test_reference_pill_previews.py
               tests/integration/test_artifact_downloads.py tests/integration/test_project_tree.py tests/integration/test_sharing_workspace.py
               tests/integration/test_ui_contrast.py tests/integration/test_accessible_labels.py tests/integration/test_marquee_export.py
               tests/integration/test_presentation_authoring.py tests/integration/test_agent_workflow_gaps.py
