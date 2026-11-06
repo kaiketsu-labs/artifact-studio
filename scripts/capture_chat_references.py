@@ -9,6 +9,7 @@ from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
 
+from artifact_studio.artifacts import ArtifactStore
 from scripts.preview_favorites import prepare_covers, seed_favorites
 from tests.integration.support import DECK_ID, PROJECT, running_app
 
@@ -61,6 +62,26 @@ def main() -> None:
             expect(page.locator(".is-path-reference")).to_have_count(2)
             page.mouse.move(1, 1)
             capture("chat-reference-chips.png")
+            text.press("Enter")
+            expect(page.locator("#feedback-list .is-path-reference")).to_have_count(2)
+            capture("chat-reference-sent.png")
+            item = next(
+                item
+                for item in ArtifactStore(app.store).list_artifacts()
+                if item.title == "Launch brief"
+            )
+            page.emulate_media(color_scheme="dark")
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.goto(f"{app.url}/?artifact={item.id}")
+            text = page.locator("#hub-feedback-text")
+            text.fill("Compare @Research notes")
+            expect(
+                page.get_by_role("listbox", name="Workspace references").get_by_role("option")
+            ).to_have_count(1)
+            text.press("Tab")
+            expect(page.locator("form .is-path-reference")).to_have_count(1)
+            text.press_sequentially("with this direction.")
+            capture("chat-reference-artifact-mobile.png")
             browser.close()
     _ = (output / "chat-reference-captures.json").write_text(json.dumps(captures, indent=2) + "\n")
 

@@ -70,6 +70,25 @@ def file_inventory(files: dict[str, bytes]) -> list[ArtifactFile]:
     ]
 
 
+def _retained_mime_types(
+    inventory: list[ArtifactFile], retained: list[ArtifactFile]
+) -> list[ArtifactFile]:
+    """Keep saved interpretation for known paths across host MIME registry differences."""
+    types = {item.path: item.mime_type for item in retained}
+    return [
+        item.model_copy(update={"mime_type": types[item.path]}) if item.path in types else item
+        for item in inventory
+    ]
+
+
+def _snapshot_matches(manifest: ArtifactManifest, inventory: list[ArtifactFile]) -> bool:
+    """Check bytes and saved metadata without reinterpreting MIME on this host."""
+    return (
+        bundle_hash(manifest.files, manifest.entrypoint, manifest.kind) == manifest.content_hash
+        and _retained_mime_types(inventory, manifest.files) == manifest.files
+    )
+
+
 def legacy_inventory(folder: Path) -> tuple[list[ArtifactFile], bool, float]:
     """Bound legacy discovery to file stats, skipping links without changing existing files."""
     inventory: list[ArtifactFile] = []
@@ -399,9 +418,12 @@ class ArtifactStore:
         context: str,
         original_source_path: str,
         storage_project_id: str = "",
+        retained_files: list[ArtifactFile] | None = None,
     ) -> ArtifactManifest:
         """Build a dependency-complete identity and flag potentially mutable remote inputs."""
         inventory = file_inventory(files)
+        if retained_files is not None:
+            inventory = _retained_mime_types(inventory, retained_files)
         remote = sorted(
             {
                 url
@@ -521,7 +543,7 @@ class ArtifactStore:
         manifest = ArtifactManifest.model_validate_json(cast(str, row["document"]))
         self._verify_snapshot(manifest)
         folder = self._owned(self._folder(manifest) / "files")
-        inventory = tree_inventory(folder)
+        inventory = _retained_mime_types(tree_inventory(folder), manifest.files)
         if manifest.entrypoint not in {item.path for item in inventory}:
             raise ConflictError("The artifact entrypoint is missing from its working source.")
         if bundle_hash(inventory, manifest.entrypoint, manifest.kind) != manifest.content_hash:
@@ -537,6 +559,7 @@ class ArtifactStore:
                 context=manifest.context,
                 original_source_path=manifest.original_source_path,
                 storage_project_id=manifest.storage_project_id,
+                retained_files=manifest.files,
             )
             self._save_snapshot(manifest, files)
             self._record(db, manifest)
@@ -546,16 +569,13 @@ class ArtifactStore:
     def _verify_snapshot(self, manifest: ArtifactManifest) -> None:
         """Detect direct snapshot tampering instead of silently blessing changed history."""
         inventory = tree_inventory(self._snapshot(manifest))
-        if bundle_hash(inventory, manifest.entrypoint, manifest.kind) != manifest.content_hash:
+        if not _snapshot_matches(manifest, inventory):
             raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
 
     def _snapshot_contents(self, manifest: ArtifactManifest) -> dict[str, bytes]:
         """Capture and verify snapshot bytes once for bounded downstream dependency reads."""
         files = read_tree(self._snapshot(manifest))
-        if (
-            bundle_hash(file_inventory(files), manifest.entrypoint, manifest.kind)
-            != manifest.content_hash
-        ):
+        if not _snapshot_matches(manifest, file_inventory(files)):
             raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
         return files
 
@@ -1006,6 +1026,7 @@ class ArtifactStore:
                     context=current.context,
                     original_source_path=current.original_source_path,
                     storage_project_id=current.storage_project_id,
+                    retained_files=selected.files,
                 )
                 if manifest.content_hash != current.content_hash or restore_revision is not None:
                     self._save_snapshot(manifest, contents)

@@ -31,6 +31,7 @@
       if(record.visible && entry){image.src=entry.url;record.loadedKey=record.key;}
       else if(record.visible && record.loadedKey!==record.key && fallback){image.src=fallback.url;record.loadedKey=record.fallback;}
       const painted=!!record.loadedKey,current=record.loadedKey===record.key;
+      const diagnostic=failure?.code==='renderer_unavailable'?failure.message || '':'';
       let state=current?'ready':'pending';
       if(!current){
         if(failure && !failure.transient || rendererBlocked(record))state='unavailable';
@@ -42,13 +43,13 @@
       if(card)card.dataset.previewState=state;
       if(label){label.hidden=!painted || current;label.textContent=state==='unavailable'?'Earlier preview':'Updating preview';}
       if(open){
-        const description=state==='unavailable'?(painted?'Showing an earlier saved preview.':'Preview temporarily unavailable.')+' You can still open this artifact.':painted&&!current?'Showing an earlier saved preview while the current version updates.':'';
+        const description=state==='unavailable'?(painted?'Showing an earlier saved preview.':'Preview temporarily unavailable.')+' You can still open this artifact.'+(diagnostic?' '+diagnostic:''):painted&&!current?'Showing an earlier saved preview while the current version updates.':'';
         description?open.setAttribute('aria-description',description):open.removeAttribute('aria-description');
       }
       if(button){
         button.hidden=state!=='unavailable';
         button.disabled=rendererBlocked(record) || (failure?.retryAt || 0)>now();
-        button.title=button.disabled?'Preview temporarily unavailable. You can still open this artifact.':'Retry preview';
+        button.title=(button.disabled?'Preview temporarily unavailable. You can still open this artifact.':'Retry preview')+(diagnostic?' '+diagnostic:'');
       }
     }
     function paintAll(){for(const record of records.values())paint(record);}
@@ -60,7 +61,7 @@
         for(const [key,isFallback] of [[record.fallback,true],[record.key,false]]){
           if(!key || record.loadedKey===key || isFallback && record.loadedKey===record.key || cache.has(key) || active.has(key))continue;
           const failure=failures.get(key);
-          if(failure && (!failure.transient || failure.retryAt>now()))continue;
+          if(failure && (!failure.transient && !failure.recoverable || failure.retryAt>now()))continue;
           if(!isFallback && rendererBlocked(record))continue;
           const candidate={key,record,priority:distance(record)+(isFallback?-1:0)},existing=unique.get(key);
           if(!existing || candidate.priority<existing.priority)unique.set(key,candidate);
@@ -114,21 +115,23 @@
     }
     async function load(key){
       const controller=new view.AbortController(),job={controller,timedOut:false};active.set(key,job);
-      const timeout=setTimer(()=>{job.timedOut=true;controller.abort();},45000);let objectURL=null;
+      const timeout=setTimer(()=>{job.timedOut=true;controller.abort();},45000);let objectURL=null,responseReceived=false;
       try{
         const response=await view.fetch(key,{signal:controller.signal,credentials:'same-origin',headers:{Accept:'image/png'}});
+        responseReceived=true;
         if(controller.signal.aborted)return;
         if(response.status===202 || !response.ok){
-          let code='';try{code=(await response.json()).code || '';}catch{}
+          let code='',message='';try{const result=await response.json();code=result.code || '';if(code==='renderer_unavailable' && typeof result.message==='string')message=result.message.slice(0,500);}catch{}
           if(controller.signal.aborted)return;
-          const attempts=(failures.get(key)?.attempts || 0)+1;
+          const attempts=(failures.get(key)?.attempts || 0)+1,recoveries=failures.get(key)?.recoveries || 0;
           const pendingSince=failures.get(key)?.pendingSince ?? now();
           if(response.status===202 && ((code==='cover_pending' && now()-pendingSince<120000) || (code==='cover_busy' && attempts<=retryLimit))){
             const delay=Math.max(retryAfter(response,1000),Math.min(code==='cover_pending'?5000:15000,1000*2**(attempts-1)));
-            remember(key,{transient:true,retryAt:now()+delay,attempts,pendingSince});
+            remember(key,{transient:true,retryAt:now()+delay,attempts,pendingSince,recoveries});
           }else{
             const delay=response.status>=500?retryAfter(response,30000):0;
-            remember(key,{transient:false,retryAt:now()+delay,attempts,code});
+            // Temporary host failures recover after their cooldown without requiring a grid rebuild.
+            remember(key,{transient:false,recoverable:response.status>=500 && recoveries<retryLimit,recoveries:recoveries+1,retryAt:now()+delay,attempts,code,message});
             if(code==='renderer_unavailable')blockedUntil=Math.max(blockedUntil,now()+retryAfter(response,30000));
             if(code==='cover_changed' && !changed.has(key) && [...records.values()].some(record=>record.key===key)){changed.add(key);while(changed.size>256)changed.delete(changed.values().next().value);void Promise.resolve().then(onChanged).catch(()=>{});}
           }
@@ -143,7 +146,10 @@
         for(const record of records.values())if(record.key===key || record.fallback===key)paint(record);
         trim();
       }catch{
-        if(!controller.signal.aborted || job.timedOut)remember(key,{transient:false,retryAt:now()+30000,attempts:1});
+        if(!controller.signal.aborted || job.timedOut){
+          const recoveries=(failures.get(key)?.recoveries || 0)+1;
+          remember(key,{transient:false,recoverable:(!responseReceived || job.timedOut) && recoveries<=retryLimit,recoveries,retryAt:now()+30000,attempts:1});
+        }
       }finally{
         if(objectURL)view.URL.revokeObjectURL(objectURL);
         clearTimer(timeout);

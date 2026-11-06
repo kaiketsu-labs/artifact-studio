@@ -69,6 +69,47 @@ class PortableWorkspace(StrictModel):
     default_design: str = ""
 
 
+def portable_source_metadata(relative: str, source: Path) -> bytes | None:
+    """Normalize only reserved current-source metadata, never authored files or history."""
+    parts = list(Path(relative).parts)
+    project = len(parts) == 3 and parts[0] == "projects" and parts[2] == "project.json"
+    artifact = (
+        len(parts) == 5
+        and parts[0] == "projects"
+        and parts[2] == "artifacts"
+        and parts[4] == "artifact.json"
+    )
+    if not (relative == PORTABLE_METADATA or project or artifact):
+        return None
+    if source.stat().st_size > MAX_METADATA_BYTES:
+        return None
+    try:
+        content = source.read_bytes()
+        if project:
+            metadata = ProjectView.model_validate_json(content, strict=True)
+            if metadata.id != parts[1]:
+                return None
+            # README.md is authoritative; recovery rebuilds these cached view fields.
+            document = metadata.model_dump(
+                exclude={"source_path", "context", "context_hash", "artifact_count"}
+            )
+        elif artifact:
+            manifest = ArtifactManifest.model_validate_json(content, strict=True)
+            if (
+                manifest.id != parts[3]
+                or (manifest.storage_project_id or manifest.project_id) != parts[1]
+            ):
+                return None
+            document = manifest.model_dump(exclude={"original_source_path"})
+        else:
+            portable = PortableWorkspace.model_validate_json(content, strict=True)
+            document = portable.model_dump(exclude={"source_root"})
+    except ValueError:
+        # Unknown schemas and extra fields must not disappear during migration.
+        return None
+    return (json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode()
+
+
 class RecoveryFile(StrictModel):
     """One portable destination referencing a deduplicated, verified archive object."""
 

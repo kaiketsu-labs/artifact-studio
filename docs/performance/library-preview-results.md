@@ -42,7 +42,7 @@ Request-scoped reuse of legacy presentation summaries avoids duplicate discovery
 ## Operational behavior
 
 - Covers are disposable derived files in `artifact-previews/` beside the workspace database, separate from the synced source artifacts. Successful images survive server restarts. The cache retains at most 256 PNGs and 128 MiB, pruning least recently used entries; an individual generated cover is limited to 8 MiB.
-- One background worker handles capture, with capacity for eight queued identities. Duplicate requests share pending work. HTTP 202 returns promptly while the browser polls; known failures observe a 30-second cooldown. Cached covers remain available during a renderer outage.
+- One background worker handles capture, with capacity for eight queued identities. Duplicate requests share pending work. HTTP 202 returns promptly while the browser polls; known failures observe a 30-second cooldown. Temporary server and network failures automatically retry up to six times, respecting that cooldown, before requiring manual retry. Cached covers remain available during a renderer outage. Renderer setup messages appear in the retry tooltip and accessible description.
 - URLs identify an exact visual version. When content changes, the last successful image remains visible until its replacement is ready. Dependency bytes are streamed to detect external edits without retaining entire assets in memory.
 - Capture geometry remains 1280 × 800 for HTML/Markdown/SVG artifacts and the full 1600 × 900 slide viewport for presentations. Raster images use Pillow with a maximum dimension of 1280. Authored HTML/CSS/JavaScript and source documents retain their existing behavior and quality.
 - The benchmark starts only isolated loopback servers. These measurements do not deploy the change or restart the live application.
@@ -58,6 +58,19 @@ Three fresh Terra reviewers exercised desktop and mobile browsing, search/sort, 
 The real raster backend was exercised through creation, a source revision, a mixed-library renderer outage, and a server restart. Browser failure states used fictional PNG responses; these screenshots show the implemented UI, not proof of rendered HTML fidelity. The automated sandboxed-renderer tests cover that separate requirement.
 
 [Mobile saved preview](screenshots/library-mobile.png) · [Desktop dark saved preview](screenshots/library-desktop-dark.png)
+
+## Temporary failure recovery
+
+The follow-up regression checks start with no saved covers, inject one renderer outage,
+then send retries to the real background renderer. Both HTML and legacy presentation
+covers appear without opening or reloading the artifact. Separate tests bound repeated
+failures and keep the earlier image during a failed replacement. Two fresh Terra reviews
+exercised desktop light and narrow dark browsing, automatic recovery and keyboard retry.
+The renderer diagnostic was also checked as plain text in the tooltip and accessible
+description. These Linux checks do not establish renderer availability on another host.
+
+[Real cold covers, desktop light](screenshots/cold-preview-recovery-light.png) ·
+[Real cold covers, narrow dark](screenshots/cold-preview-recovery-dark.png)
 
 ## Reproduce
 

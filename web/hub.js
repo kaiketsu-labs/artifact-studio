@@ -478,6 +478,7 @@
     const author=message.author || message.role || 'user', user=author==='user', target=message.target, targets=target?.kind==='group'?target.elements:[target].filter(Boolean);
     const date=message.created_at?new Date(message.created_at):null;
     const files=(message.files || []).map(file=>{
+      const reference=root.ChatReferences?.sent(file,'hub-attachment');if(reference)return reference;
       const image=chatImages.sent(file);if(image)return image;
       const url=file.download_url;
       return typeof url==='string' && /^\/api\/artifacts\//.test(url)?`<a class="hub-attachment" href="${escape(url)}" download>${icon('attach')}<span>${escape(file.name || file.path)}</span></a>`:`<span class="hub-attachment">${icon('attach')}<span>${escape(file.name || file.path)}</span></span>`;

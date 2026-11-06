@@ -30,7 +30,8 @@
 .workspace-panel-toggle .ui-icon{width:16px;height:16px}
 
 /* Keep navigation compact and reserve a separate place for the sidebar control. */
-@media(min-width:651px){.hub-sidebar{padding-top:35px}.hub-sidebar>button[data-project]{margin:1px 0;padding:8px 9px;border:0;border-radius:6px;background:transparent}.hub-sidebar>button[data-project][aria-current=true]{background:var(--hub-soft)}}
+.hub-sidebar{padding-top:35px}
+@media(min-width:651px){.hub-sidebar>button[data-project]{margin:1px 0;padding:8px 9px;border:0;border-radius:6px;background:transparent}.hub-sidebar>button[data-project][aria-current=true]{background:var(--hub-soft)}}
 body:has(.hub-layout) .workspace-panel-toggle.panel-left{top:69px;width:26px;height:26px;border:0;background:transparent;color:var(--hub-muted)}
 body:has(.hub-layout) .workspace-panel-toggle.panel-left:hover{background:var(--hub-hover);color:var(--hub-ink)}
 

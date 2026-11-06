@@ -81,7 +81,7 @@ def test_repeat_sync_and_remote_conflict(library_setup: tuple[Libraries, Path]) 
     recovered_metadata = PortableWorkspace.model_validate_json(
         command("git", "--git-dir", str(remote), "show", f"main:{PORTABLE_METADATA}")
     )
-    assert recovered_metadata.source_root == str(libraries.store.root)
+    assert recovered_metadata.source_root == ""
     second = libraries.sync(library.id)
     assert second.files_changed == 0 and second.commit == first.commit
     local = libraries.store.root / "2026-10-28-example/index.html"

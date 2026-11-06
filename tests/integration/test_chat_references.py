@@ -37,9 +37,9 @@ def test_keyboard_paths_and_reference_message_delivery(page: Page, prepared: Run
     # Keyboard browse a project without attaching it; Enter chooses the resulting artifact.
     row = options.get_by_role("option", name="/Fieldnotes", exact=True)
     row.hover()
-    text.press("Tab")
+    text.press("ArrowRight")
     expect(text).to_have_value("Use @/Fieldnotes/")
-    text.press("Enter")
+    text.press("Tab")
     expect(page.locator(".is-path-reference")).to_have_count(1)
     expect(text).to_be_focused()
     assert not prepared.store.comments(DECK_ID)
@@ -54,14 +54,15 @@ def test_keyboard_paths_and_reference_message_delivery(page: Page, prepared: Run
     expect(page.locator(".is-path-reference")).to_have_count(2)
     text.press_sequentially("for layout")
     text.press("Enter")
-    expect(page.locator(".is-path-reference")).to_have_count(0)
+    expect(page.locator("form .is-path-reference")).to_have_count(0)
     event = prepared.store.comments(DECK_ID)[-1]
     assert len(event.files) == 2
     assert "for layout" in event.message
     assert "reference" in event.files[0].name and "artifact-" not in event.files[0].name
     assert "Clear three-step process." in Path(event.files[1].path).read_text()
     page.reload()
-    expect(page.locator("#feedback-list")).to_contain_text(event.files[0].name)
+    expect(page.locator("#feedback-list .is-path-reference")).to_have_count(2)
+    assert '@"/' not in event.message
 
 
 def test_hover_preview_tracks_cursor_and_clamps_to_viewport(
@@ -253,8 +254,9 @@ def test_artifact_hover_keeps_saved_cover_and_loads_cached_cover_during_renderer
         expect(preview.locator("img")).to_have_attribute("src", saved_url)
         page.clock.fast_forward(31_000)
         page.wait_for_timeout(100)
-        assert requests[current] == 1
+        assert requests[current] == 2
         assert requests[prepared.url + fallback] == 1
+        expect(preview.locator("img")).to_have_attribute("src", saved_url)
         assert not errors, errors
     finally:
         context.close()
@@ -287,16 +289,14 @@ def test_touch_native_artifact_reference_keeps_focus_and_saved_context(
         expect(text).to_be_focused()
         assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
         page.locator("#hub-send").tap()
-        expect(page.locator(".is-path-reference")).to_have_count(0)
+        expect(page.locator("form .is-path-reference")).to_have_count(0)
         event = ArtifactStore(prepared.store).feedback(item.id, include_pending=True)[-1]
         assert len(event.files) == 2
         assert json.loads(Path(event.files[1].path).read_text())["scope"].startswith(
             "Project brief"
         )
         page.reload()
-        expect(page.locator("#hub-thread")).to_contain_text(
-            "Research notes - artifact reference.json"
-        )
+        expect(page.locator("#hub-thread")).to_contain_text("Research notes")
     finally:
         context.close()
 
@@ -315,8 +315,91 @@ def test_path_browsing_handles_slashes_quotes_and_at_signs(
     text.fill("Use @Research")
     options = page.get_by_role("listbox", name="Workspace references")
     options.get_by_role("option", name="/" + project.title, exact=True).hover()
-    text.press("Tab")
+    text.press("ArrowRight")
     expect(options.get_by_role("option")).to_have_count(1)
     text.press("Enter")
     expect(page.locator(".is-path-reference")).to_contain_text("Exact source")
-    assert json.loads(text.input_value().removeprefix("Use @").strip()).endswith("/Exact source")
+    expect(text).to_have_value("Use ")
+
+
+@pytest.mark.parametrize("composer", ["presentation", "artifact"])
+def test_tab_attaches_highlighted_title_pill_and_keeps_prose(
+    page: Page, prepared: RunningApp, composer: str
+) -> None:
+    """Both chats attach the highlighted item, remove pills and deliver frozen references."""
+    item = next(
+        item
+        for item in ArtifactStore(prepared.store).list_artifacts()
+        if item.title == "Launch brief"
+    )
+    presentation = composer == "presentation"
+    page.goto(
+        f"{prepared.url}/?deck={DECK_ID}#workflow"
+        if presentation
+        else f"{prepared.url}/?artifact={item.id}"
+    )
+    text = page.locator("#feedback-text" if presentation else "#hub-feedback-text")
+    text.fill("Compare @Fieldnotes")
+    options = page.get_by_role("listbox", name="Workspace references")
+    expect(options.get_by_role("option")).not_to_have_count(0)
+    text.press("ArrowDown")
+    selected = options.locator('[aria-selected="true"]')
+    title = selected.locator("strong").inner_text()
+    text.press("Tab")
+    pill = page.locator("form .is-path-reference")
+    expect(pill).to_have_count(1)
+    expect(pill.locator(".chat-file-name")).to_have_text(title)
+    expect(pill.locator("small,img,iframe")).to_have_count(0)
+    expect(text).to_have_value("Compare ")
+    expect(text).to_be_focused()
+    pill.get_by_role("button").click()
+    expect(pill).to_have_count(0)
+    expect(text).to_have_value("Compare ")
+    text.fill("Compare @Brand direction")
+    expect(options.get_by_role("option")).to_have_count(1)
+    text.press("Enter")
+    expect(pill).to_have_count(1)
+    text.press_sequentially("with the current draft.")
+    text.press("Enter")
+    expect(pill).to_have_count(0)
+    event = (
+        prepared.store.comments(DECK_ID)[-1]
+        if presentation
+        else ArtifactStore(prepared.store).feedback(item.id, include_pending=True)[-1]
+    )
+    assert event.message == "Compare with the current draft."
+    assert len(event.files) == 1
+    frozen = json.loads(Path(event.files[0].path).read_text())
+    assert frozen["title"] == "Brand direction"
+    page.reload()
+    sent = page.locator("#feedback-list" if presentation else "#hub-thread")
+    expect(sent.locator(".is-path-reference")).to_have_text("@Brand direction")
+    expect(sent).not_to_contain_text('@"/')
+    expect(sent).not_to_contain_text(" - artifact reference.json")
+
+
+@pytest.mark.parametrize("width", [320, 390])
+def test_narrow_artifact_sidebar_and_chat_controls_are_independently_clickable(
+    page: Page,
+    prepared: RunningApp,
+    width: int,
+) -> None:
+    """Wrapped headers and full-width sidebars must not put both toggles in one corner."""
+    page.set_viewport_size({"width": width, "height": 844})
+    item = next(
+        item
+        for item in ArtifactStore(prepared.store).list_artifacts()
+        if item.title == "Launch brief"
+    )
+    page.goto(f"{prepared.url}/?artifact={item.id}")
+    sidebar = page.get_by_role("button", name="Close sidebar", exact=True)
+    chat = page.get_by_role("button", name="Close chat", exact=True)
+    expect(sidebar).to_be_visible()
+    expect(chat).to_be_visible()
+    sidebar.click()
+    page.get_by_role("button", name="Open sidebar", exact=True).click()
+    chat.click()
+    page.get_by_role("button", name="Open chat", exact=True).click()
+    expect(sidebar).to_be_visible()
+    expect(chat).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")

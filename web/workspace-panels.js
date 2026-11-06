@@ -35,7 +35,11 @@
         handle.setAttribute('aria-valuenow', String(width));
         handle.setAttribute('aria-valuetext', `${side === 'left' ? 'Sidebar' : 'Chat'} width ${width} pixels`);
         handle.style.left = `${(side === 'left' ? rect.right : rect.left) - 4}px`;
-        if (kind === 'hub' && side === 'left') controls.left.style.left = `${state.left ? 8 : Math.max(8, rect.right - 32)}px`;
+        if (kind === 'hub') {
+          const top = doc.querySelector('.hub-top')?.getBoundingClientRect().bottom || 64;
+          controls[side].style.top = `${Math.max(69,top + 5)}px`;
+          if (side === 'left') controls.left.style.left = `${state.left || view.innerWidth <= 650 ? 8 : Math.max(8, rect.right - 32)}px`;
+        }
         handle.style.top = `${Math.max(0,rect.top)}px`;
         handle.style.height = `${Math.max(0,Math.min(view.innerHeight,rect.bottom)-Math.max(0,rect.top))}px`;
       }

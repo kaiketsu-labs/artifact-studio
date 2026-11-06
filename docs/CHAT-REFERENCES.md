@@ -4,8 +4,8 @@ Type **@** in presentation or artifact chat. Search by a project, artifact,
 presentation or slide title; favorite-slide descriptions are searchable too.
 Choose a suggestion to attach its saved context.
 
-- **↑ / ↓** selects a suggestion; **Enter** attaches it without sending the message.
-- **Tab** browses into the selected project or presentation. Continue typing after
+- **↑ / ↓** selects a suggestion; **Enter** or **Tab** attaches it without sending the message.
+- **→** browses into the selected project or presentation. Continue typing after
   `/` to narrow the path, for example `@Fieldnotes/Launch brief`.
 - **Escape** dismisses suggestions. Enter sends normally after the picker closes.
 - Hover over a suggestion for a preview next to the cursor. Keyboard selection
@@ -17,13 +17,15 @@ dismissing suggestions stops waiting for the update. Individual slides retain
 their live slide preview. The title and reference remain available if a cover
 cannot be rendered.
 
-The selected path is inserted into the message, with quotes added automatically
-for names containing spaces or punctuation. A reference chip shows what will be
-included. Remove it with its **×**. Repeating the same version in one message
-reuses its attachment. Up to five attachments fit in one message.
+The selected query becomes a compact pill showing the slide, project or artifact
+title. Full paths stay out of your message; hover over a draft pill to see its
+path. Remove it with its **×**. Sent references remain title pills you can click
+to download the frozen source. Repeating the same version in one message reuses
+its attachment. Up to five attachments fit in one message.
 
 You can still click **★ beside the paperclip** to choose several favorite slides
-at once, including slides from other presentations.
+at once, including slides from other presentations. These use the same compact
+title pills; descriptions stay inside the frozen reference delivered to your agent.
 
 ## What the agent receives
 
@@ -46,4 +48,6 @@ chat's released message. Source content is loaded only when selected; the
 workspace reference catalog is not added to agent startup context.
 
 ![A slide preview next to the pointer over a path suggestion](screenshots/chat-reference-hover.png)
-![Selected paths and reference chips in chat](screenshots/chat-reference-chips.png)
+![Compact title pills in chat](screenshots/chat-reference-chips.png)
+![Sent reference title pills retain download links](screenshots/chat-reference-sent.png)
+![Compact reference pill in dark artifact chat on a narrow screen](screenshots/chat-reference-artifact-mobile.png)
