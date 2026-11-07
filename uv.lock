@@ -39,9 +39,11 @@ version = "0.3.2"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "mcp" },
     { name = "pillow" },
     { name = "playwright" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "tinycss2" },
     { name = "uvicorn" },
 ]
@@ -59,9 +61,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "mcp", specifier = ">=2,<3" },
     { name = "pillow", specifier = ">=13,<14" },
     { name = "playwright", specifier = ">=1.55,<2" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10,<3" },
     { name = "tinycss2", specifier = ">=1.4,<2" },
     { name = "uvicorn", specifier = ">=0.35,<1" },
 ]

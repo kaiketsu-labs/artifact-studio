@@ -330,10 +330,12 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         """Run the owned bundle in an opaque-origin frame with version-pinned resources."""
         service = artifacts()
         version = revision or service.get_artifact(artifact_id).revision
-        origin = str(request.base_url).rstrip("/")
+        hosted = getattr(request.app.state, "hosted_previews", None)
+        origin = hosted.public_url if hosted else str(request.base_url).rstrip("/")
+        resource_root = hosted.issue(artifact_id, version) if hosted else None
         return HTMLResponse(
-            preview_document(service, artifact_id, origin, version),
-            headers=preview_headers(artifact_id, version, origin),
+            preview_document(service, artifact_id, origin, version, resource_root),
+            headers=preview_headers(artifact_id, version, origin, resource_root),
         )
 
     def serve_file(
@@ -341,6 +343,7 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         path: str,
         origin: str,
         revision: int | None = None,
+        resource_root: str | None = None,
     ) -> FileResponse:
         """Serve owned immutable files; sandbox direct HTML/SVG navigation too."""
         service = artifacts()
@@ -348,8 +351,9 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         target = service.resolve_file(artifact_id, path, revision)
         return FileResponse(
             target,
+            filename=target.name if resource_root else None,
             media_type=mimetypes.guess_type(path)[0] or "application/octet-stream",
-            headers=artifact_file_headers(artifact_id, revision, origin),
+            headers=artifact_file_headers(artifact_id, revision, origin, resource_root),
         )
 
     @router.get("/api/artifacts/{artifact_id}/files/{path:path}")
@@ -360,12 +364,20 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         revision: Annotated[int | None, Query(ge=1)] = None,
     ) -> FileResponse:
         """Read an owned file at the requested version, or the current source snapshot."""
-        return serve_file(artifact_id, path, str(request.base_url).rstrip("/"), revision)
+        hosted = getattr(request.app.state, "hosted_previews", None)
+        origin = hosted.public_url if hosted else str(request.base_url).rstrip("/")
+        return serve_file(
+            artifact_id, path, origin, revision, hosted.preview_url if hosted else None
+        )
 
     @router.get("/api/artifacts/{artifact_id}/revisions/{revision}/files/{path:path}")
     def revision_file(artifact_id: str, revision: int, path: str, request: Request) -> FileResponse:
         """Keep relative dependencies and module imports within one immutable revision."""
-        return serve_file(artifact_id, path, str(request.base_url).rstrip("/"), revision)
+        hosted = getattr(request.app.state, "hosted_previews", None)
+        origin = hosted.public_url if hosted else str(request.base_url).rstrip("/")
+        return serve_file(
+            artifact_id, path, origin, revision, hosted.preview_url if hosted else None
+        )
 
     @router.get("/api/hub/previews/{artifact_id}")
     def thumbnail(artifact_id: str, request: Request) -> Response:

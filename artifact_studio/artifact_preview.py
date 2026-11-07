@@ -22,36 +22,42 @@ READING_STYLE = (
 )
 
 
-def _origin(value: str) -> str:
+def _origin(value: str, allowed_origin: str | None = None) -> str:
     """Normalize the actual loopback server origin without accepting an injected path."""
-    validate_local_url(value)
+    if value != allowed_origin:
+        validate_local_url(value)
     parsed = urlsplit(value)
     if parsed.path not in {"", "/"}:
         raise ValueError("Preview origin must not contain a path.")
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def artifact_files_url(artifact_id: str, revision: int, origin: str) -> str:
+def artifact_files_url(
+    artifact_id: str, revision: int, origin: str, resource_root: str | None = None
+) -> str:
     """Give nested assets and module imports a revision-stable directory URL."""
     if revision < 1:
         raise ValueError("Artifact revision must be positive.")
     artifact_path = f"/api/artifacts/{quote(artifact_id, safe='')}/revisions/{revision}/files/"
-    return _origin(origin) + artifact_path
+    return (resource_root if resource_root is not None else _origin(origin)) + artifact_path
 
 
-def preview_headers(artifact_id: str, revision: int, origin: str) -> dict[str, str]:
+def preview_headers(
+    artifact_id: str, revision: int, origin: str, resource_root: str | None = None
+) -> dict[str, str]:
     """Isolate scripts and restrict subresource requests to this immutable file bundle.
 
     The embedding page must also restrict frame-src to local artifact URLs to block
     external self-navigation. The iframe must retain sandbox="allow-scripts allow-downloads".
     """
-    origin = _origin(origin)
-    files = artifact_files_url(artifact_id, revision, origin)
+    origin = _origin(origin, origin if resource_root is not None else None)
+    files = artifact_files_url(artifact_id, revision, origin, resource_root)
+    scripts = resource_root or origin
     policy = (
         "sandbox allow-scripts allow-downloads; default-src 'none'; "
         f"script-src 'unsafe-inline' 'unsafe-eval' {files} "
-        f"{origin}{BRIDGE_PATH} {origin}{MARKDOWN_PATH} {origin}{MARQUEE_PATH} "
-        f"{origin}{IMAGE_EXPORT_PATH}; "
+        f"{scripts}{BRIDGE_PATH} {scripts}{MARKDOWN_PATH} {scripts}{MARQUEE_PATH} "
+        f"{scripts}{IMAGE_EXPORT_PATH}; "
         f"style-src 'unsafe-inline' {files}; img-src {files} data: blob:; "
         f"font-src {files} data:; media-src {files} data: blob:; "
         f"connect-src {files}; base-uri {files}; frame-ancestors {origin}; "
@@ -68,10 +74,12 @@ def preview_headers(artifact_id: str, revision: int, origin: str) -> dict[str, s
     }
 
 
-def artifact_file_headers(artifact_id: str, revision: int, origin: str) -> dict[str, str]:
+def artifact_file_headers(
+    artifact_id: str, revision: int, origin: str, resource_root: str | None = None
+) -> dict[str, str]:
     """Allow opaque preview reads while sandboxing files opened as documents."""
     return {
-        **preview_headers(artifact_id, revision, origin),
+        **preview_headers(artifact_id, revision, origin, resource_root),
         "Access-Control-Allow-Origin": "null",
         "Cross-Origin-Resource-Policy": "cross-origin",
         "Access-Control-Allow-Methods": "GET, HEAD",
@@ -114,20 +122,29 @@ def _with_head(source: str, additions: str) -> str:
 
 
 def preview_document(
-    store: ArtifactStore, artifact_id: str, origin: str, revision: int | None = None
+    store: ArtifactStore,
+    artifact_id: str,
+    origin: str,
+    revision: int | None = None,
+    resource_root: str | None = None,
 ) -> str:
     """Render owned HTML, Markdown, images or text without exposing project context."""
-    origin = _origin(origin)
+    origin = _origin(origin, origin if resource_root is not None else None)
     artifact, files = store.verified_snapshot(artifact_id, revision, paths="preview")
-    return preview_document_from_source(artifact, origin, files.get(artifact.entrypoint, b""))
+    return preview_document_from_source(
+        artifact, origin, files.get(artifact.entrypoint, b""), resource_root
+    )
 
 
-def preview_document_from_source(artifact: ArtifactView, origin: str, data: bytes) -> str:
+def preview_document_from_source(
+    artifact: ArtifactView, origin: str, data: bytes, resource_root: str | None = None
+) -> str:
     """Build a preview from an already verified revision and its pinned entrypoint bytes."""
-    origin = _origin(origin)
+    origin = _origin(origin, origin if resource_root is not None else None)
+    scripts = resource_root or origin
     if artifact.legacy_deck_id:
         raise ValueError("Use the presentation viewer for a legacy presentation.")
-    files = artifact_files_url(artifact.id, artifact.revision, origin)
+    files = artifact_files_url(artifact.id, artifact.revision, origin, resource_root)
     entrypoint = PurePosixPath(artifact.entrypoint)
     mime_type = next(item.mime_type for item in artifact.files if item.path == artifact.entrypoint)
     directory = entrypoint.parent.as_posix()
@@ -153,7 +170,7 @@ def preview_document_from_source(artifact: ArtifactView, origin: str, data: byte
             format_name = "markdown"
             source = (
                 f"<style>{READING_STYLE}</style>"
-                f'<script src="{origin}{MARKDOWN_PATH}" defer></script>'
+                f'<script src="{scripts}{MARKDOWN_PATH}" defer></script>'
                 f'<pre id="artifact-markdown-source" hidden>{escape(text)}</pre>'
                 '<main id="artifact-markdown"></main>'
             )
@@ -162,9 +179,9 @@ def preview_document_from_source(artifact: ArtifactView, origin: str, data: byte
     additions = (
         '<meta charset="utf-8">'
         f'<base href="{escape(base, quote=True)}">'
-        f'<script src="{origin}{MARQUEE_PATH}"></script>'
-        f'<script src="{origin}{IMAGE_EXPORT_PATH}"></script>'
-        f'<script src="{origin}{BRIDGE_PATH}" '
+        f'<script src="{scripts}{MARQUEE_PATH}"></script>'
+        f'<script src="{scripts}{IMAGE_EXPORT_PATH}"></script>'
+        f'<script src="{scripts}{BRIDGE_PATH}" '
         f'data-artifact-root="{escape(files, quote=True)}" '
         f'data-artifact-format="{format_name}"></script>'
     )

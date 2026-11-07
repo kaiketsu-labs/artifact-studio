@@ -4,6 +4,10 @@ Docker runs the web workspace and MCP server, including Chromium previews, slide
 captures, English text checks, Git and GitHub backup tools. Your agent stays on
 your computer. No model key is needed by the server.
 
+## Local or hosted
+
+The Compose command below starts the default local workspace on loopback. For a separate hosted shared server, see [hosted setup](HOSTED.md) for required configuration, private origin, Cloudflare Tunnel, authentication and preview hostname. Do not expose the local Compose port publicly. Hosted backup and restore require an operator-managed procedure; the local controls described below are unavailable there.
+
 ## Start
 
 Install Docker Engine with Compose v2, or Docker Desktop using Linux containers.
