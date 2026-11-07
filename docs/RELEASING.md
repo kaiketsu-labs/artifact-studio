@@ -116,3 +116,8 @@ node --test scripts/release/*.cjs
 Update the action pin and simulation dependency together. App health/version tests
 also exercise a future version and the generated Mac bundle metadata. Native Mac
 compilation still requires macOS.
+
+The simulation dependency tree has a documented minimatch security override;
+it does not modify the action's independently bundled dependencies. Dependabot
+maintains the two separately and action updates require review. See
+[dependency updates](DEPENDENCY-UPDATES.md) for audit coverage and automatic-merge rules.

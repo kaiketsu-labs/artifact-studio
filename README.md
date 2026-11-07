@@ -299,6 +299,7 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from a supplied reference. |
 | [Keyboard and pointer controls](docs/KEYBOARD-CONTROLS.md) | Shortcuts, selection, context menus and image export. |
 | [Development checks](docs/CI.md) | Automated coverage, local commands and application/display limits. |
+| [Dependency updates](docs/DEPENDENCY-UPDATES.md) | Dependabot, transitive security fixes, generated bundles and protected automatic merging. |
 
 <details>
 <summary><strong>Development checks</strong></summary>

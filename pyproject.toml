@@ -8,7 +8,7 @@ dependencies = [
     "uvicorn>=0.35,<1",
     "mcp>=2,<3",
     "playwright>=1.55,<2",
-    "pillow>=12,<13",
+    "pillow>=13,<14",
     "tinycss2>=1.4,<2",
 ]
 

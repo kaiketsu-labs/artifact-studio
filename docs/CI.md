@@ -15,17 +15,26 @@ corporate packs and model credentials are not required.
 | Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus and cover loading, chat path references and pending/cached hover previews, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
 | Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
 | Docker | Builds the image and exercises the shipped Compose setup: HTTP/MCP, sandboxed captures and OCR, host-file import, and deck/feedback/settings/capture persistence across container replacement. |
+| Dependency audit | Audits Python's Linux, macOS and Windows dependency graphs and both npm trees, including child libraries; also runs daily without a source change. |
+| Dependency safety | Always reports the combined result of core tests, audits and applicable Docker/macOS checks for branch protection. |
 
-The separate `docker.yml` workflow runs when container or runtime inputs change.
+CI calls the reusable `docker.yml` workflow when container or runtime inputs change.
 It builds without publishing an image, uses a random Compose project with its own
 named volume and loopback port, and removes only those disposable test resources.
 No host collection or credentials are mounted. Linux amd64 is exercised in CI;
 other Docker platforms need their own host check.
 
-The separate `macos.yml` workflow runs for native-source, native-test and build-dependency
+CI calls the reusable `macos.yml` workflow for native-source, native-test and build-dependency
 changes. It exercises real diagnostic-file rotation and live subprocess output with
 Swift 6, then builds/signs a disposable native controller and runs native icon rendering.
 Unrelated changes do not start an additional macOS runner.
+
+Explicit CI dispatch and unknown change history run both platform suites. The
+always-reported **Dependency safety** gate rejects failed, cancelled and missing
+checks, and permits platform skips only when the scope job explicitly excluded
+that platform. Quality checks rebuild and compare the committed offline editor
+and all license files before testing. [Dependency update automation](DEPENDENCY-UPDATES.md)
+uses this gate with strict native GitHub branch protection.
 
 The two browser suites run in parallel with `fail-fast: false` and independent
 25-minute timeouts. Each suite and the Python unit step use two pytest-xdist workers
