@@ -8,9 +8,24 @@
 .chat-reference-preview{width:322px;pointer-events:none;z-index:10030}.chat-reference-cover{width:320px;aspect-ratio:16/9;background:var(--bg,var(--hub-bg,#f4f6fa))}.chat-reference-cover img{display:block;width:100%;height:100%;object-fit:contain}.chat-reference-cover img[hidden]{display:none}.chat-reference-frame{width:320px;height:180px;overflow:hidden;pointer-events:none}.chat-reference-frame iframe{border:0;display:block;width:1280px;height:720px;transform:scale(.25);transform-origin:top left;pointer-events:none}
 .chat-reference-preview-caption{padding:10px 12px}.chat-reference-preview-caption strong,.chat-reference-preview-caption small{display:block;overflow-wrap:anywhere}.chat-reference-preview-caption small{color:var(--subtle,var(--hub-muted,#64748b));font-size:11px;margin-top:3px}.chat-reference-preview-caption p{font-size:12px;margin:7px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;max-height:100px;overflow:hidden}
 .reference-symbol{font-weight:600;color:var(--subtle,var(--hub-muted,#64748b));flex:none}
-.chat-file-chip.is-path-reference,.hub-attachment.is-path-reference{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-width:0;padding:5px 9px;border-radius:16px;font-size:12px;line-height:18px;text-decoration:none}
-.is-path-reference .chat-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* The flow slot holds its size while the same pill unfolds in the top layer. */
+.chat-reference-slot{display:inline-flex;max-width:100%;min-width:0;vertical-align:bottom;flex-shrink:0}
+.chat-file-chip.is-path-reference,.hub-attachment.is-path-reference{display:inline-flex;align-items:center;max-width:100%;min-width:0;padding:0;gap:0;border-radius:18px;font-size:12px;line-height:18px;text-decoration:none;box-sizing:border-box}
+.chat-reference-bar{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;box-sizing:border-box;padding:5px 9px;width:100%}
+.is-path-reference .chat-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
 .is-path-reference button{flex:none}
 .is-path-reference[data-reference-preview]{cursor:help}.is-path-reference[data-reference-preview]:focus-visible{outline:2px solid var(--hub-blue,var(--accent,#315fce));outline-offset:2px}
-.chat-saved-reference-preview .chat-reference-preview-caption{max-height:220px;overflow:hidden}
+.chat-file-chip.is-reference-unfolding,.hub-attachment.is-reference-unfolding{position:fixed;inset:auto;margin:0;max-width:none;max-height:none;z-index:10040;overflow:hidden;display:block;transition:width 260ms cubic-bezier(.2,.85,.2,1),height 280ms cubic-bezier(.2,.85,.2,1),border-radius 200ms,box-shadow 200ms}
+.is-reference-unfolding[data-open=true]{border-radius:13px;box-shadow:0 12px 34px #0003}
+.is-reference-unfolding>.chat-reference-bar{position:absolute;bottom:0;left:0;height:calc(var(--reference-bar-height) - 2px);max-width:none;background:inherit;z-index:1}
+.is-reference-unfolding[data-direction=down]>.chat-reference-bar{top:0;bottom:auto}
+.chat-reference-unfold{position:absolute;inset:0 0 auto;height:var(--reference-preview-height,0px);max-width:100%;overflow:hidden;box-sizing:border-box;background:var(--surface,var(--hub-panel,#fff));color:var(--ink,var(--hub-ink,#1e293b));font:12px/1.4 system-ui,sans-serif;opacity:0;transform:translateY(34px) scale(.97);transform-origin:center bottom;transition:opacity 140ms,transform 240ms cubic-bezier(.2,.85,.2,1);pointer-events:none}
+.is-reference-unfolding[data-open=true]>.chat-reference-unfold{opacity:1;transform:none;transition-delay:40ms;pointer-events:auto}
+.is-reference-unfolding[data-direction=down]>.chat-reference-unfold{top:var(--reference-bar-height);transform:translateY(-34px) scale(.97);transform-origin:center top}
+.is-reference-unfolding[data-direction=down][data-open=true]>.chat-reference-unfold{transform:none}
+.chat-reference-unfold .chat-reference-frame{position:relative;width:100%;height:100%;pointer-events:none}
+.chat-reference-unfold iframe{position:absolute;max-width:none;max-height:none;border:0;transform-origin:top left;pointer-events:none}
+.chat-reference-unfold .chat-reference-preview-caption{max-height:100%;overflow:auto;box-sizing:border-box}
+.chat-reference-unfold .reference-preview-description{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%)}
+@media(prefers-reduced-motion:reduce){.is-reference-unfolding,.chat-reference-unfold{transition:none!important}}
 @media(max-width:639px){.chat-reference-preview{display:none}}

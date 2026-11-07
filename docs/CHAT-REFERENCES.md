@@ -19,8 +19,12 @@ cannot be rendered.
 
 The selected query becomes a compact pill showing the slide, project or artifact
 title. Full paths stay out of your message. Hover over a pill, or focus it with
-the keyboard, to preview the saved reference. Move away or press **Escape** to
-close the preview. Remove a draft pill with its **×**. Sent references remain title pills you can click
+the keyboard, to unfold the saved slide upward from the same surface. The title
+and composer stay in place. Moving onto the slide keeps it open; moving away
+folds it back into the title. Press **Escape** to fold it without moving focus.
+Reduced-motion settings make opening and closing instant. Near the top of the
+window, the pill unfolds downward to keep the preview visible.
+Remove a draft pill with its **×**. Sent references remain title pills you can click
 to download the frozen source. Repeating the same version in one message reuses
 its attachment. Up to five attachments fit in one message.
 
@@ -33,7 +37,8 @@ after its source changes or disappears. Slides show their saved canvas;
 presentations show the first saved slide. HTML artifacts show a static thumbnail
 with saved styles and images; scripts stay paused. Project references show their
 saved brief and artifact index. Unsupported or large sources remain available to
-download. Touch selection and removal work without hover.
+download. On touch screens, tap a draft pill to open or close it, or tap outside
+to close it. Tap a sent pill once to preview and again to download its source.
 
 ## What the agent receives
 

@@ -9,6 +9,12 @@
   const send = message => { if (parent !== window) parent.postMessage(message, parentOrigin); };
   let selecting = false, hovered = null, selectors = [], overlay = null, marks = null;
   let scheduled = false, lastHeight = 0, inspectedSelector = null, lastGeometry = '';
+  let referencePointerArmed = false, referencePointerRequest = 0;
+  function notifyReferencePointer() {
+    if (!referencePointerArmed) return;
+    referencePointerArmed = false;
+    send({type: 'artifact:pointer-enter', request_id: referencePointerRequest});
+  }
 
   /** Resolve selectors defensively because anchors may outlive their original DOM. */
   function selectedElement(selector) {
@@ -221,6 +227,7 @@
 
   for (const name of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'dblclick', 'auxclick', 'contextmenu', 'touchstart', 'touchend']) {
     window.addEventListener(name, event => {
+      if (name === 'pointerdown') notifyReferencePointer();
       if (!selecting || name==='contextmenu'&&event.target.closest?.('input,textarea,select,[contenteditable]')) return;
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -237,7 +244,10 @@
     if (!selecting || event.isComposing || event.target.closest?.('input,textarea,select,[contenteditable]') || !['Enter', ' '].includes(event.key)) return;
     event.preventDefault();event.stopImmediatePropagation();choose(event);
   }, true);
+  // Armed only while a parent reference is opening/open. Re-arm each time:
+  // Chromium can omit boundary events on repeated opaque-frame crossings.
   window.addEventListener('pointermove', event => {
+    notifyReferencePointer();
     if (!selecting) return;
     hovered = event.target instanceof Element ? event.target : null;
     schedule();
@@ -249,6 +259,11 @@
     if (event.source !== parent || event.origin !== parentOrigin) return;
     const message = event.data;
     if (!message || typeof message !== 'object') return;
+    if (message.type === 'artifact:reference-preview' && typeof message.active === 'boolean' && Number.isSafeInteger(message.request_id)) {
+      referencePointerArmed = message.active;
+      referencePointerRequest = message.request_id;
+      return;
+    }
     if(message.type==='artifact:selection-export'&&typeof message.request_id==='string'&&Array.isArray(message.selectors)&&message.selectors.length>0&&message.selectors.length<=100&&message.selectors.every(value=>typeof value==='string'&&value.length<=2000)){
       window.ImageExport.snapshot(document,{selectors:message.selectors}).then(value=>send({type:'artifact:selection-export-data',request_id:message.request_id,...value})).catch(error=>send({type:'artifact:selection-export-error',request_id:message.request_id,message:error.message}));
     }else if (message.type === 'artifact:inspect' && typeof message.selector === 'string' && message.selector.length <= 2000) {
