@@ -1,0 +1,41 @@
+name: Dependency audit
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: '43 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Audit Python and npm lockfiles
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.12.23"
+          python-version: "3.14"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+      - name: Audit Python including development and Linux-only packages
+        run: uv audit --locked --preview-features audit-command --python-platform linux
+      - name: Audit Python including macOS-only packages
+        if: '!cancelled()'
+        run: uv audit --locked --preview-features audit-command --python-platform macos
+      - name: Audit Python including Windows-only packages
+        if: '!cancelled()'
+        run: uv audit --locked --preview-features audit-command --python-platform windows
+      - name: Audit release tooling including transitive packages
+        if: '!cancelled()'
+        run: npm audit --prefix scripts/release --package-lock-only
+      - name: Audit editor including transitive packages
+        if: '!cancelled()'
+        run: npm audit --prefix scripts/text-editor --package-lock-only

@@ -1,10 +1,14 @@
 /* Rebuild the checked-in offline editor and retain each bundled dependency's license. */
 import {build} from 'esbuild';
-import {readFile,writeFile,access} from 'node:fs/promises';
+import {readFile,writeFile,access,rm} from 'node:fs/promises';
 import {dirname,resolve} from 'node:path';
 
 const output='../../web/vendor/codemirror.js';
+// esbuild omits this file when there are no linked comments. Remove stale
+// comments and always emit the same three managed files for update automation.
+await rm(output+'.LEGAL.txt',{force:true});
 const result=await build({entryPoints:['editor.js'],bundle:true,minify:true,format:'iife',globalName:'ArtifactTextEditor',target:'es2022',outfile:output,legalComments:'linked',metafile:true});
+try{await access(output+'.LEGAL.txt');}catch{await writeFile(output+'.LEGAL.txt','/* Dependency licenses: codemirror-LICENSE.txt */\n');}
 const packages=new Set();
 for(const input of Object.keys(result.metafile.inputs)){
   if(!input.startsWith('node_modules/'))continue;

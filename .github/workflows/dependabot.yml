@@ -1,0 +1,117 @@
+name: Prepare Dependabot updates
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review, edited, converted_to_draft]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      editor: ${{ steps.policy.outputs.editor }}
+    steps:
+      - name: Cancel any previous queue before checkout or metadata lookup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          queued=$(gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '.auto_merge != null')
+          if [[ "$queued" == true ]]; then
+            gh pr merge "$PR_NUMBER" --repo "$GH_REPO" --disable-auto
+          fi
+      # Only trusted base source is checked out in jobs with write permission.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        id: metadata
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+      - id: policy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          UPDATE_TYPE: ${{ steps.metadata.outcome == 'success' && steps.metadata.outputs.update-type || '' }}
+        run: node scripts/dependencies/prepare.cjs
+
+  build-editor:
+    needs: inspect
+    if: needs.inspect.outputs.editor == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.changed.outputs.changed }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+      - name: Build without write credentials or dependency lifecycle scripts
+        run: |
+          npm ci --prefix scripts/text-editor --ignore-scripts --no-audit --no-fund
+          npm run --prefix scripts/text-editor build
+      - id: changed
+        run: |
+          if git diff --quiet -- web/vendor/codemirror.js web/vendor/codemirror.js.LEGAL.txt web/vendor/codemirror-LICENSE.txt; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: steps.changed.outputs.changed == 'true'
+        with:
+          name: generated-editor
+          path: |
+            web/vendor/codemirror.js
+            web/vendor/codemirror.js.LEGAL.txt
+            web/vendor/codemirror-LICENSE.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  commit-editor:
+    needs: [inspect, build-editor]
+    if: needs.build-editor.outputs.changed == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: generated-editor
+          path: generated-editor
+      - name: Commit only generated files and request fresh CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/dependencies/commit-editor.cjs generated-editor
