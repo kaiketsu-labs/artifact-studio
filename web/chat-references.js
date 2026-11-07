@@ -3,7 +3,8 @@
   'use strict';
   const doc=root.document, bindings=new Map();
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const draftKeys=new WeakMap(),pillSources=new Map(),pillModels=new Map(),previewDownloads=new Map();let nextPill=0,pillPreview=null,pillAnchor=null,pillTimer=null,pillRequest=0,renderedPill='',touchFocus=false;
+  const draftKeys=new WeakMap(),pillSources=new Map(),pillModels=new Map(),previewDownloads=new Map();
+  let nextPill=0,pillPreview=null,pillAnchor=null,pillTimer=null,pillCloseTimer=null,pillRequest=0,renderedPill='',touchFocus=false,pillBox=null,pillOpen=false,framePointerExit=false,pillBridgeActive=false;
   const PREVIEW_SOURCE_LIMIT=8000000,PREVIEW_HTML_LIMIT=12000000,PREVIEW_CACHE_LIMIT=24000000;
   let active=null,pending=null,entries=[],matches=[],selected=0,epoch=0,busy=false,loading=false,loaded=false,menu=null,preview=null,hoverTimer=null,coverLoader=null;
   function fragment(input){
@@ -139,13 +140,13 @@
     const item=file.workspaceReference||file.slideReference;if(!item)return '';
     if(!draftKeys.has(file))draftKeys.set(file,'draft-'+(++nextPill));
     const key=draftKeys.get(file);pillSources.set(key,pillSources.get(key)||{file,title:item.title});
-    return `<span class="${className} is-path-reference${file.slideReference?' is-slide-reference':''}" data-reference-preview="${key}" tabindex="0" aria-label="Preview saved reference: ${escape(item.title)}"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(item.title)}</span>${remove}</span>`;
+    return `<span class="chat-reference-slot"><span class="${className} is-path-reference${file.slideReference?' is-slide-reference':''}" data-reference-preview="${key}" tabindex="0" aria-expanded="false" aria-label="Preview saved reference: ${escape(item.title)}"><span class="chat-reference-bar"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(item.title)}</span>${remove}</span></span></span>`;
   }
   function sent(file,className='chat-file-chip'){
     const match=/^(.+) - (project|artifact|presentation|slide) reference\.(json|html)$/.exec(file.name||'');
     const url=file.download_url;if(!match||!root.ChatImages.downloadURL(url))return '';
     pillSources.set(url,pillSources.get(url)||{url,title:match[1]});
-    return `<a class="${className} is-path-reference" data-reference-preview="${escape(url)}" href="${escape(url)}" download aria-label="Download saved ${escape(match[2])} reference: ${escape(match[1])}"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(match[1])}</span></a>`;
+    return `<span class="chat-reference-slot"><a class="${className} is-path-reference" data-reference-preview="${escape(url)}" href="${escape(url)}" download aria-expanded="false" aria-label="Download saved ${escape(match[2])} reference: ${escape(match[1])}"><span class="chat-reference-bar"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(match[1])}</span></span></a></span>`;
   }
   // Render only the selected attachment's frozen bytes, never a mutable workspace URL.
   function frozenDocument(source,files=[],entrypoint=''){
@@ -232,46 +233,147 @@
     pillModels.set(key,cached);while(pillModels.size>4)pillModels.delete(pillModels.keys().next().value);
     return cached.promise;
   }
-  function hidePillPreview(clear=false){
-    clearTimeout(pillTimer);pillRequest++;pillAnchor?.removeAttribute('aria-describedby');pillAnchor=null;if(pillPreview)pillPreview.hidden=true;
+  // The original pill enters the top layer while its slot preserves chat layout.
+  // Keeping the real title/remove/download controls avoids cloned interactive UI.
+  function setReferencePointer(active){
+    if(pillBridgeActive===active)return;
+    pillBridgeActive=active;doc.dispatchEvent(new CustomEvent('studio:reference-preview',{detail:active}));
+  }
+  function releasePill(clear=false){
+    clearTimeout(pillCloseTimer);pillCloseTimer=null;
+    if(pillAnchor){
+      const anchor=pillAnchor,slot=anchor.parentElement;
+      anchor.removeAttribute('aria-describedby');anchor.setAttribute('aria-expanded','false');
+      if(anchor.matches(':popover-open'))anchor.hidePopover();
+      anchor.removeAttribute('popover');anchor.classList.remove('is-reference-unfolding');
+      anchor.removeAttribute('data-open');anchor.removeAttribute('data-direction');anchor.removeAttribute('style');
+      if(slot?.classList.contains('chat-reference-slot'))slot.removeAttribute('style');
+    }
+    if(pillPreview){pillPreview.hidden=true;doc.body.append(pillPreview);}
+    pillAnchor=null;pillBox=null;pillOpen=false;
     if(clear&&pillPreview){pillPreview.replaceChildren();renderedPill='';}
   }
-  function placePillPreview(anchor){
-    const box=anchor.getBoundingClientRect(),width=pillPreview.offsetWidth,height=pillPreview.offsetHeight;
-    pillPreview.style.left=Math.max(12,Math.min(box.left,root.innerWidth-width-12))+'px';
-    pillPreview.style.top=Math.max(12,Math.min(box.top-height-10,root.innerHeight-height-12))+'px';
+  function hidePillPreview(clear=false,immediate=false){
+    clearTimeout(pillTimer);pillTimer=null;pillRequest++;pillOpen=false;
+    setReferencePointer(false);
+    if(!pillAnchor){if(clear)releasePill(true);return;}
+    pillAnchor.setAttribute('aria-expanded','false');pillAnchor.dataset.open='false';
+    if(clear||immediate||root.matchMedia('(prefers-reduced-motion: reduce)').matches){releasePill(clear);return;}
+    pillAnchor.style.width=pillBox.width+'px';pillAnchor.style.height=pillBox.height+'px';
+    clearTimeout(pillCloseTimer);pillCloseTimer=setTimeout(()=>releasePill(),300);
+  }
+  function mountPill(anchor){
+    clearTimeout(pillCloseTimer);pillCloseTimer=null;
+    if(pillAnchor===anchor&&pillBox)return;
+    releasePill();pillAnchor=anchor;pillBox=anchor.getBoundingClientRect();
+    const slot=anchor.parentElement;
+    slot.style.width=pillBox.width+'px';slot.style.height=pillBox.height+'px';
+    anchor.classList.add('is-reference-unfolding');anchor.dataset.open='false';
+    anchor.style.width=pillBox.width+'px';anchor.style.height=pillBox.height+'px';
+    anchor.style.setProperty('--reference-bar-height',pillBox.height+'px');
+    anchor.style.left=pillBox.left+'px';
+    // Prefer unfolding upward. Near the top edge, unfold into the available space.
+    const down=pillBox.top<90&&root.innerHeight-pillBox.bottom>pillBox.top;
+    anchor.dataset.direction=down?'down':'up';
+    if(down)anchor.style.top=pillBox.top+'px';else anchor.style.bottom=(root.innerHeight-pillBox.bottom)+'px';
+    if(anchor.showPopover){anchor.setAttribute('popover','manual');anchor.showPopover();}
+  }
+  function expandPill(model){
+    const anchor=pillAnchor,box=pillBox;if(!anchor||!box)return;
+    const width=Math.max(box.width,Math.min(320,root.innerWidth-box.left-12));
+    const available=anchor.dataset.direction==='down'?root.innerHeight-box.bottom-12:box.top-12;
+    const height=Math.max(0,Math.min(model.html?model.height*width/model.width:220,available));
+    if(model.html){
+      const frame=pillPreview.querySelector('iframe'),scale=Math.min(width/model.width,height/model.height);
+      frame.style.transform=`scale(${scale})`;frame.style.left=(width-model.width*scale)/2+'px';frame.style.top=(height-model.height*scale)/2+'px';
+    }
+    anchor.style.setProperty('--reference-preview-height',height+'px');
+    void anchor.offsetHeight;
+    anchor.style.width=width+'px';anchor.style.height=(height+box.height)+'px';
+    anchor.dataset.open='true';anchor.setAttribute('aria-expanded','true');pillOpen=true;
   }
   async function showPillPreview(anchor){
     const key=anchor.dataset.referencePreview,record=pillSources.get(key);if(!record||!anchor.isConnected)return;
-    hidePreview();pillAnchor=anchor;const request=++pillRequest;
-    if(!pillPreview){pillPreview=doc.createElement('div');pillPreview.id='chat-saved-reference-preview';pillPreview.className='chat-reference-preview chat-saved-reference-preview';pillPreview.setAttribute('role','tooltip');doc.body.append(pillPreview);}
-    anchor.setAttribute('aria-describedby',pillPreview.id);
-    if(renderedPill===key){pillPreview.hidden=false;placePillPreview(anchor);return;}
+    framePointerExit=false;
+    setReferencePointer(true);
+    clearTimeout(pillTimer);clearTimeout(pillCloseTimer);hidePreview();
+    if(pillAnchor&&pillAnchor!==anchor)releasePill();
+    const request=++pillRequest;
+    if(!pillPreview){pillPreview=doc.createElement('div');pillPreview.id='chat-saved-reference-preview';pillPreview.className='chat-reference-unfold';pillPreview.setAttribute('role','tooltip');pillPreview.hidden=true;doc.body.append(pillPreview);}
     try{
       const model=await frozenPreview(record);if(request!==pillRequest||!anchor.isConnected)return;
-      pillPreview.replaceChildren();
-      if(model.html){const frame=doc.createElement('iframe');frame.setAttribute('sandbox','');frame.tabIndex=-1;frame.title='Saved reference thumbnail: '+record.title;frame.style.width=model.width+'px';frame.style.height=model.height+'px';frame.style.transform=`scale(${320/model.width})`;frame.srcdoc=model.html;const wrap=doc.createElement('div');wrap.className='chat-reference-frame';wrap.style.height=(model.height*320/model.width)+'px';wrap.append(frame);pillPreview.append(wrap);}
-      const caption=doc.createElement('div');caption.className='chat-reference-preview-caption';const title=doc.createElement('strong');title.textContent=record.title;const detail=doc.createElement('small');detail.textContent=model.caption;caption.append(title,detail);
-      if(model.summary){const summary=doc.createElement('p');summary.textContent=model.summary.slice(0,2000);caption.append(summary);}
-      if(model.items){const list=doc.createElement('p');list.textContent=model.items.join(' · ');caption.append(list);}
-      pillPreview.append(caption);renderedPill=key;pillPreview.hidden=false;placePillPreview(anchor);
-    }catch{if(request===pillRequest){pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';pillPreview.hidden=false;placePillPreview(anchor);}}
+      if(renderedPill!==key){
+        pillPreview.replaceChildren();
+        if(model.html){
+          const frame=doc.createElement('iframe');frame.setAttribute('sandbox','');frame.tabIndex=-1;frame.title='Saved reference thumbnail: '+record.title;frame.style.width=model.width+'px';frame.style.height=model.height+'px';frame.srcdoc=model.html;
+          const wrap=doc.createElement('div');wrap.className='chat-reference-frame';wrap.append(frame);pillPreview.append(wrap);
+        }
+        const caption=doc.createElement('div');caption.className='chat-reference-preview-caption';
+        if(model.html)caption.classList.add('reference-preview-description');
+        const detail=doc.createElement('small');detail.textContent=model.caption;caption.append(detail);
+        if(model.summary){const summary=doc.createElement('p');summary.textContent=model.summary.slice(0,2000);caption.append(summary);}
+        if(model.items){const list=doc.createElement('p');list.textContent=model.items.join(' · ');caption.append(list);}
+        pillPreview.append(caption);renderedPill=key;
+      }
+      mountPill(anchor);anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
+    }catch{
+      if(request!==pillRequest||!anchor.isConnected)return;
+      mountPill(anchor);pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill({});
+    }
+  }
+  function resumePillPreview(anchor){
+    if(anchor===pillAnchor){
+      // Hold the current hit area while a closing preview reverses or retries.
+      // Otherwise it can shrink out from under the pointer before loading ends.
+      const box=anchor.getBoundingClientRect();anchor.style.width=box.width+'px';anchor.style.height=box.height+'px';anchor.dataset.open='true';
+    }
+    void showPillPreview(anchor);
   }
   doc.addEventListener('pointerover',event=>{
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||anchor.contains(event.relatedTarget)||event.pointerType==='touch')return;
-    clearTimeout(pillTimer);pillTimer=setTimeout(()=>void showPillPreview(anchor),180);
+    clearTimeout(pillTimer);clearTimeout(pillCloseTimer);
+    setReferencePointer(true);
+    if(anchor===pillAnchor)resumePillPreview(anchor);else pillTimer=setTimeout(()=>void showPillPreview(anchor),70);
   });
-  doc.addEventListener('pointerout',event=>{const anchor=event.target.closest?.('[data-reference-preview]');if(anchor&&!anchor.contains(event.relatedTarget))hidePillPreview();});
-  doc.addEventListener('pointerdown',event=>{touchFocus=event.pointerType==='touch';});
+  doc.addEventListener('pointermove',event=>{
+    // Chromium can retain the parent's hover target across an opaque iframe.
+    // On return, pointermove still arrives even when pointerover is omitted.
+    if(!framePointerExit||event.pointerType==='touch')return;
+    const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor)return;
+    clearTimeout(pillTimer);clearTimeout(pillCloseTimer);resumePillPreview(anchor);
+  });
+  doc.addEventListener('pointerout',event=>{
+    const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||anchor.contains(event.relatedTarget)||event.pointerType==='touch')return;
+    clearTimeout(pillTimer);pillRequest++;
+    pillTimer=setTimeout(()=>hidePillPreview(),80);
+  });
+  doc.addEventListener('pointerdown',event=>{
+    touchFocus=event.pointerType==='touch';
+    if(pillAnchor&&!pillAnchor.contains(event.target))hidePillPreview();
+  });
+  doc.addEventListener('click',event=>{
+    const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||event.target.closest('button'))return;
+    if(touchFocus){
+      if(anchor===pillAnchor&&pillOpen&&anchor.tagName==='A')return; // A second tap downloads the saved source.
+      event.preventDefault();if(anchor===pillAnchor&&pillOpen)hidePillPreview();else void showPillPreview(anchor);
+    }
+  });
   doc.addEventListener('focusin',event=>{const anchor=event.target.closest?.('[data-reference-preview]');if(anchor&&!touchFocus)void showPillPreview(anchor);});
   doc.addEventListener('focusout',event=>{const anchor=event.target.closest?.('[data-reference-preview]');if(anchor&&!anchor.contains(event.relatedTarget))hidePillPreview();});
-  doc.addEventListener('keydown',event=>{touchFocus=false;if(event.key==='Escape'&&pillAnchor){event.preventDefault();event.stopImmediatePropagation();hidePillPreview();}},true);
-  root.addEventListener('resize',()=>hidePillPreview());
-  root.addEventListener('scroll',()=>hidePillPreview(),true);
+  doc.addEventListener('keydown',event=>{
+    touchFocus=false;
+    if(event.key==='Escape'&&pillAnchor){event.preventDefault();event.stopImmediatePropagation();hidePillPreview();return;}
+    const anchor=event.target.closest?.('[data-reference-preview]');
+    if(anchor&&event.target===anchor&&anchor.tagName!=='A'&&['Enter',' '].includes(event.key)){event.preventDefault();if(pillOpen&&pillAnchor===anchor)hidePillPreview();else void showPillPreview(anchor);}
+  },true);
+  root.addEventListener('resize',()=>hidePillPreview(false,true));
+  doc.addEventListener('studio:preview-pointer-enter',()=>{framePointerExit=true;hidePillPreview();});
+  root.addEventListener('scroll',event=>{if(!pillPreview?.contains(event.target))hidePillPreview(false,true);},true);
+  doc.addEventListener('visibilitychange',()=>{if(doc.hidden)hidePillPreview(false,true);});
   new MutationObserver(()=>{
-    if(pillAnchor&&!pillAnchor.isConnected)hidePillPreview(true);
+    if(pillAnchor&&!pillAnchor.isConnected)hidePillPreview(true,true);
     const live=new Set([...doc.querySelectorAll('[data-reference-preview]')].map(node=>node.dataset.referencePreview));
-    if(renderedPill&&!live.has(renderedPill))hidePillPreview(true);
+    if(renderedPill&&!live.has(renderedPill))hidePillPreview(true,true);
     for(const [key,record] of pillSources)if(!live.has(key)){pillSources.delete(key);pillModels.delete(record.file||record.url);}
   }).observe(doc.documentElement,{childList:true,subtree:true});
   function register(options){bindings.set(options.inputId,options);}

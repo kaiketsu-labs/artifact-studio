@@ -5,57 +5,57 @@
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T18:11:14.717380+00:00",
+    "captured_at": "2026-11-07T10:53:09.523715+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
   "chat-reference-chips.png": {
-    "sha256": "dea599f1a4f58d08b035b7c86c338674d9b041f052282d8cb97c250f0f7054bd",
+    "sha256": "11b27b9f3588bb6330db12b0c065bd92351bc0fd5ed2e529259962dfe504b647",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T18:11:15.312249+00:00",
+    "captured_at": "2026-11-07T10:53:11.469260+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
   "chat-reference-pill-hover.png": {
-    "sha256": "f3594fe1c31296a62778b5a8d8824dd7e86a3700267a33097be3de737cf7761e",
+    "sha256": "881955f4cdb0cf9e8eef990843360460000084d35f6554112400f2f43933d92c",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T18:11:15.686192+00:00",
+    "captured_at": "2026-11-07T10:53:11.939442+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
   "chat-reference-sent.png": {
-    "sha256": "5d370f80acc67b82dbc8da5e3ba8e87f4d19872b5333f3d960d4774153d47f10",
+    "sha256": "f9ba6afcf65ea359d81c0a8142d90bae9506d442571d30b1f2e6583e338ea1a1",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T18:11:15.909784+00:00",
+    "captured_at": "2026-11-07T10:53:12.460550+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
   "chat-reference-pill-hover-dark.png": {
-    "sha256": "4aaed2cc3a6a40be528f1a3e01c92ec986a8cf9535dc43f9876665ab05ce84b6",
+    "sha256": "4af466c0f121996999606ed3bba5105f891f3b76cf4f661130db1eee01469a90",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T18:11:16.743042+00:00",
+    "captured_at": "2026-11-07T10:53:14.991797+00:00",
     "axe_ran": false,
     "axe_violations": null
   },
   "chat-reference-artifact-mobile.png": {
-    "sha256": "68bd7d8d3a63d7ea9311f25ccc95acd0846df0f07a9db202338c2d0c9d6746a4",
+    "sha256": "2be19fae04706e7954c89f4b831d5ea30b073e40acba5448df2bdfcb93e8513d",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-06T18:11:16.843270+00:00",
+    "captured_at": "2026-11-07T10:53:15.458204+00:00",
     "axe_ran": false,
     "axe_violations": null
   }

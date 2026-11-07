@@ -13,8 +13,9 @@ Reduced-motion preferences remove the transitions.
 
 The demo includes appearance switching, Replay, remove/Undo and an in-memory
 Send flow with the same motion on the sent reference. It makes no application
-API calls and changes no presentations or feedback. Production reference
-controllers are unchanged. The slide image is the existing, permitted product
+API calls and changes no presentations or feedback. Both production chat
+composers now use this motion; this standalone study remains independent.
+The slide image is the existing, permitted product
 illustration from the documentation.
 
 Serve the repository and open the prototype:

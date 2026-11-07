@@ -963,8 +963,12 @@
   content.addEventListener('dragover',event=>{if(event.target.closest('#hub-feedback-form') && [...(event.dataTransfer?.types || [])].includes('Files'))event.preventDefault();});
   content.addEventListener('drop',event=>{if(event.target.closest('#hub-feedback-form') && event.dataTransfer?.files.length){event.preventDefault();addAttachments([...event.dataTransfer.files]);}});
   content.addEventListener('paste',event=>{if(event.target.id==='hub-feedback-text' && event.clipboardData?.files.length){if(!event.clipboardData.getData('text/plain'))event.preventDefault();addAttachments([...event.clipboardData.files]);}});
+  doc.addEventListener('studio:reference-preview',event=>{
+    doc.getElementById('hub-html-preview')?.contentWindow?.postMessage({type:'artifact:reference-preview',active:event.detail===true},'*');
+  });
   root.addEventListener('message',event=>{
     const frame=doc.getElementById('hub-html-preview');if(!frame || event.source!==frame.contentWindow || event.origin!=='null' || !event.data || typeof event.data!=='object')return;
+    if(event.data.type==='artifact:pointer-enter'){doc.dispatchEvent(new Event('studio:preview-pointer-enter'));return;}
     if(event.data.type==='artifact:inspector'&&typeof event.data.selector==='string'){if(event.data.image===true)imageSelectors.add(event.data.selector);else imageSelectors.delete(event.data.selector);}
     artifactEditor.receive(event);
     if(['artifact:selection-export-data','artifact:selection-export-error'].includes(event.data.type)){
