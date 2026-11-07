@@ -10,6 +10,8 @@ dependencies = [
     "playwright>=1.55,<2",
     "pillow>=13,<14",
     "tinycss2>=1.4,<2",
+    "pyjwt[crypto]>=2.10,<3",
+    "httpx>=0.28,<1",
 ]
 
 [dependency-groups]

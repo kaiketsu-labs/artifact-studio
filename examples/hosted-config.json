@@ -1,0 +1,11 @@
+{
+  "public_url": "https://studio.example.com",
+  "preview_url": "https://previews.example.com",
+  "auth_provider": "cloudflare",
+  "auth_options": {
+    "team_domain": "team.cloudflareaccess.com",
+    "audience": "replace-with-access-application-audience"
+  },
+  "member_emails": ["member@example.com"],
+  "agent_subjects": ["replace-with-service-token-client-id"]
+}

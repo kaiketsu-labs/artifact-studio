@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver import Image as MCPImage
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
@@ -42,8 +43,10 @@ from .artifact_api import artifact_routes
 from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
 from .artifacts import ArtifactStore
+from .authentication import Principal, load_auth_provider
 from .autosync import AutoSync, SyncStatus
 from .chat_references import chat_reference_routes
+from .deployment import DeploymentConfig
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
 from .design_references import (
@@ -66,6 +69,10 @@ from .favorites import favorite_routes
 from .feedback_previews import feedback_image_response
 from .github_backups import BackupStatus, FullBackupSettings, GitHubBackups, RemoteBackup
 from .history_api import history_routes
+from .hosted_auth import HostedAuth
+from .hosted_policy import authorize as hosted_authorize
+from .hosted_policy import scoped_deck_routes
+from .hosted_preview import HostedPreviewService, hosted_preview_router
 from .image_api import image_routes
 from .interactive import prepare_document
 from .libraries import (
@@ -140,6 +147,8 @@ from .text_review import check_slide_text as review_captured_text
 from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status, capture_snapshot
 
 PROJECT = Path(__file__).resolve().parent.parent
+deployment = DeploymentConfig.from_env()
+auth_provider = load_auth_provider(deployment) if deployment.mode == "hosted" else None
 COLLECTION = Path(
     os.environ.get("ARTIFACT_STUDIO_COLLECTION", str(Path.home() / "Documents/Artifacts"))
 )
@@ -1595,13 +1604,32 @@ def remove_slide(deck_id: str, slide_id: str, expected_hash: str) -> str:
 register_artifact_tools(mcp, lambda: store)
 
 
-mcp_app = mcp.streamable_http_app(stateless_http=True, json_response=True, host="127.0.0.1")
+if deployment.mode == "hosted":
+    from .copilot_tools import BOOTSTRAP, register_tools
+
+    transport_mcp = MCPServer[None](
+        "Artifact Studio Hosted", version=__version__, instructions=BOOTSTRAP
+    )
+    register_tools(transport_mcp, store, "", True)
+    mcp_app = transport_mcp.streamable_http_app(
+        stateless_http=True,
+        json_response=True,
+        max_request_body_size=2 * 1024 * 1024,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=True,
+            allowed_hosts=[deployment.public_url.removeprefix("https://")],
+            allowed_origins=[],
+        ),
+    )
+else:
+    transport_mcp = mcp
+    mcp_app = mcp.streamable_http_app(stateless_http=True, json_response=True, host="127.0.0.1")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Run MCP and explicitly opted-in repository sync while the local server is open."""
-    async with mcp.session_manager.run():
+    async with transport_mcp.session_manager.run():
         stop = asyncio.Event()
         tasks = [
             asyncio.create_task(AutoSync(store).run(stop)),
@@ -1616,9 +1644,22 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 app = FastAPI(title="Artifact Studio", version=__version__, lifespan=lifespan)
 app_info = AppInfo(
-    PROJECT, __version__, enabled=os.environ.get("ARTIFACT_STUDIO_UPDATE_CHECKS", "1") != "0"
+    PROJECT,
+    __version__,
+    enabled=deployment.mode == "local"
+    and os.environ.get("ARTIFACT_STUDIO_UPDATE_CHECKS", "1") != "0",
 )
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
+if deployment.mode == "local":
+    app.add_middleware(
+        TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"]
+    )
+else:
+    hosted_previews = HostedPreviewService(
+        ArtifactStore(store), deployment.public_url, deployment.preview_url
+    )
+    app.state.hosted_previews = hosted_previews
+    app.include_router(hosted_preview_router(hosted_previews))
+app.state.deployment = deployment
 
 
 @app.exception_handler(ValueError)
@@ -1718,6 +1759,23 @@ def workspace(request: Request, deck: str = "", editor: bool = False) -> FileRes
             ),
         },
     )
+
+
+@app.get("/api/session")
+def session_info(request: Request) -> dict[str, object]:
+    """Identify the active workspace without exposing credentials or server paths."""
+    hosted = deployment.mode == "hosted"
+    origin = deployment.public_url if hosted else str(request.base_url).rstrip("/")
+    principal = cast(Principal | None, getattr(request.state, "principal", None))
+    return {
+        "mode": deployment.mode,
+        "public_url": origin,
+        "mcp_url": origin + "/mcp",
+        "auth_provider": deployment.auth_provider if hosted else "none",
+        "email": principal.email if principal is not None else None,
+        "shared_workspace": hosted,
+        "capabilities": {"local_admin": not hosted, "automatic_feedback": not hosted},
+    }
 
 
 @app.get("/api/copilot/setup/{document}", response_class=FileResponse)
@@ -1966,15 +2024,28 @@ def presentation_runtime(deck_id: DeckID, request: Request) -> FileResponse:
 @app.get("/api/decks/{deck_id}/audience")
 def audience_preview(deck_id: DeckID) -> HTMLResponse:
     """View the sanitized offline audience document inline, without notes or review state."""
-    return HTMLResponse(audience_html(store, deck_id), headers={"Cache-Control": "no-store"})
+    return HTMLResponse(audience_html(store, deck_id), headers=audience_headers())
 
 
 @app.get("/api/decks/{deck_id}/exports/pdf")
 def export_pdf(deck_id: DeckID) -> HTMLResponse:
     """Open the browser's PDF print layout, including hidden slides and all builds."""
-    return HTMLResponse(
-        audience_html(store, deck_id, printing=True), headers={"Cache-Control": "no-store"}
-    )
+    return HTMLResponse(audience_html(store, deck_id, printing=True), headers=audience_headers())
+
+
+def audience_headers() -> dict[str, str]:
+    """Keep authored audience programs off the authenticated workspace origin."""
+    headers = {"Cache-Control": "no-store"}
+    if deployment.mode == "hosted":
+        headers["Content-Security-Policy"] = (
+            "sandbox allow-scripts allow-downloads allow-modals; frame-ancestors 'self'; "
+            "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'unsafe-inline'; img-src data: blob:; font-src data:; "
+            "media-src data: blob:; frame-src about:; connect-src 'none'; "
+            "worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+        )
+        headers["Referrer-Policy"] = "no-referrer"
+    return headers
 
 
 @app.post("/api/decks")
@@ -2314,5 +2385,14 @@ app.include_router(recovery_routes(lambda: store))
 
 app.mount("/runtime", StaticFiles(directory=PROJECT / "runtime"), name="runtime")
 app.mount("/web", StaticFiles(directory=PROJECT / "web"), name="web")
-app.mount("/decks", StaticFiles(directory=COLLECTION, html=True), name="decks")
+if deployment.mode == "hosted":
+    app.include_router(scoped_deck_routes(lambda: store))
+else:
+    app.mount("/decks", StaticFiles(directory=COLLECTION, html=True), name="decks")
 app.mount("/", mcp_app)
+
+if auth_provider is not None:
+    # Outermost boundary: normalize the configured origin before URL/CSP generation.
+    app.add_middleware(
+        HostedAuth, config=deployment, provider=auth_provider, authorize=hosted_authorize
+    )

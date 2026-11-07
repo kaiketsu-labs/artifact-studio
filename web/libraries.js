@@ -145,6 +145,8 @@
       if(busy)working(true);
     }
     async function refresh(force=false){
+      const session=await root.ArtifactSession?.get();
+      if(session?.capabilities?.local_admin===false)return;
       const request=++revision;
       try{
         const data=await Promise.all([api('/api/libraries'),api('/api/library-sync'),api('/api/workspace/github-backups')]);

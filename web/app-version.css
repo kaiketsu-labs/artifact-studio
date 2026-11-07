@@ -19,3 +19,8 @@ dialog.app-about::backdrop{background:#10182866}
 .app-about [hidden]{display:none!important}
 @media(max-width:600px){.app-about .app-release-link{min-height:44px}}
 .app-version-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+
+.app-session-identity{display:grid;gap:4px;margin:0 0 20px;padding:12px 14px;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:9px;font-size:13px;line-height:1.45;color:var(--hub-muted,var(--subtle,#5f6b7a))}
+.app-session-identity strong{color:var(--hub-ink,var(--ink,#20242b));font-size:14px}.app-session-identity span,.app-session-identity small{overflow-wrap:anywhere}.app-session-identity small{font-size:12px}
+
+.hub-session-mode{font-size:12px!important;color:var(--hub-muted)!important;border:1px solid var(--hub-line)!important;white-space:nowrap}.hub-connect-url{display:flex;gap:8px}.hub-connect-url input{min-width:0;flex:1}.hub-connect-url button{border:1px solid var(--hub-line);border-radius:6px}.hub-connect label{font-size:12px}.hub-connect p{overflow-wrap:anywhere}
