@@ -96,6 +96,9 @@ Feedback retains the selected artifact, targets and content hash. Agents read re
 
 ## Quick start
 
+**Prefer Docker?** Run `docker compose up -d --build --wait` from this checkout.
+See [Docker setup](docs/DOCKER.md) for persistent storage, file imports and agent connections.
+
 **Prefer guided setup?** Open this checkout in your agent and run **`/setup` in Claude Code** or **`$setup` in Codex**. The bundled [setup skill](.agents/skills/setup/SKILL.md) checks existing settings and connects the agent. [First-run details](docs/GETTING-STARTED.md#guided-setup).
 
 Requires [Git](https://git-scm.com/), [uv](https://docs.astral.sh/uv/getting-started/installation/) and access to this private repository. Your existing agent supplies the AI connection; the app needs no separate AI API key.
@@ -288,6 +291,7 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | [Artifact architecture and remaining scope](docs/ARCHITECTURE.md) | Implemented foundation and subsequent work. |
 | [Artifact authoring](agent/guides/artifacts.md) | Free file composition, versioned edits and scoped feedback. |
 | [Mac menu-bar app](docs/MACOS.md) | Server controls, startup and updates. |
+| [Docker server](docs/DOCKER.md) | Container setup, persistent storage, imports, agent hooks and updates. |
 | [Automatic presentation feedback](docs/LIVE-REVIEW.md) | Host hooks, activation and limitations. |
 | [Agent token efficiency](docs/TOKEN-EFFICIENCY.md) | Compact context and targeted reads. |
 | [Presentation authoring](docs/AGENT-GUIDE.md) | Slide edits, notes and visual review. |
@@ -295,6 +299,7 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 | [Design packs](docs/DESIGN-PACKS.md) | Import a design from a supplied reference. |
 | [Keyboard and pointer controls](docs/KEYBOARD-CONTROLS.md) | Shortcuts, selection, context menus and image export. |
 | [Development checks](docs/CI.md) | Automated coverage, local commands and application/display limits. |
+| [Dependency updates](docs/DEPENDENCY-UPDATES.md) | Dependabot, transitive security fixes, generated bundles and protected automatic merging. |
 
 <details>
 <summary><strong>Development checks</strong></summary>

@@ -19,6 +19,50 @@ env:
   ARTIFACT_STUDIO_ARTIFACTS: test-results/integration
 
 jobs:
+  scope:
+    name: Select platform checks
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    outputs:
+      docker: ${{ steps.scope.outputs.docker }}
+      macos: ${{ steps.scope.outputs.macos }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node scripts/ci/scope.cjs
+
+  audit:
+    uses: ./.github/workflows/dependency-audit.yml
+
+  docker:
+    needs: scope
+    if: needs.scope.outputs.docker == 'true'
+    uses: ./.github/workflows/docker.yml
+
+  macos:
+    needs: scope
+    if: needs.scope.outputs.macos == 'true'
+    uses: ./.github/workflows/macos.yml
+
+  safety:
+    name: Dependency safety
+    if: always()
+    needs: [scope, quality, browser, agents, audit, docker, macos]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - env:
+          CI_RESULTS: ${{ toJSON(needs) }}
+        run: node scripts/ci/gate.cjs
+
   quality:
     name: Ruff, types, unit tests & release simulation
     runs-on: ubuntu-22.04
@@ -35,8 +79,15 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: scripts/release/package-lock.json
+          cache-dependency-path: |
+            scripts/release/package-lock.json
+            scripts/text-editor/package-lock.json
       - run: uv sync --locked
+      - name: Verify the shipped offline editor matches its lockfile
+        run: |
+          npm ci --prefix scripts/text-editor --ignore-scripts --no-audit --no-fund
+          npm run --prefix scripts/text-editor build
+          node scripts/text-editor/check.mjs
       - name: Ruff lint
         run: uv run --no-sync ruff check artifact_studio tests
       - name: Ruff formatting

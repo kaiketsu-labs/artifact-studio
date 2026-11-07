@@ -1,0 +1,21 @@
+# Allow only runtime source. Never send collections, state, Git history or
+# credentials to the builder, even if they are present in this checkout.
+**
+!pyproject.toml
+!uv.lock
+!artifact_studio/
+artifact_studio/*
+!artifact_studio/*.py
+!web/
+!web/**
+!runtime/
+!runtime/**
+!agent/
+!agent/**
+!docs/
+docs/*
+!docs/*.md
+**/__pycache__/
+**/node_modules/
+**/.env
+**/.env.*

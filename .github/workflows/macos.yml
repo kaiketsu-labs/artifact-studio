@@ -1,32 +1,14 @@
 name: macOS controller
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'macos/**'
-      - 'tests/native/**'
-      - 'scripts/install_macos.py'
-      - 'scripts/test_macos_logs.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/macos.yml'
-  pull_request:
-    paths:
-      - 'macos/**'
-      - 'tests/native/**'
-      - 'scripts/install_macos.py'
-      - 'scripts/test_macos_logs.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/macos.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: macos-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:

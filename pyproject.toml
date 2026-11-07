@@ -8,7 +8,7 @@ dependencies = [
     "uvicorn>=0.35,<1",
     "mcp>=2,<3",
     "playwright>=1.55,<2",
-    "pillow>=12,<13",
+    "pillow>=13,<14",
     "tinycss2>=1.4,<2",
 ]
 
@@ -45,6 +45,7 @@ pythonpath = ["."]
 
 addopts = "-q --strict-markers"
 markers = [
+    "docker: opt-in real container, MCP, rendering and persistence checks",
     "browser: opt-in Playwright user journeys against a real server",
     "agents: opt-in MCP transport and Codex/Claude hook subprocess checks",
     "native_clients: opt-in installed Codex/Claude CLI configuration checks",
