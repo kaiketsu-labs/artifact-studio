@@ -1,0 +1,71 @@
+name: Docker
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+      - docker/**
+      - artifact_studio/**
+      - web/**
+      - runtime/**
+      - agent/**
+      - docs/**.md
+      - pyproject.toml
+      - uv.lock
+      - tests/integration/test_docker.py
+      - .github/workflows/docker.yml
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+      - docker/**
+      - artifact_studio/**
+      - web/**
+      - runtime/**
+      - agent/**
+      - docs/**.md
+      - pyproject.toml
+      - uv.lock
+      - tests/integration/test_docker.py
+      - .github/workflows/docker.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  container:
+    name: Build, sandboxed render and persistent workspace
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    env:
+      ARTIFACT_STUDIO_DOCKER_TESTS: "1"
+      ARTIFACT_STUDIO_IMAGE: artifact-studio:ci
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.12.23"
+          python-version: "3.14"
+          enable-cache: true
+          cache-suffix: docker
+      - run: uv sync --locked
+      - name: Build image without publishing
+        run: docker build --tag artifact-studio:ci .
+      - name: Test the shipped Compose configuration
+        run: uv run --no-sync pytest tests/integration/test_docker.py --junitxml=test-results/docker.xml
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: docker-results
+          path: test-results/docker.xml
+          retention-days: 1

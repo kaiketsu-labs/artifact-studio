@@ -9,6 +9,7 @@ research/
 *.sqlite*
 .env
 .env.*
+compose.override.yaml
 node_modules/
 test-results/
 # Corporate packs and user content belong outside the application repository.
