@@ -428,6 +428,9 @@ def test_unfold_keeps_composer_fixed_and_pointer_inside_saved_slide(
         page.keyboard.press("Escape")
         expect(pill).to_have_attribute("aria-expanded", "false")
         expect(pill).to_be_focused()
+        page.mouse.move(title_before["x"] + 5, title_before["y"] + 5)
+        page.wait_for_timeout(150)
+        expect(pill).to_have_attribute("aria-expanded", "false")
         page.wait_for_timeout(350)
         assert not pill.evaluate("node => node.matches(':popover-open')")
         expect(pill.locator("iframe")).to_have_count(0)
@@ -478,3 +481,67 @@ def test_touch_pill_toggles_without_shifting_and_sent_reference_still_downloads(
         assert "reference" in saved.value.suggested_filename
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("switch_reference", [False, True])
+def test_new_preview_ignores_a_delayed_pointer_notification_from_previous_opening(
+    page: Page, prepared: RunningApp, switch_reference: bool
+) -> None:
+    target = next(
+        item
+        for item in ArtifactStore(prepared.store).list_artifacts()
+        if item.title == "Launch brief"
+    )
+    page.goto(f"{prepared.url}/?artifact={target.id}")
+    authored = page.frame_locator("#hub-html-preview").locator("body")
+    _ = authored.evaluate(
+        "() => { window.observedReferenceRequest = null; "
+        "addEventListener('message', event => {"
+        "if(event.source === parent && event.data?.type === 'artifact:reference-preview' "
+        "&& event.data.active) window.observedReferenceRequest = event.data.request_id;"
+        "}); }"
+    )
+    text = page.locator("#hub-feedback-text")
+    text.fill("@Brand direction")
+    expect(page.get_by_role("listbox").get_by_role("option")).to_have_count(1)
+    text.press("Tab")
+    if switch_reference:
+        text.fill("@Research notes")
+        expect(page.get_by_role("listbox").get_by_role("option")).to_have_count(1)
+        text.press("Tab")
+    pill = page.locator("form .is-path-reference").first
+    pill.hover()
+    expect(pill).to_have_attribute("aria-expanded", "true")
+    frame_node = page.locator("#hub-html-preview").element_handle()
+    assert frame_node is not None
+    frame_window = frame_node.content_frame()
+    assert frame_window is not None
+    _ = frame_window.wait_for_function("Number.isSafeInteger(window.observedReferenceRequest)")
+    previous_request = authored.evaluate("() => window.observedReferenceRequest")
+    assert isinstance(previous_request, int)
+    if switch_reference:
+        pill = page.locator("form .is-path-reference").last
+    else:
+        page.locator("#hub-html-preview").hover()
+        expect(pill).to_have_attribute("aria-expanded", "false")
+    pill.locator(".chat-reference-bar").hover()
+    expect(pill).to_have_attribute("aria-expanded", "true")
+    # Deliver a delayed notification from the real, source-validated frame after
+    # the user has reopened the pill. It belongs to the earlier opening.
+    _ = page.evaluate(
+        "() => {window.deliveredReferenceRequest = null; addEventListener('message', event => {"
+        "if(event.source === document.getElementById('hub-html-preview').contentWindow "
+        "&& event.data?.type === 'artifact:pointer-enter') "
+        "window.deliveredReferenceRequest = event.data.request_id;});}"
+    )
+    _ = authored.evaluate(
+        "(_element, {origin, request}) => "
+        "parent.postMessage({type:'artifact:pointer-enter', request_id:request}, origin)",
+        {"origin": prepared.url, "request": previous_request},
+    )
+    _ = page.wait_for_function(
+        "request => window.deliveredReferenceRequest === request", arg=previous_request
+    )
+    expect(pill).to_have_attribute("aria-expanded", "true")
+    text.hover()
+    expect(pill).to_have_attribute("aria-expanded", "false")

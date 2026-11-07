@@ -4,7 +4,7 @@
   const doc=root.document, bindings=new Map();
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const draftKeys=new WeakMap(),pillSources=new Map(),pillModels=new Map(),previewDownloads=new Map();
-  let nextPill=0,pillPreview=null,pillAnchor=null,pillTimer=null,pillCloseTimer=null,pillRequest=0,renderedPill='',touchFocus=false,pillBox=null,pillOpen=false,framePointerExit=false,pillBridgeActive=false;
+  let nextPill=0,pillPreview=null,pillAnchor=null,pillTimer=null,pillCloseTimer=null,pillRequest=0,renderedPill='',touchFocus=false,pillBox=null,pillOpen=false,pillHoverAnchor=null,pillBridgeActive=false,pillBridgeKey='',pillBridgeEpoch=0;
   const PREVIEW_SOURCE_LIMIT=8000000,PREVIEW_HTML_LIMIT=12000000,PREVIEW_CACHE_LIMIT=24000000;
   let active=null,pending=null,entries=[],matches=[],selected=0,epoch=0,busy=false,loading=false,loaded=false,menu=null,preview=null,hoverTimer=null,coverLoader=null;
   function fragment(input){
@@ -235,9 +235,10 @@
   }
   // The original pill enters the top layer while its slot preserves chat layout.
   // Keeping the real title/remove/download controls avoids cloned interactive UI.
-  function setReferencePointer(active){
-    if(pillBridgeActive===active)return;
-    pillBridgeActive=active;doc.dispatchEvent(new CustomEvent('studio:reference-preview',{detail:active}));
+  function setReferencePointer(active,anchor=null){
+    const key=active?anchor.dataset.referencePreview:'';
+    if(pillBridgeActive===active&&pillBridgeKey===key)return;
+    pillBridgeActive=active;pillBridgeKey=key;doc.dispatchEvent(new CustomEvent('studio:reference-preview',{detail:{active,request_id:++pillBridgeEpoch}}));
   }
   function releasePill(clear=false){
     clearTimeout(pillCloseTimer);pillCloseTimer=null;
@@ -255,7 +256,11 @@
   }
   function hidePillPreview(clear=false,immediate=false){
     clearTimeout(pillTimer);pillTimer=null;pillRequest++;pillOpen=false;
+    const watch=!clear&&!immediate&&pillHoverAnchor===pillAnchor?pillHoverAnchor:null;
+    if(clear||immediate)pillHoverAnchor=null;
     setReferencePointer(false);
+    // Escape keeps a hovered pill closed until the pointer really leaves it.
+    if(watch)setReferencePointer(true,watch);
     if(!pillAnchor){if(clear)releasePill(true);return;}
     pillAnchor.setAttribute('aria-expanded','false');pillAnchor.dataset.open='false';
     if(clear||immediate||root.matchMedia('(prefers-reduced-motion: reduce)').matches){releasePill(clear);return;}
@@ -294,8 +299,7 @@
   }
   async function showPillPreview(anchor){
     const key=anchor.dataset.referencePreview,record=pillSources.get(key);if(!record||!anchor.isConnected)return;
-    framePointerExit=false;
-    setReferencePointer(true);
+    setReferencePointer(true,anchor);
     clearTimeout(pillTimer);clearTimeout(pillCloseTimer);hidePreview();
     if(pillAnchor&&pillAnchor!==anchor)releasePill();
     const request=++pillRequest;
@@ -329,27 +333,32 @@
     }
     void showPillPreview(anchor);
   }
+  function beginPillHover(anchor){
+    pillHoverAnchor=anchor;
+    clearTimeout(pillTimer);clearTimeout(pillCloseTimer);
+    setReferencePointer(true,anchor);
+    if(anchor===pillAnchor)resumePillPreview(anchor);else pillTimer=setTimeout(()=>void showPillPreview(anchor),70);
+  }
   doc.addEventListener('pointerover',event=>{
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||anchor.contains(event.relatedTarget)||event.pointerType==='touch')return;
-    clearTimeout(pillTimer);clearTimeout(pillCloseTimer);
-    setReferencePointer(true);
-    if(anchor===pillAnchor)resumePillPreview(anchor);else pillTimer=setTimeout(()=>void showPillPreview(anchor),70);
+    beginPillHover(anchor);
   });
   doc.addEventListener('pointermove',event=>{
     // Chromium can retain the parent's hover target across an opaque iframe.
     // On return, pointermove still arrives even when pointerover is omitted.
-    if(!framePointerExit||event.pointerType==='touch')return;
+    if(event.pointerType==='touch')return;
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor)return;
-    clearTimeout(pillTimer);clearTimeout(pillCloseTimer);resumePillPreview(anchor);
+    if(anchor!==pillHoverAnchor)beginPillHover(anchor);
   });
   doc.addEventListener('pointerout',event=>{
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||anchor.contains(event.relatedTarget)||event.pointerType==='touch')return;
+    pillHoverAnchor=null;
     clearTimeout(pillTimer);pillRequest++;
     pillTimer=setTimeout(()=>hidePillPreview(),80);
   });
   doc.addEventListener('pointerdown',event=>{
     touchFocus=event.pointerType==='touch';
-    if(pillAnchor&&!pillAnchor.contains(event.target))hidePillPreview();
+    if(pillAnchor&&!pillAnchor.contains(event.target)){pillHoverAnchor=null;hidePillPreview();}
   });
   doc.addEventListener('click',event=>{
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||event.target.closest('button'))return;
@@ -367,7 +376,10 @@
     if(anchor&&event.target===anchor&&anchor.tagName!=='A'&&['Enter',' '].includes(event.key)){event.preventDefault();if(pillOpen&&pillAnchor===anchor)hidePillPreview();else void showPillPreview(anchor);}
   },true);
   root.addEventListener('resize',()=>hidePillPreview(false,true));
-  doc.addEventListener('studio:preview-pointer-enter',()=>{framePointerExit=true;hidePillPreview();});
+  doc.addEventListener('studio:preview-pointer-enter',event=>{
+    if(!pillBridgeActive||event.detail!==pillBridgeEpoch)return;
+    pillHoverAnchor=null;hidePillPreview();
+  });
   root.addEventListener('scroll',event=>{if(!pillPreview?.contains(event.target))hidePillPreview(false,true);},true);
   doc.addEventListener('visibilitychange',()=>{if(doc.hidden)hidePillPreview(false,true);});
   new MutationObserver(()=>{

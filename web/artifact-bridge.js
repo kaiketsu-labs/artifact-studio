@@ -9,11 +9,11 @@
   const send = message => { if (parent !== window) parent.postMessage(message, parentOrigin); };
   let selecting = false, hovered = null, selectors = [], overlay = null, marks = null;
   let scheduled = false, lastHeight = 0, inspectedSelector = null, lastGeometry = '';
-  let referencePointerArmed = false;
+  let referencePointerArmed = false, referencePointerRequest = 0;
   function notifyReferencePointer() {
     if (!referencePointerArmed) return;
     referencePointerArmed = false;
-    send({type: 'artifact:pointer-enter'});
+    send({type: 'artifact:pointer-enter', request_id: referencePointerRequest});
   }
 
   /** Resolve selectors defensively because anchors may outlive their original DOM. */
@@ -259,8 +259,9 @@
     if (event.source !== parent || event.origin !== parentOrigin) return;
     const message = event.data;
     if (!message || typeof message !== 'object') return;
-    if (message.type === 'artifact:reference-preview' && typeof message.active === 'boolean') {
+    if (message.type === 'artifact:reference-preview' && typeof message.active === 'boolean' && Number.isSafeInteger(message.request_id)) {
       referencePointerArmed = message.active;
+      referencePointerRequest = message.request_id;
       return;
     }
     if(message.type==='artifact:selection-export'&&typeof message.request_id==='string'&&Array.isArray(message.selectors)&&message.selectors.length>0&&message.selectors.length<=100&&message.selectors.every(value=>typeof value==='string'&&value.length<=2000)){
