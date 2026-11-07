@@ -14,6 +14,13 @@ corporate packs and model credentials are not required.
 | Playwright user journeys and rendering (editor) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation, drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input, structural undo, element commands and whole-slide design alternatives. |
 | Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus and cover loading, chat path references and pending/cached hover previews, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
 | Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
+| Docker | Builds the image and exercises the shipped Compose setup: HTTP/MCP, sandboxed captures and OCR, host-file import, and deck/feedback/settings/capture persistence across container replacement. |
+
+The separate `docker.yml` workflow runs when container or runtime inputs change.
+It builds without publishing an image, uses a random Compose project with its own
+named volume and loopback port, and removes only those disposable test resources.
+No host collection or credentials are mounted. Linux amd64 is exercised in CI;
+other Docker platforms need their own host check.
 
 The separate `macos.yml` workflow runs for native-source, native-test and build-dependency
 changes. It exercises real diagnostic-file rotation and live subprocess output with

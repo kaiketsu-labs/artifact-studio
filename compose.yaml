@@ -1,0 +1,19 @@
+services:
+  studio:
+    image: ${ARTIFACT_STUDIO_IMAGE:-artifact-studio:local}
+    build: .
+    ports:
+      - "127.0.0.1:${ARTIFACT_STUDIO_PORT:-8790}:8790"
+    volumes:
+      - studio-data:/data
+    init: true
+    shm_size: 1gb
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=./docker/chromium-seccomp.json
+    restart: unless-stopped
+
+volumes:
+  studio-data:
