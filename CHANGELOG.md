@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.2...v0.4.0) (2026-11-07)
+
+
+### Features
+
+* add Docker server with persistent workspace and sandboxed rendering ([73e2ffa](https://github.com/kaiketsu-labs/artifact-studio/commit/73e2ffa4be3871cda98e0baf78735a209fb6b678))
+* add Docker server with persistent workspace and sandboxed rendering ([#70](https://github.com/kaiketsu-labs/artifact-studio/issues/70)) ([73e2ffa](https://github.com/kaiketsu-labs/artifact-studio/commit/73e2ffa4be3871cda98e0baf78735a209fb6b678))
+* **chat:** unfold saved previews from reference pills ([#71](https://github.com/kaiketsu-labs/artifact-studio/issues/71)) ([501c863](https://github.com/kaiketsu-labs/artifact-studio/commit/501c863965cf693a013e411107e5b1f83f7feeed))
+* run Artifact Studio server with Docker Compose ([4577a59](https://github.com/kaiketsu-labs/artifact-studio/commit/4577a59af942b0ffe07b6054908a25257ff6e1ce))
+
+
+### Bug Fixes
+
+* **deps:** automate audited dependency updates ([#72](https://github.com/kaiketsu-labs/artifact-studio/issues/72)) ([19ea670](https://github.com/kaiketsu-labs/artifact-studio/commit/19ea6704f7107f977c507800b02fec1a99d324ca))
+* **docker:** import host files as the runtime user ([dc57c2b](https://github.com/kaiketsu-labs/artifact-studio/commit/dc57c2b6a5b932e34fa32ecfd295732e50e645a5))
+
 ## [0.3.2](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.1...v0.3.2) (2026-11-06)
 
 
