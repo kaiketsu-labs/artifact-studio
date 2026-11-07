@@ -72,15 +72,24 @@ through `get_slide`, `get_design_file` and `read_artifact_files`; use returned
 HTTP download URLs for other files (prefix relative URLs with the Studio URL).
 Captures return image pixels directly through MCP.
 
-To import a local file or authored folder, copy it to the container first:
+To import a local file, stream it as the container's runtime user:
 
 ```sh
-docker compose cp ./my-artifact studio:/data/imports/my-artifact
+docker compose exec -T studio sh -c 'cat > /data/imports/example.md' < ./example.md
+```
+
+For an authored folder:
+
+```sh
+docker compose exec -T studio mkdir -p /data/imports/my-artifact
+tar -C ./my-artifact -cf - . | docker compose exec -T studio tar -xf - -C /data/imports/my-artifact
 ```
 
 Then use `/data/imports/my-artifact` as `source_path` with `register_artifact`.
-For design or presentation asset imports, copy into the tool's returned
-`import_directory` instead. This retains the existing allowed-source checks.
+For the single-file example, use `/data/imports/example.md`. Unlike `compose cp`,
+streaming does not retain a host UID that might make a private file unreadable
+inside the container. For design or presentation asset imports, write into the
+tool's returned `import_directory` instead. This retains the existing allowed-source checks.
 
 For frequent imports, create a `compose.override.yaml` with a dedicated shared
 folder. Only mount files you want the server to read:

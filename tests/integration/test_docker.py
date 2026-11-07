@@ -37,13 +37,14 @@ class Container:
     http: httpx.Client
     mcp: Client
 
-    def compose(self, *arguments: str) -> str:
+    def compose(self, *arguments: str, stdin: str | None = None) -> str:
         result = subprocess.run(
             [*self.command, *arguments],
             cwd=PROJECT,
             env=self.environment,
             capture_output=True,
             text=True,
+            input=stdin,
             timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
@@ -207,7 +208,17 @@ def test_host_files_import_through_container_path(container: Container, tmp_path
     source = tmp_path / "example.md"
     _ = source.write_text("# Fictional import\n\nCreated on the host.\n")
     source.chmod(0o600)
-    _ = container.compose("cp", str(source), "studio:/data/imports/example.md")
+    # Stream as the runtime user: Compose cp can retain the host UID, which
+    # differs from UID 1000 on GitHub runners and many real machines.
+    _ = container.compose(
+        "exec",
+        "-T",
+        "studio",
+        "sh",
+        "-c",
+        "umask 077 && cat > /data/imports/example.md",
+        stdin=source.read_text(),
+    )
     project = container.call("create_project", title="Docker import project")
     item = container.call(
         "register_artifact",
