@@ -28,9 +28,13 @@ Remove a draft pill with its **×**. Sent references remain title pills you can 
 to download the frozen source. Repeating the same version in one message reuses
 its attachment. Up to five attachments fit in one message.
 
-You can still click **★ beside the paperclip** to choose several favorite slides
+Click the **button with two stars beside the paperclip** to choose several favorite slides
 at once, including slides from other presentations. These use the same compact
 title pills; descriptions stay inside the frozen reference delivered to your agent.
+The two stars represent the collection; the single star on a slide saves that slide
+to Favorites.
+
+![Two-star reference picker beside the microphone](screenshots/reference-picker-stars-dark.png)
 
 Pill previews use the attachment captured when you selected the reference, even
 after its source changes or disappears. Slides show their saved canvas;

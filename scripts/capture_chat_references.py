@@ -28,18 +28,20 @@ def main() -> None:
             prepare_covers(app, browser)
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
 
-            def capture(name: str) -> None:
+            def capture(name: str, selector: str | None = None) -> None:
                 violations: object = None
                 if args.axe:
                     _ = page.add_script_tag(path=str(args.axe))
                     violations = page.evaluate("async()=> (await axe.run()).violations")
-                data = page.screenshot(path=output / name, animations="disabled")
+                target = page.locator(selector) if selector else page
+                data = target.screenshot(path=output / name, animations="disabled")
                 captures[name] = {
                     "sha256": hashlib.sha256(data).hexdigest(),
                     "viewport": page.viewport_size,
                     "captured_at": datetime.now(UTC).isoformat(),
                     "axe_ran": bool(args.axe),
                     "axe_violations": violations,
+                    "selector": selector,
                 }
                 print("Captured " + name, flush=True)
 
@@ -62,6 +64,7 @@ def main() -> None:
             expect(page.locator(".is-path-reference")).to_have_count(2)
             page.mouse.move(1, 1)
             capture("chat-reference-chips.png")
+            capture("reference-picker-stars-light.png", "#feedback-form")
             page.locator("form .is-path-reference").first.hover()
             saved_preview = page.locator("#chat-saved-reference-preview")
             expect(saved_preview).to_be_visible()
@@ -95,6 +98,7 @@ def main() -> None:
             text.hover()
             page.set_viewport_size({"width": 390, "height": 844})
             capture("chat-reference-artifact-mobile.png")
+            capture("reference-picker-stars-dark.png", "#hub-feedback-form")
             browser.close()
     _ = (output / "chat-reference-captures.json").write_text(json.dumps(captures, indent=2) + "\n")
 
