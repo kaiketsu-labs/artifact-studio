@@ -1,6 +1,7 @@
 // Publish only the Release Please candidates whose merge commits passed CI.
 const { GitHub } = require('release-please/build/src/github');
 const { Manifest } = require('release-please/build/src/manifest');
+const { DuplicateReleaseError } = require('release-please/build/src/errors');
 
 async function readTag(github, tag) {
   const { owner, repo } = github.repository;
@@ -60,6 +61,26 @@ async function publishVerified(manifest, verifiedShas) {
   // createReleases must consume this exact, already validated plan.
   const frozen = Object.freeze(candidates.map(candidate => Object.freeze(candidate)));
   manifest.buildReleases = async () => frozen;
+  const github = manifest.github;
+  const createRelease = github.createRelease.bind(github);
+  github.createRelease = async (candidate, options) => {
+    try {
+      return await createRelease(candidate, options);
+    } catch (error) {
+      if (!(error instanceof DuplicateReleaseError)) throw error;
+      const tag = candidate.tag.toString();
+      try {
+        const { owner, repo } = github.repository;
+        const { data: release } = await github.octokit.repos.getReleaseByTag({ owner, repo, tag });
+        if (release.tag_name !== tag || release.draft !== false || release.prerelease !== false ||
+            await readTag(github, tag) !== candidate.sha) throw new Error('Release or tag mismatch');
+        return { id: release.id, name: release.name || undefined, tagName: release.tag_name,
+          sha: candidate.sha, url: release.html_url, notes: release.body || undefined };
+      } catch (cause) {
+        throw new Error(`Cannot verify existing release: ${tag}`, { cause });
+      }
+    }
+  };
   return manifest.createReleases();
 }
 

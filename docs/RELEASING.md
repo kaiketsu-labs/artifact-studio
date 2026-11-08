@@ -39,6 +39,9 @@ push CI can retry; manual publication reports stale or missing prerequisites.
 The publisher freezes Release Please's candidate list and checks every release
 commit against the verified CI list before creating any release. Another merge
 cannot substitute an unchecked commit into that publication plan.
+An interrupted publication can leave a verified tag before the GitHub release
+finishes. Retries reuse only a matching tag and verified stable release; they
+never move tags or mark an invalid existing release as published.
 
 Release PRs still require a maintainer's merge. No package registry upload or
 binary installer is configured.
