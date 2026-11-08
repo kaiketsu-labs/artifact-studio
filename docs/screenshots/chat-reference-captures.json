@@ -1,88 +1,88 @@
 {
   "chat-reference-hover.png": {
-    "sha256": "e126f1b1714ce5b4e8db2015f875ecfd150ae0b4f24198701b40a53bfaec7e52",
+    "sha256": "554ad69487f3abaeca0168ae874673427985e45440a1c84f4fe599fbf7849f7f",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-08T10:55:29.112778+00:00",
+    "captured_at": "2026-11-08T11:17:19.860921+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": null
   },
   "chat-reference-chips.png": {
-    "sha256": "4ced4770d16749e69dd8c5fa4f58666cb4030b62a9e4ef5f020cf470210c532a",
+    "sha256": "c89e6ad79add95534c86995b2ddb7fbf97ea05e65a24d81cf76681778a005a5f",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-08T10:55:29.730017+00:00",
+    "captured_at": "2026-11-08T11:17:20.991963+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": null
   },
-  "reference-picker-stars-light.png": {
-    "sha256": "b988f93a42221d4ebf7e8aeba31470835ec2d0f38f81c5e79c62a71122d3f8e8",
+  "reference-picker-slide-star-light.png": {
+    "sha256": "476b1ed4028525b7c895ebc1c5f06a8c4168b7f7a480345892fdc144ca8e52d9",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-08T10:55:29.833656+00:00",
+    "captured_at": "2026-11-08T11:17:21.099554+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": "#feedback-form"
   },
   "chat-reference-pill-hover.png": {
-    "sha256": "a3f3abc3c4f8b0387a08c2ca514eb629472b56d463c42ce906d06a1f06e53d14",
+    "sha256": "29b3e185dbf697e1491197ed1d0e296a549435c90fde53b669883ca6cd9326a5",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-08T10:55:30.127616+00:00",
+    "captured_at": "2026-11-08T11:17:21.520697+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": null
   },
   "chat-reference-sent.png": {
-    "sha256": "dc895160fb326854246752dac7649f37b8a18f62467aae17c7eae737bc5f3576",
+    "sha256": "7fbab630d5d5ff2b813c29ee6368421e39ab2018c40ff04d430ca3c908acf181",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-08T10:55:30.341676+00:00",
+    "captured_at": "2026-11-08T11:17:21.988969+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": null
   },
   "chat-reference-pill-hover-dark.png": {
-    "sha256": "36adb920360176c9cb9f2602c98375e660b44f5210166988c106cf17805dc088",
+    "sha256": "a2a835258f9bd2ea3a4c2d930607f6d455af6e652343bb79509c4c5beddefc6c",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-08T10:55:31.117404+00:00",
+    "captured_at": "2026-11-08T11:17:23.998006+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": null
   },
   "chat-reference-artifact-mobile.png": {
-    "sha256": "127235e2b756b1323acbb0072f08d5ef66d88e29fe0613c32b0c1395a5700586",
+    "sha256": "2be19fae04706e7954c89f4b831d5ea30b073e40acba5448df2bdfcb93e8513d",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-08T10:55:31.223897+00:00",
+    "captured_at": "2026-11-08T11:17:24.147169+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": null
   },
-  "reference-picker-stars-dark.png": {
-    "sha256": "7e0b04a82cbed72bbef509a38614a1bd11f6f8d60ec3ed4ad3d1614f21086d88",
+  "reference-picker-slide-star-dark.png": {
+    "sha256": "21f7f533a9f3346d688372b6a4f269afffce2c95e9ab3aafe43a797debd478cc",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-08T10:55:31.316192+00:00",
+    "captured_at": "2026-11-08T11:17:24.267542+00:00",
     "axe_ran": false,
     "axe_violations": null,
     "selector": "#hub-feedback-form"

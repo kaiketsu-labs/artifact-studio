@@ -64,7 +64,7 @@ def main() -> None:
             expect(page.locator(".is-path-reference")).to_have_count(2)
             page.mouse.move(1, 1)
             capture("chat-reference-chips.png")
-            capture("reference-picker-stars-light.png", "#feedback-form")
+            capture("reference-picker-slide-star-light.png", "#feedback-form")
             page.locator("form .is-path-reference").first.hover()
             saved_preview = page.locator("#chat-saved-reference-preview")
             expect(saved_preview).to_be_visible()
@@ -98,7 +98,7 @@ def main() -> None:
             text.hover()
             page.set_viewport_size({"width": 390, "height": 844})
             capture("chat-reference-artifact-mobile.png")
-            capture("reference-picker-stars-dark.png", "#hub-feedback-form")
+            capture("reference-picker-slide-star-dark.png", "#hub-feedback-form")
             browser.close()
     _ = (output / "chat-reference-captures.json").write_text(json.dumps(captures, indent=2) + "\n")
 
