@@ -373,7 +373,7 @@ def test_tab_attaches_highlighted_title_pill_and_keeps_prose(
     assert frozen["title"] == "Brand direction"
     page.reload()
     sent = page.locator("#feedback-list" if presentation else "#hub-thread")
-    expect(sent.locator(".is-path-reference")).to_have_text("@Brand direction")
+    expect(sent.locator(".is-path-reference")).to_have_text("Brand direction")
     expect(sent).not_to_contain_text('@"/')
     expect(sent).not_to_contain_text(" - artifact reference.json")
 

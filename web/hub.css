@@ -43,3 +43,5 @@
 .hub-card[data-preview-state=loading] .hub-cover-fallback>.ui-icon{animation:hub-cover-wait 1.6s ease-in-out infinite}
 @keyframes hub-cover-wait{50%{opacity:.45}}
 @media(prefers-reduced-motion:reduce){.hub-card[data-preview-state=loading] .hub-cover-fallback>.ui-icon{animation:none}}
+
+.hub-artifact-context{display:inline-flex;align-items:center;gap:5px;min-width:0}.hub-artifact-context>span{min-width:0;overflow-wrap:anywhere}.hub-artifact-context .ui-icon{width:12px;height:12px}

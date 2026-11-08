@@ -21,7 +21,8 @@
 .favorite-reference-label{display:block;font-size:11px;color:var(--subtle,var(--hub-muted,#64748b))}.chat-file-chip.is-slide-reference>.ui-icon{color:#9b6500}
 @media(max-width:560px){.favorites-dialog{padding:18px;max-width:calc(100vw - 20px)}.favorites-grid{grid-template-columns:minmax(0,1fr)}.favorites-heading h2{font-size:18px}.favorites-footer{bottom:-18px}}
 
-.compose-actions #reference-slides{border:0;background:transparent;padding:5px;width:30px;min-height:30px;color:var(--subtle)}
+:is(#feedback-form,#hub-feedback-form) :is(#reference-slides,[data-action=reference-slides]){display:grid;place-items:center;flex:none;border:0;background:transparent;box-shadow:none;padding:6px;width:32px;height:32px;min-height:32px;border-radius:8px;color:var(--subtle,var(--hub-muted,#64748b))}
+:is(#feedback-form,#hub-feedback-form) :is(#reference-slides,[data-action=reference-slides]):hover:not(:disabled){background:var(--selected,var(--hub-hover,#edf2fa))}
 .favorite-main{position:relative;min-width:0}
 .favorites-dialog .favorite-description{display:flex;align-items:flex-start;gap:6px;width:100%;padding:0 13px 12px;border:0;border-radius:0;background:transparent!important;color:var(--favorite-muted);text-align:left;cursor:pointer;font-size:12px;line-height:1.4;min-width:0}
 .favorite-description>.ui-icon{width:13px;height:13px;margin-top:2px;flex:none;opacity:.7}

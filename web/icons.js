@@ -71,6 +71,7 @@
     fit:'M3 5h18v14H3zM7 9h10v6H7z',
     cursor:'m4 3 15 9-7 2-3 7-5-18Z',
     spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z',
+    slide:'M3 5h18v14H3z',
     slides:'M3 5h18v14H3zM8 5v14M3 10h5M3 14h5'
   };
   // Composite controls keep their outline and filled badge in separate shapes.
