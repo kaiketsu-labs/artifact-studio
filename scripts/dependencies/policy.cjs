@@ -21,14 +21,17 @@ function candidate({pr, files, commits, repository, head}) {
   return '';
 }
 
-function mergeReason(input, metadata, settings) {
+function mergeReason(input, metadata, settings, rules) {
   const reason = candidate(input);
   if (reason) return reason;
   if (!['version-update:semver-patch', 'version-update:semver-minor'].includes(metadata)) return 'Major or unknown update needs review';
   if (!settings?.autoMergeAllowed) return 'Repository auto-merge is disabled';
-  const branch = settings.defaultBranchRef;
-  const rule = branch?.branchProtectionRule;
-  if (branch?.name !== 'main' || !rule?.requiresStatusChecks || !rule.requiresStrictStatusChecks || !rule.requiredStatusCheckContexts?.includes(SAFETY_CHECK)) return 'Require up-to-date branches and the Dependency safety check on main';
+  if (settings.defaultBranchRef?.name !== 'main' || !Array.isArray(rules) || !rules.some(rule =>
+    rule?.type === 'required_status_checks' && rule.parameters?.strict_required_status_checks_policy === true &&
+    Array.isArray(rule.parameters.required_status_checks) && rule.parameters.required_status_checks.some(check =>
+      check?.context === SAFETY_CHECK && check.integration_id === 15368))) {
+    return 'Require up-to-date branches and the GitHub Actions Dependency safety check on main';
+  }
   return '';
 }
 

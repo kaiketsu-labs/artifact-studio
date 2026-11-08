@@ -62,8 +62,11 @@ previous queue entry before checkout and reevaluation, including base changes
 and conversion to draft.
 
 The workflow only asks GitHub to enable **native auto-merge**. It never directly
-merges a PR or bypasses protection. It requires repository auto-merge plus a
-classic `main` protection rule with strict status checks and **Dependency safety**.
+merges a PR or bypasses protection. It requires repository auto-merge plus an
+active branch ruleset for `main` with strict status checks and **Dependency safety**
+bound to the GitHub Actions app. Rules are read through GitHub's metadata-only
+branch-rules API; the built-in workflow token cannot read classic-protection
+details. Existing classic protections can remain alongside the ruleset.
 Other repository or organization rules continue to apply.
 
 Repository writers remain trusted. Disable auto-merge before manually editing
@@ -101,10 +104,19 @@ Repository administrators should enable:
 1. Dependency graph, Dependabot alerts and Dependabot security updates under
    **Settings → Advanced Security** (GitHub may label this **Code security**).
 2. **Allow auto-merge** under **Settings → General → Pull Requests**.
-3. A classic protection rule for `main` that requires pull requests, the
-   **Dependency safety** status check, and **Require branches to be up to date**.
-   Keep force pushes and branch deletion disabled and include administrators.
-   No human approval count is required for the automatic dependency path.
+3. Under **Settings → Rules → Rulesets**, create an **Active** branch ruleset
+   targeting `main`. Require pull requests, conversation resolution, and the
+   **Dependency safety** status check from the **GitHub Actions** app, with
+   **Require branches to be up to date** enabled. Block force pushes and deletion.
+   Leave the bypass list empty, including for administrators. No human approval
+   count is required for the automatic dependency path.
+
+A classic rule alone is insufficient for the automatic eligibility check:
+GitHub denies its details to the built-in workflow token. Do not add a personal
+token to work around this. The active branch-rules endpoint exposes the needed
+strict-check policy with metadata-read permission, without bypass credentials.
+GitHub omits disabled/evaluate-only rules from that endpoint. Administrators
+must also verify the ruleset's bypass list when configuring it.
 
 Activate the required check when the CI change is available in the PR being
 merged. Older PRs without that check need updating. Dependabot configuration and

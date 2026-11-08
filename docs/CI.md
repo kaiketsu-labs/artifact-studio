@@ -141,7 +141,7 @@ uvx pre-commit run --all-files
 
 Adding a workflow does not change GitHub branch protection. Require the aggregated
 **Dependency safety** check from the **GitHub Actions** app, with strict up-to-date
-branches, in a classic protection rule for `main`. This check includes the required
+branches, in an active branch ruleset for `main`. This check includes the required
 audits and test suites; selecting only some individual jobs can miss failures.
 See [dependency-update settings](DEPENDENCY-UPDATES.md#github-settings).
 

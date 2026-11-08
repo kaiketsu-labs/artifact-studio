@@ -5,6 +5,13 @@ function gh(args, input) {
   return execFileSync('gh', args, {encoding: 'utf8', input, maxBuffer: 20 * 1024 * 1024});
 }
 function api(endpoint) { return JSON.parse(gh(['api', endpoint])); }
+function paginatedRules(endpoint) {
+  const pages = JSON.parse(gh(['api', endpoint, '--paginate', '--slurp']));
+  if (!Array.isArray(pages) || !pages.length || pages.some(page => !Array.isArray(page) || page.some(rule => !rule || typeof rule !== 'object' || Array.isArray(rule) || typeof rule.type !== 'string'))) {
+    throw Error('Malformed repository rules response');
+  }
+  return pages.flat();
+}
 function graphql(query, variables) {
   const response = JSON.parse(gh(['api', 'graphql', '--input', '-'], JSON.stringify({query, variables})));
   if (response.errors) throw Error(JSON.stringify(response.errors));
@@ -32,4 +39,4 @@ function summary(message) {
   console.log(message);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n`);
 }
-module.exports = {gh, api, graphql, inputs, inspect, output, summary};
+module.exports = {gh, api, paginatedRules, graphql, inputs, inspect, output, summary};
