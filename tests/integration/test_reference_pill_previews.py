@@ -79,11 +79,22 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
     else:
         # Opaque frame crossings can omit boundary events in both documents.
         # Exercise repeated returns during closing and after a complete fold.
+        # Locator.hover waits for the fold and scrolls its moving target into view;
+        # that scroll dismisses previews. Move directly between visible points.
+        frame_box = page.locator("#hub-html-preview").bounding_box()
+        reference_box = pill.locator(".reference-symbol").bounding_box()
+        assert frame_box is not None and reference_box is not None
         for pause in (0, 350, 0, 350):
-            page.locator("#hub-html-preview").hover()
+            page.mouse.move(
+                frame_box["x"] + frame_box["width"] / 2,
+                frame_box["y"] + frame_box["height"] / 2,
+            )
             expect(pill).to_have_attribute("aria-expanded", "false")
             page.wait_for_timeout(pause)
-            pill.locator(".chat-reference-bar").hover()
+            page.mouse.move(
+                reference_box["x"] + reference_box["width"] / 2,
+                reference_box["y"] + reference_box["height"] / 2,
+            )
             expect(pill).to_have_attribute("aria-expanded", "true")
         text.hover()
     expect(preview).to_be_hidden()
