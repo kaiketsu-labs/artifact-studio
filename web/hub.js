@@ -504,7 +504,7 @@
     }).join('');
   }
   function targetsMarkup(value,item) {
-    if(!value.targets.length)return `<div class="hub-target-row"><span class="hub-target">${escape(item.title)}</span></div>`;
+    if(!value.targets.length)return `<div class="hub-target-row"><span class="hub-target hub-artifact-context" aria-label="Context: ${escape(kinds[kindOf(item)].singular)}, ${escape(item.title)}" title="${escape(kinds[kindOf(item)].singular)} · Included with every message">${icon(kinds[kindOf(item)].icon)}<span>${escape(item.title)}</span></span></div>`;
     return `${value.targets.length>1?`<div class="hub-target-row"><span class="hub-muted">${value.targets.length} selected</span>${button('clear-targets','','close','aria-label="Clear all targets" title="Clear all targets"')}</div>`:''}${value.targets.map((target,index)=>`<div class="hub-target-row"><span class="hub-target">${escape(targetLabel(target))}</span><button type="button" data-remove-target="${index}" aria-label="Remove ${escape(targetLabel(target))}" title="Remove target">${icon('close')}</button></div>`).join('')}`;
   }
   function workspace() {
