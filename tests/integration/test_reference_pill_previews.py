@@ -135,8 +135,22 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
     expect(preview).to_be_visible()
     expect(preview.frame_locator("iframe").locator("h1")).to_have_text("NEW SOURCE AFTER ATTACH")
     assert len(downloads) == 1
-    text.hover()
-    sent.hover()
+    if presentation:
+        text.hover()
+        sent.hover()
+    else:
+        # Keep the pointer on the visible reference bar while it folds. Hovering
+        # the whole moving pill can scroll it and dismiss the preview.
+        text_box = text.bounding_box()
+        sent_box = sent.locator(".reference-symbol").bounding_box()
+        assert text_box is not None and sent_box is not None
+        page.mouse.move(
+            text_box["x"] + text_box["width"] / 2, text_box["y"] + text_box["height"] / 2
+        )
+        expect(sent).to_have_attribute("aria-expanded", "false")
+        page.mouse.move(
+            sent_box["x"] + sent_box["width"] / 2, sent_box["y"] + sent_box["height"] / 2
+        )
     expect(preview).to_be_visible()
     assert len(downloads) == 1
     page.reload()

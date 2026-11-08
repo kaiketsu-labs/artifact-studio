@@ -188,12 +188,15 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
       - name: Browser journeys and sandboxed renderer tests
+        id: browser_tests
         run: >-
           uv run --no-sync pytest -n 2 --dist worksteal --max-worker-restart=0 ${{ matrix.tests }}
           --durations=15
           --junitxml=test-results/browser-${{ matrix.suite }}.xml
       - name: Firefox presentation journeys
-        if: matrix.suite == 'runtime'
+        if: >-
+          !cancelled() && matrix.suite == 'runtime' &&
+          (success() || steps.browser_tests.outcome == 'failure')
         env:
           ARTIFACT_STUDIO_TEST_BROWSER: firefox
         run: >-
