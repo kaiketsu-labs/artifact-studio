@@ -11,8 +11,8 @@
     const imageTypes=new Set(['SVG','PNG','JPG','JPEG','WEBP','GIF','AVIF','BMP','TIF','TIFF','ICO']);
     const binaryTypes=new Set([...imageTypes,'PPT','PPTX','POTX','PDF','DOC','DOCX','XLS','XLSX','ZIP','GZ','7Z','RAR','TTF','OTF','WOFF','WOFF2','EMF','WMF','WDP','MP3','MP4','MOV','WAV']);
     const textFile=file=>!binaryTypes.has(type(file));
-    const fileKinds={PPTX:'slides',POTX:'slides',PPT:'slides',PDF:'pdf',DOC:'document',DOCX:'document',MD:'document',TXT:'document',RTF:'document',CSV:'data',XLS:'data',XLSX:'data',JSON:'code',CSS:'code',JS:'code',TS:'code',HTML:'code',XML:'code',ZIP:'archive',TTF:'font',OTF:'font',WOFF:'font',WOFF2:'font',EMF:'image',WMF:'image',WDP:'image',TIFF:'image',TIF:'image',BMP:'image',ICO:'image'};
-    const fileIcons={slides:'slides',pdf:'pdf',document:'notes',data:'table',code:'code',archive:'archive',font:'font',image:'image',file:'file'};
+    const fileKinds={PPTX:'slides',POTX:'slides',PPT:'slides',PDF:'pdf',DOC:'document',DOCX:'document',MD:'document',MARKDOWN:'document',TXT:'document',RTF:'document',CSV:'data',TSV:'data',XLS:'data',XLSX:'data',JSON:'data',YAML:'data',YML:'data',TOML:'data',CSS:'stylesheet',SCSS:'stylesheet',SASS:'stylesheet',LESS:'stylesheet',JS:'script',JSX:'script',MJS:'script',CJS:'script',TS:'typescript',TSX:'typescript',HTML:'markup',HTM:'markup',XML:'markup',PY:'code',RB:'code',GO:'code',RS:'code',SH:'code',ZIP:'archive',TTF:'font',OTF:'font',WOFF:'font',WOFF2:'font',EMF:'image',WMF:'image',WDP:'image',TIFF:'image',TIF:'image',BMP:'image',ICO:'image'};
+    const fileIcons={slides:'slides',pdf:'pdf',document:'notes',data:'table',stylesheet:'palette',script:'code',typescript:'code',markup:'code',code:'code',archive:'archive',font:'font',image:'image',file:'file'};
     function filePreview(file){
       const extension=type(file),endpoint=extension==='SVG'?'image':imageTypes.has(extension)||['PPTX','POTX'].includes(extension)?'thumbnail':'';
       return endpoint?`${file.url.replace('/files/',`/${endpoint}/`)}?v=${encodeURIComponent(file.version)}`:'';
@@ -20,7 +20,7 @@
     function fileVisual(file){
       const extension=type(file),kind=imageTypes.has(extension)?'image':fileKinds[extension]||'file',preview=filePreview(file);
       const badge=`<span class="design-file-badge is-${kind}" aria-hidden="true">${icon(fileIcons[kind])}<b>${escape(extension)}</b></span>`;
-      return preview||textFile(file)?`<button type="button" class="design-file-visual has-preview" data-design-action="preview-file" data-file-path="${escape(file.path)}" aria-label="Preview ${escape(file.name)}" title="Preview ${escape(file.name)}">${badge}${preview?`<img src="${escape(preview)}" alt="" loading="lazy" decoding="async" data-design-file-image>`:''}</button>`:`<span class="design-file-visual">${badge}</span>`;
+      return preview||textFile(file)?`<button type="button" class="design-file-visual has-preview${preview?'':' is-text'}" data-design-action="preview-file" data-file-path="${escape(file.path)}" aria-label="Preview ${escape(file.name)}" title="Preview ${escape(file.name)}">${badge}${preview?`<img src="${escape(preview)}" alt="" loading="lazy" decoding="async" data-design-file-image>`:''}</button>`:`<span class="design-file-visual" role="img" aria-label="${escape(extension)} file" title="${escape(extension)} file">${badge}</span>`;
     }
     function fileRow(file){
       const label=`<strong>${escape(file.name)}</strong><small>${escape(fileLabel(file))}</small>`;

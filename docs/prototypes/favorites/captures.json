@@ -1,11 +1,11 @@
 {
   "artifacts.png": {
-    "sha256": "4aab9ac1c9abc7a0768a704a9686bc90eab88585ae8a763c2e859dbfc6f07e1f",
+    "sha256": "c97e3630f6d9b215ee8f8d5e4708787755a9c9df0c3cb810ec037852cd4ccae3",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:31.753108+00:00",
+    "captured_at": "2026-11-08T13:13:10.133768+00:00",
     "axe_ran": true,
     "axe_violations": [
       {
@@ -39,247 +39,204 @@
               "div[aria-label=\"Resize sidebar\"]"
             ],
             "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
-          },
-          {
-            "any": [
-              {
-                "id": "region",
-                "data": {
-                  "isIframe": false
-                },
-                "relatedNodes": [],
-                "impact": "moderate",
-                "message": "Some page content is not contained by landmarks"
-              }
-            ],
-            "all": [],
-            "none": [],
-            "impact": "moderate",
-            "html": "<span id=\"app-update-description\" class=\"app-version-sr\">Version 0.2.0</span>",
-            "target": [
-              "#app-update-description"
-            ],
-            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
           }
         ]
       }
     ]
   },
   "library.png": {
-    "sha256": "a62f964db85cc5b66a471aeb81b443e7e5a569a0f8f487b95c6c072ac365437f",
+    "sha256": "84b0a42d5b2232a981b0b6ee391953983a7335418f6ca7983868e5146b10e092",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:32.362984+00:00",
+    "captured_at": "2026-11-08T13:13:10.453597+00:00",
     "axe_ran": true,
     "axe_violations": []
   },
   "description.png": {
-    "sha256": "65cc705391d61fb0009ab6656fbc2e3582a6b0818eb3e91c2f2b1631186266cc",
+    "sha256": "5b6959b0d0b00c8c794a2e71477ea19d1802fb0b1b726570bf430df5f03fbf59",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:32.975208+00:00",
+    "captured_at": "2026-11-08T13:13:10.752609+00:00",
     "axe_ran": true,
     "axe_violations": []
   },
   "description-search.png": {
-    "sha256": "4654f81717ac5d06013e0b775724f213a9d4174159dc5d6ce3363eb03653bbbb",
+    "sha256": "ec68e27bda7a8e589f5d606edf17a2d708bc7e5a5ff2e1703db96b94413286e1",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:33.564119+00:00",
+    "captured_at": "2026-11-08T13:13:10.994121+00:00",
     "axe_ran": true,
     "axe_violations": []
   },
   "slide-stars-rest.png": {
-    "sha256": "991998f147fa7155aac18cddfad7d46b1256c3df4a897029d39efdef49d03ea1",
+    "sha256": "4c61cb18754bc876763c33299226729e99f7e8ce7125db75134c8bc32fd4c6bc",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:34.886307+00:00",
+    "captured_at": "2026-11-08T13:13:11.857903+00:00",
     "axe_ran": true,
-    "axe_violations": [
-      {
-        "id": "region",
-        "impact": "moderate",
-        "tags": [
-          "cat.keyboard",
-          "best-practice"
-        ],
-        "description": "Ensure all page content is contained by landmarks",
-        "help": "All page content should be contained by landmarks",
-        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region?application=axeAPI",
-        "nodes": [
-          {
-            "any": [
-              {
-                "id": "region",
-                "data": {
-                  "isIframe": false
-                },
-                "relatedNodes": [],
-                "impact": "moderate",
-                "message": "Some page content is not contained by landmarks"
-              }
-            ],
-            "all": [],
-            "none": [],
-            "impact": "moderate",
-            "html": "<span id=\"app-update-description\" class=\"app-version-sr\">Version 0.2.0</span>",
-            "target": [
-              "#app-update-description"
-            ],
-            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
-          }
-        ]
-      }
-    ]
+    "axe_violations": []
   },
   "slide-stars-hover.png": {
-    "sha256": "a09dad127d1ed0474b76b0f1fe632a444168cdba14e526023185d32ded21f330",
+    "sha256": "724c1c5e9b046771490a72c8a530bd1085c2fb55426f04f1ca2b510f5a724236",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:35.820564+00:00",
+    "captured_at": "2026-11-08T13:13:12.504612+00:00",
     "axe_ran": true,
-    "axe_violations": [
-      {
-        "id": "region",
-        "impact": "moderate",
-        "tags": [
-          "cat.keyboard",
-          "best-practice"
-        ],
-        "description": "Ensure all page content is contained by landmarks",
-        "help": "All page content should be contained by landmarks",
-        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region?application=axeAPI",
-        "nodes": [
-          {
-            "any": [
-              {
-                "id": "region",
-                "data": {
-                  "isIframe": false
-                },
-                "relatedNodes": [],
-                "impact": "moderate",
-                "message": "Some page content is not contained by landmarks"
-              }
-            ],
-            "all": [],
-            "none": [],
-            "impact": "moderate",
-            "html": "<span id=\"app-update-description\" class=\"app-version-sr\">Version 0.2.0</span>",
-            "target": [
-              "#app-update-description"
-            ],
-            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
-          }
-        ]
-      }
-    ]
+    "axe_violations": []
   },
   "picker.png": {
-    "sha256": "21d7aa578c451be17adf90a9063b0fe11e0592118c3f83a658786a98f1fe1305",
+    "sha256": "7a051eff8eb70b40acf5dcfbdcf5b5546b6fbf74fd7142af432e82a0d2f24ca5",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-06T09:17:37.100695+00:00",
+    "captured_at": "2026-11-08T13:13:13.531813+00:00",
+    "axe_ran": true,
+    "axe_violations": []
+  },
+  "chat.png": {
+    "sha256": "94237c2aa7dc62bc66b1735ff79f2f4a42714148e932fa05571de963155fd92e",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-08T13:13:14.269402+00:00",
     "axe_ran": true,
     "axe_violations": [
       {
-        "id": "region",
-        "impact": "moderate",
+        "id": "aria-allowed-attr",
+        "impact": "critical",
         "tags": [
-          "cat.keyboard",
-          "best-practice"
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2"
         ],
-        "description": "Ensure all page content is contained by landmarks",
-        "help": "All page content should be contained by landmarks",
-        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region?application=axeAPI",
+        "description": "Ensure an element's role supports its ARIA attributes",
+        "help": "Elements must only use supported ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/aria-allowed-attr?application=axeAPI",
         "nodes": [
           {
-            "any": [
+            "any": [],
+            "all": [
               {
-                "id": "region",
-                "data": {
-                  "isIframe": false
-                },
+                "id": "aria-allowed-attr",
+                "data": [
+                  "aria-expanded=\"false\""
+                ],
                 "relatedNodes": [],
-                "impact": "moderate",
-                "message": "Some page content is not contained by landmarks"
+                "impact": "critical",
+                "message": "ARIA attribute is not allowed: aria-expanded=\"false\""
               }
             ],
-            "all": [],
             "none": [],
-            "impact": "moderate",
-            "html": "<span id=\"app-update-description\" class=\"app-version-sr\">Version 0.2.0</span>",
+            "impact": "critical",
+            "html": "<span class=\"chat-file-chip is-path-reference is-slide-reference\" data-reference-preview=\"draft-1\" tabindex=\"0\" aria-expanded=\"false\" aria-label=\"Preview saved slide reference: Good slides happen in the loop\">",
             "target": [
-              "#app-update-description"
+              "span[data-reference-preview=\"draft-1\"]"
             ],
-            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-expanded=\"false\""
+          },
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "aria-allowed-attr",
+                "data": [
+                  "aria-expanded=\"false\""
+                ],
+                "relatedNodes": [],
+                "impact": "critical",
+                "message": "ARIA attribute is not allowed: aria-expanded=\"false\""
+              }
+            ],
+            "none": [],
+            "impact": "critical",
+            "html": "<span class=\"chat-file-chip is-path-reference is-slide-reference\" data-reference-preview=\"draft-2\" tabindex=\"0\" aria-expanded=\"false\" aria-label=\"Preview saved slide reference: One slide. One clear idea.\">",
+            "target": [
+              "span[data-reference-preview=\"draft-2\"]"
+            ],
+            "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-expanded=\"false\""
           }
         ]
       }
     ]
   },
-  "chat.png": {
-    "sha256": "1936819e8c5dac48e0a574e1182c015305df25d32472a522901aee118f5ed634",
-    "viewport": {
-      "width": 1440,
-      "height": 1000
-    },
-    "captured_at": "2026-11-06T17:45:43.425247+00:00",
-    "axe_ran": false,
-    "axe_violations": null
-  },
   "mobile-dark.png": {
-    "sha256": "6c9847a74f73475ee47ec101cdd045efe39612d36255f1edca8d2d9154165a77",
+    "sha256": "1025e36db99e976315f6f9ae523e8e528603faab0b9a00e266c9adccb5de9014",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-06T09:17:38.933175+00:00",
+    "captured_at": "2026-11-08T13:13:14.776052+00:00",
     "axe_ran": true,
     "axe_violations": [
       {
-        "id": "region",
-        "impact": "moderate",
+        "id": "aria-allowed-attr",
+        "impact": "critical",
         "tags": [
-          "cat.keyboard",
-          "best-practice"
+          "cat.aria",
+          "wcag2a",
+          "wcag412",
+          "EN-301-549",
+          "EN-9.4.1.2"
         ],
-        "description": "Ensure all page content is contained by landmarks",
-        "help": "All page content should be contained by landmarks",
-        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region?application=axeAPI",
+        "description": "Ensure an element's role supports its ARIA attributes",
+        "help": "Elements must only use supported ARIA attributes",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/aria-allowed-attr?application=axeAPI",
         "nodes": [
           {
-            "any": [
+            "any": [],
+            "all": [
               {
-                "id": "region",
-                "data": {
-                  "isIframe": false
-                },
+                "id": "aria-allowed-attr",
+                "data": [
+                  "aria-expanded=\"false\""
+                ],
                 "relatedNodes": [],
-                "impact": "moderate",
-                "message": "Some page content is not contained by landmarks"
+                "impact": "critical",
+                "message": "ARIA attribute is not allowed: aria-expanded=\"false\""
               }
             ],
-            "all": [],
             "none": [],
-            "impact": "moderate",
-            "html": "<span id=\"app-update-description\" class=\"app-version-sr\">Version 0.2.0</span>",
+            "impact": "critical",
+            "html": "<span class=\"chat-file-chip is-path-reference is-slide-reference\" data-reference-preview=\"draft-1\" tabindex=\"0\" aria-expanded=\"false\" aria-label=\"Preview saved slide reference: Good slides happen in the loop\">",
             "target": [
-              "#app-update-description"
+              "span[data-reference-preview=\"draft-1\"]"
             ],
-            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+            "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-expanded=\"false\""
+          },
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "aria-allowed-attr",
+                "data": [
+                  "aria-expanded=\"false\""
+                ],
+                "relatedNodes": [],
+                "impact": "critical",
+                "message": "ARIA attribute is not allowed: aria-expanded=\"false\""
+              }
+            ],
+            "none": [],
+            "impact": "critical",
+            "html": "<span class=\"chat-file-chip is-path-reference is-slide-reference\" data-reference-preview=\"draft-2\" tabindex=\"0\" aria-expanded=\"false\" aria-label=\"Preview saved slide reference: One slide. One clear idea.\">",
+            "target": [
+              "span[data-reference-preview=\"draft-2\"]"
+            ],
+            "failureSummary": "Fix all of the following:\n  ARIA attribute is not allowed: aria-expanded=\"false\""
           }
         ]
       }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-05T14:33:20.624145+00:00",
+  "generated_at": "2026-11-08T13:13:54.236178+00:00",
   "fixture": "Fictional Studio Blue and Team launch fixtures; previously selected audience presentation illustrations",
   "verification": "README local links resolve; screenshot and illustration bytes match current provenance manifests.",
   "readme_screenshot_count": 20,
@@ -540,8 +540,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:25.358032+00:00",
-      "sha256": "cfc3c6c4c6f17f104c8d2b448bba4e1324d795d9c9c65cac356e70f070a66f8a",
+      "captured_at": "2026-11-08T13:13:03.194358+00:00",
+      "sha256": "66725f2946eb9d9247650da5275470ececff9c695a5c25ebc9b6a8b142ee2bbb",
       "pixels": [
         1440,
         1000
@@ -554,8 +554,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:25.573020+00:00",
-      "sha256": "ebf4f66f3ff0ca062282844d65591d89478d4411c30a46ef76b6a628ea6be719",
+      "captured_at": "2026-11-08T13:13:03.338714+00:00",
+      "sha256": "3c9d6ce68fc5912c6ef1312c012bfa9f4bc3d171a9b6c46b300669083c5d1bf8",
       "pixels": [
         1440,
         1000
@@ -568,8 +568,8 @@
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-04T10:43:25.730122+00:00",
-      "sha256": "b27b22f9325e01abb364b92d9dee6980a03c875e98278db26df5845abad41306",
+      "captured_at": "2026-11-08T13:13:03.424359+00:00",
+      "sha256": "ccfdcb38c124411fb9cf2b401d5a67fdc58ab8734e3d0fc171fc311cd1c9012c",
       "pixels": [
         390,
         844
@@ -582,8 +582,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:25.955675+00:00",
-      "sha256": "6120980b673f9a3333d8aedbddc02e5751e7176cc5aac7fd5949b8e85e271921",
+      "captured_at": "2026-11-08T13:13:03.660941+00:00",
+      "sha256": "121f233c00f3a8293746dec4c9409a986363cb29aebc37337faa7a59f821d470",
       "pixels": [
         1440,
         1000
@@ -596,8 +596,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:26.121391+00:00",
-      "sha256": "bf24cd7269a109f2b0f580ee3d531ab9b479bf74450f989b1d7ee74e81cd9be6",
+      "captured_at": "2026-11-08T13:13:03.821130+00:00",
+      "sha256": "8a1efec8f903efe74d9fb12c72fb3ab208a6e28abbb25762758a060b22f2ee50",
       "pixels": [
         1440,
         1000
@@ -610,8 +610,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:26.326071+00:00",
-      "sha256": "14b54c77e4a0b144108e91be23d41a77c9e7caf1d86375760e31c6403bced075",
+      "captured_at": "2026-11-08T13:13:04.056252+00:00",
+      "sha256": "cd796b9a60c8e096ff5722a4b3a25274b2745eccaef6b71914528204794795d9",
       "pixels": [
         1440,
         1000
@@ -624,8 +624,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:26.589357+00:00",
-      "sha256": "c2bcba8067f2a171e4733ece87889d61e1712eabd5dad909adf9aeb2b6c67582",
+      "captured_at": "2026-11-08T13:13:04.358775+00:00",
+      "sha256": "9c5404174dba80fe5e7a2cbde82c73edfb8b3c39dd44e3ea86551de6c5182a3e",
       "pixels": [
         1440,
         1000
@@ -638,8 +638,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:26.766920+00:00",
-      "sha256": "b771b04320ccedc87db92f0eca19676ae4c6b84db79325972a98ea3d33c90557",
+      "captured_at": "2026-11-08T13:13:04.552747+00:00",
+      "sha256": "2a99f3e44fc18ebfbbbdfcb4e84b3ded24f05f5093bf9f551910d51b280ca5e1",
       "pixels": [
         1440,
         1000
@@ -652,8 +652,8 @@
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-04T10:43:26.836290+00:00",
-      "sha256": "ddaa39841c5418931b4b1a57d34f094695f08542c4dc04ec40b300a0322be3fc",
+      "captured_at": "2026-11-08T13:13:04.607268+00:00",
+      "sha256": "5d1e2bca1387e3fc02ec3470e5d4f7033c34a37381e3f538ac582fd5787762fc",
       "pixels": [
         390,
         844
@@ -666,8 +666,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:27.106466+00:00",
-      "sha256": "b15f06b863884e9cfe3c0734995abd44a8e31674904a512dd9776f02a4a743d3",
+      "captured_at": "2026-11-08T13:13:04.879406+00:00",
+      "sha256": "baedfcf643dfb4263b25bc20d77cc757d9aa10d9f495394d19952fb0b835b95e",
       "pixels": [
         1440,
         1000
@@ -680,8 +680,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:27.259034+00:00",
-      "sha256": "bdff43c176c49268b059698c52d6a5fdaf146cc014dd453a8b03d16ae687ebb0",
+      "captured_at": "2026-11-08T13:13:05.028022+00:00",
+      "sha256": "80998964a24438489bb7c46e40944b955ef59ff7eaacb1578973ba5c068c45cc",
       "pixels": [
         1440,
         1000
@@ -694,8 +694,8 @@
         "width": 390,
         "height": 844
       },
-      "captured_at": "2026-11-04T10:43:27.395472+00:00",
-      "sha256": "1635bac3a8ca0140572e3d128d8ce38f8fc457b885540db4efc86c90324ca5f1",
+      "captured_at": "2026-11-08T13:13:05.170024+00:00",
+      "sha256": "848cb2fb1229bb1588e8b9cf6166a43609147a5d7b2a4f917bf8a3786085d5a7",
       "pixels": [
         390,
         1055
@@ -708,8 +708,8 @@
         "width": 1440,
         "height": 1000
       },
-      "captured_at": "2026-11-04T10:43:27.561471+00:00",
-      "sha256": "9b1cb9f566eb519b9836f48f676b2359914f67261beb96f2d9650b104ea46f46",
+      "captured_at": "2026-11-08T13:13:05.519106+00:00",
+      "sha256": "98188499826d41a99116c4c8cc1b0786528a554e46f385f61503ac4407fb1c99",
       "pixels": [
         1440,
         1731
