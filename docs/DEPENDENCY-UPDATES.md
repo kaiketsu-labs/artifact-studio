@@ -3,8 +3,9 @@
 Dependabot opens updates against `main`. Compatible Python and npm updates can
 merge automatically after the protected **Dependency safety** check passes on
 an up-to-date branch. Major upgrades, Docker changes and workflow/action updates
-remain open for review. A security fix that requires a major upgrade is still
-proposed; there is no blanket major-version ignore rule.
+remain open for review. A security fix requiring a major upgrade can still be
+proposed when dependency resolution permits it; there is no blanket major-version
+ignore rule.
 
 ```mermaid
 flowchart LR
@@ -39,7 +40,11 @@ source change. A reported vulnerability or unavailable audit service fails the
 check. Audits find known advisories; they do not prove code is vulnerability-free.
 
 Dependabot cannot fix an unavailable upstream release or an incompatible parent
-constraint. npm routine version updates do not refresh every transitive package;
+constraint. For uv, a transitive security update cannot automatically upgrade its
+parent dependency when that is also required; the maintainer must update the
+parent. npm can attempt parent updates for transitive security fixes. See
+[GitHub's security-update limitations](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-security-updates).
+npm routine version updates do not refresh every transitive package;
 security updates and audits cover that separate case. Docker OS packages and
 Playwright's downloaded Chromium are outside the Python/npm lockfile audits:
 base-image and Playwright upgrades plus fresh image rebuilds are needed. No
