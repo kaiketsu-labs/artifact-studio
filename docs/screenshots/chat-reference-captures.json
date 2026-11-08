@@ -1,62 +1,90 @@
 {
   "chat-reference-hover.png": {
-    "sha256": "6150fd088ad1022a805c4807c5929f7526f995e94eb281bd95070aea38ab6de6",
+    "sha256": "e126f1b1714ce5b4e8db2015f875ecfd150ae0b4f24198701b40a53bfaec7e52",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-07T10:53:09.523715+00:00",
+    "captured_at": "2026-11-08T10:55:29.112778+00:00",
     "axe_ran": false,
-    "axe_violations": null
+    "axe_violations": null,
+    "selector": null
   },
   "chat-reference-chips.png": {
-    "sha256": "11b27b9f3588bb6330db12b0c065bd92351bc0fd5ed2e529259962dfe504b647",
+    "sha256": "4ced4770d16749e69dd8c5fa4f58666cb4030b62a9e4ef5f020cf470210c532a",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-07T10:53:11.469260+00:00",
+    "captured_at": "2026-11-08T10:55:29.730017+00:00",
     "axe_ran": false,
-    "axe_violations": null
+    "axe_violations": null,
+    "selector": null
+  },
+  "reference-picker-stars-light.png": {
+    "sha256": "b988f93a42221d4ebf7e8aeba31470835ec2d0f38f81c5e79c62a71122d3f8e8",
+    "viewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "captured_at": "2026-11-08T10:55:29.833656+00:00",
+    "axe_ran": false,
+    "axe_violations": null,
+    "selector": "#feedback-form"
   },
   "chat-reference-pill-hover.png": {
-    "sha256": "881955f4cdb0cf9e8eef990843360460000084d35f6554112400f2f43933d92c",
+    "sha256": "a3f3abc3c4f8b0387a08c2ca514eb629472b56d463c42ce906d06a1f06e53d14",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-07T10:53:11.939442+00:00",
+    "captured_at": "2026-11-08T10:55:30.127616+00:00",
     "axe_ran": false,
-    "axe_violations": null
+    "axe_violations": null,
+    "selector": null
   },
   "chat-reference-sent.png": {
-    "sha256": "f9ba6afcf65ea359d81c0a8142d90bae9506d442571d30b1f2e6583e338ea1a1",
+    "sha256": "dc895160fb326854246752dac7649f37b8a18f62467aae17c7eae737bc5f3576",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-07T10:53:12.460550+00:00",
+    "captured_at": "2026-11-08T10:55:30.341676+00:00",
     "axe_ran": false,
-    "axe_violations": null
+    "axe_violations": null,
+    "selector": null
   },
   "chat-reference-pill-hover-dark.png": {
-    "sha256": "4af466c0f121996999606ed3bba5105f891f3b76cf4f661130db1eee01469a90",
+    "sha256": "36adb920360176c9cb9f2602c98375e660b44f5210166988c106cf17805dc088",
     "viewport": {
       "width": 1440,
       "height": 1000
     },
-    "captured_at": "2026-11-07T10:53:14.991797+00:00",
+    "captured_at": "2026-11-08T10:55:31.117404+00:00",
     "axe_ran": false,
-    "axe_violations": null
+    "axe_violations": null,
+    "selector": null
   },
   "chat-reference-artifact-mobile.png": {
-    "sha256": "2be19fae04706e7954c89f4b831d5ea30b073e40acba5448df2bdfcb93e8513d",
+    "sha256": "127235e2b756b1323acbb0072f08d5ef66d88e29fe0613c32b0c1395a5700586",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-07T10:53:15.458204+00:00",
+    "captured_at": "2026-11-08T10:55:31.223897+00:00",
     "axe_ran": false,
-    "axe_violations": null
+    "axe_violations": null,
+    "selector": null
+  },
+  "reference-picker-stars-dark.png": {
+    "sha256": "7e0b04a82cbed72bbef509a38614a1bd11f6f8d60ec3ed4ad3d1614f21086d88",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "captured_at": "2026-11-08T10:55:31.316192+00:00",
+    "axe_ran": false,
+    "axe_violations": null,
+    "selector": "#hub-feedback-form"
   }
 }
