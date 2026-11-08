@@ -22,7 +22,12 @@ from pydantic import Field
 
 from .models import Slide, StrictModel
 from .projects import AssetEmbedder, root_tag
-from .renderer_health import check_renderer_available, renderer_status, sandboxed_browser
+from .renderer_health import (
+    bounded_evaluate,
+    check_renderer_available,
+    renderer_status,
+    sandboxed_browser,
+)
 from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .storage import SlideMarkup, Store, digest
 
@@ -394,7 +399,7 @@ def _render_images[T](
                     tab.set_default_timeout(15_000)
                     tab.set_content(item.document, wait_until="load", timeout=15_000)
                     item.frame.diagnostics = Diagnostics.model_validate(
-                        tab.evaluate("() => window.ArtifactStudioCaptureReady")
+                        bounded_evaluate(tab, "() => window.ArtifactStudioCaptureReady")
                     )
                     images.append(paint(tab))
                 finally:

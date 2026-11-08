@@ -88,6 +88,14 @@ def security_report(config: DeploymentConfig) -> SecurityReport:
             detail="Revoke a test agent credential and verify access stops. Protect backups and "
             "test a restore into a separate volume before depending on this server.",
         ),
+        SecurityCheck(
+            id="resource_limits",
+            status="unverified",
+            title="Set server resource limits",
+            detail="Request budgets and script deadlines do not cap process memory, CPU or disk. "
+            "Configure OS or container limits for Studio and Chromium, and verify that normal "
+            "imports and captures fit. Studio cannot verify those limits from this configuration.",
+        ),
     ]
     workspace = (urlsplit(config.public_url).hostname or "").split(".")
     preview = (urlsplit(config.preview_url).hostname or "").split(".")

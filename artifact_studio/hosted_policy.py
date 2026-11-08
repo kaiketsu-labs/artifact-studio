@@ -55,6 +55,7 @@ _READ = (
     rf"/api/artifacts/{_ID}/revisions/{_ID}/files/{_TAIL}",
     rf"/api/hub/previews/{_ID}",
     rf"/decks/{_ID}/(?:presentation\.js|icons\.js|slideshow\.css|theme\.css)",
+    rf"/decks/{_ID}/presenter",
     rf"/decks/{_ID}/assets/{_TAIL}",
     rf"/web/{_TAIL}",
     rf"/runtime/{_TAIL}",

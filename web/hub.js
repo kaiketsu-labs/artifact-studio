@@ -462,7 +462,7 @@
   }
   function viewer(item) {
     const kind=kindOf(item), sourceView=kind==='markdown' && state.sourceView;
-    if(kind==='html')return `<div class="hub-preview-scroll"><iframe id="hub-html-preview" class="hub-html-frame" title="${escape(item.title)} preview" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" src="${escape(artifactPath(item.id,'/preview'))}?revision=${encodeURIComponent(item.revision)}" style="width:${state.viewport==='fluid'?'100%':state.viewport+'px'}"></iframe></div>`;
+    if(kind==='html')return `<div id="hub-preview-warning" class="hub-preview-warning" role="alert" hidden><span>Preview navigation was blocked. Reload to return to the artifact.</span>${button('replay','Reload preview','refresh')}</div><div class="hub-preview-scroll"><iframe id="hub-html-preview" class="hub-html-frame" title="${escape(item.title)} preview" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" src="${escape(artifactPath(item.id,'/preview'))}?revision=${encodeURIComponent(item.revision)}" style="width:${state.viewport==='fluid'?'100%':state.viewport+'px'}"></iframe></div>`;
     if(kind==='markdown')return sourceView?`<pre id="hub-markdown-source" class="hub-source">${escape(state.source)}</pre>`:`<article id="hub-markdown" class="hub-markdown ${state.selecting?'is-selecting':''}">${renderDocument(root.marked,item,state.source)}</article>`;
     if(kind==='image')return `<div class="hub-image-canvas" id="hub-image-canvas"><div class="hub-image-wrap ${state.selecting?'is-selecting':''}" id="hub-image-wrap"><img id="hub-image" src="${escape(filePath(item))}" alt="${escape(item.title)}" draggable="false"><div id="hub-region" class="hub-region" hidden></div></div></div><p id="hub-image-meta" class="hub-image-meta">${escape(item.entrypoint)}</p>`;
     return `<section class="hub-file-view">${icon(kinds[kind].icon)}<h2>${escape(item.entrypoint || item.title)}</h2><p>This file is stored in its original format. A dedicated preview is not available.</p><a class="hub-download hub-primary" href="${escape(filePath(item))}" download>${icon('down')}Download file</a></section>`;
@@ -661,6 +661,11 @@
     if(image){image.addEventListener('load',()=>{fitImage();const meta=doc.getElementById('hub-image-meta');if(meta)meta.textContent=`${state.detail.entrypoint} · ${image.naturalWidth} × ${image.naturalHeight}`;});if(image.complete && image.naturalWidth)fitImage();}
     for(const picture of doc.querySelectorAll('#hub-image,#hub-markdown img'))picture.addEventListener('contextmenu',event=>{event.preventDefault();event.stopPropagation();imageMenu(picture,{x:event.clientX,y:event.clientY});});
   }
+  root.addEventListener('securitypolicyviolation',event=>{
+    if(event.target!==doc || event.effectiveDirective!=='frame-src')return;
+    const warning=doc.getElementById('hub-preview-warning');
+    if(warning)warning.hidden=false;
+  });
   function fitImage() {
     const image=doc.getElementById('hub-image'),canvas=doc.getElementById('hub-image-canvas');if(!image?.naturalWidth)return;
     const padding=root.getComputedStyle(canvas);state.zoom=Math.min(1,(canvas.clientWidth-parseFloat(padding.paddingLeft)-parseFloat(padding.paddingRight))/image.naturalWidth);applyZoom();
@@ -839,7 +844,7 @@
     if(name==='reload')return openArtifact(state.active,false);
     if(name==='select'){if(!resetEditor())return;state.selecting=!state.selecting;node.setAttribute('aria-pressed',String(state.selecting));node.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;syncSelection();return;}
     if(name==='source'){if(!resetEditor())return;state.sourceView=!state.sourceView;doc.getElementById('hub-viewer').innerHTML=viewer(state.detail);node.setAttribute('aria-pressed',String(state.sourceView));node.innerHTML=icon(state.sourceView?'eye':'code')+`<span>${state.sourceView?'Preview':'Source'}</span>`;bindViewer();syncSelection();return;}
-    if(name==='replay'){if(!resetEditor())return;const frame=doc.getElementById('hub-html-preview');frame.src=frame.src;return;}
+    if(name==='replay'){if(!resetEditor())return;doc.getElementById('hub-preview-warning').hidden=true;const frame=doc.getElementById('hub-html-preview');frame.src=frame.src;return;}
     if(name==='fit')return fitImage();
     if(name==='zoom-in' || name==='zoom-out'){state.zoom=Math.max(.05,Math.min(8,state.zoom*(name==='zoom-in'?1.25:.8)));applyZoom();return;}
     if(name==='approve'){

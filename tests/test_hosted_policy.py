@@ -26,6 +26,7 @@ from artifact_studio.storage import Store
         ("POST", "/api/shares"),
         ("GET", "/api/shares/token/file"),
         ("GET", "/decks/demo/theme.css"),
+        ("GET", "/decks/demo/presenter"),
         ("GET", "/decks/demo/assets/image.svg"),
         ("GET", "/web/hub.js"),
     ],
@@ -107,6 +108,7 @@ def test_registered_routes_are_reviewed() -> None:
         "image_api",
         "recovery_api",
         "favorites",
+        "hosted_presenter",
     )
     # Local management, host integrations, and the unscoped local MCP are excluded.
     denied = {

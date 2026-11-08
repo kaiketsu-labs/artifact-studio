@@ -72,6 +72,7 @@ from .history_api import history_routes
 from .hosted_auth import HostedAuth
 from .hosted_policy import authorize as hosted_authorize
 from .hosted_policy import scoped_deck_routes
+from .hosted_presenter import hosted_presenter_router
 from .hosted_preview import HostedPreviewService, hosted_preview_router
 from .image_api import image_routes
 from .interactive import prepare_document
@@ -1756,8 +1757,9 @@ async def local_writes(request: Request, call_next: RequestResponseEndpoint) -> 
 @app.get("/", response_class=FileResponse)
 def workspace(request: Request, deck: str = "", editor: bool = False) -> FileResponse:
     """Open the artifact library while preserving direct presentation editor links."""
-    if deck or editor:
-        return FileResponse(PROJECT / "web/index.html")
+    if deck or editor or deployment.mode == "hosted":
+        # HostedAuth supplies the navigation policy for all trusted shell routes.
+        return FileResponse(PROJECT / ("web/index.html" if deck or editor else "web/hub.html"))
     origin = str(request.base_url).rstrip("/")
     return FileResponse(
         PROJECT / "web/hub.html",
@@ -2402,6 +2404,7 @@ app.include_router(recovery_routes(lambda: store))
 app.mount("/runtime", StaticFiles(directory=PROJECT / "runtime"), name="runtime")
 app.mount("/web", StaticFiles(directory=PROJECT / "web"), name="web")
 if deployment.mode == "hosted":
+    app.include_router(hosted_presenter_router(lambda: store, deployment.public_url))
     app.include_router(scoped_deck_routes(lambda: store))
 else:
     app.mount("/decks", StaticFiles(directory=COLLECTION, html=True), name="decks")

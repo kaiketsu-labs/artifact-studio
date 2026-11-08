@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from playwright.sync_api import Browser, BrowserContext, Route
+from playwright.sync_api import Browser, BrowserContext, Error, Route
 
 from artifact_studio.storage import Store
 from tests.integration.support import PROJECT
@@ -128,11 +128,36 @@ def routed_hosted_context(
             route.abort()
             return
         headers = {**request.headers, "host": parts.netloc}
+        # Playwright intercepts before Chromium adds Fetch Metadata; preserve
+        # the browser's navigation destination when simulating the TLS proxy.
+        destination = {
+            "stylesheet": "style",
+            "script": "script",
+            "image": "image",
+            "font": "font",
+            "media": "video",
+        }.get(request.resource_type, "empty")
+        if request.resource_type == "document":
+            try:
+                destination = "iframe" if request.frame.parent_frame else "document"
+            except Error:
+                # A popup's first navigation arrives before its frame exists.
+                destination = "document"
+        headers.setdefault("sec-fetch-dest", destination)
         if authenticated and parts.hostname == "studio.example.test":
             headers["x-fixture-auth"] = "member"
         target = app.url + parts.path + ("?" + parts.query if parts.query else "")
-        response = route.fetch(url=target, headers=headers)
-        route.fulfill(response=response)
+        try:
+            response = route.fetch(url=target, headers=headers)
+            route.fulfill(response=response)
+        except Error as error:
+            # Closing an audience window cancels its pending proxy response.
+            # Keep routing failures observable for every still-attached frame.
+            if "Route is already handled" in str(error) and (
+                request.frame.is_detached() or request.frame.page.is_closed()
+            ):
+                return
+            raise
 
     context.route("**/*", forward)
     try:

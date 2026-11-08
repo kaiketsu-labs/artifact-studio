@@ -1,15 +1,48 @@
 """Observed sandboxed renderer readiness, with bounded launch-failure backoff."""
 
+import json
 import math
 import threading
 import time
 from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, cast
 
-from playwright.sync_api import Browser, Playwright, sync_playwright
+from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 from playwright.sync_api import Error as BrowserError
+
+SCRIPT_TIMEOUT_MS = 15_000
+
+
+def bounded_evaluate(page: Page, expression: str, argument: object = None) -> object:
+    """Bound authored-page execution and result serialization with a driver deadline.
+
+    Playwright's evaluate() has no timeout, including while awaiting a promise or
+    serializing an object. Keep both operations inside wait_for_function(), whose
+    deadline runs outside the page, and retrieve only an already serialized string.
+    The expression must be a function returning a JSON-compatible value.
+    """
+    handle = page.wait_for_function(
+        "async argument => {"
+        f"const value = await ({expression})(argument);"
+        "const serialized = JSON.stringify({value});"
+        "if (typeof serialized !== 'string' || !serialized) "
+        "throw Error('The capture result could not be serialized.');"
+        "return serialized;}",
+        arg=argument,
+        timeout=SCRIPT_TIMEOUT_MS,
+    )
+    try:
+        serialized: object = handle.json_value()
+        if not isinstance(serialized, str):
+            raise ValueError("The capture result could not be read.")
+        result: object = json.loads(serialized)
+        if not isinstance(result, dict):
+            raise ValueError("The capture result could not be read.")
+        return cast(dict[str, object], result).get("value")
+    finally:
+        handle.dispose()
 
 
 class RendererUnavailable(ValueError):

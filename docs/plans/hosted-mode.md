@@ -121,3 +121,44 @@ preview browser cases. Ruff and strict basedpyright passed. The fixture provider
 exercises app boundaries, not a
 live identity provider. Current-head GitHub CI remains the release gate. No
 deployment, account changes or live server restart are part of this update.
+
+## Astra security review and regression fixes
+
+Three independent Astra reviewers examined authentication and membership,
+authored-content isolation, and deployment/resource boundaries. The authentication
+review found no confirmed bypass across existing tests and additional signed-JWT,
+header, path and membership probes. These fixture tests do not verify a live
+Cloudflare account.
+
+The review reproduced and fixed the following issues using fictional content:
+
+* Alternate workspace HTML entrypoints lacked the parent frame policy that blocks
+  authored pages from navigating to an external collector. All workspace shells
+  now share this policy. Direct capability documents download, and authenticated
+  preview documents require frame Fetch Metadata. Internal bundle links still work.
+* Hosted selection messages used the preview origin instead of the workspace
+  origin. Explicit trusted parent metadata restores editing and anchored feedback.
+  A blocked-navigation notice offers a deliberate preview reload.
+* Hosted Present targeted a deliberately blocked raw document. A trusted presenter
+  route restores presentation controls, notes and audience synchronization without
+  exposing authored scripts on the workspace origin. Audience responses omit
+  private notes and agent context. Phone presenter controls now stack and scroll.
+* Authored capture scripts could await indefinitely. Driver deadlines now cover
+  promise execution and result serialization; regression cases verify renderer
+  recovery after a timeout. The production Chromium sandbox remains enabled.
+* Every preview asset request rehashed its whole bundle. Requests now verify only
+  the requested immutable file, reject special files and stream the exact verified
+  bytes in small chunks. Four response slots remain held through slow sends; a
+  bounded queue preserves normal asset bursts. HEAD and media seeking still work.
+
+Independent Astra rechecks covered tampering, paths, ranges, slow clients,
+cancellation, queue overflow and recovery. A real HTTPS Chromium probe confirmed
+the navigation policy using browser-generated Fetch Metadata. Fresh Terra user
+reviewers exercised selection, feedback, internal links, reload, presentation,
+private notes, and desktop/375px/390px layouts. Updated Server checks screenshots
+include the unverified OS/container resource limits requirement.
+
+Final local test counts and current-head CI results are recorded in the PR. Live
+MFA, Tunnel/header/cookie configuration, revocation, backup recovery and suitable
+resource limits remain deployment acceptance work. The PR remains a draft; this
+review does not deploy or restart a service.

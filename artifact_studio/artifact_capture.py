@@ -28,7 +28,7 @@ from .artifact_preview import (
 )
 from .artifacts import ArtifactStore
 from .models import StrictModel
-from .renderer_health import sandboxed_browser
+from .renderer_health import bounded_evaluate, sandboxed_browser
 from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .visuals import MAX_DEPENDENCY_BYTES, render_slot
 
@@ -148,10 +148,11 @@ def rendered_resources(
             page = context.new_page()
             page.set_default_timeout(15_000)
             _ = page.goto(url, wait_until="load", timeout=15_000)
-            _ = page.evaluate(
+            _ = bounded_evaluate(
+                page,
                 "async () => {await document.fonts.ready;"
                 "await Promise.all([...document.images].map(image => "
-                "image.decode().catch(() => {})));}"
+                "image.decode().catch(() => {})));}",
             )
             yield page, blocked
     except BrowserError as error:
@@ -203,9 +204,10 @@ def capture_artifact_image(
             if elapsed_ms:
                 page.wait_for_timeout(elapsed_ms)
             if full_page:
-                pixels: object = page.evaluate(
+                pixels = bounded_evaluate(
+                    page,
                     "() => Math.max(document.documentElement.scrollWidth, innerWidth)"
-                    " * Math.max(document.documentElement.scrollHeight, innerHeight)"
+                    " * Math.max(document.documentElement.scrollHeight, innerHeight)",
                 )
                 if not isinstance(pixels, int | float) or pixels > MAX_CAPTURE_PIXELS:
                     raise ValueError("Full-page capture exceeds 32 million pixels.")

@@ -17,10 +17,24 @@ def test_hosted_app_routes_and_scoped_agent_protocol(tmp_path: Path) -> None:
         assert client.get("/web/hub.js").status_code == 401
         assert client.get("/api/hub").status_code == 401
         member = {"x-fixture-auth": "member"}
-        for path in ("/", "/web/index.html", "/web/hub.html", "/web/copilot-setup.html"):
+        for path in (
+            "/",
+            "/?editor=1",
+            "/web/index.html",
+            "/web/hub.html",
+            "/web/copilot-setup.html",
+        ):
             response = client.get(path, headers=member)
             assert response.status_code == 200
             assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+            assert (
+                "frame-src https://studio.example.test/api/artifacts/"
+                in response.headers["content-security-policy"]
+            )
+            assert (
+                "https://preview.example.test/_preview/"
+                in response.headers["content-security-policy"]
+            )
         session = client.get("/api/session", headers=member)
         assert session.status_code == 200
         assert session.json()["mcp_url"] == WORKSPACE + "/mcp"
@@ -98,6 +112,7 @@ def test_hosted_download_and_direct_preview_boundary(tmp_path: Path) -> None:
         source = tmp_path / "source"
         source.mkdir()
         (source / "index.html").write_text("<h1>Fixture</h1><script>window.fixture=true</script>")
+        (source / "preview").write_text("Fictional bundle data with a route-like filename")
         artifact = registry.register_artifact(project.id, "Fixture", source, "index.html")
         with httpx.Client(
             base_url=server.url,
@@ -111,8 +126,11 @@ def test_hosted_download_and_direct_preview_boundary(tmp_path: Path) -> None:
             assert download.headers["content-disposition"].startswith("attachment;")
             assert "sandbox" in download.headers["content-security-policy"]
             url = f"/api/artifacts/{artifact.id}/preview"
-            assert client.get(url, headers={"sec-fetch-dest": "document"}).status_code == 403
+            assert client.get(url).status_code == 403
+            for destination in ("document", "object", "embed"):
+                assert client.get(url, headers={"sec-fetch-dest": destination}).status_code == 403
             assert client.get(url, headers={"sec-fetch-dest": "iframe"}).status_code == 200
+            assert client.get(f"/api/artifacts/{artifact.id}/files/preview").status_code == 200
             assert (
                 client.get("/api/hub", headers={"host": "preview.example.test"}).status_code == 404
             )

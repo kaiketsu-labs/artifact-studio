@@ -182,6 +182,7 @@ def preview_document_from_source(
         f'<script src="{scripts}{MARQUEE_PATH}"></script>'
         f'<script src="{scripts}{IMAGE_EXPORT_PATH}"></script>'
         f'<script src="{scripts}{BRIDGE_PATH}" '
+        f'data-artifact-parent-origin="{escape(origin, quote=True)}" '
         f'data-artifact-root="{escape(files, quote=True)}" '
         f'data-artifact-format="{format_name}"></script>'
     )

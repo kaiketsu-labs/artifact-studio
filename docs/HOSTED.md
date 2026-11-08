@@ -53,8 +53,8 @@ details and authentication options are not printed.
 In the browser, select **Hosted → Server checks**. It distinguishes configured
 protections, warnings with an action to take, and unverified account settings.
 Hosts sharing a domain suffix prompt a cookie-isolation warning. Studio cannot
-inspect actual cookie scope, MFA enforcement, firewall rules, tunnel logging or
-backup recovery. These remain visibly unverified rather than becoming a green
+inspect actual cookie scope, MFA enforcement, firewall rules, tunnel logging,
+backup recovery or operating-system resource limits. These remain visibly unverified rather than becoming a green
 “secure” badge. There is no checkbox that bypasses validation or claims an
 external setting was verified.
 
@@ -95,6 +95,14 @@ Copy the single Access application's audience into `auth_options.audience`. A se
 
 Preview capability URLs contain sensitive bearer tokens and expire after one hour or a server restart. Reopen or refresh a preview to renew its resource URLs; a long-running authored page that loads new resources after expiry needs a refresh. Disable or redact URL logging in Tunnel, proxies and any other intermediaries; do not share or retain capability URLs. Container access logs are disabled by the override. Run one application process per workspace; capability signing keys are process-local.
 
+Open authored previews through the workspace. Every workspace entry point restricts frame navigation to Studio previews, including relative pages in the signed bundle. A capability resource opened directly in a tab downloads instead of executing. Preserve browser `Sec-Fetch-Dest` headers through the proxy: authenticated preview documents require a frame destination, and resource requests without this metadata download. Browsers without Fetch Metadata support cannot open hosted authored preview documents. Nested bundle pages retain their authored behavior; selection editing is available on the entrypoint preview.
+
+If an authored page attempts a blocked external navigation, Studio shows a
+warning with **Reload preview**. Internal links remain usable. Hosted **Present**
+opens a trusted viewer, with presenter notes and an audience window; audience
+responses omit notes and private agent context. Presenter controls also work on
+phones.
+
 For Codex, a Streamable HTTP server can map environment variables to headers in `~/.codex/config.toml` (set the environment variables securely before starting Codex):
 
 ```toml
@@ -124,6 +132,21 @@ Remote tools also have a four-worker execution budget. If a request times out or
 disconnects, work already running keeps its slot until it finishes; repeated
 retries cannot start unlimited background work. A timeout does not prove an edit
 was cancelled. Read the latest revision before retrying a mutation.
+
+Preview resources allow four active responses and up to 256 waiting requests,
+with a 60-second queue deadline. Each requested artifact file is verified against
+its immutable revision manifest and sent in small chunks while retaining its
+request slot. Serving a small asset does not hash the whole bundle again.
+Ordinary media byte ranges and HEAD requests remain supported.
+
+Capture scripts have a 15-second driver deadline, including promises and result
+serialization. A stalled script fails the capture instead of holding the renderer
+indefinitely or returning an incomplete image. These deadlines and request budgets
+do **not** cap process memory, CPU or disk. Configure OS or container limits for
+Studio and Chromium, monitor storage, and test the largest normal imports and
+captures. For Docker, review `mem_limit`, `cpus` and `pids_limit`; the example
+Compose files do not choose these limits for you. An unusually expensive document
+can exhaust a small VM before a script deadline expires.
 
 ## What runs where
 

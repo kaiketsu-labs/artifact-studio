@@ -28,6 +28,9 @@ class HostedAuth:
         self._mcp_slots = asyncio.Semaphore(4)
         self._write_slots = asyncio.Semaphore(4)
         self._upload_slots = asyncio.Semaphore(1)
+        self._preview_slots = asyncio.Semaphore(4)
+        self._preview_waiters = 0
+        self.preview_wait_timeout = 60.0
         self.body_timeout = 120.0
         self.mcp_timeout = 90.0
 
@@ -112,9 +115,10 @@ class HostedAuth:
                 await reply(403, "Forbidden")
                 return
             if (
-                headers.get("sec-fetch-dest") == "document"
-                and path.startswith("/api/artifacts/")
+                path.startswith("/api/artifacts/")
+                and path.count("/") == 4
                 and path.endswith("/preview")
+                and headers.get("sec-fetch-dest") not in {"iframe", "frame"}
             ):
                 await reply(403, "Open this preview inside the workspace.")
                 return
@@ -163,11 +167,44 @@ class HostedAuth:
                 if not is_preview and (
                     path == "/" or (path.startswith("/web/") and path.endswith(".html"))
                 ):
-                    existing.append((b"content-security-policy", b"frame-ancestors 'none'"))
+                    # Every route serving the trusted UI needs this parent policy:
+                    # a sandboxed child can still navigate its own frame. Include
+                    # signed resources so relative links stay within the bundle.
+                    policy = (
+                        "frame-ancestors 'none'; object-src 'none'; "
+                        f"frame-src {self.config.public_url}/api/artifacts/ "
+                        f"{self.config.public_url}/api/designs/ "
+                        f"{self.config.public_url}/api/decks/ "
+                        f"{self.config.public_url}/decks/ "
+                        f"{self.config.preview_url}/_preview/ about:"
+                    )
+                    existing.append((b"content-security-policy", policy.encode("ascii")))
                 message["headers"] = existing
             await send(message)
 
-        if not is_preview and (path == "/mcp" or path.startswith("/mcp/")):
+        if is_preview:
+            # Normal parallel asset loads wait for a bounded slot rather than
+            # failing immediately. A public capability must not create unlimited
+            # concurrent verification reads or response buffers.
+            if self._preview_waiters >= 256:
+                await reply(429, "Preview capacity is busy. Retry shortly.")
+                return
+            self._preview_waiters += 1
+            try:
+                try:
+                    async with asyncio.timeout(self.preview_wait_timeout):
+                        await self._preview_slots.acquire()
+                except TimeoutError:
+                    await reply(429, "Preview capacity is busy. Retry shortly.")
+                    return
+            finally:
+                self._preview_waiters -= 1
+            try:
+                await self.app(scope, receive, secured_send)
+            finally:
+                self._preview_slots.release()
+            return
+        if path == "/mcp" or path.startswith("/mcp/"):
             if self._mcp_slots.locked():
                 await reply(429, "Agent connection is busy. Retry shortly.")
                 return
