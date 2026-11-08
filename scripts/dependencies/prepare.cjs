@@ -1,5 +1,5 @@
 const {candidate, mergeReason} = require('./policy.cjs');
-const {gh, api, graphql, inputs, inspect, output, summary} = require('./github.cjs');
+const {gh, api, paginatedRules, graphql, inputs, inspect, output, summary} = require('./github.cjs');
 
 function run() {
   const identity = inputs();
@@ -15,10 +15,11 @@ function run() {
   const [owner, name] = input.repository.split('/');
   const settings = graphql(`query($owner:String!,$name:String!) {
     repository(owner:$owner,name:$name) { autoMergeAllowed defaultBranchRef {
-      name branchProtectionRule { requiresStatusChecks requiresStrictStatusChecks requiredStatusCheckContexts }
+      name
     } }
   }`, {owner, name}).repository;
-  const reason = mergeReason(input, process.env.UPDATE_TYPE || '', settings);
+  const rules = paginatedRules(`repos/${input.repository}/rules/branches/main?per_page=100`);
+  const reason = mergeReason(input, process.env.UPDATE_TYPE || '', settings, rules);
   if (reason) {
     summary(`Automatic merge not enabled: ${reason}.`);
     return;

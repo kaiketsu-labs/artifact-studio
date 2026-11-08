@@ -3,6 +3,10 @@ name: Release Please
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       command:
@@ -50,8 +54,13 @@ jobs:
           gh workflow run ci.yml --ref "$branch"
 
   publish:
-    name: Publish merged release (manual only)
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.command == 'publish'
+    name: Publish merged release
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.command == 'publish') ||
+       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.id == github.event.repository.id))
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
@@ -60,11 +69,19 @@ jobs:
       actions: read
     steps:
       - name: Require successful CI for main and pending releases
+        id: guard
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_SHA: ${{ github.sha }}
+          RELEASE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          AUTOMATIC: ${{ github.event_name == 'workflow_run' }}
         run: |
+          current=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+          if [ "$current" != "$RELEASE_SHA" ]; then
+            echo "Main changed after this run was requested. Run Publish again after its CI passes."
+            if [ "$AUTOMATIC" = true ]; then exit 0; fi
+            exit 1
+          fi
           result=$(gh run list --workflow ci.yml --commit "$RELEASE_SHA" --branch main --event push \
             --limit 1 --json conclusion --jq '.[0].conclusion // "missing"')
           if [ "$result" != success ]; then
@@ -75,11 +92,12 @@ jobs:
             --limit 200 --json mergeCommit --jq '.[] | .mergeCommit.oid // "missing"')
           if [ -z "$release_commits" ]; then
             echo "No merged release PR is pending. Merge the release PR before publishing."
+            if [ "$AUTOMATIC" = true ]; then exit 0; fi
             exit 1
           fi
           while IFS= read -r release_commit; do
-            if [ "$release_commit" = missing ]; then
-              echo "A pending release PR has no merge commit; cannot verify its CI."
+            if [[ ! "$release_commit" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "A pending release PR has an invalid merge commit; cannot verify its CI."
               exit 1
             fi
             result=$(gh run list --workflow ci.yml --commit "$release_commit" --branch main --event push \
@@ -92,11 +110,39 @@ jobs:
           current=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
           if [ "$current" != "$RELEASE_SHA" ]; then
             echo "Main changed after this run was requested. Run Publish again after its CI passes."
+            if [ "$AUTOMATIC" = true ]; then exit 0; fi
             exit 1
           fi
-      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+          {
+            echo "publish=true"
+            echo "release_sha=$RELEASE_SHA"
+            echo "verified<<VERIFIED_SHAS"
+            printf '%s\n' "$release_commits"
+            echo "VERIFIED_SHAS"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: steps.guard.outputs.publish == 'true'
         with:
-          target-branch: main
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-          skip-github-pull-request: true
+          ref: ${{ steps.guard.outputs.release_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.guard.outputs.publish == 'true'
+        with:
+          node-version: "24"
+      - name: Install locked release tooling
+        if: steps.guard.outputs.publish == 'true'
+        run: npm ci --ignore-scripts --prefix scripts/release
+      - name: Publish verified release plan
+        if: steps.guard.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ steps.guard.outputs.release_sha }}
+          VERIFIED_SHAS: ${{ steps.guard.outputs.verified }}
+        run: |
+          current=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+          if [ "$current" != "$RELEASE_SHA" ]; then
+            echo "Main changed after validation; run Publish again after CI passes."
+            exit 1
+          fi
+          node scripts/release/publish.js

@@ -36,6 +36,14 @@ title pills; descriptions stay inside the frozen reference delivered to your age
 The slide with a star represents favorite-slide references; the single star saves a slide
 to Favorites.
 
+The single-star toggle sits in each slide thumbnail's caption row, clear of the
+slide artwork. It is also available in the sorter and the slide's right-click
+menu as **Add to favorites** or **Remove from favorites**. Keyboard users can
+focus the star and press **Space** or **Enter**, or open the slide menu with
+**Shift+F10**. Favoriting does not change slide content, approval or visibility.
+
+![Favorite stars beside slide captions](prototypes/favorites/slide-stars-rest.png)
+
 ![Slide-and-star reference picker beside the microphone](screenshots/reference-picker-slide-star-dark.png)
 
 Pill previews use the attachment captured when you selected the reference, even

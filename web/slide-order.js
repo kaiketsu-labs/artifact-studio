@@ -150,8 +150,8 @@
     rail.addEventListener('dragstart',event=>event.preventDefault());
     rail.addEventListener('click',event=>{if(suppressClick){event.preventDefault();return;}const button=event.target.closest('[data-id]');if(button)void select(button.dataset.id,event);});
     rail.addEventListener('contextmenu',async event=>{
-      const button=event.target.closest('[data-id],[data-visibility-id]');if(!button)return;event.preventDefault();if(busy)return;
-      const id=button.dataset.id||button.dataset.visibilityId;
+      const button=event.target.closest('[data-id],[data-visibility-id],.slide-star');if(!button)return;event.preventDefault();if(busy)return;
+      const id=button.dataset.id||button.dataset.visibilityId||button.dataset.starSlide;
       if(!selected.has(id)){if(!await select(id))return;}else if(!await open(id))return;
       contextMenu(id,{x:event.clientX,y:event.clientY});
     });

@@ -22,12 +22,9 @@ function fixture() {
     commits: [{sha: head, author: {login: 'dependabot[bot]'}, commit: {verification: {verified: true}}}],
   };
 }
-function settings() {
-  return {autoMergeAllowed: true, defaultBranchRef: {name: 'main', branchProtectionRule: {
-    requiresStatusChecks: true, requiresStrictStatusChecks: true,
-    requiredStatusCheckContexts: ['Dependency safety'],
-  }}};
-}
+function settings() { return {autoMergeAllowed: true, defaultBranchRef: {name: 'main'}}; }
+function rules() { return [{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: true,
+  required_status_checks: [{context: 'Dependency safety', integration_id: 15368}]}}]; }
 const update = 'version-update:semver-patch';
 
 test('only a complete signed same-repository Dependabot update is a candidate', () => {
@@ -63,20 +60,18 @@ test('workflow, image and unrelated changes stay outside automatic library merge
   }
 });
 
-test('native queue requires a known compatible update and protected up-to-date CI', () => {
-  for (const type of [update, 'version-update:semver-minor']) assert.equal(mergeReason(fixture(), type, settings()), '');
-  for (const type of ['', 'version-update:semver-major', 'unknown', 'version-update:semver-patch,major']) assert.ok(mergeReason(fixture(), type, settings()));
-  for (const change of [
-    s => { s.autoMergeAllowed = false; },
-    s => { s.defaultBranchRef.name = 'develop'; },
-    s => { s.defaultBranchRef.branchProtectionRule = null; },
-    s => { s.defaultBranchRef.branchProtectionRule.requiresStatusChecks = false; },
-    s => { s.defaultBranchRef.branchProtectionRule.requiresStrictStatusChecks = false; },
-    s => { s.defaultBranchRef.branchProtectionRule.requiredStatusCheckContexts = ['unrelated']; },
-  ]) {
-    const value = settings(); change(value); assert.ok(mergeReason(fixture(), update, value));
-  }
-  assert.ok(mergeReason(fixture(), update, null));
+test('native queue requires a known compatible update and strict Actions-bound safety check', () => {
+  for (const type of [update, 'version-update:semver-minor']) assert.equal(mergeReason(fixture(), type, settings(), rules()), '');
+  for (const type of ['', 'version-update:semver-major', 'unknown', 'version-update:semver-patch,major']) assert.ok(mergeReason(fixture(), type, settings(), rules()));
+  assert.ok(mergeReason(fixture(), update, null, rules()));
+  assert.ok(mergeReason(fixture(), update, {autoMergeAllowed: false}, rules()));
+  assert.ok(mergeReason(fixture(), update, {autoMergeAllowed: true, defaultBranchRef: {name: 'other'}}, rules()));
+  const variants = [[], null, [{type: 'other'}],
+    [{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: false, required_status_checks: [{context: 'Dependency safety', integration_id: 15368}]}}],
+    [{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: true, required_status_checks: [{context: 'Dependency safety'}]}}],
+    [{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: true, required_status_checks: [{context: 'Dependency safety', integration_id: 1}]}}],
+    [{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: true, required_status_checks: []}}, {type: 'required_status_checks', parameters: {strict_required_status_checks_policy: false, required_status_checks: [{context: 'Dependency safety', integration_id: 15368}]}}]];
+  for (const value of variants) assert.ok(mergeReason(fixture(), update, settings(), value));
 });
 
 function results(docker = true, macos = true) {
@@ -143,6 +138,10 @@ if (args[0] === 'api' && args[1] === 'graphql') {
     if (mock.headMoved) process.exit(1);
     console.log(JSON.stringify({data: {createCommitOnBranch: {commit: {oid: 'c'.repeat(40)}}}}));
   } else console.log(JSON.stringify({data: {repository: mock.settings}}));
+} else if (args[0] === 'api' && args[1].includes('/rules/branches/main?')) {
+  if (mock.rulesError) process.exit(1);
+  if (!args.includes('--paginate') || !args.includes('--slurp')) process.exit(2);
+  console.log(JSON.stringify(mock.pages));
 } else if (args[0] === 'api') {
   const value = args[1].includes('/files?') ? mock.files : args[1].includes('/commits?') ? mock.commits : mock.pr;
   console.log(JSON.stringify(value));
@@ -156,7 +155,7 @@ if (args[0] === 'api' && args[1] === 'graphql') {
 function execute(script, value = {}, args = []) {
   const log = path.join(temporary, `log-${Math.random()}.jsonl`);
   const output = path.join(temporary, `output-${Math.random()}`);
-  const mock = {...fixture(), settings: settings(), ...value};
+  const mock = {...fixture(), settings: settings(), pages: [rules()], ...value};
   const result = spawnSync(process.execPath, [path.join(root, 'scripts/dependencies', script), ...args], {
     encoding: 'utf8', env: {...process.env, PATH: `${bin}:${process.env.PATH}`,
       GH_REPO: 'example/studio', PR_NUMBER: '7', PR_HEAD: head, UPDATE_TYPE: update,
@@ -180,6 +179,21 @@ test('a failed settings lookup cannot retain an old automatic-merge queue', () =
   const merges = result.calls.filter(call => call.args[0] === 'pr');
   assert.equal(merges.length, 1);
   assert.ok(merges[0].args.includes('--disable-auto'));
+});
+test('active rules read is paginated and fails closed on errors, malformed pages, and unsafe rules', () => {
+  const successful = execute('prepare.cjs', {pages: [[], rules()]});
+  assert.equal(successful.status, 0, successful.stderr);
+  assert.ok(successful.calls.some(call => call.args.includes('--paginate') && call.args.includes('--slurp')));
+  assert.doesNotMatch(successful.calls.find(call => call.args[1] === 'graphql').body.query, /branchProtectionRule/);
+  for (const input of [{rulesError: true}, {pages: {}}, {pages: []}, {pages: [null]}, {pages: [[null]]},
+    {pages: [[{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: true, required_status_checks: [{context: 'Dependency safety'}]}}]]},
+    {pages: [[{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: true, required_status_checks: [{context: 'Dependency safety', integration_id: 1}]}}]]},
+    {pages: [[{type: 'required_status_checks', parameters: {strict_required_status_checks_policy: false, required_status_checks: [{context: 'Dependency safety', integration_id: 15368}]}}]]}]) {
+    const result = execute('prepare.cjs', input);
+    const merges = result.calls.filter(call => call.args[0] === 'pr');
+    assert.equal(merges.length, 1);
+    assert.ok(merges[0].args.includes('--disable-auto'));
+  }
 });
 test('writer commits only generated paths with a head compare-and-swap, then dispatches fresh CI', () => {
   const value = fixture(); value.files[0].filename = 'scripts/text-editor/package-lock.json';
