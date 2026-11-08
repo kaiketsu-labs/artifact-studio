@@ -51,6 +51,7 @@ def running_hosted_app(root: Path, logs: Path) -> Generator[HostedApp]:
             }
         )
     )
+    config.chmod(0o640)
     runner = root / "server.py"
     runner.write_text("""
 import sys
@@ -137,4 +138,6 @@ def routed_hosted_context(
     try:
         yield context
     finally:
+        # Finish in-flight proxy responses before closing the context that owns them.
+        context.unroute_all(behavior="wait")
         context.close()

@@ -14,6 +14,7 @@ _ID = r"[^/]+"
 _TAIL = r"[^/]+(?:/[^/]+)*"
 _READ = (
     r"/",
+    r"/api/deployment/security",
     r"/api/health",
     r"/api/session",
     r"/api/shares/capabilities",

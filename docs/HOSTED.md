@@ -27,6 +27,52 @@ Connect an agent using the hosted `https://studio.example.com/mcp` URL and Strea
 
 Before production use, validate the actual account's MFA policy, tunnel routing, origin isolation, service-token authentication and revocation, preview isolation, and backup and restore procedure. Application tests cannot establish those account-specific properties.
 
+## Check safety before starting
+
+Keep configuration in an owner-controlled regular file outside the collection,
+readable by the server account. Group/world write permissions, symlinks, duplicate
+JSON keys, oversized configuration, invalid origins and hosted configuration
+accidentally used with local mode stop startup. For a Docker bind mount, make the
+file readable by UID/GID 1000, for example owner-only or group-readable mode `640`.
+Do not make it world-writable to fix a permission error. Symlink-based secret
+projections must supply a protected regular file instead.
+
+Run the local check without starting a server or contacting the identity provider:
+
+```sh
+ARTIFACT_STUDIO_MODE=hosted \
+ARTIFACT_STUDIO_HOSTED_CONFIG=/absolute/path/to/hosted.json \
+uv run python -m artifact_studio.security_check
+```
+
+Use `--json` for a redacted structured report. Exit code 2 means configuration or
+provider loading is blocked; exit code 0 means the local configuration was
+accepted, **not** that the deployment passed a security audit. Provider error
+details and authentication options are not printed.
+
+In the browser, select **Hosted → Server checks**. It distinguishes configured
+protections, warnings with an action to take, and unverified account settings.
+Hosts sharing a domain suffix prompt a cookie-isolation warning. Studio cannot
+inspect actual cookie scope, MFA enforcement, firewall rules, tunnel logging or
+backup recovery. These remain visibly unverified rather than becoming a green
+“secure” badge. There is no checkbox that bypasses validation or claims an
+external setting was verified.
+
+![Server checks separate warnings, unverified hosting settings and configured app protections.](assets/hosted-server-checks.png)
+
+<details>
+<summary>Server checks on a phone</summary>
+
+<img src="assets/hosted-server-checks-mobile.png" width="390" alt="Hosted server checks in dark appearance, showing cookie isolation and MFA guidance.">
+
+</details>
+
+If sign-in expires, the page retains its current work and offers **Sign in again**.
+Connection copying is disabled until the session is re-established. Signing in
+reloads the page; the editor's usual unsaved-work protection still applies.
+
+![Expired sign-in clears connection information and offers a deliberate sign-in action.](assets/hosted-session-expired.png)
+
 ## Docker and Tunnel example
 
 Make the configuration readable by the container's UID 1000, then run from the checkout:
@@ -38,6 +84,12 @@ docker compose -f compose.yaml -f compose.hosted.yaml logs --tail=100 studio
 ```
 
 The override mounts that file read-only, retains the base Compose sandbox and loopback-only port, disables proxy-header trust, and disables application access logs. Run `cloudflared` on the host and route both public hostnames to `http://127.0.0.1:8790`. Preserve each incoming Host header: do not set `originRequest.httpHostHeader`. The browser hostname is protected by Access; the preview hostname is not. Keep the browser Access cookie host-only. The local container health check still uses loopback.
+
+Keep **local mode** on a private listener too: it has no login. Docker listens on
+all interfaces inside its container so port forwarding works; the Compose host
+binding is deliberately `127.0.0.1`. Do not change the published binding to `0.0.0.0`
+or expose port 8790 in the Hetzner firewall. Configuration checks cannot prove how
+your container port or external firewall is exposed.
 
 Copy the single Access application's audience into `auth_options.audience`. A separate Access application for `/mcp` can issue a different audience and is not compatible with this single-audience configuration. For [Cloudflare service tokens](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/), Studio matches the verified JWT's `common_name` to the exact service token **Client ID** in `agent_subjects`; the service token JWT may have an empty `sub`. The Client Secret belongs only in the agent's secret store.
 
@@ -58,6 +110,20 @@ For Claude Code, a project `.mcp.json` can use environment interpolation; set th
 ```
 
 These examples use service-token headers. External OAuth and native agent OAuth are not implemented. Check the installed client version's configuration support and verify a real tool call.
+
+Hosted request budgets protect the service before JSON parsing or mutations:
+ordinary writes allow 16 MiB and four active requests; attachment/import/draft
+requests allow 256 MiB and one active request (100 MiB for project archives).
+Bodies must finish arriving within 120 seconds and are spooled to private temporary
+storage before handlers run. Existing decoded file and model limits still apply.
+The MCP limit remains 2 MiB and four active requests. Busy requests return 429 with
+`Retry-After`; oversized requests return 413. An upstream proxy can impose a lower
+upload limit—Cloudflare account limits are separate from Studio's budget.
+
+Remote tools also have a four-worker execution budget. If a request times out or
+disconnects, work already running keeps its slot until it finishes; repeated
+retries cannot start unlimited background work. A timeout does not prove an edit
+was cancelled. Read the latest revision before retrying a mutation.
 
 ## What runs where
 

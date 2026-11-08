@@ -381,6 +381,8 @@
 
   async function api(path, body) {
     const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+    root.ArtifactSession?.observe(response);
+    root.ArtifactSession?.assertActive();
     let result;
     try{result=await response.json();}catch{if(!response.ok)throw new Error(`Request failed (${response.status}).`);return {};}
     if(!response.ok){const error=new Error(typeof result.detail==='string'?result.detail:result.error || `Request failed (${response.status}).`);error.status=response.status;throw error;}

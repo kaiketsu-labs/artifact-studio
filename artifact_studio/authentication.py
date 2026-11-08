@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from importlib.metadata import entry_points
-from typing import Protocol
+from typing import Protocol, cast
 
 from starlette.datastructures import Headers
 
@@ -37,4 +37,7 @@ def load_auth_provider(config: DeploymentConfig) -> AuthProvider:
     matches = entry_points(group="artifact_studio.auth", name=config.auth_provider)
     if len(matches) != 1:
         raise ValueError("Unknown authentication provider")
-    return next(iter(matches)).load()(options)
+    provider: object = next(iter(matches)).load()(options)
+    if not callable(getattr(provider, "authenticate", None)):
+        raise ValueError("Authentication provider must implement authenticate(headers).")
+    return cast(AuthProvider, provider)

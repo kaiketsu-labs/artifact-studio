@@ -1,12 +1,13 @@
 """ASGI security boundary for the hosted workspace and isolated previews."""
 
 import asyncio
+import tempfile
 from collections.abc import Callable
 from typing import cast
 from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers
-from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
@@ -25,6 +26,9 @@ class HostedAuth:
         self.host = urlsplit(config.public_url).netloc
         self.preview_host = urlsplit(config.preview_url).netloc
         self._mcp_slots = asyncio.Semaphore(4)
+        self._write_slots = asyncio.Semaphore(4)
+        self._upload_slots = asyncio.Semaphore(1)
+        self.body_timeout = 120.0
         self.mcp_timeout = 90.0
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -40,10 +44,15 @@ class HostedAuth:
         path, method = scope["path"], scope["method"].upper()
 
         async def reply(status: int, message: str) -> None:
-            await PlainTextResponse(
-                message,
+            response_headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
+            if status == 429:
+                response_headers["Retry-After"] = "2"
+            if status == 401:
+                response_headers["WWW-Authenticate"] = "Bearer"
+            await JSONResponse(
+                {"detail": message},
                 status_code=status,
-                headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+                headers=response_headers,
             )(scope, receive, send)
 
         if (
@@ -190,5 +199,81 @@ class HostedAuth:
                     if not started:
                         await reply(504, "Request timed out")
                     return
+            return
+        if not is_preview and method == "POST":
+            # Attachment-bearing routes have existing large base64 upload contracts.
+            large = path in {
+                "/api/artifacts/import",
+                "/api/decks",
+                "/api/design-requests",
+                "/api/design-library",
+                "/api/chat-references",
+                "/api/projects/open",
+            } or path.endswith(
+                (
+                    "/feedback",
+                    "/references",
+                    "/files",
+                    "/project",
+                    "/send-batch",
+                    "/selection-image",
+                )
+            )
+            limit = (100 if path == "/api/projects/open" else 256 if large else 16) * 1024 * 1024
+            slots = self._upload_slots if large else self._write_slots
+            if slots.locked():
+                await reply(429, "Request capacity is busy. Retry shortly.")
+                return
+            async with slots:
+                # Read and validate the entire body before invoking any mutating handler.
+                # A disk-backed temporary file avoids keeping a second copy in memory.
+                with tempfile.TemporaryFile() as body_file:
+                    size = 0
+                    try:
+                        async with asyncio.timeout(self.body_timeout):
+                            while True:
+                                chunk = await receive()
+                                if chunk["type"] == "http.disconnect":
+                                    return
+                                data = chunk.get("body", b"")
+                                size += len(data)
+                                if size > limit:
+                                    await reply(413, "Request too large")
+                                    return
+                                body_file.write(data)
+                                if not chunk.get("more_body", False):
+                                    break
+                    except TimeoutError:
+                        await reply(408, "Request body timed out")
+                        return
+                    body_file.seek(0)
+                    remaining = size
+
+                    async def replay_receive() -> Message:
+                        nonlocal remaining
+                        if remaining:
+                            data = body_file.read(min(remaining, 64 * 1024))
+                            remaining -= len(data)
+                            return {
+                                "type": "http.request",
+                                "body": data,
+                                "more_body": remaining > 0,
+                            }
+                        return await receive()
+
+                    if not size:
+                        # Even an empty body must deliver one request event.
+                        delivered = False
+
+                        async def empty_receive() -> Message:
+                            nonlocal delivered
+                            if not delivered:
+                                delivered = True
+                                return {"type": "http.request", "body": b"", "more_body": False}
+                            return await receive()
+
+                        await self.app(scope, empty_receive, secured_send)
+                    else:
+                        await self.app(scope, replay_receive, secured_send)
             return
         await self.app(scope, receive, secured_send)

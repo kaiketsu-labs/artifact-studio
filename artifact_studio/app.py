@@ -131,6 +131,7 @@ from .questions import Questions
 from .recovery_api import recovery_routes
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .sections import Sections, sections_hash
+from .security_check import SecurityReport, security_report
 from .share_api import sharing_routes
 from .slide_actions import SlideActionResult, SlideActions
 from .slide_design_api import design_routes
@@ -1629,6 +1630,14 @@ else:
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Run MCP and explicitly opted-in repository sync while the local server is open."""
+    if deployment.mode == "hosted":
+        report = security_report(deployment)
+        logging.getLogger(__name__).warning(
+            "Hosted deployment needs review: %s warnings and %s external checks. "
+            "Open Server checks in the workspace or run python -m artifact_studio.security_check.",
+            report.counts["warnings"],
+            report.counts["unverified"],
+        )
     async with transport_mcp.session_manager.run():
         stop = asyncio.Event()
         tasks = [
@@ -1775,7 +1784,14 @@ def session_info(request: Request) -> dict[str, object]:
         "email": principal.email if principal is not None else None,
         "shared_workspace": hosted,
         "capabilities": {"local_admin": not hosted, "automatic_feedback": not hosted},
+        "security": security_report(deployment).model_dump(),
     }
+
+
+@app.get("/api/deployment/security")
+def deployment_security() -> SecurityReport:
+    """Expose configuration facts and external checks without credentials or member lists."""
+    return security_report(deployment)
 
 
 @app.get("/api/copilot/setup/{document}", response_class=FileResponse)

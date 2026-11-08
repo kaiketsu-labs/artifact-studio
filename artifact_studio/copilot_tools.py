@@ -9,8 +9,9 @@ import json
 import os
 import shutil
 import stat
+import threading
 from collections.abc import Callable, Coroutine
-from contextlib import suppress
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from typing import Annotated, Literal, cast
@@ -36,6 +37,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = (PROJECT / "agent/copilot.md").read_text()
 MAX_READ_BYTES = 1024 * 1024
 MAX_RESULT_BYTES = 4 * 1024 * 1024
+_REMOTE_WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="studio-remote")
+_REMOTE_WORK_SLOTS = threading.BoundedSemaphore(4)
 Text = Annotated[str, Field(max_length=1_500_000)]
 Identifier = Annotated[str, Field(min_length=1, max_length=100)]
 RequestID = Annotated[str, Field(min_length=8, max_length=100)]
@@ -169,13 +172,15 @@ def remote_tool[**P, T](function: Callable[P, T]) -> Callable[P, Coroutine[objec
     async def call(*args: P.args, **kwargs: P.kwargs) -> T:
         """Translate expected failures without exposing credentials or local paths."""
         try:
-            task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+            if not _REMOTE_WORK_SLOTS.acquire(blocking=False):
+                raise ToolError("Agent workspace is busy. Retry shortly.")
             try:
-                result = await asyncio.shield(task)
-            except asyncio.CancelledError:
-                with suppress(Exception):
-                    await task
+                future = _REMOTE_WORKERS.submit(function, *args, **kwargs)
+            except BaseException:
+                _REMOTE_WORK_SLOTS.release()
                 raise
+            future.add_done_callback(lambda _future: _REMOTE_WORK_SLOTS.release())
+            result = await asyncio.wrap_future(future)
             if (
                 not isinstance(result, CallToolResult)
                 and len(json.dumps(result, ensure_ascii=False).encode()) > MAX_RESULT_BYTES

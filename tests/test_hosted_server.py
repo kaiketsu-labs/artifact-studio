@@ -21,6 +21,16 @@ def test_hosted_app_routes_and_scoped_agent_protocol(tmp_path: Path) -> None:
         assert session.status_code == 200
         assert session.json()["mcp_url"] == WORKSPACE + "/mcp"
         assert session.json()["capabilities"]["local_admin"] is False
+        checks = client.get("/api/deployment/security", headers=member)
+        assert checks.status_code == 200
+        assert checks.json() == session.json()["security"]
+        assert checks.json()["summary"] == "review"
+        assert "reviewer@example.test" not in checks.text
+        assert client.get("/api/deployment/security").status_code == 401
+        assert (
+            client.get("/api/deployment/security", headers={"x-fixture-auth": "agent"}).status_code
+            == 403
+        )
         for path in ("/api/libraries", "/api/workspace/archive", "/decks/.private/key"):
             assert client.get(path, headers=member).status_code == 404
         assert client.get("/api/hub", headers={"x-fixture-auth": "agent"}).status_code == 403

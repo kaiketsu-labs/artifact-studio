@@ -114,3 +114,47 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
         page.keyboard.press("Escape")
         expect(page.locator("[data-session-mode]")).to_be_focused()
         assert not failures
+
+
+def test_expiry_clears_open_connection_and_preserves_review_page(
+    browser: Browser,
+    tmp_path: Path,
+    artifacts: Path,
+) -> None:
+    with (
+        running_hosted_app(tmp_path / "hosted", artifacts / "server.log") as app,
+        routed_hosted_context(browser, app) as context,
+    ):
+        context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+        page = context.new_page()
+        page.goto(WORKSPACE)
+        expect(page.locator("[data-session-mode]")).to_have_text("Hosted")
+        page.locator("#hub-tools-button").click()
+        page.locator("[data-hub-connect]").click()
+        dialog = page.get_by_role("dialog", name="Agent connection")
+        expect(dialog.locator("input")).to_have_value(WORKSPACE + "/mcp")
+        dialog.locator("[data-copy-mcp]").click()
+        expect(dialog.locator("[data-copy-status]")).to_have_text("URL copied.")
+        page.route(
+            "**/api/app-info",
+            lambda route: route.fulfill(
+                status=401,
+                json={"detail": "Authentication required"},
+            ),
+        )
+        page.evaluate(
+            "fetch('/api/app-info').then(response => window.ArtifactSession.observe(response))"
+        )
+        expect(dialog.locator("input")).to_have_value("")
+        expect(dialog.locator("[data-copy-status]")).to_be_empty()
+        expect(dialog.locator("[data-copy-mcp]")).to_be_disabled()
+        expect(dialog.locator("[data-hub-cloudflare]")).to_be_hidden()
+        expect(dialog.locator("[data-hub-setup]").last).to_be_hidden()
+        expect(dialog.get_by_role("button", name="Sign in again")).to_be_visible()
+        assert page.url == WORKSPACE + "/"
+        page.keyboard.press("Escape")
+        page.locator("#hub-tools-button").click()
+        page.locator("[data-hub-connect]").click()
+        expect(dialog.locator("[data-copy-mcp]")).to_be_disabled()
+        expect(dialog.locator("[data-hub-setup]").last).to_be_hidden()
+        expect(dialog.get_by_role("button", name="Sign in again")).to_be_visible()

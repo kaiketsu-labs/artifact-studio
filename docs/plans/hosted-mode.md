@@ -87,3 +87,30 @@ attachments, and direct top-level artifact-preview navigation is rejected.
 External MFA enrollment, Tunnel isolation and real Codex/Claude service-token
 authentication remain deployment acceptance work. Hosted capabilities and local
 administration differences are listed explicitly in `docs/HOSTED.md`.
+
+## Safety and usability hardening
+
+A second independent review found unbounded browser request parsing and remote
+tool work continuing after cancellation without retaining a concurrency slot.
+Hosted writes now validate complete, bounded bodies before invoking handlers;
+uploads have a separate one-request budget. Remote tool execution retains its
+four-worker budget until the underlying work finishes, even after a timeout.
+
+Configuration validation now rejects unsafe file permissions, symlinks, duplicate
+keys, oversized files, invalid origins, and a hosted configuration accidentally
+loaded in local mode. A redacted CLI report and browser Server checks distinguish
+configured protections from warnings and external settings the app cannot verify.
+The interface never marks MFA, origin isolation or recovery as proven by JSON.
+
+Fresh Terra reviewers exercised desktop checks and sign-in expiry, phone
+light/dark layouts at 320px and 390px, and an independent configuration/CLI review.
+Their findings led to cleared and disabled connection controls after expiry,
+removal of stale copy confirmation, deliberate sign-in with existing unsaved-work
+protection, and compact editor controls on phones. Tests also cover redirected
+login HTML and in-flight session responses arriving after expiry.
+
+Current local verification: 927 Python tests and 276 frontend behavior tests
+passed, plus 20 hosted, About, contrast and accessibility browser cases; Ruff and
+strict basedpyright passed. The fixture provider exercises app boundaries, not a
+live identity provider. Current-head GitHub CI remains the release gate. No
+deployment, account changes or live server restart are part of this update.
