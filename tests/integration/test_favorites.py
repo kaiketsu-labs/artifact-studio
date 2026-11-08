@@ -106,6 +106,7 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
     page.get_by_role("button", name="Reference favorite slides", exact=True).click()
     picker = page.get_by_role("dialog", name="Favorite slides", exact=True)
     expect(picker.locator("[data-favorite-pick]")).to_have_count(3)
+    expect(picker.locator(".favorites-grid")).not_to_contain_text("Loading…")
     picker.get_by_role(
         "button", name="Edit description for One slide. One clear idea.", exact=True
     ).click()

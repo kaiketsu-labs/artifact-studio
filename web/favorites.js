@@ -143,7 +143,7 @@
   function ensurePicker(){
     if(picker)return;
     picker=doc.createElement('dialog');picker.className='favorites-dialog';picker.setAttribute('aria-labelledby','favorites-title');
-    picker.innerHTML=`<div class="favorites-heading"><div><h2 id="favorites-title">${icon()} Favorite slides</h2><p id="favorites-help"></p></div><button type="button" data-favorites-close aria-label="Close favorite slides">${root.SlideIcons.svg('close')}</button></div><label class="favorites-search">${root.SlideIcons.svg('search')}<input type="search" aria-label="Search favorite slides" placeholder="Search titles or descriptions…"></label><div class="favorites-grid"></div><p class="favorites-error" role="alert"></p><div class="favorites-footer"><span role="status"></span><button type="button" class="primary" data-favorites-add>Add references</button></div>`;
+    picker.innerHTML=`<div class="favorites-heading"><div><h2 id="favorites-title">${root.SlideIcons.svg('referenceStars')} Favorite slides</h2><p id="favorites-help"></p></div><button type="button" data-favorites-close aria-label="Close favorite slides">${root.SlideIcons.svg('close')}</button></div><label class="favorites-search">${root.SlideIcons.svg('search')}<input type="search" aria-label="Search favorite slides" placeholder="Search titles or descriptions…"></label><div class="favorites-grid"></div><p class="favorites-error" role="alert"></p><div class="favorites-footer"><span role="status"></span><button type="button" class="primary" data-favorites-add>Add references</button></div>`;
     doc.body.append(picker);
     picker.querySelector('[data-favorites-close]').addEventListener('click',()=>{if(!busy)picker.close();});
     picker.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
@@ -188,7 +188,7 @@
     const matches=entries.filter(item=>`${item.title} ${item.deck_title} ${item.description||''}`.toLocaleLowerCase().includes(query));
     const grid=picker.querySelector('.favorites-grid'),existing=new Map([...grid.querySelectorAll('[data-favorite-card]')].map(card=>[card.dataset.favoriteCard,card]));
     const keys=new Set(matches.map(item=>item.deck_id+'/'+item.slide_id));
-    for(const child of [...grid.children])if(!keys.has(child.dataset.favoriteCard))child.remove();
+    for(const child of [...grid.childNodes])if(!keys.has(child.dataset?.favoriteCard))child.remove();
     matches.forEach((item,index)=>{
       const key=item.deck_id+'/'+item.slide_id,url=`/?deck=${encodeURIComponent(item.deck_id)}#${encodeURIComponent(item.slide_id)}`;
       const signature=JSON.stringify([item,!!attach]),previous=existing.get(key);let card=previous;
