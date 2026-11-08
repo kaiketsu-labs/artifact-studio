@@ -150,6 +150,13 @@ The review reproduced and fixed the following issues using fictional content:
   the requested immutable file, reject special files and stream the exact verified
   bytes in small chunks. Four response slots remain held through slow sends; a
   bounded queue preserves normal asset bursts. HEAD and media seeking still work.
+* Full CI exposed a second saved-preview lifecycle problem: an incoming slide
+  update rebuilt an unchanged attachment list and detached its open preview.
+  The composer now preserves unchanged markup. A regression and independent
+  browser review confirm that the same frozen preview survives a live update,
+  while adding/removing references and sending feedback continue to work.
+  Rapid returns from an artifact iframe also renew the hover request identifier,
+  preventing a delayed pointer message from closing the reopened preview.
 
 Independent Astra rechecks covered tampering, paths, ranges, slow clients,
 cancellation, queue overflow and recovery. A real HTTPS Chromium probe confirmed

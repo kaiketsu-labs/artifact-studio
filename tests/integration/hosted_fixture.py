@@ -163,6 +163,12 @@ def routed_hosted_context(
     try:
         yield context
     finally:
-        # Finish in-flight proxy responses before closing the context that owns them.
-        context.unroute_all(behavior="wait")
-        context.close()
+        # Stop EventSource retries and polling before removing the fictional-host
+        # proxy. Otherwise an open page can reconnect directly while a buffered
+        # stream is draining, leaving its old route already handled.
+        try:
+            for page in context.pages:
+                page.close()
+            context.unroute_all(behavior="wait")
+        finally:
+            context.close()

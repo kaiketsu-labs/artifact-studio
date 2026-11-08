@@ -1,6 +1,7 @@
 """Sandboxed capture pipelines recover after hostile authored readiness programs."""
 
 import os
+import re
 import time
 from pathlib import Path
 
@@ -29,7 +30,10 @@ pytestmark = pytest.mark.skipif(
     "script",
     [
         "Promise.all = () => new Promise(() => {});",
-        "Object.defineProperty(document.fonts, 'ready', {get() {while (true) {}}});",
+        # Let the preview bridge finish booting before stalling capture readiness.
+        # Stalling its initial font read tests goto's existing 15-second deadline.
+        "addEventListener('load', () => {"
+        "Object.defineProperty(document.fonts, 'ready', {get() {while (true) {}}});});",
     ],
     ids=["pending-images", "busy-fonts"],
 )
@@ -45,7 +49,7 @@ def test_artifact_readiness_timeout_releases_capture_slot(
     artifact = store.register_artifact(project.id, "Pending", source, "index.html")
     monkeypatch.setattr(renderer_health, "SCRIPT_TIMEOUT_MS", 300)
     started = time.monotonic()
-    with pytest.raises(ValueError, match="Timeout"):
+    with pytest.raises(ValueError, match="Page.wait_for_function: Timeout"):
         _ = capture_artifact_image(store, artifact.id, tmp_path / "captures")
     assert time.monotonic() - started < 10
     assert capture_queue_status()["running"] is False
@@ -70,21 +74,26 @@ def test_artifact_readiness_timeout_releases_capture_slot(
 def test_slide_readiness_timeout_releases_capture_slot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Slide diagnostics cannot retain the renderer through an authored pending promise."""
+    """Stalled slide readiness cannot retain the renderer through a pending promise."""
     make_design(tmp_path / TEMPLATE_ID)
     store = Store(tmp_path, tmp_path / "review.sqlite3")
-    store.create("deadline-slide", "Fictional slide readiness")
-    slide = store.read("deadline-slide").slides[0]
+    deck_id = "2026-11-08-deadline-slide"
+    store.create(deck_id, "Fictional slide readiness")
+    slide = store.read(deck_id).slides[0]
     options = CaptureOptions()
-    prepared = snapshot(store, "deadline-slide", slide, 1, options)
+    prepared = snapshot(store, deck_id, slide, 1, options)
+    nonce = re.search(r'<script nonce="([^"]+)">', prepared.document)
+    assert nonce is not None
+    # Exercise the readiness boundary without being blocked by the static slide's
+    # script policy. Keep the policy intact and use the fixture's trusted nonce.
     pending = prepared.model_copy(
         update={
-            "document": prepared.document
-            + "<script>window.ArtifactStudioCaptureReady = new Promise(() => {});</script>"
+            "document": prepared.document + f'<script nonce="{nonce[1]}">'
+            "window.ArtifactStudioCaptureReady = new Promise(() => {});</script>"
         }
     )
     monkeypatch.setattr(renderer_health, "SCRIPT_TIMEOUT_MS", 300)
-    with pytest.raises(ValueError, match="Timeout"):
+    with pytest.raises(ValueError, match="Page.wait_for_function: Timeout"):
         _ = capture_snapshot(pending, options)
     assert capture_queue_status()["running"] is False
     monkeypatch.setattr(renderer_health, "SCRIPT_TIMEOUT_MS", 15_000)

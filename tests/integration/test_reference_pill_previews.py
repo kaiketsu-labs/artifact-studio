@@ -233,6 +233,82 @@ def test_saved_slide_canvas_fits_and_survives_source_change(
     expect(frame.locator("body")).not_to_contain_text("NEW SOURCE AFTER ATTACH")
 
 
+def test_delayed_artifact_pointer_event_does_not_close_returned_pill(
+    page: Page, prepared: RunningApp
+) -> None:
+    """A late message from the iframe cannot undo a newer pointer return."""
+    target = next(
+        item
+        for item in ArtifactStore(prepared.store).list_artifacts()
+        if item.title == "Launch brief"
+    )
+    page.goto(f"{prepared.url}/?artifact={target.id}")
+    text = page.locator("#hub-feedback-text")
+    text.fill("@Brand direction")
+    expect(
+        page.get_by_role("listbox", name="Workspace references").get_by_role("option")
+    ).to_have_count(1)
+    text.press("Tab")
+    pill = page.locator("form .is-path-reference")
+    page.evaluate(
+        "document.addEventListener('studio:reference-preview', "
+        "e => {window.lastEpoch=e.detail.request_id})"
+    )
+    pill.hover()
+    expect(pill).to_have_attribute("aria-expanded", "true")
+    old_epoch = page.evaluate("window.lastEpoch")
+    target_box = page.locator("#hub-html-preview").bounding_box()
+    bar_box = pill.locator(".chat-reference-bar").bounding_box()
+    assert target_box and bar_box
+    page.evaluate("""document.addEventListener('studio:preview-pointer-enter', e => {
+        if (window.delayedEpoch === undefined) {
+            window.delayedEpoch = e.detail; e.stopImmediatePropagation();
+        }
+    }, true)""")
+    page.mouse.move(
+        target_box["x"] + target_box["width"] / 2, target_box["y"] + target_box["height"] / 2
+    )
+    page.wait_for_function("window.delayedEpoch !== undefined")
+    page.mouse.move(bar_box["x"] + bar_box["width"] / 2, bar_box["y"] + bar_box["height"] / 2)
+    assert page.evaluate("window.lastEpoch") > old_epoch
+    page.evaluate(
+        "document.dispatchEvent(new CustomEvent('studio:preview-pointer-enter', "
+        "{detail:window.delayedEpoch}))"
+    )
+    expect(pill).to_have_attribute("aria-expanded", "true")
+    expect(
+        page.locator("#chat-saved-reference-preview").frame_locator("iframe").locator("h1")
+    ).to_have_text("A little more human.")
+
+
+def test_open_saved_reference_survives_live_slide_refresh(page: Page, prepared: RunningApp) -> None:
+    """An incoming slide revision must not close an unchanged attachment preview."""
+    page.goto(f"{prepared.url}/?deck={DECK_ID}#workflow")
+    text = page.locator("#feedback-text")
+    text.fill("@three-step")
+    expect(page.get_by_role("option")).to_have_count(1)
+    text.press("Tab")
+    pill = page.locator("form .is-path-reference")
+    pill.hover()
+    preview = page.locator("#chat-saved-reference-preview")
+    expect(preview).to_be_visible()
+    frame = preview.locator("iframe").element_handle().content_frame()
+    assert frame is not None
+    expect(preview.frame_locator("iframe").locator(".slide")).to_be_visible()
+    current = prepared.store.locate(prepared.store.read(DECK_ID), "workflow")
+    _ = prepared.store.revise(
+        DECK_ID,
+        "workflow",
+        digest(current.model_dump_json()),
+        "incoming-preview-refresh",
+        SlidePatch(html='<article class="slide"><h1>Incoming revision</h1></article>'),
+    )
+    expect(page.frame_locator("#preview").locator("h1")).to_have_text("Incoming revision")
+    assert not frame.is_detached()
+    expect(preview).to_be_visible()
+    expect(preview.frame_locator("iframe").locator(".slide")).to_be_visible()
+
+
 def test_static_artifact_reconstruction_preserves_root_styles_and_blocks_external_requests(
     page: Page, prepared: RunningApp, tmp_path: Path
 ) -> None:
