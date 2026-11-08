@@ -895,7 +895,7 @@
   $('notes').addEventListener('input',()=>{noteAutosave.edit(key(),$('notes').value);retainDraft();});$('notes').addEventListener('blur',()=>{void noteAutosave.flush(key());});$('save-notes').addEventListener('click',saveNotes);$('feedback-text').addEventListener('input',()=>{retainDraft();updateComposer();});
   /** Send chat messages with Enter while preserving multiline and composition input. */
   function bindMessageEnter(inputId,buttonId,send){$(inputId).addEventListener('keydown',event=>{if(event.key!=='Enter'||event.shiftKey||event.altKey||event.isComposing||event.keyCode===229)return;event.preventDefault();if(!event.repeat&&!$(buttonId).disabled)send();});}
-  iconButton($('reference-slides'),'referenceStars','Reference favorite slides');
+  iconButton($('reference-slides'),'favoriteSlides','Reference favorite slides');
   window.ChatReferences.register({inputId:'feedback-text',key,attach:files=>chatComposer.add(files)});
   $('reference-slides').addEventListener('click',()=>{const context=key();void window.FavoriteSlides.open({attach:files=>context===key()&&chatComposer.add(files)});});
   void window.FavoriteSlides.refresh().catch(error=>toast(error.message,true));
