@@ -108,6 +108,8 @@ Their findings led to cleared and disabled connection controls after expiry,
 removal of stale copy confirmation, deliberate sign-in with existing unsaved-work
 protection, and compact editor controls on phones. Tests also cover redirected
 login HTML and in-flight session responses arriving after expiry.
+Direct static HTML entrypoints now receive the same anti-framing policy as the
+workspace root; authored preview endpoints retain their separate sandbox policy.
 
 Current local verification: 927 Python tests and 276 frontend behavior tests
 passed, plus 20 hosted, About, contrast and accessibility browser cases; Ruff and

@@ -151,8 +151,10 @@ def test_expiry_clears_open_connection_and_preserves_review_page(
         expect(dialog.locator("[data-hub-cloudflare]")).to_be_hidden()
         expect(dialog.locator("[data-hub-setup]").last).to_be_hidden()
         expect(dialog.get_by_role("button", name="Sign in again")).to_be_visible()
+        expect(page.locator(".app-session-expired")).to_be_hidden()
         assert page.url == WORKSPACE + "/"
         page.keyboard.press("Escape")
+        expect(page.locator(".app-session-expired")).to_be_visible()
         page.locator("#hub-tools-button").click()
         page.locator("[data-hub-connect]").click()
         expect(dialog.locator("[data-copy-mcp]")).to_be_disabled()

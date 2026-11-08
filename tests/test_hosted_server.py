@@ -17,6 +17,10 @@ def test_hosted_app_routes_and_scoped_agent_protocol(tmp_path: Path) -> None:
         assert client.get("/web/hub.js").status_code == 401
         assert client.get("/api/hub").status_code == 401
         member = {"x-fixture-auth": "member"}
+        for path in ("/", "/web/index.html", "/web/hub.html", "/web/copilot-setup.html"):
+            response = client.get(path, headers=member)
+            assert response.status_code == 200
+            assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
         session = client.get("/api/session", headers=member)
         assert session.status_code == 200
         assert session.json()["mcp_url"] == WORKSPACE + "/mcp"

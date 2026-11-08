@@ -160,7 +160,9 @@ class HostedAuth:
                 existing.extend(
                     [(b"x-content-type-options", b"nosniff"), (b"cache-control", b"no-store")]
                 )
-                if not is_preview and path == "/":
+                if not is_preview and (
+                    path == "/" or (path.startswith("/web/") and path.endswith(".html"))
+                ):
                     existing.append((b"content-security-policy", b"frame-ancestors 'none'"))
                 message["headers"] = existing
             await send(message)
