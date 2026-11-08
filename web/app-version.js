@@ -47,7 +47,7 @@
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
       if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent='All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.textContent=hosted?'Hosted':'Local';node.title=hosted?'Hosted workspace':'Local workspace';const review=hosted&&(!session.security||session.security.summary==='review');node.classList.toggle('app-session-review',review);node.setAttribute('aria-label',review?'Hosted workspace, server checks need review':'About workspace');});
+      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.textContent=hosted?'Hosted':'Local';node.dataset.sessionMode=hosted?'hosted':'local';node.title=hosted?'Hosted workspace':'Local workspace';const review=hosted&&(!session.security||session.security.summary==='review');node.classList.toggle('app-session-review',review);node.setAttribute('aria-label',review?'Hosted workspace, server checks need review':'About workspace');});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
       if(hosted){

@@ -319,10 +319,10 @@
         if(model.items){const list=doc.createElement('p');list.textContent=model.items.join(' · ');caption.append(list);}
         pillPreview.append(caption);renderedPill=key;
       }
-      mountPill(anchor);anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
+      mountPill(anchor);if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
     }catch{
       if(request!==pillRequest||!anchor.isConnected)return;
-      mountPill(anchor);pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill({});
+      mountPill(anchor);pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill({});
     }
   }
   function resumePillPreview(anchor){

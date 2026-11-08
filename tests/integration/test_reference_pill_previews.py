@@ -64,6 +64,13 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
     frame = preview.frame_locator("iframe")
     expect(frame.locator("h1")).to_have_text("A little more human.")
     expect(frame.locator("body")).not_to_contain_text("NEW SOURCE")
+    # A keyboard focus while the pointer remains on the open pill must not
+    # reload its already-rendered browsing context.
+    original_frame = preview.locator("iframe").element_handle().content_frame()
+    assert original_frame is not None
+    pill.focus()
+    page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    assert not original_frame.is_detached()
     expect(preview).to_contain_text("Saved artifact")
     marker = preview.locator("iframe").evaluate("node => node.dataset.reused = 'yes'")
     assert marker == "yes"

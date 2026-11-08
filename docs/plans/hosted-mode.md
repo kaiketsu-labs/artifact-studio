@@ -103,16 +103,21 @@ configured protections from warnings and external settings the app cannot verify
 The interface never marks MFA, origin isolation or recovery as proven by JSON.
 
 Fresh Terra reviewers exercised desktop checks and sign-in expiry, phone
-light/dark layouts at 320px and 390px, and an independent configuration/CLI review.
+light/dark layouts at 320px, 375px and 390px, and an independent configuration/CLI review.
 Their findings led to cleared and disabled connection controls after expiry,
 removal of stale copy confirmation, deliberate sign-in with existing unsaved-work
 protection, and compact editor controls on phones. Tests also cover redirected
 login HTML and in-flight session responses arriving after expiry.
 Direct static HTML entrypoints now receive the same anti-framing policy as the
 workspace root; authored preview endpoints retain their separate sandbox policy.
+Full CI exposed two additional narrow-header regressions. The final layout keeps
+Home and chat reachable at every tested width; the local mode indicator remains
+in About on small phones, while Hosted stays visible. A reproduced saved-preview
+iframe reload on focus was fixed by avoiding an unnecessary DOM reparent.
 
 Current local verification: 927 Python tests and 276 frontend behavior tests
-passed, plus 20 hosted, About, contrast and accessibility browser cases; Ruff and
-strict basedpyright passed. The fixture provider exercises app boundaries, not a
+passed, plus 44 hosted, About, contrast, accessibility, editor-layout and reference
+preview browser cases. Ruff and strict basedpyright passed. The fixture provider
+exercises app boundaries, not a
 live identity provider. Current-head GitHub CI remains the release gate. No
 deployment, account changes or live server restart are part of this update.
