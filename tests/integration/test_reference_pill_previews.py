@@ -109,6 +109,8 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
         page.get_by_role("listbox", name="Workspace references").get_by_role("option")
     ).to_have_count(1)
     text.press("Enter")
+    expect(pill).to_have_count(1)
+    expect(text).to_be_editable()
     text.press_sequentially("with this draft.")
     text.press("Enter")
     sent = page.locator(
@@ -124,6 +126,11 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
             else None
         ),
     )
+    # Flush scroll events before hovering, since scrolling closes previews.
+    _ = sent.evaluate("""el => {
+      el.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'instant'});
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }""")
     sent.hover()
     expect(preview).to_be_visible()
     expect(preview.frame_locator("iframe").locator("h1")).to_have_text("NEW SOURCE AFTER ATTACH")
