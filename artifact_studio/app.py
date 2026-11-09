@@ -1,10 +1,13 @@
 """Local review UI and a stateless MCP interface over the same presentation files."""
 
 import asyncio
+import hashlib
+import io
 import logging
 import os
 import sqlite3
 import time
+import zipfile
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
@@ -14,7 +17,7 @@ from pathlib import Path
 from typing import Annotated, Literal, cast
 from urllib.parse import quote, urlencode
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi import Path as APIPath
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -69,6 +72,7 @@ from .favorites import favorite_routes
 from .feedback_previews import feedback_image_response
 from .github_backups import BackupStatus, FullBackupSettings, GitHubBackups, RemoteBackup
 from .history_api import history_routes
+from .hook_bundle import client_files
 from .hosted_auth import HostedAuth
 from .hosted_policy import authorize as hosted_authorize
 from .hosted_policy import scoped_deck_routes
@@ -1612,7 +1616,7 @@ if deployment.mode == "hosted":
     transport_mcp = MCPServer[None](
         "Artifact Studio Hosted", version=__version__, instructions=BOOTSTRAP
     )
-    register_tools(transport_mcp, store, "", True)
+    register_tools(transport_mcp, store, "", True, hosted_hooks=True)
     mcp_app = transport_mcp.streamable_http_app(
         stateless_http=True,
         json_response=True,
@@ -1785,7 +1789,11 @@ def session_info(request: Request) -> dict[str, object]:
         "auth_provider": deployment.auth_provider if hosted else "none",
         "email": principal.email if principal is not None else None,
         "shared_workspace": hosted,
-        "capabilities": {"local_admin": not hosted, "automatic_feedback": not hosted},
+        "capabilities": {
+            "local_admin": not hosted,
+            "automatic_feedback": not hosted,
+            "hosted_hooks": hosted,
+        },
         "security": security_report(deployment).model_dump(),
     }
 
@@ -2135,9 +2143,35 @@ def save_workspace_instructions(body: WorkspaceInstructionsInput) -> dict[str, s
     return workspace_instructions()
 
 
+@app.get("/api/agent/hooks-client")
+def download_hook_client() -> Response:
+    """Download only the two standard-library client files, without server dependencies."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for file in client_files():
+            bundle.writestr(file["path"], file["text"])
+    return Response(
+        buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="artifact-studio-agent-hooks.zip"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @app.post("/api/review/hooks")
-async def review_hook(body: ReviewHookInput) -> ReviewHookReply:
+async def review_hook(body: ReviewHookInput, request: Request) -> ReviewHookReply:
     """Receive normalized lifecycle hooks independently from the stateless MCP transport."""
+    if deployment.mode == "hosted":
+        principal = getattr(request.state, "principal", None)
+        if not isinstance(principal, Principal) or not principal.service:
+            raise HTTPException(403, "Service credentials required")
+        identity = hashlib.sha256(
+            (principal.subject + "\0" + body.harness + "\0" + body.session_id).encode()
+        ).hexdigest()
+        body = body.model_copy(update={"session_id": identity})
+        return await Reviews(store, design_inbox=False).handle(body)
     return await Reviews(store).handle(body)
 
 

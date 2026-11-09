@@ -47,7 +47,7 @@ def running_hosted_app(root: Path, logs: Path) -> Generator[HostedApp]:
                 "auth_provider": "cloudflare",
                 "auth_options": {},
                 "member_emails": ["reviewer@example.test"],
-                "agent_subjects": ["fixture-agent"],
+                "agent_subjects": ["fixture-agent", "fixture-agent-two"],
             }
         )
     )
@@ -59,6 +59,8 @@ import uvicorn
 from artifact_studio import authentication
 class FixtureProvider:
     async def authenticate(self, headers):
+        if headers.get("x-fixture-auth") == "agent-two":
+            return authentication.Principal("fixture-agent-two", service=True)
         if headers.get("x-fixture-auth") == "agent":
             return authentication.Principal("fixture-agent", service=True)
         if headers.get("x-fixture-auth") != "member":

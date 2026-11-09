@@ -4,6 +4,8 @@ Artifact Studio uses the same stateless MCP server for Codex, Claude Code and ot
 
 The hooks automatically attach to selected artifacts of every file type, including presentations, HTML, Markdown, images and other files. They keep the review open at the end of an agent response. New Live feedback, a released batch or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
 
+For a remote hosted workspace, use the [client-only hosted setup](HOSTED-AGENT-HOOKS.md). The instructions below cover a local server.
+
 ## One-time setup
 
 Connect the MCP server first, using Streamable HTTP at `http://127.0.0.1:8790/mcp`. The MCP server name defaults to `artifact-studio`.

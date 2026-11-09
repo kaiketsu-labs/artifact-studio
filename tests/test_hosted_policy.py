@@ -22,6 +22,9 @@ from artifact_studio.storage import Store
         ("POST", "/api/projects/open"),
         ("POST", "/api/artifacts/import"),
         ("POST", "/mcp"),
+        ("POST", "/api/review/hooks"),
+        ("GET", "/api/agent/hooks-client"),
+        ("POST", "/api/artifacts/demo/review/disconnect"),
         ("GET", "/api/session"),
         ("POST", "/api/shares"),
         ("GET", "/api/shares/token/file"),
@@ -40,7 +43,6 @@ def test_allowed_routes(method: str, path: str) -> None:
     [
         ("GET", "/mcp"),
         ("GET", "/api/libraries"),
-        ("POST", "/api/review/hooks"),
         ("POST", "/api/app-info/settings"),
         ("GET", "/api/workspace/archive"),
         ("GET", "/api/copilot/setup/guide"),
@@ -114,9 +116,6 @@ def test_registered_routes_are_reviewed() -> None:
     denied = {
         ("GET", "/api/copilot/setup/{document}"),
         ("POST", "/api/app-info/settings"),
-        ("POST", "/api/review/hooks"),
-        ("POST", "/api/decks/{deck_id}/review/disconnect"),
-        ("POST", "/api/artifacts/{artifact_id}/review/disconnect"),
         ("GET", "/api/libraries"),
         ("POST", "/api/libraries"),
         ("POST", "/api/libraries/{library_id}/settings"),

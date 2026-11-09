@@ -884,7 +884,7 @@
   async function copyAgentPrompt(){
     try{await window.ArtifactSession.get();}catch(error){toast(error.message,true);return;}
     if(window.artifactStudioSession?.mode==='hosted'){
-      const prompt=`Work on ${deck?`presentation ${deck.title} (deck ID: ${deck.id})`:'this shared workspace'}. Connect to ${window.artifactStudioSession.mcp_url} with your configured ${window.artifactStudioSession.auth_provider==='cloudflare'?'Cloudflare service credentials':'server authentication'}, discover the available MCP tools, read the workspace context and released feedback, preserve notes, and visually check your changes. Host hooks are unavailable.`;
+      const prompt=`Work on ${deck?`presentation ${deck.title} (deck ID: ${deck.id})`:'this shared workspace'}. Connect to ${window.artifactStudioSession.mcp_url} with your configured ${window.artifactStudioSession.auth_provider==='cloudflare'?'Cloudflare service credentials':'server authentication'}, discover the available MCP tools, read the workspace context and released feedback, preserve notes, and visually check your changes. For automatic review, discover start_live_review and read get_authoring_guide(topic="live_review"); install and trust the lightweight client hooks on this agent host.`;
       try{await navigator.clipboard.writeText(prompt);toast('Prompt copied.');}catch{toast('Copy is unavailable.',true);}return;
     }
     const target=deck?`deck_id="${deck.id}"`:'';

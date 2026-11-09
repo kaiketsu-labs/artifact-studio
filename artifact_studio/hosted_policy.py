@@ -17,6 +17,7 @@ _READ = (
     r"/api/deployment/security",
     r"/api/health",
     r"/api/session",
+    r"/api/agent/hooks-client",
     r"/api/shares/capabilities",
     rf"/api/shares/{_ID}/file",
     r"/api/app-info",
@@ -63,6 +64,9 @@ _READ = (
 _WRITE = (
     r"/api/decks",
     r"/mcp",
+    r"/api/review/hooks",
+    rf"/api/decks/{_ID}/review/disconnect",
+    rf"/api/artifacts/{_ID}/review/disconnect",
     r"/api/artifacts/import",
     r"/api/shares",
     r"/api/projects/open",

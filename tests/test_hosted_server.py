@@ -98,6 +98,8 @@ def test_hosted_app_routes_and_scoped_agent_protocol(tmp_path: Path) -> None:
             "create_artifact",
             "revise_slide",
             "capture_slide",
+            "start_live_review",
+            "get_live_review_status",
         } <= names
         assert not {"register_artifact", "install_review_hooks", "create_library"} & names
         assert (

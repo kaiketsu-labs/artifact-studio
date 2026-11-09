@@ -11,7 +11,7 @@ the Mac controller continues to manage the local installation.
 
 The first hosted version is one shared workspace. Every configured human member
 can read and edit its content. It is not a multi-tenant service or private per-user
-storage. Agent identities can use only the constrained remote MCP tool surface.
+storage. Agent identities can use the constrained remote MCP tool surface and the service-only normalized lifecycle-hook endpoint.
 Authentication is an installed provider implementing a typed contract; core host,
 origin, membership and route authorization rules cannot be bypassed by choosing
 a different provider. Cloudflare Access signed JWT validation is the first adapter.
@@ -169,3 +169,29 @@ Final local test counts and current-head CI results are recorded in the PR. Live
 MFA, Tunnel/header/cookie configuration, revocation, backup recovery and suitable
 resource limits remain deployment acceptance work. The PR remains a draft; this
 review does not deploy or restart a service.
+
+
+## Hosted automatic review
+
+The agent machine can fetch two fixed standard-library client files through
+`get_agent_hook_client` over its existing MCP connection, or download the same
+bundle through the authenticated browser. It does not install the server or its
+Python/browser dependencies. Client source remains compatible with Python 3.10+
+through per-file lint/format targets; independent checks used Python 3.12 with
+site packages disabled.
+
+The hosted hook endpoint accepts verified configured service principals only,
+rejects browser Origin requests, hashes principal/harness/native session into an
+opaque ownership namespace, and has a separate eight-request/64-KiB/35-second
+budget. Shared review contracts preserve Live/Batch, cursor acknowledgement,
+lease expiry, End review and explicit resume. Hosted hooks exclude the local
+design inbox and do not widen host administration. The ordinary Copilot gateway
+keeps its existing tool inventory and cannot install hooks.
+
+Three fresh Terra reviewers exercised the browser lifecycle and mobile download,
+service isolation and expiry, and client-only configuration/TLS/redirect behavior.
+Their findings fixed Python-3.14-only syntax in the downloaded helper and late
+session-response/reopen races that restored controls after expiry. Automated
+regressions cover those cases. Real installed-host trust and model continuation,
+and real provider credential revocation, remain deployment acceptance checks.
+Hooks require a supported running host and cannot reopen closed chats.

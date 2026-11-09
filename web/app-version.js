@@ -29,12 +29,12 @@
     doc.body.append(expiredBanner);expiredBanner.querySelector('button').addEventListener('click',()=>root.location.reload());
     root.addEventListener('artifact-session-expired',()=>{
       if(sessionExpired)return;
-      sessionExpired=true;expiredBanner.hidden=false;
+      sessionExpired=true;root.artifactStudioSession=null;expiredBanner.hidden=false;
       doc.querySelectorAll('#hub-mcp-url, #mcp-url').forEach(input=>{input.value='';input.placeholder='Session expired';});
       doc.querySelectorAll('[data-copy-mcp], #copy-url, #copy-agent-prompt').forEach(button=>{button.disabled=true;});
       doc.querySelectorAll('[data-copy-status]').forEach(node=>{node.textContent='';});
       doc.querySelectorAll('[data-session-identity], [data-hub-connection-status]').forEach(node=>{node.textContent='Your session has expired. Sign in again to continue.';});
-      doc.querySelectorAll('[data-hosted-agent-help], [data-hub-cloudflare], [data-hub-provider], [data-hub-setup], #connect-dialog [data-local-only]').forEach(node=>{node.hidden=true;});
+      doc.querySelectorAll('[data-hosted-agent-help], [data-hub-cloudflare], [data-hub-provider], [data-hub-setup], [data-hosted-hooks-link], #connect-dialog [data-local-only]').forEach(node=>{node.hidden=true;});
       const editorTransport=doc.querySelector('#mcp-url')?.closest('details')?.querySelector('p');if(editorTransport)editorTransport.hidden=true;
       for(const modal of doc.querySelectorAll('dialog')){
         const notice=expiredBanner.cloneNode(true);notice.className='app-session-expired-modal';notice.querySelector('button').addEventListener('click',()=>root.location.reload());modal.prepend(notice);
@@ -42,6 +42,7 @@
       identity.textContent='Your session has expired. Sign in again to continue.';
     });
     void root.ArtifactSession.get().then(session=>{
+      if(sessionExpired)return;
       const hosted=session.mode==='hosted';renderSecurity(session.security);checks.hidden=!hosted;
       identity.replaceChildren();
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
@@ -55,8 +56,14 @@
         dialog.querySelector('.app-nightly-option').hidden=true;dialog.querySelector('#app-nightly-help').hidden=true;dialog.querySelector('.app-about-status').hidden=true;
       }
       if(session.capabilities?.automatic_feedback===false)doc.querySelectorAll('[data-automatic-feedback]').forEach(node=>{node.hidden=true;});
+      if(hosted&&session.capabilities?.hosted_hooks){
+        for(const panel of doc.querySelectorAll('#connect-dialog, .hub-connect')){
+          const link=doc.createElement('a');link.dataset.hostedHooksLink='';link.className='app-hosted-hooks';link.href='/api/agent/hooks-client';link.download='artifact-studio-agent-hooks.zip';link.textContent='Download agent hooks';link.title='Optional client for automatic feedback in an open Codex or Claude Code session';panel.append(link);
+        }
+      }
       root.artifactStudioSession=session;
     }).catch(error=>{
+      if(sessionExpired)return;
       identity.textContent=error.expired?'Your session has expired. Sign in again to continue.':'Workspace connection information unavailable.';
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=identity.textContent;});
     });
@@ -81,7 +88,7 @@
       const connect=doc.createElement('dialog');connect.className='app-about hub-connect';connect.setAttribute('aria-labelledby','hub-connect-title');
       connect.innerHTML='<header><h2 id="hub-connect-title">Agent connection</h2><button type="button" aria-label="Close">×</button></header><p data-hub-connection-status>Checking workspace connection…</p><label for="hub-mcp-url">MCP server URL</label><div class="hub-connect-url"><input id="hub-mcp-url" readonly><button type="button" data-copy-mcp>Copy</button></div><p data-hub-cloudflare hidden>Create a Cloudflare Access service token for your agent, then configure its client ID and secret as CF-Access-Client-Id and CF-Access-Client-Secret request headers in your agent environment.</p><p data-hub-provider hidden>Ask your server administrator how to authenticate your agent with this provider.</p><p data-hub-setup>Use Streamable HTTP and reload your agent session.</p><p data-hub-setup><a href="https://github.com/kaiketsu-labs/artifact-studio/blob/main/docs/HOSTED.md" target="_blank" rel="noopener noreferrer">Hosted setup guide</a></p><p data-copy-status role="status"></p>';
       doc.body.append(connect);const input=connect.querySelector('input');
-      connectEntry.addEventListener('click',event=>{event.preventDefault();const panel=connectEntry.closest('[popover]');if(panel?.matches(':popover-open'))panel.hidePopover();const session=root.artifactStudioSession;connect.querySelector('[data-copy-status]').textContent='';input.value=session?.mcp_url||'';input.placeholder=session?'':'Connection information unavailable';connect.querySelector('[data-copy-mcp]').disabled=!session?.mcp_url;connect.querySelector('[data-hub-connection-status]').textContent=session?`${session.mode==='hosted'?'Hosted':'Local'} workspace · ${session.public_url}`:(sessionExpired?'Your session has expired. Sign in again to continue.':'Workspace connection information unavailable.');connect.querySelector('[data-hub-cloudflare]').hidden=session?.mode!=='hosted'||session.auth_provider!=='cloudflare';connect.querySelector('[data-hub-provider]').hidden=session?.mode!=='hosted'||session.auth_provider==='cloudflare';connect.querySelectorAll('[data-hub-setup]').forEach(node=>{node.hidden=!session;});const guide=connect.querySelector('a');guide.textContent=session?.mode==='hosted'?'Hosted setup guide':'Agent setup guide';guide.href=session?.mode==='hosted'?'https://github.com/kaiketsu-labs/artifact-studio/blob/main/docs/HOSTED.md':'https://github.com/kaiketsu-labs/artifact-studio#connect-your-agent';connect.showModal();});
+      connectEntry.addEventListener('click',event=>{event.preventDefault();const panel=connectEntry.closest('[popover]');if(panel?.matches(':popover-open'))panel.hidePopover();const session=sessionExpired?null:root.artifactStudioSession;connect.querySelector('[data-copy-status]').textContent='';input.value=session?.mcp_url||'';input.placeholder=session?'':'Connection information unavailable';connect.querySelector('[data-copy-mcp]').disabled=!session?.mcp_url;connect.querySelector('[data-hub-connection-status]').textContent=session?`${session.mode==='hosted'?'Hosted':'Local'} workspace · ${session.public_url}`:(sessionExpired?'Your session has expired. Sign in again to continue.':'Workspace connection information unavailable.');connect.querySelector('[data-hub-cloudflare]').hidden=session?.mode!=='hosted'||session.auth_provider!=='cloudflare';connect.querySelector('[data-hub-provider]').hidden=session?.mode!=='hosted'||session.auth_provider==='cloudflare';connect.querySelectorAll('[data-hub-setup]').forEach(node=>{node.hidden=!session;});const guide=connect.querySelector('a');guide.textContent=session?.mode==='hosted'?'Hosted setup guide':'Agent setup guide';guide.href=session?.mode==='hosted'?'https://github.com/kaiketsu-labs/artifact-studio/blob/main/docs/HOSTED.md':'https://github.com/kaiketsu-labs/artifact-studio#connect-your-agent';connect.showModal();});
       connect.querySelector('header button').addEventListener('click',()=>connect.close());connect.addEventListener('close',()=>doc.getElementById('hub-tools-button')?.focus());
       connect.querySelector('[data-copy-mcp]').addEventListener('click',async()=>{try{await root.navigator.clipboard.writeText(input.value);if(!sessionExpired)connect.querySelector('[data-copy-status]').textContent='URL copied.';}catch{if(!sessionExpired){input.select();connect.querySelector('[data-copy-status]').textContent='Select and copy the URL.';}}});
     }

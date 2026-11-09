@@ -11,19 +11,19 @@ Hosted mode is an implementation draft and has not been validated against a live
 
 </details>
 
-All configured human members share all content in this workspace, including projects, artifacts, notes and review history. Agents have a constrained MCP surface only; they do not receive the human browser session or local host administration. Browser upload, authoring, previews and review remain available. Local backup controls, host hooks, automatic feedback setup and the local Copilot setup are unavailable in hosted mode.
+All configured human members share all content in this workspace, including projects, artifacts, notes and review history. Agents have a constrained MCP surface only; they do not receive the human browser session or local host administration. Browser upload, authoring, previews and review remain available. Local backup controls and the local Copilot setup are unavailable in hosted mode. Optional lightweight client hooks support automatic review in open Codex and Claude Code sessions; see [hosted agent hooks](HOSTED-AGENT-HOOKS.md).
 
 ## Configure the server
 
 Create a private JSON configuration based on [the fictional example](../examples/hosted-config.json). Set `public_url` and `preview_url` to distinct canonical HTTPS origins, `auth_provider` to `cloudflare`, and supply your Access team domain, application audience, exact human member emails and exact service-token Client IDs. Set `ARTIFACT_STUDIO_MODE=hosted` and `ARTIFACT_STUDIO_HOSTED_CONFIG=/run/artifact-studio/hosted.json`, mounting the JSON read-only at that path. Persist the server's workspace volume and protect backups independently. Do not commit real identities or credentials.
 
-Route both hostnames through a Cloudflare Tunnel to the same private service. Do not expose the origin port publicly. Create one Access application for the workspace hostname with two policies: an **Allow** policy for exact human emails requiring MFA, and a **Service Auth** policy for the explicitly selected agent service tokens. Studio restricts those service identities to `/mcp`, even though they authenticate at the same Access application. Configure their exact Client IDs in `agent_subjects`. The origin verifies the signed Access JWT on each request and enforces its own membership and route policy.
+Route both hostnames through a Cloudflare Tunnel to the same private service. Do not expose the origin port publicly. Create one Access application for the workspace hostname with two policies: an **Allow** policy for exact human emails requiring MFA, and a **Service Auth** policy for the explicitly selected agent service tokens. Studio restricts those service identities to `/mcp` and the normalized `/api/review/hooks` endpoint, even though they authenticate at the same Access application. Configure their exact Client IDs in `agent_subjects`. The origin verifies the signed Access JWT on each request and enforces its own membership and route policy.
 
 Enable [Access Independent MFA](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/independent-mfa/) and require it on the human Allow policy. Enroll a passkey/security key or TOTP and a recovery method before enforcing the policy. Test both permitted users and an unlisted identity in a fresh browser session. Service tokens are machine credentials; they do not perform a human MFA challenge on each tool call.
 
 The separate preview hostname must have **no Access application**: sandboxed previews need to load without browser credentials. The server serves only short-lived, revision-scoped preview capabilities there, never workspace APIs. A preview capability is not a permanent sharing URL or workspace login. Keep the preview hostname distinct from the browser hostname.
 
-Connect an agent using the hosted `https://studio.example.com/mcp` URL and Streamable HTTP. Configure `CF-Access-Client-Id` and `CF-Access-Client-Secret` as request headers from the agent's environment or secret manager; do not paste credentials into Studio. This first version uses service credentials, not native agent OAuth. Host lifecycle hooks are unsupported. Rotate or revoke the service token in Cloudflare, remove the Client ID from configuration, restart the server, and verify that the old credentials no longer work.
+Connect an agent using the hosted `https://studio.example.com/mcp` URL and Streamable HTTP. Configure `CF-Access-Client-Id` and `CF-Access-Client-Secret` as request headers from the agent's environment or secret manager; do not paste credentials into Studio. This first version uses service credentials, not native agent OAuth. Optional [hosted agent hooks](HOSTED-AGENT-HOOKS.md) provide lifecycle continuation without installing the server on the agent computer. Rotate or revoke the service token in Cloudflare, remove the Client ID from configuration, restart the server, and verify that the old credentials no longer work.
 
 Before production use, validate the actual account's MFA policy, tunnel routing, origin isolation, service-token authentication and revocation, preview isolation, and backup and restore procedure. Application tests cannot establish those account-specific properties.
 
@@ -156,7 +156,7 @@ can exhaust a small VM before a script deadline expires.
 | Agent edits and visual checks | Full local MCP | Constrained remote MCP; discover its schemas after connecting |
 | New projects and presentations | Browser or local agent | Create through the browser; agents can add/revise slides and create/revise general artifacts |
 | Theme, design-pack and host-file management by an agent | Full local tools | Local administrative tools are not exposed remotely |
-| Automatic agent wake-up and native lifecycle hooks | Supported with setup | Not included; agent reads released feedback through MCP |
+| Automatic continuation in an open agent session | Local hooks | Optional lightweight client hooks for Codex/Claude Code |
 | Mac menu-bar server controls | Manage the local service | Open the hosted URL in your browser |
 | Authentication and MFA | Loopback access | Provider login/MFA plus origin JWT and membership checks |
 | Workspace and backup administration | Local UI | Server operator; remote restore and credential controls are disabled |

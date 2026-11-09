@@ -41,6 +41,10 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.per-file-target-version]
+"artifact_studio/hook_client.py" = "py310"
+"artifact_studio/local_http.py" = "py310"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

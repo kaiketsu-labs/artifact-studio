@@ -14,10 +14,15 @@ import time
 from pathlib import Path
 from typing import cast
 from urllib.error import URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 
-from .local_http import NoRedirect as _NoRedirect
-from .local_http import validate_local_url as _validate_url
+if __package__:
+    from .local_http import NoRedirect as _NoRedirect
+    from .local_http import validate_hook_url as _validate_url
+else:
+    from local_http import NoRedirect as _NoRedirect
+    from local_http import validate_hook_url as _validate_url
 
 APP_DIR = Path(__file__).resolve().parent.parent
 INBOX_TOOLS = {
@@ -62,6 +67,14 @@ def _generated_handler(value: object, harness: str, event: str, server_name: str
         return False
     if len(arguments) > 1 and arguments[1] == "--no-cache":
         _ = arguments.pop(1)
+    if (
+        len(arguments) == 11
+        and Path(arguments[1]).name == "hook_client.py"
+        and arguments[2:7] == ["event", "--harness", harness, "--event", event]
+        and arguments[7] == "--url"
+        and arguments[9:] == ["--server-name", server_name]
+    ):
+        return True
     return (
         len(arguments) == 17
         and arguments[1] == "--directory"
@@ -102,8 +115,9 @@ def configure(
     _validate_url(url)
     if project is not None and (not project.is_absolute() or not project.is_dir()):
         raise ValueError("project must be an existing absolute directory")
+    standalone = not __package__ or urlsplit(url).scheme == "https"
     uv = shutil.which("uv")
-    if uv is None:
+    if not standalone and uv is None:
         raise ValueError("uv executable not found")
     if project is None:
         target = Path.home() / (
@@ -126,7 +140,7 @@ def configure(
     for event, timeout in events.items():
         command = shlex.join(
             [
-                str(Path(uv).resolve()),
+                str(Path(uv or "uv").resolve()),
                 "--no-cache",
                 "--directory",
                 str(APP_DIR),
@@ -146,6 +160,22 @@ def configure(
                 server_name,
             ]
         )
+        if standalone:
+            command = shlex.join(
+                [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "event",
+                    "--harness",
+                    harness,
+                    "--event",
+                    event,
+                    "--url",
+                    url,
+                    "--server-name",
+                    server_name,
+                ]
+            )
         entry: dict[str, object] = {
             "hooks": [{"type": "command", "command": command, "timeout": timeout}]
         }
@@ -275,12 +305,28 @@ def normalize(
     return message
 
 
+def _credentials(url: str) -> dict[str, str]:
+    """Read machine credentials only from the process environment, never hook input."""
+    if urlsplit(url).scheme != "https":
+        return {}
+    headers: dict[str, str] = {}
+    for header, variable in (
+        ("CF-Access-Client-Id", "CF_ACCESS_CLIENT_ID"),
+        ("CF-Access-Client-Secret", "CF_ACCESS_CLIENT_SECRET"),
+    ):
+        value = os.environ.get(variable, "")
+        if not value or any(ord(char) < 32 or ord(char) > 126 for char in value):
+            raise ValueError("Hosted hooks require service credentials in the environment")
+        headers[header] = value
+    return headers
+
+
 def _post(url: str, message: dict[str, object], timeout: int) -> dict[str, object]:
     """Send one event to the local review endpoint."""
     request = Request(
         url.rstrip("/") + "/api/review/hooks",
         data=json.dumps(message).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", **_credentials(url)},
         method="POST",
     )
     with build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
@@ -302,7 +348,7 @@ def handle_event(
     while True:
         try:
             result = _post(url, message, 30 if event == "Stop" else 2)
-        except OSError, URLError, ValueError, json.JSONDecodeError:
+        except (OSError, URLError, ValueError, json.JSONDecodeError):
             return {}
         reason = result.get("reason")
         if event == "PostToolUse" and isinstance(reason, str) and reason:
@@ -350,9 +396,12 @@ def main() -> int:
             return 1
     else:
         try:
-            payload = _object(json.load(sys.stdin))
+            raw = sys.stdin.read(2 * 1024 * 1024 + 1)
+            if len(raw) > 2 * 1024 * 1024:
+                raise ValueError("Hook input exceeds the client budget")
+            payload = _object(json.loads(raw))
             result = handle_event(args.harness, args.event, args.url, args.server_name, payload)
-        except OSError, ValueError:
+        except (OSError, ValueError, RecursionError):
             result = {}
         print(json.dumps(result))
     return 0

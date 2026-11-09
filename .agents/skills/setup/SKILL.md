@@ -5,7 +5,7 @@ description: Set up or repair Artifact Studio, connect an agent through MCP and 
 
 # Set up Artifact Studio
 
-Guide the user to a working local workspace and connected agent. Reuse existing configuration; rerunning setup must not reset data or create duplicate apps, connections, hooks or decks.
+Guide the user to a working workspace and connected agent. If the user selects an existing hosted HTTPS workspace, configure its remote MCP connection without installing a local server. For optional automatic continuation, follow [client-only hosted hooks](../../../docs/HOSTED-AGENT-HOOKS.md); ask only for missing credentials/scope and follow native hook trust. Use the local installation instructions below only for local mode. Reuse existing configuration; rerunning setup must not reset data or create duplicate apps, connections, hooks or decks.
 
 Resolve the checkout from this file (`../../..`). Read its [getting-started guide](../../../docs/GETTING-STARTED.md) for maintained commands. If MCP is available, start with `get_working_context` and reuse its returned paths and this connection’s verified URL. Otherwise inspect only relevant local configuration and check the chosen loopback server's `/api/health`; do not infer ownership from an occupied port. Preserve collection and database paths, workspace rules, notes and review history.
 

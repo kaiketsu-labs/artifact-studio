@@ -26,6 +26,7 @@ class HostedAuth:
         self.host = urlsplit(config.public_url).netloc
         self.preview_host = urlsplit(config.preview_url).netloc
         self._mcp_slots = asyncio.Semaphore(4)
+        self._hook_slots = asyncio.Semaphore(8)
         self._write_slots = asyncio.Semaphore(4)
         self._upload_slots = asyncio.Semaphore(1)
         self._preview_slots = asyncio.Semaphore(4)
@@ -105,12 +106,15 @@ class HostedAuth:
                 return
             if principal.service:
                 member = principal.subject in self.config.agent_subjects and (
-                    path == "/mcp" or path.startswith("/mcp/")
+                    path == "/mcp" or path.startswith("/mcp/") or path == "/api/review/hooks"
                 )
             else:
                 member = bool(
                     principal.email and principal.email.lower() in self.config.member_emails
                 )
+            if path == "/api/review/hooks" and not principal.service:
+                await reply(403, "Service credentials required")
+                return
             if not member:
                 await reply(403, "Forbidden")
                 return
@@ -122,7 +126,7 @@ class HostedAuth:
             ):
                 await reply(403, "Open this preview inside the workspace.")
                 return
-            mcp = path == "/mcp" or path.startswith("/mcp/")
+            mcp = path == "/mcp" or path.startswith("/mcp/") or path == "/api/review/hooks"
             origins = headers.getlist("origin")
             if (mcp and origins) or (
                 not mcp
@@ -204,20 +208,22 @@ class HostedAuth:
             finally:
                 self._preview_slots.release()
             return
-        if path == "/mcp" or path.startswith("/mcp/"):
-            if self._mcp_slots.locked():
+        if path == "/mcp" or path.startswith("/mcp/") or path == "/api/review/hooks":
+            hook = path == "/api/review/hooks"
+            slots = self._hook_slots if hook else self._mcp_slots
+            if slots.locked():
                 await reply(429, "Agent connection is busy. Retry shortly.")
                 return
-            async with self._mcp_slots:
+            async with slots:
                 try:
-                    async with asyncio.timeout(self.mcp_timeout):
+                    async with asyncio.timeout(35 if hook else self.mcp_timeout):
                         body = bytearray()
                         while True:
                             chunk = await receive()
                             if chunk["type"] == "http.disconnect":
                                 return
                             data = chunk.get("body", b"")
-                            if len(body) + len(data) > 2 * 1024 * 1024:
+                            if len(body) + len(data) > (64 * 1024 if hook else 2 * 1024 * 1024):
                                 await reply(413, "Request too large")
                                 return
                             body.extend(data)
