@@ -115,8 +115,8 @@ Existing installations with the old main-following updater need to receive this
 updater change once (through their current Update command or a manual source update
 and controller rebuild). Subsequent update checks follow stable release tags.
 
-CI runs offline simulations with the same Release Please version bundled in the
-pinned action. They exercise the first and subsequent releases and check the real
+CI runs offline simulations with the locked Release Please version used by the
+publisher. They exercise the first and subsequent releases and check the real
 version-file updates without creating PRs, tags or releases:
 
 ```sh
@@ -124,9 +124,11 @@ npm ci --prefix scripts/release --ignore-scripts --no-audit --no-fund
 node --test scripts/release/*.cjs
 ```
 
-Update the action pin and simulation dependency together. App health/version tests
-also exercise a future version and the generated Mac bundle metadata. Native Mac
-compilation still requires macOS.
+The prepare action bundles its own Release Please version. When changing either
+pin, check that the generated release PR, version files and pending label still
+match what the publisher expects. Verify the prepare run after merging an action
+update. App health/version tests also exercise a future version and the generated
+Mac bundle metadata. Native Mac compilation still requires macOS.
 
 The simulation dependency tree has a documented minimatch security override;
 it does not modify the action's independently bundled dependencies. Dependabot

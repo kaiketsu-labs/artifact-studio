@@ -310,6 +310,9 @@
     if(!pillPreview){pillPreview=doc.createElement('div');pillPreview.id='chat-saved-reference-preview';pillPreview.className='chat-reference-unfold';pillPreview.setAttribute('role','tooltip');pillPreview.hidden=true;doc.body.append(pillPreview);}
     try{
       const model=await frozenPreview(record);if(request!==pillRequest||!anchor.isConnected)return;
+      mountPill(anchor);
+      // Moving even within the same parent resets the iframe's document.
+      if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);
       if(renderedPill!==key){
         pillPreview.replaceChildren();
         if(model.html){
@@ -323,10 +326,10 @@
         if(model.items){const list=doc.createElement('p');list.textContent=model.items.join(' · ');caption.append(list);}
         pillPreview.append(caption);renderedPill=key;
       }
-      mountPill(anchor);anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
+      pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
     }catch{
       if(request!==pillRequest||!anchor.isConnected)return;
-      mountPill(anchor);pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill({});
+      mountPill(anchor);pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill({});
     }
   }
   function resumePillPreview(anchor){
