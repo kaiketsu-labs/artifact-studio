@@ -4,6 +4,20 @@ Create and review related artifacts with an existing AI agent. The home page is 
 
 General artifacts need no design pack or fixed template. The viewer supports authored HTML/CSS/JavaScript bundles, safe Markdown rendering and images at their original proportions. **Design packs and example presentations are not bundled.** For presentations, add a design from a PPTX, website, PDF or reference images. PowerPoint files remain reference inputs; the app creates HTML presentations and does not export PPTX.
 
+## Install
+
+### Install on Mac
+
+Install the menu-bar app from the source checkout, then choose **Open Artifact Studio** from the artifact icon beside the clock. The app starts the server and can launch at login. [Install on Mac](../README.md#install-on-mac)
+
+A filled status square means the server is responding. Use the menu to start, stop or restart it. **Update…** appears when a newer release is available. **Settings** includes Launch at Login, GitHub Backup and the nightly update channel. [Mac menu controls and settings](MACOS.md)
+
+Chromium enables new previews and agent captures. Saved library covers still load when Chromium is unavailable. Capture tools return images through MCP. [Visual review](VISUAL-REVIEW.md)
+
+### Run with Docker
+
+The container setup has its own persistent workspace and update process. [Docker installation and workspace restore](DOCKER.md)
+
 ## Guided setup
 
 Clone the repository using Git, then open its folder as your agent's working project. Run:
@@ -13,69 +27,9 @@ Clone the repository using Git, then open its folder as your agent's working pro
 | Claude Code | `/setup` — bundled project command |
 | Codex | `$setup` — bundled repository skill |
 
-These use the same [setup workflow](../.agents/skills/setup/SKILL.md). It checks what is already installed, guides the missing setup, connects MCP and helps you start a project or artifact. You can provide preferences with the command, such as “use the Mac menu-bar app and start at login”. It preserves existing workspaces and settings. If the command is not listed, reload the agent session; from another working folder, ask it to read this checkout's `.agents/skills/setup/SKILL.md` by absolute path.
+Both commands use the same setup workflow. It defaults to the menu-bar app on a new Mac, reuses existing settings and connects MCP. You can specify preferences such as “start at login” or “use Docker”. If the command is missing, reload the agent session. From another folder, give the agent the absolute path to this checkout's setup skill. [Setup workflow](../.agents/skills/setup/SKILL.md)
 
-The syntax follows [Codex skill invocation](https://learn.chatgpt.com/docs/build-skills) and [Claude Code project commands](https://code.claude.com/docs/en/slash-commands). `/setup` is a Claude Code command, not a browser-chat command or a universal MCP feature. Native trust/reload steps may need your interaction. Manual setup follows below.
-
-## Install
-
-You need [Git](https://git-scm.com/) and [uv](https://docs.astral.sh/uv/getting-started/installation/). The repository is private, so your GitHub account needs access. Node.js, GitHub CLI and an AI API key are **not required to run the app**. Your existing agent supplies the AI connection.
-
-```sh
-git clone https://github.com/kaiketsu-labs/artifact-studio.git
-cd artifact-studio
-uv python install 3.14
-uv sync --locked --python 3.14
-uv run playwright install chromium --only-shell
-```
-
-Already have a checkout? Open its folder in Terminal and run the dependency commands above. This is a source installation: no npm or PyPI release or standalone Mac download is published by this project yet.
-
-Chromium enables the local [visual-review tools](VISUAL-REVIEW.md). It follows [Playwright's browser installation](https://playwright.dev/python/docs/browsers). If you skip that step, the editor still works and capture tools explain how to install it. Captures return images directly through MCP; they do not require the agent to operate a browser tab.
-
-## Choose how to start
-
-Use one startup method for this workspace. Both serve the same browser app and MCP endpoint.
-
-### Mac menu-bar app
-
-Requires macOS 13+ and Apple's Command Line Tools. If needed, install the tools with `xcode-select --install` and wait for that installation to finish. From the Artifact Studio checkout, run:
-
-```sh
-uv run --no-sync python scripts/install_macos.py --launch-at-login
-```
-
-If you already started the server in Terminal, stop it with **Ctrl+C** first. Open `~/Applications/Artifact Studio.app` in Finder, then choose **Open Artifact Studio** from the artifact icon beside the clock. The app starts the server and registers login startup; approve it in System Settings if macOS asks.
-
-A filled status square means the server is responding. Start/Stop and Restart control its server. **Update…** appears when a newer release is available; it warns before stopping a running server. **Settings** contains Launch at Login, GitHub Backup and the optional nightly update channel. Keep the source checkout and `.venv` in place: this controller is not a self-contained, notarized distribution. [Menu controls, configuration and removal](MACOS.md).
-
-### Terminal
-
-From the Artifact Studio checkout:
-
-```sh
-uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
-```
-
-Keep that Terminal running, then open [Artifact Studio](http://127.0.0.1:8790/). Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut after setup; `uv` must be on your PATH.
-
-### Designs and work
-
-The sidebar’s **Designs** opens registered design packs and their examples, with the workspace default marked. They are excluded from **All artifacts** and project counts. Presentations created from a design remain normal artifacts. Classification uses each pack’s `design.json`; files and existing links stay in place.
-
-In **All artifacts**, project and folder overviews, use the sort control beside the format filters: **Name** (natural A–Z), **Last changed** (newest content first), **Created** (newest first), or **File type** (format groups with names A–Z inside each group). The arrow reverses the order. Search and format filters keep the selected order; one setting is shared across these overviews and remembered in this browser. Sorting does not move files or reorder projects. Legacy presentation dates use available history and filesystem timestamps.
-
-### Storage locations
-
-By default, presentations, project briefs and owned artifact bundles go in `~/Documents/Artifacts`; review state goes in `.state/` inside the app checkout. These locations are created on first launch. To use different locations, set these variables when starting the server:
-
-```sh
-ARTIFACT_STUDIO_COLLECTION="$HOME/Documents/My Slides" \
-ARTIFACT_STUDIO_DATABASE="$HOME/Documents/Artifact Studio State/review.sqlite3" \
-uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
-```
-
-Bind the service to `127.0.0.1`. It is a trusted local workspace, without multi-user authentication.
+Use these commands in the agent chat. The agent may ask you to reload the session or approve its connection. [Codex skills](https://learn.chatgpt.com/docs/build-skills) · [Claude Code commands](https://code.claude.com/docs/en/slash-commands)
 
 ## Connect your agent
 
@@ -125,6 +79,12 @@ A card's folder action or **Sources & files → Move to project** changes member
 Use the **+** beside **Projects** to add a project or navigation folder. Folder menus create nested folders/projects, rename or move them; drag rows to reorder siblings or place them inside a folder. The same actions are available from each row's menu and the keyboard. Selecting a folder includes its descendant projects. Removing a navigation folder keeps its projects and sources. Drag an artifact card onto a project row, or use **Move to project**, to change its membership; navigation folders do not relocate source files.
 
 Right-click a library card or related-artifact row for its open/view, conversation, move, share, link and context actions; owned artifacts also offer **Version history**, while presentations offer **Present**. Project and folder rows offer their navigation, creation and movement actions. Right-click blank library space to create or import work. **Shift+F10** or the keyboard Menu key opens the focused item's menu; arrows and Home/End navigate, and Escape returns focus. Inputs, links and authored controls keep native menus outside active element selection.
+
+### Designs and work
+
+The sidebar’s **Designs** opens registered design packs and their examples, with the workspace default marked. They are excluded from **All artifacts** and project counts. Presentations created from a design remain normal artifacts. Classification uses each pack’s `design.json`; files and existing links stay in place.
+
+In **All artifacts**, project and folder overviews, use the sort control beside the format filters: **Name** (natural A–Z), **Last changed** (newest content first), **Created** (newest first), or **File type** (format groups with names A–Z inside each group). The arrow reverses the order. Search and format filters keep the selected order; one setting is shared across these overviews and remembered in this browser. Sorting does not move files or reorder projects. Legacy presentation dates use available history and filesystem timestamps.
 
 ### Adaptive viewers
 
@@ -231,6 +191,10 @@ Open each deck in its own browser tab and use a separate agent chat with that de
 
 ## Files, persistence and backups
 
+### Storage locations
+
+The native server creates its collection in `~/Documents/Artifacts` and its review state in `.state/` inside the checkout on first launch. Set other paths through the Mac installer or the Terminal environment. [Mac configuration](MACOS.md#existing-workspaces-and-updates) · [Terminal configuration](#run-from-terminal)
+
 In the presentation editor, use **Menu → Presentation files** for **Save presentation**, **Import presentation**, **Export HTML** and **Export PDF**. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
 
 For the whole workspace, open the storage icon and choose **Save workspace**. This archive includes collection sources, retained artifact revisions, saved review history, approvals and app-owned private attachments. Browser-only unfinished edits remain separate. To keep full archives on GitHub, expand **Full workspace backups** beside a connected private repository and check **Back up full workspace**. Set an interval of **1–720 hours** and keep **1–100 backups**, then choose **Save backup settings**. Defaults are daily and seven backups. The first backup starts when enabled; later backups run while the Studio server is open, with one missed run caught up after reopening. The section also offers **Back up full workspace now** and shows the last result, next time and errors. [Schedule and retention](REPOSITORY-SYNC.md#scheduled-full-workspace-backups).
@@ -280,22 +244,14 @@ app also updates itself. Refresh the browser and resume agent review afterward.
 Stable releases are the default; **Include Nightly Builds** in Mac Settings or the
 web About dialog opts into preview releases.
 
-For a Terminal installation, save your work and back up the collection and state folder. From a checkout without uncommitted changes:
-
-```sh
-git pull --ff-only
-uv sync --locked --python 3.14
-uv run playwright install chromium --only-shell
-```
-
-Stop the Terminal server with Ctrl+C and start it again. Refresh the browser and resume live review in your agent. Keep the same collection and database paths. Do not delete `.state` or replace it with a new checkout's empty state. [Native controller details](MACOS.md#existing-workspaces-and-updates).
+For container updates, follow the Docker guide. [Update with Docker](DOCKER.md#update-and-build-checks)
 
 ## Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
 | `uv: command not found` | Install uv, open a new terminal and check `uv --version`. |
-| Clone fails | Confirm your GitHub account has access to this private repository and Git authentication is configured. |
+| Clone fails | Check your GitHub repository access and Git authentication. |
 | Port 8790 is already in use | Open the running workspace, or start on a different local port and use that port in the browser and MCP URL. |
 | Mac app says “Running · started elsewhere” | Stop the original Terminal server with Ctrl+C, then choose Start in the Mac menu. The controller cannot stop a server it does not own. |
 | Mac app fails to start | Choose Show Logs. Confirm the checkout and `.venv` still exist and dependencies are installed. [Mac setup](MACOS.md). |
@@ -312,7 +268,37 @@ Stop the Terminal server with Ctrl+C and start it again. Refresh the browser and
 | A removed presentation is missing | Use the restore icon below the top-left selector. Keep the same state database across launches. |
 | Slides or comments seem to have disappeared | Check the collection and database environment variables before creating new data; saved content may be in your previous locations. |
 
+### Run from Terminal
+
+Use Terminal for native development, troubleshooting, or running the native server on a system without the Mac menu-bar app. Run the source setup commands through Chromium installation, then run the server command below from the checkout. Stop any server already using port 8790 first. [Source setup commands](../README.md#install-on-mac)
+
+```sh
+uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
+```
+
+Keep Terminal running and open Artifact Studio in your browser. Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut when `uv` is on your PATH. [Open the local workspace](http://127.0.0.1:8790/)
+
+Set the collection and database explicitly when opening an existing workspace that uses custom paths.
+
+```sh
+ARTIFACT_STUDIO_COLLECTION="$HOME/Documents/My Slides" \
+ARTIFACT_STUDIO_DATABASE="$HOME/Documents/Artifact Studio State/review.sqlite3" \
+uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
+```
+
+To update a Terminal installation, stop the server and back up the collection and state folder. Run the update commands from a clean checkout.
+
+```sh
+git pull --ff-only
+uv sync --locked --python 3.14
+uv run playwright install chromium --only-shell
+```
+
+Restart with the same collection and database paths, refresh the browser and resume agent review.
+
 ## Development and agent documentation
+
+Use the native server command when developing locally. [Run from Terminal](#run-from-terminal)
 
 ```sh
 uv sync --locked --python 3.14
