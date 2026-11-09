@@ -136,17 +136,21 @@
   doc.addEventListener('pointerdown',event=>{if(active&&event.target!==active.input&&!menu.contains(event.target))close();},true);
   doc.addEventListener('focusin',event=>{if(active&&event.target!==active.input&&!menu.contains(event.target))close();});
   root.addEventListener('resize',()=>{hidePreview();position();});
+  function referenceType(kind){
+    return ({slide:{kind:'slide',icon:'slide',label:'Slide'},presentation:{kind:'presentation',icon:'slides',label:'Full presentation'},project:{kind:'project',icon:'project',label:'Project'}})[kind]||{kind:'artifact',icon:'file',label:'Artifact'};
+  }
+  function referenceSymbol(type){return `<span class="reference-symbol" aria-hidden="true" title="${type.label}">${root.SlideIcons.svg(type.icon)}</span>`;}
   function chip(file,remove,className='chat-file-chip'){
     const item=file.workspaceReference||file.slideReference;if(!item)return '';
     if(!draftKeys.has(file))draftKeys.set(file,'draft-'+(++nextPill));
-    const key=draftKeys.get(file);pillSources.set(key,pillSources.get(key)||{file,title:item.title});
-    return `<span class="chat-reference-slot"><span class="${className} is-path-reference${file.slideReference?' is-slide-reference':''}" data-reference-preview="${key}" tabindex="0" aria-expanded="false" aria-label="Preview saved reference: ${escape(item.title)}"><span class="chat-reference-bar"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(item.title)}</span>${remove}</span></span></span>`;
+    const key=draftKeys.get(file),type=referenceType(file.slideReference?'slide':item.kind);pillSources.set(key,pillSources.get(key)||{file,title:item.title});
+    return `<span class="chat-reference-slot"><span class="${className} is-path-reference${type.kind==='slide'?' is-slide-reference':''}" data-reference-preview="${key}" tabindex="0" aria-expanded="false" aria-label="Preview saved ${type.label.toLowerCase()} reference: ${escape(item.title)}"><span class="chat-reference-bar">${referenceSymbol(type)}<span class="chat-file-name">${escape(item.title)}</span>${remove}</span></span></span>`;
   }
   function sent(file,className='chat-file-chip'){
     const match=/^(.+) - (project|artifact|presentation|slide) reference\.(json|html)$/.exec(file.name||'');
     const url=file.download_url;if(!match||!root.ChatImages.downloadURL(url))return '';
-    pillSources.set(url,pillSources.get(url)||{url,title:match[1]});
-    return `<span class="chat-reference-slot"><a class="${className} is-path-reference" data-reference-preview="${escape(url)}" href="${escape(url)}" download aria-expanded="false" aria-label="Download saved ${escape(match[2])} reference: ${escape(match[1])}"><span class="chat-reference-bar"><span class="reference-symbol" aria-hidden="true">@</span><span class="chat-file-name">${escape(match[1])}</span></span></a></span>`;
+    const type=referenceType(match[2]);pillSources.set(url,pillSources.get(url)||{url,title:match[1]});
+    return `<span class="chat-reference-slot"><a class="${className} is-path-reference" data-reference-preview="${escape(url)}" href="${escape(url)}" download aria-expanded="false" aria-label="Download saved ${type.label.toLowerCase()} reference: ${escape(match[1])}"><span class="chat-reference-bar">${referenceSymbol(type)}<span class="chat-file-name">${escape(match[1])}</span></span></a></span>`;
   }
   // Render only the selected attachment's frozen bytes, never a mutable workspace URL.
   function frozenDocument(source,files=[],entrypoint=''){
@@ -306,6 +310,9 @@
     if(!pillPreview){pillPreview=doc.createElement('div');pillPreview.id='chat-saved-reference-preview';pillPreview.className='chat-reference-unfold';pillPreview.setAttribute('role','tooltip');pillPreview.hidden=true;doc.body.append(pillPreview);}
     try{
       const model=await frozenPreview(record);if(request!==pillRequest||!anchor.isConnected)return;
+      mountPill(anchor);
+      // Moving even within the same parent resets the iframe's document.
+      if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);
       if(renderedPill!==key){
         pillPreview.replaceChildren();
         if(model.html){
@@ -319,7 +326,7 @@
         if(model.items){const list=doc.createElement('p');list.textContent=model.items.join(' · ');caption.append(list);}
         pillPreview.append(caption);renderedPill=key;
       }
-      mountPill(anchor);if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
+      pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill(model);
     }catch{
       if(request!==pillRequest||!anchor.isConnected)return;
       mountPill(anchor);pillPreview.textContent='Saved reference preview unavailable. Download the reference to inspect it.';renderedPill='';if(pillPreview.parentElement!==anchor)anchor.prepend(pillPreview);pillPreview.hidden=false;anchor.setAttribute('aria-describedby',pillPreview.id);expandPill({});

@@ -17,8 +17,10 @@ dismissing suggestions stops waiting for the update. Individual slides retain
 their live slide preview. The title and reference remain available if a cover
 cannot be rendered.
 
-The selected query becomes a compact pill showing the slide, project or artifact
-title. Full paths stay out of your message. Hover over a pill, or focus it with
+The selected query becomes a compact pill showing its title and a type icon:
+a single canvas for a slide, a slide navigator for a full presentation, a project
+icon for a project, or a file icon for another artifact. The same icons remain on
+sent references. Full paths stay out of your message. Hover over a pill, or focus it with
 the keyboard, to unfold the saved slide upward from the same surface. The title
 and composer stay in place. Moving onto the slide keeps it open; moving away
 folds it back into the title. Press **Escape** to fold it without moving focus.
@@ -33,6 +35,14 @@ at once, including slides from other presentations. These use the same compact
 title pills; descriptions stay inside the frozen reference delivered to your agent.
 The slide with a star represents favorite-slide references; the single star saves a slide
 to Favorites.
+
+The single-star toggle sits in each slide thumbnail's caption row, clear of the
+slide artwork. It is also available in the sorter and the slide's right-click
+menu as **Add to favorites** or **Remove from favorites**. Keyboard users can
+focus the star and press **Space** or **Enter**, or open the slide menu with
+**Shift+F10**. Favoriting does not change slide content, approval or visibility.
+
+![Favorite stars beside slide captions](prototypes/favorites/slide-stars-rest.png)
 
 ![Slide-and-star reference picker beside the microphone](screenshots/reference-picker-slide-star-dark.png)
 

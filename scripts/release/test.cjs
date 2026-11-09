@@ -43,6 +43,7 @@ async function candidate(messages, released = false) {
   const strategy = (await manifest.getStrategiesByPath())['.'];
   const release = await strategy.buildRelease({ sha: 'merge', title: pr.title.toString(), headBranchName: pr.headRefName, body: pr.body.toString() });
   assert.ok(release);
+  assert.equal(release.sha, 'merge');
   assert.equal(release.tag.toString(), `v${pr.version}`);
   return pr;
 }

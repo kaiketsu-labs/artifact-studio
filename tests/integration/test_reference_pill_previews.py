@@ -116,6 +116,8 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
         page.get_by_role("listbox", name="Workspace references").get_by_role("option")
     ).to_have_count(1)
     text.press("Enter")
+    expect(pill).to_have_count(1)
+    expect(text).to_be_editable()
     text.press_sequentially("with this draft.")
     text.press("Enter")
     sent = page.locator(
@@ -131,6 +133,11 @@ def test_artifact_pill_hover_and_focus_keep_frozen_source_and_reuse_preview(
             else None
         ),
     )
+    # Flush scroll events before hovering, since scrolling closes previews.
+    _ = sent.evaluate("""el => {
+      el.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'instant'});
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }""")
     sent.hover()
     expect(preview).to_be_visible()
     expect(preview.frame_locator("iframe").locator("h1")).to_have_text("NEW SOURCE AFTER ATTACH")
@@ -251,6 +258,12 @@ def test_saved_slide_canvas_fits_and_survives_source_change(
     frame = preview.frame_locator("iframe")
     expect(frame.locator("h1")).to_have_text("Saved first slide")
     expect(frame.locator("#saved-edge")).to_be_visible()
+    _ = frame.locator("body").evaluate("() => { window.previewDocumentMarker = 'retained'; }")
+    _ = page.locator("form .is-path-reference").evaluate(
+        "el => el.dispatchEvent(new FocusEvent('focusin', {bubbles: true}))"
+    )
+    _ = page.evaluate("() => new Promise(resolve => setTimeout(resolve, 0))")
+    assert frame.locator("body").evaluate("() => window.previewDocumentMarker") == "retained"
     assert frame.locator("#saved-edge").evaluate(
         "el=>{const b=el.getBoundingClientRect();"
         "return b.right===1600&&b.bottom===900&&innerWidth===1600&&innerHeight===900;}"
@@ -602,6 +615,7 @@ def test_new_preview_ignores_a_delayed_pointer_notification_from_previous_openin
     )
     page.goto(f"{prepared.url}/?artifact={target.id}")
     authored = page.frame_locator("#hub-html-preview").locator("body")
+    expect(authored).to_contain_text("Make room for the next idea.")
     _ = authored.evaluate(
         "() => { window.observedReferenceRequest = null; "
         "addEventListener('message', event => {"

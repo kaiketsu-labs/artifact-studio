@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import Literal
 
 import pytest
 from playwright.sync_api import Browser, Page, expect
@@ -183,10 +184,10 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
 
 def test_slide_star_and_native_artifact_chat_reference(page: Page, prepared: RunningApp) -> None:
     page.goto(f"{prepared.url}/?deck={DECK_ID}#cover")
-    star = page.get_by_role("button", name="Star A clearer way to work", exact=True)
+    star = page.get_by_role("button", name="Add to favorites: A clearer way to work", exact=True)
     star.click()
     expect(
-        page.get_by_role("button", name="Unstar A clearer way to work", exact=True)
+        page.get_by_role("button", name="Remove from favorites: A clearer way to work", exact=True)
     ).to_be_visible()
     page.get_by_role("link", name="Back to all artifacts", exact=True).click()
     page.get_by_role(
@@ -207,6 +208,128 @@ def test_slide_star_and_native_artifact_chat_reference(page: Page, prepared: Run
     expect(page.locator(".hub-message .hub-attachment")).to_have_count(1)
     expect(page.locator(".hub-message .is-path-reference .chat-file-name")).to_have_text(title)
     expect(page.locator(".hub-message")).not_to_contain_text(" - slide reference.html")
+
+
+@pytest.mark.parametrize(("width", "theme"), [(1440, "light"), (1440, "dark"), (390, "dark")])
+def test_slide_favorites_caption_menu_keyboard_and_sorter(
+    page: Page,
+    live_app: RunningApp,
+    artifacts: Path,
+    width: int,
+    theme: Literal["light", "dark"],
+) -> None:
+    """Keep slide favorites clear of artwork and reachable through pointer and keyboard."""
+    page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(color_scheme=theme)
+    page.goto(f"{live_app.url}/?deck={DECK_ID}#cover", wait_until="networkidle")
+    if width < 600:
+        page.get_by_role("button", name="Open sidebar", exact=True).click()
+    first = page.locator('.slide-thumb[data-id="cover"]')
+    second = page.locator('.slide-thumb[data-id="next"]')
+    star = page.locator('.slide-star[data-star-slide="next"]')
+    original = live_app.store.read(DECK_ID)
+    expect(star).to_have_attribute("title", "Add to favorites: Next steps")
+    star.click()
+    expect(star).to_have_attribute("aria-label", "Remove from favorites: Next steps")
+    expect(first).to_have_attribute("aria-current", "true")
+    star.focus()
+    page.keyboard.press("Space")
+    expect(star).to_have_attribute("aria-pressed", "false")
+    expect(star).to_be_focused()
+    star.click(button="right")
+    menu = page.get_by_role("menu", name="Slide options", exact=True)
+    menu.get_by_role("menuitem", name="Add to favorites", exact=True).click()
+    expect(menu).to_be_hidden()
+    expect(star).to_have_attribute("aria-pressed", "true")
+    second.focus()
+    page.keyboard.press("Shift+F10")
+    remove = menu.get_by_role("menuitem", name="Remove from favorites", exact=True)
+    expect(remove).to_be_visible()
+    remove.focus()
+    page.keyboard.press("Enter")
+    expect(star).to_have_attribute("aria-pressed", "false")
+    expect(second).to_be_focused()
+    assert live_app.store.read(DECK_ID) == original
+    star.click()
+    expect(star).to_have_attribute("aria-pressed", "true")
+
+    def check_caption() -> None:
+        """Check real bounds so all state icons remain outside the slide image."""
+        assert star.evaluate("""node => {
+          const entry=node.closest('.slide-entry'), star=node.getBoundingClientRect();
+          const preview=entry.querySelector('.thumb-preview').getBoundingClientRect();
+          const caption=entry.querySelector('.thumb-caption').getBoundingClientRect();
+          const dot=entry.querySelector('.thumb-caption>.dot').getBoundingClientRect();
+          const title=entry.querySelector('.thumb-title').getBoundingClientRect();
+          return star.top >= preview.bottom && star.top >= caption.top - 1
+            && star.bottom <= caption.bottom + 1 && dot.right <= star.left
+            && title.right <= star.left && star.right <= caption.right + 1;
+        }""")
+
+    check_caption()
+    _ = page.screenshot(path=str(artifacts / "favorite-caption.png"))
+    second.click(button="right")
+    _ = page.screenshot(path=str(artifacts / "favorite-menu.png"))
+    page.keyboard.press("Escape")
+    if width < 600:
+        page.get_by_role("button", name="Close sidebar", exact=True).click()
+    page.get_by_role("button", name="Slide sorter", exact=True).click()
+    check_caption()
+    _ = page.screenshot(path=str(artifacts / "favorite-sorter.png"))
+    page.reload(wait_until="networkidle")
+    expect(star).to_have_attribute("aria-pressed", "true")
+
+
+@pytest.mark.parametrize("approved", [False, True])
+def test_slide_favorites_touch_target_and_review_states(
+    browser: Browser, live_app: RunningApp, artifacts: Path, approved: bool
+) -> None:
+    """Keep touch favorites discoverable without changing hidden, unseen or review state."""
+    deck = live_app.store.read(DECK_ID)
+    second = deck.slides[1]
+    live_app.store.revise(
+        DECK_ID,
+        second.id,
+        digest(second.model_dump_json()),
+        "touch-favorite-revision",
+        SlidePatch(html=second.html.replace("Present with confidence", "Updated with confidence")),
+    )
+    deck = live_app.store.read(DECK_ID)
+    second = deck.slides[1]
+    second.hidden = True
+    live_app.store.write(DECK_ID, deck)
+    content_hash = live_app.store.content_hash(DECK_ID, second)
+    if approved:
+        live_app.store.approve(DECK_ID, second.id, content_hash, True)
+    assert live_app.store.view_slide(DECK_ID, second).has_unseen_changes is not approved
+    expected_classes = (
+        "slide-thumb is-hidden" if approved else "slide-thumb has-unseen-changes is-hidden"
+    )
+    expected_dot = "dot green" if approved else "dot red"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, color_scheme="dark"
+    )
+    page = context.new_page()
+    try:
+        page.goto(f"{live_app.url}/?deck={DECK_ID}#cover", wait_until="networkidle")
+        page.get_by_role("button", name="Open sidebar", exact=True).tap()
+        target = page.locator('.slide-thumb[data-id="next"]')
+        star = page.locator('.slide-star[data-star-slide="next"]')
+        expect(target).to_have_class(expected_classes)
+        expect(target.locator(".dot")).to_have_class(expected_dot)
+        expect(star).to_have_css("width", "40px")
+        expect(star.locator(".ui-icon")).to_have_css("opacity", "1")
+        star.tap()
+        expect(star).to_have_attribute("aria-pressed", "true")
+        expect(target).to_have_class(expected_classes)
+        expect(target.locator(".dot")).to_have_class(expected_dot)
+        expect(page.locator('.slide-thumb[data-id="cover"]')).to_have_attribute(
+            "aria-current", "true"
+        )
+        assert live_app.store.read(DECK_ID) == deck
+        _ = page.screenshot(path=str(artifacts / "favorite-touch-states.png"))
+    finally:
+        context.close()
 
 
 def test_description_save_cancel_search_persistence_and_clear(

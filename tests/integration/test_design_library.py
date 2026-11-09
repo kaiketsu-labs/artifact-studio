@@ -346,13 +346,69 @@ def test_design_image_and_powerpoint_thumbnails(
     expect(missing).to_be_disabled()
     expect(missing.locator("img")).to_have_count(0)
     expect(page.locator(".design-file-badge.is-pdf .ui-icon")).to_be_visible()
-    expect(page.locator(".design-file-badge.is-code .ui-icon")).to_be_visible()
+    expect(page.locator(".design-file-badge.is-data .ui-icon")).to_be_visible()
     assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
     _ = page.screenshot(path=str(artifacts / "design-file-previews.png"), full_page=True)
     page.locator("#appearance-button").click()
     page.locator('[data-appearance="dark"]').click()
     expect(page.locator("html")).to_have_attribute("data-theme", "dark")
     _ = page.screenshot(path=str(artifacts / "design-file-previews-dark.png"), full_page=True)
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_design_text_file_tiles(
+    page: Page, live_app: RunningApp, artifacts: Path, width: int
+) -> None:
+    """Keep distinct file tiles full width and open text by mouse and keyboard."""
+    files = {
+        "tokens.json": b'{"fictional":"#426bec"}',
+        "theme.css": b".fictional { color: #426bec; }",
+        "player.js": b"const fictional = true;",
+        "example.html": b"<h1>Fictional example</h1>",
+        "notes.md": b"# Fictional notes",
+    }
+    item = DesignLibrary(live_app.store).create(
+        DesignCreate(
+            name="Fictional design files",
+            files=[
+                FileInput(name=name, data_base64=base64.b64encode(data).decode())
+                for name, data in files.items()
+            ],
+        )
+    )
+    page.set_viewport_size({"width": width, "height": 1000 if width > 700 else 844})
+    _ = page.goto(live_app.url + f"/?view=designs&design={item.id}")
+    for name, kind in (
+        ("tokens.json", "data"),
+        ("theme.css", "stylesheet"),
+        ("player.js", "script"),
+        ("example.html", "markup"),
+        ("notes.md", "document"),
+    ):
+        visual = page.get_by_role("button", name=f"Preview {name}", exact=True)
+        badge = visual.locator(f".design-file-badge.is-{kind}")
+        expect(badge.locator(".ui-icon")).to_be_visible()
+        expect(visual).to_have_attribute("title", f"Preview {name}")
+        bounds = visual.bounding_box()
+        badge_bounds = badge.bounding_box()
+        assert bounds is not None and badge_bounds is not None
+        assert badge_bounds["width"] >= bounds["width"] - 2
+        visual.click()
+        dialog = page.get_by_role("dialog", name=name, exact=True)
+        expect(dialog.locator(".design-text-content")).to_contain_text(
+            "fictional", ignore_case=True
+        )
+        page.keyboard.press("Escape")
+        visual.focus()
+        page.keyboard.press("Enter")
+        expect(dialog).to_be_visible()
+        page.keyboard.press("Escape")
+    assert not page.evaluate("document.documentElement.scrollWidth > window.innerWidth")
+    _ = page.screenshot(path=str(artifacts / "design-text-file-tiles.png"), full_page=True)
+    page.locator("#appearance-button").click()
+    page.locator('[data-appearance="dark"]').click()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    _ = page.screenshot(path=str(artifacts / "design-text-file-tiles-dark.png"), full_page=True)
 
 
 @pytest.mark.parametrize("width", [1440, 390])

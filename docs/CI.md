@@ -139,10 +139,13 @@ uvx pre-commit install
 uvx pre-commit run --all-files
 ```
 
-Adding a workflow does not change GitHub branch protection. To require these
-checks before merge, select the four expanded CI job names in the repository's branch
-rules after their first successful run.
+Adding a workflow does not change GitHub branch protection. Require the aggregated
+**Dependency safety** check from the **GitHub Actions** app, with strict up-to-date
+branches, in an active branch ruleset for `main`. This check includes the required
+audits and test suites; selecting only some individual jobs can miss failures.
+See [dependency-update settings](DEPENDENCY-UPDATES.md#github-settings).
 
 The separate [Release Please workflow](RELEASING.md) prepares release PRs on pushes
-to `main` and explicitly dispatches CI for those bot-created PRs. Publication is a
-separate manual action after the release PR is merged and `main` CI passes.
+to `main` and explicitly dispatches CI for those bot-created PRs. After a release
+PR merges, successful trusted push CI on `main` triggers publication. The manual
+**publish** command remains available for retries with the same release CI checks.

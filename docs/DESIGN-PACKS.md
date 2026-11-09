@@ -12,6 +12,11 @@ Use **Use with agent → Copy message**, then paste into your connected agent's 
 
 Images and saved PowerPoint covers appear as thumbnails. Click a thumbnail to enlarge it; the file name still downloads the original. Raster previews use a bounded, upright first frame. PowerPoint previews use the file's embedded cover rather than rendering its slides. Missing or unsupported previews fall back to colored file-type icons.
 
+Text and other file icons use centered document tiles, with different symbols
+and colors for stylesheets, scripts, HTML, documents and data. The extension stays
+visible. Text tiles open the same preview as their file names; real image and
+PowerPoint covers keep their existing previews.
+
 The design's trash icon removes it from the library while preserving source files and existing presentations. Use **Deleted designs** in the toolbar to restore it. Registered slide packs also expose **Open example slides** as a separate action. Reference collections are not automatically available as presentation templates or workspace defaults.
 
 To turn supplied material into a reusable slide pack, ask the connected agent to inspect it, build and visually check the example slides, and register a pack with its own ID. Say which pack you want as the default. You can also supply references in the agent's own chat or through the existing presentation editor. You do not need to edit a manifest or choose from fixed layouts.

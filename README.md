@@ -133,7 +133,8 @@ Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before
 The supported installation is this source checkout. The Mac controller needs the checkout and `.venv` to remain in place. No standalone notarized download, npm package or PyPI release is published by this project yet.
 
 Versions and changelogs are prepared with Release Please, starting at **0.1.0**.
-Publishing a GitHub release is a separate manual action. See [Versions and releases](docs/RELEASING.md).
+Merging a release PR publishes its GitHub release after the required CI passes.
+See [Versions and releases](docs/RELEASING.md).
 
 ## Connect your agent
 

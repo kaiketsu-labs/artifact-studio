@@ -76,25 +76,25 @@
   const listeners=new Set();
   async function api(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.detail==='string'?data.detail:'Could not load favorites. Try again.');}return response.json();}
   function has(kind,id,slide=''){return saved[kind==='artifact'?'artifacts':'slides'].includes(kind==='artifact'?id:`${id}/${slide}`);}
-  function sync(){
+  const actionLabel=active=>active?'Remove from favorites':'Add to favorites';
+  const buttonLabel=(kind,active,title)=>kind==='slide'?`${actionLabel(active)}: ${title}`:`${active?'Unstar':'Star'} ${title}`;
+  function sync(notify=true){
     for(const node of doc.querySelectorAll('[data-star-kind]')){
-      const active=has(node.dataset.starKind,node.dataset.starId,node.dataset.starSlide),label=`${active?'Unstar':'Star'} ${node.dataset.starTitle}`;
+      const active=has(node.dataset.starKind,node.dataset.starId,node.dataset.starSlide),label=buttonLabel(node.dataset.starKind,active,node.dataset.starTitle);
       node.setAttribute('aria-pressed',String(active));node.setAttribute('aria-label',label);node.title=label;node.disabled=pendingStars.has(starKey(node));
     }
-    for(const listener of listeners)listener();
+    if(notify)for(const listener of listeners)listener();
   }
   async function refresh(){if(pendingStars.size)return saved;const request=++epoch,data=await api('/api/favorites');if(request===epoch && JSON.stringify(saved)!==JSON.stringify(data)){saved=data;sync();}return saved;}
   function button(kind,id,title,slide='',className=''){
-    const active=has(kind,id,slide),label=`${active?'Unstar':'Star'} ${title}`;
+    const active=has(kind,id,slide),label=buttonLabel(kind,active,title);
     return `<button type="button" class="favorite-star ${className}" data-star-kind="${kind}" data-star-id="${escape(id)}" data-star-slide="${escape(slide)}" data-star-title="${escape(title)}" aria-label="${escape(label)}" title="${escape(label)}" aria-pressed="${active}" ${pendingStars.has([kind,id,slide].join('/'))?'disabled':''}>${icon()}</button>`;
   }
-  doc.addEventListener('click',async event=>{
-    const node=event.target.closest('[data-star-kind]');if(!node)return;
-    event.preventDefault();event.stopImmediatePropagation();
-    const identity=starKey(node);if(node.disabled||pendingStars.has(identity))return;
-    const wasFocused=doc.activeElement===node;
-    const body={kind:node.dataset.starKind,artifact_id:node.dataset.starId,slide_id:node.dataset.starSlide,starred:!has(node.dataset.starKind,node.dataset.starId,node.dataset.starSlide)};
-    pendingStars.add(identity);node.disabled=true;
+  /** Serialize favorites from rail buttons and slide-menu commands through one queue. */
+  async function toggle(kind,id,slide=''){
+    const identity=[kind,id,slide].join('/');if(pendingStars.has(identity))return;
+    const body={kind,artifact_id:id,slide_id:slide,starred:!has(kind,id,slide)};
+    pendingStars.add(identity);sync(false);
     writeQueue=writeQueue.then(async()=>{
       ++epoch;
       try{saved=await api('/api/favorites',body);}
@@ -102,12 +102,19 @@
       finally{
         pendingStars.delete(identity);sync();
         if(picker?.open)await load();
-        if(wasFocused && [doc.body,node].includes(doc.activeElement)){
-          [...doc.querySelectorAll('[data-star-kind]')].find(candidate=>starKey(candidate)===identity)?.focus();
-        }
       }
     });
     await writeQueue;
+  }
+  doc.addEventListener('click',async event=>{
+    const node=event.target.closest('[data-star-kind]');if(!node)return;
+    event.preventDefault();event.stopImmediatePropagation();
+    if(node.disabled)return;
+    const identity=starKey(node),wasFocused=doc.activeElement===node;
+    await toggle(node.dataset.starKind,node.dataset.starId,node.dataset.starSlide);
+    if(wasFocused && [doc.body,node].includes(doc.activeElement)){
+      [...doc.querySelectorAll('[data-star-kind]')].find(candidate=>starKey(candidate)===identity)?.focus();
+    }
   },true);
   let entries=[],chosen=new Set(),attach=null,origin=null,loadEpoch=0;
   const previews=createPreviews();
@@ -210,5 +217,5 @@
     picker.querySelector('input').value='';picker.querySelector('#favorites-help').textContent=attach?'Choose favorites from any presentation.':'Your starred slides, across presentations.';
     error('');picker.querySelector('.favorites-grid').textContent='Loading…';footer();picker.showModal();picker.querySelector('input').focus();await load();
   }
-  root.FavoriteSlides={has,button,refresh,sync,open,onChange(listener){listeners.add(listener);}};
+  root.FavoriteSlides={has,button,refresh,sync,open,toggle,actionLabel,onChange(listener){listeners.add(listener);}};
 })(typeof window==='undefined'?{}:window);

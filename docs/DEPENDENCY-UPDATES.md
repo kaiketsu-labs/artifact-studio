@@ -3,8 +3,9 @@
 Dependabot opens updates against `main`. Compatible Python and npm updates can
 merge automatically after the protected **Dependency safety** check passes on
 an up-to-date branch. Major upgrades, Docker changes and workflow/action updates
-remain open for review. A security fix that requires a major upgrade is still
-proposed; there is no blanket major-version ignore rule.
+remain open for review. A security fix requiring a major upgrade can still be
+proposed when dependency resolution permits it; there is no blanket major-version
+ignore rule.
 
 ```mermaid
 flowchart LR
@@ -39,7 +40,11 @@ source change. A reported vulnerability or unavailable audit service fails the
 check. Audits find known advisories; they do not prove code is vulnerability-free.
 
 Dependabot cannot fix an unavailable upstream release or an incompatible parent
-constraint. npm routine version updates do not refresh every transitive package;
+constraint. For uv, a transitive security update cannot automatically upgrade its
+parent dependency when that is also required; the maintainer must update the
+parent. npm can attempt parent updates for transitive security fixes. See
+[GitHub's security-update limitations](https://docs.github.com/en/code-security/concepts/supply-chain-security/dependabot-security-updates).
+npm routine version updates do not refresh every transitive package;
 security updates and audits cover that separate case. Docker OS packages and
 Playwright's downloaded Chromium are outside the Python/npm lockfile audits:
 base-image and Playwright upgrades plus fresh image rebuilds are needed. No
@@ -57,8 +62,11 @@ previous queue entry before checkout and reevaluation, including base changes
 and conversion to draft.
 
 The workflow only asks GitHub to enable **native auto-merge**. It never directly
-merges a PR or bypasses protection. It requires repository auto-merge plus a
-classic `main` protection rule with strict status checks and **Dependency safety**.
+merges a PR or bypasses protection. It requires repository auto-merge plus an
+active branch ruleset for `main` with strict status checks and **Dependency safety**
+bound to the GitHub Actions app. Rules are read through GitHub's metadata-only
+branch-rules API; the built-in workflow token cannot read classic-protection
+details. Existing classic protections can remain alongside the ruleset.
 Other repository or organization rules continue to apply.
 
 Repository writers remain trusted. Disable auto-merge before manually editing
@@ -96,10 +104,19 @@ Repository administrators should enable:
 1. Dependency graph, Dependabot alerts and Dependabot security updates under
    **Settings → Advanced Security** (GitHub may label this **Code security**).
 2. **Allow auto-merge** under **Settings → General → Pull Requests**.
-3. A classic protection rule for `main` that requires pull requests, the
-   **Dependency safety** status check, and **Require branches to be up to date**.
-   Keep force pushes and branch deletion disabled and include administrators.
-   No human approval count is required for the automatic dependency path.
+3. Under **Settings → Rules → Rulesets**, create an **Active** branch ruleset
+   targeting `main`. Require pull requests, conversation resolution, and the
+   **Dependency safety** status check from the **GitHub Actions** app, with
+   **Require branches to be up to date** enabled. Block force pushes and deletion.
+   Leave the bypass list empty, including for administrators. No human approval
+   count is required for the automatic dependency path.
+
+A classic rule alone is insufficient for the automatic eligibility check:
+GitHub denies its details to the built-in workflow token. Do not add a personal
+token to work around this. The active branch-rules endpoint exposes the needed
+strict-check policy with metadata-read permission, without bypass credentials.
+GitHub omits disabled/evaluate-only rules from that endpoint. Administrators
+must also verify the ruleset's bypass list when configuring it.
 
 Activate the required check when the CI change is available in the PR being
 merged. Older PRs without that check need updating. Dependabot configuration and
@@ -121,7 +138,8 @@ tree also overrides `@google-automations/git-file-utils`'s minimatch dependency
 to **^11.0.5** for GHSA-g3hv-75wg-m249, because its parent still allows a vulnerable
 major. Release simulations and real file-discovery calls test compatibility;
 remove the override when the parent permits a fixed version. This override
-affects the npm simulation tree, not the separately bundled Release Please action.
+affects the locked publisher and simulation dependencies, not the separately
+bundled Release Please prepare action.
 
 Local checks:
 

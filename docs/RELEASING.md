@@ -23,17 +23,28 @@ update the manifest rather than changing it to simulate publication.
    Inspect the proposed version and changelog. The workflow explicitly dispatches
    CI for the release branch because PRs created with `GITHUB_TOKEN` do not trigger
    normal `pull_request` runs.
-3. When ready, review and merge the release PR. Wait for CI on the resulting
-   `main` commit to pass. **Merging the release PR does not publish a release.**
-4. To publish, choose **Actions → Release Please → Run workflow**, select `main`
-   and set `command` to **publish**. This manual action creates the version tag
-   and GitHub release for the merged release PR. It fails if CI for the selected
-   `main` commit or the release PR's merge commit has not passed, or if `main` has
-   changed since the run was requested. A newer passing commit cannot substitute
-   for passing CI on the commit being tagged.
+3. When ready, review and merge the release PR. Successful `CI` on the resulting
+   `main` push triggers publication automatically. The publisher also checks CI
+   on every pending release PR's merge commit. A newer passing commit cannot
+   substitute for passing CI on the release commit.
+4. For a manual retry, choose **Actions → Release Please → Run workflow**, select
+   `main` and set `command` to **publish**. The same CI checks apply. The default
+   manual action remains **prepare** and never publishes.
 
-Stable publishing is never run on a push, and the default manual action only prepares.
-No package registry upload, binary installer or automatic merge is configured.
+Automatic publication accepts only successful push CI from this repository's
+`main`. Pull-request runs, fork runs, manually dispatched CI and failed runs
+cannot trigger it. A stale completion or a run with no pending merged release
+skips publication. If `main` advances while a run is checking, its next successful
+push CI can retry; manual publication reports stale or missing prerequisites.
+The publisher freezes Release Please's candidate list and checks every release
+commit against the verified CI list before creating any release. Another merge
+cannot substitute an unchecked commit into that publication plan.
+An interrupted publication can leave a verified tag before the GitHub release
+finishes. Retries reuse only a matching tag and verified stable release; they
+never move tags or mark an invalid existing release as published.
+
+Release PRs still require a maintainer's merge. No package registry upload or
+binary installer is configured.
 The generated changelog is the release notes source; review the first entry for
 older commits that did not use Conventional Commits.
 
@@ -104,8 +115,8 @@ Existing installations with the old main-following updater need to receive this
 updater change once (through their current Update command or a manual source update
 and controller rebuild). Subsequent update checks follow stable release tags.
 
-CI runs offline simulations with the same Release Please version bundled in the
-pinned action. They exercise the first and subsequent releases and check the real
+CI runs offline simulations with the locked Release Please version used by the
+publisher. They exercise the first and subsequent releases and check the real
 version-file updates without creating PRs, tags or releases:
 
 ```sh
@@ -113,9 +124,11 @@ npm ci --prefix scripts/release --ignore-scripts --no-audit --no-fund
 node --test scripts/release/*.cjs
 ```
 
-Update the action pin and simulation dependency together. App health/version tests
-also exercise a future version and the generated Mac bundle metadata. Native Mac
-compilation still requires macOS.
+The prepare action bundles its own Release Please version. When changing either
+pin, check that the generated release PR, version files and pending label still
+match what the publisher expects. Verify the prepare run after merging an action
+update. App health/version tests also exercise a future version and the generated
+Mac bundle metadata. Native Mac compilation still requires macOS.
 
 The simulation dependency tree has a documented minimatch security override;
 it does not modify the action's independently bundled dependencies. Dependabot
