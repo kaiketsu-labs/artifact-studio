@@ -138,7 +138,8 @@ tree also overrides `@google-automations/git-file-utils`'s minimatch dependency
 to **^11.0.5** for GHSA-g3hv-75wg-m249, because its parent still allows a vulnerable
 major. Release simulations and real file-discovery calls test compatibility;
 remove the override when the parent permits a fixed version. This override
-affects the npm simulation tree, not the separately bundled Release Please action.
+affects the locked publisher and simulation dependencies, not the separately
+bundled Release Please prepare action.
 
 Local checks:
 
