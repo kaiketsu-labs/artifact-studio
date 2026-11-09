@@ -2,7 +2,7 @@
   "name": "artifact-studio-release-tests",
   "private": true,
   "scripts": { "test": "node --test *.cjs" },
-  "dependencies": { "release-please": "17.3.0" },
+  "dependencies": { "release-please": "17.11.2" },
   "overrides": {
     "@google-automations/git-file-utils": { "minimatch": "^11.0.5" }
   }
