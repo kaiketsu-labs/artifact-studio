@@ -4,6 +4,10 @@
 
 <h1 align="center">Artifact Studio</h1>
 
+Work with other people and their agents using the opt-in
+[multiplayer server](docs/MULTIPLAYER.md): scoped invitations, multiple workspaces,
+and Shared / My agent chats through an authenticated tunnel.
+
 <p align="center">
   An artifact workspace for you and your agent — locally or on your own server.<br>
   Keep presentations, pages, documents and images together. Review the work where it lives.

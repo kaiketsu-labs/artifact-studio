@@ -309,6 +309,11 @@ def _credentials(url: str) -> dict[str, str]:
     """Read machine credentials only from the process environment, never hook input."""
     if urlsplit(url).scheme != "https":
         return {}
+    token = os.environ.get("ARTIFACT_STUDIO_AGENT_TOKEN", "")
+    if token:
+        if not 32 <= len(token) <= 200 or any(ord(char) < 33 or ord(char) > 126 for char in token):
+            raise ValueError("Invalid multiplayer agent token in the environment")
+        return {"Authorization": "Bearer " + token}
     headers: dict[str, str] = {}
     for header, variable in (
         ("CF-Access-Client-Id", "CF_ACCESS_CLIENT_ID"),

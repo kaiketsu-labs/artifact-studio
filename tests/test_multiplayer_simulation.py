@@ -1,0 +1,262 @@
+"""Two independent MCP peers collaborate on real presentation source over HTTP."""
+
+import json
+import shutil
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import cast
+
+import httpx
+from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, TextContent
+
+from artifact_studio.multiplayer_access import Sharing
+from artifact_studio.storage import Store
+from tests.integration.multiplayer_fixture import MultiplayerApp, running_multiplayer_app
+from tests.test_multiplayer_server import accept, grant, human
+
+
+class Peer:
+    def __init__(self, app: MultiplayerApp, token: str) -> None:
+        self.client = httpx.Client(
+            base_url=app.url,
+            timeout=30,
+            headers={
+                "host": "studio.example.test",
+                "authorization": "Bearer " + token,
+                "accept": "application/json, text/event-stream",
+            },
+        )
+        self.sequence = 0
+        self.rpc(
+            "initialize",
+            {
+                "protocolVersion": LATEST_PROTOCOL_VERSION,
+                "capabilities": {},
+                "clientInfo": {"name": "simulation", "version": "1"},
+            },
+        )
+        response = self.client.post(
+            "/mcp", json={"jsonrpc": "2.0", "method": "notifications/initialized"}
+        )
+        assert response.status_code == 202
+
+    def rpc(self, method: str, params: dict[str, object]) -> dict[str, object]:
+        self.sequence += 1
+        response = self.client.post(
+            "/mcp", json={"jsonrpc": "2.0", "id": self.sequence, "method": method, "params": params}
+        )
+        assert response.status_code == 200, response.text
+        result = response.json()
+        assert not result.get("error"), result
+        return cast(dict[str, object], result["result"])
+
+    def call(self, name: str, **arguments: object) -> CallToolResult:
+        return CallToolResult.model_validate(
+            self.rpc("tools/call", {"name": name, "arguments": arguments})
+        )
+
+    def value(self, name: str, **arguments: object) -> dict[str, object]:
+        result = self.call(name, **arguments)
+        assert not result.is_error, result
+        if result.structured_content is not None:
+            return result.structured_content
+        text = next(item.text for item in result.content if isinstance(item, TextContent))
+        return cast(dict[str, object], json.loads(text))
+
+
+def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: Path) -> None:
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log") as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        peers: list[Peer] = []
+        agent_ids: list[str] = []
+        for client, name in ((owner, "Owner agent"), (alice, "Alice agent")):
+            response = client.post(
+                "/api/workspaces/default/agents",
+                json={
+                    "kind": "artifact",
+                    "resource": app.deck_id,
+                    "name": name,
+                },
+            )
+            assert response.status_code == 200
+            peers.append(Peer(app, response.json()["token"]))
+            agent_ids.append(response.json()["id"])
+        first, second = peers
+        try:
+            outline = first.value("get_presentation_outline", deck_id=app.deck_id)
+            slides = cast(list[dict[str, object]], outline["slides"])
+            slide_id = cast(str, slides[0]["id"])
+            sources = [
+                peer.value("get_slide", deck_id=app.deck_id, slide_id=slide_id) for peer in peers
+            ]
+            assert sources[0]["expected_hash"] == sources[1]["expected_hash"]
+
+            def edit(index: int) -> CallToolResult:
+                return peers[index].call(
+                    "revise_slide",
+                    deck_id=app.deck_id,
+                    slide_id=slide_id,
+                    expected_hash=sources[index]["expected_hash"],
+                    request_id=f"concurrent-change-{index}",
+                    patch_json=json.dumps({"title": f"Concurrent title {index}"}),
+                )
+
+            with ThreadPoolExecutor(2) as executor:
+                results = list(executor.map(edit, [0, 1]))
+            assert sum(bool(result.is_error) for result in results) == 1
+            loser = next(index for index, result in enumerate(results) if result.is_error)
+            winner_title = f"Concurrent title {1 - loser}"
+            latest = peers[loser].value("get_slide", deck_id=app.deck_id, slide_id=slide_id)
+            assert latest["title"] == winner_title
+            peers[loser].value(
+                "revise_slide",
+                deck_id=app.deck_id,
+                slide_id=slide_id,
+                expected_hash=latest["expected_hash"],
+                request_id="reconcile-after-conflict",
+                patch_json=json.dumps({"title": winner_title + " + reconciled"}),
+            )
+            assert app.store.read(app.deck_id).slides[0].title == winner_title + " + reconciled"
+
+            # Different-slide edits preserve both changes; no deck-wide false conflict.
+            reads = [
+                peer.value("get_slide", deck_id=app.deck_id, slide_id=identifier)
+                for peer, identifier in zip(peers, [slide_id, "next"], strict=True)
+            ]
+            with ThreadPoolExecutor(2) as executor:
+                futures = [
+                    executor.submit(
+                        peer.value,
+                        "revise_slide",
+                        deck_id=app.deck_id,
+                        slide_id=identifier,
+                        expected_hash=source["expected_hash"],
+                        request_id=f"different-slide-{index}",
+                        patch_json=json.dumps({"notes": f"Shared note {index}"}),
+                    )
+                    for index, (peer, identifier, source) in enumerate(
+                        zip(peers, [slide_id, "next"], reads, strict=True)
+                    )
+                ]
+                for future in futures:
+                    future.result()
+            assert [item.notes for item in app.store.read(app.deck_id).slides] == [
+                "Shared note 0",
+                "Shared note 1",
+            ]
+
+            # Same native session ID does not collide across the two credentials.
+            for peer in peers:
+                result = peer.client.post(
+                    "/api/review/hooks",
+                    json={
+                        "harness": "codex",
+                        "session_id": "same-native-session",
+                        "event": "PostToolUse",
+                        "deck_id": app.deck_id,
+                        "start_review": True,
+                    },
+                )
+                assert result.json()["listening"]
+            scope = f"/api/workspaces/default/artifacts/{app.deck_id}"
+            assert [item["status"] for item in owner.get(scope + "/state").json()["agents"]] == [
+                "listening",
+                "listening",
+            ]
+            message = alice.post(
+                scope + "/chat",
+                json={
+                    "channel": "private",
+                    "message": "Fictional private ask",
+                    "assigned": agent_ids[1],
+                    "request_id": "private-request-1",
+                },
+            ).json()
+            assert not first.value("read_feedback", deck_id=app.deck_id)["events"]
+            assert (
+                len(
+                    cast(list[object], second.value("read_feedback", deck_id=app.deck_id)["events"])
+                )
+                == 1
+            )
+            claimed = second.value(
+                "claim_feedback",
+                artifact_id=app.deck_id,
+                event_id=message["id"],
+                session_id="alice-session",
+            )
+            reply = second.value(
+                "reply_to_feedback",
+                artifact_id=app.deck_id,
+                event_id=message["id"],
+                claim=claimed["claim"],
+                message="Fictional private reply",
+                request_id="private-reply-1",
+            )
+            assert reply == second.value(
+                "reply_to_feedback",
+                artifact_id=app.deck_id,
+                event_id=message["id"],
+                claim=claimed["claim"],
+                message="Fictional private reply",
+                request_id="private-reply-1",
+            )
+            assert owner.get(scope + "/chat?channel=private").json() == []
+            assert owner.get(scope + "/chat?channel=shared").json() == []
+            first.client.post(
+                "/api/review/hooks",
+                json={
+                    "harness": "codex",
+                    "session_id": "same-native-session",
+                    "event": "SessionEnd",
+                },
+            )
+            assert (
+                second.value("get_live_review_status", deck_id=app.deck_id)["status"] == "listening"
+            )
+
+            # A new workspace deliberately contains the identical presentation ID.
+            created = owner.post(
+                "/api/workspaces", json={"title": "Second fictional workspace"}
+            ).json()["id"]
+            sharing = Sharing(tmp_path / "server/sharing", app.store, "owner@example.test")
+            other: Store = sharing.store(created)
+            shutil.copytree(app.store.folder(app.deck_id), other.root / app.deck_id)
+            token = owner.post(
+                f"/api/workspaces/{created}/agents",
+                json={
+                    "kind": "artifact",
+                    "resource": app.deck_id,
+                    "name": "Isolated second workspace",
+                },
+            ).json()["token"]
+            isolated = Peer(app, token)
+            try:
+                source = isolated.value("get_slide", deck_id=app.deck_id, slide_id=slide_id)
+                isolated.value(
+                    "revise_slide",
+                    deck_id=app.deck_id,
+                    slide_id=slide_id,
+                    expected_hash=source["expected_hash"],
+                    request_id="workspace-specific-edit",
+                    patch_json=json.dumps({"title": "Only in second workspace"}),
+                )
+                assert (
+                    first.value("get_slide", deck_id=app.deck_id, slide_id=slide_id)["title"]
+                    != "Only in second workspace"
+                )
+                assert (
+                    alice.get(
+                        f"/api/workspaces/{created}/artifacts/{app.deck_id}/state"
+                    ).status_code
+                    == 404
+                )
+            finally:
+                isolated.client.close()
+        finally:
+            for peer in peers:
+                peer.client.close()
