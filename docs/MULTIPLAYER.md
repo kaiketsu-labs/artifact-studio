@@ -1,4 +1,4 @@
-# Multiplayer through your computer
+# Share projects from a self-hosted Studio
 
 ## Use the regular Studio interface
 
@@ -15,17 +15,19 @@ uv run uvicorn artifact_studio.unified:create_app --factory \
 ```
 
 Set the same environment variables documented below and stop any other Studio
-process using the workspace before starting. On a Docker host, keep the same
-loopback port, hosted configuration mount, and persistent data volume:
+process using the workspace before starting. On a Docker host, set the path to
+your private configuration and use the three Compose files from the same checkout:
 
 ```sh
-docker compose -f compose.yaml -f compose.hosted.yaml -f compose.shared.yaml up -d
+export ARTIFACT_STUDIO_HOSTED_CONFIG_FILE=/absolute/private/hosted.json
+export ARTIFACT_STUDIO_MULTIPLAYER_OWNER=owner@example.com
+docker compose -f compose.yaml -f compose.hosted.yaml -f compose.shared.yaml up -d --build --wait
 ```
 
-Set `ARTIFACT_STUDIO_MULTIPLAYER_OWNER` to the only address in `member_emails`.
-The container keeps sharing state in `/data/state/multiplayer`. Back up the
-collection, review database, and entire sharing directory together. Never
-run the Mac and the Docker deployment as concurrent writers to the same workspace.
+Use the only address in `member_emails` as `ARTIFACT_STUDIO_MULTIPLAYER_OWNER`.
+The container keeps sharing state in `/data/state/multiplayer` and publishes its
+port on host loopback. Keep the configuration file readable by the container and
+mounted read-only. [Hosted configuration checks](HOSTED.md#check-safety-before-starting).
 
 Invitations to the default workspace open the regular Studio library and editor.
 Guests see only granted projects and artifacts. View, Comment and Edit grants
@@ -38,6 +40,54 @@ to the owner. Additional isolated workspaces still open in Together. Host
 administration stays on the server.
 
 The standalone collaboration server remains available for existing deployments.
+
+## Remote hosting architecture
+
+```mermaid
+flowchart TB
+    browser["People<br/>Regular Studio in the browser"]
+    agent["Each person's agent<br/>Scoped Studio token"]
+
+    subgraph cloud["Cloudflare edge"]
+        studio["studio.example.com<br/>Access sign-in and MFA"]
+        machine["Only /mcp and review hooks<br/>Browser login bypass"]
+        preview["preview.example.com<br/>Isolated preview origin"]
+    end
+
+    subgraph host["Self-hosted Linux VM, for example Hetzner"]
+        connector["cloudflared<br/>Outbound tunnel connection"]
+        app["Studio in Docker<br/>127.0.0.1:8790 on the host"]
+        data[("Persistent volume<br/>Collection, review DB, sharing state")]
+        backup[("Protected backup<br/>Restore tested separately")]
+        connector -->|"Local HTTP"| app
+        app -->|"Authorized reads and writes"| data
+        data -->|"Consistent snapshot"| backup
+    end
+
+    browser -->|"HTTPS with verified identity"| studio
+    browser -->|"Sandboxed frame and expiring capability"| preview
+    agent -->|"HTTPS with bearer token"| machine
+    studio --> connector
+    machine --> connector
+    preview --> connector
+```
+
+Studio checks access to the selected project or artifact for every browser or
+agent operation. Preview files are scoped to a revision and checked against the
+recipient's current grant. Keep the Access cookie host-only, preserve the incoming
+`Host` header through the tunnel, and keep port 8790 private. [Cloudflare Tunnel
+firewall model](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/).
+
+Use a CI-verified release or commit. Test a new host on separate Studio and preview
+hostnames with fictional data first. Check the real MFA prompt, rejection of an
+uninvited account, a scoped agent connection and revocation, and preview isolation.
+Keep the production routes on the current host during this test.
+
+For a move, stop writes at the source and take a consistent backup of the
+collection, review database and whole sharing directory together. Restore into
+separate storage, verify the restored projects and grants, and switch both public
+hostnames to the new origin after the checks pass. Keep one writer for the real
+workspace and retain the source backup for rollback. [Workspace recovery](WORKSPACE-RECOVERY.md).
 
 ## Standalone collaboration
 
@@ -52,13 +102,24 @@ import, export and backup controls are not yet available in this UI.
 
 ## Share and collaborate
 
-In the regular library, right-click a presentation, project or artifact and
-choose **Share link…**. Enter the recipient's sign-in email and choose their
-access. The default is **Can view**. Copy the link and send it yourself. The
-link expires in seven days, is single-use, and only works for that exact
-account. The recipient must also be allowed to sign in by Cloudflare Access.
-**Manage access** lets you cancel pending links or revoke existing grants.
-**Share files** is separate and exports a copy.
+1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
+   Access, and complete MFA. The regular library opens at **All artifacts**.
+   Select a project in the sidebar to see its work.
+2. Select **New project**, enter a project name and an optional shared brief,
+   then select **Create project**. Open the project and use **Import** to add
+   existing files. A new project is private unless someone already has
+   workspace-wide access or you share it.
+3. Right-click the project in the sidebar and select **Share link…**. Enter the
+   recipient's exact sign-in email and choose **Can view**, **Can comment** or
+   **Can edit**. Copy the link and send it to that person. The link expires in
+   seven days and can be used once by that account. The recipient also needs
+   permission to sign in through Cloudflare Access.
+4. The recipient selects **Join** and opens the project in their regular Studio
+   library. A project grant applies to its existing and future artifacts. To
+   share only one presentation or artifact, use **Share link…** on its card.
+   Use **Manage access** to cancel a pending link or revoke access.
+
+In the standalone interface, sharing and agent connections use these controls:
 
 1. Select **Share** on an artifact, **Share** beside a project, or **Manage access**
    under the workspace selector. Enter an email and choose **Can view**, **Can
