@@ -14,12 +14,14 @@ from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import unquote, urlsplit
 
 from PIL import Image, ImageDraw
 from playwright.sync_api import Error as BrowserError
 from playwright.sync_api import Page, sync_playwright
 from pydantic import Field
 
+from .hosted_policy import deck_asset_path
 from .models import Slide, StrictModel
 from .projects import AssetEmbedder, root_tag
 from .renderer_health import (
@@ -146,6 +148,28 @@ class ReviewEmbedder(AssetEmbedder):
         return path
 
 
+class ScopedDeckEmbedder(ReviewEmbedder):
+    """Inline only current assets that the scoped deck file API can serve."""
+
+    def __init__(self, store: Store, deck_id: str) -> None:
+        """Reject linked source and theme files before preparing a shared preview."""
+        folder = store.folder(deck_id)
+        source = folder / "index.html"
+        if (store.root / deck_id).is_symlink() or source.is_symlink() or not source.is_file():
+            raise ValueError("Shared presentations require an unlinked source file.")
+        super().__init__(folder)
+        _ = self.local_path("theme.css")
+
+    def local_path(self, url: str, directory: Path | None = None) -> Path:
+        """Apply the shared file policy before opening any asset or following a symlink."""
+        parsed = urlsplit(url)
+        path = (directory or self.folder) / unquote(parsed.path)
+        if parsed.scheme or parsed.netloc or not path.is_relative_to(self.folder):
+            raise ValueError("Use a shared deck asset.")
+        _ = deck_asset_path(self.folder, path.relative_to(self.folder).as_posix())
+        return super().local_path(url, directory)
+
+
 @contextmanager
 def render_slot() -> Generator[int]:
     """Serialize preparation, rendering and persistence so concurrent requests stay bounded."""
@@ -228,6 +252,7 @@ class Snapshot(StrictModel):
 
     document: str
     frame: Frame
+    policy: str
 
 
 def snapshot(
@@ -239,6 +264,7 @@ def snapshot(
     *,
     viewport: tuple[int, int] | None = None,
     preview_html: str = "",
+    scoped_embedder: ScopedDeckEmbedder | None = None,
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
     if slide.interactive_html and options.stage not in {None, 0}:
@@ -249,10 +275,10 @@ def snapshot(
     content_hash = store.content_hash(deck_id, slide)
     SlideMarkup().feed(slide.html)
     folder = store.folder(deck_id)
-    embedder = ReviewEmbedder(folder)
+    embedder = scoped_embedder if scoped_embedder is not None else ReviewEmbedder(folder)
     theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
     markup = embedder.markup(preview_html or slide.html)
-    interactive = "" if preview_html else slide.interactive_html
+    interactive = "" if preview_html or scoped_embedder is not None else slide.interactive_html
     runtime = (PROJECT / "runtime/presentation.js").read_text()
     runtime_styles = (PROJECT / "runtime/slideshow.css").read_text()
     adapter = (PROJECT / "runtime/capture.js").read_text()
@@ -306,6 +332,7 @@ def snapshot(
         raise ValueError("The design changed during snapshot preparation. Retry capture.")
     return Snapshot(
         document=document,
+        policy=policy,
         frame=Frame(
             width=round(width * options.pixel_ratio),
             height=round(height * options.pixel_ratio),
@@ -318,7 +345,8 @@ def snapshot(
             content_hash=content_hash,
             expected_hash=digest(slide.model_dump_json()),
             runtime_hash=digest(runtime + runtime_styles + adapter),
-            runtime_matches_deck=(folder / "presentation.js").is_file()
+            runtime_matches_deck=scoped_embedder is None
+            and (folder / "presentation.js").is_file()
             and (folder / "presentation.js").read_text() == runtime
             and (folder / "slideshow.css").is_file()
             and (folder / "slideshow.css").read_text() == runtime_styles,

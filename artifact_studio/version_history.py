@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -11,6 +12,7 @@ from pydantic import Field
 
 from .models import Slide, SlideView, StrictModel
 from .storage import SAFE_ID, ConflictError, Store, digest
+from .version_authors import current_revision_author
 
 if TYPE_CHECKING:
     from .artifact_models import ArtifactView
@@ -39,6 +41,7 @@ class VersionSummary(StrictModel):
     size_bytes: int = 0
     file_count: int = 1
     content_changed: bool = True
+    author: str | None = None
 
 
 class HistoryGroup(StrictModel):
@@ -73,18 +76,23 @@ class SlideVersion(StrictModel):
     fidelity_warning: str = SLIDE_FIDELITY
 
 
-def _content_column(db: sqlite3.Connection, table: str) -> None:
-    """Add a small signature cache and index uncached rows without duplicating source."""
+def _text_column(db: sqlite3.Connection, table: str, column: str) -> None:
+    """Add a nullable metadata column once, even during concurrent initialization."""
 
     def missing() -> bool:
         """Check schema again after acquiring the lock if another process initialized it."""
-        return "content_key" not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+        return column not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
 
     if missing():
         if not db.in_transaction:
             _ = db.execute("BEGIN IMMEDIATE")
         if missing():
-            _ = db.execute(f"ALTER TABLE {table} ADD COLUMN content_key TEXT")
+            _ = db.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+
+
+def _content_column(db: sqlite3.Connection, table: str) -> None:
+    """Add a small signature cache and index uncached rows without duplicating source."""
+    _text_column(db, table, "content_key")
     columns = "deck,slide" if table == "slide_version_metadata" else "artifact_id"
     _ = db.execute(
         f"CREATE INDEX IF NOT EXISTS {table}_missing_content ON {table}({columns}) "
@@ -132,18 +140,24 @@ def install_slide_history(db: sqlite3.Connection) -> None:
         """)
         _ = db.execute("UPDATE slide_version_metadata SET group_id=id WHERE group_id=0")
     _content_column(db, "slide_version_metadata")
+    _text_column(db, "slide_version_metadata", "author")
 
 
 def capture_slide_version(
-    db: sqlite3.Connection, deck_id: str, slide: Slide, *, saved_at: str | None = None
+    db: sqlite3.Connection,
+    deck_id: str,
+    slide: Slide,
+    *,
+    saved_at: str | None = None,
+    authored: bool = False,
 ) -> None:
-    """Reuse retained source and timestamp only saves observed at their actual write."""
+    """Record a retained save and attribute only an original write by the current actor."""
     document = slide.model_dump_json()
     source_hash = digest(document)
-    _ = db.execute(
+    inserted = db.execute(
         "INSERT OR IGNORE INTO revisions VALUES (?,?,?,?)",
         (deck_id, slide.id, source_hash, document),
-    )
+    ).rowcount
     _ = db.execute(
         "UPDATE slide_version_metadata SET content_key=? WHERE deck=? AND slide=? "
         "AND revision=? AND content_key IS NULL",
@@ -152,7 +166,8 @@ def capture_slide_version(
     if saved_at is None:
         return
     row = db.execute(
-        "SELECT id,created_at FROM slide_version_metadata WHERE deck=? AND slide=? AND revision=?",
+        "SELECT id,hash,created_at FROM slide_version_metadata "
+        "WHERE deck=? AND slide=? AND revision=?",
         (deck_id, slide.id, slide.revision),
     ).fetchone()
     if row is None or row["created_at"] is not None:
@@ -170,9 +185,14 @@ def capture_slide_version(
         ).total_seconds()
         if 0 <= elapsed <= GROUP_SECONDS:
             group_id = cast(int, prior["group_id"])
+    author = (
+        current_revision_author()
+        if authored and inserted == 1 and row["hash"] == source_hash
+        else None
+    )
     _ = db.execute(
-        "UPDATE slide_version_metadata SET created_at=?,group_id=? WHERE id=?",
-        (saved_at, group_id, row["id"]),
+        "UPDATE slide_version_metadata SET created_at=?,group_id=?,author=? WHERE id=?",
+        (saved_at, group_id, author, row["id"]),
     )
 
 
@@ -271,6 +291,7 @@ class VersionHistory:
             is_current=row["revision"] == current_revision,
             size_bytes=cast(int, row["size_bytes"]),
             content_changed=bool(dict(row).get("content_changed", True)),
+            author=cast(str | None, row["author"]),
         )
 
     @staticmethod
@@ -439,12 +460,25 @@ class VersionHistory:
         )
 
     def restore_slide(
-        self, deck_id: str, slide_id: str, version_id: str, expected_hash: str, request_id: str
+        self,
+        deck_id: str,
+        slide_id: str,
+        version_id: str,
+        expected_hash: str,
+        request_id: str,
+        *,
+        validate_audience: Callable[[Slide], None] | None = None,
     ) -> SlideView:
         """Restore audience source as a fresh save, preserving current human presentation state."""
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
-        payload_hash = digest("restore-slide:" + slide_id + version_id + expected_hash)
+        payload_hash = digest(
+            "restore-slide:"
+            + slide_id
+            + version_id
+            + expected_hash
+            + (":scoped-audience" if validate_audience else "")
+        )
         with self.store.editing(deck_id) as db:
             prior = db.execute(
                 "SELECT payload_hash,result FROM operations WHERE deck=? AND request_id=?",
@@ -459,6 +493,15 @@ class VersionHistory:
             if digest(current.model_dump_json()) != expected_hash:
                 raise ConflictError("Slide changed. Read it again before restoring a version.")
             historical = self.get_slide_version(deck_id, slide_id, version_id).slide
+            if validate_audience:
+                validate_audience(historical)
+                historical = current.model_copy(
+                    update={
+                        "title": historical.title,
+                        "html": historical.html,
+                        "interactive_html": historical.interactive_html,
+                    }
+                )
             restored = historical.model_copy(
                 update={
                     "notes": current.notes,
@@ -470,7 +513,9 @@ class VersionHistory:
             capture_slide_version(db, deck_id, current)
             deck.slides[deck.slides.index(current)] = restored
             self.store.write(deck_id, deck)
-            capture_slide_version(db, deck_id, restored, saved_at=datetime.now(UTC).isoformat())
+            capture_slide_version(
+                db, deck_id, restored, saved_at=datetime.now(UTC).isoformat(), authored=True
+            )
             _ = db.execute("DELETE FROM approvals WHERE deck=? AND slide=?", (deck_id, slide_id))
             seen = db.execute(
                 "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?", (deck_id, slide_id)

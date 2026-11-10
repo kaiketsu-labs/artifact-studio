@@ -27,7 +27,8 @@ async function boot() {
   state.session = await api(collaborationPath === '/together' ? '/api/together/session' : '/api/session');
   $('account').textContent = state.session.email;
   $('collaboration-home').href = collaborationPath;
-  $('full-editor').hidden = !state.session.editor_available;
+  $('full-editor').hidden = !state.session.scoped_editor_available;
+  $('full-editor').textContent = state.session.editor_available ? 'Back to Studio' : 'Open in Studio';
   $('new-workspace').hidden = !state.session.can_create;
   $('workspace').replaceChildren(...state.session.workspaces.map(item => new Option(item.title, item.id)));
   const invitation = new URLSearchParams(location.hash.slice(1)).get('invite');
@@ -38,12 +39,14 @@ async function boot() {
   if (selected) {
     await selectWorkspace(selected.id, requested.get('artifact'), requested.get('slide'));
     if (requested.get('action') === 'agent') openAgents();
+
   }
   else {clearEditor(); $('empty').querySelector('p').textContent = invitation ? 'Join the invitation above to start collaborating.' : 'No shared workspaces yet. Ask the owner for an invitation.'; $('empty-connect').hidden = true; $('new-project').hidden = true; $('workspace-access').hidden = true;}
 }
 async function selectWorkspace(workspace, artifact = '', slide = '') {
   saveDraft(); state.generation++; state.workspace = workspace; state.artifact = ''; state.slide = ''; clearEditor();
   $('full-editor').href = '/';
+  $('full-editor').hidden = !state.session.editor_available && (!state.session.scoped_editor_available || workspace !== 'default');
   $('workspace').value = workspace;
   const generation = state.generation;
   const catalog = await api(`${base()}/catalog`);
@@ -103,7 +106,7 @@ function renderSlides() {
   if (focused) [...$('slides').children].find(button => button.dataset.slide === focused)?.focus();
   }
   $('target-label').textContent = slides.find(slide => slide.id === state.slide)?.title || state.current.title;
-  if (state.session.editor_available && state.workspace === 'default') {
+  if (state.session.scoped_editor_available && state.workspace === 'default') {
     const target = new URLSearchParams({[slides.length ? 'deck' : 'artifact']: state.artifact});
     $('full-editor').href = `/?${target}${state.slide ? '#' + encodeURIComponent(state.slide) : ''}`;
   }
@@ -296,7 +299,18 @@ $('copy-token').addEventListener('click', event => copyField('agent-token', even
 $('copy-invite').addEventListener('click', event => copyField('invite-link', event.currentTarget));
 $('join').addEventListener('click', async () => {
   $('join').disabled = true;
-  try {const token = new URLSearchParams(location.hash.slice(1)).get('invite'); const scope = await api('/api/invitations/accept', {token}); history.replaceState(null, '', `${collaborationPath}?${new URLSearchParams({workspace: scope.workspace, ...(scope.kind === 'artifact' ? {artifact: scope.resource} : {})})}`); await boot(); notice('You joined the shared workspace.');}
+  try {
+    const token = new URLSearchParams(location.hash.slice(1)).get('invite');
+    const scope = await api('/api/invitations/accept', {token});
+    if (state.session.scoped_editor_available && !state.session.editor_available && scope.workspace === 'default') {
+      const params = scope.kind === 'workspace' ? '' : '?' + new URLSearchParams({[scope.kind]: scope.resource});
+      location.replace('/' + params);
+      return;
+    }
+    history.replaceState(null, '', `${collaborationPath}?${new URLSearchParams({workspace: scope.workspace, ...(scope.kind === 'artifact' ? {artifact: scope.resource} : {})})}`);
+    await boot();
+    notice('You joined the shared workspace.');
+  }
   catch (error) {notice(error.status === 404 ? 'This invitation is unavailable for this account. Check the invited email or ask for a new link.' : error.message);} finally {$('join').disabled = false;}
 });
 for (const kind of ['workspace', 'project']) $(`new-${kind}`).addEventListener('click', () => {$('name-dialog').dataset.kind = kind; $('name-title').textContent = `New ${kind}`; $('new-name').value = ''; $('name-error').textContent = ''; $('name-dialog').showModal(); $('new-name').focus();});

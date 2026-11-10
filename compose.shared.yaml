@@ -1,0 +1,7 @@
+# Use after compose.yaml and compose.hosted.yaml, with a single authoritative data volume.
+services:
+  studio:
+    environment:
+      ARTIFACT_STUDIO_MULTIPLAYER_OWNER: ${ARTIFACT_STUDIO_MULTIPLAYER_OWNER:?Set the exact authenticated owner email}
+      ARTIFACT_STUDIO_MULTIPLAYER_STATE: /data/state/multiplayer
+    command: ["uvicorn", "artifact_studio.unified:create_app", "--factory", "--host", "0.0.0.0", "--port", "8790", "--no-proxy-headers", "--no-access-log"]

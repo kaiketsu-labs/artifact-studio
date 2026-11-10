@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .deployment import DeploymentConfig
 from .multiplayer import create_app as create_collaboration
 from .multiplayer_access import Sharing
+from .shared_editor import create_shared_editor
 
 
 class UnifiedStudio:
@@ -22,10 +23,12 @@ class UnifiedStudio:
         config: DeploymentConfig,
         editor: ASGIApp,
         collaboration: ASGIApp,
+        shared_editor: ASGIApp,
         lock_path: Path,
     ) -> None:
         self.editor = editor
         self.collaboration = collaboration
+        self.shared_editor = shared_editor
         self.workspace_host = urlsplit(config.public_url).netloc
         self.preview_host = urlsplit(config.preview_url).netloc
         self.lock_path = lock_path
@@ -71,6 +74,7 @@ class UnifiedStudio:
         else:
             state = scope.setdefault("state", {})
             state["unified_studio"] = True
+            state["shared_editor"] = self.shared_editor
             state["collaboration_lock"] = self.lock_path
             await self.editor(scope, receive, send)
 
@@ -90,4 +94,5 @@ def create_app() -> UnifiedStudio:
         raise ValueError("The editor must be initialized with this hosted configuration.")
     collaboration = create_collaboration(config, auth_provider)
     sharing = cast(Sharing, collaboration.state.sharing)
-    return UnifiedStudio(config, app, collaboration, sharing.root / "access.lock")
+    guests = create_shared_editor(config, auth_provider, sharing)
+    return UnifiedStudio(config, app, collaboration, guests, sharing.root / "access.lock")

@@ -9,7 +9,7 @@ import sqlite3
 import time
 import zipfile
 from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager, nullcontext, suppress
 from datetime import UTC, datetime
 from functools import wraps
 from html import escape
@@ -18,7 +18,6 @@ from typing import Annotated, Literal, cast
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi import Path as APIPath
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from mcp.server.mcpserver import Context, MCPServer
@@ -49,6 +48,7 @@ from .artifacts import ArtifactStore
 from .authentication import Principal, load_auth_provider
 from .autosync import AutoSync, SyncStatus
 from .chat_references import chat_reference_routes
+from .deck_edit_api import DeckID, SlideID, deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
@@ -95,7 +95,6 @@ from .libraries import (
 from .models import (
     AgentDeckView,
     AgentSlideView,
-    ApprovalInput,
     CommentInput,
     CreatedDeckReceipt,
     CreateInput,
@@ -113,21 +112,14 @@ from .models import (
     FeedbackWorkflow,
     FileInput,
     ModeInput,
-    NotesInput,
     PresentationCommentInput,
     QuestionAnswerInput,
-    SectionLayoutInput,
     Slide,
-    SlideActionInput,
-    SlideOrderUpdateInput,
     SlidePatch,
     SlideQuestionView,
     SlideReceipt,
-    SlideRestoreInput,
     SlideSeenInput,
-    SlidesVisibilityInput,
     SlideView,
-    SlideVisibilityInput,
     WorkspaceInstructionsInput,
 )
 from .presentation_files import PresentationFiles
@@ -135,10 +127,9 @@ from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, sav
 from .questions import Questions
 from .recovery_api import recovery_routes
 from .review import ReviewHookInput, ReviewHookReply, Reviews
-from .sections import Sections, sections_hash
+from .sections import Sections, section_layout
 from .security_check import SecurityReport, security_report
 from .share_api import sharing_routes
-from .slide_actions import SlideActionResult, SlideActions
 from .slide_design_api import design_routes
 from .slide_designs import (
     DesignCapture,
@@ -168,8 +159,6 @@ mcp = MCPServer[None](
 
 READ = ToolAnnotations(read_only_hint=True, destructive_hint=False)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False)
-DeckID = Annotated[str, APIPath(pattern=r"^[a-z0-9][a-z0-9-]{0,99}$")]
-SlideID = Annotated[str, APIPath(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")]
 NewDeckID = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$", max_length=100)]
 
 
@@ -1590,15 +1579,6 @@ def set_presentation_sections(
     return section_layout(deck)
 
 
-def section_layout(deck: Deck) -> dict[str, object]:
-    """A compact acknowledgement shared by browser and agent layout writers."""
-    return {
-        "slide_ids": [slide.id for slide in deck.slides],
-        "sections": [section.model_dump() for section in deck.sections],
-        "sections_hash": sections_hash(deck.sections),
-    }
-
-
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True))
 @tool_errors
 def remove_slide(deck_id: str, slide_id: str, expected_hash: str) -> str:
@@ -1896,108 +1876,6 @@ def presentation_workflow(deck_id: DeckID) -> FeedbackWorkflow:
 def slide_seen(deck_id: DeckID, slide_id: SlideID, body: SlideSeenInput) -> dict[str, bool]:
     """Clear an update marker only for the exact version the human opened."""
     return {"seen": store.mark_slide_seen(deck_id, slide_id, body.content_hash)}
-
-
-@app.post("/api/decks/{deck_id}/slides/{slide_id}/visibility")
-def slide_visibility(
-    deck_id: DeckID, slide_id: SlideID, body: SlideVisibilityInput
-) -> dict[str, bool]:
-    """Hide or unhide a slide in the slideshow without changing its review state."""
-    store.set_slide_hidden(
-        deck_id, slide_id, hidden=body.hidden, expected_hidden=body.expected_hidden
-    )
-    return {"hidden": body.hidden}
-
-
-@app.post("/api/decks/{deck_id}/slide-order")
-def slide_order(deck_id: DeckID, body: SlideOrderUpdateInput) -> dict[str, object]:
-    """Move slides without replacing concurrent content, notes or review state."""
-    updated = (
-        Sections(store).replace(
-            deck_id,
-            body.slide_ids,
-            body.sections,
-            body.expected_slide_ids,
-            body.expected_sections_hash,
-        )
-        if body.sections is not None
-        else store.reorder(deck_id, body.slide_ids, expected_slide_ids=body.expected_slide_ids)
-    )
-    if body.sections is None and not updated.sections:
-        return {"slide_ids": [slide.id for slide in updated.slides]}
-    return section_layout(updated)
-
-
-@app.post("/api/decks/{deck_id}/sections")
-def presentation_sections(deck_id: DeckID, body: SectionLayoutInput) -> dict[str, object]:
-    """Save names and grouping using the structure the human actually reviewed."""
-    return section_layout(
-        Sections(store).replace(
-            deck_id,
-            body.slide_ids,
-            body.sections,
-            body.expected_slide_ids,
-            body.expected_sections_hash,
-        )
-    )
-
-
-@app.post("/api/decks/{deck_id}/slide-actions")
-def slide_action(deck_id: DeckID, body: SlideActionInput) -> SlideActionResult:
-    """Add, copy or recoverably delete the selected slides from the human workspace."""
-    actions = SlideActions(store)
-    if body.action == "add":
-        if len(body.slide_ids) != 1:
-            raise ValueError("Choose one slide to insert after.")
-        return actions.add(deck_id, body.slide_ids[0], body.expected_slide_ids, body.request_id)
-    operation = actions.duplicate if body.action == "duplicate" else actions.delete
-    return operation(
-        deck_id, body.slide_ids, body.expected_slide_ids, body.expected_hashes, body.request_id
-    )
-
-
-@app.get("/api/decks/{deck_id}/deleted-slides")
-def deleted_slides(deck_id: DeckID) -> list[dict[str, object]]:
-    """List recoverable deletions with titles for the private human restore picker."""
-    actions = SlideActions(store)
-    deleted = {item.operation_id: item for item in actions.deleted(deck_id)}
-    _ = store.read(deck_id)
-    with store.connect() as db:
-        rows = db.execute(
-            "SELECT request_id,before_json FROM slide_actions WHERE deck=? ORDER BY rowid DESC",
-            (deck_id,),
-        ).fetchall()
-    result: list[dict[str, object]] = []
-    for row in rows:
-        item = deleted.get(str(row["request_id"]))
-        if item is not None:
-            before = Deck.model_validate_json(str(row["before_json"]))
-            result.append(
-                {
-                    "operation_id": item.operation_id,
-                    "slides": [
-                        {"id": slide.id, "title": slide.title}
-                        for slide in before.slides
-                        if slide.id in item.deleted_ids
-                    ],
-                }
-            )
-    return result
-
-
-@app.post("/api/decks/{deck_id}/restore-slides")
-def restore_slides(deck_id: DeckID, body: SlideRestoreInput) -> SlideActionResult:
-    """Restore a deleted group at its surviving neighbors, keeping its original history."""
-    return SlideActions(store).restore(deck_id, body.deletion_id, body.request_id)
-
-
-@app.post("/api/decks/{deck_id}/slides-visibility")
-def slides_visibility(deck_id: DeckID, body: SlidesVisibilityInput) -> dict[str, bool]:
-    """Hide or show the complete human selection as one conflict-checked write."""
-    store.set_slides_hidden(
-        deck_id, body.slide_ids, hidden=body.hidden, expected_hidden=body.expected_hidden
-    )
-    return {"hidden": body.hidden}
 
 
 @app.post("/api/decks/{deck_id}/project")
@@ -2351,13 +2229,6 @@ def send_batch(deck_id: DeckID) -> FeedbackWorkflow:
     return store.release_batch(deck_id)
 
 
-@app.post("/api/decks/{deck_id}/slides/{slide_id}/approve")
-def approve(deck_id: DeckID, slide_id: SlideID, body: ApprovalInput) -> dict[str, bool]:
-    """Approve an exact version through the human workspace."""
-    store.approve(deck_id, slide_id, body.content_hash, body.approved)
-    return {"saved": True}
-
-
 @app.post("/api/decks/{deck_id}/slides/{slide_id}/feedback")
 def feedback(deck_id: DeckID, slide_id: SlideID, body: CommentInput) -> dict[str, str]:
     """Save a human comment with the revision they were viewing."""
@@ -2394,15 +2265,6 @@ def presentation_feedback(deck_id: DeckID, body: PresentationCommentInput) -> di
     return {"event_id": event_id}
 
 
-@app.post("/api/decks/{deck_id}/slides/{slide_id}/notes")
-def notes(deck_id: DeckID, slide_id: SlideID, body: NotesInput) -> dict[str, bool | int]:
-    """Save speaker notes without resetting approval or overwriting newer notes."""
-    revision = store.save_notes(
-        deck_id, slide_id, body.notes, body.expected_notes, body.expected_revision
-    )
-    return {"saved": True, "notes_revision": revision}
-
-
 @app.get("/api/decks/{deck_id}/slides/{slide_id}/preview", response_class=HTMLResponse)
 def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
     """Render a sandboxed exact slide using its local theme and assets."""
@@ -2425,6 +2287,7 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
     )
 
 
+app.include_router(deck_edit_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(artifact_routes(lambda: store))
 app.include_router(favorite_routes(lambda: store))
 app.include_router(chat_reference_routes(lambda: store))

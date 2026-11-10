@@ -806,7 +806,9 @@ class Store:
             deck.slides[deck.slides.index(slide)] = revised
             self.write(deck_id, deck)
             if revised.revision != slide.revision:
-                capture_slide_version(db, deck_id, revised, saved_at=datetime.now(UTC).isoformat())
+                capture_slide_version(
+                    db, deck_id, revised, saved_at=datetime.now(UTC).isoformat(), authored=True
+                )
             result = self._write_view(db, deck_id, revised)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",

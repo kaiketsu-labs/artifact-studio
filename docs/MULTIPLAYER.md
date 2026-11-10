@@ -1,13 +1,13 @@
 # Multiplayer through your computer
 
-## Full editor for the workspace owner
+## Use the regular Studio interface
 
 To use the regular Artifact Studio library and editor when you sign in as the
 owner, start the unified server instead of the standalone collaboration server.
 It uses the same collection, review database, multiplayer state, and Cloudflare
 policies. Keep only the owner in `member_emails` and leave `agent_subjects` empty.
-Invited users sign in through Cloudflare Access and see the scoped collaboration
-view. They need a Studio invitation to see specific items.
+Invited users sign in through Cloudflare Access and need a Studio invitation to
+see specific items.
 
 ```sh
 uv run uvicorn artifact_studio.unified:create_app --factory \
@@ -15,13 +15,27 @@ uv run uvicorn artifact_studio.unified:create_app --factory \
 ```
 
 Set the same environment variables documented below and stop any other Studio
-process using the workspace before starting. The owner opens the usual URL for
-editing, importing, exporting, and presenting. **Collaborate** opens the selected
-artifact in the sharing and conversation view. **Back to Studio** returns the
-owner to that artifact in the full editor. Additional isolated workspaces are
-managed in the collaboration view. Existing local review messages stay separate
-from Shared and My agent chats. Use **Agent connection** to connect a scoped agent
-to those chats. Host administration stays on the server.
+process using the workspace before starting. On a Docker host, keep the same
+loopback port, hosted configuration mount, and persistent data volume:
+
+```sh
+docker compose -f compose.yaml -f compose.hosted.yaml -f compose.shared.yaml up -d
+```
+
+Set `ARTIFACT_STUDIO_MULTIPLAYER_OWNER` to the only address in `member_emails`.
+The container keeps sharing state in `/data/state/multiplayer`. Back up the
+collection, review database, and entire sharing directory together. Never
+run the Mac and the Docker deployment as concurrent writers to the same workspace.
+
+Invitations to the default workspace open the regular Studio library and editor.
+Guests see only granted projects and artifacts. View, Comment and Edit grants
+control the same editor. Edit grants support speaker notes, slide organization,
+approval and edits through a scoped agent. **Agent connection** in the regular
+menu connects your own agent to the selected artifact or project. Shared and
+My agent conversations appear in the regular sidebar. The owner can switch
+between **Collaborate** and **Local review**; older local messages remain private
+to the owner. Additional isolated workspaces still open in Together. Host
+administration stays on the server.
 
 The standalone collaboration server remains available for existing deployments.
 
@@ -37,6 +51,14 @@ import, export and backup controls are not yet available in this UI.
 ![Fictional presentation in the multiplayer workspace, with sharing controls and Shared/My agent chats.](assets/multiplayer-workspace.png)
 
 ## Share and collaborate
+
+In the regular library, right-click a presentation, project or artifact and
+choose **Share link…**. Enter the recipient's sign-in email and choose their
+access. The default is **Can view**. Copy the link and send it yourself. The
+link expires in seven days, is single-use, and only works for that exact
+account. The recipient must also be allowed to sign in by Cloudflare Access.
+**Manage access** lets you cancel pending links or revoke existing grants.
+**Share files** is separate and exports a copy.
 
 1. Select **Share** on an artifact, **Share** beside a project, or **Manage access**
    under the workspace selector. Enter an email and choose **Can view**, **Can

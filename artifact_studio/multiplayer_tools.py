@@ -1,7 +1,8 @@
 """Explicitly scoped MCP surface; no legacy global routes or feedback are exposed."""
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from typing import Literal, cast
 
 from fastapi import Request
@@ -10,8 +11,10 @@ from mcp.types import CallToolResult
 
 from .artifacts import ArtifactStore
 from .copilot_tools import READ, WRITE, ScopedTools, remote_tool
-from .multiplayer_access import AccessDenied, Actor, Kind, Scope, Sharing
+from .multiplayer_access import AccessDenied, Actor, Kind, Role, Scope, Sharing
 from .multiplayer_chat import Channel, Conversations
+from .storage import Store
+from .version_authors import revision_author
 
 Ctx = Context[None, Request]
 
@@ -37,6 +40,19 @@ class MultiplayerTools:
             "artifact" if artifact else "project" if project else cast(Kind, row["kind"]),
             artifact or project or cast(str, row["resource"]),
         )
+
+    @contextmanager
+    def deck_store(self, actor: Actor, deck_id: str, role: Role = "view") -> Generator[Store]:
+        """Restrict deck tools to the presentation associated with the authorized artifact."""
+        with self.sharing.guard(actor, self.scope(actor, deck_id), role) as store:
+            if ArtifactStore(store).get_artifact(deck_id).legacy_deck_id != deck_id:
+                raise AccessDenied
+            if role == "edit":
+                record = self.sharing.agent_record(actor)
+                with revision_author(str(record["name"]) + " · agent"):
+                    yield store
+            else:
+                yield store
 
     def catalog(self, actor: Actor, scope: Scope) -> dict[str, object]:
         with self.sharing.locked():
@@ -169,7 +185,14 @@ class MultiplayerTools:
     ) -> list[dict[str, object]]:
         """Read declared owned files, at most 1 MiB; revision=0 selects current source."""
         actor = self.actor(ctx)
-        with self.sharing.guard(actor, self.scope(actor, artifact_id)) as store:
+        scope = self.scope(actor, artifact_id)
+        with self.sharing.guard(actor, scope) as store:
+            if (
+                revision
+                and not self.sharing.owner(actor, scope.workspace)
+                and revision != ArtifactStore(store).get_artifact(artifact_id).revision
+            ):
+                raise AccessDenied
             return ScopedTools(store, "", True).read_artifact_files(artifact_id, paths, revision)
 
     def revise_artifact(
@@ -216,14 +239,18 @@ class MultiplayerTools:
     def get_presentation_outline(self, ctx: Ctx, deck_id: str) -> dict[str, object]:
         """Read this presentation's brief, slide order and current concurrency hashes."""
         actor = self.actor(ctx)
-        with self.sharing.guard(actor, self.scope(actor, deck_id)) as store:
+        with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True).get_presentation_outline(deck_id)
 
     def get_slide(self, ctx: Ctx, deck_id: str, slide_id: str) -> dict[str, object]:
         """Read complete slide source and expected_hash without other people's chat."""
         actor = self.actor(ctx)
-        with self.sharing.guard(actor, self.scope(actor, deck_id)) as store:
-            return ScopedTools(store, "", True).get_slide(deck_id, slide_id)
+        scope = self.scope(actor, deck_id)
+        with self.deck_store(actor, deck_id) as store:
+            result = ScopedTools(store, "", True).get_slide(deck_id, slide_id)
+            if not self.sharing.owner(actor, scope.workspace):
+                result.pop("agent", None)
+            return result
 
     def revise_slide(
         self,
@@ -236,7 +263,7 @@ class MultiplayerTools:
     ) -> dict[str, object]:
         """Edit one slide with the hash you read; conflicts must be re-read and reconciled."""
         actor = self.actor(ctx)
-        with self.sharing.guard(actor, self.scope(actor, deck_id), "edit") as store:
+        with self.deck_store(actor, deck_id, "edit") as store:
             return ScopedTools(store, "", True).revise_slide(
                 deck_id,
                 slide_id,
@@ -258,7 +285,7 @@ class MultiplayerTools:
     ) -> dict[str, object]:
         """Add a slide to a shared presentation using the existing slide contract."""
         actor = self.actor(ctx)
-        with self.sharing.guard(actor, self.scope(actor, deck_id), "edit") as store:
+        with self.deck_store(actor, deck_id, "edit") as store:
             return ScopedTools(store, "", True).add_slide(
                 deck_id,
                 slide_json,
@@ -274,7 +301,7 @@ class MultiplayerTools:
     ) -> CallToolResult:
         """Render actual audience pixels; excludes private discussion and speaker notes."""
         actor = self.actor(ctx)
-        with self.sharing.guard(actor, self.scope(actor, deck_id)) as store:
+        with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True).capture_slide(deck_id, slide_id, stage, elapsed_ms)
 
     def capture_artifact(self, ctx: Ctx, artifact_id: str) -> CallToolResult:

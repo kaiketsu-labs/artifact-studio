@@ -10,7 +10,7 @@ from PIL import Image
 from .artifact_capture import capture_artifact_image
 from .storage import digest
 from .version_history import VersionHistory
-from .visuals import CaptureOptions, capture_snapshot, snapshot
+from .visuals import CaptureOptions, ScopedDeckEmbedder, capture_snapshot, snapshot
 
 _THUMBNAILS = threading.Lock()
 MAX_THUMBNAILS = 256
@@ -23,6 +23,7 @@ def history_thumbnail(
     slide_id: str = "",
     artifact_id: str = "",
     version_id: str,
+    scoped_embedder: ScopedDeckEmbedder | None = None,
 ) -> Path:
     """Render an exact retained version, keeping only small PNGs in the private state cache."""
     store = history.store
@@ -41,7 +42,9 @@ def history_thumbnail(
             deck = store.read(deck_id)
             number = next(i + 1 for i, slide in enumerate(deck.slides) if slide.id == slide_id)
             options = CaptureOptions(reduced_motion=True)
-            prepared = snapshot(store, deck_id, selected.slide, number, options)
+            prepared = snapshot(
+                store, deck_id, selected.slide, number, options, scoped_embedder=scoped_embedder
+            )
             key = digest("history-thumb-v1:" + prepared.frame.render_hash)
         path = folder / f"{key}.png"
         if path.is_file():

@@ -8,7 +8,7 @@ from typing import cast
 from urllib.parse import urlsplit
 
 from starlette.datastructures import Headers
-from starlette.responses import JSONResponse, RedirectResponse
+from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
@@ -117,16 +117,10 @@ class HostedAuth:
                 await reply(403, "Service credentials required")
                 return
             if not member:
-                if (
-                    scope.get("state", {}).get("unified_studio") is True
-                    and not principal.service
-                    and principal.email
-                    and path == "/"
-                    and method in {"GET", "HEAD"}
-                ):
-                    await RedirectResponse(
-                        "/together", status_code=307, headers={"Cache-Control": "no-store"}
-                    )(scope, receive, send)
+                shared_editor = scope.get("state", {}).get("shared_editor")
+                if callable(shared_editor) and not principal.service and principal.email:
+                    scope.setdefault("state", {})["verified_guest"] = principal
+                    await cast(ASGIApp, shared_editor)(scope, receive, send)
                     return
                 await reply(403, "Forbidden")
                 return
