@@ -45,6 +45,45 @@ MANAGED = {
 }
 
 
+def write_starter(folder: Path, deck: Deck, theme: str) -> None:
+    """Write the shared viewer shell, local runtime and design guidance."""
+    (folder / "assets").mkdir()
+    for filename in ("presentation.js", "icons.js", "slideshow.css"):
+        _ = shutil.copy2(PROJECT / "runtime" / filename, folder / filename)
+    _ = (folder / "AGENT-GUIDE.md").write_text(SCAFFOLD_GUIDE)
+    _ = (folder / "PREFERENCES.md").write_text("")
+    _ = (folder / "theme.css").write_text(theme)
+    _ = (folder / "index.html").write_text(
+        (PROJECT / "runtime/viewer.html")
+        .read_text()
+        .replace("{{DECK_JSON}}", deck.model_dump_json().replace("<", r"\u003c"))
+    )
+
+
+def blank_presentation(folder: Path, deck_id: str, title: str) -> Deck:
+    """Start an unbranded presentation without registering a design pack."""
+    deck = Deck(
+        id=deck_id,
+        title=title,
+        slides=[
+            Slide(
+                id="cover",
+                title=title,
+                html=(
+                    '<article class="slide studio-blank-cover">'
+                    '<h1 data-element-id="title"></h1></article>'
+                ),
+            )
+        ],
+    )
+    css = (
+        ".studio-blank-cover{display:grid;align-content:center;padding:7%}"
+        ".studio-blank-cover h1{margin:0;font-size:6cqw;line-height:1.06;overflow-wrap:anywhere}"
+    )
+    write_starter(folder, deck, MANAGED_PREFIX + css + MANAGED_BASE + BASE.read_text() + "\n}\n")
+    return deck
+
+
 def design_files(folder: Path) -> dict[str, str]:
     """Hash bounded theme/assets inventories without loading binaries into responses."""
     assets = folder / "assets"
@@ -118,18 +157,12 @@ class DesignAuthoring:
                 prefix=".design-authoring-", dir=self.store.root
             ) as tmp:
                 folder = Path(tmp)
-                (folder / "assets").mkdir()
                 (folder / ".authoring-assets").mkdir()
-                for filename in ("presentation.js", "icons.js", "slideshow.css"):
-                    _ = shutil.copy2(PROJECT / "runtime" / filename, folder / filename)
-                _ = (folder / "AGENT-GUIDE.md").write_text(SCAFFOLD_GUIDE)
-                _ = (folder / "PREFERENCES.md").write_text("")
                 _ = (folder / "README.md").write_text(
                     f"# {name}\n\n{manifest.description}\n\n"
                     "Neutral starting canvas. Inspect the supplied sources, then document their "
                     "provenance and the design language here.\n"
                 )
-                _ = (folder / "theme.css").write_text(theme)
                 deck = Deck(
                     id=folder_id,
                     title=name,
@@ -146,11 +179,7 @@ class DesignAuthoring:
                         )
                     ],
                 )
-                _ = (folder / "index.html").write_text(
-                    (PROJECT / "runtime/viewer.html")
-                    .read_text()
-                    .replace("{{DECK_JSON}}", deck.model_dump_json().replace("<", r"\u003c"))
-                )
+                write_starter(folder, deck, theme)
                 _ = (folder / "design.json").write_text(manifest.model_dump_json(indent=2) + "\n")
                 folder.rename(destination)
         return {

@@ -312,9 +312,9 @@
     <button id="copy-live-setup" type="button">Copy setup prompt</button>
   </details>
 </dialog>
-<dialog id="new-dialog">
+<dialog id="new-dialog" aria-labelledby="new-dialog-title">
   <form id="new-form">
-    <header><h2>New presentation</h2><button id="close-new" type="button" aria-label="Close"></button></header>
+    <header><h2 id="new-dialog-title">New presentation</h2><button id="close-new" type="button" aria-label="Close"></button></header>
     <label for="new-title">Title</label><input id="new-title" class="title-input" required maxlength="160">
     <div class="brief-heading"><label for="new-brief">Brief</label><input id="brief-file-input" type="file" multiple hidden><button type="button" id="attach-brief" aria-label="Attach brief files"></button></div>
     <textarea id="new-brief" class="brief-input" required maxlength="10000" placeholder="Audience, takeaway, key points or links…"></textarea>

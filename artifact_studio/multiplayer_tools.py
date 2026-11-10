@@ -5,6 +5,7 @@ import codecs
 import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Literal, cast
 
 from fastapi import Request
@@ -12,7 +13,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import CallToolResult
 
 from .artifacts import ArtifactStore
-from .copilot_tools import READ, WRITE, ScopedTools, remote_tool
+from .copilot_tools import MAX_READ_BYTES, READ, WRITE, ScopedTools, attachment_page, remote_tool
 from .multiplayer_access import AccessDenied, Actor, Kind, Role, Scope, Sharing
 from .multiplayer_chat import Channel, Conversations
 from .storage import Store
@@ -114,7 +115,7 @@ class MultiplayerTools:
                     metadata.pop("project_title", None)
                 result["artifact"] = metadata
                 if item.legacy_deck_id:
-                    result["outline"] = scoped.get_presentation_outline(item.id)
+                    result["outline"] = self.presentation_outline(store, actor, scope)
             else:
                 result.update(self.catalog(actor, scope))
                 if scope.kind == "project":
@@ -239,11 +240,52 @@ class MultiplayerTools:
                 context,
             )
 
+    def presentation_outline(self, store: Store, actor: Actor, scope: Scope) -> dict[str, object]:
+        """Include attachment names only for the workspace owner's scoped agent."""
+        result = ScopedTools(store, "", True).get_presentation_outline(scope.resource)
+        if self.sharing.owner(Actor(actor.person), scope.workspace):
+            files = store.brief_files(scope.resource)
+            if files:
+                result["brief_files"] = [
+                    {"file_index": index, "name": file.name, "size": file.size}
+                    for index, file in enumerate(files)
+                ]
+        return result
+
     def get_presentation_outline(self, ctx: Ctx, deck_id: str) -> dict[str, object]:
         """Read this presentation's brief, slide order and current concurrency hashes."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
-            return ScopedTools(store, "", True).get_presentation_outline(deck_id)
+            return self.presentation_outline(store, actor, self.scope(actor, deck_id))
+
+    def read_presentation_brief_file(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        file_index: int,
+        offset: int = 0,
+        max_bytes: int = 65536,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
+    ) -> dict[str, object]:
+        """Read a bounded page of an owner brief file listed by get_presentation_outline."""
+        if not 4 <= max_bytes <= MAX_READ_BYTES:
+            raise ValueError("Read 4–1048576 bytes per attachment page.")
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            if not self.sharing.owner(Actor(actor.person), self.scope(actor, deck_id).workspace):
+                raise AccessDenied
+            files = store.brief_files(deck_id)
+            if not 0 <= file_index < len(files):
+                raise AccessDenied
+            file = files[file_index]
+            return attachment_page(
+                Path(file.path),
+                store.folder(deck_id) / "brief-attachments",
+                file,
+                offset,
+                max_bytes,
+                encoding,
+            )
 
     def get_slide(self, ctx: Ctx, deck_id: str, slide_id: str) -> dict[str, object]:
         """Read complete slide source and expected_hash without other people's chat."""
@@ -425,6 +467,7 @@ class MultiplayerTools:
             self.get_artifact,
             self.read_artifact_files,
             self.get_presentation_outline,
+            self.read_presentation_brief_file,
             self.get_slide,
             self.capture_slide,
             self.capture_artifact,

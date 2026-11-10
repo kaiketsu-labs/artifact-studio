@@ -22,7 +22,7 @@ _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
 _CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
 _REQUEST_LIMIT = 2 * 1024 * 1024
 _CHAT_LIMIT = 68 * 1024 * 1024
-_IMPORT_LIMIT = 140 * 1024 * 1024
+OWNER_UPLOAD_LIMITS = {"/api/artifacts/import": 140 * 1024 * 1024, "/api/decks": _CHAT_LIMIT}
 IMPORT_DISK_RESERVE = 512 * 1024 * 1024
 
 
@@ -48,18 +48,20 @@ class MultiplayerAuth:
         self.preview_slots = asyncio.Semaphore(4)
         self.chat_upload_slot = asyncio.Semaphore(1)
         self.chat_download_slots = asyncio.Semaphore(2)
-        self.import_slot = asyncio.Semaphore(1)
+        self.owner_upload_slot = asyncio.Semaphore(1)
 
-    async def _receive_import(
+    async def _receive_owner_upload(
         self,
         scope: Scope,
         receive: Receive,
         send: Send,
         reject: Callable[[int, str], Awaitable[None]],
+        limit: int,
+        label: str,
     ) -> None:
-        """Stage one bounded owner upload before passing it to the normal importer."""
-        if disk_usage(self.sharing.root).free < _IMPORT_LIMIT + IMPORT_DISK_RESERVE:
-            await reject(507, "Not enough workspace storage for an import.")
+        """Stage a bounded owner upload before parsing its attachments."""
+        if disk_usage(self.sharing.root).free < limit + IMPORT_DISK_RESERVE:
+            await reject(507, "Not enough workspace storage for these files.")
             return
         with tempfile.TemporaryFile(dir=self.sharing.root) as staged:
             size = 0
@@ -71,14 +73,14 @@ class MultiplayerAuth:
                             return
                         chunk = message.get("body", b"")
                         size += len(chunk)
-                        if size > _IMPORT_LIMIT:
-                            await reject(413, "Import request is too large.")
+                        if size > limit:
+                            await reject(413, f"{label} request is too large.")
                             return
                         _ = await run_in_threadpool(staged.write, chunk)
                         if not message.get("more_body", False):
                             break
             except TimeoutError:
-                await reject(408, "Import request timed out.")
+                await reject(408, f"{label} request timed out.")
                 return
             _ = staged.seek(0)
             remaining, delivered = size, False
@@ -209,6 +211,7 @@ class MultiplayerAuth:
                         prefix = workspace_editor_path(str(workspace))
                         frames = (
                             f"{origin}{prefix}api/artifacts/ {origin}{prefix}api/decks/ "
+                            f"{origin}{prefix}api/designs/ "
                             f"{origin}{prefix}decks/ about: "
                         )
                     base = "'self'" if self.shared_shell else "'none'"
@@ -235,23 +238,25 @@ class MultiplayerAuth:
         if asset and self.asset_waiters >= 256:
             await reject(429, "Server busy. Retry shortly.")
             return
-        importing = (
-            self.shared_shell
-            and host == self.host
-            and method == "POST"
-            and path == "/api/artifacts/import"
+        upload_limit = (
+            OWNER_UPLOAD_LIMITS.get(path)
+            if self.shared_shell and host == self.host and method == "POST"
+            else None
         )
-        if importing:
+        if upload_limit is not None:
             actor = cast(Actor, scope["state"]["actor"])
             workspace = cast(str, scope["state"].get("editor_workspace", "default"))
             if not await run_in_threadpool(self.sharing.owner, actor, workspace):
                 await reject(404, "Not found")
                 return
-            if self.import_slot.locked():
-                await reject(429, "An import is in progress. Try again shortly.")
+            if self.owner_upload_slot.locked():
+                await reject(429, "An upload is in progress. Try again shortly.")
                 return
-            async with self.import_slot:
-                await self._receive_import(scope, receive, secure_send, reject)
+            async with self.owner_upload_slot:
+                label = "Import" if path == "/api/artifacts/import" else "Presentation"
+                await self._receive_owner_upload(
+                    scope, receive, secure_send, reject, upload_limit, label
+                )
             return
         # Admit before buffering to bound memory even with many slow connections.
         slots = (

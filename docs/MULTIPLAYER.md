@@ -52,10 +52,18 @@ The first authenticated visit provisions an empty workspace for an account that
 needs one. The Studio home opens the personal library until the user has an
 invitation they have accepted in the primary workspace. Their personal projects
 use the same Studio library, editor, sharing menu and agent connection. Owners
-can use **Import** to add files or folders to projects they own. Project guests
-continue to use the access granted through the invitation. The **Hosted** button
-switches between personal and shared workspaces. Sharing a project leaves the
-rest of either user's workspace private.
+can use **Import** to add files or folders to projects they own. Open a project
+and choose **Menu → New presentation** to start a deck with its brief and
+attachments. The picker uses designs saved in that workspace and starts with
+a blank cover when there are none. Project guests continue to use their
+invitation roles. The **Hosted** button switches between personal and shared
+workspaces. Sharing a project leaves the rest of either user's workspace private.
+
+The brief text is authoring context available to agents with access to that
+deck. Brief attachments are visible in **Agent notes** for the workspace owner.
+Their scoped agent can read them with `read_presentation_brief_file` using the
+indexes from `get_presentation_outline`. To share a file with collaborators,
+attach it in the **Shared** conversation.
 
 Workspace ownership persists when you edit the provisioning list. The sign-in
 provider controls browser access. Revoke Studio agent connections and remove
