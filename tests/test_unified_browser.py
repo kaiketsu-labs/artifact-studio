@@ -89,6 +89,9 @@ def test_invited_guest_opens_normal_editor_with_only_shared_items(tmp_path: Path
                 page.locator("#feedback-text").fill("Fictional teammate comment")
                 page.locator("#feedback-text").press("Enter")
                 expect(page.locator("#feedback-list")).to_contain_text("Fictional teammate comment")
+                expect(page.locator("#feedback-list").get_by_text("Earlier version")).to_have_count(
+                    0
+                )
                 with routed_multiplayer_context(browser, app) as author:
                     same_deck = author.new_page()
                     same_deck.goto(f"{WORKSPACE}/?deck={app.deck_id}#next")
