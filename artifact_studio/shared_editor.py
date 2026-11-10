@@ -108,9 +108,15 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         return JSONResponse({"detail": str(error)}, status_code=409)
 
     @app.get("/")
-    def shell(request: Request, deck: str = "") -> HTMLResponse:
-        page = (PROJECT / "web" / ("index.html" if deck else "hub.html")).read_text()
+    def shell(request: Request, deck: str = "") -> Response:
         workspace = workspace_of(request)
+        if (
+            workspace == "default"
+            and not request.url.query
+            and (personal := hub.personal_home(actor_of(request)))
+        ):
+            return RedirectResponse(workspace_editor_path(personal))
+        page = (PROJECT / "web" / ("index.html" if deck else "hub.html")).read_text()
         root = workspace_editor_path(workspace)
         return HTMLResponse(
             page.replace(

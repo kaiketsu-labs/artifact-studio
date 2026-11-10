@@ -42,7 +42,11 @@ class MultiplayerApp:
 
 @contextmanager
 def running_multiplayer_app(
-    root: Path, logs: Path, *, unified: bool = False
+    root: Path,
+    logs: Path,
+    *,
+    unified: bool = False,
+    personal_workspace_emails: tuple[str, ...] = (),
 ) -> Generator[MultiplayerApp]:
     root.mkdir(parents=True, exist_ok=True)
     collection, database = root / "collection", root / "state/review.sqlite3"
@@ -103,6 +107,7 @@ uvicorn.run(app, host="127.0.0.1",
                     "auth_options": {},
                     "member_emails": ["owner@example.test"],
                     "agent_subjects": [],
+                    "personal_workspace_emails": personal_workspace_emails,
                 }
             )
         )

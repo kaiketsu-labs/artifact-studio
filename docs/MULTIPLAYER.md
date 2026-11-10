@@ -41,6 +41,25 @@ server owner can also create a separate workspace there. Open **New project**
 in that workspace to create a project and use its **Share link…** menu to invite
 a collaborator. Host administration stays on the server.
 
+### Give a second user a private workspace
+
+Allow the account through the sign-in provider with MFA, then add its verified
+email to the optional `personal_workspace_emails` list in the private hosted
+configuration. For example, set `"personal_workspace_emails": ["teammate@example.com"]`.
+Keep `member_emails` limited to the primary owner. The two lists must be disjoint.
+
+The first authenticated visit provisions an empty workspace for an account that
+needs one. The Studio home opens the personal library until the user has an
+invitation they have accepted in the primary workspace. Their personal projects
+use the same Studio library, editor, sharing menu and agent connection. The **Hosted** button switches between their
+personal workspace and any workspace with shared projects. Sharing a project
+leaves the rest of either user's workspace private.
+
+Workspace ownership persists when you edit the provisioning list. The sign-in
+provider controls browser access. Revoke Studio agent connections and remove
+the account from the sign-in policy when ending access. Keep its collection and
+sharing state in the server backup.
+
 The standalone collaboration server remains available for existing deployments.
 
 ## Remote hosting architecture

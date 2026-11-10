@@ -240,7 +240,8 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                     page.locator("#feedback-text").fill("Unsent draft")
                     page.locator("[data-session-mode]").click()
                     page.get_by_role("link", name="My workspace").click()
-                    expect(page.get_by_role("alert")).to_contain_text(
+                    switcher = page.get_by_role("region", name="Workspaces")
+                    expect(switcher.get_by_role("alert")).to_have_text(
                         "Finish your current draft or edit before switching workspaces."
                     )
                     page.keyboard.press("Escape")
@@ -252,5 +253,46 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                     expect(
                         page.get_by_role("button", name=re.compile("Open Fictional team deck"))
                     ).to_be_visible()
+        finally:
+            browser.close()
+
+
+def test_personal_workspace_sign_in_and_switch_to_shared_project(tmp_path: Path) -> None:
+    """A second account gets its own library and joins a shared project in the same UI."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app",
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, "owner") as primary,
+        human(app, "alice") as personal,
+        sync_playwright() as playwright,
+    ):
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as alice:
+                page = alice.new_page()
+                landing = personal.get("/")
+                assert landing.status_code == 307
+                home = WORKSPACE + landing.headers["location"]
+                page.goto(home)
+                expect(page.get_by_role("heading", name="All artifacts")).to_be_visible()
+                page.get_by_role("button", name="New project", exact=True).click()
+                page.get_by_role("textbox", name="Project name").fill("Private draft")
+                page.get_by_role("button", name="Create project", exact=True).click()
+                expect(page.get_by_role("heading", name="Private draft")).to_be_visible()
+
+                invite = grant(primary, "alice", app.project_id, "edit", "project")
+                page.goto(f"{home}#invite={invite}")
+                page.get_by_role("button", name="Join", exact=True).click()
+                expect(page.get_by_role("heading", name="Fictional project")).to_be_visible()
+                expect(page.get_by_role("button", name="New project", exact=True)).to_be_hidden()
+                page.locator("[data-session-mode]").click()
+                page.get_by_role("link", name="Personal workspace").click()
+                expect(page).to_have_url(home)
+                page.locator(".project-tree-open").filter(has_text="Private draft").click()
+                expect(page.get_by_role("heading", name="Private draft")).to_be_visible()
         finally:
             browser.close()
