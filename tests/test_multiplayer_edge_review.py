@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import cast
 
 import httpx
+from fastapi import FastAPI
 from starlette.datastructures import Headers
 
 from artifact_studio.artifacts import ArtifactStore
@@ -15,6 +16,7 @@ from artifact_studio.deployment import DeploymentConfig
 from artifact_studio.multiplayer import create_app
 from artifact_studio.multiplayer_access import Scope, Sharing
 from artifact_studio.multiplayer_chat import Conversations
+from artifact_studio.multiplayer_http import MultiplayerAuth
 from artifact_studio.multiplayer_tools import Ctx, MultiplayerTools
 from artifact_studio.storage import Store
 
@@ -134,3 +136,46 @@ def test_artifact_only_edit_receipt_hides_parent_project(tmp_path: Path) -> None
     assert "project_id" not in result
     assert "project_title" not in result
     assert service.get_artifact(item.id).revision == item.revision + 1
+
+
+def test_native_editor_assets_have_separate_capacity(tmp_path: Path) -> None:
+    """A cold editor can still load its assets when shared data slots are in use."""
+
+    async def journey() -> None:
+        store = Store(tmp_path / "collection", tmp_path / "state/review.sqlite3")
+        hub = Sharing(tmp_path / "sharing", store, "owner@example.test")
+        config = DeploymentConfig(
+            "hosted", "https://studio.example.test", "https://preview.example.test"
+        )
+        app = FastAPI()
+        release, occupied = asyncio.Event(), asyncio.Event()
+        waiting = 0
+
+        @app.get("/api/hub")
+        async def library() -> dict[str, bool]:
+            nonlocal waiting
+            waiting += 1
+            if waiting == 8:
+                occupied.set()
+            await release.wait()
+            return {"ok": True}
+
+        @app.get("/web/session.js")
+        async def script() -> str:
+            return "fictional script"
+
+        boundary = MultiplayerAuth(app, config, FixtureProvider(), hub, shared_shell=True)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=boundary), base_url=config.public_url
+        ) as client:
+            requests = [asyncio.create_task(client.get("/api/hub")) for _ in range(8)]
+            try:
+                await asyncio.wait_for(occupied.wait(), timeout=5)
+                result = await client.get("/web/session.js")
+                assert result.status_code == 200
+                assert result.headers["cache-control"] == "no-store"
+            finally:
+                release.set()
+                await asyncio.gather(*requests)
+
+    asyncio.run(journey())

@@ -36,6 +36,8 @@ class MultiplayerAuth:
         self.preview = urlsplit(config.preview_url).netloc
         self.shared_shell = shared_shell
         self.slots = asyncio.Semaphore(8)
+        self.asset_slots = asyncio.Semaphore(16)
+        self.asset_waiters = 0
         self.hook_slots = asyncio.Semaphore(8)
         self.agent_slots = asyncio.Semaphore(4)
         self.preview_slots = asyncio.Semaphore(4)
@@ -173,10 +175,22 @@ class MultiplayerAuth:
                 message["headers"] = current
             await send(message)
 
+        # Keep cold editor asset loads out of the shared data request budget.
+        asset = (
+            self.shared_shell
+            and host == self.host
+            and method in {"GET", "HEAD"}
+            and path.startswith(("/web/", "/runtime/"))
+        )
+        if asset and self.asset_waiters >= 256:
+            await reject(429, "Server busy. Retry shortly.")
+            return
         # Admit before buffering to bound memory even with many slow connections.
         slots = (
             self.preview_slots
             if host == self.preview
+            else self.asset_slots
+            if asset
             else self.chat_upload_slot
             if chat_write is not None
             else self.chat_download_slots
@@ -187,11 +201,16 @@ class MultiplayerAuth:
             if path in {"/mcp", "/mcp/"}
             else self.slots
         )
+        if asset:
+            self.asset_waiters += 1
         try:
-            await asyncio.wait_for(slots.acquire(), timeout=1)
+            await asyncio.wait_for(slots.acquire(), timeout=10 if asset else 1)
         except TimeoutError:
             await reject(429, "Server busy. Retry shortly.")
             return
+        finally:
+            if asset:
+                self.asset_waiters -= 1
         try:
             if chat_write is not None:
                 # Reject out-of-scope uploads before allocating a request body.
