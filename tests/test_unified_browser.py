@@ -220,6 +220,11 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                     expect(scoped).to_have_url(re.compile(re.escape(home) + r"\?deck="))
                     expect(scoped.locator("#slide-title")).to_have_text("Isolated presentation")
                     expect(scoped.frame_locator("#preview").locator(".slide")).to_be_visible()
+                    scoped.get_by_role("link", name="Present", exact=True).click()
+                    viewer = scoped.frame_locator('iframe[title="Presentation"]')
+                    expect(viewer.locator("#stage .slide")).to_be_visible()
+                    viewer.get_by_role("button", name="End presentation", exact=True).click()
+                    expect(scoped.locator('iframe[title="Presentation"]')).to_have_count(0)
                     scoped.locator("#feedback-text").fill("Conversation for isolated workspace")
                     scoped.locator("#feedback-text").press("Enter")
                     expect(scoped.locator("#feedback-list")).to_contain_text(
@@ -232,6 +237,15 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                     expect(page.locator("#present-link")).to_have_attribute(
                         "href", re.compile(r"^/workspaces/" + workspace + "/decks/")
                     )
+                    page.locator("#feedback-text").fill("Unsent draft")
+                    page.locator("[data-session-mode]").click()
+                    page.get_by_role("link", name="My workspace").click()
+                    expect(page.get_by_role("alert")).to_contain_text(
+                        "Finish your current draft or edit before switching workspaces."
+                    )
+                    page.keyboard.press("Escape")
+                    expect(page.locator("#feedback-text")).to_have_value("Unsent draft")
+                    page.locator("#feedback-text").fill("")
                     page.locator("[data-session-mode]").click()
                     page.get_by_role("link", name="My workspace").click()
                     expect(page).to_have_url(WORKSPACE + "/")

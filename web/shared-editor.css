@@ -2,7 +2,7 @@
 [data-shared-editor] :is(
   [data-action="import"], [data-action="project-add"],
   [data-action="favorite-slides"], [data-project="designs"], [data-action="context"],
-  [data-action="approve"], [data-action="move"],
+  [data-action="approve"], [data-action="move"], .hub-card-move,
   [data-design-action], [data-favorite], [data-star-kind], .hub-card-star,
   #hub-tools-menu a[href*="editor="], #workspace-menu [aria-label="Files"],
   #deck-design-references, #instructions-button, #storage-status,
