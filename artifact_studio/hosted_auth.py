@@ -3,6 +3,7 @@
 import asyncio
 import tempfile
 from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -116,6 +117,11 @@ class HostedAuth:
                 await reply(403, "Service credentials required")
                 return
             if not member:
+                shared_editor = scope.get("state", {}).get("shared_editor")
+                if callable(shared_editor) and not principal.service and principal.email:
+                    scope.setdefault("state", {})["verified_guest"] = principal
+                    await cast(ASGIApp, shared_editor)(scope, receive, send)
+                    return
                 await reply(403, "Forbidden")
                 return
             if (
@@ -317,8 +323,29 @@ class HostedAuth:
                                 return {"type": "http.request", "body": b"", "more_body": False}
                             return await receive()
 
-                        await self.app(scope, empty_receive, secured_send)
+                        replay = empty_receive
                     else:
-                        await self.app(scope, replay_receive, secured_send)
+                        replay = replay_receive
+                    lock_path = scope.get("state", {}).get("collaboration_lock")
+                    if isinstance(lock_path, Path):
+                        import fcntl
+
+                        # Serialize changes to shared content and project membership with
+                        # the collaboration server's grant checks and agent mutations.
+                        with lock_path.open("a+b") as lock:
+                            try:
+                                async with asyncio.timeout(5):
+                                    while True:
+                                        try:
+                                            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                                            break
+                                        except BlockingIOError:
+                                            await asyncio.sleep(0.025)
+                            except TimeoutError:
+                                await reply(429, "Workspace is busy. Retry shortly.")
+                                return
+                            await self.app(scope, replay, secured_send)
+                    else:
+                        await self.app(scope, replay, secured_send)
             return
         await self.app(scope, receive, secured_send)

@@ -1,0 +1,288 @@
+"""Expose the usual Studio UI with an explicit, grant-checked guest API."""
+
+import mimetypes
+from collections.abc import Generator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Literal, cast
+
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+
+from . import __version__
+from .artifact_models import ArtifactView
+from .artifact_preview import artifact_file_headers
+from .artifacts import ArtifactStore
+from .authentication import AuthProvider, Principal
+from .deck_edit_api import deck_edit_routes
+from .deployment import DeploymentConfig
+from .history_api import history_routes
+from .hosted_policy import deck_asset_response
+from .hosted_presenter import hosted_presenter_router
+from .models import DeckView, FeedbackWorkflow, SlideView
+from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing
+from .multiplayer_http import MultiplayerAuth
+from .navigation import NavigationSnapshot
+from .sections import sections_hash
+from .storage import ConflictError, Store
+from .version_authors import revision_author
+
+PROJECT = Path(__file__).resolve().parents[1]
+SHARED_PROJECT = "shared-with-me"
+ASSET_SUFFIXES = {".css", ".js", ".svg", ".png", ".woff", ".woff2"}
+LEVEL_ROLE: dict[int, Role] = {1: "view", 2: "comment", 3: "edit"}
+
+
+def actor_of(request: Request) -> Actor:
+    """Read the identity established by the scoped authentication middleware."""
+    return cast(Actor, request.state.actor)
+
+
+def artifact_scope(identifier: str) -> Scope:
+    """Resolve guest editor URLs in the default collection."""
+    return Scope("default", "artifact", identifier)
+
+
+def artifact_payload(item: ArtifactView, *, visible_project: bool) -> dict[str, object]:
+    """Return editor metadata without host paths or the private parent identity."""
+    data = item.model_dump(
+        exclude={
+            "source_path",
+            "original_source_path",
+            "storage_project_id",
+            "context",
+            "context_hash",
+        }
+    )
+    if not visible_project:
+        data.update(project_id=SHARED_PROJECT, project_title="Shared with me")
+    return data
+
+
+def shared_deck(store: Store, deck_id: str) -> DeckView:
+    """Project the current deck and notes without legacy feedback or workspace rules."""
+    deck = store.read(deck_id)
+    design_hash = store.visual_hash(deck_id)
+    approved, _ = store.review_hashes(deck_id)
+    slides: list[SlideView] = []
+    for slide in deck.slides:
+        view = store.view_slide(
+            deck_id, slide, design_hash=design_hash, feedback=[], review_hashes=(approved, {})
+        )
+        slides.append(
+            view.model_copy(update={"has_unseen_changes": False, "agent": type(view.agent)()})
+        )
+    return DeckView(
+        id=deck_id,
+        title=deck.title,
+        design_id=deck.design_id,
+        design_hash=design_hash,
+        slides=slides,
+        sections=deck.sections,
+        sections_hash=sections_hash(deck.sections),
+    )
+
+
+def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: Sharing) -> FastAPI:
+    """Build the guest surface without mounting any whole-workspace API."""
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.add_middleware(
+        MultiplayerAuth, config=config, provider=provider, sharing=hub, shared_shell=True
+    )
+
+    @app.exception_handler(AccessDenied)
+    @app.exception_handler(FileNotFoundError)
+    @app.exception_handler(ValueError)
+    async def missing(_: Request, __: Exception) -> JSONResponse:
+        return JSONResponse({"detail": "This item is unavailable."}, status_code=404)
+
+    @app.exception_handler(ConflictError)
+    async def stale(_: Request, error: ConflictError) -> JSONResponse:
+        return JSONResponse({"detail": str(error)}, status_code=409)
+
+    @app.get("/")
+    def shell(deck: str = "") -> HTMLResponse:
+        page = (PROJECT / "web" / ("index.html" if deck else "hub.html")).read_text()
+        return HTMLResponse(
+            page.replace('<html lang="en">', '<html lang="en" data-shared-editor>', 1)
+        )
+
+    @app.get("/web/{path:path}")
+    @app.get("/runtime/{path:path}")
+    def studio_asset(request: Request, path: str) -> FileResponse:
+        root = PROJECT / ("web" if request.url.path.startswith("/web/") else "runtime")
+        asset = (root / path).resolve()
+        if (
+            not asset.is_relative_to(root)
+            or asset.suffix.lower() not in ASSET_SUFFIXES
+            or not asset.is_file()
+        ):
+            raise AccessDenied
+        return FileResponse(asset)
+
+    @app.get("/api/session")
+    def session(request: Request) -> dict[str, object]:
+        principal = getattr(request.state, "verified_guest", None)
+        return {
+            "mode": "hosted",
+            "public_url": config.public_url,
+            "email": principal.email if isinstance(principal, Principal) else None,
+            "mcp_url": config.public_url + "/mcp",
+            "shared_workspace": True,
+            "collaboration_url": "/together",
+            "capabilities": {"local_admin": False, "automatic_feedback": False},
+            "scoped_editor": True,
+        }
+
+    @app.get("/api/hub")
+    def library(request: Request) -> dict[str, object]:
+        actor = actor_of(request)
+        with hub.locked():
+            try:
+                store = hub.store("default")
+            except AccessDenied:
+                return {"projects": [], "artifacts": [], "designs": []}
+            service = ArtifactStore(store)
+            items = [
+                item
+                for item in service.list_artifacts()
+                if hub.level(actor, artifact_scope(item.id))
+            ]
+            projects = {
+                item.id: {"id": item.id, "title": item.title, "artifact_count": 0}
+                for item in service.list_projects()
+                if hub.level(actor, Scope("default", "project", item.id))
+            }
+            result: list[dict[str, object]] = []
+            for item in items:
+                entry = artifact_payload(item, visible_project=item.project_id in projects)
+                project = cast(str, entry["project_id"])
+                info = projects.setdefault(
+                    project, {"id": project, "title": "Shared with me", "artifact_count": 0}
+                )
+                info["artifact_count"] = cast(int, info["artifact_count"]) + 1
+                result.append(entry)
+            return {"projects": list(projects.values()), "artifacts": result, "designs": []}
+
+    @app.get("/api/decks")
+    def decks(request: Request) -> list[dict[str, str]]:
+        with hub.locked():
+            try:
+                store = hub.store("default")
+            except AccessDenied:
+                return []
+            actor = actor_of(request)
+            return [
+                entry
+                for entry in store.list_decks()
+                if hub.level(actor, artifact_scope(entry["id"]))
+            ]
+
+    @contextmanager
+    def deck_access(request: Request, deck_id: str, role: Role) -> Generator[Store]:
+        """Check the grant and confirm this resource is a legacy presentation."""
+        with hub.guard(actor_of(request), artifact_scope(deck_id), role) as store:
+            if ArtifactStore(store).get_artifact(deck_id).legacy_deck_id != deck_id:
+                raise AccessDenied
+            principal = getattr(request.state, "verified_guest", None)
+            with revision_author(
+                principal.email if role == "edit" and isinstance(principal, Principal) else None
+            ):
+                yield store
+
+    @app.get("/api/decks/{deck_id}")
+    def deck(request: Request, deck_id: str) -> dict[str, object]:
+        actor, scope = actor_of(request), artifact_scope(deck_id)
+        with deck_access(request, deck_id, "view") as store:
+            return {
+                **shared_deck(store, deck_id).model_dump(),
+                "access_role": LEVEL_ROLE[hub.level(actor, scope)],
+            }
+
+    @app.get("/api/decks/{deck_id}/workflow")
+    def workflow(request: Request, deck_id: str) -> FeedbackWorkflow:
+        with deck_access(request, deck_id, "view"):
+            return FeedbackWorkflow()
+
+    @contextmanager
+    def history_access(
+        request: Request, kind: Literal["deck", "artifact"], identifier: str, role: Role
+    ) -> Generator[Store]:
+        """Limit retained history to presentations with an active grant."""
+        if kind != "deck":
+            raise AccessDenied
+        with deck_access(request, identifier, role) as store:
+            yield store
+
+    app.include_router(deck_edit_routes(deck_access))
+    app.include_router(history_routes(lambda: hub.store("default"), scoped_access=history_access))
+
+    app.include_router(
+        hosted_presenter_router(
+            lambda: hub.store("default"),
+            config.public_url,
+            scoped_access=lambda request, deck_id: deck_access(request, deck_id, "view"),
+        )
+    )
+
+    @app.get("/decks/{deck_id}/{path:path}")
+    def deck_asset(request: Request, deck_id: str, path: str) -> FileResponse:
+        with deck_access(request, deck_id, "view") as store:
+            return deck_asset_response(store, deck_id, path)
+
+    @app.get("/api/artifacts/{artifact_id}")
+    def artifact(request: Request, artifact_id: str) -> dict[str, object]:
+        actor, scope = actor_of(request), artifact_scope(artifact_id)
+        with hub.guard(actor, scope) as store:
+            item = ArtifactStore(store).get_artifact(artifact_id)
+            visible_project = bool(hub.level(actor, Scope("default", "project", item.project_id)))
+            return {
+                **artifact_payload(item, visible_project=visible_project),
+                "access_role": LEVEL_ROLE[hub.level(actor, scope)],
+                "feedback": [],
+                "mode": "live",
+                "workflow": FeedbackWorkflow(),
+            }
+
+    @app.get("/api/artifacts/{artifact_id}/preview")
+    def preview(request: Request, artifact_id: str) -> RedirectResponse:
+        with hub.guard(actor_of(request), artifact_scope(artifact_id)):
+            return RedirectResponse(f"/api/workspaces/default/artifacts/{artifact_id}/preview")
+
+    @app.get("/api/artifacts/{artifact_id}/revisions/{revision}/files/{path:path}")
+    @app.get("/api/artifacts/{artifact_id}/files/{path:path}")
+    def file(
+        request: Request, artifact_id: str, path: str, revision: int | None = None
+    ) -> FileResponse:
+        with hub.guard(actor_of(request), artifact_scope(artifact_id)) as store:
+            service = ArtifactStore(store)
+            current = service.get_artifact(artifact_id).revision
+            if revision is not None and revision != current:
+                raise AccessDenied
+            target = service.resolve_file(artifact_id, path, current)
+            return FileResponse(
+                target,
+                filename=target.name,
+                media_type=mimetypes.guess_type(path)[0] or "application/octet-stream",
+                headers=artifact_file_headers(
+                    artifact_id, current, config.public_url, config.preview_url
+                ),
+            )
+
+    @app.get("/api/app-info")
+    def app_info() -> dict[str, object]:
+        return {"version": __version__, "update_check": "disabled", "update_available": False}
+
+    @app.get("/api/navigation")
+    def navigation() -> NavigationSnapshot:
+        return NavigationSnapshot(connected=[], recent=[])
+
+    @app.get("/api/favorites")
+    def favorites() -> dict[str, object]:
+        return {"projects": [], "artifacts": [], "slides": []}
+
+    @app.get("/api/favorites/slides")
+    def favorite_slides() -> list[object]:
+        return []
+
+    return app

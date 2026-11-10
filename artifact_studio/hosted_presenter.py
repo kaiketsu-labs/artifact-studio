@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from html import escape
 from pathlib import Path
 from typing import Literal
@@ -13,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from .models import AgentContext
 from .projects import AssetEmbedder
 from .storage import SlideMarkup, Store
+from .visuals import ScopedDeckEmbedder
 
 _RUNTIME = Path(__file__).resolve().parent.parent / "runtime"
 
@@ -73,7 +75,9 @@ class _StaticMarkup(SlideMarkup):
         self.parts.append(data.replace("<", r"\3c ") if self.in_style else escape(data))
 
 
-def presenter_html(store: Store, deck_id: str, *, audience: bool = False) -> str:
+def presenter_html(
+    store: Store, deck_id: str, *, audience: bool = False, include_agent_context: bool = True
+) -> str:
     """Keep the real deck identity and private notes only in the presenter response."""
     folder = store.folder(deck_id)
     if (store.root / deck_id).is_symlink() or any(
@@ -83,16 +87,21 @@ def presenter_html(store: Store, deck_id: str, *, audience: bool = False) -> str
         raise ValueError("Hosted presentations require regular, unlinked source files.")
     deck = store.read(deck_id).model_copy(deep=True)
     deck.id = deck_id
-    embedder = AssetEmbedder(folder)
-    theme = embedder.css((folder / "theme.css").read_text()).replace("<", r"\3c ")
+    embedder = (
+        AssetEmbedder(folder) if include_agent_context else ScopedDeckEmbedder(store, deck_id)
+    )
+    theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
     for slide in deck.slides:
         markup = _StaticMarkup()
         markup.feed(slide.html)
         markup.close()
         slide.html = embedder.markup("".join(markup.parts))
+        if not include_agent_context and slide.interactive_html:
+            slide.interactive_html = embedder.markup(slide.interactive_html)
         if audience:
             slide.notes = ""
             slide.notes_revision = 0
+        if audience or not include_agent_context:
             slide.agent = AgentContext()
         for source in slide.sources:
             if not urlsplit(source.url).scheme:
@@ -118,7 +127,12 @@ def presenter_html(store: Store, deck_id: str, *, audience: bool = False) -> str
     return shell
 
 
-def hosted_presenter_router(get_store: Callable[[], Store], public_url: str) -> APIRouter:
+def hosted_presenter_router(
+    get_store: Callable[[], Store],
+    public_url: str,
+    *,
+    scoped_access: Callable[[Request, str], AbstractContextManager[Store]] | None = None,
+) -> APIRouter:
     """Expose only the generated authenticated presenter, never stored index.html."""
     router = APIRouter()
 
@@ -131,7 +145,14 @@ def hosted_presenter_router(get_store: Callable[[], Store], public_url: str) -> 
         if len(request.query_params.getlist("audience")) > 1:
             raise HTTPException(status_code=400, detail="Ambiguous audience mode")
         try:
-            document = presenter_html(get_store(), deck_id, audience=audience == "1")
+            access = scoped_access(request, deck_id) if scoped_access else nullcontext(get_store())
+            with access as store:
+                document = presenter_html(
+                    store,
+                    deck_id,
+                    audience=audience == "1",
+                    include_agent_context=scoped_access is None,
+                )
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=404, detail="Presentation unavailable") from error
         return HTMLResponse(

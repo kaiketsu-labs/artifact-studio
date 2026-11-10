@@ -1,4 +1,5 @@
 const $ = id => document.getElementById(id);
+const collaborationPath = location.pathname === '/together' ? '/together' : '/';
 const state = {session: null, workspace: '', artifact: '', slide: '', channel: 'shared', catalog: null,
   current: null, generation: 0, messages: [], accessScope: null, accessWorkspace: '', outgoing: new Map(), recipients: new Map(), hasEarlier: false};
 const roleNames = {view: 'Can view', comment: 'Can comment', edit: 'Can edit'};
@@ -18,24 +19,34 @@ const recipientKey = () => [state.workspace, state.artifact, state.channel].join
 function saveDraft() {if (state.artifact) {try {localStorage.setItem(draftKey(), $('message').value);} catch { /* Private browsing may disable storage. */ }}}
 function loadDraft() {try {$('message').value = localStorage.getItem(draftKey()) || '';} catch {$('message').value = '';}}
 function clearEditor() {state.current = null; state.messages = []; state.hasEarlier = false; $('editor').hidden = true; $('empty').hidden = false; $('preview').removeAttribute('src'); $('messages').replaceChildren(); $('messages').dataset.signature = ''; $('slides').dataset.signature = '';}
-function updateURL() {const url = new URL(location.href); url.search = new URLSearchParams({workspace: state.workspace, ...(state.artifact ? {artifact: state.artifact} : {})}); history.replaceState(null, '', url);}
+function updateURL() {const url = new URL(location.href); url.search = new URLSearchParams({workspace: state.workspace, ...(state.artifact ? {artifact: state.artifact} : {}), ...(state.slide ? {slide: state.slide} : {})}); history.replaceState(null, '', url);}
 function sharingBadge(text) {return node('span', text, `badge ${text.includes('Shared') || text.includes('shared') ? 'shared' : ''}`);}
 
 async function boot() {
-  state.session = await api('/api/session');
+  const requested = new URLSearchParams(location.search);
+  state.session = await api(collaborationPath === '/together' ? '/api/together/session' : '/api/session');
   $('account').textContent = state.session.email;
+  $('collaboration-home').href = collaborationPath;
+  $('full-editor').hidden = !state.session.scoped_editor_available;
+  $('full-editor').textContent = state.session.editor_available ? 'Back to Studio' : 'Open in Studio';
   $('new-workspace').hidden = !state.session.can_create;
   $('workspace').replaceChildren(...state.session.workspaces.map(item => new Option(item.title, item.id)));
   const invitation = new URLSearchParams(location.hash.slice(1)).get('invite');
   $('invitation').hidden = !invitation;
   $('invite-account').textContent = `Join as ${state.session.email}.`;
-  const desired = new URLSearchParams(location.search).get('workspace');
+  const desired = requested.get('workspace');
   const selected = state.session.workspaces.find(item => item.id === (desired || state.workspace)) || state.session.workspaces[0];
-  if (selected) await selectWorkspace(selected.id, new URLSearchParams(location.search).get('artifact'));
+  if (selected) {
+    await selectWorkspace(selected.id, requested.get('artifact'), requested.get('slide'));
+    if (requested.get('action') === 'agent') openAgents();
+
+  }
   else {clearEditor(); $('empty').querySelector('p').textContent = invitation ? 'Join the invitation above to start collaborating.' : 'No shared workspaces yet. Ask the owner for an invitation.'; $('empty-connect').hidden = true; $('new-project').hidden = true; $('workspace-access').hidden = true;}
 }
-async function selectWorkspace(workspace, artifact = '') {
+async function selectWorkspace(workspace, artifact = '', slide = '') {
   saveDraft(); state.generation++; state.workspace = workspace; state.artifact = ''; state.slide = ''; clearEditor();
+  $('full-editor').href = '/';
+  $('full-editor').hidden = !state.session.editor_available && (!state.session.scoped_editor_available || workspace !== 'default');
   $('workspace').value = workspace;
   const generation = state.generation;
   const catalog = await api(`${base()}/catalog`);
@@ -46,8 +57,11 @@ async function selectWorkspace(workspace, artifact = '') {
   $('new-project').hidden = !catalog.can_create_project;
   $('empty-connect').hidden = false;
   renderCatalog(); updateURL();
-  const selected = catalog.artifacts.find(item => item.id === artifact) || catalog.artifacts[0];
-  if (selected) await selectArtifact(selected.id);
+  const selected = artifact
+    ? catalog.artifacts.find(item => item.id === artifact)
+    : collaborationPath === '/' ? catalog.artifacts[0] : null;
+  if (selected) await selectArtifact(selected.id, slide);
+  else if (artifact) notice('This artifact is unavailable.');
 }
 function renderCatalog() {
   const groups = [...state.catalog.projects, {id: '', title: 'Shared with me'}];
@@ -72,8 +86,8 @@ function renderCatalog() {
     $('catalog').append(section);
   }
 }
-async function selectArtifact(artifact) {
-  saveDraft(); state.generation++; state.artifact = artifact; state.slide = ''; clearEditor(); updateURL(); renderCatalog();
+async function selectArtifact(artifact, slide = '') {
+  saveDraft(); state.generation++; state.artifact = artifact; state.slide = slide || ''; clearEditor(); updateURL(); renderCatalog();
   await refresh(true);
 }
 function renderSlides() {
@@ -87,11 +101,15 @@ function renderSlides() {
   $('slides').replaceChildren(...slides.map((slide, index) => {
     const button = node('button', `${index + 1}  ${slide.title}`); button.setAttribute('aria-current', String(slide.id === state.slide));
     button.dataset.slide = slide.id;
-    button.addEventListener('click', () => {saveDraft(); state.slide = slide.id; loadDraft(); renderSlides(); renderPreview();}); return button;
+    button.addEventListener('click', () => {saveDraft(); state.slide = slide.id; updateURL(); loadDraft(); renderSlides(); renderPreview();}); return button;
   }));
   if (focused) [...$('slides').children].find(button => button.dataset.slide === focused)?.focus();
   }
   $('target-label').textContent = slides.find(slide => slide.id === state.slide)?.title || state.current.title;
+  if (state.session.scoped_editor_available && state.workspace === 'default') {
+    const target = new URLSearchParams({[slides.length ? 'deck' : 'artifact']: state.artifact});
+    $('full-editor').href = `/?${target}${state.slide ? '#' + encodeURIComponent(state.slide) : ''}`;
+  }
 }
 function renderPreview() {
   const url = new URL(`${artifactBase()}/preview`, location.origin);
@@ -212,7 +230,12 @@ function connectionScopes() {
 function openAgents() {
   if (!state.workspace) return;
   $('agent-error').textContent = ''; $('agent-result').hidden = true; $('agent-token').value = ''; $('agent-form').hidden = false;
-  $('agent-scope').replaceChildren(...connectionScopes().map(scope => new Option(scope.title, JSON.stringify(scope))));
+  const placeholder = new Option('Choose a scope', '', true, true);
+  placeholder.disabled = true;
+  $('agent-scope').replaceChildren(
+    ...(state.artifact ? [] : [placeholder]),
+    ...connectionScopes().map(scope => new Option(scope.title, JSON.stringify(scope)))
+  );
   $('my-agents').replaceChildren();
   $('agent-dialog').showModal();
   api(`${base()}/agents`).then(agents => {
@@ -276,17 +299,45 @@ $('copy-token').addEventListener('click', event => copyField('agent-token', even
 $('copy-invite').addEventListener('click', event => copyField('invite-link', event.currentTarget));
 $('join').addEventListener('click', async () => {
   $('join').disabled = true;
-  try {const token = new URLSearchParams(location.hash.slice(1)).get('invite'); const scope = await api('/api/invitations/accept', {token}); history.replaceState(null, '', `/?${new URLSearchParams({workspace: scope.workspace, ...(scope.kind === 'artifact' ? {artifact: scope.resource} : {})})}`); await boot(); notice('You joined the shared workspace.');}
+  try {
+    const token = new URLSearchParams(location.hash.slice(1)).get('invite');
+    const scope = await api('/api/invitations/accept', {token});
+    if (state.session.scoped_editor_available && !state.session.editor_available && scope.workspace === 'default') {
+      const params = scope.kind === 'workspace' ? '' : '?' + new URLSearchParams({[scope.kind]: scope.resource});
+      location.replace('/' + params);
+      return;
+    }
+    history.replaceState(null, '', `${collaborationPath}?${new URLSearchParams({workspace: scope.workspace, ...(scope.kind === 'artifact' ? {artifact: scope.resource} : {})})}`);
+    await boot();
+    notice('You joined the shared workspace.');
+  }
   catch (error) {notice(error.status === 404 ? 'This invitation is unavailable for this account. Check the invited email or ask for a new link.' : error.message);} finally {$('join').disabled = false;}
 });
 for (const kind of ['workspace', 'project']) $(`new-${kind}`).addEventListener('click', () => {$('name-dialog').dataset.kind = kind; $('name-title').textContent = `New ${kind}`; $('new-name').value = ''; $('name-error').textContent = ''; $('name-dialog').showModal(); $('new-name').focus();});
 $('name-form').addEventListener('submit', async event => {
   event.preventDefault(); const button = event.submitter; button.disabled = true;
   try {const workspace = $('name-dialog').dataset.kind === 'workspace'; const result = await api(workspace ? '/api/workspaces' : `${base()}/projects`, {title: $('new-name').value}); $('name-dialog').close();
-    if (workspace) {history.replaceState(null, '', `/?workspace=${encodeURIComponent(result.id)}`); await boot();} else await selectWorkspace(state.workspace, state.artifact);}
+    if (workspace) {history.replaceState(null, '', `${collaborationPath}?workspace=${encodeURIComponent(result.id)}`); await boot();} else await selectWorkspace(state.workspace, state.artifact);}
   catch (error) {$('name-error').textContent = error.message;} finally {button.disabled = false;}
 });
-$('appearance').addEventListener('click', () => {const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.dataset.theme = dark ? 'light' : 'dark';});
+const appearanceKey = 'artifact-studio:appearance';
+const systemDark = matchMedia('(prefers-color-scheme: dark)');
+function applyAppearance() {
+  let preference;
+  try { preference = localStorage.getItem(appearanceKey); } catch {}
+  const dark = preference === 'dark' || (preference !== 'light' && systemDark.matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+}
+applyAppearance();
+systemDark.addEventListener('change', applyAppearance);
+addEventListener('storage', event => {
+  if (event.key === appearanceKey || event.key === null) applyAppearance();
+});
+$('appearance').addEventListener('click', () => {
+  const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(appearanceKey, next); } catch {}
+});
 window.addEventListener('pagehide', saveDraft);
 let polling = false, catalogRefresh = 0;
 async function refreshCatalog() {

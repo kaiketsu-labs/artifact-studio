@@ -8,18 +8,25 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .authentication import AuthenticationError, AuthProvider
+from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
 from .multiplayer_access import AccessDenied, Sharing
 
 
 class MultiplayerAuth:
     def __init__(
-        self, app: ASGIApp, config: DeploymentConfig, provider: AuthProvider, sharing: Sharing
+        self,
+        app: ASGIApp,
+        config: DeploymentConfig,
+        provider: AuthProvider,
+        sharing: Sharing,
+        *,
+        shared_shell: bool = False,
     ) -> None:
         self.app, self.config, self.provider, self.sharing = app, config, provider, sharing
         self.host = urlsplit(config.public_url).netloc
         self.preview = urlsplit(config.preview_url).netloc
+        self.shared_shell = shared_shell
         self.slots = asyncio.Semaphore(8)
         self.hook_slots = asyncio.Semaphore(8)
         self.agent_slots = asyncio.Semaphore(4)
@@ -87,7 +94,14 @@ class MultiplayerAuth:
                         raise AccessDenied
                     actor = self.sharing.agent(authorization[7:])
                 else:
-                    principal = await self.provider.authenticate(headers)
+                    verified = (
+                        scope.get("state", {}).get("verified_guest") if self.shared_shell else None
+                    )
+                    principal = (
+                        verified
+                        if isinstance(verified, Principal)
+                        else await self.provider.authenticate(headers)
+                    )
                     actor = await run_in_threadpool(self.sharing.human, principal)
                 scope.setdefault("state", {})["actor"] = actor
             except AuthenticationError, AccessDenied, ValueError:
@@ -122,11 +136,21 @@ class MultiplayerAuth:
                     (b"referrer-policy", b"no-referrer"),
                 ]
                 if not any(key.lower() == b"content-security-policy" for key, _ in current):
+                    origin = self.config.public_url
+                    style = " 'unsafe-inline'" if self.shared_shell else ""
+                    frames = (
+                        f"{origin}/api/artifacts/ {origin}/api/decks/ about: "
+                        if self.shared_shell
+                        else ""
+                    )
+                    base = "'self'" if self.shared_shell else "'none'"
+                    images = "img-src 'self' data: blob:; " if self.shared_shell else ""
                     policy = (
-                        "default-src 'self'; script-src 'self'; style-src 'self'; "
-                        f"frame-src {self.config.public_url}/api/workspaces/ "
+                        f"default-src 'self'; script-src 'self'; style-src 'self'{style}; "
+                        f"{images}"
+                        f"frame-src {frames}{origin}/api/workspaces/ "
                         f"{self.config.preview_url}/_preview/; "
-                        "object-src 'none'; base-uri 'none'; form-action 'self'; "
+                        f"object-src 'none'; base-uri {base}; form-action 'self'; "
                         "frame-ancestors 'none'"
                     )
                     current.append((b"content-security-policy", policy.encode()))

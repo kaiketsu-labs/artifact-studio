@@ -5,6 +5,7 @@ with ``routed_multiplayer_context(browser, app, identity='alice')``. The fixture
 provider and proxy are test-only and must never be used for deployment.
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -40,7 +41,9 @@ class MultiplayerApp:
 
 
 @contextmanager
-def running_multiplayer_app(root: Path, logs: Path) -> Generator[MultiplayerApp]:
+def running_multiplayer_app(
+    root: Path, logs: Path, *, unified: bool = False
+) -> Generator[MultiplayerApp]:
     root.mkdir(parents=True, exist_ok=True)
     collection, database = root / "collection", root / "state/review.sqlite3"
     make_design(collection / TEMPLATE_ID)
@@ -56,9 +59,11 @@ def running_multiplayer_app(root: Path, logs: Path) -> Generator[MultiplayerApp]
     runner = root / "server.py"
     runner.write_text(
         """\
+import os
 import sys
 from pathlib import Path
 import uvicorn
+from artifact_studio import authentication
 from artifact_studio.authentication import AuthenticationError, Principal
 from artifact_studio.deployment import DeploymentConfig
 from artifact_studio.multiplayer import create_app
@@ -75,12 +80,41 @@ config = DeploymentConfig("hosted", "https://studio.example.test",
     "https://preview.example.test", "fixture", {}, ("owner@example.test",), ())
 sharing = Sharing(root / "sharing", Store(root / "collection",
     root / "state/review.sqlite3"), "owner@example.test")
-uvicorn.run(create_app(config, FixtureProvider(), sharing), host="127.0.0.1",
+if os.environ.get("ARTIFACT_STUDIO_FIXTURE_UNIFIED") == "1":
+    authentication.load_auth_provider = lambda _: FixtureProvider()
+    from artifact_studio.unified import create_app as create_unified
+    app = create_unified()
+else:
+    app = create_app(config, FixtureProvider(), sharing)
+uvicorn.run(app, host="127.0.0.1",
     port=int(sys.argv[2]), proxy_headers=False, access_log=False)
 """,
         encoding="utf-8",
     )
     env = {**os.environ, "PYTHONPATH": str(PROJECT)}
+    if unified:
+        config_path = root / "hosted.json"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "public_url": WORKSPACE,
+                    "preview_url": PREVIEW,
+                    "auth_provider": "fixture",
+                    "auth_options": {},
+                    "member_emails": ["owner@example.test"],
+                    "agent_subjects": [],
+                }
+            )
+        )
+        env.update(
+            ARTIFACT_STUDIO_FIXTURE_UNIFIED="1",
+            ARTIFACT_STUDIO_MODE="hosted",
+            ARTIFACT_STUDIO_HOSTED_CONFIG=str(config_path),
+            ARTIFACT_STUDIO_MULTIPLAYER_OWNER="owner@example.test",
+            ARTIFACT_STUDIO_MULTIPLAYER_STATE=str(root / "sharing"),
+            ARTIFACT_STUDIO_COLLECTION=str(collection),
+            ARTIFACT_STUDIO_DATABASE=str(database),
+        )
     logs.parent.mkdir(parents=True, exist_ok=True)
     with logs.open("w") as output:
         process = subprocess.Popen(
@@ -147,7 +181,7 @@ def routed_multiplayer_context(
         if parts.hostname == "studio.example.test":
             headers["x-fixture-auth"] = identity
         target = app.url + parts.path + ("?" + parts.query if parts.query else "")
-        response = route.fetch(url=target, headers=headers)
+        response = route.fetch(url=target, headers=headers, max_redirects=0)
         route.fulfill(response=response)
 
     context.route("**/*", forward)

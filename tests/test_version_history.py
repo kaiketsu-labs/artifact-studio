@@ -1,15 +1,27 @@
 """Fictional-source checks for compact history, exact previews and safe restores."""
 
+import io
 import os
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Literal
 
 import pytest
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
+from PIL import Image
 
+from artifact_studio import history_thumbnails
 from artifact_studio.artifact_models import ArtifactFileInput
 from artifact_studio.artifacts import ArtifactStore
-from artifact_studio.models import AgentContext, SlidePatch
+from artifact_studio.history_api import history_routes
+from artifact_studio.models import AgentContext, SlidePatch, Source
+from artifact_studio.multiplayer_access import Role
 from artifact_studio.storage import ConflictError, Store, digest
-from artifact_studio.version_history import VersionHistory, capture_slide_version
+from artifact_studio.version_history import HistoryPage, VersionHistory, capture_slide_version
+from artifact_studio.visuals import CaptureOptions, Snapshot
 from tests.design_factory import TEMPLATE_ID, make_design
 
 
@@ -47,6 +59,149 @@ def register_bundle(history: VersionHistory, tmp_path: Path) -> str:
     return history.artifacts.register_artifact(
         project.id, "Fictional artifact", source, "index.html", context="Current artifact context"
     ).id
+
+
+@pytest.fixture
+def scoped_client(history: VersionHistory) -> TestClient:
+    """Exercise the scoped router with a grant for one fictional deck."""
+    app = FastAPI()
+
+    @contextmanager
+    def access(
+        request: Request, kind: Literal["deck", "artifact"], identifier: str, role: Role
+    ) -> Generator[Store]:
+        if (
+            kind != "deck"
+            or identifier != TEMPLATE_ID
+            or (role == "edit" and request.headers.get("x-editor") != "yes")
+        ):
+            raise HTTPException(status_code=404)
+        yield history.store
+
+    def unscoped() -> Store:
+        pytest.fail("Scoped requests must resolve their store through the access guard.")
+
+    @app.exception_handler(ValueError)
+    @app.exception_handler(FileNotFoundError)
+    async def missing(_: Request, __: Exception) -> JSONResponse:
+        return JSONResponse({"detail": "This item is unavailable."}, status_code=404)
+
+    app.include_router(history_routes(unscoped, scoped_access=access))
+    return TestClient(app)
+
+
+def test_scoped_history_projects_only_audience_content_and_requires_edit_to_restore(
+    history: VersionHistory, scoped_client: TestClient, tmp_path: Path
+) -> None:
+    """Use the guarded store, isolate snapshots and preserve current private metadata."""
+    store = history.store
+    deck = store.read(TEMPLATE_ID)
+    old_slide = deck.slides[0]
+    old_slide.agent.summary = "PRIVATE-PAST-CONTEXT"
+    old_slide.notes = "PRIVATE-PAST-NOTE"
+    old_slide.interactive_html = "<script>console.log('PAST-INTERACTION')</script>"
+    old_slide.sources = [Source(label="PRIVATE-PAST-SOURCE", url="private-source.pdf")]
+    store.write(TEMPLATE_ID, deck)
+    save_slide(history, 1)
+    current = store.locate(store.read(TEMPLATE_ID), "cover")
+    _ = store.revise(
+        TEMPLATE_ID,
+        "cover",
+        digest(current.model_dump_json()),
+        "history-private-metadata",
+        SlidePatch(
+            notes="PRIVATE-CURRENT-NOTE",
+            sources=[Source(label="Current source", url="current.pdf")],
+            agent=AgentContext(summary="PRIVATE-CURRENT-CONTEXT"),
+        ),
+    )
+    path = f"/api/decks/{TEMPLATE_ID}/slides/cover/history"
+    response = scoped_client.get(path)
+    assert response.status_code == 200, response.text
+    assert "PRIVATE-" not in response.text
+    page = HistoryPage.model_validate_json(response.text)
+    assert all(item.size_bytes == 0 for item in page.items)
+    older = page.items[-1].version_id
+    preview = scoped_client.get(path + "/preview", params={"version_id": older})
+    assert preview.status_code == 200, preview.text
+    assert "data:image/svg+xml;base64," in preview.text
+    assert "PRIVATE-" not in preview.text and "PAST-INTERACTION" not in preview.text
+    policy = preview.headers["content-security-policy"]
+    assert "sandbox allow-scripts" in policy and "frame-ancestors 'self'" in policy
+    assert "connect-src 'none'" in policy and "frame-src 'none'" in policy
+    assert "'nonce-" in policy and "'unsafe-eval'" not in policy
+    assert scoped_client.get(path.replace(TEMPLATE_ID, "other-deck")).status_code == 404
+    assert (
+        scoped_client.get(
+            path.replace("/cover/", "/message/") + "/preview", params={"version_id": older}
+        ).status_code
+        == 404
+    )
+
+    body = {
+        "version_id": older,
+        "expected_hash": page.expected_hash,
+        "request_id": "history-scoped-restore",
+    }
+    assert scoped_client.post(path + "/restore", json=body).status_code == 404
+    for _ in range(2):
+        restored = scoped_client.post(path + "/restore", json=body, headers={"x-editor": "yes"})
+        assert restored.status_code == 200 and restored.json() == {"saved": True}
+    latest = store.locate(store.read(TEMPLATE_ID), "cover")
+    assert latest.revision == 4 and latest.html == old_slide.html
+    assert latest.notes == "PRIVATE-CURRENT-NOTE"
+    assert latest.agent.summary == "PRIVATE-CURRENT-CONTEXT"
+    assert latest.sources == [Source(label="Current source", url="current.pdf")]
+
+    artifact_id = register_bundle(history, tmp_path)
+    path = f"/api/artifacts/{artifact_id}/history"
+    assert scoped_client.get(path).status_code == 404
+    assert scoped_client.get(path + "/thumbnail?version_id=artifact:1").status_code == 404
+    assert (
+        scoped_client.post(path + "/restore", json=body, headers={"x-editor": "yes"}).status_code
+        == 404
+    )
+
+
+def test_scoped_history_refuses_linked_assets_before_preview_capture_or_restore(
+    history: VersionHistory, scoped_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Resolve old source against the same current passive asset boundary as deck files."""
+    store = history.store
+    folder = store.folder(TEMPLATE_ID)
+    private = folder / "private.svg"
+    _ = private.write_text('<svg xmlns="http://www.w3.org/2000/svg"><title>Private</title></svg>')
+    (folder / "assets/linked.svg").symlink_to(private)
+    deck = store.read(TEMPLATE_ID)
+    deck.slides[0].html = '<article class="slide"><img src="assets/linked.svg"></article>'
+    store.write(TEMPLATE_ID, deck)
+    save_slide(history, 1)
+    path = f"/api/decks/{TEMPLATE_ID}/slides/cover/history"
+    page = HistoryPage.model_validate_json(scoped_client.get(path).text)
+    latest, older = (item.version_id for item in page.items)
+
+    def render(prepared: Snapshot, _: CaptureOptions) -> bytes:
+        """Return fixture pixels only after the allowed version prepares successfully."""
+        assert "Version 1" in prepared.document
+        output = io.BytesIO()
+        Image.new("RGB", (2, 2), "white").save(output, format="PNG")
+        return output.getvalue()
+
+    monkeypatch.setattr(history_thumbnails, "capture_snapshot", render)
+    assert scoped_client.get(path + "/thumbnail", params={"version_id": latest}).status_code == 200
+    for route in ("/preview", "/thumbnail"):
+        assert scoped_client.get(path + route, params={"version_id": older}).status_code == 404
+    restored = scoped_client.post(
+        path + "/restore",
+        headers={"x-editor": "yes"},
+        json={
+            "version_id": older,
+            "expected_hash": page.expected_hash,
+            "request_id": "history-refused-restore",
+        },
+    )
+    assert restored.status_code == 404
+    assert history.list_slide(TEMPLATE_ID, "cover").current_version_id == latest
 
 
 def test_slide_history_is_bounded_source_free_and_stable_during_new_saves(

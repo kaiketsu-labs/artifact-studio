@@ -47,7 +47,7 @@
       identity.replaceChildren();
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
-      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent='All members share this workspace. Files are stored on the server.';identity.append(shared);}
+      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
       doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.textContent=hosted?'Hosted':'Local';node.dataset.sessionMode=hosted?'hosted':'local';node.title=hosted?'Hosted workspace':'Local workspace';const review=hosted&&(!session.security||session.security.summary==='review');node.classList.toggle('app-session-review',review);node.setAttribute('aria-label',review?'Hosted workspace, server checks need review':'About workspace');});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
@@ -56,7 +56,7 @@
         dialog.querySelector('.app-nightly-option').hidden=true;dialog.querySelector('#app-nightly-help').hidden=true;dialog.querySelector('.app-about-status').hidden=true;
       }
       if(session.capabilities?.automatic_feedback===false)doc.querySelectorAll('[data-automatic-feedback]').forEach(node=>{node.hidden=true;});
-      if(hosted&&session.capabilities?.hosted_hooks){
+      if(hosted&&session.capabilities?.hosted_hooks&&!session.collaboration_url){
         for(const panel of doc.querySelectorAll('#connect-dialog, .hub-connect')){
           const link=doc.createElement('a');link.dataset.hostedHooksLink='';link.className='app-hosted-hooks';link.href='/api/agent/hooks-client';link.download='artifact-studio-agent-hooks.zip';link.textContent='Download agent hooks';link.title='Optional client for automatic feedback in an open Codex or Claude Code session';panel.append(link);
         }

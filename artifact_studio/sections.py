@@ -15,6 +15,15 @@ def sections_hash(sections: list[DeckSection]) -> str:
     return digest(json.dumps([item.model_dump() for item in sections], sort_keys=True))
 
 
+def section_layout(deck: Deck) -> dict[str, object]:
+    """A compact acknowledgement shared by browser and agent layout writers."""
+    return {
+        "slide_ids": [slide.id for slide in deck.slides],
+        "sections": [section.model_dump() for section in deck.sections],
+        "sections_hash": sections_hash(deck.sections),
+    }
+
+
 def reconcile(sections: list[DeckSection], slide_ids: list[str]) -> list[DeckSection]:
     """Keep additions with their preceding slide and retain empty/deleted groups."""
     if not sections:
