@@ -137,7 +137,7 @@
   doc.addEventListener('focusin',event=>{if(active&&event.target!==active.input&&!menu.contains(event.target))close();});
   root.addEventListener('resize',()=>{hidePreview();position();});
   function referenceType(kind){
-    return ({slide:{kind:'slide',icon:'slide',label:'Slide'},presentation:{kind:'presentation',icon:'slides',label:'Full presentation'},project:{kind:'project',icon:'project',label:'Project'}})[kind]||{kind:'artifact',icon:'file',label:'Artifact'};
+    return ({slide:{kind:'slide',icon:'slide',label:'Slide'},presentation:{kind:'presentation',icon:'presentation',label:'Full presentation'},project:{kind:'project',icon:'project',label:'Project'}})[kind]||{kind:'artifact',icon:'file',label:'Artifact'};
   }
   function referenceSymbol(type){return `<span class="reference-symbol" aria-hidden="true" title="${type.label}">${root.SlideIcons.svg(type.icon)}</span>`;}
   function chip(file,remove,className='chat-file-chip'){

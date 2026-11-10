@@ -10,7 +10,7 @@
   let current = null;
   let request = 0;
   const icon = name => name === 'image' ? '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18v16H3zM3 16l5-5 4 4 3-3 6 6M15 8h.01"/></svg>' : window.SlideIcons.svg(name);
-  const icons = {presentation:'slides',html:'code',markdown:'notes',document:'notes',image:'image',svg:'image',file:'archive',other:'archive'};
+  const icons = {presentation:'presentation',html:'code',markdown:'notes',document:'notes',image:'image',svg:'image',file:'archive',other:'archive'};
 
   /** Restore the original presentation picker when no hub project applies. */
   function fallback() {

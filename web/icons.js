@@ -72,6 +72,7 @@
     cursor:'m4 3 15 9-7 2-3 7-5-18Z',
     spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z',
     slide:'M3 5h18v14H3z',
+    presentation:'M4.5 14H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v1.5M7 16.5H5.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1V10M8 10h13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
     slides:'M3 5h18v14H3zM8 5v14M3 10h5M3 14h5'
   };
   // Composite controls keep their outline and filled badge in separate shapes.

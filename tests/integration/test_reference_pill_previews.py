@@ -238,6 +238,8 @@ def test_saved_slide_canvas_fits_and_survives_source_change(
     expect(frame.locator("h1")).to_have_text("Saved first slide")
     expect(frame.locator("#saved-edge")).to_be_visible()
     _ = frame.locator("body").evaluate("() => { window.previewDocumentMarker = 'retained'; }")
+    text.press_sequentially("Keep this saved reference.")
+    assert frame.locator("body").evaluate("() => window.previewDocumentMarker") == "retained"
     _ = page.locator("form .is-path-reference").evaluate(
         "el => el.dispatchEvent(new FocusEvent('focusin', {bubbles: true}))"
     )
