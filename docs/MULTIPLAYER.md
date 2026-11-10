@@ -32,7 +32,8 @@ mounted read-only. [Hosted configuration checks](HOSTED.md#check-safety-before-s
 Invitations open the regular Studio library and editor in the invited workspace.
 Guests see only granted projects and artifacts. View, Comment and Edit grants
 control the same editor. Edit grants support speaker notes, slide organization,
-approval and edits through a scoped agent. **Agent connection** in the regular
+approval of the current slide or artifact version, and edits through a scoped agent.
+**Agent connection** in the regular
 menu connects your own agent to the selected artifact or project. Shared and
 My agent conversations appear in the regular sidebar. The owner can switch
 between **Collaborate** and **Local review**; older local messages remain private
