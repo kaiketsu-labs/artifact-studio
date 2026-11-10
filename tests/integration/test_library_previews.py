@@ -107,8 +107,9 @@ def test_search_and_sort_reuse_loaded_covers_without_repeated_requests(
     page.route("**/api/hub/previews/**", image)
     try:
         page.goto(f"{live_app.url}/?project={project}")
+        # Filtering cancels unfinished loads; this journey checks completed covers.
         page.wait_for_function(
-            "document.querySelectorAll('#hub-grid img[src^=\"blob:\"]').length >= 4"
+            "document.querySelectorAll('#hub-grid img[src^=\"blob:\"]').length === 8"
         )
         search = page.get_by_role("searchbox", name="Search artifacts")
         search.fill("Preview 07")
