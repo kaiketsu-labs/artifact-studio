@@ -19,6 +19,7 @@ from artifact_studio.storage import Store
         ("GET", "/"),
         ("GET", "/api/decks/demo/events"),
         ("POST", "/api/decks/demo/slides/one/feedback"),
+        ("POST", "/api/decks/demo/slides/one/image"),
         ("POST", "/api/projects/open"),
         ("POST", "/api/artifacts/import"),
         ("POST", "/mcp"),

@@ -8,6 +8,7 @@ import pytest
 
 from artifact_studio.artifact_models import ArtifactView
 from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.models import Slide
 from artifact_studio.sharing import SharingService
 from artifact_studio.storage import Store
 
@@ -91,6 +92,45 @@ def test_original_file_and_excluded_dependency(tmp_path: Path) -> None:
     (Path(artifact.source_path) / "config.json").write_text("{}")
     with pytest.raises(ValueError, match="references excluded"):
         sharing.prepare_artifact(artifact.id)
+
+
+def test_pdf_hidden_choice_applies_to_artifacts_and_project_archives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Propagate the option through project ZIPs without affecting interactive HTML exports."""
+    from tests.design_factory import TEMPLATE_ID, make_design
+
+    make_design(tmp_path / "workspace" / TEMPLATE_ID)
+    store = Store(tmp_path / "workspace", tmp_path / "state/review.sqlite3")
+    deck = store.create("2026-11-10-export-options", "Export options")
+    _ = store.add_slide(
+        deck.id,
+        Slide(
+            id="appendix",
+            title="Appendix",
+            hidden=True,
+            html='<article class="slide">HIDDEN_APPENDIX_SENTINEL</article>',
+        ),
+    )
+    documents: list[str] = []
+
+    def pdf(document: str) -> bytes:
+        documents.append(document)
+        return b"%PDF-fixture"
+
+    monkeypatch.setattr("artifact_studio.sharing._pdf", pdf)
+    registry = ArtifactStore(store)
+    sharing = SharingService(store, registry)
+    _ = sharing.prepare_artifact(deck.id, "pdf", include_hidden=False)
+    assert "HIDDEN_APPENDIX_SENTINEL" not in documents[-1]
+    _ = sharing.prepare_project(
+        registry.get_artifact(deck.id).project_id, "pdf", include_hidden=False
+    )
+    assert all("HIDDEN_APPENDIX_SENTINEL" not in document for document in documents)
+    _ = sharing.prepare_artifact(deck.id, "pdf", include_hidden=True)
+    assert "HIDDEN_APPENDIX_SENTINEL" in documents[-1]
+    html = sharing.prepare_artifact(deck.id, "html", include_hidden=False)
+    assert b"HIDDEN_APPENDIX_SENTINEL" in html.data
 
 
 def test_project_with_duplicate_titles_uses_unique_folders(tmp_path: Path) -> None:

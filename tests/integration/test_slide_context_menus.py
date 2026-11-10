@@ -1,12 +1,17 @@
 """Slide menus stay contextual, usable on small screens and separate from native typing."""
 
+import io
 import os
 import re
 from pathlib import Path
+from typing import Literal
 
 import pytest
+from PIL import Image
 from playwright.sync_api import Locator, Page, expect
 
+from artifact_studio.models import SlidePatch
+from artifact_studio.storage import digest
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp
 from tests.integration.test_browser import open_editor, open_notes
 
@@ -91,6 +96,68 @@ def test_thumbnail_comment_history_and_selection_target_the_clicked_slide(
     thumbnail.click(button="right")
     menu.get_by_role("menuitem", name="Select all slides", exact=True).click()
     expect(page.locator('#slides [data-id][aria-pressed="true"]')).to_have_count(2)
+    assert live_app.store.comments(DECK_ID) == []
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_thumbnail_copies_the_invoked_slide_as_a_real_png(
+    page: Page, live_app: RunningApp, artifacts: Path, theme: Literal["light", "dark"]
+) -> None:
+    """Read actual clipboard pixels after right-clicking a slide other than the active one."""
+    before = live_app.store.read(DECK_ID)
+    item = live_app.store.locate(before, "next")
+    _ = live_app.store.revise(
+        DECK_ID,
+        item.id,
+        digest(item.model_dump_json()),
+        "clipboard-image-fixture",
+        SlidePatch(
+            html='<article class="slide" style="background:#315bea;color:white">'
+            "<h1>Fictional launch plan</h1></article>"
+        ),
+    )
+    expected = live_app.store.read(DECK_ID)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=live_app.url)
+    page.emulate_media(color_scheme=theme)
+    open_editor(page, live_app)
+    expect(page.locator("html")).to_have_attribute("data-theme", theme)
+    feedback = page.get_by_role("textbox", name="Your feedback", exact=True)
+    feedback.fill("Keep this unsent draft on the first slide.")
+    page.locator('#slides [data-id="next"]').click(button="right")
+    menu = page.get_by_role("menu", name="Slide options", exact=True)
+    expect(menu).to_be_visible()
+    _ = page.screenshot(path=str(artifacts / f"copy-slide-image-{theme}.png"))
+    page.evaluate("""() => {
+        const original = window.fetch;
+        const gate = new Promise(resolve => {window.releaseSlideImage = resolve;});
+        window.fetch = async (...args) => {
+            const response = await original(...args);
+            if (String(args[0]).endsWith('/image')) await gate;
+            return response;
+        };
+    }""")
+    menu.get_by_role("menuitem", name="Copy as image", exact=True).click()
+    page.locator('#slides [data-id="cover"]').click(button="right")
+    expect(menu.get_by_role("menuitem", name="Copy as image", exact=True)).to_be_disabled()
+    page.evaluate("window.releaseSlideImage()")
+    expect(page.locator("#toast")).to_have_text("Slide image copied.", timeout=30_000)
+    expect(menu.get_by_role("menuitem", name="Copy as image", exact=True)).to_be_enabled()
+    data = page.evaluate("""async () => {
+        const items = await navigator.clipboard.read();
+        const item = items.find(item => item.types.includes('image/png'));
+        const image = await item.getType('image/png');
+        return Array.from(new Uint8Array(await image.arrayBuffer()));
+    }""")
+    with Image.open(io.BytesIO(bytes(data))) as image:
+        assert image.size == (1600, 900)
+        assert image.convert("RGB").getpixel((1500, 800)) == (49, 91, 234)
+    page.locator('#slides [data-id="cover"]').click()
+    expect(feedback).to_have_value("Keep this unsent draft on the first slide.")
+    page.locator('#slides [data-id="cover"]').click(button="right")
+    menu.get_by_role("menuitem", name="Select all slides", exact=True).click()
+    page.locator('#slides [data-id="cover"]').click(button="right")
+    expect(menu.get_by_role("menuitem", name="Copy as image", exact=True)).to_be_disabled()
+    assert live_app.store.read(DECK_ID) == expected
     assert live_app.store.comments(DECK_ID) == []
 
 

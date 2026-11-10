@@ -15,6 +15,12 @@ MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_PIXELS = 32_000_000
 
 
+class SlideImageInput(StrictModel):
+    """Copy one saved slide only if it still matches the invoked version."""
+
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
 class SelectionImageInput(StrictModel):
     """Keep image export bound to the displayed source and a finite canvas."""
 

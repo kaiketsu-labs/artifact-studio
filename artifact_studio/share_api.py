@@ -33,6 +33,7 @@ class ShareInput(StrictModel):
     scope: Literal["artifact", "project"]
     id: str = Field(min_length=1, max_length=200)
     format: ShareFormat | None = None
+    include_hidden: bool = True
     expected_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
@@ -95,9 +96,9 @@ def sharing_routes(get_store: Callable[[], Store]) -> APIRouter:
             raise ConflictError("This artifact changed. Open the update before sharing.")
         service = SharingService(store, artifacts)
         file = (
-            service.prepare_artifact(body.id, body.format)
+            service.prepare_artifact(body.id, body.format, include_hidden=body.include_hidden)
             if body.scope == "artifact"
-            else service.prepare_project(body.id, body.format)
+            else service.prepare_project(body.id, body.format, include_hidden=body.include_hidden)
         )
         if (
             body.scope == "artifact"

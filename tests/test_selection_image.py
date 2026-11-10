@@ -13,8 +13,43 @@ from artifact_studio.selection_image import (
     SelectionImage,
     SelectionImageInput,
 )
+from artifact_studio.visuals import CaptureOptions, Snapshot
+from tests.design_factory import TEMPLATE_ID, make_design
 from tests.test_artifact_api import client as client
 from tests.test_artifact_api import import_page
+
+
+def test_full_slide_image_is_version_bound_and_excludes_private_context(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy saved audience artwork without changing notes, feedback or the source."""
+    make_design(service.store.root / TEMPLATE_ID)
+    before = service.store.read(TEMPLATE_ID)
+    item = service.store.view(TEMPLATE_ID).slides[0]
+    calls: list[Snapshot] = []
+
+    def render(prepared: Snapshot, options: CaptureOptions) -> bytes:
+        assert options.reduced_motion
+        assert prepared.frame.slide_id == item.id
+        assert prepared.frame.content_hash == item.content_hash
+        for slide in before.slides:
+            if slide.notes:
+                assert slide.notes not in prepared.document
+        calls.append(prepared)
+        return b"png-image"
+
+    monkeypatch.setattr(image_api, "capture_snapshot", render)
+    endpoint = f"/api/decks/{TEMPLATE_ID}/slides/{item.id}/image"
+    result = client.post(endpoint, json={"content_hash": item.content_hash})
+    assert result.status_code == 200
+    assert result.content == b"png-image"
+    assert result.headers["content-type"] == "image/png"
+    assert result.headers["content-disposition"] == 'attachment; filename="slide.png"'
+    assert client.post(endpoint, json={"content_hash": "0" * 64}).status_code == 409
+    assert client.post(endpoint, json={"content_hash": "invalid"}).status_code == 422
+    assert len(calls) == 1
+    assert service.store.read(TEMPLATE_ID) == before
+    assert service.store.feedback_feed(TEMPLATE_ID).events == []
 
 
 @pytest.mark.parametrize(

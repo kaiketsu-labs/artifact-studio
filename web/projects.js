@@ -43,7 +43,7 @@ window.SlideProjects={
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();}
     });
-    $('export-pdf').addEventListener('click',()=>{const deck=read();if(!deck)return;window.open(`/api/decks/${encodeURIComponent(deck.id)}/exports/pdf`,'_blank','noopener');dialog.close();});
+    $('export-pdf').addEventListener('click',()=>{const deck=read();if(!deck)return;window.open(`/api/decks/${encodeURIComponent(deck.id)}/exports/pdf?preview=1`,'_blank','noopener');dialog.close();});
     function run(id){update();$('project-error').textContent='';if($(id).disabled)return;dialog.showModal();$(id).click();}
     return {update,save:()=>run('save-project'),open:()=>run('open-project')};
   }

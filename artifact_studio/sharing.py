@@ -109,14 +109,21 @@ class SharingService:
         self.store = store
         self.artifacts = artifacts
 
-    def _prepare(self, artifact: ArtifactView, format: ShareFormat | None) -> PreparedShare:
+    def _prepare(
+        self, artifact: ArtifactView, format: ShareFormat | None, *, include_hidden: bool = True
+    ) -> PreparedShare:
         """Capture one selected revision, requiring a format for presentations."""
         if artifact.legacy_deck_id:
             if format not in {"html", "pdf"}:
                 raise ValueError("Choose HTML or PDF for presentations.")
             if format == "pdf":
                 check_renderer_available()
-            document = audience_html(self.store, artifact.legacy_deck_id, printing=format == "pdf")
+            document = audience_html(
+                self.store,
+                artifact.legacy_deck_id,
+                printing=format == "pdf",
+                include_hidden=include_hidden,
+            )
             current = self.artifacts.get_artifact(artifact.id)
             if current.content_hash != artifact.content_hash:
                 raise ConflictError("Presentation changed while preparing the export; try again.")
@@ -150,17 +157,25 @@ class SharingService:
         )
 
     def prepare_artifact(
-        self, artifact_id: str, format: ShareFormat | None = None
+        self, artifact_id: str, format: ShareFormat | None = None, *, include_hidden: bool = True
     ) -> PreparedShare:
         """Prepare the current artifact revision for download or an email draft."""
-        return self._prepare(self.artifacts.get_artifact(artifact_id), format)
+        return self._prepare(
+            self.artifacts.get_artifact(artifact_id), format, include_hidden=include_hidden
+        )
 
     def _write_project_artifact(
-        self, archive: ZipFile, folder: str, artifact: ArtifactView, format: ShareFormat | None
+        self,
+        archive: ZipFile,
+        folder: str,
+        artifact: ArtifactView,
+        format: ShareFormat | None,
+        *,
+        include_hidden: bool = True,
     ) -> tuple[str, ...]:
         """Check and write one artifact, releasing its captured bytes before the next."""
         if artifact.legacy_deck_id:
-            item = self._prepare(artifact, format)
+            item = self._prepare(artifact, format, include_hidden=include_hidden)
             archive.writestr(f"{folder}/{item.filename}", item.data)
             return item.excluded
         files, excluded = audience_files(
@@ -176,7 +191,9 @@ class SharingService:
                 archive.writestr(f"{folder}/{name}", files[name])
         return excluded
 
-    def prepare_project(self, project_id: str, format: ShareFormat | None = None) -> PreparedShare:
+    def prepare_project(
+        self, project_id: str, format: ShareFormat | None = None, *, include_hidden: bool = True
+    ) -> PreparedShare:
         """Prepare a ZIP containing audience exports of all project artifacts."""
         artifacts = self.artifacts.list_artifacts(project_id)
         if not artifacts:
@@ -191,7 +208,9 @@ class SharingService:
         with ZipFile(output, "w", ZIP_DEFLATED) as archive:
             # Preserve the original full-path ordering, including indices above 99.
             for folder, artifact in sorted(members, key=lambda item: item[0]):
-                excluded[folder] = self._write_project_artifact(archive, folder, artifact, format)
+                excluded[folder] = self._write_project_artifact(
+                    archive, folder, artifact, format, include_hidden=include_hidden
+                )
         return PreparedShare(
             f"{_filename(project.title)}.zip",
             "application/zip",

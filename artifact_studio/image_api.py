@@ -1,4 +1,4 @@
-"""Explicit browser downloads of version-bound selected objects."""
+"""Explicit, version-bound slide images and selected-object downloads."""
 
 from collections.abc import Callable
 
@@ -6,9 +6,14 @@ from fastapi import APIRouter, Request, Response
 
 from .artifact_capture import CAPTURE_ORIGIN, export_artifact_selection
 from .artifacts import ArtifactStore
-from .selection_image import ArtifactSelectionImageInput, SelectionImage, SelectionImageInput
+from .selection_image import (
+    ArtifactSelectionImageInput,
+    SelectionImage,
+    SelectionImageInput,
+    SlideImageInput,
+)
 from .storage import ConflictError, Store
-from .visuals import CaptureOptions, export_snapshot, snapshot
+from .visuals import CaptureOptions, capture_snapshot, export_snapshot, snapshot
 
 
 def image_response(image: SelectionImage) -> Response:
@@ -26,6 +31,21 @@ def image_response(image: SelectionImage) -> Response:
 def image_routes(get_store: Callable[[], Store]) -> APIRouter:
     """Reuse the current workspace and existing sandboxed renderers for user image downloads."""
     router = APIRouter()
+
+    @router.post("/api/decks/{deck_id}/slides/{slide_id}/image")
+    def full_slide_image(deck_id: str, slide_id: str, body: SlideImageInput) -> Response:
+        """Render saved audience artwork, excluding notes, feedback and editor controls."""
+        store = get_store()
+        deck = store.read(deck_id)
+        slide = store.locate(deck, slide_id)
+        if store.content_hash(deck_id, slide) != body.content_hash:
+            raise ConflictError("The slide changed. Refresh and copy the image again.")
+        number = next(index + 1 for index, item in enumerate(deck.slides) if item.id == slide_id)
+        options = CaptureOptions(reduced_motion=True)
+        prepared = snapshot(store, deck_id, slide, number, options)
+        return image_response(
+            SelectionImage(capture_snapshot(prepared, options), filename="slide.png")
+        )
 
     @router.post("/api/decks/{deck_id}/slides/{slide_id}/selection-image")
     def slide_image(deck_id: str, slide_id: str, body: SelectionImageInput) -> Response:

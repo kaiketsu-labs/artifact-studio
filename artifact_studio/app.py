@@ -2055,7 +2055,7 @@ def audience_preview(deck_id: DeckID) -> HTMLResponse:
 
 @app.get("/api/decks/{deck_id}/exports/pdf")
 def export_pdf(deck_id: DeckID) -> HTMLResponse:
-    """Open the browser's PDF print layout, including hidden slides and all builds."""
+    """Open the PDF preview with hidden-slide controls and all builds."""
     return HTMLResponse(audience_html(store, deck_id, printing=True), headers=audience_headers())
 
 

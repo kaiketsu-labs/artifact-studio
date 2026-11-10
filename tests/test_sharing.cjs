@@ -6,7 +6,9 @@ test('a presentation cannot share before an explicit audience format is chosen',
   const target={scope:'artifact',id:'fictional',presentation:true,expected_hash:'retained-hash'};
   assert.throws(()=>requestFor(target,null),/Choose HTML or PDF/);
   assert.throws(()=>requestFor(target,'pptx'),/Choose HTML or PDF/);
-  assert.deepEqual(requestFor(target,'pdf'),{scope:'artifact',id:'fictional',format:'pdf',expected_hash:'retained-hash'});
+  assert.deepEqual(requestFor(target,'pdf'),{scope:'artifact',id:'fictional',format:'pdf',include_hidden:true,expected_hash:'retained-hash'});
+  assert.equal(requestFor(target,'pdf',false).include_hidden,false);
+  assert.equal('include_hidden' in requestFor(target,'html',false),false);
 });
 
 test('project format covers its presentations while arbitrary artifacts retain source format',()=>{

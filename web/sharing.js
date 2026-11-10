@@ -5,9 +5,9 @@
   /** Require an explicit audience format whenever a presentation is included. */
   function needsFormat(target) { return !!target.presentation; }
   /** Keep exports tied to the saved artifact version shown when Share was opened. */
-  function requestFor(target, format) {
+  function requestFor(target, format, includeHidden = true) {
     if (needsFormat(target) && !['html','pdf'].includes(format)) throw new Error('Choose HTML or PDF.');
-    return {scope:target.scope,id:target.id,format:needsFormat(target)?format:null,...(target.expected_hash?{expected_hash:target.expected_hash}:{})};
+    return {scope:target.scope,id:target.id,format:needsFormat(target)?format:null,...(needsFormat(target)&&format==='pdf'?{include_hidden:includeHidden}:{}),...(target.expected_hash?{expected_hash:target.expected_hash}:{})};
   }
   /** Detect the exact payload the device can accept; never replace files with a local URL. */
   function canShare(data, navigator = root.navigator) {
@@ -21,7 +21,7 @@
     const dialog = doc.createElement('dialog');
     dialog.className = 'studio-share'; dialog.setAttribute('aria-labelledby','studio-share-title');
     doc.body.append(dialog);
-    let target = null, format = null, prepared = null, busy = false, epoch = 0, trigger = null;
+    let target = null, format = null, includeHidden = true, prepared = null, busy = false, epoch = 0, trigger = null;
     let capabilities = null, preparing = null, nativeFile = null, generation = 0, nativeState = 'waiting';
     async function exchange(path, body) {
       const response = await view.fetch(path, body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -42,14 +42,15 @@
       dialog.querySelector('.studio-share-native-hint').textContent=nativeState==='unsupported'
         ? 'File sharing isn’t available here. Save the file to attach it in Teams or another app.'
         : 'Choose Teams, Mail or another app available on your device.';
-      for (const input of dialog.querySelectorAll('[name=share-format]')) input.disabled = busy;
+      for (const input of dialog.querySelectorAll('[name=share-format],[name=share-include-hidden]')) input.disabled = busy;
+      const hiddenOption=dialog.querySelector('.studio-share-hidden');if(hiddenOption)hiddenOption.hidden=format!=='pdf';
       dialog.setAttribute('aria-busy', String(busy));
     }
     function render() {
       const project = target.scope === 'project', presentation = needsFormat(target);
       dialog.innerHTML = `<header class="studio-share-header"><h2 id="studio-share-title">Share ${project?'project':''}</h2><button type="button" data-share-close aria-label="Close share panel">${svg('close')}</button></header>
         <div class="studio-share-item"><span class="studio-share-file" data-file-kind="${project?'zip':presentation?'slides':escape(target.kind || 'file')}">${svg(project?'folder':presentation?'presentation':target.kind==='image'?'image':target.kind==='html'?'code':'file')}</span><div><strong>${escape(target.title)}</strong><span>${project?`${target.count ?? ''} artifacts · ZIP`:presentation?'Presentation':target.bundle?'File bundle · ZIP':'Saved artifact'}</span></div></div>
-        ${presentation?`<fieldset class="studio-share-formats"><legend>${project?'Choose presentation format':'Choose format'}</legend>${[['html','code','HTML','Interactive · images & animations'],['pdf','pdf','PDF','All slides · still pages']].map(([value,icon,label,hint])=>`<label><input type="radio" name="share-format" value="${value}"><span class="studio-share-format-icon ${value}">${svg(icon)}</span><span><strong>${label}</strong><small>${hint}</small></span><span class="studio-share-radio" aria-hidden="true"></span></label>`).join('')}</fieldset><p class="studio-share-private">${svg('eyeOff')}No speaker notes or review chat</p>`:''}
+        ${presentation?`<fieldset class="studio-share-formats"><legend>${project?'Choose presentation format':'Choose format'}</legend>${[['html','code','HTML','Interactive · images & animations'],['pdf','pdf','PDF','Still pages']].map(([value,icon,label,hint])=>`<label><input type="radio" name="share-format" value="${value}"><span class="studio-share-format-icon ${value}">${svg(icon)}</span><span><strong>${label}</strong><small>${hint}</small></span><span class="studio-share-radio" aria-hidden="true"></span></label>`).join('')}</fieldset><label class="studio-share-hidden" hidden><input type="checkbox" name="share-include-hidden" checked> Include hidden slides</label><p class="studio-share-private">${svg('eyeOff')}No speaker notes or review chat</p>`:''}
         <div class="studio-share-native"><button type="button" class="studio-share-system" data-destination="system" aria-describedby="studio-share-native-hint" disabled></button><p id="studio-share-native-hint" class="studio-share-native-hint"></p></div>
         <div class="studio-share-destinations"><button type="button" data-destination="save"><span class="studio-share-app save">${svg('download')}</span><span>Save file</span></button><button type="button" data-destination="outlook" hidden><span class="studio-share-app outlook" aria-hidden="true"><b>O</b>${svg('mail')}</span><span>Outlook</span></button></div>
         <p class="studio-share-status" role="status" aria-live="polite"></p><p class="studio-share-error" role="alert" hidden></p><details class="studio-share-excluded" hidden><summary>Excluded files</summary><ul></ul></details>`;
@@ -61,7 +62,7 @@
       if (!prepared && !preparing) {
         status('Preparing attachment…');
         const version=generation;
-        preparing=exchange('/api/shares',requestFor(target, format)).then(receipt=>{if(version===generation)prepared=receipt;return receipt;}).finally(()=>{if(version===generation)preparing=null;});
+        preparing=exchange('/api/shares',requestFor(target, format, includeHidden)).then(receipt=>{if(version===generation)prepared=receipt;return receipt;}).finally(()=>{if(version===generation)preparing=null;});
       }
       const receipt=prepared || await preparing;
       if(receipt===prepared){
@@ -107,7 +108,7 @@
       } catch(error) { status('');if(error.name!=='AbortError')showError(destination==='system'?new Error('Could not open sharing. Try again or save the file.'):error); }
       finally { busy=false;controls(); }
     }
-    dialog.addEventListener('change',event=>{if(event.target.name==='share-format'){generation++;format=event.target.value;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';status('');dialog.querySelector('.studio-share-error').hidden=true;controls();void warmSystem();}});
+    dialog.addEventListener('change',event=>{if(['share-format','share-include-hidden'].includes(event.target.name)){generation++;if(event.target.name==='share-format')format=event.target.value;else includeHidden=event.target.checked;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';status('');dialog.querySelector('.studio-share-error').hidden=true;controls();void warmSystem();}});
     dialog.addEventListener('click',event=>{
       if(event.target.closest('[data-share-close]')){dialog.close();return;}
       const button=event.target.closest('[data-destination]');
@@ -116,7 +117,7 @@
     dialog.addEventListener('close',()=>{epoch++;generation++;nativeFile=null;trigger?.focus?.();});
     return {async open(value) {
       if(dialog.open || busy)return;
-      trigger=doc.activeElement;generation++;target={...value};format=null;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';busy=false;const version=++epoch;render();dialog.showModal();void warmSystem();
+      trigger=doc.activeElement;generation++;target={...value};format=null;includeHidden=true;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';busy=false;const version=++epoch;render();dialog.showModal();void warmSystem();
       try {capabilities=await exchange('/api/shares/capabilities');if(version===epoch)controls();}
       catch {if(version===epoch){capabilities={outlook:false};controls();}}
     }};
