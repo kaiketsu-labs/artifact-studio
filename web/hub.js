@@ -2,7 +2,7 @@
 ((root) => {
   'use strict';
   const kinds = {
-    presentation: {label:'Presentations', singular:'Presentation', icon:'slides'},
+    presentation: {label:'Presentations', singular:'Presentation', icon:'presentation'},
     html: {label:'HTML', singular:'HTML page', icon:'code'},
     markdown: {label:'Markdown', singular:'Markdown', icon:'notes'},
     image: {label:'Images', singular:'Image', icon:'image'},

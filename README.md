@@ -15,7 +15,7 @@ and Shared / My agent chats through an authenticated tunnel.
 
 <p align="center">
   <a href="#how-it-works">How it works</a> ·
-  <a href="#quick-start">Quick start</a> ·
+  <a href="#install-on-mac">Install on Mac</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
   <a href="#live-or-batch">Live &amp; Batch</a> ·
   <a href="docs/GETTING-STARTED.md">Full guide</a> ·
@@ -110,12 +110,9 @@ and must be checked in your hosting account.
 
 ## Quick start
 
-**Prefer Docker?** Run `docker compose up -d --build --wait` from this checkout.
-See [Docker setup](docs/DOCKER.md) for persistent storage, file imports and agent connections.
+### Install on Mac
 
-**Prefer guided setup?** Open this checkout in your agent and run **`/setup` in Claude Code** or **`$setup` in Codex**. The bundled [setup skill](.agents/skills/setup/SKILL.md) checks existing settings and connects the agent. [First-run details](docs/GETTING-STARTED.md#guided-setup).
-
-Requires [Git](https://git-scm.com/), [uv](https://docs.astral.sh/uv/getting-started/installation/) and access to this private repository. Your existing agent supplies the AI connection; the app needs no separate AI API key.
+Use macOS 13 or later with Git, uv and Apple's Command Line Tools. Run `xcode-select --install` if the tools are missing. [Install Git](https://git-scm.com/) · [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
 
 ```sh
 git clone https://github.com/kaiketsu-labs/artifact-studio.git
@@ -125,16 +122,17 @@ uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
 ```
 
-Choose **one** way to run it:
+Install the menu-bar app from the checkout.
 
-| Mac menu-bar app | Terminal |
-| --- | --- |
-| On macOS 13+ with Apple's Command Line Tools, run `uv run --no-sync python scripts/install_macos.py --launch-at-login`, then open `~/Applications/Artifact Studio.app`. | Run `uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790` and keep the Terminal open. Stop with **Ctrl+C**. |
-| Status, Open, Start/Stop/Restart, Update, and Settings for launch at login and backup. [Mac setup](docs/MACOS.md). | On macOS, `./start.command` is a shortcut after setup. |
+```sh
+uv run --no-sync python scripts/install_macos.py --launch-at-login
+```
 
-Open **[127.0.0.1:8790](http://127.0.0.1:8790/)**. Stop a Terminal server before switching to the Mac controller. Chromium creates new or changed HTML/slide previews and supports agent capture tools. Saved library previews load without Chromium; raster images use a smaller image cover. The library shows a format icon when no preview is available.
+Open `~/Applications/Artifact Studio.app`, then choose **Open Artifact Studio** from the menu bar. Keep the checkout and `.venv` in place. The menu also controls startup, updates and backup settings. [Mac menu-bar guide](docs/MACOS.md)
 
-The supported installation is this source checkout. The Mac controller needs the checkout and `.venv` to remain in place. No standalone notarized download, npm package or PyPI release is published by this project yet.
+For guided setup, open the checkout in your agent and run **`/setup` in Claude Code** or **`$setup` in Codex**. It checks existing settings and connects the agent. [Guided setup](docs/GETTING-STARTED.md#guided-setup)
+
+For a container installation, follow the Docker guide. [Run with Docker](docs/DOCKER.md)
 
 Versions and changelogs are prepared with Release Please, starting at **0.1.0**.
 Merging a release PR publishes its GitHub release after the required CI passes.
@@ -318,6 +316,8 @@ Workspace rules remain primary; learned preferences are secondary. Project and a
 
 <details>
 <summary><strong>Development checks</strong></summary>
+
+For native development or troubleshooting, see [Run from Terminal](docs/GETTING-STARTED.md#run-from-terminal).
 
 ```sh
 uv sync --locked --python 3.14

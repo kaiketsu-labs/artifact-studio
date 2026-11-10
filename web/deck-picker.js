@@ -17,7 +17,7 @@ window.SlideDeckPicker={
         signature=next;
         list.replaceChildren(...items.map(item=>{
           const row=document.createElement('button');row.type='button';row.setAttribute('role','menuitemradio');row.tabIndex=-1;row.dataset.projectId=item.value;row.title=item.textContent;
-          row.innerHTML=svg('slides');
+          row.innerHTML=svg('presentation');
           const name=document.createElement('span');name.className='deck-menu-name';name.textContent=item.textContent;
           const check=document.createElement('span');check.className='deck-menu-check';check.setAttribute('aria-hidden','true');check.innerHTML=svg('check');
           row.append(name,check);return row;

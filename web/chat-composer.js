@@ -27,8 +27,7 @@
         const reference=root.ChatReferences?.chip(file,remove);if(reference)return reference;
         return (file.slideReference?`<span class="chat-file-chip is-slide-reference">${svg('star')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.slideReference.title)}</span><small>Slide reference · ${escape(file.slideReference.deckTitle)}</small>${file.slideReference.description?`<small class="favorite-reference-description">${escape(file.slideReference.description)}</small>`:''}</span>${remove}</span>`:'') || images?.draft(file,remove) || `<span class="chat-file-chip"><span class="chat-file-icon">${svg('attach')}</span><span class="chat-file-description"><span class="chat-file-name" title="${escape(file.name)}">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${remove}</span>`;
       }).join('');
-      // Keep open reference previews and their browsing contexts through unrelated
-      // editor refreshes; replace the list when its actual contents or controls change.
+      // Retain open preview documents during unrelated composer refreshes.
       if(markup!==renderedFiles){filesList.innerHTML=markup;renderedFiles=markup;}
       attachButton.disabled=disabled||processing;
       fileInput.disabled=disabled||processing;
