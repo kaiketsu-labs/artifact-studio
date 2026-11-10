@@ -1,5 +1,9 @@
 # Hosted shared workspace
 
+For scoped invitations, multiple workspaces, private chats and simultaneous agents,
+use the opt-in [multiplayer server](MULTIPLAYER.md). Its per-agent authentication and
+tunnel path configuration differ from this older whole-workspace hosted mode.
+
 Hosted mode is an implementation draft and has not been validated against a live Cloudflare account. Local mode remains the default. A hosted server is a separate workspace: open its HTTPS URL in a browser on a Mac, iPhone or other device. The Mac controller continues to manage the local installation. No mode switch moves files between workspaces.
 
 ![Hosted agent connection in the library, using a fictional workspace.](assets/hosted-connection.png)

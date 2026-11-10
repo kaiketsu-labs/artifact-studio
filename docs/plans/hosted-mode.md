@@ -2,6 +2,12 @@
 
 Status: implementation draft; no live deployment has been performed.
 
+The opt-in [multiplayer implementation](../MULTIPLAYER.md) now provides the scoped
+sharing, isolated workspaces, Shared/My agent conversations and multiple-agent
+routing described below. The original `artifact_studio.app` hosted server retains
+its whole-workspace membership model; start `artifact_studio.multiplayer:create_app`
+for the new collaboration flows. Live Cloudflare deployment remains unverified.
+
 ## Decisions after design review
 
 Local mode remains the default: loopback, no login, existing Mac controller and

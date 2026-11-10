@@ -1,0 +1,414 @@
+"""Per-person conversations and explicit, retryable delivery to one connected agent."""
+
+import json
+import secrets
+import sqlite3
+import time
+from typing import Literal, cast
+
+from .artifact_models import ArtifactTarget
+from .artifacts import ArtifactStore
+from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, checksum
+from .review import ReviewHookInput
+from .storage import ConflictError
+
+Channel = Literal["shared", "private"]
+
+
+class Conversations:
+    def __init__(self, sharing: Sharing) -> None:
+        self.sharing = sharing
+        with sharing.connect() as db:
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS conversations (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT, workspace TEXT NOT NULL,
+                  artifact TEXT NOT NULL, channel TEXT NOT NULL, person TEXT NOT NULL,
+                  author TEXT NOT NULL, message TEXT NOT NULL, target TEXT NOT NULL,
+                  content_hash TEXT NOT NULL, assigned TEXT NOT NULL DEFAULT '',
+                  released INTEGER NOT NULL, reply_to INTEGER,
+                  request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL,
+                  created REAL NOT NULL, completed INTEGER NOT NULL DEFAULT 0,
+                  claim TEXT NOT NULL DEFAULT '', claimant TEXT NOT NULL DEFAULT '',
+                  claim_expires REAL NOT NULL DEFAULT 0);
+                CREATE INDEX IF NOT EXISTS conversation_scope
+                  ON conversations(workspace,artifact,id);
+                CREATE TABLE IF NOT EXISTS chat_delivery (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT, message INTEGER NOT NULL UNIQUE);
+                INSERT OR IGNORE INTO chat_delivery(message)
+                  SELECT id FROM conversations ORDER BY id;
+                CREATE TRIGGER IF NOT EXISTS chat_created AFTER INSERT ON conversations BEGIN
+                  INSERT INTO chat_delivery(message) VALUES (new.id);
+                END;
+                CREATE TRIGGER IF NOT EXISTS chat_released AFTER UPDATE OF released ON conversations
+                  WHEN old.released=0 AND new.released=1 BEGIN
+                  DELETE FROM chat_delivery WHERE message=new.id;
+                  INSERT INTO chat_delivery(message) VALUES (new.id);
+                END;
+                CREATE TABLE IF NOT EXISTS multiplayer_hooks (
+                  agent TEXT NOT NULL, session TEXT NOT NULL, workspace TEXT NOT NULL,
+                  artifact TEXT NOT NULL, expires REAL NOT NULL,
+                  PRIMARY KEY(agent,session));
+            """)
+
+    @staticmethod
+    def _public(row: sqlite3.Row) -> dict[str, object]:
+        return {
+            key: row[key]
+            for key in (
+                "id",
+                "channel",
+                "person",
+                "author",
+                "message",
+                "content_hash",
+                "assigned",
+                "released",
+                "reply_to",
+                "created",
+                "completed",
+            )
+        } | {
+            "target": json.loads(cast(str, row["target"])),
+            "cursor": dict(row).get("cursor", row["id"]),
+        }
+
+    @staticmethod
+    def _visible(actor: Actor, row: sqlite3.Row) -> bool:
+        return bool(
+            (row["channel"] == "shared" or row["person"] == actor.person)
+            and (row["released"] or (not actor.agent and row["person"] == actor.person))
+        )
+
+    def history(
+        self, actor: Actor, scope: Scope, channel: Channel, before: int = 0
+    ) -> list[dict[str, object]]:
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            rows = db.execute(
+                "SELECT c.*,p.email AS author_name,d.id AS cursor FROM conversations c "
+                "JOIN people p ON p.id=c.person JOIN chat_delivery d ON d.message=c.id "
+                "WHERE workspace=? AND artifact=? AND channel=? "
+                "AND (?=0 OR d.id<?) AND (channel='shared' OR person=?) "
+                "AND (released=1 OR (person=? AND ?=0)) ORDER BY d.id DESC LIMIT 100",
+                (
+                    scope.workspace,
+                    scope.resource,
+                    channel,
+                    before,
+                    before,
+                    actor.person,
+                    actor.person,
+                    bool(actor.agent),
+                ),
+            ).fetchall()
+            return [
+                self._public(row) | {"author_name": row["author_name"]} for row in reversed(rows)
+            ]
+
+    def post(
+        self,
+        actor: Actor,
+        scope: Scope,
+        channel: Channel,
+        message: str,
+        request_id: str,
+        assigned: str = "",
+        released: bool = True,
+        target: ArtifactTarget | None = None,
+        content_hash: str = "",
+    ) -> dict[str, object]:
+        if not message.strip() or len(message) > 10000:
+            raise ValueError("Use a message of 1–10000 characters.")
+        with self.sharing.guard(actor, scope, "edit" if assigned else "comment") as store:
+            if actor.agent:
+                raise AccessDenied
+            item = ArtifactStore(store).get_artifact(scope.resource)
+            operation = self.sharing.request_id(actor, request_id)
+            payload = checksum(
+                json.dumps(
+                    [
+                        scope.workspace,
+                        scope.resource,
+                        channel,
+                        message,
+                        assigned,
+                        released,
+                        target.model_dump() if target else None,
+                        content_hash,
+                    ],
+                    sort_keys=True,
+                )
+            )
+            with self.sharing.connect() as db:
+                prior = db.execute(
+                    "SELECT c.*,d.id AS cursor FROM conversations c "
+                    "JOIN chat_delivery d ON d.message=c.id WHERE request_id=?",
+                    (operation,),
+                ).fetchone()
+                if prior:
+                    if prior["payload"] != payload:
+                        raise ConflictError("This request_id already belongs to another message.")
+                    return self._public(prior)
+                if content_hash and content_hash != item.content_hash:
+                    raise ConflictError("The artifact changed. Review the current version first.")
+                if assigned:
+                    recipient = self._recipient(db, assigned)
+                    if channel == "private" and recipient.person != actor.person:
+                        raise AccessDenied
+                    self.sharing.require(recipient, scope, "edit")
+                cursor = db.execute(
+                    "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
+                    "target,content_hash,assigned,released,request_id,payload,created) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        scope.workspace,
+                        scope.resource,
+                        channel,
+                        actor.person,
+                        actor.person,
+                        message,
+                        target.model_dump_json() if target else "null",
+                        item.content_hash,
+                        assigned,
+                        released,
+                        operation,
+                        payload,
+                        time.time(),
+                    ),
+                )
+                row = db.execute(
+                    "SELECT c.*,d.id AS cursor FROM conversations c "
+                    "JOIN chat_delivery d ON d.message=c.id WHERE c.id=?",
+                    (cursor.lastrowid,),
+                ).fetchone()
+                assert row is not None
+                return self._public(row)
+
+    def release(self, actor: Actor, scope: Scope, channel: Channel) -> None:
+        with self.sharing.guard(actor, scope, "comment"), self.sharing.connect() as db:
+            if actor.agent:
+                raise AccessDenied
+            # Recheck assigned agents: a revoked or downgraded collaborator cannot
+            # publish a formerly eligible edit request using Send batch.
+            rows = db.execute(
+                "SELECT assigned FROM conversations WHERE workspace=? AND artifact=? "
+                "AND channel=? AND person=? AND released=0 AND assigned<>''",
+                (scope.workspace, scope.resource, channel, actor.person),
+            ).fetchall()
+            for row in rows:
+                self.sharing.require(actor, scope, "edit")
+                self.sharing.require(self._recipient(db, cast(str, row["assigned"])), scope, "edit")
+            db.execute(
+                "UPDATE conversations SET released=1 WHERE workspace=? AND artifact=? "
+                "AND channel=? AND person=? AND released=0",
+                (scope.workspace, scope.resource, channel, actor.person),
+            )
+
+    def tasks(self, actor: Actor, scope: Scope) -> dict[str, object]:
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            if not actor.agent:
+                raise AccessDenied
+            cursor = db.execute(
+                "SELECT c.*,d.id AS cursor FROM conversations c "
+                "JOIN chat_delivery d ON d.message=c.id "
+                "WHERE workspace=? AND artifact=? AND assigned=? "
+                "AND released=1 AND completed=0 ORDER BY c.id",
+                (scope.workspace, scope.resource, actor.agent),
+            )
+            rows: list[sqlite3.Row] = []
+            for row in cursor:
+                if (
+                    self._visible(actor, row)
+                    and self.sharing.level(Actor(cast(str, row["person"])), scope) >= 3
+                ):
+                    rows.append(row)
+                    if len(rows) == 100:
+                        break
+            # A cursor is informational, never acknowledgement: lost responses and
+            # late-released drafts remain pending until a successful claimed reply.
+            return {
+                "events": [self._public(row) for row in rows],
+                "next_cursor": max((cast(int, row["id"]) for row in rows), default=0),
+                "delivery": "Claim each event before acting; reply acknowledges it.",
+            }
+
+    def claim(
+        self, actor: Actor, scope: Scope, event_id: int, session_id: str
+    ) -> dict[str, object]:
+        with self.sharing.guard(actor, scope, "edit"), self.sharing.connect() as db:
+            row = self._assigned(db, actor, scope, event_id)
+            if row["completed"]:
+                return {"completed": True}
+            if row["claim_expires"] > time.time() and row["claimant"] != session_id:
+                raise ConflictError("Another session is working on this request.")
+            claim = cast(str, row["claim"]) if row["claimant"] == session_id else ""
+            claim = claim or secrets.token_urlsafe(24)
+            expires = time.time() + 600
+            db.execute(
+                "UPDATE conversations SET claim=?,claimant=?,claim_expires=? WHERE id=?",
+                (claim, session_id, expires, event_id),
+            )
+            return {
+                "event_id": event_id,
+                "claim": claim,
+                "expires": expires,
+                "message": self._public(row),
+            }
+
+    def _assigned(
+        self, db: sqlite3.Connection, actor: Actor, scope: Scope, event_id: int
+    ) -> sqlite3.Row:
+        row = db.execute(
+            "SELECT c.*,d.id AS cursor FROM conversations c "
+            "JOIN chat_delivery d ON d.message=c.id WHERE c.id=? AND workspace=? AND artifact=? "
+            "AND assigned=? AND released=1",
+            (event_id, scope.workspace, scope.resource, actor.agent),
+        ).fetchone()
+        if not actor.agent or not row or not self._visible(actor, row):
+            raise AccessDenied
+        self.sharing.require(Actor(cast(str, row["person"])), scope, "edit")
+        return row
+
+    @staticmethod
+    def _recipient(db: sqlite3.Connection, identifier: str) -> Actor:
+        row = db.execute("SELECT person FROM agents WHERE id=?", (identifier,)).fetchone()
+        if not row:
+            raise AccessDenied
+        return Actor(cast(str, row["person"]), identifier)
+
+    def reply(
+        self, actor: Actor, scope: Scope, event_id: int, claim: str, message: str, request_id: str
+    ) -> dict[str, object]:
+        with self.sharing.guard(actor, scope, "edit"), self.sharing.connect() as db:
+            parent = self._assigned(db, actor, scope, event_id)
+            operation = self.sharing.request_id(actor, request_id)
+            payload = checksum(json.dumps([scope.workspace, scope.resource, event_id, message]))
+            prior = db.execute(
+                "SELECT c.*,d.id AS cursor FROM conversations c "
+                "JOIN chat_delivery d ON d.message=c.id WHERE request_id=?",
+                (operation,),
+            ).fetchone()
+            if prior:
+                if prior["payload"] != payload:
+                    raise ConflictError("This request_id already belongs to another reply.")
+                return self._public(prior)
+            if (
+                parent["completed"]
+                or not claim
+                or parent["claim"] != claim
+                or parent["claim_expires"] <= time.time()
+            ):
+                raise ConflictError("Claim this request before replying; renew expired claims.")
+            cursor = db.execute(
+                "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
+                "target,content_hash,released,reply_to,request_id,payload,created) "
+                "VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?)",
+                (
+                    scope.workspace,
+                    scope.resource,
+                    parent["channel"],
+                    actor.person,
+                    actor.agent,
+                    message,
+                    parent["target"],
+                    parent["content_hash"],
+                    event_id,
+                    operation,
+                    payload,
+                    time.time(),
+                ),
+            )
+            db.execute("UPDATE conversations SET completed=1 WHERE id=?", (event_id,))
+            row = db.execute(
+                "SELECT c.*,d.id AS cursor FROM conversations c "
+                "JOIN chat_delivery d ON d.message=c.id WHERE c.id=?",
+                (cursor.lastrowid,),
+            ).fetchone()
+            assert row is not None
+            return self._public(row)
+
+    def hook(self, actor: Actor, body: ReviewHookInput) -> dict[str, object]:
+        with self.sharing.locked(), self.sharing.connect() as db:
+            connection = self.sharing.agent_record(actor)
+            session = checksum(body.harness + ":" + body.session_id)
+            existing = db.execute(
+                "SELECT artifact,expires FROM multiplayer_hooks WHERE agent=? AND session=?",
+                (actor.agent, session),
+            ).fetchone()
+            artifact = (
+                body.artifact_id
+                or body.deck_id
+                or (cast(str, existing["artifact"]) if existing else "")
+            )
+            if body.event in {"SessionEnd", "Interrupt", "StopFailure"}:
+                db.execute(
+                    "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,0)",
+                    (actor.agent, session, connection["workspace"], artifact),
+                )
+                return {"listening": False, "feedback_available": False, "reason": "Session ended"}
+            if existing and existing["expires"] == 0 and not body.start_review:
+                return {"listening": False, "feedback_available": False, "reason": "Review paused"}
+            if not existing and not (body.start_review or body.auto_start):
+                return {
+                    "listening": False,
+                    "feedback_available": False,
+                    "reason": "Call start_live_review to connect this session.",
+                }
+            if not artifact:
+                return {
+                    "listening": False,
+                    "feedback_available": False,
+                    "reason": "Open an artifact or start_live_review first.",
+                }
+            scope = Scope(cast(str, connection["workspace"]), "artifact", artifact)
+            self.sharing.require(actor, scope, "edit")
+            db.execute(
+                "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
+                (actor.agent, session, scope.workspace, artifact, time.time() + 120),
+            )
+            pending = db.execute(
+                "SELECT DISTINCT person FROM conversations WHERE workspace=? "
+                "AND artifact=? AND assigned=? "
+                "AND released=1 AND completed=0",
+                (scope.workspace, artifact, actor.agent),
+            ).fetchall()
+            available = any(
+                self.sharing.level(Actor(cast(str, row["person"])), scope) >= 3 for row in pending
+            )
+            return {
+                "listening": True,
+                "feedback_available": available,
+                "reason": f"Live review for artifact {artifact}. Use read_feedback with "
+                f"artifact_id={artifact!r}; claim assigned requests with claim_feedback "
+                "before acting, then reply_to_feedback in their original channel. "
+                "If no requests are pending, finish this turn to keep listening.",
+            }
+
+    def agents(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            rows = db.execute(
+                "SELECT a.id,a.person,a.name,a.last_seen,p.email FROM agents a "
+                "JOIN people p ON p.id=a.person WHERE workspace=? AND revoked=0 AND expires>?",
+                (scope.workspace, time.time()),
+            ).fetchall()
+            result: list[dict[str, object]] = []
+            for row in rows:
+                recipient = Actor(cast(str, row["person"]), cast(str, row["id"]))
+                if not self.sharing.level(recipient, scope):
+                    continue
+                listening = scope.kind == "artifact" and bool(
+                    db.execute(
+                        "SELECT 1 FROM multiplayer_hooks WHERE agent=? AND workspace=? "
+                        "AND artifact=? AND expires>?",
+                        (recipient.agent, scope.workspace, scope.resource, time.time()),
+                    ).fetchone()
+                )
+                result.append(
+                    {
+                        **dict(row),
+                        "mine": recipient.person == actor.person,
+                        "status": "listening"
+                        if listening
+                        else ("connected" if row["last_seen"] > time.time() - 120 else "offline"),
+                    }
+                )
+            return result

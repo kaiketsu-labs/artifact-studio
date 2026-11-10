@@ -30,7 +30,7 @@ _WEB = frozenset(
 _PROJECT = Path(__file__).resolve().parent.parent
 
 
-def _verified_response(
+def verified_file_response(
     data: bytes, path: str, headers: dict[str, str], request: Request
 ) -> Response:
     """Serve pinned bytes, retaining ordinary media seeking without reopening a file."""
@@ -170,7 +170,7 @@ def hosted_preview_router(service: HostedPreviewService) -> APIRouter:
                     headers["Content-Disposition"] = "attachment; filename*=utf-8''" + quote(
                         Path(path).name
                     )
-                return _verified_response(data, path, headers, request)
+                return verified_file_response(data, path, headers, request)
             else:
                 raise ValueError
         except (ValueError, OSError, KeyError) as error:

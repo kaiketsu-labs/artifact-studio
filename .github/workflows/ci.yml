@@ -151,6 +151,8 @@ jobs:
               tests/integration/test_audit_followups.py tests/test_text_review.py tests/test_visuals.py tests/test_interactive.py
               tests/integration/test_hosted_browser.py tests/integration/test_hosted_hooks_browser.py
               tests/integration/test_hosted_presenter_browser.py
+              tests/test_multiplayer_browser_owner.py tests/test_multiplayer_browser_collaborator.py
+              tests/test_multiplayer_browser_responsive.py
               tests/integration/test_renderer_deadlines.py tests/test_capture_deadlines.py
               tests/test_presentation_authoring.py tests/test_element_rotation_dom.py tests/test_copilot_capture.py
               tests/test_element_alternative_tools.py tests/test_hub_cover_rendering.py tests/test_sharing_renderer.py

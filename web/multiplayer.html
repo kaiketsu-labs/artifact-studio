@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Artifact Studio · Together</title>
+  <link rel="stylesheet" href="/web/multiplayer.css">
+  <script type="module" src="/web/multiplayer.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">Artifact Studio <span>Together</span></a>
+    <span id="account" class="subtle"></span>
+    <button id="appearance" class="quiet" aria-label="Switch appearance">◐</button>
+  </header>
+  <div id="notice" role="status" hidden></div>
+  <section id="invitation" class="invite-banner" hidden><div><strong>You’ve been invited</strong><p id="invite-account"></p></div><button id="join" class="primary">Join</button></section>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Workspaces and artifacts">
+      <label for="workspace">Workspace</label>
+      <div class="workspace-row"><select id="workspace" aria-label="Workspace"></select><button id="new-workspace" class="quiet" aria-label="New workspace">＋</button></div>
+      <div class="sidebar-actions"><button id="workspace-access" class="text-button">Manage access</button><span id="workspace-sharing" class="badge"></span></div>
+      <nav id="catalog" aria-label="Projects and artifacts"></nav>
+      <button id="new-project" class="text-button">＋ New project</button>
+      <p class="hosting-note">Hosted on your computer.<br>Keep it awake while sharing.</p>
+    </aside>
+    <main id="main">
+      <section id="empty" class="empty"><span class="empty-symbol">◇</span><h1>Make something together</h1><p>Choose an artifact, then invite someone or connect your agent.</p><button id="empty-connect">Connect an agent</button></section>
+      <section id="editor" hidden>
+        <header class="artifact-header"><div><span id="artifact-path" class="subtle"></span><h1 id="artifact-title"></h1></div><div class="artifact-actions"><span id="access-role" class="badge"></span><button id="artifact-access">Share</button><button id="connect-agent">Connect agent</button></div></header>
+        <div class="review-layout">
+          <section class="canvas" aria-label="Artifact preview"><div class="preview-stage"><iframe id="preview" title="Artifact preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></div><nav id="slides" aria-label="Slides"></nav><div class="canvas-footer"><span id="revision" class="subtle"></span><span id="people" class="subtle"></span></div></section>
+          <section class="chat" aria-label="Conversation">
+            <div class="chat-tabs" role="tablist" aria-label="Chat visibility"><button id="shared-tab" role="tab" aria-selected="true" data-channel="shared">Shared</button><button id="private-tab" role="tab" aria-selected="false" data-channel="private" tabindex="-1">My agent</button></div>
+            <p id="privacy-hint" class="chat-hint">Visible to everyone with access.</p>
+            <button id="earlier" class="text-button" hidden>Earlier messages</button>
+            <div id="messages" role="log" aria-label="Messages" aria-live="polite"></div>
+            <form id="composer"><label id="target-label" class="target-label" for="message"></label><textarea id="message" placeholder="Discuss this artifact…" aria-label="Message" rows="3" maxlength="10000"></textarea><div class="compose-controls"><select id="recipient" aria-label="Send to"><option value="">Discuss</option></select><label class="batch"><input id="batch" type="checkbox">Batch</label><button id="send" class="send" aria-label="Send message">↑</button></div></form>
+            <div id="draft-actions" hidden><span>Only you can see these drafts.</span><button id="release" class="text-button">Send batch</button></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="access-dialog"><header><h2 id="access-title">Manage access</h2><button data-close="access-dialog" class="quiet" aria-label="Close access">✕</button></header><p id="scope-description" class="subtle"></p><div id="access-list"></div><form id="invite-form"><label for="invite-email">Invite by email</label><div class="invite-row"><input id="invite-email" type="email" required placeholder="name@example.com" maxlength="254"><select id="invite-role" aria-label="Permission"><option value="edit">Can edit</option><option value="comment">Can comment</option><option value="view">Can view</option></select></div><p class="subtle small">They sign in with this email. The link expires in 7 days.</p><button class="primary">Create invite link</button></form><div id="invite-result" hidden><label for="invite-link">Send this link to your collaborator</label><div class="copy-row"><input id="invite-link" readonly><button id="copy-invite" type="button">Copy</button></div></div><p id="access-error" class="error" role="alert"></p></dialog>
+  <dialog id="agent-dialog"><header><h2>Connect your agent</h2><button data-close="agent-dialog" class="quiet" aria-label="Close agent setup">✕</button></header><p class="subtle">Your agent gets your current access, limited to the scope you choose.</p><form id="agent-form"><label for="agent-scope">Access to</label><select id="agent-scope"></select><label for="agent-name">Agent name</label><input id="agent-name" value="My agent" required maxlength="80"><button class="primary">Create connection</button></form><div id="agent-result" hidden><label for="agent-token">Private token · expires in 30 days</label><div class="copy-row"><input id="agent-token" readonly type="password"><button id="copy-token">Copy</button></div><p class="subtle small">Shown once. Set it as <code>ARTIFACT_STUDIO_AGENT_TOKEN</code> in your agent’s environment.</p><label for="agent-command">Connect with Codex</label><textarea id="agent-command" readonly rows="2"></textarea><label for="claude-command">Connect with Claude Code</label><textarea id="claude-command" readonly rows="3"></textarea><p class="subtle small">Ask your agent to read <code>get_working_context</code>. It can poll requests or install the optional Live review hooks with your normal host approval.</p></div><div id="my-agents"></div><p id="agent-error" class="error" role="alert"></p></dialog>
+  <dialog id="name-dialog"><form id="name-form"><header><h2 id="name-title"></h2><button type="button" data-close="name-dialog" class="quiet" aria-label="Close">✕</button></header><label for="new-name">Name</label><input id="new-name" required maxlength="160"><button class="primary">Create</button><p id="name-error" class="error" role="alert"></p></form></dialog>
+</body></html>
