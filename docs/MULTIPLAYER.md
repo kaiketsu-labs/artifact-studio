@@ -268,8 +268,10 @@ Check those with two real accounts before sharing real work: wrong-email invitat
 fail, uninvited users see no artifacts, missing/expired tokens fail, preview resources
 cannot reach the origin, and revocation blocks both browser and agent access.
 
-This first collaboration UI has no attachment upload or private-history export.
-Remote tools exclude host files and server administration. Request bodies are bounded
-at 2 MiB. Browser, MCP, hook and preview capacity is separate so idle agent long polls
-do not consume browser capacity. Initial agent context contains the selected scope
-and artifact; detailed authoring guides load on demand.
+Upload attachments from the regular editor. The standalone Together interface has no
+attachment controls. Private-history export is unavailable. Remote tools exclude host
+files and server administration. Ordinary request bodies are limited to 2 MiB. Chat
+uploads have their own larger request limit and stricter admission controls. Browser,
+MCP, hook and preview capacity is separate so idle agent long polls do not consume
+browser capacity. Initial agent context contains the selected scope and artifact.
+Detailed authoring guides load on demand.
