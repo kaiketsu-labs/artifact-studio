@@ -156,7 +156,8 @@ class MultiplayerAuth:
                         workspace = scope.get("state", {}).get("editor_workspace", "default")
                         prefix = workspace_editor_path(str(workspace))
                         frames = (
-                            f"{origin}{prefix}api/artifacts/ {origin}{prefix}api/decks/ about: "
+                            f"{origin}{prefix}api/artifacts/ {origin}{prefix}api/decks/ "
+                            f"{origin}{prefix}decks/ about: "
                         )
                     base = "'self'" if self.shared_shell else "'none'"
                     images = "img-src 'self' data: blob:; " if self.shared_shell else ""

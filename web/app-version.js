@@ -9,8 +9,7 @@
     doc.body.append(dialog);
     const identity=doc.createElement('section');identity.className='app-session-identity';identity.setAttribute('aria-label','Active workspace');identity.textContent='Checking workspace connection…';dialog.insertBefore(identity,dialog.children[1]);
     const workspaces=doc.createElement('section');workspaces.className='app-session-identity app-workspace-switcher';workspaces.hidden=true;workspaces.setAttribute('aria-label','Workspaces');identity.after(workspaces);
-    const checks=doc.createElement('details');checks.className='app-security-checks';checks.innerHTML='<summary>Server checks</summary><div></div>';identity.after(checks);
-    const canChangeWorkspace=()=>root.dispatchEvent(new CustomEvent('studio:before-conversation-change',{cancelable:true}));
+    const checks=doc.createElement('details');checks.className='app-security-checks';checks.innerHTML='<summary>Server checks</summary><div></div>';workspaces.after(checks);
     async function workspaceList(){
       const session=await root.ArtifactSession.get();
       if(!session.collaboration_url||sessionExpired)return;
@@ -21,7 +20,15 @@
       workspaces.replaceChildren();
       workspaces.hidden=data.workspaces.length<2&&!data.can_create;
       if(workspaces.hidden)return;
-      const heading=doc.createElement('strong');heading.textContent='Workspaces';workspaces.append(heading);
+      const heading=doc.createElement('strong');heading.textContent='Workspaces';
+      const warning=doc.createElement('p');warning.hidden=true;warning.setAttribute('role','alert');
+      warning.textContent='Finish your current draft or edit before switching workspaces.';
+      workspaces.append(heading,warning);
+      function canChangeWorkspace(){
+        const allowed=root.dispatchEvent(new CustomEvent('studio:before-conversation-change',{cancelable:true}));
+        warning.hidden=allowed;
+        return allowed;
+      }
       for(const item of data.workspaces){
         const link=doc.createElement('a');link.textContent=item.title;link.href=root.ArtifactSession.home(item.id);
         if(item.id===root.ArtifactSession.workspace)link.setAttribute('aria-current','page');
