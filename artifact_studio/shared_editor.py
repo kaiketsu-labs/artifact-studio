@@ -157,19 +157,18 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             except AccessDenied:
                 return {"projects": [], "artifacts": [], "designs": []}
             service = ArtifactStore(store)
-            items = [
-                item
-                for item in service.list_artifacts()
-                if hub.level(actor, artifact_scope(request, item.id))
-            ]
             projects = {
                 item.id: {"id": item.id, "title": item.title, "artifact_count": 0}
                 for item in service.list_projects()
                 if hub.level(actor, Scope(workspace, "project", item.id))
             }
             result: list[dict[str, object]] = []
-            for item in items:
+            for item in service.list_artifacts():
+                level = hub.level(actor, artifact_scope(request, item.id))
+                if not level:
+                    continue
                 entry = artifact_payload(item, visible_project=item.project_id in projects)
+                entry["access_role"] = LEVEL_ROLE[level]
                 entry.update(cover_metadata(store, item, scoped=True))
                 project = cast(str, entry["project_id"])
                 info = projects.setdefault(

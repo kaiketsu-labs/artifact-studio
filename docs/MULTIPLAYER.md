@@ -159,6 +159,9 @@ local app; multiplayer starts new conversations.
 
 Guests see current thumbnails in the regular library. Studio checks the grant
 on each cover request and keeps older thumbnail revisions out of the shared view.
+Right-click a shared card to view, comment where permitted, or present. **Copy link**
+opens the item for people who already have access. Use **Share link…** to invite
+someone when you own the workspace.
 
 In standalone collaboration, the server owner creates isolated workspaces with
 **＋** beside the selector. Invited

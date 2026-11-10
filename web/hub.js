@@ -356,24 +356,31 @@
     if(state.active!==id)await openArtifact(id);
     if(state.active!==id || !state.detail)return;
     if(mode==='view')return action('clean-view');
-    if(mode==='comment'){workspacePanels.exitView();doc.getElementById('hub-feedback-text')?.focus();}
+    if(mode==='comment'&&canComment(state.detail)){workspacePanels.openChat();doc.getElementById('hub-feedback-text')?.focus();}
   }
   async function copyArtifactLink(item){
     const url=new URL(studioHome,root.location.href);url.searchParams.set(item.legacy_deck_id?'deck':'artifact',item.legacy_deck_id || item.id);
     await root.navigator.clipboard.writeText(url.href);toast('Artifact link copied.');
   }
+  async function presentArtifact(item){
+    const session=await root.ArtifactSession.get();
+    if(!artifactEditor.finish())return;
+    const viewer=session.mode==='hosted'?'presenter':'index.html';
+    root.location.href=studioPath(`/decks/${encodeURIComponent(item.legacy_deck_id)}/${viewer}?present=1`);
+  }
   function artifactMenu(anchor,id,point=null){
     const item=state.artifacts.find(item=>item.id===id);if(!item)return;
     const commands=[menuCommand('Open','folderOpen',()=>openArtifactCommand(id))];
-    if(item.legacy_deck_id)commands.push(menuCommand('Present','present',()=>{if(artifactEditor.finish())root.location.href=`/decks/${encodeURIComponent(item.legacy_deck_id)}/index.html?present=1`;}));
-    else commands.push(menuCommand('View','eye',()=>openArtifactCommand(id,'view')),menuCommand('Comment','chat',()=>openArtifactCommand(id,'comment')),menuCommand('Version history','history',()=>{if(artifactEditor.finish())versions.open({kind:'artifact',artifactId:id,title:item.title});}));
-    if(!sharedEditor&&root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
-    if(sharedEditor){
-      const available=commands.slice(0,1);
-      if(root.StudioInvitation?.available)available.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
-      showHubMenu(anchor,'Artifact actions',available,point);return;
+    if(item.legacy_deck_id)commands.push(menuCommand('Present','present',()=>presentArtifact(item)));
+    else {
+      commands.push(menuCommand('View','eye',()=>openArtifactCommand(id,'view')));
+      if(!sharedEditor||['comment','edit'].includes(item.access_role))commands.push(menuCommand('Comment','chat',()=>openArtifactCommand(id,'comment')));
+      if(!sharedEditor)commands.push(menuCommand('Version history','history',()=>{if(artifactEditor.finish())versions.open({kind:'artifact',artifactId:id,title:item.title});}));
     }
-    commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)),menuCommand(root.StudioInvitation?.available?'Share files':'Share','share',()=>shareArtifact(id)),menuCommand('Copy link','copy',()=>copyArtifactLink(item)),{separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
+    if(root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
+    if(!sharedEditor)commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)),menuCommand(root.StudioInvitation?.available?'Share files':'Share','share',()=>shareArtifact(id)));
+    commands.push(menuCommand('Copy link','copy',()=>copyArtifactLink(item)));
+    if(!sharedEditor)commands.push({separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
     showHubMenu(anchor,'Artifact actions',commands,point);
   }
   const fileRecords=item => (item.files || []).map(file=>typeof file==='string'?{path:file}:file);

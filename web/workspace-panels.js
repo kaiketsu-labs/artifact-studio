@@ -164,7 +164,16 @@
       if (!available) { uncover(); state.focus = false; doc.body.classList.remove('workspace-clean-view'); if (lastFocus) { lastFocus = false; onViewChange(false); } exit.hidden = true; exitArea.hidden = true; return; }
       apply();
     }
-    return {refresh, enterView() { if (workspace && right && !workspace.classList.contains('is-empty') && !workspace.classList.contains('is-sorter')) { state.focus = true; apply(); } }, exitView() { state.focus = false; apply(); }};
+    return {
+      refresh,
+      enterView() { if (workspace && right && !workspace.classList.contains('is-empty') && !workspace.classList.contains('is-sorter')) { state.focus = true; apply(); } },
+      exitView() { state.focus = false; apply(); },
+      openChat() {
+        state.focus = false;
+        if (right && closed('right')) toggle('right');
+        else apply();
+      },
+    };
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = {create};
   else root.WorkspacePanels = {create};
