@@ -5,7 +5,6 @@
 
 ### Features
 
-* add Docker server with persistent workspace and sandboxed rendering ([73e2ffa](https://github.com/kaiketsu-labs/artifact-studio/commit/73e2ffa4be3871cda98e0baf78735a209fb6b678))
 * add Docker server with persistent workspace and sandboxed rendering ([#70](https://github.com/kaiketsu-labs/artifact-studio/issues/70)) ([73e2ffa](https://github.com/kaiketsu-labs/artifact-studio/commit/73e2ffa4be3871cda98e0baf78735a209fb6b678))
 * **chat:** unfold saved previews from reference pills ([#71](https://github.com/kaiketsu-labs/artifact-studio/issues/71)) ([501c863](https://github.com/kaiketsu-labs/artifact-studio/commit/501c863965cf693a013e411107e5b1f83f7feeed))
 * run Artifact Studio server with Docker Compose ([4577a59](https://github.com/kaiketsu-labs/artifact-studio/commit/4577a59af942b0ffe07b6054908a25257ff6e1ce))
