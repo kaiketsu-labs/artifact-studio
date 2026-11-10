@@ -1,6 +1,7 @@
 """Verify that overlapping shares stay scoped when a project grant is revoked."""
 
 import json
+import os
 import re
 from contextlib import closing
 from pathlib import Path
@@ -8,8 +9,15 @@ from typing import cast
 from urllib.parse import urlsplit
 
 import httpx
+import pytest
+from playwright.sync_api import expect, sync_playwright
 
-from tests.integration.multiplayer_fixture import PREVIEW, running_multiplayer_app
+from tests.integration.multiplayer_fixture import (
+    PREVIEW,
+    WORKSPACE,
+    routed_multiplayer_context,
+    running_multiplayer_app,
+)
 from tests.test_multiplayer_server import accept, grant, human
 from tests.test_multiplayer_simulation import Peer
 
@@ -93,3 +101,50 @@ def test_project_revoke_recalculates_existing_agent_and_preview_access(tmp_path:
             )
             assert peer.call("revise_artifact", **edit).is_error
             assert editor.get(f"{artifacts}/{app.artifact_id}/state").json()["revision"] == 2
+
+
+@pytest.mark.browser
+@pytest.mark.skipif(
+    os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+)
+def test_two_editors_share_notes_in_the_regular_studio(tmp_path: Path) -> None:
+    """Both identities save notes through the same controls and see the other edit."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as guest,
+        sync_playwright() as playwright,
+    ):
+        accept(guest, grant(owner, "alice", app.deck_id))
+        browser = playwright.chromium.launch()
+        try:
+            with (
+                routed_multiplayer_context(browser, app) as owner_context,
+                routed_multiplayer_context(browser, app, "alice") as guest_context,
+            ):
+                first, second = owner_context.new_page(), guest_context.new_page()
+                for page in (first, second):
+                    page.goto(WORKSPACE)
+                    page.get_by_role("button", name=re.compile("Open Fictional team deck")).click()
+                    expect(page.locator("#slide-title")).to_be_visible()
+                second.locator('#slides button[data-id="next"]').click()
+                for page, note in (
+                    (first, "Owner note on cover"),
+                    (second, "Collaborator note on next slide"),
+                ):
+                    page.locator("#notes-panel summary").click()
+                    field = page.get_by_role("textbox", name="Speaker notes")
+                    expect(field).to_be_editable()
+                    field.fill(note)
+                    field.press("Tab")
+
+                first.locator('#slides button[data-id="next"]').click()
+                second.locator('#slides button[data-id="cover"]').click()
+                expect(first.get_by_role("textbox", name="Speaker notes")).to_have_value(
+                    "Collaborator note on next slide", timeout=15000
+                )
+                expect(second.get_by_role("textbox", name="Speaker notes")).to_have_value(
+                    "Owner note on cover", timeout=15000
+                )
+        finally:
+            browser.close()
