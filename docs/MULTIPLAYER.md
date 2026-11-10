@@ -157,6 +157,9 @@ parent project's title and brief. Sharing includes the artifact source, brief an
 speaker notes. Existing local review history and unreleased feedback stay in the
 local app; multiplayer starts new conversations.
 
+Guests see current thumbnails in the regular library. Studio checks the grant
+on each cover request and keeps older thumbnail revisions out of the shared view.
+
 In standalone collaboration, the server owner creates isolated workspaces with
 **＋** beside the selector. Invited
 people can join several; this version reserves workspace creation and access

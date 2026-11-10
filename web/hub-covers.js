@@ -2,7 +2,7 @@
 ((root)=>{
   'use strict';
   const MiB=1024*1024;
-  const coverURL=value=>typeof value==='string' && /^\/api\/hub\/previews\/[^/?#]+\?v=[^#]+$/.test(value)?value:'';
+  const coverURL=value=>typeof value==='string' && /^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/hub\/previews\/[^/?#]+\?v=[^#]+$/.test(value)?value:'';
   const anchor=image=>image.closest('[data-cover-container],.hub-cover') || image;
   function create({view=root,document=view.document,concurrency=2,maxEntries=32,maxBytes=24*MiB,maxItemBytes=8*MiB,retryLimit=6,onChanged=()=>{},now=()=>Date.now()}={}){
     const cache=new Map(),failures=new Map(),active=new Map(),changed=new Set();
@@ -41,9 +41,9 @@
       image.hidden=!painted || !record.visible;
       if(!record.visible){image.removeAttribute('src');record.loadedKey=null;}
       if(card)card.dataset.previewState=state;
-      if(label){label.hidden=!painted || current;label.textContent=state==='unavailable'?'Earlier preview':'Updating preview';}
+      if(label){label.hidden=current || !painted && state!=='loading';label.textContent=state==='loading'?'Loading preview':state==='unavailable'?'Earlier preview':'Updating preview';}
       if(open){
-        const description=state==='unavailable'?(painted?'Showing an earlier saved preview.':'Preview temporarily unavailable.')+' You can still open this artifact.'+(diagnostic?' '+diagnostic:''):painted&&!current?'Showing an earlier saved preview while the current version updates.':'';
+        const description=state==='unavailable'?(painted?'Showing an earlier saved preview.':'Preview temporarily unavailable.')+' You can still open this artifact.'+(diagnostic?' '+diagnostic:''):state==='loading'?'Preview loading.':painted&&!current?'Showing an earlier saved preview while the current version updates.':'';
         description?open.setAttribute('aria-description',description):open.removeAttribute('aria-description');
       }
       if(button){

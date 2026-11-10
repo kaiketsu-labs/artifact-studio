@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from . import __version__
 from .artifact_api import ProjectInput
@@ -20,6 +20,7 @@ from .deployment import DeploymentConfig
 from .history_api import history_routes
 from .hosted_policy import deck_asset_response
 from .hosted_presenter import hosted_presenter_router
+from .hub_previews import cover_metadata, request_current_cover
 from .models import DeckView, FeedbackWorkflow, SlideView
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
 from .multiplayer_http import MultiplayerAuth
@@ -169,6 +170,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             result: list[dict[str, object]] = []
             for item in items:
                 entry = artifact_payload(item, visible_project=item.project_id in projects)
+                entry.update(cover_metadata(store, item, scoped=True))
                 project = cast(str, entry["project_id"])
                 info = projects.setdefault(
                     project, {"id": project, "title": "Shared with me", "artifact_count": 0}
@@ -185,6 +187,21 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             hub.manage(actor, Scope(workspace))
             item = ArtifactStore(hub.store(workspace)).create_project(body.title, body.context)
             return {"id": item.id, "title": item.title}
+
+    @app.get("/api/hub/previews/{artifact_id}")
+    def thumbnail(request: Request, artifact_id: str, v: str = "") -> Response:
+        """Serve only the current PNG cover for an artifact the guest can still see."""
+        with hub.guard(actor_of(request), artifact_scope(request, artifact_id)) as store:
+            item = ArtifactStore(store).get_artifact(artifact_id)
+            reply = request_current_cover(store, item, v)
+            if reply.path is not None:
+                return FileResponse(reply.path, media_type="image/png")
+            message = reply.message if reply.status < 500 else "The preview is unavailable."
+            return JSONResponse(
+                {"code": reply.code, "message": message},
+                status_code=reply.status,
+                headers={"Retry-After": str(reply.retry_after)},
+            )
 
     @app.get("/api/decks")
     def decks(request: Request) -> list[dict[str, str]]:
