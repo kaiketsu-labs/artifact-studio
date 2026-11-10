@@ -1,6 +1,6 @@
 /* The existing editor chrome with actions limited to the shared resource. */
 [data-shared-editor] :is(
-  [data-action="new-project"], [data-action="import"], [data-action="project-add"],
+  [data-action="import"], [data-action="project-add"],
   [data-action="favorite-slides"], [data-project="designs"], [data-action="context"],
   [data-action="approve"], [data-action="move"],
   [data-design-action], [data-favorite], [data-star-kind], .hub-card-star,
@@ -10,6 +10,9 @@
   #libraries-button, #removed-presentations,
   #remove-presentation, #new-project-option, [data-action="history"]
 ) {
+  display: none !important;
+}
+[data-shared-editor]:not([data-workspace-owner]) [data-action="new-project"] {
   display: none !important;
 }
 #shared-deck-role {

@@ -5,7 +5,7 @@
   const editMarker = '\n\nEdit details:\n';
   const replacementMarker = '\nReplacement text:\n';
   const anchorFields = ['selector', 'label', 'quote', 'section', 'start', 'end', 'x', 'y', 'width', 'height', 'region', 'viewport', 'state'];
-  const base = id => `/api/workspaces/default/artifacts/${encodeURIComponent(id)}`;
+  const base = id => `/api/workspaces/${root.ArtifactSession?.workspace || 'default'}/artifacts/${encodeURIComponent(id)}`;
   const inChannel = (path, channel) => `${path}?${new URLSearchParams({channel})}`;
 
   /** Keep portable anchors and discard the native editor's HTML snapshot and UI metadata. */

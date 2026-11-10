@@ -29,15 +29,17 @@ The container keeps sharing state in `/data/state/multiplayer` and publishes its
 port on host loopback. Keep the configuration file readable by the container and
 mounted read-only. [Hosted configuration checks](HOSTED.md#check-safety-before-starting).
 
-Invitations to the default workspace open the regular Studio library and editor.
+Invitations open the regular Studio library and editor in the invited workspace.
 Guests see only granted projects and artifacts. View, Comment and Edit grants
 control the same editor. Edit grants support speaker notes, slide organization,
 approval and edits through a scoped agent. **Agent connection** in the regular
 menu connects your own agent to the selected artifact or project. Shared and
 My agent conversations appear in the regular sidebar. The owner can switch
 between **Collaborate** and **Local review**; older local messages remain private
-to the owner. Additional isolated workspaces still open in Together. Host
-administration stays on the server.
+to the owner. Use **Hosted** in the library or editor to switch workspaces. The
+server owner can also create a separate workspace there. Open **New project**
+in that workspace to create a project and use its **Share link…** menu to invite
+a collaborator. Host administration stays on the server.
 
 The standalone collaboration server remains available for existing deployments.
 
@@ -155,7 +157,8 @@ parent project's title and brief. Sharing includes the artifact source, brief an
 speaker notes. Existing local review history and unreleased feedback stay in the
 local app; multiplayer starts new conversations.
 
-The server owner creates isolated workspaces with **＋** beside the selector. Invited
+In standalone collaboration, the server owner creates isolated workspaces with
+**＋** beside the selector. Invited
 people can join several; this version reserves workspace creation and access
 management to the server/workspace owner. Switching the browser workspace never
 retargets an existing agent connection.

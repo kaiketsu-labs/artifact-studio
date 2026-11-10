@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from .models import AgentContext
+from .multiplayer_access import Actor, workspace_editor_path
 from .projects import AssetEmbedder
 from .storage import SlideMarkup, Store
 from .visuals import ScopedDeckEmbedder
@@ -155,6 +156,15 @@ def hosted_presenter_router(
                 )
         except (OSError, ValueError) as error:
             raise HTTPException(status_code=404, detail="Presentation unavailable") from error
+        workspace = getattr(request.state, "editor_workspace", "default")
+        root = workspace_editor_path(str(workspace))
+        actor = getattr(request.state, "actor", None)
+        if scoped_access is not None and audience == "0" and isinstance(actor, Actor):
+            document = document.replace(
+                '<html lang="en">',
+                f'<html lang="en" data-note-owner="{escape(actor.person, quote=True)}">',
+                1,
+            )
         return HTMLResponse(
             document,
             headers={
@@ -167,7 +177,7 @@ def hosted_presenter_router(
                     f"{public_url}/runtime/ {public_url}/web/; "
                     "style-src 'unsafe-inline'; img-src data: blob:; font-src data:; "
                     "media-src data: blob:; frame-src about:; "
-                    f"connect-src {public_url}/api/decks/; "
+                    f"connect-src {public_url}{root}api/decks/; "
                     "worker-src 'none'; object-src 'none'; base-uri 'none'; "
                     "form-action 'none'; frame-ancestors 'self'"
                 ),

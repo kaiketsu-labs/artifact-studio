@@ -5,6 +5,7 @@
   if (!button) return;
 
   const sessionInfo = root.ArtifactSession.get();
+  const workspaceAPI = '/api/workspaces/' + root.ArtifactSession.workspace;
   async function scopedRequest(path, payload) {
     const response = await fetch(path, payload === undefined ? {} : {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload),
@@ -39,7 +40,7 @@
     const form = dialog.querySelector('form'), output = dialog.querySelector('.studio-invite-result');
     const status = dialog.querySelector('[role="status"]'), error = dialog.querySelector('[role="alert"]');
     const failed = reason => { error.textContent = reason.message; error.hidden = false; };
-    const agentsPath = '/api/workspaces/default/agents';
+    const agentsPath = workspaceAPI + '/agents';
     async function loadAgents() {
       const agents = await scopedRequest(agentsPath);
       const list = dialog.querySelector('.studio-access-list');
@@ -109,7 +110,7 @@
     const manage = dialog.querySelector('.studio-invite-manage');
     async function loadAccess() {
       const query = new URLSearchParams({kind, resource: id});
-      const access = await scopedRequest('/api/workspaces/default/access?' + query);
+      const access = await scopedRequest(workspaceAPI + '/access?' + query);
       const list = manage.querySelector('.studio-access-list');
       const rows = [...access.grants, ...access.invitations.map(item => ({...item, pending: true}))];
       list.replaceChildren(...rows.map(item => {
@@ -124,7 +125,7 @@
             return;
           }
           button.disabled = true;
-          try { await scopedRequest('/api/workspaces/default/access/' + encodeURIComponent(item.id) + '/revoke', {kind,resource:id}); await loadAccess(); }
+          try { await scopedRequest(workspaceAPI + '/access/' + encodeURIComponent(item.id) + '/revoke', {kind,resource:id}); await loadAccess(); }
           catch (reason) { error.textContent=reason.message;error.hidden=false;button.disabled=false; }
         });
         row.append(label, button);
@@ -147,12 +148,10 @@
       submit.disabled = true; error.hidden = true; output.hidden = true; notice.textContent = '';
       const fields = new FormData(form);
       try {
-        const result = await scopedRequest('/api/workspaces/default/invitations', {
+        const result = await scopedRequest(workspaceAPI + '/invitations', {
           kind, resource: id, email: fields.get('email'), role: fields.get('role'),
         });
-        const invitation = new URL(result.url);
-        invitation.pathname = '/';
-        link.value = invitation.href;
+        link.value = result.url;
         output.hidden = false;
         if (manage.open) await loadAccess();
         root.requestAnimationFrame(() => { if (dialog.open) output.querySelector('button').focus(); });
@@ -180,14 +179,8 @@
       try {
         const scope = await scopedRequest('/api/invitations/accept', {token});
         const query = new URLSearchParams();
-        if (scope.workspace === 'default') {
-          if (scope.kind === 'project' || scope.kind === 'artifact') query.set(scope.kind, scope.resource);
-          root.location.replace('/' + (query.size ? '?' + query : ''));
-        } else {
-          query.set('workspace', scope.workspace);
-          if (scope.kind === 'artifact') query.set('artifact', scope.resource);
-          root.location.replace('/together?' + query);
-        }
+        if (scope.kind === 'project' || scope.kind === 'artifact') query.set(scope.kind, scope.resource);
+        root.location.replace(root.ArtifactSession.home(scope.workspace) + (query.size ? '?' + query : ''));
       } catch (reason) {
         error.textContent = reason.message; error.hidden = false; submit.disabled = false;
       }
@@ -208,25 +201,15 @@
     button.hidden = !!session.scoped_editor;
     const token = new URLSearchParams(root.location.hash.slice(1)).get('invite');
     if (token && token.length <= 200) showJoin(session, token);
-    root.StudioInvitation.available = !session.scoped_editor;
-    const open = (action = '') => {
-      const source = new URLSearchParams(root.location.search);
-      const target = new URL(session.collaboration_url, root.location.origin);
-      target.searchParams.set('workspace', 'default');
-      const deck = source.get('deck');
-      const artifact = button.closest('.hub-top') ? button.dataset.artifact : deck;
-      if (artifact) target.searchParams.set('artifact', artifact);
-      if (deck && root.location.hash) target.searchParams.set('slide', root.location.hash.slice(1));
-      if (action) target.searchParams.set('action', action);
-      root.location.assign(target);
-    };
+    root.StudioInvitation.available = !session.scoped_editor || session.workspace_owner === true;
+    document.documentElement.toggleAttribute('data-workspace-owner', session.workspace_owner === true);
     const chatURL = new URL(root.location.href);
     const shared = chatURL.searchParams.get('chat') === 'shared';
     if (shared && !session.scoped_editor) root.SlideIcons.button(button, 'chat', 'Local review', true);
     button.addEventListener('click', () => {
       const current = new URL(root.location.href);
       const artifact = current.searchParams.get('deck') || button.dataset.artifact;
-      if (!artifact || session.scoped_editor) { open(); return; }
+      if (!artifact || session.scoped_editor) { document.querySelector('[data-session-mode]')?.click(); return; }
       if (!root.dispatchEvent(new CustomEvent('studio:before-conversation-change', {cancelable: true}))) return;
       if (shared) current.searchParams.delete('chat');
       else current.searchParams.set('chat', 'shared');
@@ -240,7 +223,7 @@
         const params = new URLSearchParams(root.location.search);
         const artifact = params.get('deck') || button.dataset.artifact;
         const project = params.get('project');
-        if (!artifact && (!project || project === 'shared-with-me') && session.scoped_editor) {
+        if (!artifact && (!project || project === 'shared-with-me') && session.scoped_editor && !session.workspace_owner) {
           const dialog = document.createElement('dialog');
           dialog.className = 'studio-share';
           dialog.innerHTML = '<header class="studio-share-header"><h2>Agent connection</h2><button type="button" aria-label="Close">×</button></header><p class="studio-invite-note">Open a shared artifact to connect an agent.</p>';

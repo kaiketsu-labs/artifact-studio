@@ -2,6 +2,7 @@
 ((root)=>{
   'use strict';
   function create({api,onRestored=()=>{},onOpened=()=>{}}){
+    const studioPath=path=>root.ArtifactSession?.path?.(path) ?? path;
     const doc=root.document,escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])),icon=name=>root.SlideIcons.svg(name);
     const dialog=doc.createElement('dialog');dialog.className='version-history';dialog.setAttribute('aria-labelledby','version-history-title');
     dialog.innerHTML=`<header role="presentation"><div><h2 id="version-history-title">Version history</h2><p class="version-subtitle"></p></div><div class="version-actions"><select aria-label="Version filter"><option value="content">Content changes</option><option value="all">All saves</option></select><button type="button" data-history-close aria-label="Close version history">${icon('close')}</button></div></header><div class="version-layout"><nav class="version-list" aria-label="Saved versions"></nav><section class="version-detail"><div class="version-preview-heading"><strong class="version-name"></strong><span class="version-current"></span></div><p class="version-filter-help"></p><div class="version-preview" aria-label="Saved version preview"></div><div class="version-footer"><details><summary>About this preview</summary><p class="version-fidelity"></p></details><button type="button" class="version-restore">${icon('restore')}<span>Restore version</span></button></div><p class="version-confirm" hidden>Restore as a new version? Current notes stay unchanged. <button type="button" data-confirm-restore>Restore</button> <button type="button" data-cancel-restore>Cancel</button></p><p class="version-error" role="alert"></p><p class="version-status" role="status"></p></section></div>`;
@@ -20,7 +21,7 @@
       try{while(thumbnailQueue.length&&dialog.open){
         const id=thumbnailQueue.shift();if(thumbnails.has(id)){paintThumbnail(id);continue;}
         const current=thumbnailEpoch,path=target.path;let url=null;
-        try{const response=await root.fetch(`${path}/thumbnail?version_id=${encodeURIComponent(id)}`);if(!response.ok)throw Error('Thumbnail unavailable');url=root.URL.createObjectURL(await response.blob());}catch{}
+        try{const response=await root.fetch(studioPath(`${path}/thumbnail?version_id=${encodeURIComponent(id)}`));if(!response.ok)throw Error('Thumbnail unavailable');url=root.URL.createObjectURL(await response.blob());}catch{}
         if(current!==thumbnailEpoch){if(url)root.URL.revokeObjectURL(url);continue;}
         thumbnails.set(id,url);paintThumbnail(id);
         while(thumbnails.size>64){const oldest=thumbnails.keys().next().value,previous=thumbnails.get(oldest);if(previous)root.URL.revokeObjectURL(previous);thumbnails.delete(oldest);}
@@ -47,7 +48,7 @@
     function select(item){
       selected=item;restoreRequest=null;$('.version-confirm').hidden=true;$('.version-error').textContent='';$('.version-name').textContent=`Version ${item.revision}`;$('.version-current').textContent=item.is_current?'Current':'';$('.version-restore').disabled=item.is_current||busy;render();
       const container=$('.version-preview');container.replaceChildren();const frame=doc.createElement('iframe');frame.title=`Version ${item.revision} preview`;frame.setAttribute('sandbox','allow-scripts allow-downloads');frame.referrerPolicy='no-referrer';
-      frame.src=target.kind==='slide'?`${target.path}/preview?version_id=${encodeURIComponent(item.version_id)}`:`/api/artifacts/${encodeURIComponent(target.artifactId)}/preview?revision=${encodeURIComponent(item.version_id.split(':')[1])}`;
+      frame.src=studioPath(target.kind==='slide'?`${target.path}/preview?version_id=${encodeURIComponent(item.version_id)}`:`/api/artifacts/${encodeURIComponent(target.artifactId)}/preview?revision=${encodeURIComponent(item.version_id.split(':')[1])}`);
       container.append(frame);scale();const row=$('.version-list').querySelector(`[data-version="${CSS.escape(item.version_id)}"]`);row?.focus({preventScroll:true});row?.scrollIntoView({block:'nearest'});
     }
     async function load(){

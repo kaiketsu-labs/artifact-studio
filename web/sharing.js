@@ -24,7 +24,7 @@
     let target = null, format = null, prepared = null, busy = false, epoch = 0, trigger = null;
     let capabilities = null, preparing = null, nativeFile = null, generation = 0, nativeState = 'waiting';
     async function exchange(path, body) {
-      const response = await view.fetch(path, body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const response = await view.fetch(view.ArtifactSession?.path?.(path) ?? path, body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       const result = await response.json();
       if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Could not prepare the shared file.');
       return result;

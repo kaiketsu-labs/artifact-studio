@@ -56,7 +56,7 @@
       frame.addEventListener('artifact-studio:display-change',event=>{if(session===current)current.deliberate=event.detail!==false&&(current.native||currentFullscreen()===current.layer);});
       if(prepare)Promise.resolve().then(()=>prepare()).then(load,error=>{if(session===current)void close().then(()=>onError(error.message));});
       else load();
-      frame.addEventListener('load',()=>{if(session?.frame!==frame)return;try{if(frame.contentWindow.location.pathname==='/'&&new URL(frame.contentWindow.location.href).searchParams.has('deck')){void close();return;}}catch{}frame.focus();notify();});
+      frame.addEventListener('load',()=>{if(session?.frame!==frame)return;try{if(frame.contentWindow.location.pathname===(view.ArtifactSession?.home?.() || '/')&&new URL(frame.contentWindow.location.href).searchParams.has('deck')){void close();return;}}catch{}frame.focus();notify();});
     }
     view.addEventListener('message',event=>{
       if(!session||event.source!==session.frame.contentWindow||event.origin!==view.location.origin||event.data?.type!=='artifact-studio:presentation')return;

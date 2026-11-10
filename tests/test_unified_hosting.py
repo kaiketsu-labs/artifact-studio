@@ -11,8 +11,15 @@ import httpx
 import pytest
 
 from artifact_studio.deployment import DeploymentConfig
+from artifact_studio.multiplayer_access import Sharing
 from artifact_studio.unified import create_app
-from tests.integration.multiplayer_fixture import PREVIEW, WORKSPACE, running_multiplayer_app
+from tests.design_factory import TEMPLATE_ID, make_design
+from tests.integration.multiplayer_fixture import (
+    PREVIEW,
+    WORKSPACE,
+    MultiplayerApp,
+    running_multiplayer_app,
+)
 from tests.test_multiplayer_server import accept, agent, grant, human
 from tests.test_multiplayer_simulation import Peer
 
@@ -49,7 +56,7 @@ def test_owner_editor_and_guest_access_use_the_same_store(tmp_path: Path) -> Non
             owner.get("/", params={"workspace": "default", "artifact": app.artifact_id}).headers[
                 "location"
             ]
-            == f"/together?workspace=default&artifact={app.artifact_id}"
+            == f"/?artifact={app.artifact_id}"
         )
 
         token = grant(owner, "alice", app.artifact_id, "view")
@@ -217,3 +224,92 @@ def test_both_preview_types_stay_on_the_isolated_host(tmp_path: Path) -> None:
             )
             assert owner.get(source, headers={"host": "preview.example.test"}).is_success
             assert owner.get(source, headers={"origin": WORKSPACE}).status_code == 404
+
+
+def seed_isolated_presentation(root: Path, app: MultiplayerApp, workspace: str) -> None:
+    """Give an isolated workspace a different deck with the same ID as the default deck."""
+    shared = Sharing(root / "sharing", app.store, "owner@example.test")
+    with shared.locked():
+        isolated = shared.store(workspace)
+        make_design(isolated.root / TEMPLATE_ID)
+        isolated.create(app.deck_id, "Isolated presentation", "test-brand")
+
+
+def test_native_workspace_routes_never_use_the_default_collection(tmp_path: Path) -> None:
+    """The same presentation ID must resolve, render and save in just one workspace."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as guest,
+        human(app, "bob") as outsider,
+    ):
+        workspace = owner.post("/api/workspaces", json={"title": "Isolated collection"}).json()[
+            "id"
+        ]
+        prefix = f"/workspaces/{workspace}"
+        seed_isolated_presentation(root, app, workspace)
+        assert owner.get(f"{prefix}/").is_success
+        assert owner.get(f"{prefix}/api/session").json()["workspace_owner"]
+        assert owner.post(
+            f"{prefix}/api/hub/projects", json={"title": "Isolated project"}
+        ).is_success
+        assert outsider.get(f"{prefix}/api/hub").json()["projects"] == []
+        assert outsider.get(f"{prefix}/api/decks/{app.deck_id}").status_code == 404
+        assert owner.get(f"{prefix}/api/workspaces/default/catalog").status_code == 404
+        assert (
+            owner.get(f"{prefix}/api/hub", headers={"host": "preview.example.test"}).status_code
+            == 404
+        )
+        invite = owner.post(
+            f"/api/workspaces/{workspace}/invitations",
+            json={
+                "kind": "artifact",
+                "resource": app.deck_id,
+                "email": "alice@example.test",
+                "role": "edit",
+            },
+        ).json()["url"]
+        assert invite.startswith(f"{WORKSPACE}{prefix}/#invite=")
+        accept(guest, invite.split("#invite=")[1])
+        assert not guest.get(f"{prefix}/api/session").json()["workspace_owner"]
+        assert guest.post(f"{prefix}/api/hub/projects", json={"title": "Denied"}).status_code == 404
+        assert guest.get(f"/api/decks/{app.deck_id}").status_code == 404
+        assert (
+            guest.get(
+                "/together",
+                params={"workspace": workspace, "artifact": app.deck_id, "slide": "cover"},
+            ).headers["location"]
+            == f"{prefix}/?artifact={app.deck_id}#cover"
+        )
+        deck = f"{prefix}/api/decks/{app.deck_id}"
+        source = guest.get(deck).json()
+        assert source["title"] == "Isolated presentation"
+        before = source["slides"][0]
+        assert guest.post(
+            deck + "/slides/cover/notes",
+            json={
+                "notes": "Only in the isolated workspace",
+                "expected_notes": before["notes"],
+                "expected_revision": before["notes_revision"],
+            },
+        ).is_success
+        assert owner.get(deck).json()["slides"][0]["notes"] == "Only in the isolated workspace"
+        assert owner.get(f"/api/decks/{app.deck_id}").json()["slides"][0]["notes"] != (
+            "Only in the isolated workspace"
+        )
+        presenter = guest.get(f"{prefix}/decks/{app.deck_id}/presenter")
+        assert presenter.is_success and "Only in the isolated workspace" in presenter.text
+        assert f"{WORKSPACE}{prefix}/api/decks/" in presenter.headers["content-security-policy"]
+        assert guest.get(f"{prefix}/decks/{app.deck_id}/theme.css").is_success
+        access = owner.get(
+            f"/api/workspaces/{workspace}/access",
+            params={"kind": "artifact", "resource": app.deck_id},
+        ).json()
+        grant_id = access["grants"][0]["id"]
+        assert owner.post(
+            f"/api/workspaces/{workspace}/access/{grant_id}/revoke",
+            json={"kind": "artifact", "resource": app.deck_id},
+        ).is_success
+        assert guest.get(deck).status_code == 404
+        assert guest.get(f"{prefix}/decks/{app.deck_id}/theme.css").status_code == 404
