@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import errno
 import hashlib
 import json
 import re
@@ -12,7 +13,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Callable, Generator
-from contextlib import contextmanager, suppress
+from contextlib import ExitStack, contextmanager, suppress
 from datetime import UTC, datetime
 from html import escape
 from html.parser import HTMLParser
@@ -58,6 +59,13 @@ DESIGN_FILES = (
     "PREFERENCES.md",
     "README.md",
     "assets",
+)
+DESIGN_COPY_FILES = (
+    "index.html",
+    "presentation.js",
+    "icons.js",
+    "PREFERENCES.md",
+    "AGENT-GUIDE.md",
 )
 FEEDBACK_FILES = TypeAdapter(list[FeedbackFile])
 
@@ -1179,9 +1187,9 @@ class Store:
             )
         return design_id
 
-    def design(self, design_id: str) -> DesignView:
+    def design(self, design_id: str, *, include_archived: bool = True) -> DesignView:
         """Resolve an explicitly selected design without hidden session state."""
-        for design in self.designs(include_archived=True):
+        for design in self.designs(include_archived=include_archived):
             if design.id == design_id:
                 return design
         raise ValueError(f"Unknown design '{design_id}'. Call list_designs to choose a design.")
@@ -1233,6 +1241,9 @@ class Store:
         request_id: str = "",
         *,
         brief_author: Literal["user", "agent"] = "user",
+        project_id: str = "",
+        scoped: bool = False,
+        disk_reserve_bytes: int = 0,
     ) -> Deck:
         """Create a branded starting canvas with a durable brief for the authoring agent."""
         if request_id and not 8 <= len(request_id) <= 100:
@@ -1240,6 +1251,7 @@ class Store:
         payload_hash = digest(
             json.dumps(
                 [deck_id, title, design_id, brief, [item.model_dump() for item in files or []]]
+                + ([project_id] if project_id else [])
                 + (["agent"] if brief_author == "agent" else []),
                 sort_keys=True,
                 separators=(",", ":"),
@@ -1253,7 +1265,7 @@ class Store:
         if len(brief) > 10_000:
             raise ValueError("Keep the presentation brief under 10,000 characters.")
         target = self.folder(deck_id)
-        with self.connect() as db:
+        with ExitStack() as rollback, self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             prior = db.execute(
                 "SELECT request_id,payload_hash,document,marker "
@@ -1306,31 +1318,37 @@ class Store:
                 )
             decoded = decode_attachments(files or [])
             design_id = design_id or self.default_design_id()
-            if not design_id:
+            if not design_id and not scoped:
                 raise ValueError(
                     "Add a design from a PPTX, URL or reference before creating slides."
                 )
-            design = self.design(design_id)
-            template = self.folder(design.folder_id)
-            from .design_authoring import design_files, record_design_baseline
+            from .design_authoring import blank_presentation, design_files, record_design_baseline
+            from .presentation_files import ordinary_file
 
-            _ = design_files(template)
+            design = self.design(design_id, include_archived=not scoped) if design_id else None
+            template = self.folder(design.folder_id) if design else None
+            if template is not None:
+                design_inventory = design_files(template)
+                if disk_reserve_bytes:
+                    copy_bytes = sum(
+                        ordinary_file(template / name).stat().st_size
+                        for name in (*DESIGN_COPY_FILES, *design_inventory)
+                    )
+                    if shutil.disk_usage(self.root).free < disk_reserve_bytes + copy_bytes:
+                        raise OSError(errno.ENOSPC, "Not enough workspace storage for this design.")
             target.mkdir()
-            for name in (
-                "index.html",
-                "theme.css",
-                "presentation.js",
-                "icons.js",
-                "PREFERENCES.md",
-                "AGENT-GUIDE.md",
-            ):
-                _ = shutil.copy2(template / name, target / name)
-            _ = shutil.copytree(template / "assets", target / "assets")
-            _ = shutil.copy2(
-                Path(__file__).resolve().parent.parent / "runtime/slideshow.css",
-                target / "slideshow.css",
-            )
-            deck = self.read(deck_id)
+            _ = rollback.callback(shutil.rmtree, target, ignore_errors=True)
+            if template is None:
+                deck = blank_presentation(target, deck_id, title)
+            else:
+                for name in (*DESIGN_COPY_FILES, "theme.css"):
+                    _ = shutil.copy2(template / name, target / name)
+                _ = shutil.copytree(template / "assets", target / "assets")
+                _ = shutil.copy2(
+                    Path(__file__).resolve().parent.parent / "runtime/slideshow.css",
+                    target / "slideshow.css",
+                )
+                deck = self.read(deck_id)
             deck.id, deck.title = deck_id, title
             deck.design_id = design_id
             deck.slides = deck.slides[:1]
@@ -1353,17 +1371,18 @@ class Store:
                         else "Tell your agent who this is for and what it should say."
                     )
                 )
+                if scoped:
+                    slide.sources = []
                 for source in slide.sources:
-                    if source.url.lower().endswith(".pptx") and not source.url.startswith(
-                        ("..", "http")
+                    if (
+                        design
+                        and source.url.lower().endswith(".pptx")
+                        and not source.url.startswith(("..", "http"))
                     ):
                         source.url = f"../{design.folder_id}/{source.url}"
             self.write(deck_id, deck)
-            try:
+            if design:
                 record_design_baseline(self, deck_id)
-            except OSError, ValueError:
-                shutil.rmtree(target)
-                raise
             self.seed_slide_views(db, deck)
             attachments: list[DesignFile] = []
             for file_index, (name, data) in enumerate(decoded):
@@ -1384,7 +1403,7 @@ class Store:
                     TypeAdapter(list[DesignFile]).dump_json(attachments, indent=2)
                 )
             attachment_context = ""
-            if attachments:
+            if attachments and not scoped:
                 attachment_context = (
                     "## Brief attachments\n\n"
                     + "".join(
@@ -1394,13 +1413,15 @@ class Store:
                     )
                     + "\n"
                 )
+            origin = f"Created from the {design.name} design language. " if design else ""
+            brand = "Brand reference: the selected design bundle. " if design else ""
             _ = (target / "README.md").write_text(
-                f"# {title}\n\nCreated from the {design.name} design language. "
+                f"# {title}\n\n{origin}"
                 "Canonical file: index.html.\n\n"
                 f"## Purpose and context\n\n{brief or 'Awaiting the human’s brief.'}\n\n"
                 f"{attachment_context}"
                 f"## Sources and data date\n\nCreated {deck_id[:10]}. "
-                "Brand reference: the selected design bundle. Content sources and factual "
+                f"{brand}Content sources and factual "
                 "data dates still need to be established from the brief.\n\n"
                 "## Preferences and continuation\n\nRead PREFERENCES.md and AGENT-GUIDE.md. "
                 "Use concise, human-readable text and meaningful visuals. Layout examples "
@@ -1410,6 +1431,10 @@ class Store:
             )
             if brief:
                 _ = self.append_feedback(db, deck_id, "", brief_author, brief, "", released=True)
+            if project_id:
+                from .artifacts import write_legacy_project
+
+                write_legacy_project(db, deck_id, project_id)
             index = self.root / "README.md"
             with index.open("a") as file:
                 _ = file.write(
@@ -1422,6 +1447,8 @@ class Store:
                     "INSERT INTO creation_receipts VALUES (?,?,?,?,?)",
                     (deck_id, request_id, payload_hash, deck.model_dump_json(), marker),
                 )
+            db.commit()
+            _ = rollback.pop_all()
         return deck
 
     def brief_files(self, deck_id: str) -> list[DesignFile]:

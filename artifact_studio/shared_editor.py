@@ -1,5 +1,6 @@
 """Expose the usual Studio UI with an explicit, grant-checked guest API."""
 
+import errno
 import mimetypes
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -11,12 +12,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from pydantic import Field
 
 from . import __version__
 from .artifact_api import ArtifactImport, ProjectInput, import_upload
 from .artifact_models import ArtifactView
 from .artifact_preview import artifact_file_headers
-from .artifacts import ArtifactStore
+from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .authentication import AuthProvider, Principal
 from .deck_edit_api import deck_edit_routes
 from .deployment import DeploymentConfig
@@ -24,18 +26,25 @@ from .history_api import history_routes
 from .hosted_policy import deck_asset_response
 from .hosted_presenter import hosted_presenter_router
 from .hub_previews import cover_metadata, request_current_cover
-from .models import DeckView, FeedbackWorkflow, SlideView
+from .models import CreateInput, DeckView, FeedbackWorkflow, SlideView
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
-from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth
+from .multiplayer_http import IMPORT_DISK_RESERVE, OWNER_UPLOAD_LIMITS, MultiplayerAuth
 from .navigation import NavigationSnapshot
 from .sections import sections_hash
 from .storage import ConflictError, Store
 from .version_authors import revision_author
+from .visuals import ScopedDeckEmbedder
 
 PROJECT = Path(__file__).resolve().parents[1]
 SHARED_PROJECT = "shared-with-me"
 ASSET_SUFFIXES = {".css", ".js", ".svg", ".png", ".woff", ".woff2"}
 LEVEL_ROLE: dict[int, Role] = {1: "view", 2: "comment", 3: "edit"}
+
+
+class WorkspacePresentationInput(CreateInput):
+    """Create a presentation in a project owned by the current workspace."""
+
+    project_id: str = Field(default=LEGACY_PROJECT, min_length=1, max_length=100)
 
 
 def actor_of(request: Request) -> Actor:
@@ -66,6 +75,12 @@ def artifact_payload(item: ArtifactView, *, visible_project: bool) -> dict[str, 
     )
     if not visible_project:
         data.update(project_id=SHARED_PROJECT, project_title="Shared with me")
+    if item.legacy_deck_id:
+        data["files"] = [
+            file.model_dump()
+            for file in item.files
+            if file.path != "brief-files.json" and not file.path.startswith("brief-attachments/")
+        ]
     return data
 
 
@@ -113,12 +128,12 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
         """Keep malformed upload contents out of validation responses."""
-        if request.scope["path"] == "/api/artifacts/import":
+        if request.scope["path"] in OWNER_UPLOAD_LIMITS:
             return JSONResponse({"detail": "Check the selected files and project."}, 422)
         return await request_validation_exception_handler(request, error)
 
     @app.get("/")
-    def shell(request: Request, deck: str = "") -> Response:
+    def shell(request: Request, deck: str = "", editor: str = "", new: str = "") -> Response:
         workspace = workspace_of(request)
         if (
             workspace == "default"
@@ -126,14 +141,20 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             and (personal := hub.personal_home(actor_of(request)))
         ):
             return RedirectResponse(workspace_editor_path(personal))
-        page = (PROJECT / "web" / ("index.html" if deck else "hub.html")).read_text()
+        owner = hub.owner(actor_of(request), workspace)
+        creating = editor == "1" and new == "1" and owner
+        page = (PROJECT / "web" / ("index.html" if deck or creating else "hub.html")).read_text()
         root = workspace_editor_path(workspace)
+        owner_attribute = " data-workspace-owner" if owner else ""
         return HTMLResponse(
             page.replace(
                 '<html lang="en">',
-                f'<html lang="en" data-shared-editor data-studio-workspace="{workspace}">',
+                f'<html lang="en" data-shared-editor data-studio-workspace="{workspace}"'
+                f"{owner_attribute}>",
                 1,
-            ).replace('href="/"', f'href="{root}"')
+            )
+            .replace('href="/"', f'href="{root}"')
+            .replace('href="/?editor=1&amp;new=1"', f'href="{root}?editor=1&amp;new=1"')
         )
 
     @app.get("/web/{path:path}")
@@ -254,6 +275,84 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 if hub.level(actor, artifact_scope(request, entry["id"]))
             ]
 
+    @app.post("/api/decks")
+    def new_presentation(request: Request, body: WorkspacePresentationInput) -> dict[str, str]:
+        """Create the native presentation and its project membership in the owned workspace."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        with hub.locked():
+            project_id = "" if body.project_id == LEGACY_PROJECT else body.project_id
+            target = Scope(workspace, "project", project_id) if project_id else Scope(workspace)
+            hub.manage(actor, target)
+            store = hub.store(workspace)
+            encoded_size = sum(len(file.data_base64) for file in body.files)
+            disk_reserve = IMPORT_DISK_RESERVE + 3 * encoded_size
+            if disk_usage(store.root).free < disk_reserve:
+                raise HTTPException(507, "Not enough workspace storage for these files.")
+            try:
+                created = store.create(
+                    body.deck_id,
+                    body.title,
+                    body.design_id,
+                    body.brief,
+                    body.files,
+                    project_id=project_id,
+                    scoped=True,
+                    disk_reserve_bytes=disk_reserve,
+                )
+            except OSError as error:
+                if error.errno == errno.ENOSPC:
+                    raise HTTPException(
+                        507, "Not enough workspace storage for this presentation."
+                    ) from None
+                raise
+            return {"id": created.id, "title": created.title}
+
+    @contextmanager
+    def owned_workspace(request: Request) -> Generator[Store]:
+        """Read private workspace context only as the selected workspace owner."""
+        workspace = workspace_of(request)
+        with hub.locked():
+            hub.manage(actor_of(request), Scope(workspace))
+            yield hub.store(workspace)
+
+    @app.get("/api/designs")
+    def designs(request: Request) -> list[dict[str, str]]:
+        """List only reusable presentation designs owned by this workspace."""
+        with owned_workspace(request) as store:
+            return [
+                {"id": item.id, "name": item.name, "description": item.description}
+                for item in store.designs()
+            ]
+
+    @app.get("/api/preferences")
+    def preferences(request: Request) -> dict[str, str]:
+        """Supply this workspace's selected default for the presentation picker."""
+        with owned_workspace(request) as store:
+            return {"default_design_id": store.default_design_id()}
+
+    @app.get("/api/designs/{design_id}/preview")
+    def design_preview(request: Request, design_id: str) -> HTMLResponse:
+        """Show only the cover of an owned design in an inert picker frame."""
+        with owned_workspace(request) as store:
+            folder = store.design(design_id, include_archived=False).folder_id
+            slide = store.read(folder).slides[0]
+            embedder = ScopedDeckEmbedder(store, folder)
+            theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
+            markup = embedder.markup(slide.html)
+        return HTMLResponse(
+            '<!doctype html><html><head><meta charset="utf-8"><style>'
+            + theme
+            + "\nhtml,body{width:100%;height:100%;overflow:hidden}</style>"
+            + f"</head><body>{markup}</body></html>",
+            headers={
+                "Content-Security-Policy": (
+                    "default-src 'none'; sandbox; style-src 'unsafe-inline'; img-src data:; "
+                    "font-src data:; media-src data:; base-uri 'none'; form-action 'none'; "
+                    f"frame-ancestors {config.public_url}"
+                )
+            },
+        )
+
     @contextmanager
     def deck_access(request: Request, deck_id: str, role: Role) -> Generator[Store]:
         """Check the grant and confirm this resource is a legacy presentation."""
@@ -270,10 +369,30 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def deck(request: Request, deck_id: str) -> dict[str, object]:
         actor, scope = actor_of(request), artifact_scope(request, deck_id)
         with deck_access(request, deck_id, "view") as store:
-            return {
+            result: dict[str, object] = {
                 **shared_deck(store, deck_id).model_dump(),
                 "access_role": LEVEL_ROLE[hub.level(actor, scope)],
             }
+            if hub.owner(actor, scope.workspace):
+                result["project_id"] = ArtifactStore(store).get_artifact(deck_id).project_id
+                result["brief_files"] = [
+                    {"name": file.name, "size": file.size} for file in store.brief_files(deck_id)
+                ]
+            return result
+
+    @app.get("/api/decks/{deck_id}/brief-files/{file_index}")
+    def brief_attachment(request: Request, deck_id: str, file_index: int) -> FileResponse:
+        """Download a private brief attachment as its original filename."""
+        with owned_workspace(request), deck_access(request, deck_id, "view") as store:
+            files = store.brief_files(deck_id)
+            if not 0 <= file_index < len(files):
+                raise AccessDenied
+            file = files[file_index]
+            if not Path(file.path).is_relative_to(store.folder(deck_id) / "brief-attachments"):
+                raise AccessDenied
+            return FileResponse(
+                file.path, filename=file.name, media_type="application/octet-stream"
+            )
 
     @app.get("/api/decks/{deck_id}/workflow")
     def workflow(request: Request, deck_id: str) -> FeedbackWorkflow:

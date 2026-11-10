@@ -39,6 +39,15 @@ REMOTE_URL = re.compile(r"(?:https?:)?//[^\s\"'<>)}]+")
 TEXT_TYPES = {".html", ".htm", ".css", ".js", ".mjs", ".svg", ".md", ".json"}
 
 
+def write_legacy_project(db: sqlite3.Connection, deck_id: str, project_id: str) -> None:
+    """Record presentation membership in the caller's transaction."""
+    _ = db.execute(
+        "INSERT INTO artifact_legacy_projects VALUES (?,?) ON CONFLICT(artifact_id) "
+        "DO UPDATE SET project_id=excluded.project_id",
+        (deck_id, project_id),
+    )
+
+
 def relative_path(value: str) -> str:
     """Validate portable relative paths before any filesystem access."""
     path = PurePosixPath(value)
@@ -398,11 +407,7 @@ class ArtifactStore:
                     db.rollback()
                     raise
             _ = self.store.read(artifact_id)
-            _ = db.execute(
-                "INSERT INTO artifact_legacy_projects VALUES (?,?) ON CONFLICT(artifact_id) "
-                "DO UPDATE SET project_id=excluded.project_id",
-                (artifact_id, project_id),
-            )
+            write_legacy_project(db, artifact_id, project_id)
         return self.get_artifact(artifact_id)
 
     def _manifest(

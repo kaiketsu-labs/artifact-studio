@@ -322,11 +322,22 @@
     hubMenu.show({x:point?.x ?? bounds.left+(background?16:0),y:point?.y ?? (background?bounds.top+16:bounds.bottom+4),commands,focus});
   }
   const menuCommand=(label,glyph,run,options={})=>({label,icon:icon(glyph),run,...options});
-  const newPresentation=()=>{if(artifactEditor.finish())root.location.href='/?editor=1&new=1';};
+  function presentationCreationUrl(project){
+    const url=new URL(studioHome,root.location.href);
+    url.search=new URLSearchParams({editor:'1',new:'1'});
+    if(sharedEditor&&selectedProject(project)&&project!=='shared-with-me')url.searchParams.set('project',project);
+    return url.href;
+  }
+  function newPresentation(project=state.project){
+    if(artifactEditor.finish())root.location.href=presentationCreationUrl(project);
+  }
+  if(sharedEditor)doc.querySelector('[data-new-presentation]').addEventListener('click',event=>{
+    event.preventDefault();newPresentation();
+  });
   function creationCommands(project=state.project,parent=selectedFolder()){
     const create=menuCommand('New project','project',()=>projectDialog(false,parent));
     const upload=menuCommand('Import artifact','upload',()=>importDialog(project));
-    if(sharedEditor)return [create,upload];
+    if(sharedEditor)return [create,upload,menuCommand('New presentation','slideAdd',()=>newPresentation(project))];
     return [create,menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),upload,menuCommand('New presentation','slideAdd',newPresentation)];
   }
   /** Resolve tree changes when invoked, retaining the row captured when the menu opened. */
@@ -345,7 +356,10 @@
     const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
     const commands=[menuCommand('Open','folderOpen',()=>home(key))];
     if(sharedEditor){
-      if(canImport()&&project&&!project.legacy)commands.push(menuCommand('Import artifact','upload',()=>importDialog(id)));
+      if(canImport()&&project&&!project.legacy)commands.push(
+        menuCommand('Import artifact','upload',()=>importDialog(id)),
+        menuCommand('New presentation','slideAdd',()=>newPresentation(id))
+      );
       if(project&&root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
       showHubMenu(anchor,'Project actions',commands,point);return;
     }
@@ -510,6 +524,7 @@
     }).join('');
   }
   function library() {
+    if(sharedEditor)doc.querySelector('[data-new-presentation]').href=presentationCreationUrl(state.project);
     const collaboration=doc.querySelector('[data-collaborate]');
     if(collaboration)delete collaboration.dataset.artifact;
     if(!initialProjectRecorded){initialProjectRecorded=true;if(!sharedEditor&&selectedProject(state.project))void quickAccess.visit({project_id:state.project});}
