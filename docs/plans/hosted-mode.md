@@ -195,3 +195,121 @@ session-response/reopen races that restored controls after expiry. Automated
 regressions cover those cases. Real installed-host trust and model continuation,
 and real provider credential revocation, remain deployment acceptance checks.
 Hooks require a supported running host and cannot reopen closed chats.
+
+## Multiplayer expansion: multiple workspaces and inherited sharing
+
+These requirements extend the hosted foundation above. They are planned, not
+implemented by the current draft. A hosted shared workspace alone does not meet
+the multiplayer requirement: the current review lease rejects a second active
+reviewer for the same artifact, and configured members share the whole collection.
+
+### Workspaces and access
+
+The hierarchy is **workspace → project → artifact**. Presentations are artifacts;
+slides remain part of their presentation. A person can own or join several
+workspaces. Each workspace owns its content, rules, designs, conversations,
+history and access grants. A workspace switcher identifies the active workspace
+and whether its server is local or remote. Switching the browser must not silently
+retarget an already-connected agent.
+
+| Share target | Access granted |
+| --- | --- |
+| One artifact | That artifact and its required resources; no access to sibling artifacts or the rest of its project. |
+| One project | The project and its current and future artifacts. |
+| Whole workspace | All current and future projects and artifacts in that workspace. |
+
+Use named invitations and explicit **View**, **Comment** and **Edit** roles, with
+ownership/access management kept separate. Agent permissions are limited by both
+the inviting person's effective access and the connection's selected scope.
+The server must enforce this for browser requests, MCP, events, previews, exports
+and referenced content; a filtered library or an agent prompt is insufficient.
+
+Access inherited from a parent remains visible on children. A narrower direct
+grant does not silently reduce broader inherited access. Removing a direct share
+must explain any access that remains through the project or workspace. Moves
+between projects must show changes to inherited access before confirmation.
+Moving between workspaces is an explicit transfer, not an implicit side effect of
+selecting another workspace.
+
+An artifact-only guest should open the shared item directly and see only
+authorized navigation. Search, recents, favorites, reference pickers and previews
+must not reveal other workspaces or sibling content. Per-workspace storage,
+caches, event streams and browser draft keys require the same isolation. Existing
+single-workspace data should migrate to a named default workspace without copying
+or losing history.
+
+### Sharing experience
+
+Use one **Share** entry on workspace, project and artifact menus. It offers live
+collaboration invitations and access management alongside the existing explicit
+file-copy/export action. A copied file remains a snapshot; the collaboration link
+opens the canonical shared content.
+
+The dialog always names the selected scope and role, lists **People with access**,
+and offers **Copy invitation link**, role changes and revocation. Invitations
+must establish authenticated, scoped access; they are not the existing temporary
+preview capability URLs. Each collaborator connects their own agent identity,
+without receiving the owner's service credentials. Revocation must be checked on
+subsequent requests and writes, including already-running agent operations.
+
+Shared items have a visible shared badge. Parent containers distinguish **Shared**
+from **Contains shared items**, so sharing one presentation does not make its
+whole project appear shared. **Manage access** shows the person, effective role
+and source, for example “Edit · inherited from Project launch”. The active
+workspace and current collaborators remain visible in the editor.
+
+### Multiple agents on one artifact
+
+The existing single-reviewer rule prevents two listening agents from treating
+every feedback message as their task. Keep stale-write protection, but replace
+artifact-wide exclusive review ownership with identified participants, separate
+agent sessions and explicit feedback routing.
+
+By default a person's request goes to their selected agent. A shared request can
+be assigned to another connected agent; claiming/acknowledging it must prevent
+duplicate work. Each participant has an independent delivery cursor. Ending one
+agent session must not disconnect everyone. Unsent drafts and withheld Batch
+feedback remain isolated until their author deliberately submits/releases them.
+Agents may work on different slides concurrently. Concurrent changes to the same
+source retain the current revision/hash checks: a stale write is rejected and
+must be reread and reconciled. This does not promise automatic character-level
+merging or Google Docs-style simultaneous typing.
+
+### How another computer connects
+
+All participants connect to one reachable authoritative Studio server using the
+browser URL and an authenticated MCP connection. Their agents run on their own
+computers; they do not need their own Studio server or synchronized Git checkout.
+The server stores the canonical workspaces. A server can host multiple isolated
+workspaces; a workspace is not synonymous with a server or a hostname.
+
+For regular collaboration, prefer an always-on server running the Docker setup
+behind authenticated HTTPS. It can be a VPS, NAS or another suitable machine.
+For temporary collaboration, the owner's computer can host Studio behind an
+authenticated tunnel; it must remain awake and connected. A shared LAN or VPN is
+another route when all participants can reach it. A localhost URL and a GitHub
+backup do not provide this live connection. Exposing the existing unauthenticated
+local mode is not a hosting solution.
+
+The existing Cloudflare adapter is a reusable transport/login foundation, but its
+static workspace-wide membership and service credentials must evolve to support
+the scoped invitation and delegation model. Adding an invitation button alone
+would not establish those permissions. Multi-workspace implementation must also
+replace the current process-global store selection with explicit request-bound
+workspace routing or isolated workspace services behind a common gateway.
+
+### Multiplayer acceptance journeys
+
+Use two human sessions and two independently authenticated agent connections with
+fictional data in two workspaces. Exercise every share level and role, direct and
+inherited access, invitation acceptance/expiry/revocation, moves that change access,
+and identical artifact IDs in different workspaces. Verify negative access through
+all APIs, MCP, event streams, previews, references and downloads.
+
+Both agents must remain connected to the same presentation, receive only their
+assigned released work, preserve private drafts/Batch feedback, survive one agent
+disconnecting, and handle competing edits without silent loss. Browser reviews
+must verify the workspace switcher, scoped guest navigation, shared/inherited
+badges and Manage access on desktop and narrow layouts. Application simulations
+remain separate from validating real hosting, identity-provider and native-agent
+connections.
