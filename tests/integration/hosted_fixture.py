@@ -6,7 +6,6 @@ provider suitable for deployment. Browser routing simulates the TLS reverse prox
 
 import json
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -20,7 +19,7 @@ from urllib.request import Request, urlopen
 from playwright.sync_api import Browser, BrowserContext, Error, Route
 
 from artifact_studio.storage import Store
-from tests.integration.support import PROJECT
+from tests.integration.support import PROJECT, bound_server_url
 
 WORKSPACE = "https://studio.example.test"
 PREVIEW = "https://preview.example.test"
@@ -70,10 +69,6 @@ authentication.load_auth_provider = lambda config: FixtureProvider()
 from artifact_studio.app import app
 uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]), proxy_headers=False, access_log=False)
 """)
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    url = f"http://127.0.0.1:{port}"
     env = {
         **os.environ,
         "ARTIFACT_STUDIO_MODE": "hosted",
@@ -86,7 +81,7 @@ uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]), proxy_headers=False, a
     logs.parent.mkdir(parents=True, exist_ok=True)
     with logs.open("w") as output:
         process = subprocess.Popen(
-            [sys.executable, str(runner), str(port)],
+            [sys.executable, str(runner), "0"],
             cwd=PROJECT,
             env=env,
             stdout=output,
@@ -96,6 +91,10 @@ uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]), proxy_headers=False, a
             for _ in range(100):
                 if process.poll() is not None:
                     raise RuntimeError(f"Hosted server exited: {logs.read_text()}")
+                url = bound_server_url(logs)
+                if url is None:
+                    time.sleep(0.1)
+                    continue
                 try:
                     with urlopen(
                         Request(url + "/api/health", headers={"Host": "localhost"}), timeout=0.5

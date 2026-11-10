@@ -6,7 +6,6 @@ provider and proxy are test-only and must never be used for deployment.
 """
 
 import os
-import socket
 import subprocess
 import sys
 import time
@@ -23,7 +22,7 @@ from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.models import Slide
 from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
-from tests.integration.support import PROJECT, markup
+from tests.integration.support import PROJECT, bound_server_url, markup
 
 WORKSPACE = "https://studio.example.test"
 PREVIEW = "https://preview.example.test"
@@ -81,15 +80,11 @@ uvicorn.run(create_app(config, FixtureProvider(), sharing), host="127.0.0.1",
 """,
         encoding="utf-8",
     )
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    url = f"http://127.0.0.1:{port}"
     env = {**os.environ, "PYTHONPATH": str(PROJECT)}
     logs.parent.mkdir(parents=True, exist_ok=True)
     with logs.open("w") as output:
         process = subprocess.Popen(
-            [sys.executable, str(runner), str(root), str(port)],
+            [sys.executable, str(runner), str(root), "0"],
             cwd=PROJECT,
             env=env,
             stdout=output,
@@ -99,6 +94,10 @@ uvicorn.run(create_app(config, FixtureProvider(), sharing), host="127.0.0.1",
             for _ in range(100):
                 if process.poll() is not None:
                     raise RuntimeError(f"Multiplayer server exited: {logs.read_text()}")
+                url = bound_server_url(logs)
+                if url is None:
+                    time.sleep(0.1)
+                    continue
                 try:
                     with urlopen(
                         Request(url + "/api/health", headers={"Host": "localhost"}), timeout=0.5
