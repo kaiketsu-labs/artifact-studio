@@ -1337,7 +1337,8 @@ class Store:
                     if shutil.disk_usage(self.root).free < disk_reserve_bytes + copy_bytes:
                         raise OSError(errno.ENOSPC, "Not enough workspace storage for this design.")
             target.mkdir()
-            _ = rollback.callback(shutil.rmtree, target, ignore_errors=True)
+            if scoped:
+                _ = rollback.callback(shutil.rmtree, target, ignore_errors=True)
             if template is None:
                 deck = blank_presentation(target, deck_id, title)
             else:
@@ -1382,7 +1383,12 @@ class Store:
                         source.url = f"../{design.folder_id}/{source.url}"
             self.write(deck_id, deck)
             if design:
-                record_design_baseline(self, deck_id)
+                try:
+                    record_design_baseline(self, deck_id)
+                except OSError, ValueError:
+                    if not scoped:
+                        shutil.rmtree(target)
+                    raise
             self.seed_slide_views(db, deck)
             attachments: list[DesignFile] = []
             for file_index, (name, data) in enumerate(decoded):
@@ -1447,8 +1453,9 @@ class Store:
                     "INSERT INTO creation_receipts VALUES (?,?,?,?,?)",
                     (deck_id, request_id, payload_hash, deck.model_dump_json(), marker),
                 )
-            db.commit()
-            _ = rollback.pop_all()
+            if scoped:
+                db.commit()
+                _ = rollback.pop_all()
         return deck
 
     def brief_files(self, deck_id: str) -> list[DesignFile]:

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock
@@ -13,6 +14,7 @@ import httpx
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
+from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.storage import Store
 from tests.design_factory import make_design
 from tests.integration.multiplayer_fixture import (
@@ -38,6 +40,23 @@ def test_design_copy_preserves_reserved_disk(
     with pytest.raises(OSError, match="Not enough workspace storage"):
         _ = store.create(DECK_ID, "Personal presentation", scoped=True, disk_reserve_bytes=1024)
     assert not store.folder(DECK_ID).exists()
+
+
+def test_scoped_creation_removes_uncommitted_deck_if_project_binding_fails(tmp_path: Path) -> None:
+    """Keep the personal library and project unchanged after a failed database write."""
+    store = Store(tmp_path / "collection", tmp_path / "state/review.sqlite3")
+    artifacts = ArtifactStore(store)
+    project = artifacts.create_project("Fictional project")
+    with store.connect() as db:
+        _ = db.execute(
+            "CREATE TRIGGER fail_binding BEFORE INSERT ON artifact_legacy_projects "
+            "BEGIN SELECT RAISE(ABORT, 'simulated project binding failure'); END"
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match="simulated project binding failure"):
+        _ = store.create(DECK_ID, "Personal presentation", scoped=True, project_id=project.id)
+    assert not store.folder(DECK_ID).exists()
+    assert artifacts.list_artifacts() == []
 
 
 def test_owner_creates_deck_for_a_project_scoped_agent(tmp_path: Path) -> None:
