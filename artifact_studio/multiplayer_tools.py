@@ -1,5 +1,7 @@
 """Explicitly scoped MCP surface; no legacy global routes or feedback are exposed."""
 
+import base64
+import codecs
 import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
@@ -165,7 +167,8 @@ class MultiplayerTools:
                 "before acting. Reply with reply_to_feedback using the claim and a stable "
                 "request_id. Reply visibility follows the original chat; never summarize "
                 "private chat publicly without permission. Read_chat provides shared context "
-                "or your owner's private conversation. Withheld drafts are never delivered. "
+                "or your owner's private conversation. Read_chat_attachment retrieves one "
+                "visible file by event ID and index. Withheld drafts stay private. "
                 "On conflicts re-read and reconcile; on lost responses retry the same request_id."
             )
             return guide
@@ -317,6 +320,43 @@ class MultiplayerTools:
         actor = self.actor(ctx)
         return self.chat.history(actor, self.scope(actor, artifact_id), channel, before)
 
+    def read_chat_attachment(
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        event_id: int,
+        file_index: int,
+        offset: int = 0,
+        max_bytes: int = 65536,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
+    ) -> dict[str, object]:
+        """Read a bounded page from an attachment visible to this scoped agent."""
+        if not 4 <= max_bytes <= 1024 * 1024:
+            raise ValueError("Read 4–1048576 bytes per attachment page.")
+        actor = self.actor(ctx)
+        file, data = self.chat.attachment(
+            actor, self.scope(actor, artifact_id), event_id, file_index, offset, max_bytes
+        )
+        if encoding == "utf-8":
+            try:
+                text = codecs.getincrementaldecoder("utf-8")().decode(
+                    data, final=offset + len(data) == file["size"]
+                )
+            except UnicodeDecodeError:
+                raise ValueError("Use encoding=base64 for binary files.") from None
+            body: dict[str, object] = {"text": text}
+            end = offset + len(text.encode())
+        else:
+            body = {"data_base64": base64.b64encode(data).decode()}
+            end = offset + len(data)
+        return {
+            **file,
+            "encoding": encoding,
+            "offset": offset,
+            "next_offset": end if end < file["size"] else None,
+            **body,
+        }
+
     def read_feedback(
         self, ctx: Ctx, artifact_id: str = "", deck_id: str = "", after: int = 0
     ) -> dict[str, object]:
@@ -389,6 +429,7 @@ class MultiplayerTools:
             self.capture_slide,
             self.capture_artifact,
             self.read_chat,
+            self.read_chat_attachment,
             self.read_feedback,
             self.get_live_review_status,
         )

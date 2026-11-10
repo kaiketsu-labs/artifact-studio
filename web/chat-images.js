@@ -3,7 +3,8 @@
   'use strict';
   const raster=/\.(?:png|jpe?g|webp|gif|avif|bmp|tiff?|ico)$/i;
   const imageFile=file=>raster.test(file.name || '');
-  const downloadURL=value=>typeof value==='string' && /^\/api\/(?:decks\/[a-z0-9-]+|artifacts\/[a-zA-Z0-9_-]+)\/feedback\/\d+\/files\/\d+$/.test(value)?value:'';
+  const fileRoute=/^\/api\/(?:(?:decks\/[a-z0-9-]+|artifacts\/[a-zA-Z0-9_-]+)\/feedback|workspaces\/[a-z0-9-]+\/artifacts\/[a-z0-9-]+\/chat)\/\d+\/files\/\d+$/;
+  const downloadURL=value=>typeof value==='string'&&fileRoute.test(value)?value:'';
   function create({document:doc,view=root,escape,svg}) {
     const urls=new Map();let dialog=null,trigger=null;
     function local(file) {
@@ -26,7 +27,15 @@
       if(![...urls.values()].includes(source) && (!download || source!==download+'?preview=true'))return;
       if(!dialog){
         dialog=doc.createElement('dialog');dialog.className='chat-image-dialog';
-        dialog.addEventListener('keydown',event=>event.stopPropagation());
+        dialog.addEventListener('keydown',event=>{
+          event.stopPropagation();
+          if(event.key!=='Tab')return;
+          const controls=[...dialog.querySelectorAll('button,a[href]')];
+          const current=controls.indexOf(doc.activeElement);
+          const next=event.shiftKey?(current<=0?controls.length-1:current-1):(current+1)%controls.length;
+          event.preventDefault();
+          controls[next]?.focus();
+        });
         dialog.addEventListener('click',event=>{if(event.target.closest('[data-image-close]') || event.target===dialog)dialog.close();});
         dialog.addEventListener('close',()=>{
           dialog.querySelector('img')?.removeAttribute('src');

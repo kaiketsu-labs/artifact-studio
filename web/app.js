@@ -16,7 +16,7 @@
   };
   window.addEventListener('studio:before-conversation-change',event=>{
     if(!deck)return;
-    if($('feedback-text').value.trim()||chatComposer.hasFiles()||voice?.isActive()||elementEditor.isEditing()||feedbackSending){
+    if($('feedback-text').value.trim()||hasDeckFileDrafts()||voice?.isActive()||elementEditor.isEditing()||feedbackSending){
       event.preventDefault();toast('Send or clear your current draft before switching conversations.',true);
     }
   });
@@ -164,6 +164,7 @@
     form:$('feedback-form'),input:$('feedback-text'),attachButton:$('attach-feedback'),fileInput:$('feedback-file-input'),filesList:$('feedback-files'),error:$('feedback-error'),status:$('feedback-upload-status'),key,escape,svg,
     onChange:()=>{if(deck&&selectedId){retainDraft();const draft=feedbackDraft();if(draft)draft.request_id=crypto.randomUUID();draftStore.persist();}updateComposer();}
   });
+  const hasDeckFileDrafts=()=>deck?.slides.some(item=>chatComposer.hasFiles(`${deck.id}/${item.id}`));
 
   const slideQuestions=window.SlideQuestions.create({api,escape,svg,avatar:chatAvatar,deliveryMode:()=>deck?.workflow?.mode||'live',onRefresh:async(answer,deckId,slideId)=>{if(answer&&deck?.id===deckId){const target=deck.slides.find(item=>item.id===slideId);if(target&&!target.feedback.some(item=>item.event_id===answer.event_id))target.feedback.push(answer);renderRail();renderComments(slide());}await refresh();}});
   $('chat-question-status').addEventListener('click',()=>slideQuestions.jump($('feedback-list')));
@@ -273,7 +274,7 @@
       name:message.author===message.person?(message.person===conversation.person?'You':message.author_name):(conversation.agents.find(agent=>agent.id===message.author)?.name||'Agent'),
       created_at:new Date(message.created*1000).toISOString(),message:message.message,
       released:message.released,reply_to:message.reply_to?-message.reply_to:null,
-      target:message.target?.kind==='slide'?null:message.target,slide_id:item.id,files:[],scoped:true,
+      target:message.target?.kind==='slide'?null:message.target,slide_id:item.id,files:message.files||[],scoped:true,
     }));
     return sharedEditor?scoped:[...original,...scoped];
   }
@@ -281,13 +282,12 @@
   async function postFeedback(url,body,expectedMode=deck?.workflow?.mode){
     const id=deck?.id;
     if(collaborationChat){
-      if(!commentAllowed()||conversationDeck!==id)throw new Error('This conversation is unavailable.');
-      if(body.files?.length)throw new Error('Use a link in this shared conversation.');
+      const match=url.match(/^\/api\/decks\/([^/]+)\/slides\/([^/]+)\/feedback$/);
+      if(!commentAllowed()||conversationDeck!==id||(match&&decodeURIComponent(match[1])!==id))throw new Error('This conversation is unavailable.');
       const assigned=(body.edit_intent||conversationChannel==='private')?ownChatAgent()?.id||'':'';
       if((body.edit_intent||conversationChannel==='private')&&!assigned)throw new Error('Connect your agent before requesting an edit.');
-      const match=url.match(/\/slides\/([^/]+)\/feedback$/);
-      const slideId=match?decodeURIComponent(match[1]):body.context_slide_id||selectedId;
-      const sent=await collaborationChat.send(id,{message:body.message,requestId:body.request_id,contentHash:conversation.contentHash,slideContentHash:body.content_hash,slideId,target:body.target,editIntent:body.edit_intent,channel:conversationChannel,assigned,released:expectedMode!=='batch'});
+      const slideId=match?decodeURIComponent(match[2]):body.context_slide_id||selectedId;
+      const sent=await collaborationChat.send(id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:conversation.contentHash,slideContentHash:body.content_hash,slideId,target:body.target,editIntent:body.edit_intent,channel:conversationChannel,assigned,released:expectedMode!=='batch'});
       await refreshConversation(id);
       return {event_id:-sent.id};
     }
@@ -306,7 +306,7 @@
     feedbackDrafts.set(key(),{...previous,feedback:value,target:currentTarget,slide_id:previous?.slide_id||selectedId,context_slide_id:hasContext?previous.context_slide_id:selectedId,content_hash:hasContext?previous.content_hash:(designContext?.content_hash||slide().content_hash),design_option_id:designContext?.design_option_id,design_option_name:designContext?.design_option_name,element_option_id:designContext?.element_option_id,element_option_name:designContext?.element_option_name,element_context_hash:designContext?.element_context_hash,request_id:unchanged&&previous?.request_id?previous.request_id:crypto.randomUUID()});
     persistDrafts();
   }
-  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;$('version-history').disabled=!slide()||switchingDeck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy();elementEditor.sync();$('feedback-text').disabled=!deck||switchingDeck||feedbackSending||!commentAllowed();$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=!deck||!commentAllowed()||feedbackSending||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:!deck||feedbackSending||mutating});$('reference-slides').disabled=!deck||feedbackSending||mutating;for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+  function updateComposer(){slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;$('version-history').disabled=!slide()||switchingDeck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy(),feedbackLocked=!deck||switchingDeck||feedbackSending||!commentAllowed();elementEditor.sync();$('feedback-text').disabled=feedbackLocked;$('clear-target').disabled=feedbackSending||mutating;$('select-parent').disabled=feedbackSending||mutating;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating;$('send-feedback').disabled=feedbackLocked||mutating||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:feedbackLocked||mutating});$('reference-slides').disabled=feedbackLocked||mutating;for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
 
 
 
@@ -989,15 +989,15 @@
   /** Send chat messages with Enter while preserving multiline and composition input. */
   function bindMessageEnter(inputId,buttonId,send){$(inputId).addEventListener('keydown',event=>{if(event.key!=='Enter'||event.shiftKey||event.altKey||event.isComposing||event.keyCode===229)return;event.preventDefault();if(!event.repeat&&!$(buttonId).disabled)send();});}
   iconButton($('reference-slides'),'favoriteSlides','Reference favorite slides');
-  window.ChatReferences.register({inputId:'feedback-text',key,attach:files=>chatComposer.add(files)});
+  if(!nativeChat)window.ChatReferences.register({inputId:'feedback-text',key,attach:files=>chatComposer.add(files)});
   $('reference-slides').addEventListener('click',()=>{const context=key();void window.FavoriteSlides.open({attach:files=>context===key()&&chatComposer.add(files)});});
   void window.FavoriteSlides.refresh().catch(error=>toast(error.message,true));
   bindMessageEnter('feedback-text','send-feedback',()=>$('feedback-form').requestSubmit());
   $('feedback-form').addEventListener('submit',async event=>{
     event.preventDefault();
-    if(!deck||feedbackSending||voice.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().some(item=>item.message.trim())))return;
+    if(!deck||switchingDeck||!commentAllowed()||feedbackSending||voice.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().some(item=>item.message.trim())))return;
     const submittingKey=key(),expectedMode=deck.workflow?.mode;
-    if(!await finishEdits()||!deck||submittingKey!==key()||feedbackSending||voice.isActive())return;
+    if(!await finishEdits()||!deck||switchingDeck||!commentAllowed()||submittingKey!==key()||feedbackSending||voice.isActive())return;
     retainDraft();
     const button=$('send-feedback'),sendingDeck=deck.id,sendingKey=key(),context=structuredClone(feedbackDraft()),message=$('feedback-text').value;
     feedbackSending=true;updateComposer();renderVoiceFeedback();$('feedback-text').disabled=true;
@@ -1021,7 +1021,7 @@
   $('deck-picker').addEventListener('change',async event=>{retainDraft();try{await start(event.target.value);}catch(error){if(deck)$('deck-picker').value=deck.id;toast(error.message,true);}finally{deckPicker?.sync();if(!$('deck-switcher').disabled&&[document.body,$('deck-switcher')].includes(document.activeElement))$('deck-switcher').focus({preventScroll:true});}});
   $('shared-channel').addEventListener('change',async event=>{
     const channel=event.target.value;
-    if(feedbackSending||$('feedback-text').value.trim()||voiceFeedback?.segments().some(segment=>segment.message.trim())){
+    if(feedbackSending||$('feedback-text').value.trim()||hasDeckFileDrafts()||voiceFeedback?.segments().some(segment=>segment.message.trim())){
       event.target.value=conversationChannel;toast('Send or clear this draft before switching conversations.',true);return;
     }
     conversationChannel=channel;conversation=null;commentsSignature='';renderComments(slide());updateComposer();

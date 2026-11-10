@@ -1,6 +1,8 @@
 """Authenticated, bounded transport for the separate multiplayer application."""
 
 import asyncio
+import re
+from typing import cast
 from urllib.parse import urlsplit
 
 from fastapi.responses import JSONResponse
@@ -10,7 +12,13 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
-from .multiplayer_access import AccessDenied, Sharing
+from .multiplayer_access import AccessDenied, Actor, Sharing
+from .multiplayer_access import Scope as GrantScope
+
+_CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
+_CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
+_REQUEST_LIMIT = 2 * 1024 * 1024
+_CHAT_LIMIT = 68 * 1024 * 1024
 
 
 class MultiplayerAuth:
@@ -31,6 +39,8 @@ class MultiplayerAuth:
         self.hook_slots = asyncio.Semaphore(8)
         self.agent_slots = asyncio.Semaphore(4)
         self.preview_slots = asyncio.Semaphore(4)
+        self.chat_upload_slot = asyncio.Semaphore(1)
+        self.chat_download_slots = asyncio.Semaphore(2)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
@@ -41,6 +51,7 @@ class MultiplayerAuth:
             return
         headers = Headers(scope=scope)
         path, method = scope["path"], scope["method"]
+        chat_write = _CHAT.fullmatch(path) if method == "POST" else None
         hosts = headers.getlist("host")
         host = hosts[0].lower() if len(hosts) == 1 else ""
 
@@ -161,6 +172,10 @@ class MultiplayerAuth:
         slots = (
             self.preview_slots
             if host == self.preview
+            else self.chat_upload_slot
+            if chat_write is not None
+            else self.chat_download_slots
+            if _CHAT_FILE.fullmatch(path)
             else self.hook_slots
             if path == "/api/review/hooks"
             else self.agent_slots
@@ -173,16 +188,27 @@ class MultiplayerAuth:
             await reject(429, "Server busy. Retry shortly.")
             return
         try:
+            if chat_write is not None:
+                # Reject out-of-scope uploads before allocating a request body.
+                actor = cast(Actor, scope["state"]["actor"])
+                grant = GrantScope(chat_write[1], "artifact", chat_write[2])
+                try:
+                    await run_in_threadpool(self.sharing.require, actor, grant, "comment")
+                except AccessDenied:
+                    await reject(404, "Not found")
+                    return
             data = bytearray()
-            async with asyncio.timeout(15):
+            limit = _CHAT_LIMIT if chat_write is not None else _REQUEST_LIMIT
+            async with asyncio.timeout(120 if chat_write is not None else 15):
                 while True:
                     message = await receive()
                     if message["type"] == "http.disconnect":
                         return
-                    data.extend(message.get("body", b""))
-                    if len(data) > 2 * 1024 * 1024:
-                        await reject(413, "Request exceeds 2 MiB")
+                    chunk = message.get("body", b"")
+                    if len(data) + len(chunk) > limit:
+                        await reject(413, f"Request exceeds {limit // (1024 * 1024)} MiB")
                         return
+                    data.extend(chunk)
                     if not message.get("more_body", False):
                         break
             delivered = False
@@ -192,7 +218,9 @@ class MultiplayerAuth:
                 if delivered:
                     return await receive()
                 delivered = True
-                return {"type": "http.request", "body": bytes(data), "more_body": False}
+                body = bytes(data)
+                data.clear()
+                return {"type": "http.request", "body": body, "more_body": False}
 
             await self.app(scope, replay, secure_send)
         except TimeoutError:

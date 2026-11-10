@@ -18,7 +18,7 @@
   color: var(--muted);
   font-size: 12px;
 }
-[data-native-conversation] :is(#attach-feedback, #reference-slides, #start-help) {
+[data-native-conversation] :is(#reference-slides, #start-help) {
   display: none !important;
 }
 [data-shared-editor]:not([data-shared-role="edit"]) :is(#element-tools, #element-properties, #objects-button) {
@@ -43,7 +43,7 @@
 [data-shared-editor] [data-slide-extra]:is([data-slide-extra="favorite"], [data-slide-extra="comment"]) {
   display: none !important;
 }
-[data-native-conversation] :is([data-action="attach"], [data-action="reference-slides"], .hub-chat-context) {
+[data-native-conversation] :is([data-action="reference-slides"], .hub-chat-context, .hub-message-body:empty) {
   display: none !important;
 }
 .hub-chat > .shared-channel { margin: 4px 16px 0; }

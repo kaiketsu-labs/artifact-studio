@@ -133,7 +133,12 @@ In the standalone interface, sharing and agent connections use these controls:
    waking an agent; explicitly choose an agent to request a change. **My agent**
    is private to you and your agents with access to this artifact. Replacing an
    agent retains your conversation. Artifact edits remain shared.
-4. **Batch** saves messages visible only to their author. **Send batch** releases
+4. Use the attachment button in the regular editor to add files to either
+   conversation. Files follow the message's visibility, including unreleased
+   batches, and require current access on every download. Each message supports
+   up to five files, 25 MB per file and 50 MB combined. Shared attachments have
+   a 1 GiB budget per workspace and a 4 GiB budget per server.
+5. **Batch** saves messages visible only to their author. **Send batch** releases
    only your drafts in the selected chat. Text drafts are separate for each person,
    workspace, artifact, slide and chat. `Ctrl/Cmd+Enter` sends a message.
 
@@ -229,6 +234,10 @@ For simultaneous workspaces, use separate agent processes with their own token
 environment. The supplied hook client reads one token per process; switching a
 browser workspace or reusing a server name does not change that token's scope.
 
+Use `read_chat_attachment` with an event ID and file index from chat history or
+released feedback to read an attachment in pages. Use `encoding="base64"` for
+binary files.
+
 Agents can poll `read_feedback` or install `get_agent_hook_client` with normal native
 hook approval. Read `get_authoring_guide(topic="live_review")` for setup. The client
 accepts the multiplayer token and retains Cloudflare service-header support for old
@@ -259,8 +268,10 @@ Check those with two real accounts before sharing real work: wrong-email invitat
 fail, uninvited users see no artifacts, missing/expired tokens fail, preview resources
 cannot reach the origin, and revocation blocks both browser and agent access.
 
-This first collaboration UI has no attachment upload or private-history export.
-Remote tools exclude host files and server administration. Request bodies are bounded
-at 2 MiB. Browser, MCP, hook and preview capacity is separate so idle agent long polls
-do not consume browser capacity. Initial agent context contains the selected scope
-and artifact; detailed authoring guides load on demand.
+Upload attachments from the regular editor. The standalone Together interface has no
+attachment controls. Private-history export is unavailable. Remote tools exclude host
+files and server administration. Ordinary request bodies are limited to 2 MiB. Chat
+uploads have their own larger request limit and stricter admission controls. Browser,
+MCP, hook and preview capacity is separate so idle agent long polls do not consume
+browser capacity. Initial agent context contains the selected scope and artifact.
+Detailed authoring guides load on demand.
