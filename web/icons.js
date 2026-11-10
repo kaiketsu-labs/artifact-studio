@@ -72,7 +72,8 @@
     cursor:'m4 3 15 9-7 2-3 7-5-18Z',
     spark:'m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z',
     slide:'M3 5h18v14H3z',
-    slides:'M4.5 14H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v1.5M7 16.5H5.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1V10M8 10h13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z'
+    presentation:'M4.5 14H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v1.5M7 16.5H5.5a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1V10M8 10h13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1Z',
+    slides:'M3 5h18v14H3zM8 5v14M3 10h5M3 14h5'
   };
   // Composite controls keep their outline and filled badge in separate shapes.
   const composites={favoriteSlides:'<path d="M14.7 19H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h15a2 2 0 0 1 2 2v5.5M7.7 5v14" stroke-width="1.5"/><g stroke-width="1"><rect x="3.8" y="7.2" width="2.2" height="2" rx=".35"/><rect x="3.8" y="10.7" width="2.2" height="2" rx=".35"/><rect x="3.8" y="14.2" width="2.2" height="2" rx=".35"/></g><path d="m19.1 13.4 1.1 2.4 2.6.4-1.9 1.8.5 2.6-2.3-1.2-2.3 1.2.5-2.6-1.9-1.8 2.6-.4Z" fill="currentColor" stroke-width=".5"/>'};
