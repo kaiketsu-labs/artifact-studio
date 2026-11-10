@@ -110,7 +110,12 @@ def create_app(
         )
         if root.resolve().is_relative_to(collection.resolve()):
             raise ValueError("Keep multiplayer credentials outside the artifact collection.")
-        sharing = Sharing(root, Store(collection, database), owner)
+        sharing = Sharing(
+            root,
+            Store(collection, database),
+            owner,
+            personal_workspace_emails=config.personal_workspace_emails,
+        )
     hub = sharing
     chat = Conversations(hub)
     mcp = MCPServer[None](

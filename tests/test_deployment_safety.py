@@ -81,3 +81,16 @@ def test_invalid_origin_error_does_not_disclose_port(config: Path) -> None:
     with pytest.raises(ValueError, match="Invalid HTTPS DNS origin") as error:
         DeploymentConfig.from_env()
     assert "fictional-secret" not in str(error.value)
+
+
+def test_personal_workspaces_use_separate_membership(config: Path) -> None:
+    """Personal workspace accounts cannot join the primary editor through configuration."""
+    assert DeploymentConfig.from_env().personal_workspace_emails == ()
+    data = json.loads(config.read_text())
+    data["personal_workspace_emails"] = ["Other@Example.com"]
+    config.write_text(json.dumps(data))
+    assert DeploymentConfig.from_env().personal_workspace_emails == ("other@example.com",)
+    data["personal_workspace_emails"] = ["MEMBER@example.com"]
+    config.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match="must not be listed as hosted members"):
+        DeploymentConfig.from_env()

@@ -19,6 +19,7 @@ class DeploymentConfig:
     auth_options: dict[str, object] | None = None
     member_emails: tuple[str, ...] = ()
     agent_subjects: tuple[str, ...] = ()
+    personal_workspace_emails: tuple[str, ...] = ()
 
     @classmethod
     def from_env(cls) -> DeploymentConfig:
@@ -72,7 +73,7 @@ class DeploymentConfig:
         if not isinstance(data, dict):
             raise ValueError("Invalid hosted configuration fields")
         data = cast(dict[str, object], data)
-        if set(data) != {
+        if set(data) - {"personal_workspace_emails"} != {
             "public_url",
             "preview_url",
             "auth_provider",
@@ -104,9 +105,12 @@ class DeploymentConfig:
         options = cast(dict[str, object], options)
         members = _strings(data["member_emails"], email=True)
         agents = _strings(data["agent_subjects"])
+        personal = _strings(data.get("personal_workspace_emails", []), email=True)
+        if set(members) & set(personal):
+            raise ValueError("Personal workspace accounts must not be listed as hosted members.")
         if not members and not agents:
             raise ValueError("Hosted membership is required")
-        return cls("hosted", public, preview, provider, options, members, agents)
+        return cls("hosted", public, preview, provider, options, members, agents, personal)
 
 
 def _origin(value: object) -> str:

@@ -313,3 +313,66 @@ def test_native_workspace_routes_never_use_the_default_collection(tmp_path: Path
         ).is_success
         assert guest.get(deck).status_code == 404
         assert guest.get(f"{prefix}/decks/{app.deck_id}/theme.css").status_code == 404
+
+
+def test_configured_personal_owner_is_separate_from_primary_owner(tmp_path: Path) -> None:
+    """A verified personal owner can share a project without gaining primary access."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app",
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, "owner") as primary,
+        human(app, "alice") as personal,
+        human(app, "bob") as guest,
+        httpx.Client(base_url=app.url, headers={"host": "studio.example.test"}) as anonymous,
+    ):
+        first = personal.get("/")
+        home = first.headers["location"]
+        assert first.status_code == 307 and re.fullmatch(r"/workspaces/[0-9a-f]{24}/", home)
+        assert personal.get("/").headers["location"] == home
+        assert guest.get("/").status_code == 200
+        assert anonymous.get(home).status_code == 401
+        assert personal.get(home + "api/session").json()["workspace_owner"]
+        assert not primary.get(home + "api/session").json()["workspace_owner"]
+        assert not personal.get("/api/session").json()["workspace_owner"]
+        assert personal.get(f"/api/artifacts/{app.artifact_id}").status_code == 404
+        assert (
+            personal.post("/api/workspaces", json={"title": "Extra workspace"}).status_code == 404
+        )
+
+        projects = home + "api/hub/projects"
+        assert primary.post(projects, json={"title": "Forbidden"}).status_code == 404
+        project = personal.post(projects, json={"title": "Personal project"})
+        assert project.is_success
+        assert primary.get(home + "api/hub").json()["projects"] == []
+        assert guest.get(home + "api/hub").json()["projects"] == []
+        assert personal.get(home + "api/hub").json()["projects"][0]["title"] == "Personal project"
+
+        workspace = home.split("/")[2]
+        invite = personal.post(
+            f"/api/workspaces/{workspace}/invitations",
+            json={
+                "kind": "project",
+                "resource": project.json()["id"],
+                "email": "bob@example.test",
+                "role": "edit",
+            },
+        )
+        assert invite.is_success
+        accept(guest, invite.json()["url"].split("#invite=")[1])
+        assert guest.get(home + "api/hub").json()["projects"][0]["title"] == "Personal project"
+        assert not guest.get(home + "api/session").json()["workspace_owner"]
+        assert guest.post(projects, json={"title": "Forbidden"}).status_code == 404
+
+        accept(personal, grant(primary, "alice", app.artifact_id, "edit"))
+        assert personal.get("/").status_code == 200
+        assert personal.get(f"/api/artifacts/{app.artifact_id}").is_success
+        assert personal.get(f"/api/artifacts/{app.sibling_id}").status_code == 404
+        workspaces = personal.get("/api/together/session").json()["workspaces"]
+        assert {item["id"]: item["owner"] for item in workspaces} == {
+            workspace: True,
+            "default": False,
+        }

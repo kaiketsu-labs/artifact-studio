@@ -71,11 +71,19 @@ class Sharing:
     are trusted operators; do not run a second unscoped server against these collections.
     """
 
-    def __init__(self, root: Path, default: Store, owner_email: str) -> None:
+    def __init__(
+        self,
+        root: Path,
+        default: Store,
+        owner_email: str,
+        *,
+        personal_workspace_emails: tuple[str, ...] = (),
+    ) -> None:
         self.root = root.resolve()
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.database = self.root / "sharing.sqlite3"
         self.owner_email = email_address(owner_email)
+        self._personal_emails = frozenset(map(email_address, personal_workspace_emails))
         self._lock = threading.RLock()
         self._depth = threading.local()
         self._stores: dict[str, Store] = {"default": default}
@@ -126,13 +134,19 @@ class Sharing:
                 self._depth.value = depth
 
     def human(self, principal: Principal) -> Actor:
+        """Bind a verified identity and provision its configured personal workspace once."""
         if principal.service or not principal.subject or not principal.email:
             raise AccessDenied
         email = email_address(principal.email)
         person = checksum(principal.subject)
+        personal = email in self._personal_emails
         with self.connect() as db:
             existing = db.execute("SELECT email FROM people WHERE id=?", (person,)).fetchone()
-            if existing and existing["email"] == email:
+            if (
+                existing
+                and existing["email"] == email
+                and (not personal or self._owns_workspace(db, person))
+            ):
                 return Actor(person)
         with self.locked(), self.connect() as db:
             prior = db.execute("SELECT id FROM people WHERE email=?", (email,)).fetchone()
@@ -147,7 +161,31 @@ class Sharing:
                     "INSERT OR IGNORE INTO workspaces VALUES ('default','My workspace',?)",
                     (person,),
                 )
+            elif personal and not self._owns_workspace(db, person):
+                db.execute(
+                    "INSERT INTO workspaces VALUES (?, 'Personal workspace', ?)",
+                    (secrets.token_hex(12), person),
+                )
         return Actor(person)
+
+    @staticmethod
+    def _owns_workspace(db: sqlite3.Connection, person: str) -> bool:
+        """Check for a workspace already provisioned to this identity."""
+        return bool(db.execute("SELECT 1 FROM workspaces WHERE owner=?", (person,)).fetchone())
+
+    def personal_home(self, actor: Actor) -> str | None:
+        """Open the personal library when the default library would be empty."""
+        if actor.agent:
+            return None
+        with self.connect() as db:
+            row = db.execute(
+                """SELECT id FROM workspaces
+                   WHERE owner=? AND id<>'default'
+                     AND NOT EXISTS (SELECT 1 FROM grants WHERE workspace='default' AND person=?)
+                   ORDER BY id LIMIT 1""",
+                (actor.person, actor.person),
+            ).fetchone()
+        return cast(str, row["id"]) if row else None
 
     def agent(self, token: str) -> Actor:
         if not 32 <= len(token) <= 200:
