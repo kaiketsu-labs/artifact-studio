@@ -603,12 +603,28 @@
     properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getVoice:()=>voice,getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:async()=>{const panel=properties,id=state.active,loading=state.loading,generation=panel.selectionGeneration(),mode=state.detail.mode;if(!await panel.stopVoice()){toast('Recording ended without sending. Review your edit before sending.');return;}if(properties!==panel || state.active!==id || state.loading!==loading || panel.selectionGeneration()!==generation)return;if(state.detail.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return false;}return artifactEditor.send(mode);},onCancel:()=>{properties?.cancelVoice();artifactEditor.cancel();}});
     inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();quickAccess.decorateProjects();
   }
+  /** Update the approval for the displayed snapshot without replacing the preview. */
+  function syncArtifactApproval(item, detail) {
+    if(!item || item.id!==detail.id || item.content_hash!==detail.content_hash)return;
+    const changed=item.status!==detail.status || item.approved!==detail.approved;
+    for(const field of ['status','approved','has_unseen_changes'])item[field]=detail[field];
+    if(item!==state.detail || !changed)return;
+    const badge=doc.querySelector('.hub-version .hub-status');
+    if(badge)badge.outerHTML=status(item);
+    const approve=doc.querySelector('.hub-approve');
+    if(approve){
+      approve.disabled=!!item.approved;
+      approve.classList.toggle('is-approved',!!item.approved);
+      approve.innerHTML=icon('check')+`<span>${item.approved?'Approved':'Approve'}</span>`;
+    }
+  }
   /** Refresh review controls without replacing the preview, composer or dictated drafts. */
   function syncArtifactReview(detail) {
     const item=state.detail;if(!item || item.id!==detail.id)return;
     const deliveryChanged=canComment(item)!==canComment(detail)||pendingCount(item)!==pendingCount(detail)||JSON.stringify([item.mode,item.workflow,item.delivery])!==JSON.stringify([detail.mode,detail.workflow,detail.delivery]);
     const feedbackChanged=JSON.stringify(item.feedback)!==JSON.stringify(detail.feedback);
-    for(const field of ['mode','workflow','delivery','collaboration'])item[field]=detail[field];
+    for(const field of ['mode','workflow','delivery','collaboration','access_role'])item[field]=detail[field];
+    if(sharedEditor)doc.documentElement.dataset.sharedRole=item.access_role||'view';
     if(feedbackChanged){
       const thread=doc.getElementById('hub-thread'),atBottom=thread && thread.scrollHeight-thread.scrollTop-thread.clientHeight<50;
       item.feedback=detail.feedback;
@@ -627,11 +643,7 @@
       }
       const dictated=doc.getElementById('hub-send-voice'),label=item.mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback';if(dictated){dictated.setAttribute('aria-label',label);dictated.title=label;}
     }
-    if(detail.content_hash===item.content_hash){
-      const changed=JSON.stringify([item.status,item.approved,item.has_unseen_changes])!==JSON.stringify([detail.status,detail.approved,detail.has_unseen_changes]);
-      for(const field of ['status','approved','has_unseen_changes'])item[field]=detail[field];
-      if(changed){const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(item);const approve=doc.querySelector('[data-action=approve]');if(approve){approve.disabled=!!item.approved;approve.classList.toggle('is-approved',!!item.approved);approve.innerHTML=icon('check')+`<span>${item.approved?'Approved':'Approve'}</span>`;}}
-    }
+    syncArtifactApproval(item,detail);
     lockComposer();
   }
   async function refreshArtifactReview(id) {
@@ -937,9 +949,20 @@
     if(name==='fit')return fitImage();
     if(name==='zoom-in' || name==='zoom-out'){state.zoom=Math.max(.05,Math.min(8,state.zoom*(name==='zoom-in'?1.25:.8)));applyZoom();return;}
     if(name==='approve'){
-      if(!artifactEditor.finish())return;
-      const item=state.detail;node.disabled=true;
-      try{await api(artifactPath(item.id,'/approve'),{content_hash:item.content_hash});item.status='approved';item.approved=true;const card=state.artifacts.find(card=>card.id===item.id);if(card)card.status='approved';node.innerHTML=icon('check')+'<span>Approved</span>';node.classList.add('is-approved');const badge=doc.querySelector('.hub-version .hub-status');if(badge)badge.outerHTML=status(item);toast(`Approved version ${item.revision}.`);}catch(error){node.disabled=false;throw error;}return;
+      const item=state.detail;
+      if(!item || (sharedEditor && item.access_role!=='edit') || !artifactEditor.finish())return;
+      node.disabled=true;
+      try{
+        const saved=await api(artifactPath(item.id,'/approve'),{content_hash:item.content_hash});
+        syncArtifactApproval(state.detail,saved);
+        syncArtifactApproval(state.artifacts.find(card=>card.id===item.id),saved);
+        toast(`Approved version ${item.revision}.`);
+      }catch(error){
+        node.disabled=false;
+        if(error.status===409)void refresh();
+        throw error;
+      }
+      return;
     }
     if(name==='end-review'){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/review/disconnect'),{});const detail=await artifactDetail(id);if(state.active===id)syncArtifactReview(detail);toast('Review ended.');}finally{node.disabled=false;}return;}
     if(name==='release'){const id=state.active;node.disabled=true;try{if(collaborationChat)await collaborationChat.release(id,channelOf(id));else await api(artifactPath(id,'/release'),{});const detail=await artifactDetail(id);if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery,collaboration:detail.collaboration};renderChat();}toast('Batch released.');}finally{node.disabled=false;}}

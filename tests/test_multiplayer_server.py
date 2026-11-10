@@ -9,6 +9,8 @@ from urllib.parse import urlsplit
 import httpx
 import pytest
 
+from artifact_studio.artifact_models import ArtifactFileInput
+from artifact_studio.artifacts import ArtifactStore
 from tests.integration.multiplayer_fixture import WORKSPACE, MultiplayerApp, running_multiplayer_app
 
 
@@ -48,6 +50,60 @@ def agent(client: httpx.Client, artifact: str) -> str:
     )
     assert response.status_code == 200, response.text
     return cast(str, response.json()["token"])
+
+
+def test_shared_artifact_approval_requires_current_edit_grant_and_version(tmp_path: Path) -> None:
+    """A collaborator can approve only the artifact revision they reviewed."""
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as commenter,
+    ):
+        accept(editor, grant(owner, "alice", app.artifact_id))
+        accept(commenter, grant(owner, "bob", app.artifact_id, role="comment"))
+        artifact = f"/api/artifacts/{app.artifact_id}"
+        before = editor.get(artifact)
+        before.raise_for_status()
+        reviewed = {"content_hash": before.json()["content_hash"]}
+        assert commenter.post(artifact + "/approve", json=reviewed).status_code == 404
+        saved = editor.post(artifact + "/approve", json=reviewed)
+        saved.raise_for_status()
+        assert saved.json() == {
+            "id": app.artifact_id,
+            **reviewed,
+            "approved": True,
+            "has_unseen_changes": False,
+            "status": "approved",
+        }
+        assert commenter.get(artifact).json()["approved"] is True
+
+        updated = ArtifactStore(app.store).revise_artifact(
+            app.artifact_id,
+            [ArtifactFileInput(path="source.md", text="# Revised fictional artifact")],
+            before.json()["revision"],
+            "fixture-approval-revision",
+        )
+        assert editor.post(artifact + "/approve", json=reviewed).status_code == 409
+        assert commenter.get(artifact).json()["approved"] is False
+
+        access = owner.get(
+            "/api/workspaces/default/access",
+            params={"kind": "artifact", "resource": app.artifact_id},
+        )
+        access.raise_for_status()
+        grant_id = next(entry["id"] for entry in access.json()["grants"] if entry["role"] == "edit")
+        revoked = owner.post(
+            f"/api/workspaces/default/access/{grant_id}/revoke",
+            json={"kind": "artifact", "resource": app.artifact_id},
+        )
+        revoked.raise_for_status()
+        assert (
+            editor.post(
+                artifact + "/approve", json={"content_hash": updated.content_hash}
+            ).status_code
+            == 404
+        )
 
 
 def test_http_grants_preview_revoke_and_legacy_denial(tmp_path: Path) -> None:

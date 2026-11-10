@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from pydantic import Field
 
 from . import __version__
-from .artifact_api import ArtifactImport, ProjectInput, import_upload
+from .artifact_api import ArtifactApproval, ArtifactImport, ProjectInput, import_upload
 from .artifact_models import ArtifactView
 from .artifact_preview import artifact_file_headers
 from .artifacts import LEGACY_PROJECT, ArtifactStore
@@ -448,6 +448,24 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             return RedirectResponse(
                 f"/api/workspaces/{scope.workspace}/artifacts/{artifact_id}/preview"
             )
+
+    @app.post("/api/artifacts/{artifact_id}/approve")
+    def approve_artifact(
+        request: Request, artifact_id: str, body: ArtifactApproval
+    ) -> dict[str, object]:
+        """Record human approval of the reviewed artifact version under the current grant."""
+        with hub.guard(actor_of(request), artifact_scope(request, artifact_id), "edit") as store:
+            service = ArtifactStore(store)
+            if service.get_artifact(artifact_id).legacy_deck_id:
+                raise AccessDenied
+            saved = service.approve(artifact_id, body.content_hash, body.approved)
+            return {
+                "id": saved.id,
+                "content_hash": saved.content_hash,
+                "approved": saved.approved,
+                "has_unseen_changes": saved.has_unseen_changes,
+                "status": saved.status,
+            }
 
     @app.get("/api/artifacts/{artifact_id}/revisions/{revision}/files/{path:path}")
     @app.get("/api/artifacts/{artifact_id}/files/{path:path}")

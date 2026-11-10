@@ -2,7 +2,7 @@
 [data-shared-editor] :is(
   [data-action="project-add"],
   [data-action="favorite-slides"], [data-project="designs"], [data-action="context"],
-  [data-action="approve"], [data-action="move"], .hub-card-move,
+  [data-action="move"], .hub-card-move,
   [data-design-action], [data-favorite], [data-star-kind], .hub-card-star,
   #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
   #deck-design-references, #instructions-button, #storage-status,
@@ -43,7 +43,7 @@
 
 [data-shared-editor]:not([data-shared-role="edit"]) :is(
   #add-slide, #add-section, #deleted-slides, #hide-slide, #approve-button, [data-visibility-id], [data-action="select"],
-  #slide-menu, #slide-list-menu, #slide-sorter-menu, #section-menu
+  #slide-menu, #slide-list-menu, #slide-sorter-menu, #section-menu, .hub-approve
 ) {
   display: none !important;
 }

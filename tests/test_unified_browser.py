@@ -24,6 +24,38 @@ pytestmark = [
 ]
 
 
+def test_shared_artifact_uses_existing_approve_control(tmp_path: Path) -> None:
+    """An editor can approve from the native artifact view and a viewer sees the status."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as viewer,
+        sync_playwright() as playwright,
+    ):
+        accept(editor, grant(owner, "alice", app.artifact_id))
+        accept(viewer, grant(owner, "bob", app.artifact_id, role="view"))
+        browser = playwright.chromium.launch()
+        try:
+            url = WORKSPACE + "/?artifact=" + app.artifact_id
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(url)
+                expect(page.get_by_role("heading", name="Shared candidate")).to_be_visible()
+                approve = page.get_by_role("button", name="Approve", exact=True)
+                approve.focus()
+                page.keyboard.press("Enter")
+                expect(page.get_by_role("button", name="Approved", exact=True)).to_be_disabled()
+                expect(page.locator(".hub-version .hub-status")).to_have_text("Approved")
+            with routed_multiplayer_context(browser, app, "bob") as context:
+                page = context.new_page()
+                page.goto(url)
+                expect(page.locator(".hub-version .hub-status")).to_have_text("Approved")
+                expect(page.locator(".hub-approve")).to_be_hidden()
+        finally:
+            browser.close()
+
+
 def test_full_editor_round_trip_and_scoped_agent_entry(tmp_path: Path) -> None:
     with (
         running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
