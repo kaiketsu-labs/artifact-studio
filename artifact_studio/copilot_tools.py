@@ -9,8 +9,9 @@ import json
 import os
 import shutil
 import stat
+import threading
 from collections.abc import Callable, Coroutine
-from contextlib import suppress
+from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from typing import Annotated, Literal, cast
@@ -27,7 +28,9 @@ from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactV
 from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
 from .copilot_capture import capture_cloud_slide
 from .element_alternatives import ElementAlternatives, ElementInput
+from .hook_bundle import client_files
 from .models import FeedbackFile, Slide, SlidePatch
+from .review import Reviews
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import SAFE_ID, ConflictError, Store, digest
 from .visuals import CaptureOptions, capture_snapshot
@@ -36,6 +39,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 BOOTSTRAP = (PROJECT / "agent/copilot.md").read_text()
 MAX_READ_BYTES = 1024 * 1024
 MAX_RESULT_BYTES = 4 * 1024 * 1024
+_REMOTE_WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="studio-remote")
+_REMOTE_WORK_SLOTS = threading.BoundedSemaphore(4)
 Text = Annotated[str, Field(max_length=1_500_000)]
 Identifier = Annotated[str, Field(min_length=1, max_length=100)]
 RequestID = Annotated[str, Field(min_length=8, max_length=100)]
@@ -169,13 +174,15 @@ def remote_tool[**P, T](function: Callable[P, T]) -> Callable[P, Coroutine[objec
     async def call(*args: P.args, **kwargs: P.kwargs) -> T:
         """Translate expected failures without exposing credentials or local paths."""
         try:
-            task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
+            if not _REMOTE_WORK_SLOTS.acquire(blocking=False):
+                raise ToolError("Agent workspace is busy. Retry shortly.")
             try:
-                result = await asyncio.shield(task)
-            except asyncio.CancelledError:
-                with suppress(Exception):
-                    await task
+                future = _REMOTE_WORKERS.submit(function, *args, **kwargs)
+            except BaseException:
+                _REMOTE_WORK_SLOTS.release()
                 raise
+            future.add_done_callback(lambda _future: _REMOTE_WORK_SLOTS.release())
+            result = await asyncio.wrap_future(future)
             if (
                 not isinstance(result, CallToolResult)
                 and len(json.dumps(result, ensure_ascii=False).encode()) > MAX_RESULT_BYTES
@@ -204,12 +211,15 @@ def remote_tool[**P, T](function: Callable[P, T]) -> Callable[P, Coroutine[objec
 class ScopedTools:
     """Authorize current project membership before every source read or mutation."""
 
-    def __init__(self, store: Store, project_id: str, whole_workspace: bool) -> None:
+    def __init__(
+        self, store: Store, project_id: str, whole_workspace: bool, *, hosted_hooks: bool = False
+    ) -> None:
         """Keep gateway scope independent from the local application's global store."""
         self.store = store
         self.artifacts = ArtifactStore(store)
         self.project_id = project_id
         self.whole_workspace = whole_workspace
+        self.hosted_hooks = hosted_hooks
         if not whole_workspace:
             self.project(project_id)
 
@@ -349,14 +359,51 @@ class ScopedTools:
                 "legacy_slide_editing": True,
                 "owned_artifact_capture": True,
                 "legacy_slide_capture": True,
-                "automatic_local_hooks": False,
+                "automatic_local_hooks": self.hosted_hooks,
                 "host_filesystem_access": False,
                 "feedback_attachments": True,
             },
         }
 
-    def get_authoring_guide(self) -> dict[str, object]:
+    def get_agent_hook_client(self) -> dict[str, object]:
+        """Fetch the optional stdlib-only hook client; install only when the user requests it."""
+        return {
+            "files": client_files(),
+            "requires": "Python >=3.10, no third-party packages",
+            "guide": "get_authoring_guide(topic='live_review')",
+            "trust": "Review client code and use native host hook approval. Never bypass trust.",
+        }
+
+    def get_live_review_status(self, artifact_id: str = "", deck_id: str = "") -> dict[str, object]:
+        """Check the selected artifact's hook connection without starting or renewing it."""
+        if bool(artifact_id) == bool(deck_id):
+            raise ValueError("Select exactly one artifact_id or deck_id")
+        _ = self.artifact(artifact_id) if artifact_id else self.deck(deck_id)
+        target = Reviews(self.store).target(deck_id, artifact_id)
+        status = Reviews(self.store).connection(target)
+        return {
+            **status,
+            "status": "connected" if status["review_connected"] else "unavailable",
+            "session_identity": "credential-scoped opaque identifier",
+        }
+
+    def start_live_review(self, artifact_id: str = "", deck_id: str = "") -> dict[str, object]:
+        """Request that this session's installed and trusted host hook resumes selected review."""
+        return {
+            **self.get_live_review_status(artifact_id, deck_id),
+            "status": "awaiting_host_hook",
+            "setup_required": "Install the small hooks client from the authenticated workspace; "
+            "configure its HTTPS origin and load/trust hooks in the agent host.",
+        }
+
+    def get_authoring_guide(
+        self, topic: Literal["workflow", "live_review"] = "workflow"
+    ) -> dict[str, object]:
         """Read cloud workflow and exact JSON shapes for inline files and slide authoring."""
+        if topic == "live_review":
+            if not self.hosted_hooks:
+                raise ValueError("This gateway does not support lifecycle hooks")
+            return {"guide": (PROJECT / "docs/HOSTED-AGENT-HOOKS.md").read_text()}
         return {
             "guide": BOOTSTRAP,
             "files_json_schema": FILE_INPUTS.json_schema(),
@@ -916,10 +963,15 @@ class ScopedTools:
 
 
 def register_tools(
-    server: MCPServer[None], store: Store, project_id: str, whole_workspace: bool
+    server: MCPServer[None],
+    store: Store,
+    project_id: str,
+    whole_workspace: bool,
+    *,
+    hosted_hooks: bool = False,
 ) -> None:
     """Register an explicit allowlist; local MCP registrations are never imported or modified."""
-    scoped = ScopedTools(store, project_id, whole_workspace)
+    scoped = ScopedTools(store, project_id, whole_workspace, hosted_hooks=hosted_hooks)
     reads: tuple[Callable[..., object], ...] = (
         scoped.list_projects,
         scoped.list_artifacts,
@@ -953,6 +1005,12 @@ def register_tools(
         scoped.reorder_slides,
         scoped.reply_to_feedback,
     )
+    if hosted_hooks:
+        reads += (
+            scoped.get_live_review_status,
+            scoped.get_agent_hook_client,
+        )
+        writes += (scoped.start_live_review,)
     for function in reads:
         server.add_tool(remote_tool(cast(Callable[..., object], function)), annotations=READ)
     for function in writes:

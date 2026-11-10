@@ -3,7 +3,7 @@
   'use strict';
   const bridge = document.currentScript;
   if (!bridge?.src) return;
-  const parentOrigin = new URL(bridge.src).origin;
+  const parentOrigin = bridge.dataset.artifactParentOrigin || new URL(bridge.src).origin;
   const bundleRoot = bridge.dataset.artifactRoot;
   const format = bridge.dataset.artifactFormat;
   const send = message => { if (parent !== window) parent.postMessage(message, parentOrigin); };

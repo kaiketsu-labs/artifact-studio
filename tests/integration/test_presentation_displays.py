@@ -96,6 +96,34 @@ def test_blocked_audience_popup_keeps_presenter_retry_available(
     expect(page.locator('iframe[title="Presentation"]')).to_have_count(0)
 
 
+@pytest.mark.parametrize("width", [375, 390])
+def test_narrow_presenter_controls_and_notes_remain_usable(
+    page: Page, live_app: RunningApp, width: int
+) -> None:
+    """The presenter can navigate and edit notes without overlapping controls on a phone."""
+    page.set_viewport_size({"width": width, "height": 844})
+    page.add_init_script("delete window.getScreenDetails; window.open = () => null;")
+    open_editor(page, live_app)
+    page.get_by_role("link", name="Present", exact=True).click()
+    viewer = page.frame_locator('iframe[title="Presentation"]')
+    viewer.get_by_role("button", name="Presenter view", exact=True).click()
+    next_button = viewer.locator("#presenter-next-button")
+    box = next_button.bounding_box()
+    assert box and box["width"] >= 44 and box["height"] >= 44
+    next_button.click()
+    expect(viewer.locator("#presenter-current h1")).to_have_text("Present with confidence")
+    viewer.locator("#presenter-previous").click()
+    expect(viewer.locator("#presenter-current h1")).to_have_text("Review together")
+    notes = viewer.get_by_role("textbox", name="Speaker notes", exact=True)
+    expect(notes).to_have_value(PRIVATE_NOTE)
+    notes.fill("Updated fictional speaker notes")
+    expect(viewer.locator("#presenter-note-status")).to_have_text("Saved")
+    viewer.get_by_role("button", name="End", exact=True).click()
+    expect(page.locator('iframe[title="Presentation"]')).to_have_count(0)
+    expect(page.frame_locator("#preview").locator("h1")).to_have_text("Review together")
+    assert live_app.store.read(DECK_ID).slides[0].notes == "Updated fictional speaker notes"
+
+
 @pytest.mark.parametrize("popup_blocked", [False, True])
 def test_previously_granted_displays_preserve_fullscreen_lifecycle(
     page: Page, live_app: RunningApp, popup_blocked: bool

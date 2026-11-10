@@ -9,6 +9,7 @@ from playwright.sync_api import Page
 from pydantic import Field, model_validator
 
 from .models import StrictModel
+from .renderer_health import bounded_evaluate
 
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_PIXELS = 32_000_000
@@ -64,7 +65,8 @@ class ImageBox(StrictModel):
 
 def original_image(page: Page, selector: str) -> SelectionImage:
     """Read only the chosen image through the renderer's existing resource allowlist."""
-    value: object = page.evaluate(
+    value = bounded_evaluate(
+        page,
         """async ({selector, limit}) => {
             const image = document.querySelector(selector);
             if (!(image instanceof HTMLImageElement)) throw Error('Select an image.');
@@ -106,7 +108,8 @@ def render_selection(page: Page, request: SelectionImageInput) -> SelectionImage
     """Hide unselected paint without reflowing the chosen objects, then capture their union."""
     if request.format == "original":
         return original_image(page, request.selectors[0])
-    value: object = page.evaluate(
+    value = bounded_evaluate(
+        page,
         """({selectors, transparent}) => {
             document.querySelectorAll('[data-review-chrome],[data-artifact-bridge]')
                 .forEach(node => node.remove());

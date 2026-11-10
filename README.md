@@ -4,8 +4,12 @@
 
 <h1 align="center">Artifact Studio</h1>
 
+Work with other people and their agents using the opt-in
+[multiplayer server](docs/MULTIPLAYER.md): scoped invitations, multiple workspaces,
+and Shared / My agent chats through an authenticated tunnel.
+
 <p align="center">
-  A local artifact workspace for you and your agent.<br>
+  An artifact workspace for you and your agent — locally or on your own server.<br>
   Keep presentations, pages, documents and images together. Review the work where it lives.
 </p>
 
@@ -93,6 +97,16 @@ flowchart LR
 Feedback retains the selected artifact, targets and content hash. Agents read released feedback through MCP; automatic continuation requires loaded lifecycle hooks. Approval records the exact version reviewed.
 
 </details>
+
+## Choose a workspace
+
+Hosted setup includes a [configuration check and visible server warnings](docs/HOSTED.md#check-safety-before-starting).
+Unsafe configuration stops startup; MFA and network settings remain marked unverified
+and must be checked in your hosting account.
+
+**Local (default):** run Studio on your computer, use its loopback URL and the Mac controller, and keep files on that computer. The quick start below uses this mode.
+
+**Hosted (draft):** run a separate shared server and open its HTTPS URL in a browser on Mac, iPhone or another device. Every configured human member shares its content; agent identities use the constrained MCP interface. The Mac controller still manages your local installation. See [hosted setup](docs/HOSTED.md), [client-only agent hooks](docs/HOSTED-AGENT-HOOKS.md), and [authentication providers](docs/AUTH-PROVIDERS.md). Switching addresses does not move files.
 
 ## Quick start
 

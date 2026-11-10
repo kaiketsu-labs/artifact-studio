@@ -24,6 +24,27 @@ pytestmark = [
 ]
 
 
+def test_slide_history_waits_for_initial_deck_loading(live_app: RunningApp, page: Page) -> None:
+    """An early history interaction waits for its slide instead of silently doing nothing."""
+    pending: list[Route] = []
+    endpoint = f"{live_app.url}/api/decks/{DECK_ID}"
+    page.route(endpoint, lambda route: pending.append(route))
+    with page.expect_request(endpoint):
+        page.goto(f"{live_app.url}/?editor=1&deck={DECK_ID}#cover")
+    history = page.get_by_role("button", name="Version history", exact=True)
+    try:
+        expect(history).to_be_disabled()
+        assert len(pending) == 1
+    finally:
+        for route in pending:
+            route.continue_()
+        page.unroute(endpoint)
+    expect(history).to_be_enabled()
+    history.click()
+    expect(page.locator("dialog.version-history")).to_be_visible()
+    expect(page.locator(".version-subtitle")).to_have_text("CI workflow")
+
+
 def test_artifact_timeline_preview_restore_and_one_frame(
     live_app: RunningApp, page: Page, tmp_path: Path, artifacts: Path
 ) -> None:

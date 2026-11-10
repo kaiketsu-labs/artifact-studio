@@ -2,7 +2,7 @@
 
 import json
 import os
-import socket
+import re
 import subprocess
 import sys
 import time
@@ -20,6 +20,12 @@ from tests.design_factory import TEMPLATE_ID, make_design
 PROJECT = Path(__file__).resolve().parents[2]
 DECK_ID = "2026-11-01-ci-workflow"
 PRIVATE_NOTE = "PRIVATE_CI_SPEAKER_NOTE_71b03"
+
+
+def bound_server_url(logs: Path) -> str | None:
+    """Read this child's atomically bound port, never probe and release a shared port."""
+    match = re.search(r"Uvicorn running on (http://127\.0\.0\.1:[1-9]\d*)\b", logs.read_text())
+    return match[1] if match else None
 
 
 def markup(title: str) -> str:
@@ -94,10 +100,6 @@ def running_app(root: Path, logs: Path) -> Generator[RunningApp]:
     project = root / "agent-project"
     project.mkdir()
     _ = subprocess.run(["git", "init", "--quiet", str(project)], check=True)
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-    url = f"http://127.0.0.1:{port}"
     environment = {
         **os.environ,
         "ARTIFACT_STUDIO_COLLECTION": str(collection),
@@ -115,7 +117,7 @@ def running_app(root: Path, logs: Path) -> Generator[RunningApp]:
                 "--host",
                 "127.0.0.1",
                 "--port",
-                str(port),
+                "0",
             ],
             cwd=PROJECT,
             env=environment,
@@ -126,6 +128,10 @@ def running_app(root: Path, logs: Path) -> Generator[RunningApp]:
             for _attempt in range(100):
                 if process.poll() is not None:
                     raise RuntimeError(f"App exited during startup: {logs.read_text()}")
+                url = bound_server_url(logs)
+                if url is None:
+                    time.sleep(0.1)
+                    continue
                 try:
                     with urlopen(url + "/api/health", timeout=0.5) as response:
                         if object_value(json.load(response)).get("status") == "ready":

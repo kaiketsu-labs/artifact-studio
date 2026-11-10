@@ -43,9 +43,10 @@ class ReviewHookReply(StrictModel):
 class Reviews:
     """Bind a review chat to an artifact without relying on an MCP transport session."""
 
-    def __init__(self, store: Store) -> None:
+    def __init__(self, store: Store, *, design_inbox: bool = True) -> None:
         """Use the workspace's transactional state and canonical source files."""
         self.store = store
+        self.design_inbox = design_inbox
         self.artifacts = ArtifactStore(store)
 
     def target(self, deck_id: str = "", artifact_id: str = "") -> str:
@@ -90,6 +91,8 @@ class Reviews:
     def bind(self, body: ReviewHookInput) -> ReviewHookReply:
         """Associate a successful workspace tool call with the host's review chat."""
         deck_id = self.target(body.deck_id or "", body.artifact_id or "")
+        if not deck_id and not self.design_inbox:
+            return ReviewHookReply()
         with self.store.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             own = db.execute(
@@ -194,7 +197,7 @@ class Reviews:
             generic = bool(
                 db.execute("SELECT 1 FROM artifact_items WHERE id=?", (deck_id,)).fetchone()
             )
-            designs = bool(
+            designs = self.design_inbox and bool(
                 db.execute(
                     "SELECT 1 FROM design_chat WHERE id>? "
                     "AND json_extract(document,'$.author')='user' "
@@ -224,7 +227,7 @@ class Reviews:
         if deck_id and (events or not designs):
             reader = "read_artifact_feedback(artifact_id" if generic else "read_feedback(deck_id"
             reads.append(f"{reader}={deck_id!r}, after_delivery_id={cursor})")
-        if designs or not events:
+        if self.design_inbox and (designs or not events):
             reads.append(f"read_design_requests(after_event_id={design_cursor})")
         status = "feedback" if events or designs else "idle renewal"
         reason = f"Artifact Studio {status}: call {'; '.join(reads)}."

@@ -586,7 +586,7 @@ class ArtifactStore:
     def _selected_snapshot_contents(
         self, artifact: ArtifactManifest, paths: list[str]
     ) -> dict[str, bytes]:
-        """Materialize only requested bytes after full verification, checking each read again."""
+        """Read declared regular files and validate the exact bytes against saved hashes."""
         metadata = {file.path: file for file in artifact.files}
         contents: dict[str, bytes] = {}
         for path in paths:
@@ -597,7 +597,19 @@ class ArtifactStore:
             if not 0 <= recorded.size <= MAX_FILE_SIZE:
                 raise ValueError("Keep individual artifact files at or below 50 MB.")
             target = self._owned(self._snapshot(artifact) / path)
-            with target.open("rb") as source:
+            if not stat.S_ISREG(target.lstat().st_mode):
+                raise ValueError("Snapshot resources must be regular files.")
+            flags = (
+                os.O_RDONLY
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0)
+                | getattr(os, "O_BINARY", 0)
+            )
+            descriptor = os.open(target, flags)
+            with os.fdopen(descriptor, "rb") as source:
+                details = os.fstat(source.fileno())
+                if not stat.S_ISREG(details.st_mode) or details.st_size != recorded.size:
+                    raise ConflictError("An immutable artifact resource was modified.")
                 data = source.read(recorded.size + 1)
             if len(data) != recorded.size or hashlib.sha256(data).hexdigest() != recorded.sha256:
                 raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
@@ -807,6 +819,25 @@ class ArtifactStore:
             manifest = ArtifactManifest.model_validate_json(cast(str, row[0]))
             self._verify_snapshot(manifest)
             return self._view(db, manifest)
+
+    def verified_revision_file(self, artifact_id: str, revision: int, path: str) -> bytes:
+        """Return only declared bytes matching this immutable revision's recorded hash.
+
+        Resource requests must not hash every sibling asset. Verify the requested
+        file itself and retain those exact bytes for the response, avoiding both
+        bundle-sized work for tiny resources and a later unchecked file reopen.
+        Whole-snapshot inspection and capability issuance still verify the bundle.
+        """
+        path = relative_path(path)
+        with self.store.connect() as db:
+            row = db.execute(
+                "SELECT document FROM artifact_revisions WHERE artifact_id=? AND revision=?",
+                (self._id(artifact_id), revision),
+            ).fetchone()
+            if row is None:
+                raise FileNotFoundError("Artifact revision does not exist.")
+            manifest = ArtifactManifest.model_validate_json(cast(str, row[0]))
+            return self._selected_snapshot_contents(manifest, [path])[path]
 
     def list_artifacts(
         self, project_id: str = "", *, presentations: list[dict[str, str]] | None = None

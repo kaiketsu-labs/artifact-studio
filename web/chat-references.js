@@ -239,9 +239,9 @@
   }
   // The original pill enters the top layer while its slot preserves chat layout.
   // Keeping the real title/remove/download controls avoids cloned interactive UI.
-  function setReferencePointer(active,anchor=null){
+  function setReferencePointer(active,anchor=null,renew=false){
     const key=active?anchor.dataset.referencePreview:'';
-    if(pillBridgeActive===active&&pillBridgeKey===key)return;
+    if(!renew&&pillBridgeActive===active&&pillBridgeKey===key)return;
     pillBridgeActive=active;pillBridgeKey=key;doc.dispatchEvent(new CustomEvent('studio:reference-preview',{detail:{active,request_id:++pillBridgeEpoch}}));
   }
   function releasePill(clear=false){
@@ -343,7 +343,9 @@
   function beginPillHover(anchor){
     pillHoverAnchor=anchor;
     clearTimeout(pillTimer);clearTimeout(pillCloseTimer);
-    setReferencePointer(true,anchor);
+    // A delayed iframe-enter message from the preceding visit must not close
+    // the preview after the pointer has returned to this same pill.
+    setReferencePointer(true,anchor,true);
     if(anchor===pillAnchor)resumePillPreview(anchor);else pillTimer=setTimeout(()=>void showPillPreview(anchor),70);
   }
   doc.addEventListener('pointerover',event=>{

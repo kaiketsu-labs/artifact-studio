@@ -2,6 +2,8 @@
 
 This directory maps the implemented agent interface to its canonical files. It is not an additional prompt and contains no personal workspace data. The Artifact Studio supports projects, freely authored file bundles, adaptive viewers and versioned review alongside the existing presentation tools.
 
+Hosted agents connect through service-credential headers and receive a constrained tool surface. Optional [lightweight client hooks](../docs/HOSTED-AGENT-HOOKS.md) support open-session continuation without installing the server on the agent computer.
+
 ## Canonical contract
 
 | Part | Canonical source |

@@ -58,6 +58,7 @@
   <script src="/web/slide-actions.js" defer></script>
   <script src="/web/objects.js" defer></script>
   <script src="/web/rules-editor.js" defer></script>
+  <script src="/web/session.js" defer></script>
   <script src="/web/libraries.js" defer></script>
   <script src="/web/presentations.js" defer></script>
   <script src="/web/deck-picker.js" defer></script>
@@ -89,6 +90,7 @@
 <header class="topbar">
   <a class="identity" href="/" aria-label="Artifact Studio"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span><span class="identity-name">Artifact Studio</span></a>
   <div class="top-actions">
+    <button type="button" data-session-mode aria-haspopup="dialog" class="hub-session-mode">Workspace…</button>
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
     <button id="share-artifact" class="quiet" type="button" aria-label="Share presentation" title="Share presentation" disabled></button>
     <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
@@ -136,7 +138,7 @@
     </header>
     <div class="canvas-tools">
       <div class="object-tools"><button id="view-artifact" type="button" aria-label="Focus view" title="Focus view" disabled></button><button id="objects-button" type="button" aria-label="Slide objects" title="Select slide objects · Cmd/Ctrl/Shift-click to add or remove" disabled></button></div>
-      <div class="preview-controls"><button id="version-history" type="button" aria-label="Version history" title="Version history"></button><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button></div>
+      <div class="preview-controls"><button id="version-history" type="button" disabled aria-label="Version history" title="Version history"></button><button id="auto-update-preview" type="button" aria-label="Auto-update preview" aria-pressed="true"></button><button id="play-animations" type="button" aria-label="Play animations" aria-controls="preview-wrap" disabled></button></div>
     </div>
     </div>
     <div id="element-properties" hidden></div>
@@ -284,21 +286,22 @@
 </dialog>
 <dialog id="connect-dialog">
   <header><h2>Agent connection</h2><button id="close-connect" aria-label="Close"></button></header>
-  <details class="connection-details"><summary>Guided setup</summary>
+  <p data-session-identity></p>
+  <details class="connection-details" data-local-only><summary>Guided setup</summary>
     <p>Open the Artifact Studio checkout in your agent.</p>
     <p><strong>Claude Code</strong> <code>/setup</code> · <strong>Codex</strong> <code>$setup</code></p>
   </details>
   <details class="connection-details"><summary>MCP setup</summary>
     <label for="mcp-url">Server URL</label><div class="copy-row"><input id="mcp-url" readonly><button id="copy-url" aria-label="Copy server URL"></button></div>
-    <p>Add this URL to your agent using Streamable HTTP, then reload its session.</p>
+    <p>Add this URL to your agent using Streamable HTTP, then reload its session.</p><p data-hosted-agent-help hidden>Configure Cloudflare service credentials as CF-Access-Client-Id and CF-Access-Client-Secret request headers in your agent environment. Credentials are not stored here.</p>
   </details>
-  <details class="connection-details"><summary>Microsoft 365 Copilot</summary>
+  <details class="connection-details" data-local-only><summary>Microsoft 365 Copilot</summary>
     <p>Connect through Copilot Studio with a scoped, authenticated gateway.</p>
     <a href="/web/copilot-setup.html" target="_blank" rel="noopener">Set up Copilot ↗</a>
   </details>
   <button id="copy-agent-prompt" class="primary" title="Paste into your connected agent to work on the selected presentation">Copy agent prompt</button>
   <button id="end-review" hidden>End review</button>
-  <details class="connection-details"><summary>Automatic feedback</summary>
+  <details class="connection-details" data-automatic-feedback><summary>Automatic feedback</summary>
     <p>Set up once in your agent. Keep that chat open while reviewing.</p>
     <button id="copy-live-setup" type="button">Copy setup prompt</button>
   </details>

@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 from fastapi import APIRouter, Request, Response
 
-from .artifact_capture import export_artifact_selection
+from .artifact_capture import CAPTURE_ORIGIN, export_artifact_selection
 from .artifacts import ArtifactStore
 from .selection_image import ArtifactSelectionImageInput, SelectionImage, SelectionImageInput
 from .storage import ConflictError, Store
@@ -56,7 +56,13 @@ def image_routes(get_store: Callable[[], Store]) -> APIRouter:
         artifact = registry.get_artifact_revision(artifact_id, body.revision)
         if artifact.content_hash != body.content_hash:
             raise ConflictError("The artifact version changed. Select the objects again.")
-        origin = str(request.base_url).rstrip("/")
+        # Captures route only frozen bytes inside an offline renderer. They do not
+        # need the browser's authenticated HTTPS origin or preview capabilities.
+        origin = (
+            CAPTURE_ORIGIN
+            if getattr(request.app.state, "hosted_previews", None) is not None
+            else str(request.base_url).rstrip("/")
+        )
         return image_response(export_artifact_selection(registry, artifact, body, origin))
 
     return router
