@@ -240,7 +240,8 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                     page.locator("#feedback-text").fill("Unsent draft")
                     page.locator("[data-session-mode]").click()
                     page.get_by_role("link", name="My workspace").click()
-                    expect(page.get_by_role("alert")).to_contain_text(
+                    switcher = page.get_by_role("region", name="Workspaces")
+                    expect(switcher.get_by_role("alert")).to_have_text(
                         "Finish your current draft or edit before switching workspaces."
                     )
                     page.keyboard.press("Escape")
