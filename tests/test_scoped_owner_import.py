@@ -211,6 +211,7 @@ def test_personal_owner_uses_the_existing_import_dialog(tmp_path: Path) -> None:
                 selection.value.set_files(str(bundle))
                 dialog.get_by_role("button", name="Import artifact", exact=True).click()
                 expect(page).to_have_url(re.compile(r"/workspaces/[0-9a-f]{24}/\?artifact="))
+                expect(page.get_by_role("heading", name="Fictional web bundle")).to_be_focused()
                 expect(
                     page.frame_locator("#hub-html-preview").get_by_role(
                         "heading", name="Fictional bundle loaded"

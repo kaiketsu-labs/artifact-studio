@@ -1018,7 +1018,11 @@
         if(!importFiles.length)throw new Error('Choose files or a folder to import.');
         if(importFiles.length>1000 || importFiles.reduce((total,file)=>total+file.size,0)>100*1024*1024)throw new Error('Import up to 1,000 files and 100 MB at once.');
         const paths=importFiles.map(file=>file.webkitRelativePath || file.name);if(new Set(paths).size!==paths.length)throw new Error('The selection contains duplicate filenames. Choose a folder to preserve file paths.');
-        submit.textContent='Importing…';const item=await api('/api/artifacts/import',{project_id:String(fields.get('project_id')),title:String(fields.get('title')).trim(),entrypoint:String(fields.get('entrypoint')),kind:'auto',files:await encodeFiles(importFiles,true)});await loadRegistry();dialog.close();await openArtifact(item.id || item.artifact?.id);
+        submit.textContent='Importing…';
+        const item=await api('/api/artifacts/import',{project_id:String(fields.get('project_id')),title:String(fields.get('title')).trim(),entrypoint:String(fields.get('entrypoint')),kind:'auto',files:await encodeFiles(importFiles,true)});
+        await loadRegistry();dialog.close();await openArtifact(item.id || item.artifact?.id);
+        const heading=content.querySelector('.hub-edit-heading h1');
+        if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
       }
       if(form.id==='hub-move-form'){const id=form.dataset.artifactId;await api(artifactPath(id,'/project'),{project_id:String(fields.get('project_id'))});await loadRegistry();dialog.close();if(state.active===id)await openArtifact(id,false);else if(state.active){const aside=content.querySelector('aside.hub-sidebar');if(aside)aside.outerHTML=sidebar(true);}else library();toast('Artifact moved to the selected project.');}
     })().catch(reason=>{error.textContent=reason.message;submit.textContent=form.id==='hub-import-form'?'Import artifact':submit.textContent;}).finally(()=>{submit.disabled=false;});
