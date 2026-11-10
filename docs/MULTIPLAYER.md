@@ -115,6 +115,10 @@ connecting several workspaces. Tokens expire after 30 days, are stored hashed an
 can be disconnected independently. Revoking a person's access removes their agent's
 effective permissions on subsequent operations.
 
+For simultaneous workspaces, use separate agent processes with their own token
+environment. The supplied hook client reads one token per process; switching a
+browser workspace or reusing a server name does not change that token's scope.
+
 Agents can poll `read_feedback` or install `get_agent_hook_client` with normal native
 hook approval. Read `get_authoring_guide(topic="live_review")` for setup. The client
 accepts the multiplayer token and retains Cloudflare service-header support for old
