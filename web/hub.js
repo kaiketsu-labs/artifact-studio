@@ -415,7 +415,7 @@
       id:-message.id,author:message.author===message.person?'user':'agent',
       name:message.author===message.person?(message.person===info.person?'You':message.author_name):(info.agents.find(agent=>agent.id===message.author)?.name||'Agent'),
       message:message.message,created_at:new Date(message.created*1000).toISOString(),
-      content_hash:message.content_hash,target:message.target,released:message.released,files:message.files||[],scoped:true
+      content_hash:message.content_hash,target:message.target,released:Boolean(message.released),files:message.files||[],scoped:true
     }));
     const feedback=sharedEditor?scoped:[...(detail.feedback||[]),...scoped];
     if(!collaborationChat)return {...detail,feedback};
@@ -518,7 +518,10 @@
     const kind=kindOf(item);
     return `<div class="hub-view-toolbar"><div>${button('clean-view','View','present','title="View artifact without panels"')}${autoUpdateControl()}${button('history','','history','aria-label="Version history" title="Version history"')}${['html','markdown','image'].includes(kind)?button('select',state.selecting?'Selecting':'Select','cursor',`aria-pressed="${state.selecting}" title="Select targets · hold ⌘, Ctrl or Shift to add more"`):''}${kind==='markdown'?button('source',state.sourceView?'Preview':'Source',state.sourceView?'eye':'code',`aria-pressed="${state.sourceView}"`):''}</div><div>${kind==='html'?`<label class="sr-only" for="hub-viewport">Preview width</label><select id="hub-viewport" aria-label="Preview width"><option value="fluid" ${state.viewport==='fluid'?'selected':''}>Responsive</option><option value="1280" ${state.viewport==='1280'?'selected':''}>Desktop · 1280</option><option value="768" ${state.viewport==='768'?'selected':''}>Tablet · 768</option><option value="390" ${state.viewport==='390'?'selected':''}>Mobile · 390</option></select>${button('replay','','refresh','aria-label="Reload page preview" title="Reload page preview"')}`:kind==='image'?`${button('zoom-out','','minus','aria-label="Zoom out" title="Zoom out"')}<span id="hub-zoom-label" class="hub-muted">Fit</span>${button('zoom-in','','plus','aria-label="Zoom in" title="Zoom in"')}${button('fit','','fit','aria-label="Fit image" title="Fit image"')}`:''}</div></div>`;
   }
-  function pendingCount(item) {return (item.feedback || []).filter(message=>message.released===false && (message.author || message.role || 'user')==='user').length;}
+  function pendingCount(item) {
+    if(collaborationChat)return item.collaboration?.draftCount || 0;
+    return (item.feedback || []).filter(message=>message.released===false && (message.author || message.role || 'user')==='user').length;
+  }
   function messageMarkup(message,item) {
     const author=message.author || message.role || 'user', user=author==='user', target=message.target, targets=target?.kind==='group'?target.elements:[target].filter(Boolean);
     const date=message.created_at?new Date(message.created_at):null;
@@ -534,7 +537,8 @@
     const mode=item.mode || 'batch',count=pendingCount(item),live=item.delivery?.live_available===true;
     const harness=item.workflow?.review_harness==='claude-code'?'Claude Code':'Codex';
     const availability=live?`${harness} connected${item.workflow?.review_session?' · '+item.workflow.review_session:''}`:'Automatic continuation unavailable';
-    return `<div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${escape(availability)}">${icon('live')}Live<span class="hub-live-dot ${live?'is-connected':''}" aria-label="${live?'Agent connected':'Automatic continuation unavailable'}"></span></button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch">${icon('batch')}Batch</button></div>${mode==='batch'?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count?'':'disabled'}`):''}</div>`;
+    const writable=canComment(item),disabled=writable?'':'disabled';
+    return `<div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${escape(availability)}" ${disabled}>${icon('live')}Live<span class="hub-live-dot ${live?'is-connected':''}" aria-label="${live?'Agent connected':'Automatic continuation unavailable'}"></span></button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch" ${disabled}>${icon('batch')}Batch</button></div>${mode==='batch'||(collaborationChat&&count)?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count&&writable?'':'disabled'}`):''}</div>`;
   }
   function chatMarkup(item) {
     const value=draft(item),mode=item.mode || 'batch';
@@ -566,7 +570,7 @@
   /** Refresh review controls without replacing the preview, composer or dictated drafts. */
   function syncArtifactReview(detail) {
     const item=state.detail;if(!item || item.id!==detail.id)return;
-    const deliveryChanged=JSON.stringify([item.mode,item.workflow,item.delivery])!==JSON.stringify([detail.mode,detail.workflow,detail.delivery]);
+    const deliveryChanged=canComment(item)!==canComment(detail)||pendingCount(item)!==pendingCount(detail)||JSON.stringify([item.mode,item.workflow,item.delivery])!==JSON.stringify([detail.mode,detail.workflow,detail.delivery]);
     const feedbackChanged=JSON.stringify(item.feedback)!==JSON.stringify(detail.feedback);
     for(const field of ['mode','workflow','delivery','collaboration'])item[field]=detail[field];
     if(feedbackChanged){
