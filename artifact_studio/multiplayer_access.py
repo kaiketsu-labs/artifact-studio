@@ -109,6 +109,10 @@ class Sharing:
                 CREATE TABLE IF NOT EXISTS preview_tickets (
                   token TEXT PRIMARY KEY, person TEXT NOT NULL, workspace TEXT NOT NULL,
                   artifact TEXT NOT NULL, revision INTEGER NOT NULL, expires REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS opened_revisions (
+                  workspace TEXT NOT NULL, person TEXT NOT NULL, artifact TEXT NOT NULL,
+                  slide TEXT NOT NULL, content_hash TEXT NOT NULL,
+                  PRIMARY KEY(workspace, person, artifact, slide));
             """)
         self.database.chmod(0o600)
 
@@ -116,6 +120,39 @@ class Sharing:
         db = sqlite3.connect(self.database, timeout=30)
         db.row_factory = sqlite3.Row
         return db
+
+    def opened_revisions(
+        self, actor: Actor, workspace: str, artifact: str = ""
+    ) -> dict[str, dict[str, str]]:
+        """Return only this human's opened revision hashes in the selected workspace."""
+        if actor.agent:
+            raise AccessDenied
+        by_artifact: dict[str, dict[str, str]] = {}
+        where = " AND artifact=?" if artifact else ""
+        params = (workspace, actor.person, artifact) if artifact else (workspace, actor.person)
+        with self.connect() as db:
+            for row in db.execute(
+                "SELECT artifact,slide,content_hash FROM opened_revisions "
+                "WHERE workspace=? AND person=?" + where,
+                params,
+            ):
+                by_artifact.setdefault(cast(str, row["artifact"]), {})[cast(str, row["slide"])] = (
+                    cast(str, row["content_hash"])
+                )
+        return by_artifact
+
+    def record_opened(self, actor: Actor, scope: Scope, slide: str, content_hash: str) -> None:
+        """Persist an opened hash validated by the caller under the current grant lock."""
+        if actor.agent:
+            raise AccessDenied
+        with self.connect() as db:
+            db.execute(
+                "INSERT INTO opened_revisions VALUES (?,?,?,?,?) "
+                "ON CONFLICT(workspace,person,artifact,slide) DO UPDATE "
+                "SET content_hash=excluded.content_hash "
+                "WHERE opened_revisions.content_hash!=excluded.content_hash",
+                (scope.workspace, actor.person, scope.resource, slide, content_hash),
+            )
 
     @contextmanager
     def locked(self) -> Generator[None]:

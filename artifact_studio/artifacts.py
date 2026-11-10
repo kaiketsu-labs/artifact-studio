@@ -798,6 +798,10 @@ class ArtifactStore:
             legacy_deck_id=artifact_id,
             snapshot_mode="legacy-in-place",
             files_complete=files_complete,
+            presentation_versions={
+                slide.id: (content_hash, slide.revision)
+                for slide, (_, content_hash) in zip(deck.slides, hashes, strict=True)
+            },
             approved=approved,
             has_unseen_changes=unseen,
             status="approved" if approved else "updated" if unseen else "draft",

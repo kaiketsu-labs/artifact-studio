@@ -26,7 +26,7 @@ from .history_api import history_routes
 from .hosted_policy import deck_asset_response
 from .hosted_presenter import hosted_presenter_router
 from .hub_previews import cover_metadata, request_current_cover
-from .models import CreateInput, DeckView, FeedbackWorkflow, SlideView
+from .models import CreateInput, DeckView, FeedbackWorkflow, SlideSeenInput, SlideView
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
 from .multiplayer_http import IMPORT_DISK_RESERVE, OWNER_UPLOAD_LIMITS, MultiplayerAuth
 from .navigation import NavigationSnapshot
@@ -62,7 +62,33 @@ def artifact_scope(request: Request, identifier: str) -> Scope:
     return Scope(workspace_of(request), "artifact", identifier)
 
 
-def artifact_payload(item: ArtifactView, *, visible_project: bool) -> dict[str, object]:
+def has_update(content_hash: str, revision: int, opened: str | None) -> bool:
+    """Start with a quiet first version and compare later openings by visible content."""
+    return revision > 1 if opened is None else opened != content_hash
+
+
+def review_fields(item: ArtifactView, opened: dict[str, str]) -> dict[str, object]:
+    """Project shared approvals and the current human's independent update marker."""
+    unseen = (
+        any(
+            has_update(content_hash, revision, opened.get(slide))
+            for slide, (content_hash, revision) in item.presentation_versions.items()
+        )
+        if item.legacy_deck_id
+        else has_update(item.content_hash, item.revision, opened.get(""))
+    )
+    return {
+        "id": item.id,
+        "content_hash": item.content_hash,
+        "approved": item.approved,
+        "has_unseen_changes": unseen,
+        "status": "approved" if item.approved else "updated" if unseen else "draft",
+    }
+
+
+def artifact_payload(
+    item: ArtifactView, *, visible_project: bool, opened: dict[str, str]
+) -> dict[str, object]:
     """Return editor metadata without host paths or the private parent identity."""
     data = item.model_dump(
         exclude={
@@ -73,6 +99,7 @@ def artifact_payload(item: ArtifactView, *, visible_project: bool) -> dict[str, 
             "context_hash",
         }
     )
+    data.update(review_fields(item, opened))
     if not visible_project:
         data.update(project_id=SHARED_PROJECT, project_title="Shared with me")
     if item.legacy_deck_id:
@@ -84,7 +111,7 @@ def artifact_payload(item: ArtifactView, *, visible_project: bool) -> dict[str, 
     return data
 
 
-def shared_deck(store: Store, deck_id: str) -> DeckView:
+def shared_deck(store: Store, deck_id: str, opened: dict[str, str]) -> DeckView:
     """Project the current deck and notes without legacy feedback or workspace rules."""
     deck = store.read(deck_id)
     design_hash = store.visual_hash(deck_id)
@@ -95,7 +122,14 @@ def shared_deck(store: Store, deck_id: str) -> DeckView:
             deck_id, slide, design_hash=design_hash, feedback=[], review_hashes=(approved, {})
         )
         slides.append(
-            view.model_copy(update={"has_unseen_changes": False, "agent": type(view.agent)()})
+            view.model_copy(
+                update={
+                    "has_unseen_changes": has_update(
+                        view.content_hash, view.revision, opened.get(slide.id)
+                    ),
+                    "agent": type(view.agent)(),
+                }
+            )
         )
     return DeckView(
         id=deck_id,
@@ -205,11 +239,16 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 if hub.level(actor, Scope(workspace, "project", item.id))
             }
             result: list[dict[str, object]] = []
+            opened = hub.opened_revisions(actor, workspace)
             for item in service.list_artifacts():
                 level = hub.level(actor, artifact_scope(request, item.id))
                 if not level:
                     continue
-                entry = artifact_payload(item, visible_project=item.project_id in projects)
+                entry = artifact_payload(
+                    item,
+                    visible_project=item.project_id in projects,
+                    opened=opened.get(item.id, {}),
+                )
                 entry["access_role"] = LEVEL_ROLE[level]
                 entry.update(cover_metadata(store, item, scoped=True))
                 project = cast(str, entry["project_id"])
@@ -369,8 +408,9 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def deck(request: Request, deck_id: str) -> dict[str, object]:
         actor, scope = actor_of(request), artifact_scope(request, deck_id)
         with deck_access(request, deck_id, "view") as store:
+            opened = hub.opened_revisions(actor, scope.workspace, deck_id).get(deck_id, {})
             result: dict[str, object] = {
-                **shared_deck(store, deck_id).model_dump(),
+                **shared_deck(store, deck_id, opened).model_dump(),
                 "access_role": LEVEL_ROLE[hub.level(actor, scope)],
             }
             if hub.owner(actor, scope.workspace):
@@ -379,6 +419,20 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                     {"name": file.name, "size": file.size} for file in store.brief_files(deck_id)
                 ]
             return result
+
+    @app.post("/api/decks/{deck_id}/slides/{slide_id}/seen")
+    def slide_seen(
+        request: Request, deck_id: str, slide_id: str, body: SlideSeenInput
+    ) -> dict[str, bool]:
+        """Acknowledge the slide opened by this reader while the grant is valid."""
+        with deck_access(request, deck_id, "view") as store:
+            slide = store.locate(store.read(deck_id), slide_id)
+            if store.content_hash(deck_id, slide) != body.content_hash:
+                return {"seen": False}
+            hub.record_opened(
+                actor_of(request), artifact_scope(request, deck_id), slide_id, body.content_hash
+            )
+            return {"seen": True}
 
     @app.get("/api/decks/{deck_id}/brief-files/{file_index}")
     def brief_attachment(request: Request, deck_id: str, file_index: int) -> FileResponse:
@@ -433,8 +487,9 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             visible_project = bool(
                 hub.level(actor, Scope(scope.workspace, "project", item.project_id))
             )
+            opened = hub.opened_revisions(actor, scope.workspace, artifact_id).get(artifact_id, {})
             return {
-                **artifact_payload(item, visible_project=visible_project),
+                **artifact_payload(item, visible_project=visible_project, opened=opened),
                 "access_role": LEVEL_ROLE[hub.level(actor, scope)],
                 "feedback": [],
                 "mode": "live",
@@ -454,18 +509,29 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         request: Request, artifact_id: str, body: ArtifactApproval
     ) -> dict[str, object]:
         """Record human approval of the reviewed artifact version under the current grant."""
-        with hub.guard(actor_of(request), artifact_scope(request, artifact_id), "edit") as store:
+        actor, scope = actor_of(request), artifact_scope(request, artifact_id)
+        with hub.guard(actor, scope, "edit") as store:
             service = ArtifactStore(store)
             if service.get_artifact(artifact_id).legacy_deck_id:
                 raise AccessDenied
             saved = service.approve(artifact_id, body.content_hash, body.approved)
-            return {
-                "id": saved.id,
-                "content_hash": saved.content_hash,
-                "approved": saved.approved,
-                "has_unseen_changes": saved.has_unseen_changes,
-                "status": saved.status,
-            }
+            opened = hub.opened_revisions(actor, scope.workspace, artifact_id).get(artifact_id, {})
+            return review_fields(saved, opened)
+
+    @app.post("/api/artifacts/{artifact_id}/seen")
+    def artifact_seen(
+        request: Request, artifact_id: str, body: SlideSeenInput
+    ) -> dict[str, object]:
+        """Acknowledge the opened artifact snapshot for this reader only."""
+        actor, scope = actor_of(request), artifact_scope(request, artifact_id)
+        with hub.guard(actor, scope) as store:
+            item = ArtifactStore(store).get_artifact(artifact_id)
+            if item.legacy_deck_id:
+                raise AccessDenied
+            if item.content_hash != body.content_hash:
+                raise ConflictError("Artifact changed. Open the current version first.")
+            hub.record_opened(actor, scope, "", item.content_hash)
+            return review_fields(item, {"": item.content_hash})
 
     @app.get("/api/artifacts/{artifact_id}/revisions/{revision}/files/{path:path}")
     @app.get("/api/artifacts/{artifact_id}/files/{path:path}")
