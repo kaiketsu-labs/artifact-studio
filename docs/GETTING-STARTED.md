@@ -115,9 +115,13 @@ For multiple selected slide objects, the menu offers **Delete selection**, align
 
 Drag from empty space on a slide, or in an HTML artifact with **Select** enabled, to enclose multiple objects. Hold **Shift, Cmd or Ctrl** to add objects; **Escape** cancels the drag. Right-click selected objects for **Save as image…** to download a transparent PNG. Right-click an image for its original file as well. Export uses the displayed version and local edit preview without submitting feedback or saving edits. Local images and canvas pixels are supported; unavailable external resources and nested frames are excluded. PNG export requires the local Chromium renderer used for visual review.
 
-Right-click one slide in the sidebar or slide sorter and choose **Copy as image** to copy its saved artwork as a full-resolution PNG. Paste it into another app, including PowerPoint. Notes, feedback and editor controls are excluded, and unsent drafts remain intact. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost; if the slide changed, refresh before copying again.
+Right-click one slide in the sidebar or slide sorter and choose **Copy → Copy as image** to copy its saved artwork as a full-resolution PNG. **Copy slide link** is in the same submenu. **Organize** groups movement, sections and selection; review, presentation and visibility commands remain directly accessible, with Delete separated at the bottom. Paste copied artwork into another app, including PowerPoint. Notes, feedback and editor controls are excluded, and unsent drafts remain intact. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost; if the slide changed, refresh before copying again.
 
 ![Copy a slide as an image from its sidebar menu](assets/slide-copy-image.png)
+
+![Organize slide movement, sections and selection in one submenu](assets/slide-organize-menu.png)
+
+Submenus expand inline in narrow windows. [See the narrow-window menu](assets/slide-menu-narrow.png).
 
 For PDF exports, uncheck **Include hidden slides** to export only visible slides. This option is available in **Share → PDF** (including presentation PDFs inside project ZIPs) and in the PDF print preview before **Save as PDF**. It starts checked to preserve existing exports. Excluding every slide shows a clear empty-state message instead of exporting blank pages. Interactive HTML exports retain hidden slides for deliberate navigation.
 
