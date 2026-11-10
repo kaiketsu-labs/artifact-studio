@@ -5,6 +5,7 @@ import binascii
 import mimetypes
 import tempfile
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Annotated
 
@@ -12,7 +13,6 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import Field
 
-from .artifact_capture import capture_artifact_image
 from .artifact_context import artifact_context
 from .artifact_models import ArtifactFeedback, ArtifactFeedbackInput, ArtifactView, ProjectView
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
@@ -29,13 +29,12 @@ from .design_references import ReferenceInput, RemoveReferenceInput
 from .design_thumbnails import THUMBNAIL_SUFFIXES
 from .design_thumbnails import design_thumbnail as make_design_thumbnail
 from .feedback_previews import feedback_image_response
-from .hub_previews import cover_metadata, request_cover
+from .hub_previews import cover_metadata, render_library_cover, request_cover
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
 from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .review import Reviews
 from .storage import Store
-from .visuals import capture
 
 
 class ProjectInput(StrictModel):
@@ -382,34 +381,13 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     @router.get("/api/hub/previews/{artifact_id}")
     def thumbnail(artifact_id: str, request: Request) -> Response:
         """Serve a saved exact-version cover or queue one bounded background update."""
-        service = artifacts()
         store = get_store()
-
-        def render(view: ArtifactView, output: Path) -> Path:
-            """Keep original capture geometry and source files; intermediates are temporary."""
-            if view.kind == "image":
-                source = service.resolve_file(view.id, view.entrypoint, revision=view.revision)
-                target = output / "raster.png"
-                _ = target.write_bytes(make_design_thumbnail(source, maximum=1280))
-                return target
-            if view.legacy_deck_id:
-                return Path(
-                    capture(
-                        store,
-                        view.legacy_deck_id,
-                        output,
-                        slide_id=store.read(view.legacy_deck_id).slides[0].id,
-                    ).path
-                )
-            if view.kind in {"html", "markdown", "svg"}:
-                return Path(
-                    capture_artifact_image(
-                        service, view.id, output, width=1280, height=800, revision=view.revision
-                    ).path
-                )
-            raise FileNotFoundError("This file has no visual preview.")
-
-        reply = request_cover(store, artifact_id, request.query_params.get("v", ""), render)
+        reply = request_cover(
+            store,
+            artifact_id,
+            request.query_params.get("v", ""),
+            partial(render_library_cover, store),
+        )
         if reply.path is not None:
             request.state.cache_cover = True
             return FileResponse(reply.path, media_type="image/png")

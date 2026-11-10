@@ -52,7 +52,9 @@ function fixture(options={}){
 
 test('only exact versioned local cover URLs are accepted',()=>{
   assert.equal(coverURL(url()),url());
-  for(const value of [null,'/api/artifacts/one/files/large.png','https://example.test'+url(),'//example.test'+url(),url()+'#x','/api/hub/previews/one?v=','/api/hub/previews/one'])assert.equal(coverURL(value),'');
+  const workspace='/workspaces/1234567890abcdef12345678';
+  assert.equal(coverURL(workspace+url()),workspace+url());
+  for(const value of [null,'/api/artifacts/one/files/large.png','https://example.test'+url(),'//example.test'+url(),url()+'#x','/api/hub/previews/one?v=','/api/hub/previews/one','/workspaces/invalid'+url(),workspace+'/other'+url()])assert.equal(coverURL(value),'');
 });
 
 test('viewport covers take priority, deduplicate and cap requests even before observer delivery',async()=>{
