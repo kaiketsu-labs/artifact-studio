@@ -10,6 +10,7 @@ from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
 
 from artifact_studio.artifacts import ArtifactStore
+from artifact_studio.chat_references import ChatReferences
 from scripts.preview_favorites import prepare_covers, seed_favorites
 from tests.integration.support import DECK_ID, PROJECT, running_app
 
@@ -65,6 +66,19 @@ def main() -> None:
             page.mouse.move(1, 1)
             capture("chat-reference-chips.png")
             capture("reference-picker-slide-star-light.png", "#feedback-form")
+            message = text.input_value()
+            presentation = next(
+                entry
+                for entry in ChatReferences(app.store).catalog()
+                if entry.kind == "presentation" and entry.artifact_id == DECK_ID
+            )
+            text.fill("@" + presentation.title)
+            options.get_by_role("option", name=presentation.path, exact=True).click()
+            text.fill("Compare this slide with the full presentation.")
+            page.mouse.move(1, 1)
+            capture("chat-reference-presentation-stack.png", "#feedback-form")
+            page.locator("form .is-path-reference").last.get_by_role("button").click()
+            text.fill(message)
             page.locator("form .is-path-reference").first.hover()
             saved_preview = page.locator("#chat-saved-reference-preview")
             expect(saved_preview).to_be_visible()
