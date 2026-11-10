@@ -1,37 +1,27 @@
 # Changelog
 
-## [0.4.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.2...v0.4.0) (2026-11-10)
+## [0.5.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.2...v0.5.0) (2026-11-10)
 
+Version 0.4.0 was superseded before publication. This release includes the changes since 0.3.2.
 
 ### Features
 
-* add Docker server with persistent workspace and sandboxed rendering ([#70](https://github.com/kaiketsu-labs/artifact-studio/issues/70)) ([73e2ffa](https://github.com/kaiketsu-labs/artifact-studio/commit/73e2ffa4be3871cda98e0baf78735a209fb6b678))
-* **chat:** unfold saved previews from reference pills ([#71](https://github.com/kaiketsu-labs/artifact-studio/issues/71)) ([501c863](https://github.com/kaiketsu-labs/artifact-studio/commit/501c863965cf693a013e411107e5b1f83f7feeed))
-* run Artifact Studio server with Docker Compose ([4577a59](https://github.com/kaiketsu-labs/artifact-studio/commit/4577a59af942b0ffe07b6054908a25257ff6e1ce))
-* **workspace:** automate verified releases and polish review controls ([#88](https://github.com/kaiketsu-labs/artifact-studio/issues/88)) ([7c103cb](https://github.com/kaiketsu-labs/artifact-studio/commit/7c103cb76ee4cf843974dfe42ca0deca3ff2af5e))
+* **Multiplayer:** share artifacts, projects or entire workspaces through an authenticated tunnel. Collaborators use their own scoped agents, Shared and My agent chats, invitations and revocable access. Additional workspaces are isolated. ([#84](https://github.com/kaiketsu-labs/artifact-studio/pull/84))
+* **Docker:** run the server with persistent workspace storage and sandboxed rendering through Docker Compose. ([#70](https://github.com/kaiketsu-labs/artifact-studio/pull/70))
+* **Chat:** open saved document previews directly from reference pills. ([#71](https://github.com/kaiketsu-labs/artifact-studio/pull/71))
+* **Maintenance:** automate audited dependency updates and verify stable-release publication against successful CI for each release commit. ([#72](https://github.com/kaiketsu-labs/artifact-studio/pull/72), [#88](https://github.com/kaiketsu-labs/artifact-studio/pull/88))
 
+### Bug fixes
 
-### Bug Fixes
+* Preserve open reference previews during composer refreshes. ([#95](https://github.com/kaiketsu-labs/artifact-studio/pull/95))
+* Keep Version history unavailable until a slide is ready, including during presentation switches and in empty workspaces. Stabilize parallel browser-test server startup. ([#84](https://github.com/kaiketsu-labs/artifact-studio/pull/84))
+* Clarify chat toolbar, favorite-library and full-presentation icons. ([#85](https://github.com/kaiketsu-labs/artifact-studio/pull/85), [#86](https://github.com/kaiketsu-labs/artifact-studio/pull/86), [#87](https://github.com/kaiketsu-labs/artifact-studio/pull/87), [#94](https://github.com/kaiketsu-labs/artifact-studio/pull/94))
+* Update locked Python, release-tooling and container dependencies, including transitive dependency fixes. ([#89](https://github.com/kaiketsu-labs/artifact-studio/pull/89), [#91](https://github.com/kaiketsu-labs/artifact-studio/pull/91), [#93](https://github.com/kaiketsu-labs/artifact-studio/pull/93))
 
-* **chat:** unify toolbar controls and identify reference types ([#87](https://github.com/kaiketsu-labs/artifact-studio/issues/87)) ([d5f16b5](https://github.com/kaiketsu-labs/artifact-studio/commit/d5f16b5ac692057dae089c547f1c3bbbbc9c38af))
-* **deps:** automate audited dependency updates ([#72](https://github.com/kaiketsu-labs/artifact-studio/issues/72)) ([19ea670](https://github.com/kaiketsu-labs/artifact-studio/commit/19ea6704f7107f977c507800b02fec1a99d324ca))
-* **deps:** bump astral-sh/uv from 0.12.23 to 0.13.7 ([37df9db](https://github.com/kaiketsu-labs/artifact-studio/commit/37df9db73ce112ae468dd16b224ac5dbf2872e62))
-* **deps:** bump click from 8.5.0 to 8.5.1 in the python-compatible group ([#93](https://github.com/kaiketsu-labs/artifact-studio/issues/93)) ([625e39a](https://github.com/kaiketsu-labs/artifact-studio/commit/625e39a32ec9d9274d2efec72d7e32af072f251a))
-* **deps:** bump python from 3.14-slim-bookworm to 3.15-slim-bookworm ([477a99c](https://github.com/kaiketsu-labs/artifact-studio/commit/477a99c622f999db0fbd8d062c51bde0f4a84bb2))
-* **deps:** bump release-please ([7e14c40](https://github.com/kaiketsu-labs/artifact-studio/commit/7e14c409e4ced471b45e8b67e4430424f7920348))
-* **deps:** bump the python-compatible group across 1 directory with 7 updates ([#89](https://github.com/kaiketsu-labs/artifact-studio/issues/89)) ([a33f766](https://github.com/kaiketsu-labs/artifact-studio/commit/a33f7663a6dba75c86ce858728e0cc2d01801eb5))
-* **deps:** update pending dependencies and stabilize preview CI ([#91](https://github.com/kaiketsu-labs/artifact-studio/issues/91)) ([dca000a](https://github.com/kaiketsu-labs/artifact-studio/commit/dca000aa9f8c86bebd6be8f2240f4acca13bdbab))
-* **docker:** import host files as the runtime user ([dc57c2b](https://github.com/kaiketsu-labs/artifact-studio/commit/dc57c2b6a5b932e34fa32ecfd295732e50e645a5))
-* **favorites:** distinguish reference collection controls ([#85](https://github.com/kaiketsu-labs/artifact-studio/issues/85)) ([f202db8](https://github.com/kaiketsu-labs/artifact-studio/commit/f202db88f61e1d5e28c82278cbe899baad613a03))
-* **favorites:** use approved slide-and-star icon ([#86](https://github.com/kaiketsu-labs/artifact-studio/issues/86)) ([8da926e](https://github.com/kaiketsu-labs/artifact-studio/commit/8da926ecd3b30843af5e6bcd63c07314d68ff9d8))
-* **icons:** use stacked slides for full presentations ([#94](https://github.com/kaiketsu-labs/artifact-studio/issues/94)) ([3b9760b](https://github.com/kaiketsu-labs/artifact-studio/commit/3b9760b3c5254e543a784ee80979bad172b46c50))
-* **previews:** preserve open reference documents ([04c6b1c](https://github.com/kaiketsu-labs/artifact-studio/commit/04c6b1c8a31656bb8164efdeb4610afd97ed1a75))
-* **previews:** retain saved documents across composer refreshes ([#95](https://github.com/kaiketsu-labs/artifact-studio/issues/95)) ([5c2adfc](https://github.com/kaiketsu-labs/artifact-studio/commit/5c2adfc53d41b737fd4261155cdde7908b1e4a10))
+### Setup
 
-
-### Documentation
-
-* **setup:** lead with the mac menu-bar app ([#92](https://github.com/kaiketsu-labs/artifact-studio/issues/92)) ([b28fa4d](https://github.com/kaiketsu-labs/artifact-studio/commit/b28fa4dd31fef660726c9bb1ff182b7fdff3bbf3))
+* Lead Mac installation with the menu-bar app. ([#92](https://github.com/kaiketsu-labs/artifact-studio/pull/92))
+* Local mode remains the default. Multiplayer requires its separate server entrypoint, authenticated tunnel and agent connections; follow the [multiplayer guide](https://github.com/kaiketsu-labs/artifact-studio/blob/v0.5.0/docs/MULTIPLAYER.md).
 
 ## [0.3.2](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.1...v0.3.2) (2026-11-06)
 
