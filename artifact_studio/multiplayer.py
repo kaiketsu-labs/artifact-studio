@@ -156,6 +156,7 @@ def create_app(
         return JSONResponse({"detail": "Item unavailable."}, 404)
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("/together", response_class=HTMLResponse)
     def index() -> str:
         return (PROJECT / "web/multiplayer.html").read_text()
 
@@ -166,6 +167,7 @@ def create_app(
         return FileResponse(PROJECT / "web" / name)
 
     @app.get("/api/session")
+    @app.get("/api/together/session")
     def session(request: Request) -> dict[str, object]:
         actor = actor_of(request)
         with hub.locked(), hub.connect() as db:
@@ -194,6 +196,10 @@ def create_app(
                 "workspaces": workspaces,
                 "can_create": person["email"] == hub.owner_email,
                 "mcp_url": config.public_url + "/mcp",
+                "editor_available": (
+                    person["email"] == hub.owner_email
+                    and getattr(request.state, "unified_studio", False)
+                ),
             }
 
     @app.post("/api/workspaces")
@@ -286,10 +292,11 @@ def create_app(
         invitation = hub.invite(
             actor_of(request), Scope(workspace, body.kind, body.resource), body.email, body.role
         )
+        path = "/together" if getattr(request.state, "unified_studio", False) else "/"
         # Fragment keeps the secret out of HTTP access logs and Referer headers.
         return {
             "id": invitation["id"],
-            "url": config.public_url + "/#invite=" + invitation["token"],
+            "url": config.public_url + path + "#invite=" + invitation["token"],
         }
 
     @app.post("/api/workspaces/{workspace}/access/{identifier}/revoke")

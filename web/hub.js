@@ -448,6 +448,8 @@
     }).join('');
   }
   function library() {
+    const collaboration=doc.querySelector('[data-collaborate]');
+    if(collaboration)delete collaboration.dataset.artifact;
     if(!initialProjectRecorded){initialProjectRecorded=true;if(selectedProject(state.project))void quickAccess.visit({project_id:state.project});}
     void voice.stop();
     properties?.destroy();properties=null;
@@ -686,6 +688,8 @@
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');!id&&!['all','designs'].includes(state.project)?url.searchParams.set('project',state.project):url.searchParams.delete('project');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
     if(!resetEditor())return;coverLoader.clear();closeTreeMenu();workspacePanels.exitView();
+    const collaboration=doc.querySelector('[data-collaborate]');
+    if(collaboration)collaboration.dataset.artifact=id;
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);

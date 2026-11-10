@@ -1,5 +1,32 @@
 # Multiplayer through your computer
 
+## Full editor for the workspace owner
+
+To use the regular Artifact Studio library and editor when you sign in as the
+owner, start the unified server instead of the standalone collaboration server.
+It uses the same collection, review database, multiplayer state, and Cloudflare
+policies. Keep only the owner in `member_emails` and leave `agent_subjects` empty.
+Invited users sign in through Cloudflare Access and see the scoped collaboration
+view. They need a Studio invitation to see specific items.
+
+```sh
+uv run uvicorn artifact_studio.unified:create_app --factory \
+  --host 127.0.0.1 --port 8790 --no-proxy-headers --no-access-log
+```
+
+Set the same environment variables documented below and stop any other Studio
+process using the workspace before starting. The owner opens the usual URL for
+editing, importing, exporting, and presenting. **Collaborate** opens the selected
+artifact in the sharing and conversation view. **Back to Studio** returns the
+owner to that artifact in the full editor. Additional isolated workspaces are
+managed in the collaboration view. Existing local review messages stay separate
+from Shared and My agent chats. Use **Agent connection** to connect a scoped agent
+to those chats. Host administration stays on the server.
+
+The standalone collaboration server remains available for existing deployments.
+
+## Standalone collaboration
+
 Multiplayer is an opt-in server for working on the same artifacts with other people
 and their agents. Your computer stores the work and must stay awake and connected.
 The local app remains the default. This collaboration UI provides workspace/project

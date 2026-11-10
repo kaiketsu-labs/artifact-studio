@@ -1784,6 +1784,7 @@ def session_info(request: Request) -> dict[str, object]:
     principal = cast(Principal | None, getattr(request.state, "principal", None))
     return {
         "mode": deployment.mode,
+        "collaboration_url": "/together" if getattr(request.state, "unified_studio", False) else "",
         "public_url": origin,
         "mcp_url": origin + "/mcp",
         "auth_provider": deployment.auth_provider if hosted else "none",

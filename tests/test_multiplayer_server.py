@@ -7,6 +7,7 @@ from typing import cast
 from urllib.parse import urlsplit
 
 import httpx
+import pytest
 
 from tests.integration.multiplayer_fixture import WORKSPACE, MultiplayerApp, running_multiplayer_app
 
@@ -105,9 +106,12 @@ def test_http_grants_preview_revoke_and_legacy_denial(tmp_path: Path) -> None:
         assert alice.get(file_path, headers={"host": "preview.example.test"}).status_code == 404
 
 
-def test_real_mcp_scope_and_stale_revision(tmp_path: Path) -> None:
+@pytest.mark.parametrize("unified", [False, True], ids=["standalone", "unified"])
+def test_real_mcp_scope_and_stale_revision(tmp_path: Path, unified: bool) -> None:
     with (
-        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log") as app,
+        running_multiplayer_app(
+            tmp_path / "server", tmp_path / "server.log", unified=unified
+        ) as app,
         human(app, "owner") as owner,
         human(app, "alice") as alice,
     ):
