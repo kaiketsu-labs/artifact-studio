@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
+from artifact_studio.models import SlidePatch
 from tests.integration.multiplayer_fixture import (
     WORKSPACE,
     routed_multiplayer_context,
@@ -49,9 +50,54 @@ def test_shared_artifact_uses_existing_approve_control(tmp_path: Path) -> None:
                 expect(page.locator(".hub-version .hub-status")).to_have_text("Approved")
             with routed_multiplayer_context(browser, app, "bob") as context:
                 page = context.new_page()
-                page.goto(url)
+                page.goto(WORKSPACE)
+                card = page.get_by_role("button", name=re.compile(r"^Open Shared candidate"))
+                expect(card).to_have_accessible_description("Approved")
+                card.click()
                 expect(page.locator(".hub-version .hub-status")).to_have_text("Approved")
                 expect(page.locator(".hub-approve")).to_be_hidden()
+        finally:
+            browser.close()
+
+
+def test_shared_slide_update_marker_clears_for_the_reader(tmp_path: Path) -> None:
+    """Clicking an updated thumbnail clears its native outline only in that account."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+        sync_playwright() as playwright,
+    ):
+        for reader, name in ((alice, "alice"), (bob, "bob")):
+            accept(reader, grant(owner, name, app.deck_id, role="view"))
+        initial = app.store.view(app.deck_id).slides[1]
+        _ = app.store.revise_view(
+            app.deck_id,
+            initial.id,
+            initial.expected_hash,
+            "fixture-shared-slide-revision",
+            SlidePatch(html='<article class="slide"><h1>Revised slide</h1></article>'),
+        )
+        browser = playwright.chromium.launch()
+        try:
+            url = f"{WORKSPACE}/?deck={app.deck_id}#cover"
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(url)
+                marker = page.get_by_role("button", name=re.compile(r"^Slide 02 Next"))
+                expect(marker).to_have_class(re.compile(r"\bhas-unseen-changes\b"))
+                marker.click()
+                expect(marker).not_to_have_class(re.compile(r"\bhas-unseen-changes\b"))
+                page.reload()
+                expect(marker).to_have_attribute("aria-current", "true")
+                expect(marker).not_to_have_class(re.compile(r"\bhas-unseen-changes\b"))
+            with routed_multiplayer_context(browser, app, "bob") as context:
+                page = context.new_page()
+                page.goto(url)
+                expect(
+                    page.get_by_role("button", name=re.compile(r"^Slide 02 Next"))
+                ).to_have_class(re.compile(r"\bhas-unseen-changes\b"))
         finally:
             browser.close()
 
