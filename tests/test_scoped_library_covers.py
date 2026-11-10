@@ -12,7 +12,7 @@ from typing import cast
 import httpx
 import pytest
 from PIL import Image
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Locator, Page, expect, sync_playwright
 
 from artifact_studio.artifact_models import ArtifactFileInput
 from artifact_studio.artifacts import ArtifactStore
@@ -26,6 +26,7 @@ from tests.integration.multiplayer_fixture import (
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, grant, human
+from tests.test_unified_hosting import seed_isolated_presentation
 
 
 def raster(color: str) -> bytes:
@@ -35,12 +36,12 @@ def raster(color: str) -> bytes:
     return output.getvalue()
 
 
-def cover_url(client: httpx.Client, identifier: str) -> str:
+def cover_url(client: httpx.Client, identifier: str, *, prefix: str = "") -> str:
     """Read the cover advertised for one visible library card."""
-    library = client.get("/api/hub")
+    library = client.get(prefix + "/api/hub")
     library.raise_for_status()
     item = next(entry for entry in library.json()["artifacts"] if entry["id"] == identifier)
-    return cast(str, item["preview_url"])
+    return prefix + cast(str, item["preview_url"])
 
 
 def wait_for_cover(client: httpx.Client, url: str) -> httpx.Response:
@@ -51,6 +52,15 @@ def wait_for_cover(client: httpx.Client, url: str) -> httpx.Response:
         if response.status_code != 202 or time.monotonic() >= deadline:
             return response
         time.sleep(0.1)
+
+
+def decoded_card(page: Page, title: str) -> Locator:
+    """Wait for a real image decode, with time for queued renders on CI."""
+    card = page.get_by_role("button", name=re.compile(f"^Open {title},"))
+    thumbnail = card.locator("img[data-preview-image]")
+    expect(thumbnail).to_be_visible(timeout=45000)
+    assert thumbnail.evaluate("(image) => image.complete && image.naturalWidth > 0")
+    return thumbnail
 
 
 def test_shared_covers_require_the_current_grant_and_revision(tmp_path: Path) -> None:
@@ -122,28 +132,60 @@ def test_identical_deck_covers_do_not_share_a_cache(tmp_path: Path) -> None:
 )
 def test_shared_library_renders_deck_and_document_covers(tmp_path: Path) -> None:
     """A View guest can open the same decoded thumbnail cards as the owner."""
+    root = tmp_path / "app"
     with (
-        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
         human(app, "owner") as owner,
         human(app, "alice") as guest,
+        human(app, "bob") as isolated_guest,
         sync_playwright() as playwright,
     ):
         for identifier in (app.deck_id, app.artifact_id):
             accept(guest, grant(owner, "alice", identifier, "view"))
+        created = owner.post("/api/workspaces", json={"title": "Fictional isolated workspace"})
+        created.raise_for_status()
+        workspace = cast(str, created.json()["id"])
+        prefix = f"/workspaces/{workspace}"
+        seed_isolated_presentation(root, app, workspace)
+        invitation = owner.post(
+            f"/api/workspaces/{workspace}/invitations",
+            json={
+                "kind": "artifact",
+                "resource": app.deck_id,
+                "email": "bob@example.test",
+                "role": "view",
+            },
+        )
+        invitation.raise_for_status()
+        accept(isolated_guest, cast(str, invitation.json()["url"]).split("#invite=")[1])
+        default_cover = cover_url(guest, app.deck_id)
+        isolated_cover = cover_url(isolated_guest, app.deck_id, prefix=prefix)
+        assert isolated_guest.get(default_cover).status_code == 404
+        assert guest.get(isolated_cover).status_code == 404
+        assert isolated_guest.get(prefix + default_cover).status_code == 409
         browser = playwright.chromium.launch()
         try:
             with routed_multiplayer_context(browser, app, "alice") as context:
                 page = context.new_page()
                 page.goto(WORKSPACE)
                 for title in ("Fictional team deck", "Shared candidate"):
-                    card = page.get_by_role("button", name=re.compile(f"^Open {title},"))
-                    thumbnail = card.locator("img[data-preview-image]")
-                    expect(thumbnail).to_be_visible(timeout=45000)
-                    assert thumbnail.evaluate("(image) => image.complete && image.naturalWidth > 0")
+                    _ = decoded_card(page, title)
                 expect(
                     page.get_by_role("button", name=re.compile("^Open Private sibling"))
                 ).to_have_count(0)
                 page.get_by_role("button", name=re.compile("^Open Fictional team deck,")).click()
                 expect(page.locator("#slide-title")).to_be_visible()
+            with routed_multiplayer_context(browser, app, "bob") as context:
+                page = context.new_page()
+                page.goto(WORKSPACE + prefix + "/")
+                expect(decoded_card(page, "Isolated presentation")).to_have_attribute(
+                    "data-cover-url", isolated_cover
+                )
+                expect(
+                    page.get_by_role("button", name=re.compile("^Open Fictional team deck,"))
+                ).to_have_count(0)
+                page.get_by_role("button", name=re.compile("^Open Isolated presentation,")).click()
+                expect(page.locator("#slide-title")).to_be_visible()
+                expect(page).to_have_url(re.compile(f"{WORKSPACE}{prefix}/[?]deck={app.deck_id}"))
         finally:
             browser.close()
