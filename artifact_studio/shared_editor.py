@@ -4,13 +4,16 @@ import mimetypes
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from shutil import disk_usage
 from typing import Literal, cast
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from . import __version__
-from .artifact_api import ProjectInput
+from .artifact_api import ArtifactImport, ProjectInput, import_upload
 from .artifact_models import ArtifactView
 from .artifact_preview import artifact_file_headers
 from .artifacts import ArtifactStore
@@ -23,7 +26,7 @@ from .hosted_presenter import hosted_presenter_router
 from .hub_previews import cover_metadata, request_current_cover
 from .models import DeckView, FeedbackWorkflow, SlideView
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
-from .multiplayer_http import MultiplayerAuth
+from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth
 from .navigation import NavigationSnapshot
 from .sections import sections_hash
 from .storage import ConflictError, Store
@@ -107,6 +110,13 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     async def stale(_: Request, error: ConflictError) -> JSONResponse:
         return JSONResponse({"detail": str(error)}, status_code=409)
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
+        """Keep malformed upload contents out of validation responses."""
+        if request.scope["path"] == "/api/artifacts/import":
+            return JSONResponse({"detail": "Check the selected files and project."}, 422)
+        return await request_validation_exception_handler(request, error)
+
     @app.get("/")
     def shell(request: Request, deck: str = "") -> Response:
         workspace = workspace_of(request)
@@ -164,7 +174,12 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 return {"projects": [], "artifacts": [], "designs": []}
             service = ArtifactStore(store)
             projects = {
-                item.id: {"id": item.id, "title": item.title, "artifact_count": 0}
+                item.id: {
+                    "id": item.id,
+                    "title": item.title,
+                    "artifact_count": 0,
+                    "legacy": item.legacy,
+                }
                 for item in service.list_projects()
                 if hub.level(actor, Scope(workspace, "project", item.id))
             }
@@ -192,6 +207,23 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             hub.manage(actor, Scope(workspace))
             item = ArtifactStore(hub.store(workspace)).create_project(body.title, body.context)
             return {"id": item.id, "title": item.title}
+
+    @app.post("/api/artifacts/import")
+    def import_artifact(request: Request, body: ArtifactImport) -> dict[str, str]:
+        """Import owned files into a project in the selected workspace."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        with hub.locked():
+            hub.manage(actor, Scope(workspace, "project", body.project_id))
+            store = hub.store(workspace)
+            encoded_size = sum(len(file.data_base64) for file in body.files)
+            available = min(disk_usage(hub.root).free, disk_usage(store.root).free)
+            if available < IMPORT_DISK_RESERVE + 3 * encoded_size:
+                raise HTTPException(507, "Not enough workspace storage for these files.")
+            try:
+                item = import_upload(ArtifactStore(store), body, staging_root=hub.root)
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from None
+            return {"id": item.id}
 
     @app.get("/api/hub/previews/{artifact_id}")
     def thumbnail(request: Request, artifact_id: str, v: str = "") -> Response:

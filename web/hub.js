@@ -138,6 +138,7 @@
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
   const sharedEditor=doc.documentElement.hasAttribute('data-shared-editor');
+  const canImport=()=>!sharedEditor||doc.documentElement.hasAttribute('data-workspace-owner');
   const studioHome=root.ArtifactSession.home();
   const nativeChat=sharedEditor||new URLSearchParams(root.location.search).get('chat')==='shared';
   doc.documentElement.toggleAttribute('data-native-conversation',nativeChat);
@@ -323,7 +324,10 @@
   const menuCommand=(label,glyph,run,options={})=>({label,icon:icon(glyph),run,...options});
   const newPresentation=()=>{if(artifactEditor.finish())root.location.href='/?editor=1&new=1';};
   function creationCommands(project=state.project,parent=selectedFolder()){
-    return [menuCommand('New project','project',()=>projectDialog(false,parent)),menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),menuCommand('Import artifact','upload',()=>importDialog(project)),menuCommand('New presentation','slideAdd',newPresentation)];
+    const create=menuCommand('New project','project',()=>projectDialog(false,parent));
+    const upload=menuCommand('Import artifact','upload',()=>importDialog(project));
+    if(sharedEditor)return [create,upload];
+    return [create,menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),upload,menuCommand('New presentation','slideAdd',newPresentation)];
   }
   /** Resolve tree changes when invoked, retaining the row captured when the menu opened. */
   async function treeAction(action,id){
@@ -341,6 +345,7 @@
     const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
     const commands=[menuCommand('Open','folderOpen',()=>home(key))];
     if(sharedEditor){
+      if(canImport()&&project&&!project.legacy)commands.push(menuCommand('Import artifact','upload',()=>importDialog(id)));
       if(project&&root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
       showHubMenu(anchor,'Project actions',commands,point);return;
     }
@@ -817,6 +822,7 @@
     dialog.querySelector('input').focus();
   }
   function importDialog(projectId=state.project) {
+    if(!canImport())return;
     const folder=projectId.startsWith('folder:')?projectId.slice(7):null,ids=folder?root.ProjectNavigation.projectsIn(state.projectTree,folder):null;
     const projects=state.projects.filter(project=>!project.legacy && (!ids || ids.includes(project.id)));
     if(!projects.length){projectDialog(true,folder);return;}
@@ -975,7 +981,7 @@
     const row=target.closest('[data-tree-node]');
     if(row){projectTreeMenu(target.closest('button') || row,row.dataset.treeNode,point);return true;}
     if(state.active || state.designActive || state.project==='designs' || !target.closest('.hub-main,aside.hub-sidebar[aria-label="Projects"]') || target.closest('button,summary,[role="button"]'))return false;
-    if(sharedEditor)return false;
+    if(!canImport())return false;
     showHubMenu(target.closest('.hub-main,aside.hub-sidebar'), 'Library actions',creationCommands(),point);return true;
   }
   content.addEventListener('contextmenu',event=>{if(libraryContextMenu(event,{x:event.clientX,y:event.clientY})){event.preventDefault();event.stopPropagation();}else closeTreeMenu();});
@@ -1012,7 +1018,11 @@
         if(!importFiles.length)throw new Error('Choose files or a folder to import.');
         if(importFiles.length>1000 || importFiles.reduce((total,file)=>total+file.size,0)>100*1024*1024)throw new Error('Import up to 1,000 files and 100 MB at once.');
         const paths=importFiles.map(file=>file.webkitRelativePath || file.name);if(new Set(paths).size!==paths.length)throw new Error('The selection contains duplicate filenames. Choose a folder to preserve file paths.');
-        submit.textContent='Importing…';const item=await api('/api/artifacts/import',{project_id:String(fields.get('project_id')),title:String(fields.get('title')).trim(),entrypoint:String(fields.get('entrypoint')),kind:'auto',files:await encodeFiles(importFiles,true)});await loadRegistry();dialog.close();await openArtifact(item.id || item.artifact?.id);
+        submit.textContent='Importing…';
+        const item=await api('/api/artifacts/import',{project_id:String(fields.get('project_id')),title:String(fields.get('title')).trim(),entrypoint:String(fields.get('entrypoint')),kind:'auto',files:await encodeFiles(importFiles,true)});
+        await loadRegistry();dialog.close();await openArtifact(item.id || item.artifact?.id);
+        const heading=content.querySelector('.hub-edit-heading h1');
+        if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
       }
       if(form.id==='hub-move-form'){const id=form.dataset.artifactId;await api(artifactPath(id,'/project'),{project_id:String(fields.get('project_id'))});await loadRegistry();dialog.close();if(state.active===id)await openArtifact(id,false);else if(state.active){const aside=content.querySelector('aside.hub-sidebar');if(aside)aside.outerHTML=sidebar(true);}else library();toast('Artifact moved to the selected project.');}
     })().catch(reason=>{error.textContent=reason.message;submit.textContent=form.id==='hub-import-form'?'Import artifact':submit.textContent;}).finally(()=>{submit.disabled=false;});

@@ -51,9 +51,11 @@ Keep `member_emails` limited to the primary owner. The two lists must be disjoin
 The first authenticated visit provisions an empty workspace for an account that
 needs one. The Studio home opens the personal library until the user has an
 invitation they have accepted in the primary workspace. Their personal projects
-use the same Studio library, editor, sharing menu and agent connection. The **Hosted** button switches between their
-personal workspace and any workspace with shared projects. Sharing a project
-leaves the rest of either user's workspace private.
+use the same Studio library, editor, sharing menu and agent connection. Owners
+can use **Import** to add files or folders to projects they own. Project guests
+continue to use the access granted through the invitation. The **Hosted** button
+switches between personal and shared workspaces. Sharing a project leaves the
+rest of either user's workspace private.
 
 Workspace ownership persists when you edit the provisioning list. The sign-in
 provider controls browser access. Revoke Studio agent connections and remove
