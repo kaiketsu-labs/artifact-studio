@@ -65,7 +65,7 @@
           contentHash: state.content_hash, draftCount: state.draft_counts?.[channel] ?? 0};
       },
       async send(artifactId, {message, requestId, contentHash, slideId, slideContentHash, target,
-        editIntent, channel = 'shared', released = true, assigned = ''}) {
+        editIntent, files, channel = 'shared', released = true, assigned = ''}) {
         const endpoint = base(artifactId), anchor = artifactTarget(target, slideId);
         const stale = message => Object.assign(new Error(message), {status: 409, stale: true});
         if (!contentHash) throw stale(staleArtifact);
@@ -77,7 +77,7 @@
           }
         }
         return request(`${endpoint}/chat`, {message: editMessage(message, editIntent), request_id: requestId,
-          content_hash: contentHash, target: anchor, channel, released, assigned});
+          content_hash: contentHash, target: anchor, channel, released, assigned, ...(files?.length ? {files} : {})});
       },
       release(artifactId, channel = 'shared') {
         return request(inChannel(`${base(artifactId)}/release`, channel), {});

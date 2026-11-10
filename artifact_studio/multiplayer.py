@@ -12,8 +12,10 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal, cast
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
@@ -25,8 +27,9 @@ from .artifact_preview import artifact_file_headers, preview_document, preview_h
 from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
 from .deployment import DeploymentConfig
+from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
-from .models import StrictModel
+from .models import FileInput, StrictModel
 from .multiplayer_access import AccessDenied, Actor, Kind, Scope, Sharing, checksum
 from .multiplayer_chat import Channel, Conversations
 from .multiplayer_http import MultiplayerAuth
@@ -62,12 +65,13 @@ class AcceptInput(StrictModel):
 
 class ChatInput(StrictModel):
     channel: Channel = "shared"
-    message: str = Field(min_length=1, max_length=10000)
+    message: str = Field(max_length=10000)
     request_id: str = Field(min_length=8, max_length=100)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
+    files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
 def actor_of(request: Request) -> Actor:
@@ -142,6 +146,19 @@ def create_app(
     @app.exception_handler(AccessDenied)
     async def denied(_: Request, __: AccessDenied) -> JSONResponse:
         return JSONResponse({"detail": "This item is unavailable or your access has changed."}, 404)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
+        """Return field diagnostics without echoing submitted files or secrets."""
+        detail = [
+            {
+                "loc": [str(part)[:100] for part in item["loc"][:8]],
+                "type": item["type"],
+                "msg": item["msg"][:200],
+            }
+            for item in error.errors()[:10]
+        ]
+        return JSONResponse({"detail": detail}, status_code=422)
 
     @app.exception_handler(ConflictError)
     async def conflict(_: Request, error: ConflictError) -> JSONResponse:
@@ -383,7 +400,36 @@ def create_app(
             body.released,
             body.target,
             body.content_hash,
+            body.files,
         )
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")
+    def chat_file(
+        request: Request,
+        workspace: str,
+        artifact: str,
+        event_id: int,
+        index: int,
+        preview: bool = False,
+        full: bool = False,
+    ) -> Response:
+        """Serve a visible message's original file or a newly encoded raster preview."""
+        metadata, data = chat.attachment(
+            actor_of(request), Scope(workspace, "artifact", artifact), event_id, index
+        )
+        headers = {
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+            "Cross-Origin-Resource-Policy": "same-origin",
+        }
+        if preview:
+            try:
+                raster = raster_thumbnail(data, maximum=2048 if full else 640)
+            except FileNotFoundError:
+                return Response(status_code=204, headers=headers)
+            return Response(raster, media_type="image/png", headers=headers)
+        filename = quote(metadata["name"], safe="")
+        headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{filename}"
+        return Response(data, media_type="application/octet-stream", headers=headers)
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/release")
     def release(

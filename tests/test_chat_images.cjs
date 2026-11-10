@@ -20,9 +20,9 @@ test('draft images reuse URLs across renders and release only discarded file ref
   images.retain([]);assert.deepEqual(revoked,['blob:local-1','blob:local-2']);
 });
 
-test('sent thumbnails accept only exact local feedback routes and escape image names',()=>{
+test('sent thumbnails accept only exact local conversation routes and escape image names',()=>{
   const {images}=fixture();
-  for(const url of ['/api/decks/demo/feedback/2/files/0','/api/artifacts/artifact-demo/feedback/2/files/0']){
+  for(const url of ['/api/decks/demo/feedback/2/files/0','/api/artifacts/artifact-demo/feedback/2/files/0','/api/workspaces/default/artifacts/artifact-demo/chat/2/files/0']){
     const rendered=images.sent({name:'<chart>.png',download_url:url});
     assert.ok(rendered.includes(url+'?preview=true'));
     assert.match(rendered,/&lt;chart&gt;\.png/);assert.doesNotMatch(rendered,/<chart>/);
@@ -31,6 +31,8 @@ test('sent thumbnails accept only exact local feedback routes and escape image n
       assert.equal(images.sent({name:'chart.png',download_url:invalid}),'');
     }
   }
+  assert.equal(downloadURL('/api/workspaces/default/artifacts/%2e%2e/chat/2/files/0'),'');
+  assert.equal(downloadURL('/api/workspaces/default/artifacts/artifact-demo/feedback/2/files/0'),'');
   assert.equal(images.sent({name:'context.pdf',download_url:'/api/decks/demo/feedback/2/files/0'}),'');
   assert.equal(imageFile({name:'active.svg'}),false);
   assert.equal(imageFile({name:'page.html'}),false);
