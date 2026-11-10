@@ -25,7 +25,8 @@ remain on sent references. Full paths stay out of your message.
 ![Single-slide and full-presentation reference icons](screenshots/chat-reference-presentation-stack.png)
 
 Hover over a pill, or focus it with the keyboard, to unfold the saved slide upward
-from the same surface. The title and composer stay in place. Moving onto the slide
+from the same surface. The title and composer stay in place. Typing or background
+slide updates retain the open preview. Moving onto the slide
 keeps it open; moving away
 folds it back into the title. Press **Escape** to fold it without moving focus.
 Reduced-motion settings make opening and closing instant. Near the top of the

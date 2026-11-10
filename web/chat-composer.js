@@ -14,7 +14,7 @@
   function create(options){
     const {form,input,attachButton,fileInput,filesList,error: errorNode,status,key,escape,svg,onChange}=options;
     const images=root.ChatImages?.create({document:filesList.ownerDocument,escape,svg});
-    const drafts=new Map(),statuses=new Map();let disabled=false;
+    const drafts=new Map(),statuses=new Map();let disabled=false,renderedFiles=null;
     const files=(context=key())=>drafts.get(context)||[];
     const state=(context=key())=>{if(!statuses.has(context))statuses.set(context,{processing:false,progress:'',error:''});return statuses.get(context);};
     const changed=()=>{render();onChange?.();};
@@ -22,11 +22,13 @@
     function render(){
       const selected=files(),{processing,progress,error:message}=state();
       images?.retain([...drafts.values()].flat());
-      filesList.innerHTML=selected.map((file,index)=>{
+      const markup=selected.map((file,index)=>{
         const remove=`<button type="button" data-chat-remove="${index}" aria-label="Remove ${escape(file.name)}" title="Remove ${escape(file.name)}" ${disabled||processing?'disabled':''}>${svg('close')}</button>`;
         const reference=root.ChatReferences?.chip(file,remove);if(reference)return reference;
         return (file.slideReference?`<span class="chat-file-chip is-slide-reference">${svg('star')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.slideReference.title)}</span><small>Slide reference · ${escape(file.slideReference.deckTitle)}</small>${file.slideReference.description?`<small class="favorite-reference-description">${escape(file.slideReference.description)}</small>`:''}</span>${remove}</span>`:'') || images?.draft(file,remove) || `<span class="chat-file-chip"><span class="chat-file-icon">${svg('attach')}</span><span class="chat-file-description"><span class="chat-file-name" title="${escape(file.name)}">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${remove}</span>`;
       }).join('');
+      // Retain open preview documents during unrelated composer refreshes.
+      if(markup!==renderedFiles){filesList.innerHTML=markup;renderedFiles=markup;}
       attachButton.disabled=disabled||processing;
       fileInput.disabled=disabled||processing;
       form.classList.toggle('has-files',selected.length>0);
