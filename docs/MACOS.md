@@ -4,7 +4,7 @@ Artifact Studio can live in the menu bar, start at login and run without a Termi
 
 ## Install from this checkout
 
-Install the source dependencies using the [quick start](../README.md#quick-start) first. Building the controller requires macOS 13 or later and Apple's Command Line Tools (`xcode-select --install`). Wait for the tools installation to finish, then run from the Artifact Studio checkout:
+Building the controller requires macOS 13 or later and Apple's Command Line Tools. Prepare the source checkout and its dependencies, then run the installer from that checkout. [Install on Mac](../README.md#install-on-mac)
 
 ```sh
 uv run --no-sync python scripts/install_macos.py --launch-at-login
