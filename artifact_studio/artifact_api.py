@@ -74,11 +74,13 @@ class ArtifactApproval(SlideSeenInput):
     approved: bool = True
 
 
-def import_upload(artifacts: ArtifactStore, body: ArtifactImport) -> ArtifactView:
+def import_upload(
+    artifacts: ArtifactStore, body: ArtifactImport, *, staging_root: Path | None = None
+) -> ArtifactView:
     """Validate all uploaded paths and bytes before registering a durable owned copy."""
     paths: set[str] = set()
     total = 0
-    with tempfile.TemporaryDirectory(prefix="artifact-import-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="artifact-import-", dir=staging_root) as temporary:
         folder = Path(temporary)
         for file in body.files:
             name = relative_path(file.name)

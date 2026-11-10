@@ -138,6 +138,7 @@
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
   const sharedEditor=doc.documentElement.hasAttribute('data-shared-editor');
+  const canImport=()=>!sharedEditor||doc.documentElement.hasAttribute('data-workspace-owner');
   const studioHome=root.ArtifactSession.home();
   const nativeChat=sharedEditor||new URLSearchParams(root.location.search).get('chat')==='shared';
   doc.documentElement.toggleAttribute('data-native-conversation',nativeChat);
@@ -323,7 +324,10 @@
   const menuCommand=(label,glyph,run,options={})=>({label,icon:icon(glyph),run,...options});
   const newPresentation=()=>{if(artifactEditor.finish())root.location.href='/?editor=1&new=1';};
   function creationCommands(project=state.project,parent=selectedFolder()){
-    return [menuCommand('New project','project',()=>projectDialog(false,parent)),menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),menuCommand('Import artifact','upload',()=>importDialog(project)),menuCommand('New presentation','slideAdd',newPresentation)];
+    const create=menuCommand('New project','project',()=>projectDialog(false,parent));
+    const upload=menuCommand('Import artifact','upload',()=>importDialog(project));
+    if(sharedEditor)return [create,upload];
+    return [create,menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),upload,menuCommand('New presentation','slideAdd',newPresentation)];
   }
   /** Resolve tree changes when invoked, retaining the row captured when the menu opened. */
   async function treeAction(action,id){
@@ -341,6 +345,7 @@
     const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
     const commands=[menuCommand('Open','folderOpen',()=>home(key))];
     if(sharedEditor){
+      if(canImport()&&project&&!project.legacy)commands.push(menuCommand('Import artifact','upload',()=>importDialog(id)));
       if(project&&root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
       showHubMenu(anchor,'Project actions',commands,point);return;
     }
@@ -817,6 +822,7 @@
     dialog.querySelector('input').focus();
   }
   function importDialog(projectId=state.project) {
+    if(!canImport())return;
     const folder=projectId.startsWith('folder:')?projectId.slice(7):null,ids=folder?root.ProjectNavigation.projectsIn(state.projectTree,folder):null;
     const projects=state.projects.filter(project=>!project.legacy && (!ids || ids.includes(project.id)));
     if(!projects.length){projectDialog(true,folder);return;}
@@ -975,7 +981,7 @@
     const row=target.closest('[data-tree-node]');
     if(row){projectTreeMenu(target.closest('button') || row,row.dataset.treeNode,point);return true;}
     if(state.active || state.designActive || state.project==='designs' || !target.closest('.hub-main,aside.hub-sidebar[aria-label="Projects"]') || target.closest('button,summary,[role="button"]'))return false;
-    if(sharedEditor)return false;
+    if(!canImport())return false;
     showHubMenu(target.closest('.hub-main,aside.hub-sidebar'), 'Library actions',creationCommands(),point);return true;
   }
   content.addEventListener('contextmenu',event=>{if(libraryContextMenu(event,{x:event.clientX,y:event.clientY})){event.preventDefault();event.stopPropagation();}else closeTreeMenu();});

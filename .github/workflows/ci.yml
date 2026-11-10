@@ -155,6 +155,7 @@ jobs:
               tests/test_multiplayer_browser_responsive.py tests/test_unified_browser.py tests/test_shared_chat_attachments.py
               tests/test_scoped_library_covers.py
               tests/test_shared_library_shortcuts.py
+              tests/test_scoped_owner_import.py
               tests/integration/test_renderer_deadlines.py tests/test_capture_deadlines.py
               tests/test_presentation_authoring.py tests/test_element_rotation_dom.py tests/test_copilot_capture.py
               tests/test_element_alternative_tools.py tests/test_hub_cover_rendering.py tests/test_sharing_renderer.py

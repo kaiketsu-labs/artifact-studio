@@ -2,6 +2,9 @@
 
 import asyncio
 import re
+import tempfile
+from collections.abc import Awaitable, Callable
+from shutil import disk_usage
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -19,6 +22,8 @@ _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
 _CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
 _REQUEST_LIMIT = 2 * 1024 * 1024
 _CHAT_LIMIT = 68 * 1024 * 1024
+_IMPORT_LIMIT = 140 * 1024 * 1024
+IMPORT_DISK_RESERVE = 512 * 1024 * 1024
 
 
 class MultiplayerAuth:
@@ -43,6 +48,51 @@ class MultiplayerAuth:
         self.preview_slots = asyncio.Semaphore(4)
         self.chat_upload_slot = asyncio.Semaphore(1)
         self.chat_download_slots = asyncio.Semaphore(2)
+        self.import_slot = asyncio.Semaphore(1)
+
+    async def _receive_import(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        reject: Callable[[int, str], Awaitable[None]],
+    ) -> None:
+        """Stage one bounded owner upload before passing it to the normal importer."""
+        if disk_usage(self.sharing.root).free < _IMPORT_LIMIT + IMPORT_DISK_RESERVE:
+            await reject(507, "Not enough workspace storage for an import.")
+            return
+        with tempfile.TemporaryFile(dir=self.sharing.root) as staged:
+            size = 0
+            try:
+                async with asyncio.timeout(120):
+                    while True:
+                        message = await receive()
+                        if message["type"] == "http.disconnect":
+                            return
+                        chunk = message.get("body", b"")
+                        size += len(chunk)
+                        if size > _IMPORT_LIMIT:
+                            await reject(413, "Import request is too large.")
+                            return
+                        _ = await run_in_threadpool(staged.write, chunk)
+                        if not message.get("more_body", False):
+                            break
+            except TimeoutError:
+                await reject(408, "Import request timed out.")
+                return
+            _ = staged.seek(0)
+            remaining, delivered = size, False
+
+            async def replay() -> Message:
+                nonlocal remaining, delivered
+                if delivered and not remaining:
+                    return await receive()
+                delivered = True
+                data = await run_in_threadpool(staged.read, min(remaining, 64 * 1024))
+                remaining -= len(data)
+                return {"type": "http.request", "body": data, "more_body": remaining > 0}
+
+            await self.app(scope, replay, send)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
@@ -184,6 +234,24 @@ class MultiplayerAuth:
         )
         if asset and self.asset_waiters >= 256:
             await reject(429, "Server busy. Retry shortly.")
+            return
+        importing = (
+            self.shared_shell
+            and host == self.host
+            and method == "POST"
+            and path == "/api/artifacts/import"
+        )
+        if importing:
+            actor = cast(Actor, scope["state"]["actor"])
+            workspace = cast(str, scope["state"].get("editor_workspace", "default"))
+            if not await run_in_threadpool(self.sharing.owner, actor, workspace):
+                await reject(404, "Not found")
+                return
+            if self.import_slot.locked():
+                await reject(429, "An import is in progress. Try again shortly.")
+                return
+            async with self.import_slot:
+                await self._receive_import(scope, receive, secure_send, reject)
             return
         # Admit before buffering to bound memory even with many slow connections.
         slots = (
