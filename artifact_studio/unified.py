@@ -3,15 +3,15 @@
 import os
 from pathlib import Path
 from typing import cast
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
 from starlette.datastructures import Headers
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .deployment import DeploymentConfig
 from .multiplayer import create_app as create_collaboration
-from .multiplayer_access import Sharing
+from .multiplayer_access import AccessDenied, Sharing, workspace_editor_path
 from .shared_editor import create_shared_editor
 
 
@@ -38,7 +38,7 @@ class UnifiedStudio:
             # The scoped MCP transport owns the lifespan and websocket policy.
             await self.collaboration(scope, receive, send)
             return
-        path = scope["path"]
+        path, method = scope["path"], scope["method"]
         hosts = Headers(scope=scope).getlist("host")
         host = hosts[0].lower() if len(hosts) == 1 else ""
         if host == self.preview_host:
@@ -47,20 +47,68 @@ class UnifiedStudio:
             target = self.editor if "." in ticket else self.collaboration
             await target(scope, receive, send)
             return
-        if host == self.workspace_host and path == "/" and scope["method"] in {"GET", "HEAD"}:
-            # Preserve deep links emitted by the standalone collaboration interface.
+        if host == self.workspace_host and path.startswith("/workspaces/"):
+            workspace, slash, tail = path.removeprefix("/workspaces/").partition("/")
             try:
-                params = parse_qs(scope["query_string"].decode("ascii"), max_num_fields=32)
+                root = workspace_editor_path(workspace)
+                if workspace == "default":
+                    raise AccessDenied
+            except AccessDenied:
+                await JSONResponse({"detail": "Not found"}, status_code=404)(scope, receive, send)
+                return
+            if not slash:
+                query_string = scope["query_string"].decode("latin1")
+                await RedirectResponse(root + (f"?{query_string}" if query_string else ""))(
+                    scope, receive, send
+                )
+                return
+            # A workspace path can only enter the grant-checked editor. In
+            # particular, it must never fall back to the default owner's API.
+            editor_path = "/" + tail
+            editor_scope: Scope = {
+                **scope,
+                "path": editor_path,
+                "raw_path": editor_path.encode(),
+                "state": {**scope.get("state", {}), "editor_workspace": workspace},
+            }
+            await self.shared_editor(editor_scope, receive, send)
+            return
+        if host == self.workspace_host and path in {"/", "/together"} and method in {"GET", "HEAD"}:
+            # Preserve links from older invitations and agent context responses.
+            try:
+                params = parse_qs(
+                    scope["query_string"].decode("ascii"), keep_blank_values=True, max_num_fields=32
+                )
             except UnicodeError, ValueError:
                 params = {}
-            if "workspace" in params:
+            workspaces = params.get("workspace")
+            if workspaces is not None:
+                try:
+                    if len(workspaces) != 1:
+                        raise AccessDenied
+                    root = workspace_editor_path(workspaces[0])
+                except AccessDenied:
+                    await JSONResponse({"detail": "Not found"}, status_code=404)(
+                        scope, receive, send
+                    )
+                    return
                 query = urlencode(
-                    {key: params[key][0] for key in ("workspace", "artifact") if key in params}
+                    {
+                        key: params[key][0]
+                        for key in ("deck", "artifact", "project")
+                        if key in params
+                    }
                 )
-                await RedirectResponse(f"/together?{query}", status_code=307)(scope, receive, send)
+                slide = params.get("slide", [""])[0]
+                target = (
+                    root + (f"?{query}" if query else "") + (f"#{quote(slide)}" if slide else "")
+                )
+                await RedirectResponse(target)(scope, receive, send)
+                return
+            if path == "/together":
+                await RedirectResponse("/")(scope, receive, send)
                 return
         if path in {
-            "/together",
             "/api/together/session",
             "/api/workspaces",
             "/api/invitations/accept",

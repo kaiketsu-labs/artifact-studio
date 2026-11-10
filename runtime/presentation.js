@@ -318,12 +318,13 @@
   const direct=query.get('present')==='1'||isAudience||document.documentElement.dataset.export==='audience';
   const channelName=query.get('channel')||`slides-${crypto.randomUUID()}`;
   const channel=typeof BroadcastChannel==='function'?new BroadcastChannel(channelName):null;
-  const workspaceDeck=location.pathname.match(/^\/decks\/([^/]+)\//)?.[1];
+  const workspaceRoute=location.pathname.match(/^(\/workspaces\/[0-9a-f]{24})?\/decks\/([^/]+)\//);
+  const workspacePrefix=workspaceRoute?.[1]||'',workspaceDeck=workspaceRoute?.[2];
   const clock=new PresentationClock();
   const expectedNotes=new Map(deck.slides.map(slide=>[slide.id,slide.notes]));
   const expectedNoteVersions=new Map(deck.slides.map(slide=>[slide.id,slide.notes_revision??0]));
   const noteDrafts=new Map(),saving=new Map();
-  const noteKey=`artifact-studio:presenter-notes:${deck.id}`;
+  const noteKey=`artifact-studio:presenter-notes:${workspacePrefix ? workspacePrefix+':' : ''}${document.documentElement.dataset.noteOwner ? document.documentElement.dataset.noteOwner+':' : ''}${deck.id}`;
   const requested=deck.slides.findIndex(slide=>slide.id===decodeURIComponent(location.hash.slice(1)));
   const initial=startIndex(deck.slides,Math.max(0,requested));
   let current=isAudience&&requested>=0?requested:direct?Math.max(0,initial):Math.max(0,requested);
@@ -408,7 +409,7 @@
       noteDrafts.get(id).pending=draft.notes;persistNotes();
       if(deck.slides[current].id===id)noteStatus('Saving…');
       try{
-        if(workspaceDeck){const body=JSON.stringify({notes:draft.notes,expected_notes:draft.expected,expected_revision:draft.version===undefined?undefined:Number(draft.version)});const response=await fetch(`/api/decks/${workspaceDeck}/slides/${id}/notes`,{method:'POST',keepalive:new TextEncoder().encode(body).length<60000,headers:{'Content-Type':'application/json'},body});const receipt=await response.json();if(!response.ok)throw new Error(receipt.detail||'Notes could not be saved.');version=receipt.notes_revision;}
+        if(workspaceDeck){const body=JSON.stringify({notes:draft.notes,expected_notes:draft.expected,expected_revision:draft.version===undefined?undefined:Number(draft.version)});const response=await fetch(`${workspacePrefix}/api/decks/${workspaceDeck}/slides/${id}/notes`,{method:'POST',keepalive:new TextEncoder().encode(body).length<60000,headers:{'Content-Type':'application/json'},body});const receipt=await response.json();if(!response.ok)throw new Error(receipt.detail||'Notes could not be saved.');version=receipt.notes_revision;}
         else{const stored=JSON.parse(localStorage.getItem(`slide-notes-${deck.id}`)||'{}');stored[id]=draft.notes;localStorage.setItem(`slide-notes-${deck.id}`,JSON.stringify(stored));}
         const slide=deck.slides.find(slide=>slide.id===id);slide.notes=draft.notes;slide.notes_revision=version;expectedNotes.set(id,draft.notes);expectedNoteVersions.set(id,version);saved=true;
         if(noteDrafts.get(id)?.notes===draft.notes)noteDrafts.delete(id);else if(noteDrafts.has(id)){const pending=noteDrafts.get(id);pending.expected=draft.notes;pending.version=String(version);delete pending.pending;}
@@ -512,7 +513,7 @@
     await Promise.all([...noteDrafts.keys()].map(id=>saveNotes(id)));
     if(embedded){hostMessage('end');return;}
     await leaveFullscreen();
-    if(workspaceDeck){location.replace(`/?deck=${encodeURIComponent(workspaceDeck)}#${encodeURIComponent(deck.slides[current].id)}`);return;}
+    if(workspaceDeck){location.replace(`${workspacePrefix}/?deck=${encodeURIComponent(workspaceDeck)}#${encodeURIComponent(deck.slides[current].id)}`);return;}
     mode='preview';blackout=false;emptyShow=false;render();ending=false;
   }
   function screenKey(screen){return `${screen.left},${screen.top},${screen.width},${screen.height}`;}

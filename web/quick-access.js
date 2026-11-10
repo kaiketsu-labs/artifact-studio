@@ -73,7 +73,8 @@
     }
     async function request(body){
       try{
-        const response=await root.fetch('/api/navigation'+(body?'/visit':''),body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
+        const path='/api/navigation'+(body?'/visit':'');
+        const response=await root.fetch(root.ArtifactSession?.path?.(path) ?? path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'});
         if(!response.ok)throw Error('Navigation unavailable');snapshot=await response.json();render();decorateProjects();
       }catch{snapshot={...snapshot,connected:[]};render();decorateProjects();}
     }

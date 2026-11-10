@@ -74,7 +74,7 @@
   const pendingStars=new Set();
   const starKey=node=>[node.dataset.starKind,node.dataset.starId,node.dataset.starSlide].join('/');
   const listeners=new Set();
-  async function api(path,body){const response=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.detail==='string'?data.detail:'Could not load favorites. Try again.');}return response.json();}
+  async function api(path,body){const response=await fetch(root.ArtifactSession?.path?.(path) ?? path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.detail==='string'?data.detail:'Could not load favorites. Try again.');}return response.json();}
   function has(kind,id,slide=''){return saved[kind==='artifact'?'artifacts':'slides'].includes(kind==='artifact'?id:`${id}/${slide}`);}
   const actionLabel=active=>active?'Remove from favorites':'Add to favorites';
   const buttonLabel=(kind,active,title)=>kind==='slide'?`${actionLabel(active)}: ${title}`:`${active?'Unstar':'Star'} ${title}`;

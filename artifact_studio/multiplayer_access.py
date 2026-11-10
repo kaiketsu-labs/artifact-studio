@@ -20,10 +20,20 @@ from .storage import Store
 Role = Literal["view", "comment", "edit"]
 Kind = Literal["workspace", "project", "artifact"]
 LEVEL = {"view": 1, "comment": 2, "edit": 3}
+WORKSPACE_ID = re.compile(r"[0-9a-f]{24}")
 
 
 class AccessDenied(FileNotFoundError):
     """Do not reveal whether an inaccessible object exists."""
+
+
+def workspace_editor_path(workspace: str) -> str:
+    """Return the native editor root for a registered workspace identifier."""
+    if workspace == "default":
+        return "/"
+    if not WORKSPACE_ID.fullmatch(workspace):
+        raise AccessDenied
+    return f"/workspaces/{workspace}/"
 
 
 @dataclass(frozen=True)

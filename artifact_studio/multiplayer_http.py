@@ -12,7 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
-from .multiplayer_access import AccessDenied, Actor, Sharing
+from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
 from .multiplayer_access import Scope as GrantScope
 
 _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
@@ -83,7 +83,7 @@ class MultiplayerAuth:
             if path.startswith("/_preview/"):
                 await reject(404, "Not found")
                 return
-            agent_path = path in {"/mcp", "/mcp/", "/api/review/hooks"}
+            agent_path = not self.shared_shell and path in {"/mcp", "/mcp/", "/api/review/hooks"}
             origins = headers.getlist("origin")
             if (agent_path and origins) or (
                 method not in {"GET", "HEAD"}
@@ -114,6 +114,8 @@ class MultiplayerAuth:
                         else await self.provider.authenticate(headers)
                     )
                     actor = await run_in_threadpool(self.sharing.human, principal)
+                    if self.shared_shell:
+                        scope.setdefault("state", {})["verified_guest"] = principal
                 scope.setdefault("state", {})["actor"] = actor
             except AuthenticationError, AccessDenied, ValueError:
                 await reject(401, "Authentication required")
@@ -149,11 +151,14 @@ class MultiplayerAuth:
                 if not any(key.lower() == b"content-security-policy" for key, _ in current):
                     origin = self.config.public_url
                     style = " 'unsafe-inline'" if self.shared_shell else ""
-                    frames = (
-                        f"{origin}/api/artifacts/ {origin}/api/decks/ about: "
-                        if self.shared_shell
-                        else ""
-                    )
+                    frames = ""
+                    if self.shared_shell:
+                        workspace = scope.get("state", {}).get("editor_workspace", "default")
+                        prefix = workspace_editor_path(str(workspace))
+                        frames = (
+                            f"{origin}{prefix}api/artifacts/ {origin}{prefix}api/decks/ "
+                            f"{origin}{prefix}decks/ about: "
+                        )
                     base = "'self'" if self.shared_shell else "'none'"
                     images = "img-src 'self' data: blob:; " if self.shared_shell else ""
                     policy = (

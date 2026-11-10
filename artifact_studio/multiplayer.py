@@ -30,7 +30,15 @@ from .deployment import DeploymentConfig
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
 from .models import FileInput, StrictModel
-from .multiplayer_access import AccessDenied, Actor, Kind, Scope, Sharing, checksum
+from .multiplayer_access import (
+    AccessDenied,
+    Actor,
+    Kind,
+    Scope,
+    Sharing,
+    checksum,
+    workspace_editor_path,
+)
 from .multiplayer_chat import Channel, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
@@ -310,7 +318,11 @@ def create_app(
         invitation = hub.invite(
             actor_of(request), Scope(workspace, body.kind, body.resource), body.email, body.role
         )
-        path = "/together" if getattr(request.state, "unified_studio", False) else "/"
+        path = (
+            workspace_editor_path(workspace)
+            if getattr(request.state, "unified_studio", False)
+            else "/"
+        )
         # Fragment keeps the secret out of HTTP access logs and Referer headers.
         return {
             "id": invitation["id"],

@@ -3,6 +3,7 @@
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
@@ -13,6 +14,7 @@ from tests.integration.multiplayer_fixture import (
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, grant, human
+from tests.test_unified_hosting import seed_isolated_presentation
 
 pytestmark = [
     pytest.mark.browser,
@@ -164,5 +166,91 @@ def test_owner_creates_link_from_native_context_menu(tmp_path: Path) -> None:
                         assert invitee.get(f"/api/artifacts/{app.sibling_id}").status_code == 404
                     page.keyboard.press("Escape")
                     expect(anchor).to_be_focused()
+        finally:
+            browser.close()
+
+
+def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Path) -> None:
+    """An owner and a guest open the same scoped editor without leaving the native UI."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner_api,
+        sync_playwright() as playwright,
+    ):
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as owner:
+                page = owner.new_page()
+                page.goto(WORKSPACE)
+                page.locator("[data-session-mode]").click()
+                page.get_by_role("textbox", name="Workspace name").fill("Separate collection")
+                page.get_by_role("button", name="New workspace", exact=True).click()
+                expect(page).to_have_url(re.compile(r"/workspaces/[0-9a-f]{24}/$"))
+                workspace = urlsplit(page.url).path.split("/")[2]
+                home = f"{WORKSPACE}/workspaces/{workspace}/"
+                seed_isolated_presentation(root, app, workspace)
+                page.reload()
+                page.get_by_role("button", name="New project", exact=True).click()
+                page.get_by_role("textbox", name="Project name", exact=True).fill(
+                    "Isolated project"
+                )
+                page.get_by_role("button", name="Create project", exact=True).click()
+                expect(page.get_by_role("heading", name="Isolated project")).to_be_visible()
+                page.locator(".project-tree-open").filter(has_text="Isolated project").click(
+                    button="right"
+                )
+                page.get_by_role("menuitem", name="Share link…").click()
+                expect(page.get_by_role("dialog", name="Share link")).to_be_visible()
+                page.keyboard.press("Escape")
+                invite = owner_api.post(
+                    f"/api/workspaces/{workspace}/invitations",
+                    json={
+                        "kind": "artifact",
+                        "resource": app.deck_id,
+                        "email": "alice@example.test",
+                        "role": "edit",
+                    },
+                ).json()["url"]
+                assert invite.startswith(home + "#invite=")
+                with routed_multiplayer_context(browser, app, "alice") as guest:
+                    scoped = guest.new_page()
+                    scoped.goto(invite)
+                    scoped.get_by_role("button", name="Join", exact=True).click()
+                    expect(scoped).to_have_url(re.compile(re.escape(home) + r"\?deck="))
+                    expect(scoped.locator("#slide-title")).to_have_text("Isolated presentation")
+                    expect(scoped.frame_locator("#preview").locator(".slide")).to_be_visible()
+                    scoped.get_by_role("link", name="Present", exact=True).click()
+                    viewer = scoped.frame_locator('iframe[title="Presentation"]')
+                    expect(viewer.locator("#stage .slide")).to_be_visible()
+                    viewer.get_by_role("button", name="End presentation", exact=True).click()
+                    expect(scoped.locator('iframe[title="Presentation"]')).to_have_count(0)
+                    scoped.locator("#feedback-text").fill("Conversation for isolated workspace")
+                    scoped.locator("#feedback-text").press("Enter")
+                    expect(scoped.locator("#feedback-list")).to_contain_text(
+                        "Conversation for isolated workspace"
+                    )
+                    page.goto(home + "?deck=" + app.deck_id)
+                    expect(page.locator("#feedback-list")).to_contain_text(
+                        "Conversation for isolated workspace"
+                    )
+                    expect(page.locator("#present-link")).to_have_attribute(
+                        "href", re.compile(r"^/workspaces/" + workspace + "/decks/")
+                    )
+                    page.locator("#feedback-text").fill("Unsent draft")
+                    page.locator("[data-session-mode]").click()
+                    page.get_by_role("link", name="My workspace").click()
+                    expect(page.get_by_role("alert")).to_contain_text(
+                        "Finish your current draft or edit before switching workspaces."
+                    )
+                    page.keyboard.press("Escape")
+                    expect(page.locator("#feedback-text")).to_have_value("Unsent draft")
+                    page.locator("#feedback-text").fill("")
+                    page.locator("[data-session-mode]").click()
+                    page.get_by_role("link", name="My workspace").click()
+                    expect(page).to_have_url(WORKSPACE + "/")
+                    expect(
+                        page.get_by_role("button", name=re.compile("Open Fictional team deck"))
+                    ).to_be_visible()
         finally:
             browser.close()

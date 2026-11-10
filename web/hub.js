@@ -11,7 +11,8 @@
   const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
   const kindOf = item => ({svg:'image',document:'markdown',other:'file'}[item.kind] || (kinds[item.kind] ? item.kind : 'file'));
   const encodePath = value => String(value).split('/').map(encodeURIComponent).join('/');
-  const artifactPath = (id, suffix='') => `/api/artifacts/${encodeURIComponent(id)}${suffix}`;
+  const studioPath = path => root.ArtifactSession?.path?.(path) ?? path;
+  const artifactPath = (id, suffix='') => studioPath(`/api/artifacts/${encodeURIComponent(id)}${suffix}`);
   const filePath = (item, path=item.entrypoint) => artifactPath(item.id, `/files/${encodePath(path)}`) + (item.revision ? `?revision=${encodeURIComponent(item.revision)}` : '');
   const targetLabel = target => target.label || target.quote?.slice(0,75) || target.selector || (target.kind === 'region' ? 'Image region' : 'Selection');
   const groupTargets = targets => targets.length > 1 ? {kind:'group',elements:targets} : targets[0] || null;
@@ -137,6 +138,7 @@
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
   const sharedEditor=doc.documentElement.hasAttribute('data-shared-editor');
+  const studioHome=root.ArtifactSession.home();
   const nativeChat=sharedEditor||new URLSearchParams(root.location.search).get('chat')==='shared';
   doc.documentElement.toggleAttribute('data-native-conversation',nativeChat);
   const scopedChat=root.StudioNativeConversation.create({api});
@@ -338,7 +340,10 @@
     if(!node){showHubMenu(anchor,'Add to projects',creationCommands('all',null),point);return;}
     const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
     const commands=[menuCommand('Open','folderOpen',()=>home(key))];
-    if(sharedEditor){showHubMenu(anchor,'Project actions',commands,point);return;}
+    if(sharedEditor){
+      if(project&&root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
+      showHubMenu(anchor,'Project actions',commands,point);return;
+    }
     if(folder)commands.push(menuCommand(collapsedFolders.has(id)?'Expand folder':'Collapse folder','folder',()=>toggleFolder(id)));
     else commands.push(menuCommand('Project brief','notes',()=>contextDialog({projectId:id})),...(!sharedEditor&&root.StudioInvitation?.available?[menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor}))]:[]),menuCommand(root.StudioInvitation?.available?'Share files':'Share project','share',()=>shareProject(id)));
     commands.push({separator:true},...creationCommands(key,folder?id:node.parent_id).filter(command=>command.label!=='Import artifact'||folder||!project?.legacy),{separator:true},menuCommand('Move to…','folder',()=>treeAction('move',id)),menuCommand('Move up','up',()=>treeAction('up',id),{keys:'Alt+↑',disabled:index===0}),menuCommand('Move down','down',()=>treeAction('down',id),{keys:'Alt+↓',disabled:index===siblings.length-1}));
@@ -354,7 +359,7 @@
     if(mode==='comment'){workspacePanels.exitView();doc.getElementById('hub-feedback-text')?.focus();}
   }
   async function copyArtifactLink(item){
-    const url=new URL('/',root.location.href);url.searchParams.set(item.legacy_deck_id?'deck':'artifact',item.legacy_deck_id || item.id);
+    const url=new URL(studioHome,root.location.href);url.searchParams.set(item.legacy_deck_id?'deck':'artifact',item.legacy_deck_id || item.id);
     await root.navigator.clipboard.writeText(url.href);toast('Artifact link copied.');
   }
   function artifactMenu(anchor,id,point=null){
@@ -363,7 +368,11 @@
     if(item.legacy_deck_id)commands.push(menuCommand('Present','present',()=>{if(artifactEditor.finish())root.location.href=`/decks/${encodeURIComponent(item.legacy_deck_id)}/index.html?present=1`;}));
     else commands.push(menuCommand('View','eye',()=>openArtifactCommand(id,'view')),menuCommand('Comment','chat',()=>openArtifactCommand(id,'comment')),menuCommand('Version history','history',()=>{if(artifactEditor.finish())versions.open({kind:'artifact',artifactId:id,title:item.title});}));
     if(!sharedEditor&&root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
-    if(sharedEditor){showHubMenu(anchor,'Artifact actions',commands.slice(0,1),point);return;}
+    if(sharedEditor){
+      const available=commands.slice(0,1);
+      if(root.StudioInvitation?.available)available.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
+      showHubMenu(anchor,'Artifact actions',available,point);return;
+    }
     commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)),menuCommand(root.StudioInvitation?.available?'Share files':'Share','share',()=>shareArtifact(id)),menuCommand('Copy link','copy',()=>copyArtifactLink(item)),{separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
     showHubMenu(anchor,'Artifact actions',commands,point);
   }
@@ -399,7 +408,7 @@
   }
 
   async function api(path, body) {
-    const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+    const response=await fetch(studioPath(path),{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
     root.ArtifactSession?.observe(response);
     root.ArtifactSession?.assertActive();
     let result;
@@ -477,9 +486,9 @@
     const items=filteredArtifacts();
     if(!items.length)return `<div class="hub-empty">${icon(state.search?'eye':'folder')}<h2>${state.search || state.kind!=='all'?'No matching artifacts':state.project==='all'?'A place for your work':'This project is ready'}</h2><p>${state.search || state.kind!=='all'?'Try another search or format.':'Import a page, document, image, presentation or a bundle of files.'}</p>${state.search || state.kind!=='all'?'':`<div class="hub-empty-actions">${button('import','Import files','upload','class="hub-primary"')}</div>`}</div>`;
     const card=item=>{
-      const kind=kinds[kindOf(item)],preview=kindOf(item)==='file'?'':item.preview_url || `/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`;
+      const kind=kinds[kindOf(item)],preview=kindOf(item)==='file'?'':studioPath(item.preview_url || `/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
       const safePreview=root.HubCovers.coverURL(preview),fallback=root.HubCovers.coverURL(item.preview_fallback_url);
-      return `<article class="hub-card" draggable="true" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img alt="" draggable="false" decoding="async" data-preview-image data-cover-url="${escape(safePreview)}" data-cover-fallback="${escape(fallback)}" data-cover-cached="${item.preview_cached===true}" data-cover-renderer="${item.kind!=='image'}" hidden><span class="hub-cover-status" data-cover-status hidden></span>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}${safePreview?`<button type="button" class="hub-cover-retry" data-action="retry-cover" data-cover-retry="${escape(safePreview)}" aria-label="Retry preview for ${escape(item.title)}" title="Retry preview" hidden>${icon('refresh')}</button>`:''}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
+      return `<article class="hub-card" draggable="${!sharedEditor}" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img alt="" draggable="false" decoding="async" data-preview-image data-cover-url="${escape(safePreview)}" data-cover-fallback="${escape(fallback)}" data-cover-cached="${item.preview_cached===true}" data-cover-renderer="${item.kind!=='image'}" hidden><span class="hub-cover-status" data-cover-status hidden></span>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}${safePreview?`<button type="button" class="hub-cover-retry" data-action="retry-cover" data-cover-retry="${escape(safePreview)}" aria-label="Retry preview for ${escape(item.title)}" title="Retry preview" hidden>${icon('refresh')}</button>`:''}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
     };
     if(sort.by!=='type')return items.map(card).join('');
     const groups=Map.groupBy(items,item=>artifactType(item).key);
@@ -739,13 +748,13 @@
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
-    if(item?.legacy_deck_id){if(!sharedEditor)await quickAccess.visit({project_id:item.project_id});root.location.href=`/?deck=${encodeURIComponent(item.legacy_deck_id)}${nativeChat&&!sharedEditor?'&chat=shared':''}`;return;}
+    if(item?.legacy_deck_id){if(!sharedEditor)await quickAccess.visit({project_id:item.project_id});root.location.href=`${studioHome}?deck=${encodeURIComponent(item.legacy_deck_id)}${nativeChat&&!sharedEditor?'&chat=shared':''}${push?'':root.location.hash}`;return;}
     const token=++state.loading;state.active=id;state.selecting=false;state.sourceView=false;state.newRevision=null;
     content.innerHTML='<main class="hub-loading" role="status">Opening artifact…</main>';
     try {
       const detail=await artifactDetail(id);
       if(token!==state.loading)return;
-      if(detail.legacy_deck_id){root.location.href=`/?deck=${encodeURIComponent(detail.legacy_deck_id)}`;return;}
+      if(detail.legacy_deck_id){root.location.href=`${studioHome}?deck=${encodeURIComponent(detail.legacy_deck_id)}${push?'':root.location.hash}`;return;}
       let source='';
       if(kindOf(detail)==='markdown') {const response=await fetch(filePath(detail));if(!response.ok)throw new Error('The Markdown source could not be loaded.');source=await response.text();}
       if(token!==state.loading)return;
@@ -831,6 +840,7 @@
     modal(title,`<div class="hub-context-grid"><section><h3>Sources & delivery</h3><ul class="hub-context-list">${sources.length?sources.map(source=>`<li class="hub-context-source"><strong><span>${escape(source.title || source.name || source.kind || 'Context source')}</span><span class="hub-context-delivery">${escape(source.delivery || source.delivery_state || source.status || 'Available')}</span></strong><code>${escape(source.path || source.canonical_path || '')}</code><span class="hub-scope">Scope: ${escape(typeof source.scope==='object'?JSON.stringify(source.scope):source.scope || 'workspace')}</span>${source.hash || source.content_hash?`<code title="Content hash">${escape(source.hash || source.content_hash)}</code>`:''}</li>`).join(''):'<li class="hub-context-source">No source receipt was returned.</li>'}</ul></section><section><h3 style="margin-bottom:12px">${data.receipt?'Latest recorded delivery':'Available context'}</h3><pre class="hub-context-receipt">${escape(JSON.stringify(data.receipt || data,null,2))}</pre></section></div><p class="hub-context-note">Delivery records what the server returned. Available sources are not proof that an agent opened or retained them.</p>`,true);
   }
   function moveDialog(id=state.active) {
+    if(sharedEditor)return;
     const item=id===state.active?state.detail:state.artifacts.find(item=>item.id===id);if(!item || id===state.active && !artifactEditor.finish())return;
     if(!state.projects.some(project=>!project.legacy)){projectDialog();return;}
     modal('Move to project',`<form id="hub-move-form" class="hub-form" data-artifact-id="${escape(item.id)}"><label class="hub-field"><span>Project for ${escape(item.title)}</span><select name="project_id">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Move artifact</button></div></form>`);

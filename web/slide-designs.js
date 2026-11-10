@@ -29,7 +29,7 @@
       iframe.addEventListener('load',()=>{if(iframe.dataset.documentUrl===url)iframe.dataset.ready='true';});
       if(url.includes('/current-preview?')){
         const controller=new root.AbortController();
-        const pending=root.fetch(url,{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The current slide changed. Refresh the comparison.');const html=await response.text();if(!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.documentUrl=url;iframe.srcdoc=html;}).catch(error=>{if(controller.signal.aborted||!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.failed='true';notify(error.message,true);});
+        const pending=root.fetch(root.ArtifactSession?.path?.(url) ?? url,{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The current slide changed. Refresh the comparison.');const html=await response.text();if(!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.documentUrl=url;iframe.srcdoc=html;}).catch(error=>{if(controller.signal.aborted||!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.failed='true';notify(error.message,true);});
         pendingPreviews.set(iframe,{controller,promise:pending});void pending.finally(()=>pendingPreviews.delete(iframe));
       }else{iframe.dataset.documentUrl=url;iframe.src=url;}
       slot.append(iframe);frames.add(iframe);resize.observe(slot);

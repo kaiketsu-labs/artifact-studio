@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 
 from . import __version__
+from .artifact_api import ProjectInput
 from .artifact_models import ArtifactView
 from .artifact_preview import artifact_file_headers
 from .artifacts import ArtifactStore
@@ -20,7 +21,7 @@ from .history_api import history_routes
 from .hosted_policy import deck_asset_response
 from .hosted_presenter import hosted_presenter_router
 from .models import DeckView, FeedbackWorkflow, SlideView
-from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing
+from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
 from .multiplayer_http import MultiplayerAuth
 from .navigation import NavigationSnapshot
 from .sections import sections_hash
@@ -38,9 +39,14 @@ def actor_of(request: Request) -> Actor:
     return cast(Actor, request.state.actor)
 
 
-def artifact_scope(identifier: str) -> Scope:
-    """Resolve guest editor URLs in the default collection."""
-    return Scope("default", "artifact", identifier)
+def workspace_of(request: Request) -> str:
+    """Read the editor workspace selected by the native path dispatcher."""
+    return cast(str, getattr(request.state, "editor_workspace", "default"))
+
+
+def artifact_scope(request: Request, identifier: str) -> Scope:
+    """Resolve an artifact within the workspace of this request."""
+    return Scope(workspace_of(request), "artifact", identifier)
 
 
 def artifact_payload(item: ArtifactView, *, visible_project: bool) -> dict[str, object]:
@@ -85,7 +91,7 @@ def shared_deck(store: Store, deck_id: str) -> DeckView:
 
 def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: Sharing) -> FastAPI:
     """Build the guest surface without mounting any whole-workspace API."""
-    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     app.add_middleware(
         MultiplayerAuth, config=config, provider=provider, sharing=hub, shared_shell=True
     )
@@ -101,10 +107,16 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         return JSONResponse({"detail": str(error)}, status_code=409)
 
     @app.get("/")
-    def shell(deck: str = "") -> HTMLResponse:
+    def shell(request: Request, deck: str = "") -> HTMLResponse:
         page = (PROJECT / "web" / ("index.html" if deck else "hub.html")).read_text()
+        workspace = workspace_of(request)
+        root = workspace_editor_path(workspace)
         return HTMLResponse(
-            page.replace('<html lang="en">', '<html lang="en" data-shared-editor>', 1)
+            page.replace(
+                '<html lang="en">',
+                f'<html lang="en" data-shared-editor data-studio-workspace="{workspace}">',
+                1,
+            ).replace('href="/"', f'href="{root}"')
         )
 
     @app.get("/web/{path:path}")
@@ -132,26 +144,27 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             "collaboration_url": "/together",
             "capabilities": {"local_admin": False, "automatic_feedback": False},
             "scoped_editor": True,
+            "workspace_owner": hub.owner(actor_of(request), workspace_of(request)),
         }
 
     @app.get("/api/hub")
     def library(request: Request) -> dict[str, object]:
-        actor = actor_of(request)
+        actor, workspace = actor_of(request), workspace_of(request)
         with hub.locked():
             try:
-                store = hub.store("default")
+                store = hub.store(workspace)
             except AccessDenied:
                 return {"projects": [], "artifacts": [], "designs": []}
             service = ArtifactStore(store)
             items = [
                 item
                 for item in service.list_artifacts()
-                if hub.level(actor, artifact_scope(item.id))
+                if hub.level(actor, artifact_scope(request, item.id))
             ]
             projects = {
                 item.id: {"id": item.id, "title": item.title, "artifact_count": 0}
                 for item in service.list_projects()
-                if hub.level(actor, Scope("default", "project", item.id))
+                if hub.level(actor, Scope(workspace, "project", item.id))
             }
             result: list[dict[str, object]] = []
             for item in items:
@@ -164,24 +177,33 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 result.append(entry)
             return {"projects": list(projects.values()), "artifacts": result, "designs": []}
 
+    @app.post("/api/hub/projects")
+    def new_project(request: Request, body: ProjectInput) -> dict[str, str]:
+        """Create a project in the selected workspace for its owner."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        with hub.locked():
+            hub.manage(actor, Scope(workspace))
+            item = ArtifactStore(hub.store(workspace)).create_project(body.title, body.context)
+            return {"id": item.id, "title": item.title}
+
     @app.get("/api/decks")
     def decks(request: Request) -> list[dict[str, str]]:
         with hub.locked():
             try:
-                store = hub.store("default")
+                store = hub.store(workspace_of(request))
             except AccessDenied:
                 return []
             actor = actor_of(request)
             return [
                 entry
                 for entry in store.list_decks()
-                if hub.level(actor, artifact_scope(entry["id"]))
+                if hub.level(actor, artifact_scope(request, entry["id"]))
             ]
 
     @contextmanager
     def deck_access(request: Request, deck_id: str, role: Role) -> Generator[Store]:
         """Check the grant and confirm this resource is a legacy presentation."""
-        with hub.guard(actor_of(request), artifact_scope(deck_id), role) as store:
+        with hub.guard(actor_of(request), artifact_scope(request, deck_id), role) as store:
             if ArtifactStore(store).get_artifact(deck_id).legacy_deck_id != deck_id:
                 raise AccessDenied
             principal = getattr(request.state, "verified_guest", None)
@@ -192,7 +214,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     @app.get("/api/decks/{deck_id}")
     def deck(request: Request, deck_id: str) -> dict[str, object]:
-        actor, scope = actor_of(request), artifact_scope(deck_id)
+        actor, scope = actor_of(request), artifact_scope(request, deck_id)
         with deck_access(request, deck_id, "view") as store:
             return {
                 **shared_deck(store, deck_id).model_dump(),
@@ -232,10 +254,12 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     @app.get("/api/artifacts/{artifact_id}")
     def artifact(request: Request, artifact_id: str) -> dict[str, object]:
-        actor, scope = actor_of(request), artifact_scope(artifact_id)
+        actor, scope = actor_of(request), artifact_scope(request, artifact_id)
         with hub.guard(actor, scope) as store:
             item = ArtifactStore(store).get_artifact(artifact_id)
-            visible_project = bool(hub.level(actor, Scope("default", "project", item.project_id)))
+            visible_project = bool(
+                hub.level(actor, Scope(scope.workspace, "project", item.project_id))
+            )
             return {
                 **artifact_payload(item, visible_project=visible_project),
                 "access_role": LEVEL_ROLE[hub.level(actor, scope)],
@@ -246,15 +270,18 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     @app.get("/api/artifacts/{artifact_id}/preview")
     def preview(request: Request, artifact_id: str) -> RedirectResponse:
-        with hub.guard(actor_of(request), artifact_scope(artifact_id)):
-            return RedirectResponse(f"/api/workspaces/default/artifacts/{artifact_id}/preview")
+        scope = artifact_scope(request, artifact_id)
+        with hub.guard(actor_of(request), scope):
+            return RedirectResponse(
+                f"/api/workspaces/{scope.workspace}/artifacts/{artifact_id}/preview"
+            )
 
     @app.get("/api/artifacts/{artifact_id}/revisions/{revision}/files/{path:path}")
     @app.get("/api/artifacts/{artifact_id}/files/{path:path}")
     def file(
         request: Request, artifact_id: str, path: str, revision: int | None = None
     ) -> FileResponse:
-        with hub.guard(actor_of(request), artifact_scope(artifact_id)) as store:
+        with hub.guard(actor_of(request), artifact_scope(request, artifact_id)) as store:
             service = ArtifactStore(store)
             current = service.get_artifact(artifact_id).revision
             if revision is not None and revision != current:
