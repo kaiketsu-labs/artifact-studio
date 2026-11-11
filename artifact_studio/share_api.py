@@ -34,6 +34,7 @@ class ShareInput(StrictModel):
     scope: Literal["artifact", "project"]
     id: str = Field(min_length=1, max_length=200)
     format: ShareFormat | None = None
+    include_hidden: bool = True
     expected_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
 
@@ -129,7 +130,7 @@ def sharing_routes(
             expected = body.expected_hash if body.scope == "artifact" else None
             if expected is not None and selection.artifacts[0].content_hash != expected:
                 raise ConflictError("This artifact changed. Open the update before sharing.")
-        file = service.prepare(selection, body.format)
+        file = service.prepare(selection, body.format, include_hidden=body.include_hidden)
         if len(file.data) > MAX_SHARE_BYTES:
             raise ValueError("Share files up to 100 MB. Export a smaller selection.")
         with access(request, body, tuple(identifier for identifier, _ in file.revisions)):

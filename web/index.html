@@ -54,6 +54,7 @@
   <script src="/web/element-properties.js" defer></script>
   <script src="/web/workspace-panels.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
+  <script src="/web/slide-menu.js" defer></script>
   <script src="/web/slide-sections.js" defer></script>
   <script src="/web/slide-sorter.js" defer></script>
   <script src="/web/slide-actions.js" defer></script>
@@ -238,22 +239,35 @@
   <div id="slide-menu-selection" class="slide-menu-selection" hidden></div>
   <button data-slide-action="add" type="button" role="menuitem"></button>
   <button data-slide-action="duplicate" type="button" role="menuitem"></button>
-  <button data-slide-action="delete" type="button" role="menuitem"></button>
+  <hr>
+  <div class="slide-menu-branch">
+    <button type="button" role="menuitem" data-slide-submenu="copy" aria-label="Copy" aria-haspopup="menu" aria-expanded="false" aria-controls="slide-copy-menu">Copy</button>
+    <div id="slide-copy-menu" class="slide-menu slide-submenu" popover="manual" role="menu" aria-label="Copy slide" hidden>
+      <button data-slide-extra="copyimage" type="button" role="menuitem"></button>
+      <button data-slide-extra="copylink" type="button" role="menuitem"></button>
+    </div>
+  </div>
+  <div class="slide-menu-branch">
+    <button type="button" role="menuitem" data-slide-submenu="organize" aria-label="Organize" aria-haspopup="menu" aria-expanded="false" aria-controls="slide-organize-menu">Organize</button>
+    <div id="slide-organize-menu" class="slide-menu slide-submenu" popover="manual" role="menu" aria-label="Organize slides" hidden>
+      <button data-slide-move="up" type="button" role="menuitem"></button>
+      <button data-slide-move="down" type="button" role="menuitem"></button>
+      <button data-slide-move="first" type="button" role="menuitem"></button>
+      <button data-slide-move="last" type="button" role="menuitem"></button>
+      <hr>
+      <button data-slide-extra="section" type="button" role="menuitem"></button>
+      <button data-slide-extra="selectall" type="button" role="menuitem"></button>
+    </div>
+  </div>
   <hr>
   <button data-slide-extra="comment" type="button" role="menuitem"></button>
-  <button data-slide-extra="present" type="button" role="menuitem"></button>
   <button data-slide-extra="history" type="button" role="menuitem"></button>
-  <button data-slide-extra="copylink" type="button" role="menuitem"></button>
-  <button data-slide-extra="favorite" type="button" role="menuitem"></button>
-  <button data-slide-extra="section" type="button" role="menuitem"></button>
-  <button data-slide-extra="selectall" type="button" role="menuitem"></button>
+  <button data-slide-extra="present" type="button" role="menuitem"></button>
   <hr>
+  <button data-slide-extra="favorite" type="button" role="menuitem"></button>
   <button id="toggle-slide-hidden" type="button" role="menuitem"></button>
   <hr>
-  <button data-slide-move="up" type="button" role="menuitem"></button>
-  <button data-slide-move="down" type="button" role="menuitem"></button>
-  <button data-slide-move="first" type="button" role="menuitem"></button>
-  <button data-slide-move="last" type="button" role="menuitem"></button>
+  <button data-slide-action="delete" type="button" role="menuitem"></button>
 </div>
 <div id="object-panel" popover></div>
 <div id="element-align-menu" class="element-align-menu" popover role="menu" aria-label="Align to slide">

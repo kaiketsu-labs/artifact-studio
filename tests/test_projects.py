@@ -266,11 +266,18 @@ def test_standalone_html_embeds_images_fonts_and_animations_without_private_text
     assert "<script src=" not in html and '<link rel="stylesheet"' not in html
     assert "PRIVATE SPEAKER CONTEXT" not in html and "PRIVATE AGENT CONTEXT" not in html
     pdf = audience_html(store, TEMPLATE_ID, printing=True)
-    assert pdf.count('<section class="print-page">') == 2
+    assert pdf.count('<section class="print-page"') == 2
     assert "Hidden final content" in pdf and "Save as PDF" in pdf
     assert '<html lang="de" class="brand" dir="rtl" data-progress="none">' in pdf
     assert "PRIVATE SPEAKER CONTEXT" not in pdf and "PRIVATE AGENT CONTEXT" not in pdf
     assert "data:image/svg+xml;base64," in pdf
+    visible = audience_html(store, TEMPLATE_ID, printing=True, include_hidden=False)
+    assert visible.count('<section class="print-page"') == 1
+    assert "Hidden final content" not in visible
+    assert store.read(TEMPLATE_ID).slides[1].hidden
+    store.set_slide_hidden(TEMPLATE_ID, deck.slides[0].id, hidden=True, expected_hidden=False)
+    with pytest.raises(ValueError, match="No visible slides"):
+        _ = audience_html(store, TEMPLATE_ID, printing=True, include_hidden=False)
 
 
 def test_project_and_export_http_routes_and_cross_origin_guard(

@@ -212,7 +212,12 @@ class SharingService:
         self.scoped_limit = scoped_limit
 
     def _prepare(
-        self, artifact: ArtifactView, format: ShareFormat | None, deadline: float | None = None
+        self,
+        artifact: ArtifactView,
+        format: ShareFormat | None,
+        deadline: float | None = None,
+        *,
+        include_hidden: bool = True,
     ) -> PreparedShare:
         """Capture one selected revision, requiring a format for presentations."""
         if artifact.legacy_deck_id:
@@ -222,13 +227,17 @@ class SharingService:
                 check_renderer_available()
             if self.scoped_limit is None:
                 document = audience_html(
-                    self.store, artifact.legacy_deck_id, printing=format == "pdf"
+                    self.store,
+                    artifact.legacy_deck_id,
+                    printing=format == "pdf",
+                    include_hidden=include_hidden,
                 )
             else:
                 document = audience_html(
                     self.store,
                     artifact.legacy_deck_id,
                     printing=format == "pdf",
+                    include_hidden=include_hidden,
                     scoped_embedder=ScopedDeckEmbedder(self.store, artifact.legacy_deck_id),
                 )
             current = self.artifacts.get_artifact(artifact.id)
@@ -272,10 +281,12 @@ class SharingService:
         )
 
     def prepare_artifact(
-        self, artifact_id: str, format: ShareFormat | None = None
+        self, artifact_id: str, format: ShareFormat | None = None, *, include_hidden: bool = True
     ) -> PreparedShare:
         """Prepare the current artifact revision for download or an email draft."""
-        return self.prepare(self.select("artifact", artifact_id), format)
+        return self.prepare(
+            self.select("artifact", artifact_id), format, include_hidden=include_hidden
+        )
 
     def select(self, scope: Literal["artifact", "project"], identifier: str) -> ShareSelection:
         """Resolve the current revision set once before copying any audience bytes."""
@@ -294,10 +305,12 @@ class SharingService:
         artifact: ArtifactView,
         format: ShareFormat | None,
         deadline: float | None = None,
+        *,
+        include_hidden: bool = True,
     ) -> tuple[str, ...]:
         """Check and write one artifact, releasing its captured bytes before the next."""
         if artifact.legacy_deck_id:
-            item = self._prepare(artifact, format, deadline)
+            item = self._prepare(artifact, format, deadline, include_hidden=include_hidden)
             archive.writestr(f"{folder}/{item.filename}", item.data)
             return item.excluded
         files, excluded = audience_files(
@@ -313,12 +326,20 @@ class SharingService:
                 archive.writestr(f"{folder}/{name}", files[name])
         return excluded
 
-    def prepare_project(self, project_id: str, format: ShareFormat | None = None) -> PreparedShare:
+    def prepare_project(
+        self, project_id: str, format: ShareFormat | None = None, *, include_hidden: bool = True
+    ) -> PreparedShare:
         """Prepare a ZIP containing audience exports of all project artifacts."""
-        return self.prepare(self.select("project", project_id), format)
+        return self.prepare(
+            self.select("project", project_id), format, include_hidden=include_hidden
+        )
 
     def prepare(
-        self, selection: ShareSelection, format: ShareFormat | None = None
+        self,
+        selection: ShareSelection,
+        format: ShareFormat | None = None,
+        *,
+        include_hidden: bool = True,
     ) -> PreparedShare:
         """Build a single file or archive from the selected immutable revisions."""
         artifacts = selection.artifacts
@@ -329,7 +350,7 @@ class SharingService:
         ):
             raise ValueError("Share files up to 100 MB. Export a smaller selection.")
         if selection.project_title is None:
-            return self._prepare(artifacts[0], format, deadline)
+            return self._prepare(artifacts[0], format, deadline, include_hidden=include_hidden)
         members = [
             (f"{index:02d}-{_filename(artifact.title)}", artifact)
             for index, artifact in enumerate(artifacts, 1)
@@ -342,7 +363,7 @@ class SharingService:
                 if deadline is not None and time.monotonic() >= deadline:
                     raise ValueError("The export timed out. Reduce the selection or use HTML.")
                 excluded[folder] = self._write_project_artifact(
-                    archive, folder, artifact, format, deadline
+                    archive, folder, artifact, format, deadline, include_hidden=include_hidden
                 )
                 if self.scoped_limit is not None and output.tell() > self.scoped_limit:
                     raise ValueError("Share files up to 100 MB. Export a smaller selection.")

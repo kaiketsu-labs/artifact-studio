@@ -796,11 +796,18 @@ def audience_html(
     deck_id: str,
     *,
     printing: bool = False,
+    include_hidden: bool = True,
     scoped_embedder: AssetEmbedder | None = None,
 ) -> str:
     """Build one offline audience document, excluding private notes and conversations."""
     deck = store.read(deck_id).model_copy(deep=True)
     deck.sections = []
+    if printing and not include_hidden:
+        deck.slides = [slide for slide in deck.slides if not slide.hidden]
+        if not deck.slides:
+            raise ValueError(
+                "No visible slides to export. Include hidden slides or unhide a slide."
+            )
     folder = store.folder(deck_id)
     embedder = scoped_embedder or AssetEmbedder(folder)
     theme_path = embedder.local_path("theme.css") if scoped_embedder else folder / "theme.css"
@@ -848,7 +855,10 @@ def audience_html(
 def _print_document(deck: Deck, theme: str, original: str) -> str:
     """Lay out every slide on its own widescreen page with all builds visible."""
     slides = "".join(
-        '<section class="print-page">' + slide.html + "</section>" for slide in deck.slides
+        f'<section class="print-page" data-hidden="{str(slide.hidden).lower()}">'
+        + slide.html
+        + "</section>"
+        for slide in deck.slides
     )
     styles = (PROJECT / "runtime/print.css").read_text()
     script = (PROJECT / "runtime/print.js").read_text()
@@ -864,7 +874,10 @@ def _print_document(deck: Deck, theme: str, original: str) -> str:
         + "</style><style>"
         + styles
         + '</style></head><body><div class="print-actions">'
-        + '<button id="print">Save as PDF</button></div>'
+        + '<label><input id="print-include-hidden" type="checkbox" checked> '
+        + 'Include hidden slides</label><button id="print" disabled>Save as PDF</button></div>'
+        + '<p id="print-empty" class="print-empty" role="status" hidden>'
+        + "No visible slides. Include hidden slides or unhide a slide before exporting.</p>"
         + slides
         + '<script id="interactive-data" type="application/json">'
         + json.dumps(interactive).replace("<", r"\u003c")

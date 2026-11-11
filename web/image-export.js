@@ -1,4 +1,4 @@
-/* Export the displayed DOM without sending feedback or persisting provisional edits. */
+/* Image downloads and clipboard copies without sending feedback or persisting edits. */
 ((root)=>{
   'use strict';
   const limit=5*1024*1024;
@@ -40,10 +40,22 @@
     const canvas=root.document.createElement('canvas');canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;canvas.getContext('2d').drawImage(image,0,0);
     const file=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!file)throw Error('This image could not be exported.');download(file,'image.png');
   }
-  async function save(endpoint,body){
+  async function request(endpoint,body){
     const response=await root.fetch(root.ArtifactSession?.path?.(endpoint) ?? endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!response.ok){let result;try{result=await response.json();}catch{}throw Error(typeof result?.detail==='string'?result.detail:'The image could not be exported.');}
+    return response;
+  }
+  async function save(endpoint,body){
+    const response=await request(endpoint,body);
     download(await response.blob(),/filename="([^"]+)"/.exec(response.headers.get('content-disposition')||'')?.[1]||'selection.png');
   }
-  const api={snapshot,save,raster,download};if(typeof module!=='undefined')module.exports=api;else root.ImageExport=api;
+  async function copy(endpoint,body){
+    if(!root.navigator.clipboard?.write||!root.ClipboardItem)throw Error('Image copying requires a supported browser on HTTPS or localhost.');
+    const image=request(endpoint,body).then(response=>response.blob());
+    // Supply the promise during the click so Safari retains clipboard activation while rendering.
+    void image.catch(()=>{});
+    try{await root.navigator.clipboard.write([new root.ClipboardItem({'image/png':image})]);}
+    catch(error){if(error.name==='NotAllowedError')throw Error('Clipboard access was denied. Allow clipboard access and try again.');throw error;}
+  }
+  const api={snapshot,save,raster,download,copy};if(typeof module!=='undefined')module.exports=api;else root.ImageExport=api;
 })(typeof window==='undefined'?{}:window);

@@ -11,6 +11,7 @@
 .hub-card-share{position:absolute;top:9px;left:9px;display:grid;place-items:center;width:30px;height:30px;padding:6px;border:1px solid var(--hub-line);border-radius:8px;background:var(--hub-panel);color:var(--hub-muted);opacity:0;transition:opacity .15s}.hub-card:hover .hub-card-share,.hub-card:focus-within .hub-card-share{opacity:1}.hub-heading-actions,.hub-artifact-actions{display:flex;align-items:center;gap:9px}.hub-artifact-actions>[data-action=share],.hub-heading-actions>[data-action=share-project]{border:1px solid var(--hub-line);background:var(--hub-panel)}
 .studio-share{--share-ink:var(--hub-ink,var(--ink,#202936));--share-muted:var(--hub-muted,var(--subtle,#667386));--share-panel:var(--hub-panel,var(--surface,#fff));--share-soft:var(--hub-soft,var(--selected,#edf2ff));--share-blue:var(--hub-blue,var(--blue,#315fce))}
 .hub-card{position:relative}
+.studio-share-hidden{display:flex;align-items:center;gap:8px;margin:14px 0 0;color:var(--share-ink);font-size:12px;cursor:pointer}.studio-share-hidden input{width:16px;height:16px;accent-color:var(--share-blue)}.studio-share-hidden input:focus-visible{outline:2px solid var(--share-blue);outline-offset:3px}
 @media(hover:none){.hub-card-share{opacity:1}}@media(prefers-reduced-motion:reduce){.hub-card-share{transition:none}}
 .studio-invite-form { display: grid; gap: 14px; margin-top: 18px; }
 .studio-invite-form label { display: grid; gap: 5px; font-size: 13px; font-weight: 600; }

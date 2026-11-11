@@ -79,7 +79,7 @@ _WRITE = (
     r"/api/favorites",
     r"/api/chat-references",
     rf"/api/decks/{_ID}/(?:archive|restore|slide-order|sections|slide-actions|restore-slides|slides-visibility|project|feedback-mode|send-batch|feedback)",
-    rf"/api/decks/{_ID}/slides/{_ID}/(?:seen|visibility|approve|feedback|notes|selection-image)",
+    rf"/api/decks/{_ID}/slides/{_ID}/(?:seen|visibility|approve|feedback|notes|selection-image|image)",
     rf"/api/decks/{_ID}/slides/{_ID}/questions/{_ID}/answer",
     rf"/api/decks/{_ID}/slides/{_ID}/(?:history/restore|designs/decide|designs/undo|element-alternatives/decide|element-alternatives/undo)",
     rf"/api/designs/{_ID}/references(?:/remove)?",

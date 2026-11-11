@@ -358,6 +358,9 @@
     if(event.pointerType==='touch')return;
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor)return;
     if(anchor!==pillHoverAnchor)beginPillHover(anchor);
+    // A delayed iframe notification may leave the old hover anchor intact.
+    // Renew its message identity on return without reopening/reloading the pill.
+    else setReferencePointer(true,anchor,true);
   });
   doc.addEventListener('pointerout',event=>{
     const anchor=event.target.closest?.('[data-reference-preview]');if(!anchor||anchor.contains(event.relatedTarget)||event.pointerType==='touch')return;
