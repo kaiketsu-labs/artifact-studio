@@ -59,6 +59,7 @@
   $('objects-button').title='Select slide objects · Cmd/Ctrl/Shift-click to add or remove';$('element-proposal-sent').innerHTML=svg('send');
   let deploymentMode=null;
   let deck=null, slideSections=null, selectedId=null, pendingDeck=null, selectedElement=null, hoverElement=null, toastTimer;
+  const deckPresence=window.StudioDeckPresence.create({button:$('deck-presence'),panel:$('deck-viewers'),rail:$('slides'),session:window.ArtifactSession});
   const canEditShared=()=>!sharedEditor||deck?.access_role==='edit';
   let selectedElements=[],groupEditor=null;
   let visibilityBusy=false,copyingSlideImage=false,menuSlide=null;
@@ -282,6 +283,7 @@
     const scoped=(conversation?.messages||[]).filter(message=>message.target?.slide_id===item.id||(!message.target?.slide_id&&item.id===deck.slides[0]?.id)).map(message=>({
       event_id:-message.id, author:message.author===message.person?'user':'agent',
       name:message.author===message.person?(message.person===conversation.person?'You':message.author_name):(conversation.agents.find(agent=>agent.id===message.author)?.name||'Agent'),
+      collaborator:message.author===message.person&&message.person!==conversation.person,
       created_at:new Date(message.created*1000).toISOString(),message:message.message,
       released:message.released,reply_to:message.reply_to?-message.reply_to:null,
       target:message.target?.kind==='slide'?null:message.target,slide_id:item.id,files:message.files||[],scoped:true,
@@ -345,6 +347,7 @@
       const visibility=button.parentElement.querySelector('[data-visibility-id]');iconButton(visibility,item.hidden?'eyeOff':'eye',`${item.hidden?'Unhide':'Hide'} slide ${index+1}`);visibility.disabled=visibilityBusy||slideActions.isBusy();
     });
     slideOrder.sync();slideActions.update();sorter.sync();slideSections.sync(snapshot);slideDesignOptions?.sync(snapshot,selectedId);elementAlternatives?.sync(deck?.id===snapshot.id?deck:snapshot,selectedId);
+    deckPresence.render();
   }
   function renderChangeStatus(){document.querySelector('.preview-wrap').classList.toggle('has-unseen-changes',!!(pendingDeck||deck)?.slides.find(item=>item.id===selectedId)?.has_unseen_changes);}
   /** Acknowledge only a version explicitly opened, never a background refresh. */
@@ -359,7 +362,7 @@
     }catch(error){toast(error.message,true);}
   }
   const updates=window.SlideUpdates.create({refresh,workflow:refreshWorkflow,...(sharedEditor?{createSource:null}:{}),onError:error=>{if(sharedEditor&&error.status===404){location.replace(studioHome);return;}toast(error.message,true);}});
-  function watchDeck(id){updates.watch(id);if(!sharedEditor&&recentDeck!==id){recentDeck=id;void quickAccess.visit({artifact_id:id});}}
+  function watchDeck(id){updates.watch(id);deckPresence.select(id,id?selectedId:null);if(!sharedEditor&&recentDeck!==id){recentDeck=id;void quickAccess.visit({artifact_id:id});}}
   /** Refresh time-limited agent availability without reloading slides or discussion history. */
   async function refreshWorkflow(id){
     if(deck?.id!==id||switchingDeck||isLoading||presentationActions.isBusy())return;
@@ -611,12 +614,14 @@
       for(const id of ['mode-live','mode-batch','send-batch'])$(id).disabled=!commentAllowed();
     }
 
+    const humanDiscussion=collaborationChat&&conversationChannel==='shared';
     const harness=({'codex':'Codex','claude-code':'Claude Code'})[state.review_harness];
     const session=state.review_session?' · session '+state.review_session.slice(0,8):'';
     $('mode-live').setAttribute('aria-pressed',String(live));$('mode-batch').setAttribute('aria-pressed',String(!live));
-    $('mode-live').innerHTML=(brand(state.review_harness)||svg('live'))+'<span>Live <small class="live-availability '+(available?'available':'')+'">'+(available?(harness||'Available'):'Unavailable')+'</small></span>';
-    $('mode-live').title='Live feedback · '+(available?(harness||'agent')+session+' available':'agent unavailable');
-    $('mode-live').setAttribute('aria-label','Live '+(available?(harness||'Available'):'Unavailable'));
+    const availability='<small class="live-availability '+(available?'available':'')+'">'+(available?(harness||'Available'):'Unavailable')+'</small>';
+    $('mode-live').innerHTML=(brand(state.review_harness)||svg('live'))+'<span>Live'+(humanDiscussion?'':availability)+'</span>';
+    $('mode-live').title=humanDiscussion?'Send messages immediately':'Live feedback · '+(available?(harness||'agent')+session+' available':'agent unavailable');
+    $('mode-live').setAttribute('aria-label',humanDiscussion?'Live':'Live '+(available?(harness||'Available'):'Unavailable'));
     $('end-review').hidden=!state.review_connected;
     $('send-batch').hidden=!state.pending;iconButton($('send-batch'),'send',(live?'Send queued comments':'Send batch')+' ('+state.pending+')',true);
     $('batch-delivery-help').hidden=live;$('send-feedback').classList.toggle('is-batch',!live);
@@ -677,7 +682,7 @@
   /** Identify chat senders visually and retain their names for assistive technology. */
   function chatAvatar(author,isReply=false,name=''){
     const user=author==='user',label=escape(name||((user?'You':'Agent')+(isReply?' reply':'')));
-    return `<span class="chat-sender"><span class="chat-avatar ${user?'user':'agent'}" role="img" aria-label="${label}" title="${label}">${svg(user?'user':'robot')}</span>${name&&name!=='You'?`<span>${label}</span>`:''}${isReply?`<span class="chat-reply" aria-hidden="true" title="Reply">${svg('reply')}</span>`:''}</span>`;
+    return `<span class="chat-sender"><span class="chat-avatar ${user?'user':'agent'}" role="img" aria-label="${label}" title="${label}">${svg(user?'user':'robot')}</span>${name&&name!=='You'?`<span class="chat-sender-name" title="${label}">${label}</span>`:''}${isReply?`<span class="chat-reply" aria-hidden="true" title="Reply">${svg('reply')}</span>`:''}</span>`;
   }
   /** Preserve reading position while new messages arrive. */
   function renderComments(item){
@@ -690,7 +695,7 @@
     const focused=slideQuestions.captureFocus(list);
     const atEnd=list.scrollHeight-list.scrollTop-list.clientHeight<35;
     commentsKey=key();commentsSignature=signature;
-    list.innerHTML=comments.map(comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}"><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to,comment.name)}${comment.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.author==='user'&&comment.target?(window.MultiElementEdits.readableMessage(comment.message)||comment.message):comment.message)}${window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${slideDesignOptions?.card(comment)||''}${elementAlternatives?.card(comment)||''}${comment.element_option_id?`<span class="comment-design-context">Option · ${escape(comment.element_option_name||'Saved alternative')}</span>`:''}${comment.design_option_id?`<span class="comment-design-context">Design · ${escape(comment.design_option_name||'Saved alternative')}</span>`:''}${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&!comment.design_option_id&&!comment.design_set_id&&!comment.element_option_id&&!comment.element_set_id&&comment.content_hash&&comment.content_hash!==item.content_hash?'<span class="old-version">Earlier version</span>':''}</article>`).join('')||'';
+    list.innerHTML=comments.map(comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}"${comment.collaborator?' data-collaborator':''}><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to,comment.name)}${comment.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.author==='user'&&comment.target?(window.MultiElementEdits.readableMessage(comment.message)||comment.message):comment.message)}${window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${slideDesignOptions?.card(comment)||''}${elementAlternatives?.card(comment)||''}${comment.element_option_id?`<span class="comment-design-context">Option · ${escape(comment.element_option_name||'Saved alternative')}</span>`:''}${comment.design_option_id?`<span class="comment-design-context">Design · ${escape(comment.design_option_name||'Saved alternative')}</span>`:''}${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&!comment.design_option_id&&!comment.design_set_id&&!comment.element_option_id&&!comment.element_set_id&&comment.content_hash&&comment.content_hash!==item.content_hash?'<span class="old-version">Earlier version</span>':''}</article>`).join('')||'';
     slideQuestions.mount(list,comments,deck.id,item.id);slideDesignOptions?.mountCards();elementAlternatives?.mountCards();
     if(changedContext&&pendingQuestions){list.querySelector('[data-question-state="open"]')?.scrollIntoView({block:'nearest'});}else if(changedContext||atEnd)list.scrollTop=list.scrollHeight;
     slideQuestions.restoreFocus(list,focused);
@@ -1032,7 +1037,7 @@
       if(message.trim()||files.length)await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,design_option_id:context.design_option_id,element_option_id:context.element_option_id,element_context_hash:context.element_context_hash,request_id:context.request_id},expectedMode);
       chatComposer.clear(sendingKey);voiceFeedback.clear(sendingKey);feedbackDrafts.delete(sendingKey);draftStore.persist();
       if(key()===sendingKey){$('feedback-text').value='';setTarget(null);renderVoiceFeedback();}
-      await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
+      await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':collaborationChat&&conversationChannel==='shared'?'Message sent.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
     }catch(error){chatComposer.error(error.message,sendingKey);}
     finally{chatComposer.idle(sendingKey);feedbackSending=false;$('feedback-text').disabled=false;renderVoiceFeedback();updateComposer();if(key()===sendingKey&&!document.querySelector('dialog[open]')&&[document.body,button].includes(document.activeElement))$('feedback-text').focus();}
   });

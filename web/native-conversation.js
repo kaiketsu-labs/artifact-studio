@@ -68,8 +68,10 @@
         editIntent, files, channel = 'shared', released = true, assigned = ''}) {
         const endpoint = base(artifactId), anchor = artifactTarget(target, slideId);
         const stale = message => Object.assign(new Error(message), {status: 409, stale: true});
-        if (!contentHash) throw stale(staleArtifact);
-        if (slideContentHash) {
+        // Shared discussion follows the slide ID, while edits and selected objects keep their revision.
+        const discussion = slideId && !target && !editIntent && !assigned && channel === 'shared';
+        if (!discussion && !contentHash) throw stale(staleArtifact);
+        if (!discussion && slideContentHash) {
           const state = await request(`${endpoint}/state`);
           // The server checks exact retries before rejecting a changed artifact hash.
           if (state.content_hash === contentHash && state.slides.find(item => item.id === anchor?.slide_id)?.content_hash !== slideContentHash) {
@@ -77,7 +79,7 @@
           }
         }
         return request(`${endpoint}/chat`, {message: editMessage(message, editIntent), request_id: requestId,
-          content_hash: contentHash, target: anchor, channel, released, assigned, ...(files?.length ? {files} : {})});
+          content_hash: discussion ? '' : contentHash, target: anchor, channel, released, assigned, ...(files?.length ? {files} : {})});
       },
       release(artifactId, channel = 'shared') {
         return request(inChannel(`${base(artifactId)}/release`, channel), {});

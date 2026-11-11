@@ -25,6 +25,39 @@ pytestmark = [
 ]
 
 
+def test_guest_discussion_sends_after_slide_changes(tmp_path: Path) -> None:
+    """A guest can send ordinary Shared discussion after the owner revises the slide."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="comment"))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                composer = page.locator("#feedback-text")
+                composer.fill("Fictional guest discussion")
+                initial = app.store.view(app.deck_id).slides[0]
+                _ = app.store.revise_view(
+                    app.deck_id,
+                    initial.id,
+                    initial.expected_hash,
+                    "fixture-discussion-revision",
+                    SlidePatch(title="Revised cover"),
+                )
+                composer.press("Enter")
+                expect(page.locator("#feedback-list")).to_contain_text("Fictional guest discussion")
+                expect(composer).to_have_value("")
+                response = owner.get(f"/api/workspaces/default/artifacts/{app.deck_id}/chat")
+                assert response.json()[0]["message"] == "Fictional guest discussion"
+        finally:
+            browser.close()
+
+
 def test_shared_artifact_uses_existing_approve_control(tmp_path: Path) -> None:
     """An editor can approve from the native artifact view and a viewer sees the status."""
     with (

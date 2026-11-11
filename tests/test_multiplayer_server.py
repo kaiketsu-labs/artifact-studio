@@ -52,6 +52,39 @@ def agent(client: httpx.Client, artifact: str) -> str:
     return cast(str, response.json()["token"])
 
 
+def test_deck_presence_checks_current_access_and_tab(tmp_path: Path) -> None:
+    """Presence follows the current slide and vanishes when a grant is revoked."""
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/presence"
+        owner_tab = {"tab": "a" * 32, "slide_id": "cover"}
+        first_tab = {"tab": "b" * 32, "slide_id": "cover"}
+        second_tab = {"tab": "c" * 32, "slide_id": "next"}
+        assert owner.post(endpoint, json=owner_tab).json() == []
+        assert bob.post(endpoint, json=first_tab).status_code == 404
+        assert alice.post(endpoint, json=first_tab).json() == [
+            {"name": "Owner", "slide_id": "cover"}
+        ]
+        assert alice.post(endpoint, json=second_tab).status_code == 200
+        assert alice.post(endpoint, json={**first_tab, "slide_id": None}).status_code == 200
+        assert owner.post(endpoint, json=owner_tab).json() == [
+            {"name": "Alice", "slide_id": "next"}
+        ]
+        scope = {"kind": "artifact", "resource": app.deck_id}
+        grants = owner.get("/api/workspaces/default/access", params=scope).json()["grants"]
+        grant_id = grants[0]["id"]
+        assert owner.post(
+            f"/api/workspaces/default/access/{grant_id}/revoke", json=scope
+        ).is_success
+        assert owner.post(endpoint, json=owner_tab).json() == []
+        assert alice.post(endpoint, json=second_tab).status_code == 404
+
+
 def test_opened_revisions_are_private_and_ignore_stale_hashes(tmp_path: Path) -> None:
     """View access can clear a current marker for one reader without altering anyone else's."""
     with (

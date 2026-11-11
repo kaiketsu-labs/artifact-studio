@@ -231,6 +231,15 @@ class Conversations:
                     return self._public(prior)
                 if content_hash and content_hash != item.content_hash:
                     raise ConflictError("The artifact changed. Review the current version first.")
+                if (
+                    target
+                    and target.slide_id
+                    and item.legacy_deck_id
+                    and target.slide_id not in item.presentation_versions
+                ):
+                    raise ConflictError(
+                        "This slide was removed. Choose another slide to send your message."
+                    )
                 if assigned:
                     recipient = self._recipient(db, assigned)
                     if channel == "private" and recipient.person != actor.person:

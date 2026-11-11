@@ -225,6 +225,13 @@ Right-click a shared card to view, comment where permitted, or present. **Copy l
 opens the item for people who already have access. Use **Share link…** to invite
 someone when you own the workspace.
 
+In an open shared presentation, initials in the editor header show other people
+viewing the deck. Select the initials to see their names and slide numbers. The
+same initials appear beside each slide they are viewing. The indicators update
+every few seconds and expire after a short disconnect. In Shared chat, ordinary
+slide discussion can continue while the slide is being revised. Comments on
+selected objects and agent edit requests still refer to the revision you reviewed.
+
 In standalone collaboration, the server owner creates isolated workspaces with
 **＋** beside the selector. Invited
 people can join several; this version reserves workspace creation and access

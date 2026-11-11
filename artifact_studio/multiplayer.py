@@ -26,6 +26,7 @@ from .artifact_models import ArtifactTarget
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
+from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
@@ -121,6 +122,7 @@ def create_app(
         )
     hub = sharing
     chat = Conversations(hub)
+    presence = DeckPresence(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
         instructions=(
@@ -395,6 +397,13 @@ def create_app(
                 "agents": chat.agents(actor, scope),
                 "draft_counts": draft_counts,
             }
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
+    def deck_presence(
+        request: Request, workspace: str, artifact: str, body: PresenceInput
+    ) -> list[DeckViewer]:
+        """Refresh one human's slide position and return current viewers of this deck."""
+        return presence.update(actor_of(request), Scope(workspace, "artifact", artifact), body)
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def history(

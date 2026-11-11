@@ -334,6 +334,23 @@ class Sharing:
     def level(self, actor: Actor, scope: Scope) -> int:
         return max((LEVEL[source["role"]] for source in self.sources(actor, scope)), default=0)
 
+    def human_contacts(self, scope: Scope, people: set[str]) -> dict[str, str]:
+        """Read verified identities with a current grant to the selected resource."""
+        ancestors = set(self.ancestors(scope))
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT people.id, people.email, 'workspace' AS kind, '' AS resource "
+                "FROM people JOIN workspaces ON people.id=workspaces.owner WHERE workspaces.id=? "
+                "UNION ALL SELECT people.id, people.email, grants.kind, grants.resource "
+                "FROM grants JOIN people ON people.id=grants.person WHERE grants.workspace=?",
+                (scope.workspace, scope.workspace),
+            ).fetchall()
+        return {
+            cast(str, row["id"]): cast(str, row["email"])
+            for row in rows
+            if row["id"] in people and (row["kind"], row["resource"]) in ancestors
+        }
+
     def require(self, actor: Actor, scope: Scope, role: Role = "view") -> None:
         if self.level(actor, scope) < LEVEL[role]:
             raise AccessDenied
