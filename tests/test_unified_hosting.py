@@ -4,8 +4,10 @@ import fcntl
 import json
 import re
 from contextlib import closing
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlsplit
+from zipfile import ZipFile
 
 import httpx
 import pytest
@@ -13,6 +15,7 @@ import pytest
 from artifact_studio.artifact_models import ArtifactFileInput
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.deployment import DeploymentConfig
+from artifact_studio.models import SlidePatch, Source
 from artifact_studio.multiplayer_access import Sharing
 from artifact_studio.unified import create_app
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -24,6 +27,75 @@ from tests.integration.multiplayer_fixture import (
 )
 from tests.test_multiplayer_server import accept, agent, grant, human
 from tests.test_multiplayer_simulation import Peer
+
+
+def test_scoped_exports_follow_the_reader_and_current_project_access(tmp_path: Path) -> None:
+    """Bind prepared downloads to their reader and recheck every archived artifact."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.project_id, "view", "project"))
+        accept(bob, grant(owner, "bob", app.artifact_id, "view"))
+        artifact = {"scope": "artifact", "id": app.artifact_id}
+        project = {"scope": "project", "id": app.project_id}
+        assert bob.post("/api/shares", json=project).status_code == 404
+        file = alice.post("/api/shares", json=artifact).raise_for_status().json()["download_url"]
+        assert bob.get(file).status_code == 404
+        own = bob.post("/api/shares", json=artifact).raise_for_status().json()["download_url"]
+        assert bob.get(own).content == b"Fictional shared artifact"
+        archive = alice.post("/api/shares", json=project).raise_for_status().json()["download_url"]
+        response = alice.get(archive).raise_for_status()
+        assert response.headers["content-disposition"].startswith("attachment;")
+        with ZipFile(BytesIO(response.content)) as exported:
+            assert len(exported.namelist()) == 2
+        assert not alice.get("/api/shares/capabilities").json()["outlook"]
+
+        destination = (
+            owner.post("/api/hub/projects", json={"title": "Private workspace project"})
+            .raise_for_status()
+            .json()["id"]
+        )
+        move = f"/api/artifacts/{app.sibling_id}/project"
+        body = {"project_id": destination}
+        pending = owner.post(move, json=body)
+        assert pending.status_code == 409
+        owner.post(
+            move, json={**body, "access_hash": pending.json()["access_hash"]}
+        ).raise_for_status()
+        assert alice.get(archive).status_code == 404
+        assert alice.get(file).is_success
+
+
+def test_scoped_presentation_export_uses_audience_only_content(tmp_path: Path) -> None:
+    """Include the deck and builds while leaving notes and private source labels out."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        slide = app.store.view(app.deck_id).slides[0]
+        _ = app.store.revise_view(
+            app.deck_id,
+            slide.id,
+            slide.expected_hash,
+            "export-fixture-sources",
+            SlidePatch(sources=[Source(label="Fictional private source label")]),
+        )
+        _ = app.store.save_notes(
+            app.deck_id, slide.id, "Fictional private speaker note", slide.notes
+        )
+        accept(alice, grant(owner, "alice", app.deck_id, "view"))
+        body = {"scope": "artifact", "id": app.deck_id}
+        assert alice.post("/api/shares", json=body).status_code == 404
+        receipt = (
+            alice.post("/api/shares", json={**body, "format": "html"}).raise_for_status().json()
+        )
+        html = alice.get(receipt["download_url"]).raise_for_status().text
+        assert 'data-export="audience"' in html and "Fictional team deck" in html
+        assert "Fictional private" not in html
 
 
 def test_shared_members_cannot_enable_the_full_editor(

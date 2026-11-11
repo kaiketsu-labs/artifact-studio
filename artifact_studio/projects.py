@@ -791,22 +791,40 @@ class EmbeddedMarkup(HTMLParser):
         self.parts.append(f"<!{decl}>")
 
 
-def audience_html(store: Store, deck_id: str, *, printing: bool = False) -> str:
+def audience_html(
+    store: Store,
+    deck_id: str,
+    *,
+    printing: bool = False,
+    scoped_embedder: AssetEmbedder | None = None,
+) -> str:
     """Build one offline audience document, excluding private notes and conversations."""
     deck = store.read(deck_id).model_copy(deep=True)
     deck.sections = []
     folder = store.folder(deck_id)
-    embedder = AssetEmbedder(folder)
-    theme = embedder.css((folder / "theme.css").read_text()).replace("<", r"\3c ")
+    embedder = scoped_embedder or AssetEmbedder(folder)
+    theme_path = embedder.local_path("theme.css") if scoped_embedder else folder / "theme.css"
+    theme = embedder.css(theme_path.read_text()).replace("<", r"\3c ")
     for slide in deck.slides:
         slide.html = embedder.markup(slide.html)
         slide.notes = ""
         slide.agent.summary = ""
         slide.agent.questions = []
         slide.agent.alternatives = []
-        for source in slide.sources:
-            if not urlsplit(source.url).scheme:
-                source.url = ""
+        if scoped_embedder is not None:
+            slide.sources = []
+            slide.notes_revision = 0
+            if slide.interactive_html:
+                from .interactive import InteractiveMarkup
+
+                parser = InteractiveMarkup(embedder)
+                parser.feed(slide.interactive_html)
+                parser.close()
+                slide.interactive_html = "".join(parser.parts)
+        else:
+            for source in slide.sources:
+                if not urlsplit(source.url).scheme:
+                    source.url = ""
     if printing:
         return _print_document(deck, theme, (folder / "index.html").read_text())
     deck.id = "export-" + uuid.uuid4().hex

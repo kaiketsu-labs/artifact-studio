@@ -1,5 +1,6 @@
 """PDF exports share the bounded sandboxed renderer lifecycle with visual captures."""
 
+import subprocess
 import threading
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
@@ -15,6 +16,39 @@ from artifact_studio import renderer_health, sharing, visuals
 from artifact_studio.renderer_health import RendererHealth, RendererUnavailable
 
 render_pdf = sharing._pdf  # pyright: ignore[reportPrivateUsage]
+render_hosted_pdf = sharing._scoped_pdf  # pyright: ignore[reportPrivateUsage]
+
+
+def test_hosted_pdf_worker_deadline_releases_the_render_slot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stop the worker and let later jobs enter after a print deadline."""
+    queue = visuals.RenderQueue()
+    monkeypatch.setattr(visuals, "_RENDER_QUEUE", queue)
+    monkeypatch.setattr(renderer_health, "HEALTH", RendererHealth())
+    stopped: list[int] = []
+    timeouts: list[float | None] = []
+
+    def wait(timeout: float | None = None) -> int:
+        timeouts.append(timeout)
+        if timeout is not None:
+            raise subprocess.TimeoutExpired("fictional print", timeout)
+        return -9
+
+    @contextmanager
+    def worker(*_args: object, **_options: object) -> Generator[SimpleNamespace]:
+        yield SimpleNamespace(wait=wait, pid=1234, returncode=None)
+
+    def kill(pid: int, _signal: int) -> None:
+        stopped.append(pid)
+
+    monkeypatch.setattr(sharing.subprocess, "Popen", worker)
+    monkeypatch.setattr(sharing.os, "killpg", kill)
+    with pytest.raises(ValueError, match="timed out"):
+        _ = render_hosted_pdf("<h1>Fictional print job</h1>", 100_000)
+    assert timeouts == [45, None]
+    assert stopped == [1234]
+    assert queue.status()["running"] is False
 
 
 def test_pdf_waits_for_other_captures_and_serializes_exports(
@@ -38,18 +72,24 @@ def test_pdf_waits_for_other_captures_and_serializes_exports(
 
     page = SimpleNamespace(
         route=accept,
+        route_web_socket=accept,
         set_content=accept,
         emulate_media=accept,
         wait_for_function=accept,
         pdf=pdf,
     )
 
+    def new_page(**options: object) -> SimpleNamespace:
+        """Verify the print context isolates requests before rendering."""
+        assert options == {"offline": True, "service_workers": "block", "accept_downloads": False}
+        return page
+
     def launch(*, headless: bool, chromium_sandbox: bool, timeout: int) -> Browser:
         assert headless and chromium_sandbox and timeout == 15_000
         calls.append("launch")
         return cast(
             Browser,
-            SimpleNamespace(new_page=lambda: page, close=lambda: calls.append("close")),
+            SimpleNamespace(new_page=new_page, close=lambda: calls.append("close")),
         )
 
     @contextmanager
@@ -116,7 +156,7 @@ def test_pdf_page_failure_closes_browser_without_disabling_other_captures(
     monkeypatch.setattr(visuals, "_RENDER_QUEUE", queue)
     closed: list[bool] = []
 
-    def page() -> object:
+    def page(**_options: object) -> object:
         raise BrowserError("Fictional page failure")
 
     def launch(**_options: object) -> Browser:

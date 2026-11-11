@@ -43,6 +43,7 @@ from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth, owner_upload
 from .navigation import NavigationSnapshot
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .sections import sections_hash
+from .share_api import ShareInput, ShareWorkspace, sharing_routes
 from .storage import ConflictError, Store
 from .version_authors import revision_author
 from .visuals import ScopedDeckEmbedder
@@ -536,6 +537,22 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     app.include_router(deck_edit_routes(deck_access))
     app.include_router(history_routes(lambda: hub.store("default"), scoped_access=history_access))
+
+    @contextmanager
+    def share_access(
+        request: Request, body: ShareInput, artifacts: tuple[str, ...]
+    ) -> Generator[ShareWorkspace]:
+        """Bind export preparation and download to current grants for every included artifact."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        if actor.agent:
+            raise AccessDenied
+        with hub.guard(actor, Scope(workspace, body.scope, body.id)) as store:
+            if body.scope == "project":
+                for identifier in artifacts:
+                    hub.require(actor, Scope(workspace, "artifact", identifier))
+            yield ShareWorkspace(store, actor.person, workspace_editor_path(workspace))
+
+    app.include_router(sharing_routes(lambda: hub.store("default"), scoped=share_access))
 
     app.include_router(
         hosted_presenter_router(

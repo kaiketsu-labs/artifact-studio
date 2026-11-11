@@ -3,7 +3,6 @@
   [data-action="context"],
   #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
   #deck-design-references, #instructions-button, #storage-status,
-  #share-artifact,
   #libraries-button, #removed-presentations,
   #remove-presentation,
   #toggle-design-chat
