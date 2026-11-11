@@ -61,6 +61,13 @@ a blank cover when there are none. Project guests continue to use their
 invitation roles. The **Hosted** button switches between personal and shared
 workspaces. Sharing a project leaves the rest of either user's workspace private.
 
+Use **Designs** in a personal workspace to manage reference files and set a
+default slide pack. The owner can open example slides in presentation view.
+For private designs, connect your agent from the Designs page so the connection
+is scoped to your workspace. Use `get_design_context` and `read_design_reference`
+to inspect source material, or `create_design_pack` to scaffold a reusable
+theme. Design references remain private when you share a workspace or project.
+
 The brief text is authoring context available to agents with access to that
 deck. Brief attachments are visible in **Agent notes** for the workspace owner.
 Their scoped agent can read them with `read_presentation_brief_file` using the

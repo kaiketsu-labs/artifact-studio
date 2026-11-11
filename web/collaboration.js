@@ -221,8 +221,9 @@
         event.preventDefault();
         event.stopImmediatePropagation();
         const params = new URLSearchParams(root.location.search);
-        const artifact = params.get('deck') || button.dataset.artifact;
-        const project = params.get('project');
+        const designs = params.get('view') === 'designs';
+        const artifact = designs ? null : params.get('deck') || button.dataset.artifact;
+        const project = designs ? null : params.get('project');
         if (!artifact && (!project || project === 'shared-with-me') && session.scoped_editor && !session.workspace_owner) {
           const dialog = document.createElement('dialog');
           dialog.className = 'studio-share';

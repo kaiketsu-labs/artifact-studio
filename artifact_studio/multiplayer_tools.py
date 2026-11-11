@@ -14,6 +14,10 @@ from mcp.types import CallToolResult
 
 from .artifacts import ArtifactStore
 from .copilot_tools import MAX_READ_BYTES, READ, WRITE, ScopedTools, attachment_page, remote_tool
+from .design_authoring import DesignAuthoring
+from .design_library import DesignLibrary
+from .libraries import file_hash
+from .models import DesignFile
 from .multiplayer_access import AccessDenied, Actor, Kind, Role, Scope, Sharing
 from .multiplayer_chat import Channel, Conversations
 from .storage import Store
@@ -133,6 +137,77 @@ class MultiplayerTools:
         """List only artifacts and projects available to this particular agent connection."""
         actor = self.actor(ctx)
         return self.catalog(actor, self.scope(actor))
+
+    @contextmanager
+    def design_store(self, ctx: Ctx) -> Generator[Store]:
+        """Limit private reusable designs to the owner's workspace-wide connection."""
+        actor = self.actor(ctx)
+        scope = self.scope(actor)
+        if scope.kind != "workspace" or not self.sharing.owner(
+            Actor(actor.person), scope.workspace
+        ):
+            raise AccessDenied
+        with self.sharing.guard(actor, scope, "edit") as store:
+            yield store
+
+    def list_design_contexts(self, ctx: Ctx) -> list[dict[str, object]]:
+        """Discover reusable packs and references with the owner's workspace connection."""
+        with self.design_store(ctx) as store:
+            return [item.model_dump() for item in DesignLibrary(store).list()]
+
+    def get_design_context(self, ctx: Ctx, design_id: str) -> dict[str, object]:
+        """List current design references and source hashes without server filesystem paths."""
+        with self.design_store(ctx) as store:
+            item = DesignLibrary(store).get(design_id)
+            return item.model_dump(exclude={"files": {"__all__": {"local_path"}}})
+
+    def read_design_reference(
+        self,
+        ctx: Ctx,
+        design_id: str,
+        path: str,
+        offset: int = 0,
+        max_bytes: int = 65536,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
+    ) -> dict[str, object]:
+        """Read a bounded page of an inventoried file from a private design."""
+        if not 4 <= max_bytes <= MAX_READ_BYTES:
+            raise ValueError("Read 4–1048576 bytes per design file page.")
+        with self.design_store(ctx) as store:
+            target = DesignLibrary(store).file(design_id, path)
+            size = target.stat().st_size
+            if size > 25_000_000:
+                raise ValueError("Files above 25 MB are available from the Designs download.")
+            metadata = DesignFile(name=target.name, path=path, size=size, sha256=file_hash(target))
+            return attachment_page(
+                target,
+                store.root,
+                metadata,
+                offset,
+                max_bytes,
+                encoding,
+            )
+
+    def create_design_pack(
+        self, ctx: Ctx, design_id: str, name: str, description: str = "", css: str = ""
+    ) -> dict[str, object]:
+        """Scaffold a reusable HTML slide pack in the owner's selected workspace."""
+        with self.design_store(ctx) as store:
+            created = DesignAuthoring(store).create(design_id, name, description, css)
+            created.pop("import_directory", None)
+            return created
+
+    def get_design_file(self, ctx: Ctx, design_id: str, path: str) -> dict[str, object]:
+        """Read one author-editable design text file and its current hash."""
+        with self.design_store(ctx) as store:
+            return DesignAuthoring(store).read_file(design_id, path)
+
+    def write_design_file(
+        self, ctx: Ctx, design_id: str, path: str, text: str, expected_hash: str = ""
+    ) -> dict[str, object]:
+        """Save guidance, theme CSS or a text asset with its current design hash."""
+        with self.design_store(ctx) as store:
+            return DesignAuthoring(store).write_file(design_id, path, text, expected_hash)
 
     def get_authoring_guide(
         self, ctx: Ctx, topic: Literal["workflow", "live_review"] = "workflow"
@@ -462,6 +537,10 @@ class MultiplayerTools:
         reads = (
             self.get_working_context,
             self.list_artifacts,
+            self.list_design_contexts,
+            self.get_design_context,
+            self.read_design_reference,
+            self.get_design_file,
             self.get_authoring_guide,
             self.get_agent_hook_client,
             self.get_artifact,
@@ -479,6 +558,8 @@ class MultiplayerTools:
         writes = (
             self.revise_artifact,
             self.create_artifact,
+            self.create_design_pack,
+            self.write_design_file,
             self.revise_slide,
             self.add_slide,
             self.claim_feedback,

@@ -52,12 +52,7 @@ from .deck_edit_api import DeckID, SlideID, deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
-from .design_references import (
-    DesignReference,
-    DesignReferences,
-    ReferenceInput,
-    RemoveReferenceInput,
-)
+from .design_references import DesignReferences
 from .element_alternative_api import element_alternative_routes
 from .element_alternatives import (
     ElementAlternatives,
@@ -2066,24 +2061,6 @@ def end_live_review(deck_id: DeckID) -> FeedbackWorkflow:
 def designs() -> list[DesignView]:
     """List reusable designs for the visual picker."""
     return store.designs()
-
-
-@app.get("/api/designs/{design_id}/references")
-def design_references(design_id: str) -> list[DesignReference]:
-    """List current source files attached to an explicit reusable design."""
-    return DesignReferences(store).list(design_id)
-
-
-@app.post("/api/designs/{design_id}/references")
-def attach_design_references(design_id: str, body: ReferenceInput) -> list[DesignReference]:
-    """Preserve source files without changing rendered slides or claiming inspection."""
-    return DesignReferences(store).attach(design_id, body)
-
-
-@app.post("/api/designs/{design_id}/references/remove")
-def remove_design_reference(design_id: str, body: RemoveReferenceInput) -> list[DesignReference]:
-    """Remove a source from fresh agent context and notify active review hooks."""
-    return DesignReferences(store).remove(design_id, body)
 
 
 @app.get("/api/libraries")

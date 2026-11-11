@@ -5,6 +5,7 @@ import binascii
 import mimetypes
 import tempfile
 from collections.abc import Callable
+from contextlib import nullcontext
 from functools import partial
 from pathlib import Path
 from typing import Annotated
@@ -17,17 +18,8 @@ from .artifact_context import artifact_context
 from .artifact_models import ArtifactFeedback, ArtifactFeedbackInput, ArtifactView, ProjectView
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore, relative_path
-from .design_library import (
-    PREVIEW_TYPES,
-    DesignCreate,
-    DesignDelete,
-    DesignDetail,
-    DesignLibrary,
-    DesignTextEdit,
-)
-from .design_references import ReferenceInput, RemoveReferenceInput
-from .design_thumbnails import THUMBNAIL_SUFFIXES
-from .design_thumbnails import design_thumbnail as make_design_thumbnail
+from .design_library import DesignLibrary
+from .design_library_api import design_library_routes
 from .feedback_previews import feedback_image_response
 from .hub_previews import cover_metadata, render_library_cover, request_cover
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
@@ -162,83 +154,7 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         """Organize projects and nested folders without changing artifact membership."""
         return ProjectTree(get_store()).change(body)
 
-    @router.get("/api/design-library/deleted")
-    def deleted_designs() -> list[dict[str, object]]:
-        return [item.model_dump() for item in DesignLibrary(get_store()).deleted()]
-
-    @router.get("/api/design-library/{design_id}")
-    def design_context(design_id: str) -> DesignDetail:
-        return DesignLibrary(get_store()).get(design_id)
-
-    @router.post("/api/design-library/{design_id}/default")
-    def default_design(design_id: str) -> dict[str, str]:
-        """Choose the workspace default for future presentations without changing existing work."""
-        store = get_store()
-        return {"default_design_id": store.set_default_design(design_id)}
-
-    @router.post("/api/design-library")
-    def add_design(body: DesignCreate) -> DesignDetail:
-        return DesignLibrary(get_store()).create(body)
-
-    @router.post("/api/design-library/{design_id}/files")
-    def attach_design_files(design_id: str, body: ReferenceInput) -> DesignDetail:
-        return DesignLibrary(get_store()).attach(design_id, body)
-
-    @router.post("/api/design-library/{design_id}/files/remove")
-    def remove_design_file(design_id: str, body: RemoveReferenceInput) -> DesignDetail:
-        return DesignLibrary(get_store()).remove_file(design_id, body)
-
-    @router.post("/api/design-library/{design_id}/files/edit")
-    def edit_design_text(design_id: str, body: DesignTextEdit) -> DesignDetail:
-        """Save a human-edited source without overwriting a newer agent or filesystem edit."""
-        return DesignLibrary(get_store()).edit_text(design_id, body)
-
-    @router.post("/api/design-library/{design_id}/delete")
-    def delete_design(design_id: str, body: DesignDelete) -> dict[str, bool]:
-        DesignLibrary(get_store()).delete(design_id, body)
-        return {"deleted": True}
-
-    @router.post("/api/design-library/{design_id}/restore")
-    def restore_design(design_id: str) -> DesignDetail:
-        return DesignLibrary(get_store()).restore(design_id)
-
-    @router.get("/api/design-library/{design_id}/files/{path:path}")
-    def download_design_file(design_id: str, path: str) -> FileResponse:
-        target = DesignLibrary(get_store()).file(design_id, path)
-        return FileResponse(target, filename=target.name, media_type="application/octet-stream")
-
-    @router.get("/api/design-library/{design_id}/thumbnail/{path:path}")
-    def design_thumbnail(design_id: str, path: str) -> Response:
-        """Serve a bounded raster preview for an inventoried image or PowerPoint."""
-        target = DesignLibrary(get_store()).file(design_id, path)
-        if target.suffix.lower() not in THUMBNAIL_SUFFIXES:
-            raise FileNotFoundError("No thumbnail available.")
-        headers = {
-            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
-            "X-Content-Type-Options": "nosniff",
-            "Cache-Control": "private, no-store",
-        }
-        try:
-            data = make_design_thumbnail(target)
-        except FileNotFoundError:
-            return Response(status_code=204, headers=headers)
-        return Response(data, media_type="image/png", headers=headers)
-
-    @router.get("/api/design-library/{design_id}/image/{path:path}")
-    def design_image(design_id: str, path: str) -> FileResponse:
-        """Show only inert image formats in design cards; originals remain downloads."""
-        target = DesignLibrary(get_store()).file(design_id, path)
-        media_type = PREVIEW_TYPES.get(target.suffix.lower())
-        if not media_type:
-            raise ValueError("Choose an image from the design context.")
-        return FileResponse(
-            target,
-            media_type=media_type,
-            headers={
-                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
-                "X-Content-Type-Options": "nosniff",
-            },
-        )
+    router.include_router(design_library_routes(lambda _: nullcontext(get_store())))
 
     @router.get("/api/hub/context")
     def context(artifact_id: str = "", project_id: str = "") -> dict[str, object]:

@@ -22,8 +22,26 @@ _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
 _CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
 _REQUEST_LIMIT = 2 * 1024 * 1024
 _CHAT_LIMIT = 68 * 1024 * 1024
-OWNER_UPLOAD_LIMITS = {"/api/artifacts/import": 140 * 1024 * 1024, "/api/decks": _CHAT_LIMIT}
+_OWNER_UPLOAD_LIMITS = {
+    "/api/artifacts/import": 140 * 1024 * 1024,
+    "/api/decks": _CHAT_LIMIT,
+    "/api/design-library": _CHAT_LIMIT,
+}
+_DESIGN_FILES = re.compile(
+    r"/api/(?:design-library/[a-z0-9][a-z0-9-]{0,99}/files|"
+    r"designs/[a-z0-9][a-z0-9-]{0,99}/references)"
+)
+_DESIGN_TEXT = re.compile(r"/api/design-library/[a-z0-9][a-z0-9-]{0,99}/files/edit")
 IMPORT_DISK_RESERVE = 512 * 1024 * 1024
+
+
+def owner_upload_limit(path: str) -> int | None:
+    """Allow larger bodies only on the explicit owner upload routes."""
+    if _DESIGN_FILES.fullmatch(path):
+        return _CHAT_LIMIT
+    if _DESIGN_TEXT.fullmatch(path):
+        return 7 * 1024 * 1024
+    return _OWNER_UPLOAD_LIMITS.get(path)
 
 
 class MultiplayerAuth:
@@ -239,7 +257,7 @@ class MultiplayerAuth:
             await reject(429, "Server busy. Retry shortly.")
             return
         upload_limit = (
-            OWNER_UPLOAD_LIMITS.get(path)
+            owner_upload_limit(path)
             if self.shared_shell and host == self.host and method == "POST"
             else None
         )
@@ -253,7 +271,7 @@ class MultiplayerAuth:
                 await reject(429, "An upload is in progress. Try again shortly.")
                 return
             async with self.owner_upload_slot:
-                label = "Import" if path == "/api/artifacts/import" else "Presentation"
+                label = "Import" if path == "/api/artifacts/import" else "Upload"
                 await self._receive_owner_upload(
                     scope, receive, secure_send, reject, upload_limit, label
                 )
