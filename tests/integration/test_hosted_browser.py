@@ -84,7 +84,7 @@ def test_hosted_authentication_and_browser_write(
             assert result["body"]["title"] == "Fictional browser write"
 
 
-@pytest.mark.parametrize("width,height", [(1440, 900), (390, 844)])
+@pytest.mark.parametrize("width,height", [(1440, 900), (390, 844), (320, 700)])
 def test_hosted_connection_is_discoverable_without_local_admin_requests(
     browser: Browser, tmp_path: Path, artifacts: Path, width: int, height: int
 ) -> None:
@@ -105,6 +105,7 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
         expect(hosted).to_have_text("Hosted")
         expect(page.locator("[data-session-mode]")).to_be_hidden()
         expect(page.get_by_role("button", name="Hosted", exact=True)).to_have_count(0)
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.locator("#hub-tools-button").click()
         page.locator("[data-hub-connect]").click()
         dialog = page.get_by_role("dialog", name="Agent connection")
