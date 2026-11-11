@@ -22,13 +22,15 @@ from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .authentication import AuthProvider, Principal
 from .deck_edit_api import deck_edit_routes
 from .deployment import DeploymentConfig
+from .design_library import DesignLibrary
+from .design_library_api import design_library_routes
 from .history_api import history_routes
 from .hosted_policy import deck_asset_response
 from .hosted_presenter import hosted_presenter_router
 from .hub_previews import cover_metadata, request_current_cover
 from .models import CreateInput, DeckView, FeedbackWorkflow, SlideSeenInput, SlideView
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
-from .multiplayer_http import IMPORT_DISK_RESERVE, OWNER_UPLOAD_LIMITS, MultiplayerAuth
+from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth, owner_upload_limit
 from .navigation import NavigationSnapshot
 from .sections import sections_hash
 from .storage import ConflictError, Store
@@ -162,7 +164,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, error: RequestValidationError) -> JSONResponse:
         """Keep malformed upload contents out of validation responses."""
-        if request.scope["path"] in OWNER_UPLOAD_LIMITS:
+        if owner_upload_limit(request.scope["path"]) is not None:
             return JSONResponse({"detail": "Check the selected files and project."}, 422)
         return await request_validation_exception_handler(request, error)
 
@@ -176,9 +178,13 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         ):
             return RedirectResponse(workspace_editor_path(personal))
         owner = hub.owner(actor_of(request), workspace)
+        root = workspace_editor_path(workspace)
+        if not owner and (
+            request.query_params.get("view") == "designs" or request.query_params.get("design")
+        ):
+            return RedirectResponse(root)
         creating = editor == "1" and new == "1" and owner
         page = (PROJECT / "web" / ("index.html" if deck or creating else "hub.html")).read_text()
-        root = workspace_editor_path(workspace)
         owner_attribute = " data-workspace-owner" if owner else ""
         return HTMLResponse(
             page.replace(
@@ -257,7 +263,12 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 )
                 info["artifact_count"] = cast(int, info["artifact_count"]) + 1
                 result.append(entry)
-            return {"projects": list(projects.values()), "artifacts": result, "designs": []}
+            designs = DesignLibrary(store).list() if hub.owner(actor, workspace) else []
+            return {
+                "projects": list(projects.values()),
+                "artifacts": result,
+                "designs": [item.model_dump() for item in designs],
+            }
 
     @app.post("/api/hub/projects")
     def new_project(request: Request, body: ProjectInput) -> dict[str, str]:
@@ -310,7 +321,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             actor = actor_of(request)
             return [
                 entry
-                for entry in store.list_decks()
+                for entry in ArtifactStore(store).presentation_summaries()
                 if hub.level(actor, artifact_scope(request, entry["id"]))
             ]
 
@@ -353,6 +364,8 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         with hub.locked():
             hub.manage(actor_of(request), Scope(workspace))
             yield hub.store(workspace)
+
+    app.include_router(design_library_routes(owned_workspace, disk_reserve=IMPORT_DISK_RESERVE))
 
     @app.get("/api/designs")
     def designs(request: Request) -> list[dict[str, str]]:
@@ -454,6 +467,21 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             return FeedbackWorkflow()
 
     @contextmanager
+    def presenter_access(request: Request, deck_id: str) -> Generator[Store]:
+        """Open library examples only for their owner and regular decks by grant."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        with hub.locked():
+            if hub.owner(actor, workspace):
+                store = hub.store(workspace)
+                if (store.folder(deck_id) / "design.json").is_file():
+                    if any(item.folder_id == deck_id for item in store.designs()):
+                        yield store
+                        return
+                    raise AccessDenied
+            with deck_access(request, deck_id, "view") as store:
+                yield store
+
+    @contextmanager
     def history_access(
         request: Request, kind: Literal["deck", "artifact"], identifier: str, role: Role
     ) -> Generator[Store]:
@@ -470,7 +498,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         hosted_presenter_router(
             lambda: hub.store("default"),
             config.public_url,
-            scoped_access=lambda request, deck_id: deck_access(request, deck_id, "view"),
+            scoped_access=presenter_access,
         )
     )
 

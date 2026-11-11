@@ -267,6 +267,8 @@ class Sharing:
             ancestors.append(("project", scope.resource))
         elif scope.kind == "artifact":
             try:
+                if (store.folder(scope.resource) / "design.json").exists():
+                    raise AccessDenied
                 item = ArtifactStore(store).get_artifact(scope.resource)
             except ValueError, FileNotFoundError:
                 raise AccessDenied from None

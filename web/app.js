@@ -69,6 +69,10 @@
   function syncPreviewUpdates(){const control=$('auto-update-preview');iconButton(control,'refresh','Auto-update preview');control.setAttribute('aria-pressed',String(previewUpdates.enabled));control.title=previewUpdates.enabled?'Auto-update on · incoming revisions appear automatically':'Auto-update off · choose Show update to load revisions';}
   function previewBusy(){return previewMarquee?.active()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor?.state().dirty||groupEditor?.state().busy||animationPreview.isPlaying()||!!slideDesignOptions?.isPreviewing()||!!elementAlternatives?.isOpen();}
   function resumePreviewUpdates(){if(pendingDeck&&previewUpdates.enabled&&!previewBusy())void refresh();}
+  function proposalBusy(busy){
+    if(deck)updateComposer();
+    if(!busy&&refreshQueued)void refresh();
+  }
   $('auto-update-preview').addEventListener('click',()=>previewUpdates.set(!previewUpdates.enabled));
   syncPreviewUpdates();
   let deckPicker=null, workspaceMenu=null, previewStatusTimer=null, libraryControls=null, draftsAvailable=true;
@@ -123,7 +127,7 @@
     beforePreview:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(elementAlternatives&&!await elementAlternatives.finish())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();prepareProposalSelection();animationPreview.stop();return true;},
     beforeDecide:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();return await noteAutosave.flush(key());},
     afterDecision:proposalDecisionSaved,
-    onBusy:()=>{if(deck)updateComposer();},
+    onBusy:proposalBusy,
     onPreview:proposalPreviewChanged,notify:toast
   });
   elementAlternatives=window.ElementAlternatives?.create({api,
@@ -131,7 +135,7 @@
     getContext:()=>deck&&slide()?{deckId:deck.id,slideId:selectedId,item:slide()}:null,
     beforePreview:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||slideDesignOptions?.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();slideDesignOptions?.dismiss();prepareProposalSelection();animationPreview.stop();return true;},
     beforeDecide:async()=>{if(feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy())return false;if(!await finishEdits())return false;await voice?.stop();retainDraft();return await noteAutosave.flush(key());},
-    afterDecision:async(receipt,target)=>{await proposalDecisionSaved(receipt,target);if(selectedId===target.slideId&&slide()?.content_hash===receipt.content_hash)void markOpened();},onPreview:(proposal,state)=>{proposalPreviewChanged(proposal);if(state?.stale)animationPreview.reset();else animationPreview.bind();},stopPlayback:()=>animationPreview.stop(),isPlaying:()=>animationPreview.isPlaying(),onBusy:()=>{if(deck)updateComposer();},notify:toast,
+    afterDecision:async(receipt,target)=>{await proposalDecisionSaved(receipt,target);if(selectedId===target.slideId&&slide()?.content_hash===receipt.content_hash)void markOpened();},onPreview:(proposal,state)=>{proposalPreviewChanged(proposal);if(state?.stale)animationPreview.reset();else animationPreview.bind();},stopPlayback:()=>animationPreview.stop(),isPlaying:()=>animationPreview.isPlaying(),onBusy:proposalBusy,notify:toast,
     openSlideDesigns:()=>slideDesignOptions?.open(),
     onRequestRefresh:group=>{if(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback.segments().length){
       $('feedback-text').value=`Please refresh the ${group.label.toLowerCase()} options for the current slide design.`;
@@ -359,6 +363,7 @@
   /** Refresh time-limited agent availability without reloading slides or discussion history. */
   async function refreshWorkflow(id){
     if(deck?.id!==id||switchingDeck||isLoading||presentationActions.isBusy())return;
+    if(refreshQueued){await refresh();return;}
     if(collaborationChat){await refreshConversation(id);return;}
     const snapshot=deck,baseline=deck.workflow,state=await api(`/api/decks/${encodeURIComponent(id)}/workflow`);
     if(deck!==snapshot||deck.workflow!==baseline)return;
@@ -869,8 +874,11 @@
   });
   /** Poll durable state while preserving a user's in-progress review of an older version. */
   async function refresh(force=false){
-    if(!deck||switchingDeck||slideSections?.isBusy()||presentationActions.isBusy()||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy())return;
-    if(isLoading){refreshQueued=true;return;}
+    if(!deck)return;
+    if(isLoading||switchingDeck||slideSections?.isBusy()||presentationActions.isBusy()||slideOrder.isBusy()||slideOrder.isDragging()||slideActions.isBusy()||slideDesignOptions?.isBusy()||elementAlternatives?.isBusy()){
+      refreshQueued=true;return;
+    }
+    refreshQueued=false;
     isLoading=true;
     try{
       const deckId=deck.id,epoch=orderEpoch,notesRevision=noteAutosave.revision,snapshot=await api(`/api/decks/${deckId}`);
@@ -1041,7 +1049,7 @@
   $('deck-design-references').addEventListener('click',()=>{if(deck?.design_id)void designReferences.open(deck.design_id,deck.design_id);else toast('Select a presentation with a design first.',true);});
   let designSignature='',inboxSignature='',designTimer=null,designRequestId=null,designEpoch=0,designPolling=false;
   /** Refresh the library without resetting the user's selected brand or draft message. */
-  async function loadDesigns(reset=false,epoch=designEpoch){const [designs,preferences]=await Promise.all([api('/api/designs'),api('/api/preferences')]);if(epoch!==designEpoch)return;$('selected-design-references').disabled=!designs.length;document.querySelector('.design-fieldset').hidden=sharedEditor&&!designs.length;const defaultId=preferences.default_design_id;const signature=JSON.stringify([designs,defaultId]);if(!reset&&signature===designSignature)return;const selected=reset?defaultId:document.querySelector('input[name="design"]:checked')?.value||defaultId;designSignature=signature;designs.sort((a,b)=>(a.id===defaultId?-1:b.id===defaultId?1:a.name.localeCompare(b.name)));$('design-options').innerHTML=designs.length?designs.map(design=>`<label class="design-card"><input type="radio" name="design" value="${escape(design.id)}" ${design.id===selected?'checked':''} required><span class="design-preview"><iframe title="${escape(design.name)} design example" src="${escape(studioPath(`/api/designs/${encodeURIComponent(design.id)}/preview`))}" tabindex="-1" sandbox></iframe></span><strong title="${escape(design.description)}">${escape(design.name)}</strong></label>`).join(''):'<p class="library-help">Send a PowerPoint, image or link below to add a design.</p>';if(!document.querySelector('input[name="design"]:checked'))document.querySelector('input[name="design"]')?.click();}
+  async function loadDesigns(reset=false,epoch=designEpoch){const [designs,preferences]=await Promise.all([api('/api/designs'),api('/api/preferences')]);if(epoch!==designEpoch)return;$('selected-design-references').disabled=!designs.length;$('selected-design-references').hidden=sharedEditor&&!designs.length;document.querySelector('.design-fieldset').hidden=sharedEditor&&!designs.length;const defaultId=preferences.default_design_id;const signature=JSON.stringify([designs,defaultId]);if(!reset&&signature===designSignature)return;const selected=reset?defaultId:document.querySelector('input[name="design"]:checked')?.value||defaultId;designSignature=signature;designs.sort((a,b)=>(a.id===defaultId?-1:b.id===defaultId?1:a.name.localeCompare(b.name)));$('design-options').innerHTML=designs.length?designs.map(design=>`<label class="design-card"><input type="radio" name="design" value="${escape(design.id)}" ${design.id===selected?'checked':''} required><span class="design-preview"><iframe title="${escape(design.name)} design example" src="${escape(studioPath(`/api/designs/${encodeURIComponent(design.id)}/preview`))}" tabindex="-1" sandbox></iframe></span><strong title="${escape(design.description)}">${escape(design.name)}</strong></label>`).join(''):'<p class="library-help">Send a PowerPoint, image or link below to add a design.</p>';if(!document.querySelector('input[name="design"]:checked'))document.querySelector('input[name="design"]')?.click();}
   /** Display durable agent replies and attachment links beside the design choices. */
   async function loadDesignChat(){const epoch=designEpoch,inbox=await api('/api/design-requests');if(epoch!==designEpoch)return;$('design-availability').textContent=inbox.agent_waiting?'Available':'Unavailable';$('design-availability').setAttribute('aria-label',inbox.agent_waiting?'Agent available':'Agent unavailable');$('design-availability').classList.toggle('available',inbox.agent_waiting);const signature=JSON.stringify(inbox.messages);if(signature!==inboxSignature){inboxSignature=signature;const list=$('design-messages');const atBottom=list.scrollHeight-list.scrollTop-list.clientHeight<35;list.innerHTML=inbox.messages.map(item=>`<article class="design-message ${item.author}"><div class="design-message-header">${chatAvatar(item.author,!!item.reply_to)}</div><p>${escape(item.message)}</p>${item.files.map((file,index)=>`<a class="file-chip" href="/api/design-requests/${item.event_id}/files/${index}" download>${svg('attach')}${escape(file.name)}</a>`).join('')}${item.author==='user'?`<span class="request-status">${({queued:'Queued',working:'Working',needs_input:'Needs your input',ready:'Ready'})[item.status]}</span>`:''}${item.design_id&&item.author==='agent'?`<button class="use-design" type="button" data-use-design="${escape(item.design_id)}">${svg('check')}Use this design</button>`:''}</article>`).join('');if(atBottom)list.scrollTop=list.scrollHeight;}await loadDesigns(false,epoch);}
   /** Render removable files identically for brief and design references. */

@@ -22,7 +22,7 @@
         if(!current.references.length){const empty=document.createElement('p');empty.textContent='No reference files yet.';list.append(empty);}
         else{const ul=document.createElement('ul');for(const file of current.references){
           const li=document.createElement('li'),link=document.createElement('a'),remove=document.createElement('button');
-          link.href=file.url;link.textContent=file.name;link.setAttribute('download','');
+          link.href=root.ArtifactSession?.path?.(file.url)||file.url;link.textContent=file.name;link.setAttribute('download','');
           remove.type='button';button(remove,'trash','Remove '+file.name+' from design context',false);
           remove.disabled=current.saving||current.removing;remove.addEventListener('click',()=>void removeReference(id,file));
           li.append(link,remove);ul.append(li);

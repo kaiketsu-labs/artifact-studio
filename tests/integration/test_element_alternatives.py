@@ -478,6 +478,26 @@ def test_comparison_then_whole_slide_choice_retains_readonly_earlier_element_con
 ) -> None:
     """Compare fits real fragments; a new whole design cannot adopt an old target snapshot."""
     group = seed_elements(live_app, groups=("headline",))["headline"]
+    page.add_init_script("""
+        const nativeFetch = window.fetch;
+        const pause = new Promise(resolve => { window.fixtureResumeAlternatives = resolve; });
+        window.fetch = async (...args) => {
+            const alternatives = String(args[0]).endsWith('/element-alternatives');
+            if (window.fixtureHoldAlternatives && alternatives) {
+                window.fixtureWaitingForAlternatives = true;
+                await pause;
+            }
+            return nativeFetch(...args);
+        };
+        window.EventSource = class extends EventSource {
+            addEventListener(type, listener, options) {
+                if (type === 'change') {
+                    window.fixtureDeckEvents = this;
+                    window.fixtureNotifyChange = () => listener(new Event('change'));
+                } else super.addEventListener(type, listener, options);
+            }
+        };
+    """)
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
     open_group(page, group)
     option(page, group, 1).click()
@@ -493,19 +513,27 @@ def test_comparison_then_whole_slide_choice_retains_readonly_earlier_element_con
     expect(page.frame_locator(".ea-compare-right iframe").locator("#headline")).to_have_text(
         HEADLINES[1]
     )
-    comparison.locator("[data-ea-use-right]").click()
-    expect(comparison).to_be_hidden()
-    current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
     new_heading = "A new direction for the room."
     new_source = element_markup().replace(HEADLINES[0], new_heading)
-    _ = live_app.call(
-        "publish_slide_designs",
-        deck_id=DECK_ID,
-        slide_id="cover",
-        expected_content_hash=current["content_hash"],
-        request_id="element-context-whole-slide",
-        options=[{"name": "New direction", "html": new_source}],
-    )
+    page.evaluate("window.fixtureHoldAlternatives = true")
+    try:
+        comparison.locator("[data-ea-use-right]").click()
+        expect(comparison).to_be_hidden()
+        _ = page.wait_for_function(
+            "window.fixtureWaitingForAlternatives && window.fixtureDeckEvents?.readyState === 1"
+        )
+        current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+        _ = live_app.call(
+            "publish_slide_designs",
+            deck_id=DECK_ID,
+            slide_id="cover",
+            expected_content_hash=current["content_hash"],
+            request_id="element-context-whole-slide",
+            options=[{"name": "New direction", "html": new_source}],
+        )
+        page.evaluate("window.fixtureNotifyChange()")
+    finally:
+        page.evaluate("window.fixtureHoldAlternatives = false; window.fixtureResumeAlternatives()")
     expect(page.locator("#slide-design-tray")).to_be_visible()
     page.get_by_role("tab", name="New direction", exact=True).click()
     page.locator("#slide-design-tray [data-sd-use]").click()

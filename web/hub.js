@@ -849,6 +849,7 @@
     await loadRegistry();if(id)return openDesign(id,false);home('designs');
   }});
   async function openDesign(id,push=true){
+    if(sharedEditor&&!canImport())return home('all',push);
     if(!resetEditor())return;coverLoader.clear();workspacePanels.exitView();
     void voice.stop();const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
     try{

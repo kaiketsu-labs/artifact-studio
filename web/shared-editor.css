@@ -1,21 +1,22 @@
 /* The existing editor chrome with actions limited to the shared resource. */
 [data-shared-editor] :is(
   [data-action="project-add"],
-  [data-action="favorite-slides"], [data-project="designs"], [data-action="context"],
+  [data-action="favorite-slides"], [data-action="context"],
   [data-action="move"], .hub-card-move,
-  [data-design-action], [data-favorite], [data-star-kind], .hub-card-star,
+  [data-favorite], [data-star-kind], .hub-card-star,
   #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
   #deck-design-references, #instructions-button, #storage-status,
   #share-artifact,
   #libraries-button, #removed-presentations,
   #remove-presentation, [data-action="history"],
-  #toggle-design-chat, #selected-design-references
+  #toggle-design-chat
 ) {
   display: none !important;
 }
 [data-shared-editor]:not([data-workspace-owner]) :is(
   [data-action="new-project"], [data-action="import"],
-  [data-new-presentation], #new-button, #new-project-option
+  [data-new-presentation], #new-button, #new-project-option,
+  [data-project="designs"], [data-design-action], #selected-design-references
 ) {
   display: none !important;
 }
