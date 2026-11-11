@@ -7,7 +7,7 @@ import os
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
@@ -25,6 +25,7 @@ from artifact_studio.workspace_recovery import (
     WorkspaceArchive,
     WorkspaceRecovery,
 )
+from tests.design_factory import TEMPLATE_ID, make_design
 
 
 def workspace(path: Path) -> Store:
@@ -112,6 +113,29 @@ def archive_with_database(source: Path, destination: Path, database: Path) -> Pa
         for checksum in {item.sha256 for item in manifest.files}:
             archive.writestr("objects/" + checksum, objects[checksum])
     return destination
+
+
+@pytest.mark.parametrize("mode", ("current", "archive"))
+def test_recovery_counts_work_separately_from_design_examples(
+    tmp_path: Path, mode: Literal["current", "archive"]
+) -> None:
+    """Recover both types of file while counting only actual presentations."""
+    original = workspace(tmp_path / "original")
+    make_design(original.root / TEMPLATE_ID)
+    deck = original.create("2026-11-11-recovery-fixture", "Fictional recovery deck", "test-brand")
+    if mode == "current":
+        source = snapshot(original, tmp_path / "source")
+    else:
+        source = tmp_path / "source.zip"
+        _ = WorkspaceRecovery(original).export_archive(source)
+    target = workspace(tmp_path / "restored")
+    recovery = WorkspaceRecovery(target)
+    preview = recovery.preview(source, mode=mode)
+    assert preview.can_restore and preview.presentations == 1 and preview.artifacts == 0
+    result = recovery.restore(source, preview.content_hash, mode=mode)
+    assert result.restored and result.presentations == 1
+    assert [item.folder_id for item in target.designs()] == [TEMPLATE_ID]
+    assert [item["id"] for item in ArtifactStore(target).presentation_summaries()] == [deck.id]
 
 
 def test_current_recovery_rebuilds_registry_moves_tree_and_current_revision(tmp_path: Path) -> None:

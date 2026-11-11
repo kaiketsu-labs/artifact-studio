@@ -766,7 +766,7 @@ class WorkspaceRecovery:
             counts = (
                 len(projects),
                 len(artifacts),
-                len(presentations),
+                sum(not (source / deck_id / "design.json").is_file() for deck_id in presentations),
                 sum(node.kind == "folder" for node in tree.nodes),
             )
             source_hash = digest(json.dumps([item.model_dump() for item in files], sort_keys=True))
@@ -774,10 +774,17 @@ class WorkspaceRecovery:
             manifest = self._archive(source)
             files = manifest.files
             source_hash = file_hash(source)
+            design_folders = {
+                path.parent.name
+                for item in files
+                if item.area == "collection"
+                and len((path := Path(item.path)).parts) == 2
+                and path.name == "design.json"
+            }
             with tempfile.TemporaryDirectory(prefix="workspace-preview-") as temporary:
                 stage = Path(temporary).resolve()
                 self._extract(source, manifest, stage, metadata_only=True)
-                counts = self._archive_counts(stage)
+                counts = self._archive_counts(stage, design_folders)
             warnings.append(
                 "Repository registrations, upload permissions and agent sessions are reset."
             )
@@ -798,7 +805,7 @@ class WorkspaceRecovery:
         )
 
     @staticmethod
-    def _archive_counts(stage: Path) -> tuple[int, int, int, int]:
+    def _archive_counts(stage: Path, design_folders: set[str]) -> tuple[int, int, int, int]:
         """Count restored identities using the archived registry and navigation document."""
         with sqlite3.connect(stage / "database" / "review.sqlite3") as db:
             tables = _database_tables(db)
@@ -814,7 +821,8 @@ class WorkspaceRecovery:
             )
         collection = stage / "collection"
         presentations = sum(
-            DATA.search(path.read_text()) is not None for path in collection.glob("*/index.html")
+            path.parent.name not in design_folders and DATA.search(path.read_text()) is not None
+            for path in collection.glob("*/index.html")
         )
         tree_path = collection / "project-tree.json"
         tree = (
