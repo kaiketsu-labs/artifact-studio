@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.6.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.5.0...v0.6.0) (2026-11-11)
+
+
+### Features
+
+* **sharing:** enable native imports for workspace owners ([51537fa](https://github.com/kaiketsu-labs/artifact-studio/commit/51537fa3d5e7e1db0ed0c208557fe0255c231031))
+* **sharing:** enable native presentation creation for workspace owners ([e648164](https://github.com/kaiketsu-labs/artifact-studio/commit/e6481642a86654fedf51f1e0ab56ca52aacff49c))
+* **sharing:** enable the native owner artifact timeline ([#115](https://github.com/kaiketsu-labs/artifact-studio/issues/115)) ([401c740](https://github.com/kaiketsu-labs/artifact-studio/commit/401c740bf1f604148c78a517cd3e09449825024a))
+* **sharing:** enable the native private design library ([a889245](https://github.com/kaiketsu-labs/artifact-studio/commit/a8892454f56e124dca4cd75168bfce3845c4c6d2))
+* **sharing:** enable the native scoped file export panel ([#116](https://github.com/kaiketsu-labs/artifact-studio/issues/116)) ([8a89831](https://github.com/kaiketsu-labs/artifact-studio/commit/8a89831cc1f5bed785494f67f4d63f25a83f41ee))
+* **sharing:** open isolated workspaces in the native editor ([3943d13](https://github.com/kaiketsu-labs/artifact-studio/commit/3943d1304b4e6894051196630258c651a5e5adf0))
+* **sharing:** organize hosted projects in the native library ([#113](https://github.com/kaiketsu-labs/artifact-studio/issues/113)) ([026c1ce](https://github.com/kaiketsu-labs/artifact-studio/commit/026c1cedb9e0837000d35540088745b25818a086))
+* **sharing:** provision personal workspaces for verified accounts ([cd31c49](https://github.com/kaiketsu-labs/artifact-studio/commit/cd31c49c3c7e03f66658c9aa092e6b48e1d6e065))
+* **sharing:** restore private favorites in the native editor ([#114](https://github.com/kaiketsu-labs/artifact-studio/issues/114)) ([bc1db0b](https://github.com/kaiketsu-labs/artifact-studio/commit/bc1db0bbdd395cb91db07293eb6cc7a14d52f973))
+* **sharing:** show scoped covers in the native library ([ea885fd](https://github.com/kaiketsu-labs/artifact-studio/commit/ea885fdcb546d1d6a817387930ed9c5237ce8ec9))
+* **sharing:** support attachments in shared conversations ([a2578c4](https://github.com/kaiketsu-labs/artifact-studio/commit/a2578c4501ca479327f7fc3e84735ca57ae5b8df))
+* **sharing:** use the native editor for scoped collaborators ([0859100](https://github.com/kaiketsu-labs/artifact-studio/commit/08591003aa6d0e89748acab2906e1ab1a7037e43))
+* **slides:** simplify menus and add export options ([712e0fa](https://github.com/kaiketsu-labs/artifact-studio/commit/712e0fa2818d2cdaee6c0d0a4d12ee216ec391fc))
+
+
+### Bug Fixes
+
+* **deps:** bump the python-compatible group with 2 updates ([#118](https://github.com/kaiketsu-labs/artifact-studio/issues/118)) ([7b09f10](https://github.com/kaiketsu-labs/artifact-studio/commit/7b09f10dbecd8fbc18c24c7182c801a2a50f981f))
+* **hosted:** separate workspace status from server checks ([#119](https://github.com/kaiketsu-labs/artifact-studio/issues/119)) ([df93a46](https://github.com/kaiketsu-labs/artifact-studio/commit/df93a46ab7e80964d9b435f23c028de81db383c7))
+* **recovery:** exclude design examples from artifact counts ([#117](https://github.com/kaiketsu-labs/artifact-studio/issues/117)) ([c4f3f89](https://github.com/kaiketsu-labs/artifact-studio/commit/c4f3f8971f7c21cc8d5eb0537b3d2cff77e9822b))
+* **sharing:** allow editors to approve shared artifact versions ([cd5d944](https://github.com/kaiketsu-labs/artifact-studio/commit/cd5d944ed28a31d519752f4b30ea1f6954acd7b4))
+* **sharing:** keep concurrent editor asset loads available ([0df1273](https://github.com/kaiketsu-labs/artifact-studio/commit/0df1273e56de6017513239beaca62082002d4fa7))
+* **sharing:** keep library shortcuts in the selected workspace ([a5ef0db](https://github.com/kaiketsu-labs/artifact-studio/commit/a5ef0dbdd14d0955ffeca119911cd350572c8609))
+* **sharing:** keep update markers per reader ([6fa6b74](https://github.com/kaiketsu-labs/artifact-studio/commit/6fa6b7403c351a7c5b2f9096fd55f91dc1e04b54))
+
+
+### Documentation
+
+* **hosting:** explain remote Studio architecture and sharing ([#101](https://github.com/kaiketsu-labs/artifact-studio/issues/101)) ([d3dbbd3](https://github.com/kaiketsu-labs/artifact-studio/commit/d3dbbd35160cb9a5b7c209d97fd39fd11999fb88))
+
 ## [0.5.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.3.2...v0.5.0) (2026-11-10)
 
 Version 0.4.0 was superseded before publication. This release includes the changes since 0.3.2.
