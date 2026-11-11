@@ -137,17 +137,22 @@ def scoped_deck_routes(get_store: Callable[[], Store]) -> APIRouter:
     return router
 
 
-def deck_asset_path(folder: Path, asset_path: str) -> Path:
-    """Resolve only unlinked theme and passive asset files from a validated deck folder."""
+def public_deck_asset(asset_path: str, *, embedded: bool = False) -> bool:
+    """Check the file class independently of filesystem state."""
     parts = asset_path.split("/")
     if any(not part or part.startswith(".") or "\\" in part for part in parts):
-        raise ValueError("Invalid deck asset path")
-    if asset_path != "theme.css" and not (
-        len(parts) >= 2 and parts[0] == "assets" and Path(parts[-1]).suffix.lower() in _ASSET_TYPES
-    ):
+        return False
+    suffix = Path(parts[-1]).suffix.lower()
+    allowed = suffix in _ASSET_TYPES or (embedded and suffix in {".css", ".js", ".mjs"})
+    return asset_path == "theme.css" or (len(parts) >= 2 and parts[0] == "assets" and allowed)
+
+
+def deck_asset_path(folder: Path, asset_path: str, *, embedded: bool = False) -> Path:
+    """Resolve unlinked public assets and, for offline embedding, author CSS and JavaScript."""
+    if not public_deck_asset(asset_path, embedded=embedded):
         raise ValueError("Unsupported deck asset")
     target = folder
-    for part in parts:
+    for part in asset_path.split("/"):
         target = target / part
         if target.is_symlink():
             raise ValueError("Symlinks are not served")

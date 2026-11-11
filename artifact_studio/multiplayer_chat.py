@@ -9,17 +9,53 @@ from hashlib import sha256
 from typing import Literal, TypedDict, cast
 from urllib.parse import quote
 
+from pydantic import Field
+
 from .artifact_models import ArtifactTarget
 from .artifacts import ArtifactStore
-from .models import FileInput
+from .element_alternatives import ElementAlternatives
+from .models import FileInput, StrictModel
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, checksum
 from .review import ReviewHookInput
-from .storage import ConflictError, decode_attachments
+from .slide_designs import SlideDesigns
+from .storage import ConflictError, Store, decode_attachments
 
 Channel = Literal["shared", "private"]
 _WORKSPACE_FILE_LIMIT = 1024**3
 _HOST_FILE_LIMIT = 4 * 1024**3
 _MINIMUM_DISK_FREE = 1024**3
+
+
+class ChatProposal(StrictModel):
+    """Identify the immutable proposal displayed while writing a comment."""
+
+    kind: Literal["design", "element"]
+    option_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    context_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+
+def proposal_anchor(
+    store: Store, deck_id: str, slide_id: str, proposal: ChatProposal, source_hash: str
+) -> dict[str, object]:
+    """Verify the frozen source and resolve its label without accepting client display data."""
+    if proposal.kind == "design":
+        if proposal.context_hash is not None:
+            raise ValueError("Only element alternatives have a separate preview context.")
+        option = SlideDesigns(store, scoped=True).read(deck_id, slide_id, proposal.option_id).option
+        context_hash = None
+    else:
+        source = ElementAlternatives(store, scoped=True).read(
+            deck_id, slide_id, proposal.option_id, proposal.context_hash
+        )
+        option, context_hash = source.option, source.context_hash
+    if option.source_hash != source_hash:
+        raise ConflictError("The comment must reference the reviewed proposal source.")
+    return {
+        **proposal.model_dump(),
+        "name": option.name,
+        "source_hash": source_hash,
+        "context_hash": context_hash,
+    }
 
 
 class ChatFile(TypedDict):
@@ -83,6 +119,13 @@ class Conversations:
                     "ALTER TABLE conversations ADD COLUMN files TEXT NOT NULL DEFAULT '[]'"
                 )
 
+            if not any(
+                row["name"] == "proposal" for row in db.execute("PRAGMA table_info(conversations)")
+            ):
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN proposal TEXT NOT NULL DEFAULT 'null'"
+                )
+
     @staticmethod
     def _public(row: sqlite3.Row) -> dict[str, object]:
         files = cast(list[ChatFile], json.loads(cast(str, row["files"])))
@@ -104,6 +147,8 @@ class Conversations:
                 "completed",
             )
         }
+        if row["proposal"] != "null":
+            public["proposal"] = json.loads(cast(str, row["proposal"]))
         public.update(
             {
                 "target": json.loads(cast(str, row["target"])),
@@ -187,6 +232,7 @@ class Conversations:
         files: list[FileInput] | None = None,
         *,
         slide_content_hash: str = "",
+        proposal: ChatProposal | None = None,
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
@@ -217,6 +263,7 @@ class Conversations:
                         target.model_dump() if target else None,
                         content_hash,
                         *([metadata] if metadata else []),
+                        *([proposal.model_dump(), slide_content_hash] if proposal else []),
                     ],
                     sort_keys=True,
                 )
@@ -231,7 +278,7 @@ class Conversations:
                     if prior["payload"] != payload:
                         raise ConflictError("This request_id already belongs to another message.")
                     return self._public(prior)
-                if content_hash and content_hash != item.content_hash:
+                if not proposal and content_hash and content_hash != item.content_hash:
                     raise ConflictError("The artifact changed. Review the current version first.")
                 slide_id = target.slide_id if target else None
                 version = item.presentation_versions.get(slide_id) if slide_id else None
@@ -239,7 +286,19 @@ class Conversations:
                     raise ConflictError(
                         "This slide was removed. Choose another slide to send your message."
                     )
-                if slide_content_hash and (version is None or version[0] != slide_content_hash):
+                anchor = None
+                if proposal:
+                    if (
+                        not item.legacy_deck_id
+                        or not target
+                        or target.kind != "slide"
+                        or not slide_id
+                    ):
+                        raise ValueError("A proposal comment must reference a presentation slide.")
+                    anchor = proposal_anchor(
+                        store, item.legacy_deck_id, slide_id, proposal, slide_content_hash
+                    )
+                elif slide_content_hash and (version is None or version[0] != slide_content_hash):
                     raise ConflictError("The slide changed. Review the current version first.")
                 if assigned:
                     recipient = self._recipient(db, assigned)
@@ -251,8 +310,9 @@ class Conversations:
                 )
                 cursor = db.execute(
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
-                    "target,content_hash,assigned,released,request_id,payload,created,files) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "target,content_hash,assigned,released,request_id,payload,created,"
+                    "files,proposal) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -268,6 +328,7 @@ class Conversations:
                         payload,
                         time.time(),
                         json.dumps(metadata),
+                        json.dumps(anchor),
                     ),
                 )
                 _ = db.executemany(
@@ -437,8 +498,8 @@ class Conversations:
                 raise ConflictError("Claim this request before replying; renew expired claims.")
             cursor = db.execute(
                 "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
-                "target,content_hash,released,reply_to,request_id,payload,created) "
-                "VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?)",
+                "target,content_hash,released,reply_to,request_id,payload,created,proposal) "
+                "VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?,?)",
                 (
                     scope.workspace,
                     scope.resource,
@@ -452,6 +513,7 @@ class Conversations:
                     operation,
                     payload,
                     time.time(),
+                    parent["proposal"],
                 ),
             )
             db.execute("UPDATE conversations SET completed=1 WHERE id=?", (event_id,))

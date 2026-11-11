@@ -15,6 +15,7 @@ from tests.integration.multiplayer_fixture import (
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, grant, human
+from tests.test_multiplayer_simulation import Peer
 from tests.test_unified_hosting import seed_artifact_history, seed_isolated_presentation
 
 pytestmark = [
@@ -664,3 +665,126 @@ def test_collaborator_downloads_through_the_regular_share_panel(tmp_path: Path, 
                 assert selected.value.suggested_filename == "Fictional-project.zip"
         finally:
             browser.close()
+
+
+def test_named_workspace_design_review_for_collaborator_and_reader(tmp_path: Path) -> None:
+    """Review frozen designs in the normal editor and keep proposal chat attached."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as reader,
+        sync_playwright() as playwright,
+    ):
+        workspace = str(
+            owner.post("/api/workspaces", json={"title": "Fictional design review"})
+            .raise_for_status()
+            .json()["id"]
+        )
+        home = f"/workspaces/{workspace}/"
+        seed_isolated_presentation(root, app, workspace)
+        for identity, client, role in (("alice", editor, "edit"), ("bob", reader, "view")):
+            invite = (
+                owner.post(
+                    f"/api/workspaces/{workspace}/invitations",
+                    json={
+                        "kind": "artifact",
+                        "resource": app.deck_id,
+                        "email": f"{identity}@example.test",
+                        "role": role,
+                    },
+                )
+                .raise_for_status()
+                .json()["url"]
+            )
+            accept(client, str(invite).split("#invite=")[1])
+        token = str(
+            editor.post(
+                f"/api/workspaces/{workspace}/agents",
+                json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional designer"},
+            )
+            .raise_for_status()
+            .json()["token"]
+        )
+        peer = Peer(app, token)
+        try:
+            cover = peer.value("get_slide", deck_id=app.deck_id, slide_id="cover")
+            peer.value(
+                "publish_slide_designs",
+                deck_id=app.deck_id,
+                slide_id="cover",
+                expected_content_hash=cover["content_hash"],
+                request_id="named-designs",
+                options=[
+                    {
+                        "name": "Editorial",
+                        "html": '<article class="slide"><h1>Editorial direction</h1></article>',
+                    }
+                ],
+            )
+            browser = playwright.chromium.launch()
+            try:
+                with (
+                    routed_multiplayer_context(browser, app, "alice") as alice,
+                    routed_multiplayer_context(browser, app, "bob") as bob,
+                ):
+                    held: list[Route] = []
+                    state_path = f"**/artifacts/{app.deck_id}/state"
+
+                    def hold_state(route: Route) -> None:
+                        held.append(route)
+
+                    for context, editable in ((bob, False), (alice, True)):
+                        page = context.new_page()
+                        if editable:
+                            page.route(state_path, hold_state)
+                        else:
+                            page.set_viewport_size({"width": 900, "height": 800})
+                        page.goto(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
+                        tray = page.locator("#slide-design-tray")
+                        expect(tray).to_be_visible()
+                        tray.get_by_role("tab", name="Editorial", exact=True).click()
+                        expect(
+                            page.frame_locator(".sd-canvas-overlay iframe").locator("h1")
+                        ).to_have_text("Editorial direction")
+                        if not editable:
+                            expect(tray.locator("[data-sd-use]")).to_be_hidden()
+                            tray.get_by_role("button", name="Compare", exact=True).click()
+                            expect(
+                                page.get_by_role("dialog", name="Compare designs")
+                            ).to_be_visible()
+                            expect(page.locator("[data-sd-use-candidate]")).to_be_hidden()
+                            page.keyboard.press("Escape")
+                            continue
+                        assert held
+                        page.unroute(state_path)
+                        for route in held:
+                            route.fallback()
+                        page.locator("#feedback-text").fill("Make the Editorial title shorter")
+                        expect(page.locator("#feedback-design-context")).to_have_text(
+                            "Design · Editorial"
+                        )
+                        page.locator("#send-feedback").click()
+                        expect(page.locator("#feedback-list")).to_contain_text(
+                            "Make the Editorial title shorter"
+                        )
+                        events = (
+                            editor.get(f"/api/workspaces/{workspace}/artifacts/{app.deck_id}/chat")
+                            .raise_for_status()
+                            .json()
+                        )
+                        assert events[0]["proposal"]["name"] == "Editorial"
+                        tray.locator("[data-sd-use]").click()
+                        expect(page.locator("#slide-design-tray")).to_be_hidden()
+                        with page.expect_response("**/designs/undo") as response:
+                            page.locator("#toast").get_by_role(
+                                "button", name="Undo", exact=True
+                            ).click()
+                        assert response.value.ok
+                        after = peer.value("get_slide", deck_id=app.deck_id, slide_id="cover")
+                        assert after["html"] == cover["html"]
+            finally:
+                browser.close()
+        finally:
+            peer.client.close()

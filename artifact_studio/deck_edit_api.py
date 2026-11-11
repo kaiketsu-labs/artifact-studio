@@ -8,7 +8,6 @@ from fastapi import APIRouter, Path, Request
 
 from .models import (
     ApprovalInput,
-    Deck,
     NotesInput,
     SectionLayoutInput,
     SlideActionInput,
@@ -109,31 +108,7 @@ def deck_edit_routes(
         """List recoverable deletions with titles for the private human restore picker."""
         # Listing may finish a pending structural write before reading the deletion journal.
         with access(request, deck_id, "edit") as store:
-            actions = SlideActions(store)
-            deleted = {item.operation_id: item for item in actions.deleted(deck_id)}
-            _ = store.read(deck_id)
-            with store.connect() as db:
-                rows = db.execute(
-                    "SELECT request_id,before_json FROM slide_actions "
-                    "WHERE deck=? ORDER BY rowid DESC",
-                    (deck_id,),
-                ).fetchall()
-        result: list[dict[str, object]] = []
-        for row in rows:
-            item = deleted.get(str(row["request_id"]))
-            if item is not None:
-                before = Deck.model_validate_json(str(row["before_json"]))
-                result.append(
-                    {
-                        "operation_id": item.operation_id,
-                        "slides": [
-                            {"id": slide.id, "title": slide.title}
-                            for slide in before.slides
-                            if slide.id in item.deleted_ids
-                        ],
-                    }
-                )
-        return result
+            return SlideActions(store).deletion_summaries(deck_id)
 
     @router.post("/restore-slides")
     def restore_slides(

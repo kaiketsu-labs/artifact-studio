@@ -22,6 +22,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
+from . import __version__
 from .artifact_models import ArtifactTarget
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore
@@ -40,7 +41,7 @@ from .multiplayer_access import (
     checksum,
     workspace_editor_path,
 )
-from .multiplayer_chat import Channel, Conversations
+from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .review import ReviewHookInput
@@ -84,6 +85,7 @@ class ChatInput(StrictModel):
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
     slide_content_hash: str = Field(default="", max_length=64)
+    proposal: ChatProposal | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
@@ -126,6 +128,7 @@ def create_app(
     presence = DeckPresence(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
+        version=__version__,
         instructions=(
             "Start with get_working_context. Your token selects one workspace and access scope. "
             "Only assigned released requests appear in read_feedback. Claim before acting. "
@@ -433,6 +436,7 @@ def create_app(
             body.content_hash,
             body.files,
             slide_content_hash=body.slide_content_hash,
+            proposal=body.proposal,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")

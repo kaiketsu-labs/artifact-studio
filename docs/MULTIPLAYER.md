@@ -92,6 +92,32 @@ is scoped to your workspace. Use `get_design_context` and `read_design_reference
 to inspect source material, or `create_design_pack` to scaffold a reusable
 theme. Design references remain private when you share a workspace or project.
 
+### Author presentations with a hosted agent
+
+Connect from the same presentation or project you want the agent to edit. Existing
+connections can use the new tools after refreshing the MCP tool list or reconnecting
+the agent session. Keep the same token and its current scope.
+
+- Start with `get_working_context` and `get_presentation_outline`. An owner can use
+  `create_presentation` with a workspace or project connection. For a shared
+  presentation, collaborators with edit access can use their own deck connection
+  to add, revise, reorder, group and remove slides. A deck connection applies to
+  that deck.
+- Use `publish_slide_designs` to propose alternate designs on one slide, or
+  `publish_element_alternatives` for a static element with a unique HTML ID. Use
+  the matching `get_*` and `capture_*` tools to read and render the proposals.
+  Viewers can compare in the regular slide editor. Editors can choose, keep or
+  undo a design. Comments written while previewing an option keep its identity
+  in the shared conversation, which agents can read with `read_chat`.
+- Read a fresh `expected_hash` before using `remove_slide` and reuse the request
+  ID if a response is lost. Editors can recover from **Deleted slides** in the
+  browser or with `get_deleted_slides` and `restore_slides`.
+- Use the presentation context and theme tools to edit the brief and CSS.
+  `list_presentation_assets` lists paths and hashes. Upload supported assets up
+  to 1 MiB inline with `upload_presentation_asset`, then use
+  `prepare_interactive_html` to embed dependencies from the selected deck.
+  Larger reference files can be shared through the browser.
+
 The brief text is authoring context available to agents with access to that
 deck. Brief attachments are visible in **Agent notes** for the workspace owner.
 Their scoped agent can read them with `read_presentation_brief_file` using the

@@ -3,11 +3,13 @@
 import json
 import re
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
 from .element_alternatives import ElementAlternatives, ElementPage
+from .multiplayer_access import Role
 from .slide_designs import DecideDesign, DesignDecision, UndoDesign
 from .storage import Store
 
@@ -39,49 +41,59 @@ def _focus_element(document: str, target_id: str) -> str:
     return before + f'<script nonce="{match[1]}">{script}</script></body>' + closing
 
 
-def element_alternative_routes(current_store: Callable[[], Store]) -> APIRouter:
+def element_alternative_routes(
+    access: Callable[[Request, str, Role], AbstractContextManager[Store]],
+    *,
+    scoped: bool = False,
+) -> APIRouter:
     router = APIRouter()
     base = "/api/decks/{deck_id}/slides/{slide_id}/element-alternatives"
 
     @router.get(base)
     def alternatives(
+        request: Request,
         deck_id: str,
         slide_id: str,
         cursor: int | None = None,
         decision_cursor: int | None = None,
         set_id: str | None = None,
     ) -> ElementPage:
-        return ElementAlternatives(current_store()).list(
-            deck_id, slide_id, cursor=cursor, decision_cursor=decision_cursor, set_id=set_id
-        )
+        with access(request, deck_id, "view") as store:
+            return ElementAlternatives(store, scoped=scoped).list(
+                deck_id, slide_id, cursor=cursor, decision_cursor=decision_cursor, set_id=set_id
+            )
 
     @router.get(base + "/{option_id}/preview")
     def preview(
+        request: Request,
         deck_id: str,
         slide_id: str,
         option_id: str,
         context_hash: str | None = None,
         element: bool = False,
     ) -> HTMLResponse:
-        service = ElementAlternatives(current_store())
-        source = service.read(deck_id, slide_id, option_id, context_hash)
-        frozen = service.preview(deck_id, slide_id, option_id, source.context_hash)
+        with access(request, deck_id, "view") as store:
+            service = ElementAlternatives(store, scoped=scoped)
+            source = service.read(deck_id, slide_id, option_id, context_hash)
+            frozen = service.preview(deck_id, slide_id, option_id, source.context_hash)
         document = _focus_element(frozen.document, source.target_id) if element else frozen.document
         return HTMLResponse(
             document,
             headers={
-                "Cache-Control": "private, max-age=31536000, immutable",
+                "Cache-Control": "no-store" if scoped else "private, max-age=31536000, immutable",
                 "Content-Security-Policy": "sandbox allow-scripts; frame-ancestors 'self'",
                 "X-Content-Type-Options": "nosniff",
             },
         )
 
     @router.post(base + "/decide")
-    def decide(deck_id: str, slide_id: str, body: DecideDesign) -> DesignDecision:
-        return ElementAlternatives(current_store()).decide(deck_id, slide_id, body)
+    def decide(request: Request, deck_id: str, slide_id: str, body: DecideDesign) -> DesignDecision:
+        with access(request, deck_id, "edit") as store:
+            return ElementAlternatives(store, scoped=scoped).decide(deck_id, slide_id, body)
 
     @router.post(base + "/undo")
-    def undo(deck_id: str, slide_id: str, body: UndoDesign) -> DesignDecision:
-        return ElementAlternatives(current_store()).undo(deck_id, slide_id, body)
+    def undo(request: Request, deck_id: str, slide_id: str, body: UndoDesign) -> DesignDecision:
+        with access(request, deck_id, "edit") as store:
+            return ElementAlternatives(store, scoped=scoped).undo(deck_id, slide_id, body)
 
     return router
