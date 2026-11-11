@@ -21,6 +21,8 @@ Full archives include private review material; choose a suitable local location 
 
 Open the storage icon, then **Save workspace** for a local full archive or **Restore workspace** to choose an archive or connected backup. Choose a new folder name, review the project/artifact/folder counts and destination, and click **Restore files**. Existing folders are refused. Recovery does not switch the Mac app or stop the running server.
 
+The artifact count excludes reusable design examples. Those files restore into the Designs library.
+
 To recover a full GitHub backup on another computer:
 
 1. Install and start Artifact Studio, authenticate GitHub CLI with access to the private backup repository, and connect that repository as **reference only** in **Storage and backup**. Upload opt-in is not needed to read backups.

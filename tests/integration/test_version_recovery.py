@@ -232,6 +232,7 @@ def test_local_workspace_download_preview_and_files_only_restore(
     recovery.get_by_label("New folder name", exact=True).fill("Recovered browser workspace")
     recovery.get_by_label("Choose workspace archive").set_input_files(archive)
     expect(recovery.get_by_role("button", name="Restore files", exact=True)).to_be_visible()
+    expect(recovery.locator(".recovery-preview strong")).to_contain_text("· 3 artifacts ·")
     _ = page.screenshot(path=str(artifacts / "workspace-recovery.png"))
     recovery.get_by_role("button", name="Restore files", exact=True).click()
     expect(recovery.get_by_text("Workspace restored", exact=True)).to_be_visible()
