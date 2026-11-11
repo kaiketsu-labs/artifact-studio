@@ -209,7 +209,7 @@
     button.addEventListener('click', () => {
       const current = new URL(root.location.href);
       const artifact = current.searchParams.get('deck') || button.dataset.artifact;
-      if (!artifact || session.scoped_editor) { document.querySelector('[data-session-mode]')?.click(); return; }
+      if (!artifact || session.scoped_editor) { root.StudioAbout?.open(button); return; }
       if (!root.dispatchEvent(new CustomEvent('studio:before-conversation-change', {cancelable: true}))) return;
       if (shared) current.searchParams.delete('chat');
       else current.searchParams.set('chat', 'shared');

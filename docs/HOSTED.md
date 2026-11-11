@@ -57,7 +57,7 @@ provider loading is blocked; exit code 0 means the local configuration was
 accepted, **not** that the deployment passed a security audit. Provider error
 details and authentication options are not printed.
 
-In the browser, select **Hosted → Server checks**. It distinguishes configured
+In the browser, open **Menu → Workspace & server → Server checks**. It distinguishes configured
 protections, warnings with an action to take, and unverified account settings.
 Hosts sharing a domain suffix prompt a cookie-isolation warning. Studio cannot
 inspect actual cookie scope, MFA enforcement, firewall rules, tunnel logging,

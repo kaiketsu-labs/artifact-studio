@@ -38,7 +38,8 @@ Update markers clear for each person as they open a revised slide or artifact.
 menu connects your own agent to the selected artifact or project. Shared and
 My agent conversations appear in the regular sidebar. The owner can switch
 between **Collaborate** and **Local review**; older local messages remain private
-to the owner. Use **Hosted** in the library or editor to switch workspaces. The
+to the owner. Open **Menu → Workspace & server → Workspaces** in the
+library or editor to switch workspaces. The
 server owner can also create a separate workspace there. Open **New project**
 in that workspace to create a project and use its **Share link…** menu to invite
 a collaborator. Host administration stays on the server.
@@ -58,8 +59,9 @@ can use **Import** to add files or folders to projects they own. Open a project
 and choose **Menu → New presentation** to start a deck with its brief and
 attachments. The picker uses designs saved in that workspace and starts with
 a blank cover when there are none. Project guests continue to use their
-invitation roles. The **Hosted** button switches between personal and shared
-workspaces. Sharing a project leaves the rest of either user's workspace private.
+invitation roles. Find personal and shared workspaces under
+**Menu → Workspace & server**. Sharing a project leaves the rest of either
+user's workspace private.
 
 Workspace owners can create nested sidebar folders, reorder projects and drag
 artifacts between projects from the regular library. Sidebar folders are private
