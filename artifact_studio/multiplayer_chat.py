@@ -185,6 +185,8 @@ class Conversations:
         target: ArtifactTarget | None = None,
         content_hash: str = "",
         files: list[FileInput] | None = None,
+        *,
+        slide_content_hash: str = "",
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
@@ -231,15 +233,14 @@ class Conversations:
                     return self._public(prior)
                 if content_hash and content_hash != item.content_hash:
                     raise ConflictError("The artifact changed. Review the current version first.")
-                if (
-                    target
-                    and target.slide_id
-                    and item.legacy_deck_id
-                    and target.slide_id not in item.presentation_versions
-                ):
+                slide_id = target.slide_id if target else None
+                version = item.presentation_versions.get(slide_id) if slide_id else None
+                if slide_id and item.legacy_deck_id and version is None:
                     raise ConflictError(
                         "This slide was removed. Choose another slide to send your message."
                     )
+                if slide_content_hash and (version is None or version[0] != slide_content_hash):
+                    raise ConflictError("The slide changed. Review the current version first.")
                 if assigned:
                     recipient = self._recipient(db, assigned)
                     if channel == "private" and recipient.person != actor.person:

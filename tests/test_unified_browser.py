@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Route, expect, sync_playwright
 
 from artifact_studio.models import SlidePatch
 from tests.integration.multiplayer_fixture import (
@@ -25,8 +25,8 @@ pytestmark = [
 ]
 
 
-def test_guest_discussion_sends_after_slide_changes(tmp_path: Path) -> None:
-    """A guest can send ordinary Shared discussion after the owner revises the slide."""
+def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> None:
+    """A saved message shows and unlocks the composer while refresh requests are pending."""
     with (
         running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
         human(app, "owner") as owner,
@@ -41,6 +41,16 @@ def test_guest_discussion_sends_after_slide_changes(tmp_path: Path) -> None:
                 page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
                 composer = page.locator("#feedback-text")
                 composer.fill("Fictional guest discussion")
+                held: list[Route] = []
+
+                def hold_refresh(route: Route) -> None:
+                    if route.request.method == "GET":
+                        held.append(route)
+                    else:
+                        route.fallback()
+
+                page.route(f"**/api/decks/{app.deck_id}", hold_refresh)
+                page.route(f"**/artifacts/{app.deck_id}/state", hold_refresh)
                 initial = app.store.view(app.deck_id).slides[0]
                 _ = app.store.revise_view(
                     app.deck_id,
@@ -49,11 +59,24 @@ def test_guest_discussion_sends_after_slide_changes(tmp_path: Path) -> None:
                     "fixture-discussion-revision",
                     SlidePatch(title="Revised cover"),
                 )
+                with page.expect_request(f"**/api/decks/{app.deck_id}"):
+                    _ = page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
                 composer.press("Enter")
                 expect(page.locator("#feedback-list")).to_contain_text("Fictional guest discussion")
                 expect(composer).to_have_value("")
+                expect(composer).to_be_enabled()
+                composer.fill("Second message while refresh is pending")
+                composer.press("Enter")
+                expect(page.locator("#feedback-list")).to_contain_text(
+                    "Second message while refresh is pending"
+                )
                 response = owner.get(f"/api/workspaces/default/artifacts/{app.deck_id}/chat")
-                assert response.json()[0]["message"] == "Fictional guest discussion"
+                assert [message["message"] for message in response.json()] == [
+                    "Fictional guest discussion",
+                    "Second message while refresh is pending",
+                ]
+                for route in held:
+                    route.abort()
         finally:
             browser.close()
 

@@ -299,8 +299,17 @@
       const assigned=(body.edit_intent||conversationChannel==='private')?ownChatAgent()?.id||'':'';
       if((body.edit_intent||conversationChannel==='private')&&!assigned)throw new Error('Connect your agent before requesting an edit.');
       const slideId=match?decodeURIComponent(match[2]):body.context_slide_id||selectedId;
-      const sent=await collaborationChat.send(id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:conversation.contentHash,slideContentHash:body.content_hash,slideId,target:body.target,editIntent:body.edit_intent,channel:conversationChannel,assigned,released:expectedMode!=='batch'});
-      await refreshConversation(id);
+      const channel=conversationChannel;
+      const sent=await collaborationChat.send(id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:conversation.contentHash,slideContentHash:body.content_hash,slideId,target:body.target,editIntent:body.edit_intent,channel,assigned,released:expectedMode!=='batch'});
+      if(deck?.id===id&&conversationDeck===id&&conversationChannel===channel&&conversation&&!conversation.messages.some(message=>message.id===sent.id)){
+        // A history request started before the save may still hold the old conversation.
+        conversationRead++;
+        conversation.messages=[...conversation.messages,sent].sort((a,b)=>a.cursor-b.cursor).slice(-100);
+        if(!sent.released)conversation.draftCount++;
+        deck.workflow=conversationWorkflow();
+        renderComments(slide());
+        renderWorkflow();
+      }
       return {event_id:-sent.id};
     }
     try{return await api(url,{...body,expected_mode:expectedMode});}
@@ -1037,7 +1046,8 @@
       if(message.trim()||files.length)await postFeedback(`/api/decks/${encodeURIComponent(sendingDeck)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,...(files.length?{files}:{}),content_hash:context.content_hash,target:context.target,design_option_id:context.design_option_id,element_option_id:context.element_option_id,element_context_hash:context.element_context_hash,request_id:context.request_id},expectedMode);
       chatComposer.clear(sendingKey);voiceFeedback.clear(sendingKey);feedbackDrafts.delete(sendingKey);draftStore.persist();
       if(key()===sendingKey){$('feedback-text').value='';setTarget(null);renderVoiceFeedback();}
-      await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':collaborationChat&&conversationChannel==='shared'?'Message sent.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
+      if(!collaborationChat)await refresh();
+      toast(expectedMode==='batch'?'Added to batch.':collaborationChat&&conversationChannel==='shared'?'Message sent.':deck.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
     }catch(error){chatComposer.error(error.message,sendingKey);}
     finally{chatComposer.idle(sendingKey);feedbackSending=false;$('feedback-text').disabled=false;renderVoiceFeedback();updateComposer();if(key()===sendingKey&&!document.querySelector('dialog[open]')&&[document.body,button].includes(document.activeElement))$('feedback-text').focus();}
   });

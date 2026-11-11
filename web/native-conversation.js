@@ -2,6 +2,7 @@
 ((root) => {
   'use strict';
   const staleArtifact = 'The artifact changed. Review the current version first.';
+  const staleSlide = 'The slide changed. Review the current version first.';
   const editMarker = '\n\nEdit details:\n';
   const replacementMarker = '\nReplacement text:\n';
   const anchorFields = ['selector', 'label', 'quote', 'section', 'start', 'end', 'x', 'y', 'width', 'height', 'region', 'viewport', 'state'];
@@ -43,7 +44,7 @@
         if (error.status === 401 && !error.expired) {
           throw Object.assign(new Error('Your session has expired. Sign in again to continue.', {cause: error}), {status: 401, expired: true});
         }
-        if (error.status === 409 && error.message === staleArtifact) error.stale = true;
+        if (error.status === 409 && [staleArtifact, staleSlide].includes(error.message)) error.stale = true;
         throw error;
       }
     }
@@ -71,15 +72,10 @@
         // Shared discussion follows the slide ID, while edits and selected objects keep their revision.
         const discussion = slideId && !target && !editIntent && !assigned && channel === 'shared';
         if (!discussion && !contentHash) throw stale(staleArtifact);
-        if (!discussion && slideContentHash) {
-          const state = await request(`${endpoint}/state`);
-          // The server checks exact retries before rejecting a changed artifact hash.
-          if (state.content_hash === contentHash && state.slides.find(item => item.id === anchor?.slide_id)?.content_hash !== slideContentHash) {
-            throw stale('The slide changed. Review the current version first.');
-          }
-        }
         return request(`${endpoint}/chat`, {message: editMessage(message, editIntent), request_id: requestId,
-          content_hash: discussion ? '' : contentHash, target: anchor, channel, released, assigned, ...(files?.length ? {files} : {})});
+          content_hash: discussion ? '' : contentHash, target: anchor, channel, released, assigned,
+          ...(!discussion && slideContentHash ? {slide_content_hash: slideContentHash} : {}),
+          ...(files?.length ? {files} : {})});
       },
       release(artifactId, channel = 'shared') {
         return request(inChannel(`${base(artifactId)}/release`, channel), {});

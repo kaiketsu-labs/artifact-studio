@@ -83,6 +83,7 @@ class ChatInput(StrictModel):
     released: bool = True
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
+    slide_content_hash: str = Field(default="", max_length=64)
     files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
@@ -373,9 +374,10 @@ def create_app(
                     {
                         "id": slide.id,
                         "title": slide.title,
-                        "content_hash": store.content_hash(artifact, slide),
+                        "content_hash": item.presentation_versions[slide.id][0],
                     }
                     for slide in store.read(artifact).slides
+                    if slide.id in item.presentation_versions
                 ]
             with hub.connect() as db:
                 draft_counts = {
@@ -430,6 +432,7 @@ def create_app(
             body.target,
             body.content_hash,
             body.files,
+            slide_content_hash=body.slide_content_hash,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")
