@@ -487,3 +487,50 @@ def test_organizing_hosted_projects_keeps_inherited_access_explicit(
         assert current["project_id"] == destination
         assert current["content_hash"] == original["content_hash"]
         assert current["revision"] == original["revision"]
+
+
+def test_hosted_favorites_follow_reader_and_grant(tmp_path: Path) -> None:
+    """Readers of one deck keep separate bookmarks and lose previews on revocation."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        for name, reader in (("alice", alice), ("bob", bob)):
+            accept(reader, grant(owner, name, app.deck_id, "view"))
+        index = "/api/favorites"
+        star = {"kind": "slide", "artifact_id": app.deck_id, "slide_id": "cover", "starred": True}
+        assert alice.post(index, json={**star, "artifact_id": app.artifact_id}).status_code == 404
+        assert alice.post(index, json=star).raise_for_status().json()["slides"] == [
+            app.deck_id + "/cover"
+        ]
+        path = f"{index}/slides/{app.deck_id}/cover/description"
+        body = {"description": "Alice’s bookmark", "expected_description": ""}
+        assert alice.post(path, json=body).is_success
+        assert bob.post(path, json=body).status_code == 404
+        assert alice.get(index + "/slides").json()[0]["description"] == body["description"]
+        assert alice.post(path.replace("/description", "/reference"), json={}).status_code == 404
+        assert bob.get(index).json()["slides"] == []
+        assert owner.get(index).json()["slides"] == []
+        assert bob.post(index, json=star).is_success
+        assert bob.get(index + "/slides").json()[0]["description"] == ""
+
+        preview = f"/api/workspaces/default/artifacts/{app.deck_id}/preview?slide_id=cover"
+        frame = {"sec-fetch-dest": "iframe"}
+        assert alice.get(preview, headers=frame).is_success
+        access = "/api/workspaces/default/access"
+        scope = {"kind": "artifact", "resource": app.deck_id}
+        grants = owner.get(access, params=scope).json()["grants"]
+        alice_grant = next(item for item in grants if item["email"] == "alice@example.test")
+        assert owner.post(f"{access}/{alice_grant['id']}/revoke", json=scope).is_success
+        assert alice.get(index).json()["slides"] == []
+        assert alice.get(index + "/slides").json() == []
+        assert alice.post(path, json=body).status_code == 404
+        assert alice.get(preview, headers=frame).status_code == 404
+        assert bob.get(index).json()["slides"] == [app.deck_id + "/cover"]
+        unknown = "/workspaces/" + "0" * 24 + index
+        assert alice.get(unknown).json() == alice.get(index).json()
+        assert (
+            alice.post(unknown, json=star).status_code == alice.post(index, json=star).status_code
+        )

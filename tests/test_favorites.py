@@ -176,7 +176,10 @@ def test_reference_rejects_changed_root_script_even_when_native_slide_hash_is_un
         _ = favorites.reference(DECK, slide.id, before)
 
 
-def test_description_migrates_old_bookmarks_and_preserves_slide_state(favorites: Favorites) -> None:
+@pytest.mark.parametrize("existing", ("", "A saved description"))
+def test_description_migrates_old_bookmarks_and_preserves_slide_state(
+    favorites: Favorites, existing: str
+) -> None:
     store = favorites.store
     with store.connect() as db:
         _ = db.execute("DROP TABLE favorites")
@@ -185,15 +188,18 @@ def test_description_migrates_old_bookmarks_and_preserves_slide_state(favorites:
             "PRIMARY KEY(kind, artifact, slide))"
         )
         _ = db.execute("INSERT INTO favorites VALUES ('slide', ?, 'cover')", (DECK,))
+        if existing:
+            _ = db.execute("ALTER TABLE favorites ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+            _ = db.execute("UPDATE favorites SET description=?", (existing,))
     restored = Favorites(store)
-    assert restored.slides()[0].description == ""
+    assert restored.slides()[0].description == existing
     before = store.view(DECK), (store.folder(DECK) / "index.html").read_bytes()
     assert (
         restored.describe(
             DECK,
             "cover",
             DescriptionInput(
-                description="  A spacious comparison layout.  ", expected_description=""
+                description="  A spacious comparison layout.  ", expected_description=existing
             ),
         )
         == "A spacious comparison layout."

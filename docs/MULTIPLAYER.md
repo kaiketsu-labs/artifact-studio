@@ -67,6 +67,11 @@ organization. Moving an artifact between projects may change inherited access.
 Studio asks for confirmation when either project has current grants, pending
 invitations or active agent connections.
 
+Use the star on an artifact or slide to bookmark it. **Favorite slides** in
+the sidebar opens your own gallery, including any descriptions you add. Stars
+and descriptions are private to your account and workspace. When your access to
+a shared artifact ends, Studio stops showing its bookmarks and previews.
+
 Use **Designs** in a personal workspace to manage reference files and set a
 default slide pack. The owner can open example slides in presentation view.
 For private designs, connect your agent from the Designs page so the connection
