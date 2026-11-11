@@ -138,7 +138,7 @@
 
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
   const sharedEditor=doc.documentElement.hasAttribute('data-shared-editor');
-  const canImport=()=>!sharedEditor||doc.documentElement.hasAttribute('data-workspace-owner');
+  const canManageWorkspace=()=>!sharedEditor||doc.documentElement.hasAttribute('data-workspace-owner');
   const studioHome=root.ArtifactSession.home();
   const nativeChat=sharedEditor||new URLSearchParams(root.location.search).get('chat')==='shared';
   doc.documentElement.toggleAttribute('data-native-conversation',nativeChat);
@@ -259,11 +259,14 @@
     if(block&&!draft().targets.some(target=>target.block_index===Number(block.dataset.targetIndex))){const quote=block.textContent.trim().slice(0,2000),start=state.source.indexOf(quote),unique=start>=0&&start===state.source.lastIndexOf(quote);setTarget({kind:'text',label:quote.slice(0,80),quote,selector:`[data-target-index="${block.dataset.targetIndex}"]`,block_index:Number(block.dataset.targetIndex),...(unique?{start,end:start+quote.length}:{})},false);}
     if(!draft().targets.length)return;event.preventDefault();void showElementMenu({x:event.clientX,y:event.clientY});
   });
-  root.ProjectFolders.create({content,getArtifacts:()=>state.artifacts,getProjects:()=>state.projects,
-    onMove:async(id,projectId)=>{await api(artifactPath(id,'/project'),{project_id:projectId});await loadRegistry();library();toast('Artifact moved.');},
+  if(canManageWorkspace())root.ProjectFolders.create({content,getArtifacts:()=>state.artifacts,getProjects:()=>state.projects,
+    onMove:async(id,projectId)=>{
+      try{await moveArtifact(id,projectId);}
+      catch(error){if(error.code==='project-access-changed')moveDialog(id,projectId,error);else throw error;}
+    },
     onError:error=>toast(error.message,true)
   });
-  root.ProjectNavigation.create({content,getTree:()=>state.projectTree,onMove:change=>changeTree(change),
+  if(canManageWorkspace())root.ProjectNavigation.create({content,getTree:()=>state.projectTree,onMove:change=>changeTree(change),
     onExpand:id=>{
       if(!collapsedFolders.delete(id))return;
       root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));
@@ -292,7 +295,7 @@
   function rememberFolders(){try{root.localStorage.setItem('artifact-studio:collapsed-folders',JSON.stringify([...collapsedFolders]));}catch{}}
   function closeTreeMenu(){hubMenu.close();}
   function toggleFolder(id){collapsedFolders.has(id)?collapsedFolders.delete(id):collapsedFolders.add(id);rememberFolders();renderProjectSidebar();doc.querySelector(`[data-toggle-folder="${id}"]`)?.focus({preventScroll:true});}
-  function renderProjectSidebar(){const aside=doc.querySelector('aside.hub-sidebar[aria-label="Projects"]');if(aside)aside.outerHTML=sidebar();}
+  function renderProjectSidebar(workspace=false){const aside=content.querySelector('aside.hub-sidebar');if(aside)aside.outerHTML=sidebar(workspace);}
   async function changeTree(change){
     if(treeBusy)return;treeBusy=true;closeTreeMenu();
     try{
@@ -337,8 +340,7 @@
   function creationCommands(project=state.project,parent=selectedFolder()){
     const create=menuCommand('New project','project',()=>projectDialog(false,parent));
     const upload=menuCommand('Import artifact','upload',()=>importDialog(project));
-    if(sharedEditor)return [create,upload,menuCommand('New presentation','slideAdd',()=>newPresentation(project))];
-    return [create,menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),upload,menuCommand('New presentation','slideAdd',newPresentation)];
+    return [create,menuCommand('New folder','folderPlus',()=>folderDialog('create',null,parent)),upload,menuCommand('New presentation','slideAdd',()=>newPresentation(project))];
   }
   /** Resolve tree changes when invoked, retaining the row captured when the menu opened. */
   async function treeAction(action,id){
@@ -355,16 +357,15 @@
     if(!node){showHubMenu(anchor,'Add to projects',creationCommands('all',null),point);return;}
     const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
     const commands=[menuCommand('Open','folderOpen',()=>home(key))];
-    if(sharedEditor){
-      if(canImport()&&project&&!project.legacy)commands.push(
-        menuCommand('Import artifact','upload',()=>importDialog(id)),
-        menuCommand('New presentation','slideAdd',()=>newPresentation(id))
-      );
-      if(project&&root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
+    if(!canManageWorkspace()){
       showHubMenu(anchor,'Project actions',commands,point);return;
     }
     if(folder)commands.push(menuCommand(collapsedFolders.has(id)?'Expand folder':'Collapse folder','folder',()=>toggleFolder(id)));
-    else commands.push(menuCommand('Project brief','notes',()=>contextDialog({projectId:id})),...(!sharedEditor&&root.StudioInvitation?.available?[menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor}))]:[]),menuCommand(root.StudioInvitation?.available?'Share files':'Share project','share',()=>shareProject(id)));
+    else if(project){
+      if(!sharedEditor)commands.push(menuCommand('Project brief','notes',()=>contextDialog({projectId:id})));
+      if(root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
+      if(!sharedEditor)commands.push(menuCommand(root.StudioInvitation?.available?'Share files':'Share project','share',()=>shareProject(id)));
+    }
     commands.push({separator:true},...creationCommands(key,folder?id:node.parent_id).filter(command=>command.label!=='Import artifact'||folder||!project?.legacy),{separator:true},menuCommand('Move to…','folder',()=>treeAction('move',id)),menuCommand('Move up','up',()=>treeAction('up',id),{keys:'Alt+↑',disabled:index===0}),menuCommand('Move down','down',()=>treeAction('down',id),{keys:'Alt+↓',disabled:index===siblings.length-1}));
     if(node.parent_id)commands.push(menuCommand('Move out','left',()=>treeAction('out',id),{keys:'Alt+←'}));
     if(folder)commands.push({separator:true},menuCommand('Rename','edit',()=>treeAction('rename',id)),menuCommand('Remove folder','trash',()=>treeAction('remove',id),{danger:true}));
@@ -397,7 +398,8 @@
       if(!sharedEditor)commands.push(menuCommand('Version history','history',()=>{if(artifactEditor.finish())versions.open({kind:'artifact',artifactId:id,title:item.title});}));
     }
     if(root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
-    if(!sharedEditor)commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)),menuCommand(root.StudioInvitation?.available?'Share files':'Share','share',()=>shareArtifact(id)));
+    if(canManageWorkspace())commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)));
+    if(!sharedEditor)commands.push(menuCommand(root.StudioInvitation?.available?'Share files':'Share','share',()=>shareArtifact(id)));
     commands.push(menuCommand('Copy link','copy',()=>copyArtifactLink(item)));
     if(!sharedEditor)commands.push({separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
     showHubMenu(anchor,'Artifact actions',commands,point);
@@ -444,7 +446,7 @@
     root.ArtifactSession?.assertActive();
     let result;
     try{result=await response.json();}catch{if(!response.ok)throw new Error(`Request failed (${response.status}).`);return {};}
-    if(!response.ok){const error=new Error(typeof result.detail==='string'?result.detail:result.error || `Request failed (${response.status}).`);error.status=response.status;throw error;}
+    if(!response.ok){const error=new Error(typeof result.detail==='string'?result.detail:result.error || `Request failed (${response.status}).`);error.status=response.status;error.code=result.code;error.accessHash=result.access_hash;throw error;}
     return result;
   }
   async function artifactDetail(id) {
@@ -481,7 +483,7 @@
       const item=state.detail;
       return `<aside class="hub-sidebar" aria-label="Project artifacts">${button('home','Library','grid','class="hub-library-link"')}<label class="hub-project-picker">${icon('project')}<select id="hub-project-picker" aria-label="Choose project">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><nav class="hub-project-artifacts" aria-label="Related artifacts">${state.artifacts.filter(other=>other.project_id===item.project_id).map(other=>`<button type="button" data-artifact="${escape(other.id)}" aria-current="${other.id===item.id}" title="${escape(other.title)}">${icon(kinds[kindOf(other)].icon)}<span>${escape(other.title)}</span>${other.status==='updated'?`<span class="hub-status updated" title="Updated">${icon('updated')}</span>`:''}</button>`).join('')}</nav></aside>`;
     }
-    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><button type="button" data-action="favorite-slides">${icon('favoriteSlides')}<span>Favorite slides</span></button><div class="hub-sidebar-label">Projects${button('project-add','','plus','aria-label="Add project or folder" title="Add project or folder" aria-haspopup="menu"')}</div>${root.ProjectNavigation.markup({tree:state.projectTree,projects:state.projects,selected:state.project,collapsed:collapsedFolders,icon})}</aside>`;
+    return `<aside class="hub-sidebar" aria-label="Projects"><button type="button" data-project="all" aria-current="${state.project==='all'}">${icon('grid')}<span>All artifacts</span><span class="hub-count">${state.artifacts.length}</span></button><button type="button" data-project="designs" aria-current="${state.project==='designs'}">${icon('palette')}<span>Designs</span><span class="hub-count">${state.designs.length}</span></button><button type="button" data-action="favorite-slides">${icon('favoriteSlides')}<span>Favorite slides</span></button><div class="hub-sidebar-label">Projects${button('project-add','','plus','aria-label="Add project or folder" title="Add project or folder" aria-haspopup="menu"')}</div>${root.ProjectNavigation.markup({tree:state.projectTree,projects:state.projects,selected:state.project,collapsed:collapsedFolders,icon,manage:canManageWorkspace()})}</aside>`;
   }
   function filteredArtifacts(){return sortArtifacts(filterArtifacts(state.artifacts,{...state,projectIds:state.project.startsWith('folder:')?root.ProjectNavigation.projectsIn(state.projectTree,state.project.slice(7)):null}),sort);}
   function visibleItems() {
@@ -520,7 +522,7 @@
       const statusId='artifact-status-'+item.id;
       const kind=kinds[kindOf(item)],preview=kindOf(item)==='file'?'':studioPath(item.preview_url || `/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
       const safePreview=root.HubCovers.coverURL(preview),fallback=root.HubCovers.coverURL(item.preview_fallback_url);
-      return `<article class="hub-card" draggable="${!sharedEditor}" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-describedby="${escape(statusId)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img alt="" draggable="false" decoding="async" data-preview-image data-cover-url="${escape(safePreview)}" data-cover-fallback="${escape(fallback)}" data-cover-cached="${item.preview_cached===true}" data-cover-renderer="${item.kind!=='image'}" hidden><span class="hub-cover-status" data-cover-status hidden></span>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item,statusId)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}${safePreview?`<button type="button" class="hub-cover-retry" data-action="retry-cover" data-cover-retry="${escape(safePreview)}" aria-label="Retry preview for ${escape(item.title)}" title="Retry preview" hidden>${icon('refresh')}</button>`:''}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
+      return `<article class="hub-card" draggable="${canManageWorkspace()}" data-drag-artifact="${escape(item.id)}"><button type="button" class="hub-card-open" data-artifact="${escape(item.id)}" aria-describedby="${escape(statusId)}" aria-label="Open ${escape(item.title)}, ${kind.singular}, ${escape(item.project_title || projectTitle(item.project_id))}"><span class="hub-cover"><span class="hub-cover-fallback">${icon(kind.icon)}<span>${kind.singular}</span><small>${escape(item.entrypoint || '')}</small></span>${safePreview?`<img alt="" draggable="false" decoding="async" data-preview-image data-cover-url="${escape(safePreview)}" data-cover-fallback="${escape(fallback)}" data-cover-cached="${item.preview_cached===true}" data-cover-renderer="${item.kind!=='image'}" hidden><span class="hub-cover-status" data-cover-status hidden></span>`:''}</span><span class="hub-card-info"><span class="hub-card-title">${icon(kind.icon)}<span title="${escape(item.title)}">${escape(item.title)}</span></span><span class="hub-card-meta"><span>${escape(item.project_title || projectTitle(item.project_id))}</span>${status(item,statusId)}</span></span></button>${root.FavoriteSlides.button('artifact',item.id,item.title,'','hub-card-star')}${safePreview?`<button type="button" class="hub-cover-retry" data-action="retry-cover" data-cover-retry="${escape(safePreview)}" aria-label="Retry preview for ${escape(item.title)}" title="Retry preview" hidden>${icon('refresh')}</button>`:''}<button type="button" class="hub-card-move" data-move-artifact="${escape(item.id)}" aria-label="Move ${escape(item.title)} to project" title="Move to project">${icon('folder')}</button></article>`;
     };
     if(sort.by!=='type')return items.map(card).join('');
     const groups=Map.groupBy(items,item=>artifactType(item).key);
@@ -849,7 +851,7 @@
     await loadRegistry();if(id)return openDesign(id,false);home('designs');
   }});
   async function openDesign(id,push=true){
-    if(sharedEditor&&!canImport())return home('all',push);
+    if(sharedEditor&&!canManageWorkspace())return home('all',push);
     if(!resetEditor())return;coverLoader.clear();workspacePanels.exitView();
     void voice.stop();const token=++state.loading;state.active=null;state.detail=null;state.project='designs';state.designActive=id;
     try{
@@ -867,7 +869,7 @@
     dialog.querySelector('input').focus();
   }
   function importDialog(projectId=state.project) {
-    if(!canImport())return;
+    if(!canManageWorkspace())return;
     const folder=projectId.startsWith('folder:')?projectId.slice(7):null,ids=folder?root.ProjectNavigation.projectsIn(state.projectTree,folder):null;
     const projects=state.projects.filter(project=>!project.legacy && (!ids || ids.includes(project.id)));
     if(!projects.length){projectDialog(true,folder);return;}
@@ -897,11 +899,32 @@
     if(!dialog.open || epoch!==modalEpoch)return;
     modal(title,`<div class="hub-context-grid"><section><h3>Sources & delivery</h3><ul class="hub-context-list">${sources.length?sources.map(source=>`<li class="hub-context-source"><strong><span>${escape(source.title || source.name || source.kind || 'Context source')}</span><span class="hub-context-delivery">${escape(source.delivery || source.delivery_state || source.status || 'Available')}</span></strong><code>${escape(source.path || source.canonical_path || '')}</code><span class="hub-scope">Scope: ${escape(typeof source.scope==='object'?JSON.stringify(source.scope):source.scope || 'workspace')}</span>${source.hash || source.content_hash?`<code title="Content hash">${escape(source.hash || source.content_hash)}</code>`:''}</li>`).join(''):'<li class="hub-context-source">No source receipt was returned.</li>'}</ul></section><section><h3 style="margin-bottom:12px">${data.receipt?'Latest recorded delivery':'Available context'}</h3><pre class="hub-context-receipt">${escape(JSON.stringify(data.receipt || data,null,2))}</pre></section></div><p class="hub-context-note">Delivery records what the server returned. Available sources are not proof that an agent opened or retained them.</p>`,true);
   }
-  function moveDialog(id=state.active) {
-    if(sharedEditor)return;
+  async function moveArtifact(id,projectId,accessHash='') {
+    await api(artifactPath(id,'/project'),{project_id:projectId,...(accessHash?{access_hash:accessHash}:{})});
+    await loadRegistry();
+    if(state.active===id)await openArtifact(id,false);
+    else if(state.active)renderProjectSidebar(true);
+    else library();
+    toast('Artifact moved.');
+  }
+  function showMoveConfirmation(form,error) {
+    form.dataset.accessHash=error.accessHash;
+    form.querySelector('[role=alert]').textContent=error.message;
+    form.querySelector('[type=submit]').textContent='Confirm move';
+  }
+  function moveDialog(id=state.active,projectId=null,confirmation=null) {
+    if(!canManageWorkspace())return;
     const item=id===state.active?state.detail:state.artifacts.find(item=>item.id===id);if(!item || id===state.active && !artifactEditor.finish())return;
-    if(!state.projects.some(project=>!project.legacy)){projectDialog();return;}
-    modal('Move to project',`<form id="hub-move-form" class="hub-form" data-artifact-id="${escape(item.id)}"><label class="hub-field"><span>Project for ${escape(item.title)}</span><select name="project_id">${state.projects.map(project=>`<option value="${escape(project.id)}" ${project.id===item.project_id?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Move artifact</button></div></form>`);
+    const projects=state.projects.filter(project=>item.legacy_deck_id || !project.legacy);
+    if(!projects.length){projectDialog();return;}
+    modal('Move to project',`<form id="hub-move-form" class="hub-form" data-artifact-id="${escape(item.id)}"><label class="hub-field"><span>Project for ${escape(item.title)}</span><select name="project_id">${projects.map(project=>`<option value="${escape(project.id)}" ${project.id===(projectId ?? item.project_id)?'selected':''}>${escape(project.title)}</option>`).join('')}</select></label><p id="hub-dialog-error" class="hub-compose-error" role="alert"></p><div class="hub-form-actions">${button('close-dialog','Cancel','close')}<button type="submit" class="hub-primary">Move artifact</button></div></form>`);
+    const form=dialog.querySelector('form');
+    if(confirmation)showMoveConfirmation(form,confirmation);
+    form.querySelector('select').addEventListener('change',()=>{
+      delete form.dataset.accessHash;
+      form.querySelector('[role=alert]').textContent='';
+      form.querySelector('[type=submit]').textContent='Move artifact';
+    });
   }
   async function sendFeedback(form) {
     const item=state.detail;if(!canComment(item))return;const value=draft(item),files=attachments.get(item.id) || [],expectedMode=item.mode || 'batch';
@@ -1037,7 +1060,7 @@
     const row=target.closest('[data-tree-node]');
     if(row){projectTreeMenu(target.closest('button') || row,row.dataset.treeNode,point);return true;}
     if(state.active || state.designActive || state.project==='designs' || !target.closest('.hub-main,aside.hub-sidebar[aria-label="Projects"]') || target.closest('button,summary,[role="button"]'))return false;
-    if(!canImport())return false;
+    if(!canManageWorkspace())return false;
     showHubMenu(target.closest('.hub-main,aside.hub-sidebar'), 'Library actions',creationCommands(),point);return true;
   }
   content.addEventListener('contextmenu',event=>{if(libraryContextMenu(event,{x:event.clientX,y:event.clientY})){event.preventDefault();event.stopPropagation();}else closeTreeMenu();});
@@ -1080,7 +1103,16 @@
         const heading=content.querySelector('.hub-edit-heading h1');
         if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
       }
-      if(form.id==='hub-move-form'){const id=form.dataset.artifactId;await api(artifactPath(id,'/project'),{project_id:String(fields.get('project_id'))});await loadRegistry();dialog.close();if(state.active===id)await openArtifact(id,false);else if(state.active){const aside=content.querySelector('aside.hub-sidebar');if(aside)aside.outerHTML=sidebar(true);}else library();toast('Artifact moved to the selected project.');}
+      if(form.id==='hub-move-form'){
+        const select=form.querySelector('select');select.disabled=true;
+        try{
+          await moveArtifact(form.dataset.artifactId,String(fields.get('project_id')),form.dataset.accessHash);
+          if(form.isConnected)dialog.close();
+        }catch(reason){
+          if(reason.code==='project-access-changed')showMoveConfirmation(form,reason);
+          else throw reason;
+        }finally{select.disabled=false;}
+      }
     })().catch(reason=>{error.textContent=reason.message;submit.textContent=form.id==='hub-import-form'?'Import artifact':submit.textContent;}).finally(()=>{submit.disabled=false;});
   });
   content.addEventListener('error',event=>{if(event.target.matches?.('[data-preview-image]'))coverLoader.imageFailed(event.target);},true);

@@ -374,3 +374,106 @@ def test_personal_workspace_sign_in_and_switch_to_shared_project(tmp_path: Path)
                 expect(page.get_by_role("heading", name="Private draft")).to_be_visible()
         finally:
             browser.close()
+
+
+def test_personal_project_folder_and_artifact_moves(tmp_path: Path) -> None:
+    """Reuse the sidebar and card drop controls with a visible access confirmation."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app",
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, "alice") as owner,
+        human(app, "bob") as guest,
+        sync_playwright() as playwright,
+    ):
+        home = owner.get("/").headers["location"]
+        workspace = home.split("/")[2]
+        source = (
+            owner.post(home + "api/hub/projects", json={"title": "Research"})
+            .raise_for_status()
+            .json()["id"]
+        )
+        destination = (
+            owner.post(home + "api/hub/projects", json={"title": "Delivery"})
+            .raise_for_status()
+            .json()["id"]
+        )
+        artifact = (
+            owner.post(
+                home + "api/artifacts/import",
+                json={
+                    "project_id": source,
+                    "title": "Fictional notes",
+                    "files": [{"name": "notes.md", "data_base64": "IyBOb3Rlcwo="}],
+                },
+            )
+            .raise_for_status()
+            .json()["id"]
+        )
+        invite = (
+            owner.post(
+                f"/api/workspaces/{workspace}/invitations",
+                json={
+                    "kind": "project",
+                    "resource": destination,
+                    "email": "bob@example.test",
+                    "role": "view",
+                },
+            )
+            .raise_for_status()
+            .json()["url"]
+        )
+        accept(guest, invite.split("#invite=")[1])
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(WORKSPACE + home)
+                page.get_by_role("button", name="Add project or folder").click()
+                page.get_by_role("menuitem", name="New folder", exact=True).click()
+                page.get_by_role("dialog").get_by_label("Name", exact=True).fill("Private folder")
+                page.get_by_role("button", name="Create folder", exact=True).click()
+                folder = page.locator(".project-tree-row").filter(
+                    has=page.get_by_role("button", name="Private folder", exact=True)
+                )
+                expect(folder).to_be_visible()
+                destination_row = page.locator(f'[data-tree-node="{destination}"]')
+                destination_row.drag_to(folder)
+                expect(
+                    page.locator(".project-tree-children").locator(destination_row)
+                ).to_be_visible()
+                page.reload()
+                expect(
+                    page.locator(".project-tree-children").locator(destination_row)
+                ).to_be_visible()
+                expect(destination_row.locator(".project-tree-name")).to_have_css(
+                    "white-space", "normal"
+                )
+                page.locator(f'[data-drag-artifact="{artifact}"]').drag_to(destination_row)
+                dialog = page.get_by_role("dialog", name="Move to project")
+                expect(dialog).to_be_visible()
+                expect(dialog.get_by_role("combobox")).to_have_value(destination)
+                expect(dialog.get_by_role("alert")).to_contain_text("may gain access")
+                assert guest.get(f"{home}api/artifacts/{artifact}").status_code == 404
+                dialog.get_by_role("button", name="Confirm move").click()
+                expect(dialog).to_be_hidden()
+                expect(
+                    page.get_by_role("button", name=re.compile("^Open Fictional notes.*Delivery"))
+                ).to_be_visible()
+                assert guest.get(f"{home}api/artifacts/{artifact}").is_success
+            with routed_multiplayer_context(browser, app, "bob") as context:
+                page = context.new_page()
+                page.goto(WORKSPACE + home)
+                expect(page.get_by_role("button", name="Delivery", exact=True)).to_be_visible()
+                expect(page.get_by_role("button", name="Private folder", exact=True)).to_have_count(
+                    0
+                )
+                expect(page.get_by_role("button", name="Add project or folder")).to_be_hidden()
+                expect(page.locator(f'[data-drag-artifact="{artifact}"]')).to_have_attribute(
+                    "draggable", "false"
+                )
+        finally:
+            browser.close()

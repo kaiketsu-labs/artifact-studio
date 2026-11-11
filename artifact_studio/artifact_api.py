@@ -23,6 +23,7 @@ from .design_library_api import design_library_routes
 from .feedback_previews import feedback_image_response
 from .hub_previews import cover_metadata, render_library_cover, request_cover
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
+from .multiplayer_access import Sharing
 from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .review import Reviews
@@ -40,6 +41,33 @@ class ProjectAssignment(StrictModel):
     """An explicit change to a related artifact's project membership."""
 
     project_id: str
+    access_hash: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
+
+
+def project_move_confirmation(
+    sharing: Sharing, workspace: str, artifact: ArtifactView, body: ProjectAssignment
+) -> JSONResponse | None:
+    """Require confirmation before a project move can affect inherited access."""
+    required = sharing.project_move_confirmation(
+        workspace, artifact.id, artifact.project_id, body.project_id, body.access_hash
+    )
+    if required is None:
+        return None
+    changes: list[str] = []
+    if required.destination_shared:
+        changes.append(
+            "People and agents with access through the destination project may gain access."
+        )
+    if required.source_shared:
+        changes.append("People and agents with access through the current project may lose access.")
+    return JSONResponse(
+        {
+            "detail": " ".join(changes) or "Project access changed. Confirm the move again.",
+            "code": "project-access-changed",
+            "access_hash": required.access_hash,
+        },
+        status_code=409,
+    )
 
 
 class UploadFile(StrictModel):
@@ -180,10 +208,19 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
             "delivery": {"live_available": workflow.review_connected},
         }
 
-    @router.post("/api/artifacts/{artifact_id}/project")
-    def assign_project(artifact_id: str, body: ProjectAssignment) -> ArtifactView:
+    @router.post("/api/artifacts/{artifact_id}/project", response_model=ArtifactView)
+    def assign_project(
+        request: Request, artifact_id: str, body: ProjectAssignment
+    ) -> ArtifactView | JSONResponse:
         """Group related work without relocating canonical source files."""
-        return artifacts().set_artifact_project(artifact_id, body.project_id)
+        service = artifacts()
+        sharing = getattr(request.state, "collaboration_sharing", None)
+        if isinstance(sharing, Sharing):
+            # HostedAuth already holds the collaboration file lock for this request.
+            current = service.get_artifact(artifact_id)
+            if confirmation := project_move_confirmation(sharing, "default", current, body):
+                return confirmation
+        return service.set_artifact_project(artifact_id, body.project_id)
 
     @router.post("/api/artifacts/{artifact_id}/review/disconnect")
     def end_review(artifact_id: str) -> FeedbackWorkflow:

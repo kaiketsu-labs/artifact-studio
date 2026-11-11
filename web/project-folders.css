@@ -3,7 +3,8 @@
 .hub-card.is-dragging{opacity:.5;cursor:grabbing}
 .hub-sidebar [data-project-folder].is-drop-target{background:var(--hub-soft);color:var(--hub-blue);outline:2px solid var(--hub-blue);outline-offset:-2px}
 .project-tree{margin-top:3px;min-height:60px}
-.project-tree-row{position:relative;display:flex;align-items:center;min-width:0;padding-left:calc(var(--tree-depth)*13px);border-radius:6px;cursor:grab}
+.project-tree-row{position:relative;display:flex;align-items:center;min-width:0;padding-left:calc(var(--tree-depth)*13px);border-radius:6px}
+.project-tree-row[draggable=true]{cursor:grab}
 .hub-sidebar .project-tree-row button{width:auto;margin:0;border:0;background:transparent;box-shadow:none;min-height:35px}
 :root[data-theme] .hub-sidebar .project-tree-row>button,:root[data-theme] .hub-sidebar .hub-sidebar-label>button,:root[data-theme] .project-tree-menu>button{background:transparent;color:inherit;border:0;box-shadow:none}
 :root[data-theme] .project-tree-menu>button:hover,:root[data-theme] .project-tree-menu>button:focus-visible{background:var(--hub-hover)}
@@ -13,6 +14,7 @@
 .project-tree-disclosure.is-spacer{visibility:hidden;pointer-events:none}
 .hub-sidebar .project-tree-open{flex:1;min-width:0;gap:6px;padding:7px 3px;text-align:left;justify-content:flex-start;font-size:12px}
 .project-tree-open>span:not(.hub-count):not(.project-connected-badge){flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hub-sidebar .project-tree-children .project-tree-open>.project-tree-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;white-space:normal;overflow-wrap:anywhere}
 .project-tree-open>.ui-icon{width:16px;height:16px;color:var(--hub-blue)}
 [data-node-kind=folder] .project-tree-open>.ui-icon{color:#b48a42}
 .project-tree-row:has([aria-current=true]){background:var(--hub-soft);color:var(--hub-blue)}

@@ -2,6 +2,7 @@
 
 import fcntl
 import hashlib
+import json
 import re
 import secrets
 import sqlite3
@@ -51,6 +52,15 @@ class Actor:
     @property
     def key(self) -> str:
         return self.agent or self.person
+
+
+@dataclass(frozen=True)
+class ProjectMoveConfirmation:
+    """Describe inherited access affected by moving an artifact."""
+
+    access_hash: str
+    source_shared: bool
+    destination_shared: bool
 
 
 def checksum(value: str) -> str:
@@ -324,6 +334,45 @@ class Sharing:
         if not self.owner(actor, scope.workspace):
             raise AccessDenied
         self.ancestors(scope)
+
+    def project_move_confirmation(
+        self, workspace: str, artifact: str, source: str, destination: str, expected: str
+    ) -> ProjectMoveConfirmation | None:
+        """Check the project sharing state while the caller holds the collaboration lock."""
+        if source == destination:
+            return None
+        params = (workspace, source, destination)
+        now = time.time()
+        with self.connect() as db:
+            grants = db.execute(
+                "SELECT resource,id,role FROM grants WHERE workspace=? AND kind='project' "
+                "AND resource IN (?,?) ORDER BY id",
+                params,
+            ).fetchall()
+            invites = db.execute(
+                "SELECT resource,id FROM invitations WHERE workspace=? AND kind='project' "
+                "AND resource IN (?,?) AND accepted=0 AND expires>? ORDER BY id",
+                (*params, now),
+            ).fetchall()
+            agents = db.execute(
+                "SELECT resource,id FROM agents WHERE workspace=? AND kind='project' "
+                "AND resource IN (?,?) AND revoked=0 AND expires>? ORDER BY id",
+                (*params, now),
+            ).fetchall()
+        if not (grants or invites or agents or expected):
+            return None
+        payload = [
+            workspace,
+            artifact,
+            source,
+            destination,
+            [[list(row) for row in rows] for rows in (grants, invites, agents)],
+        ]
+        current = checksum(json.dumps(payload))
+        if expected == current:
+            return None
+        shared = {cast(str, row["resource"]) for rows in (grants, invites, agents) for row in rows}
+        return ProjectMoveConfirmation(current, source in shared, destination in shared)
 
     def create_workspace(self, actor: Actor, title: str) -> str:
         title = title.strip()
