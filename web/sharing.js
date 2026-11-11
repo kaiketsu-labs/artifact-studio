@@ -18,16 +18,24 @@
   /** Mount one reusable macOS-inspired share panel for library and slide workspaces. */
   function create({doc = root.document, view = root, onError = () => {}} = {}) {
     const svg = name => view.SlideIcons.svg(name);
+    const scoped=doc.documentElement.hasAttribute('data-shared-editor');
     const dialog = doc.createElement('dialog');
     dialog.className = 'studio-share'; dialog.setAttribute('aria-labelledby','studio-share-title');
     doc.body.append(dialog);
     let target = null, format = null, includeHidden = true, prepared = null, busy = false, epoch = 0, trigger = null;
     let capabilities = null, preparing = null, nativeFile = null, generation = 0, nativeState = 'waiting';
     async function exchange(path, body) {
-      const response = await view.fetch(path, body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const response = await view.fetch(view.ArtifactSession?.path?.(path) ?? path, body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      view.ArtifactSession?.observe?.(response);view.ArtifactSession?.assertActive?.();
       const result = await response.json();
       if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Could not prepare the shared file.');
       return result;
+    }
+    async function attachmentBlob(file) {
+      const response=await view.fetch(file.download_url);
+      view.ArtifactSession?.observe?.(response);view.ArtifactSession?.assertActive?.();
+      if(!response.ok){if(prepared===file)prepared=null;throw new Error('The attachment is unavailable. Your access may have changed.');}
+      return response.blob();
     }
     function controls() {
       for (const button of dialog.querySelectorAll('[data-destination]')) {
@@ -79,9 +87,7 @@
       nativeState='preparing';controls();dialog.querySelector('.studio-share-error').hidden=true;
       try {
         const file=await prepare();if(version!==generation)return;
-        const response=await view.fetch(file.download_url);
-        if(!response.ok)throw new Error('The attachment is unavailable.');
-        const attachment=new view.File([await response.blob()],file.filename,{type:file.media_type});
+        const attachment=new view.File([await attachmentBlob(file)],file.filename,{type:file.media_type});
         if(version!==generation)return;
         const supported=canShare({files:[attachment],title:target.title},view.navigator);
         nativeFile=supported?attachment:null;
@@ -102,7 +108,9 @@
           await exchange(`/api/shares/${encodeURIComponent(file.token)}/outlook`,{});
           status('Draft opened in Outlook.');
         } else if (destination==='save') {
-          const link=doc.createElement('a');link.href=file.download_url;link.download=file.filename;doc.body.append(link);link.click();link.remove();
+          const url=scoped?view.URL.createObjectURL(await attachmentBlob(file)):file.download_url;
+          const link=doc.createElement('a');link.href=url;link.download=file.filename;doc.body.append(link);link.click();link.remove();
+          if(scoped)view.setTimeout(()=>view.URL.revokeObjectURL(url),30_000);
           status(file.filename);
         }
       } catch(error) { status('');if(error.name!=='AbortError')showError(destination==='system'?new Error('Could not open sharing. Try again or save the file.'):error); }
@@ -114,10 +122,10 @@
       const button=event.target.closest('[data-destination]');
       if(button && !button.onclick)void deliver(button.dataset.destination);
     });
-    dialog.addEventListener('close',()=>{epoch++;generation++;nativeFile=null;trigger?.focus?.();});
-    return {async open(value) {
+    dialog.addEventListener('close',()=>{epoch++;generation++;nativeFile=null;if(trigger?.isConnected)trigger.focus({preventScroll:true});});
+    return {async open(value,opener=doc.activeElement) {
       if(dialog.open || busy)return;
-      trigger=doc.activeElement;generation++;target={...value};format=null;includeHidden=true;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';busy=false;const version=++epoch;render();dialog.showModal();void warmSystem();
+      trigger=opener;generation++;target={...value};format=null;includeHidden=true;prepared=null;preparing=null;nativeFile=null;capabilities=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';busy=false;const version=++epoch;render();dialog.showModal();void warmSystem();
       try {capabilities=await exchange('/api/shares/capabilities');if(version===epoch)controls();}
       catch {if(version===epoch){capabilities={outlook:false};controls();}}
     }};

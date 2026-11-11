@@ -72,9 +72,14 @@
       }catch(reason){pending.progress='';error(reason.message,context);throw reason;}
       finally{pending.processing=false;render();}
     }
-    /** Display only same-origin download routes supplied by the feedback endpoint. */
+    /** Display attachments from the allowlisted conversation routes. */
     function sentFiles(comment){
-      const files=(comment.files||[]).map(file=>root.ChatReferences?.sent(file) || images?.sent(file) || (/^\/api\/decks\/[a-z0-9-]+\/feedback\/\d+\/files\/\d+$/.test(file.download_url)?`<a class="chat-file-chip chat-sent-file" href="${escape(file.download_url)}" download title="Download ${escape(file.name)}">${svg('attach')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${svg('down')}</a>`:'')).join('');
+      const files=(comment.files||[]).map(file=>{
+        const reference=!comment.scoped&&root.ChatReferences?.sent(file);if(reference)return reference;
+        const image=images?.sent(file);if(image)return image;
+        const url=root.ChatImages?.downloadURL(file.download_url);
+        return url?`<a class="chat-file-chip chat-sent-file" href="${escape(url)}" download title="Download ${escape(file.name)}">${svg('attach')}<span class="chat-file-description"><span class="chat-file-name">${escape(file.name)}</span><small>${sizeLabel(file.size)}</small></span>${svg('down')}</a>`:'';
+      }).join('');
       return files?`<div class="chat-sent-images">${files}</div>`:'';
     }
 

@@ -1,9 +1,10 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+require('../web/chat-images.js');
 const {create,selectionError,sizeLabel}=require('../web/chat-composer.js');
 
 function node(){return {innerHTML:'',textContent:'',disabled:false,classList:{toggle(){},add(){},remove(){}},setAttribute(){},contains(){return false;},events:{},addEventListener(name,fn){this.events[name]=fn;},click(){this.clicked=true;}};}
-function fixture(){let current='deck/slide-1',changed=0;const elements=Object.fromEntries(['form','input','attachButton','fileInput','filesList','error','status'].map(name=>[name,node()]));const chat=create({...elements,key:()=>current,escape:value=>String(value).replace(/[<>"&]/g,''),svg:()=>'',onChange:()=>changed++});return {chat,elements,setKey:value=>current=value,changes:()=>changed};}
+function fixture(){let current='deck/slide-1',changed=0;const elements=Object.fromEntries(['form','input','attachButton','fileInput','filesList','error','status'].map(name=>[name,node()]));elements.filesList.ownerDocument=node();const chat=create({...elements,key:()=>current,escape:value=>String(value).replace(/[<>"&]/g,''),svg:()=>'',onChange:()=>changed++});return {chat,elements,setKey:value=>current=value,changes:()=>changed};}
 
 test('limits reject the entire new selection and allow exact boundaries',()=>{
   assert.equal(selectionError(Array.from({length:5},()=>({size:10000000}))), '');
@@ -41,10 +42,12 @@ test('read progress and retry preserve the original files after failures',async(
   }finally{global.FileReader=previous;}
 });
 
-test('history exposes only local feedback download routes',()=>{
+test('history exposes only local conversation download routes',()=>{
   const {chat}=fixture();
   const file={name:'reference.pdf',size:5,download_url:'/api/decks/demo/feedback/1/files/0'};
   assert.match(chat.sentFiles({files:[file]}),/download/);
+  const scopedURL='/api/workspaces/default/artifacts/demo/chat/2/files/0';
+  assert.ok(chat.sentFiles({scoped:true,files:[{...file,download_url:scopedURL}]}).includes(`href="${scopedURL}" download`));
   assert.equal(chat.sentFiles({files:[{...file,download_url:'https://external.example/private.pdf'}]}),'');
 });
 

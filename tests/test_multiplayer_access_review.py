@@ -1,5 +1,6 @@
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 
@@ -127,3 +128,27 @@ def test_old_invitation_cannot_override_newer_role(setup: Fixture) -> None:
     with pytest.raises(AccessDenied):
         sharing.accept(alice, old["token"])
     assert sharing.level(alice, scope) == 1
+
+
+def test_personal_provisioning_keeps_existing_subject_and_is_idempotent(setup: Fixture) -> None:
+    """Enable provisioning for a registered guest without transferring any grants."""
+    previous, owner, alice, bob, _, artifact, _ = setup
+    invite(
+        previous, owner, alice, Scope("default", "artifact", artifact), "alice@example.test", "view"
+    )
+    kwargs = {"personal_workspace_emails": ("alice@example.test",)}
+    first = Sharing(previous.root, previous.store("default"), previous.owner_email, **kwargs)
+    second = Sharing(previous.root, previous.store("default"), previous.owner_email, **kwargs)
+    principal = Principal("alice", "alice@example.test")
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = [executor.submit(hub.human, principal) for hub in (first, second)]
+        assert [result.result() for result in results] == [alice, alice]
+    with first.connect() as db:
+        rows = db.execute("SELECT id FROM workspaces WHERE owner=?", (alice.person,)).fetchall()
+    assert len(rows) == 1
+    scope = Scope(cast(str, rows[0]["id"]))
+    assert first.owner(alice, scope.workspace)
+    assert first.level(owner, scope) == first.level(bob, scope) == 0
+    assert first.level(alice, Scope("default", "artifact", artifact)) == 1
+    with pytest.raises(AccessDenied):
+        second.human(Principal("different-subject", "alice@example.test"))

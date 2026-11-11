@@ -19,7 +19,7 @@
     return {start,end,query};
   }
   async function api(body){
-    const response=await fetch('/api/chat-references',body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});
+    const response=await fetch(root.ArtifactSession?.path?.('/api/chat-references') ?? '/api/chat-references',body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});
     if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.detail==='string'?data.detail:'Could not load references. Type @ to retry.');}
     return response.json();
   }

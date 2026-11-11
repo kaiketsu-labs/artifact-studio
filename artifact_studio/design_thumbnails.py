@@ -31,6 +31,19 @@ THUMBNAIL_SUFFIXES = _POWERPOINT_SUFFIXES | {
 }
 
 
+_THUMBNAIL_ERRORS = (
+    OSError,
+    ValueError,
+    BadZipFile,
+    RuntimeError,
+    NotImplementedError,
+    EOFError,
+    zlib.error,
+    Image.DecompressionBombError,
+    Image.DecompressionBombWarning,
+)
+
+
 def _embedded_thumbnail(path: Path) -> io.BytesIO:
     """Read a single bounded thumbnail from an Office container."""
     if path.stat().st_size > _MAX_ARCHIVE_BYTES:
@@ -53,6 +66,32 @@ def _embedded_thumbnail(path: Path) -> io.BytesIO:
         return io.BytesIO(data)
 
 
+def _render_raster(source: Path | io.BytesIO, formats: list[str], maximum: int) -> bytes:
+    """Decode an allowlisted first frame and encode a fresh PNG."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", Image.DecompressionBombWarning)
+        with Image.open(source, formats=formats) as image:
+            if image.width * image.height > _MAX_PIXELS:
+                raise ValueError("Image dimensions too large")
+            oriented = ImageOps.exif_transpose(image)
+            oriented.thumbnail((maximum, maximum))
+            has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
+            raster = oriented.convert("RGBA" if has_alpha else "RGB")
+            output = io.BytesIO()
+            raster.save(output, format="PNG")
+            return output.getvalue()
+
+
+def raster_thumbnail(data: bytes, *, maximum: int = 640) -> bytes:
+    """Create an inert raster thumbnail from bounded attachment bytes."""
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise FileNotFoundError("No thumbnail available.")
+    try:
+        return _render_raster(io.BytesIO(data), _RASTER_FORMATS, maximum)
+    except _THUMBNAIL_ERRORS as error:
+        raise FileNotFoundError("No thumbnail available.") from error
+
+
 def design_thumbnail(path: Path, *, filename: str = "", maximum: int = 640) -> bytes:
     """Return a bounded first-frame PNG or signal that no preview is available."""
     try:
@@ -65,27 +104,6 @@ def design_thumbnail(path: Path, *, filename: str = "", maximum: int = 640) -> b
                 raise ValueError("Unsupported or oversized image")
             source = path
             formats = _RASTER_FORMATS
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(source, formats=formats) as image:
-                if image.width * image.height > _MAX_PIXELS:
-                    raise ValueError("Image dimensions too large")
-                oriented = ImageOps.exif_transpose(image)
-                oriented.thumbnail((maximum, maximum))
-                has_alpha = "A" in oriented.getbands() or "transparency" in oriented.info
-                raster = oriented.convert("RGBA" if has_alpha else "RGB")
-                output = io.BytesIO()
-                raster.save(output, format="PNG")
-                return output.getvalue()
-    except (
-        OSError,
-        ValueError,
-        BadZipFile,
-        RuntimeError,
-        NotImplementedError,
-        EOFError,
-        zlib.error,
-        Image.DecompressionBombError,
-        Image.DecompressionBombWarning,
-    ) as error:
+        return _render_raster(source, formats, maximum)
+    except _THUMBNAIL_ERRORS as error:
         raise FileNotFoundError("No thumbnail available.") from error

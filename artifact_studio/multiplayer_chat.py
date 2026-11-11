@@ -2,23 +2,45 @@
 
 import json
 import secrets
+import shutil
 import sqlite3
 import time
-from typing import Literal, cast
+from hashlib import sha256
+from typing import Literal, TypedDict, cast
+from urllib.parse import quote
 
 from .artifact_models import ArtifactTarget
 from .artifacts import ArtifactStore
+from .models import FileInput
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, checksum
 from .review import ReviewHookInput
-from .storage import ConflictError
+from .storage import ConflictError, decode_attachments
 
 Channel = Literal["shared", "private"]
+_WORKSPACE_FILE_LIMIT = 1024**3
+_HOST_FILE_LIMIT = 4 * 1024**3
+_MINIMUM_DISK_FREE = 1024**3
+
+
+class ChatFile(TypedDict):
+    """Attachment metadata exposed with a visible conversation message."""
+
+    name: str
+    size: int
+    sha256: str
+    index: int
+
+
+def chat_file_url(workspace: str, artifact: str, event: int, index: int) -> str:
+    """Build a download URL on the authenticated workspace origin."""
+    root = f"/api/workspaces/{quote(workspace, safe='')}/artifacts/{quote(artifact, safe='')}"
+    return f"{root}/chat/{event}/files/{index}"
 
 
 class Conversations:
     def __init__(self, sharing: Sharing) -> None:
         self.sharing = sharing
-        with sharing.connect() as db:
+        with sharing.locked(), sharing.connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS conversations (
                   id INTEGER PRIMARY KEY AUTOINCREMENT, workspace TEXT NOT NULL,
@@ -30,6 +52,11 @@ class Conversations:
                   created REAL NOT NULL, completed INTEGER NOT NULL DEFAULT 0,
                   claim TEXT NOT NULL DEFAULT '', claimant TEXT NOT NULL DEFAULT '',
                   claim_expires REAL NOT NULL DEFAULT 0);
+                CREATE TABLE IF NOT EXISTS chat_attachments (
+                  message INTEGER NOT NULL, file_index INTEGER NOT NULL, content BLOB NOT NULL,
+                  PRIMARY KEY(message,file_index));
+                CREATE TABLE IF NOT EXISTS chat_attachment_usage (
+                  workspace TEXT PRIMARY KEY, bytes INTEGER NOT NULL);
                 CREATE INDEX IF NOT EXISTS conversation_scope
                   ON conversations(workspace,artifact,id);
                 CREATE TABLE IF NOT EXISTS chat_delivery (
@@ -49,11 +76,20 @@ class Conversations:
                   artifact TEXT NOT NULL, expires REAL NOT NULL,
                   PRIMARY KEY(agent,session));
             """)
+            if not any(
+                row["name"] == "files" for row in db.execute("PRAGMA table_info(conversations)")
+            ):
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN files TEXT NOT NULL DEFAULT '[]'"
+                )
 
     @staticmethod
     def _public(row: sqlite3.Row) -> dict[str, object]:
-        return {
-            key: row[key]
+        files = cast(list[ChatFile], json.loads(cast(str, row["files"])))
+        workspace, artifact = cast(str, row["workspace"]), cast(str, row["artifact"])
+        event = cast(int, row["id"])
+        public: dict[str, object] = {
+            key: cast(object, row[key])
             for key in (
                 "id",
                 "channel",
@@ -67,10 +103,20 @@ class Conversations:
                 "created",
                 "completed",
             )
-        } | {
-            "target": json.loads(cast(str, row["target"])),
-            "cursor": dict(row).get("cursor", row["id"]),
         }
+        public.update(
+            {
+                "target": json.loads(cast(str, row["target"])),
+                "cursor": dict(row).get("cursor", row["id"]),
+                "files": [
+                    dict(
+                        file, download_url=chat_file_url(workspace, artifact, event, file["index"])
+                    )
+                    for file in files
+                ],
+            }
+        )
+        return public
 
     @staticmethod
     def _visible(actor: Actor, row: sqlite3.Row) -> bool:
@@ -104,6 +150,29 @@ class Conversations:
                 self._public(row) | {"author_name": row["author_name"]} for row in reversed(rows)
             ]
 
+    def _reserve_attachments(self, db: sqlite3.Connection, workspace: str, total: int) -> None:
+        """Reserve bounded storage in the same transaction as the message."""
+        if not total:
+            return
+        row = db.execute(
+            "SELECT COALESCE(SUM(bytes),0) AS used, "
+            "COALESCE(SUM(CASE WHEN workspace=? THEN bytes END),0) AS workspace_used "
+            "FROM chat_attachment_usage",
+            (workspace,),
+        ).fetchone()
+        assert row is not None
+        if (
+            cast(int, row["workspace_used"]) + total > _WORKSPACE_FILE_LIMIT
+            or cast(int, row["used"]) + total > _HOST_FILE_LIMIT
+            or shutil.disk_usage(self.sharing.root).free < _MINIMUM_DISK_FREE + 2 * total
+        ):
+            raise ConflictError("Shared chat storage is full.")
+        _ = db.execute(
+            "INSERT INTO chat_attachment_usage VALUES (?,?) ON CONFLICT(workspace) "
+            "DO UPDATE SET bytes=bytes+excluded.bytes",
+            (workspace, total),
+        )
+
     def post(
         self,
         actor: Actor,
@@ -115,13 +184,24 @@ class Conversations:
         released: bool = True,
         target: ArtifactTarget | None = None,
         content_hash: str = "",
+        files: list[FileInput] | None = None,
     ) -> dict[str, object]:
-        if not message.strip() or len(message) > 10000:
-            raise ValueError("Use a message of 1–10000 characters.")
+        if (not message.strip() and not files) or len(message) > 10000:
+            raise ValueError("Write a message or attach a file.")
         with self.sharing.guard(actor, scope, "edit" if assigned else "comment") as store:
             if actor.agent:
                 raise AccessDenied
             item = ArtifactStore(store).get_artifact(scope.resource)
+            attachments = decode_attachments(files or [])
+            metadata: list[ChatFile] = [
+                {
+                    "name": name,
+                    "size": len(data),
+                    "sha256": sha256(data).hexdigest(),
+                    "index": index,
+                }
+                for index, (name, data) in enumerate(attachments)
+            ]
             operation = self.sharing.request_id(actor, request_id)
             payload = checksum(
                 json.dumps(
@@ -134,6 +214,7 @@ class Conversations:
                         released,
                         target.model_dump() if target else None,
                         content_hash,
+                        *([metadata] if metadata else []),
                     ],
                     sort_keys=True,
                 )
@@ -155,10 +236,13 @@ class Conversations:
                     if channel == "private" and recipient.person != actor.person:
                         raise AccessDenied
                     self.sharing.require(recipient, scope, "edit")
+                self._reserve_attachments(
+                    db, scope.workspace, sum(file["size"] for file in metadata)
+                )
                 cursor = db.execute(
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
-                    "target,content_hash,assigned,released,request_id,payload,created) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "target,content_hash,assigned,released,request_id,payload,created,files) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -173,7 +257,15 @@ class Conversations:
                         operation,
                         payload,
                         time.time(),
+                        json.dumps(metadata),
                     ),
+                )
+                _ = db.executemany(
+                    "INSERT INTO chat_attachments VALUES (?,?,?)",
+                    [
+                        (cursor.lastrowid, index, data)
+                        for index, (_, data) in enumerate(attachments)
+                    ],
                 )
                 row = db.execute(
                     "SELECT c.*,d.id AS cursor FROM conversations c "
@@ -182,6 +274,41 @@ class Conversations:
                 ).fetchone()
                 assert row is not None
                 return self._public(row)
+
+    def attachment(
+        self,
+        actor: Actor,
+        scope: Scope,
+        event: int,
+        index: int,
+        offset: int = 0,
+        maximum: int = 25_000_000,
+    ) -> tuple[ChatFile, bytes]:
+        """Read only the requested bytes of a currently visible message attachment."""
+        if not 1 <= event <= 2**63 - 1 or not 0 <= index < 5 or not 0 <= offset <= 25_000_000:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            message = db.execute(
+                "SELECT channel,person,released,files FROM conversations "
+                "WHERE id=? AND workspace=? AND artifact=?",
+                (event, scope.workspace, scope.resource),
+            ).fetchone()
+            if message is None or not self._visible(actor, message):
+                raise AccessDenied
+            files = cast(list[ChatFile], json.loads(cast(str, message["files"])))
+            if index >= len(files):
+                raise AccessDenied
+            metadata = files[index]
+            if offset > metadata["size"]:
+                raise ValueError("Attachment offset is out of range.")
+            row = db.execute(
+                "SELECT substr(content,?,?) AS page FROM chat_attachments "
+                "WHERE message=? AND file_index=?",
+                (offset + 1, maximum, event, index),
+            ).fetchone()
+            if row is None:
+                raise AccessDenied
+            return metadata, cast(bytes, row["page"])
 
     def release(self, actor: Actor, scope: Scope, channel: Channel) -> None:
         with self.sharing.guard(actor, scope, "comment"), self.sharing.connect() as db:

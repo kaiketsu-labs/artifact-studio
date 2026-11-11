@@ -1,6 +1,11 @@
 """Authenticated, bounded transport for the separate multiplayer application."""
 
 import asyncio
+import re
+import tempfile
+from collections.abc import Awaitable, Callable
+from shutil import disk_usage
+from typing import cast
 from urllib.parse import urlsplit
 
 from fastapi.responses import JSONResponse
@@ -8,22 +13,106 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .authentication import AuthenticationError, AuthProvider
+from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
-from .multiplayer_access import AccessDenied, Sharing
+from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
+from .multiplayer_access import Scope as GrantScope
+
+_CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
+_CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
+_REQUEST_LIMIT = 2 * 1024 * 1024
+_CHAT_LIMIT = 68 * 1024 * 1024
+_OWNER_UPLOAD_LIMITS = {
+    "/api/artifacts/import": 140 * 1024 * 1024,
+    "/api/decks": _CHAT_LIMIT,
+    "/api/design-library": _CHAT_LIMIT,
+}
+_DESIGN_FILES = re.compile(
+    r"/api/(?:design-library/[a-z0-9][a-z0-9-]{0,99}/files|"
+    r"designs/[a-z0-9][a-z0-9-]{0,99}/references)"
+)
+_DESIGN_TEXT = re.compile(r"/api/design-library/[a-z0-9][a-z0-9-]{0,99}/files/edit")
+IMPORT_DISK_RESERVE = 512 * 1024 * 1024
+
+
+def owner_upload_limit(path: str) -> int | None:
+    """Allow larger bodies only on the explicit owner upload routes."""
+    if _DESIGN_FILES.fullmatch(path):
+        return _CHAT_LIMIT
+    if _DESIGN_TEXT.fullmatch(path):
+        return 7 * 1024 * 1024
+    return _OWNER_UPLOAD_LIMITS.get(path)
 
 
 class MultiplayerAuth:
     def __init__(
-        self, app: ASGIApp, config: DeploymentConfig, provider: AuthProvider, sharing: Sharing
+        self,
+        app: ASGIApp,
+        config: DeploymentConfig,
+        provider: AuthProvider,
+        sharing: Sharing,
+        *,
+        shared_shell: bool = False,
     ) -> None:
         self.app, self.config, self.provider, self.sharing = app, config, provider, sharing
         self.host = urlsplit(config.public_url).netloc
         self.preview = urlsplit(config.preview_url).netloc
+        self.shared_shell = shared_shell
         self.slots = asyncio.Semaphore(8)
+        self.asset_slots = asyncio.Semaphore(16)
+        self.asset_waiters = 0
         self.hook_slots = asyncio.Semaphore(8)
         self.agent_slots = asyncio.Semaphore(4)
         self.preview_slots = asyncio.Semaphore(4)
+        self.chat_upload_slot = asyncio.Semaphore(1)
+        self.chat_download_slots = asyncio.Semaphore(2)
+        self.owner_upload_slot = asyncio.Semaphore(1)
+
+    async def _receive_owner_upload(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        reject: Callable[[int, str], Awaitable[None]],
+        limit: int,
+        label: str,
+    ) -> None:
+        """Stage a bounded owner upload before parsing its attachments."""
+        if disk_usage(self.sharing.root).free < limit + IMPORT_DISK_RESERVE:
+            await reject(507, "Not enough workspace storage for these files.")
+            return
+        with tempfile.TemporaryFile(dir=self.sharing.root) as staged:
+            size = 0
+            try:
+                async with asyncio.timeout(120):
+                    while True:
+                        message = await receive()
+                        if message["type"] == "http.disconnect":
+                            return
+                        chunk = message.get("body", b"")
+                        size += len(chunk)
+                        if size > limit:
+                            await reject(413, f"{label} request is too large.")
+                            return
+                        _ = await run_in_threadpool(staged.write, chunk)
+                        if not message.get("more_body", False):
+                            break
+            except TimeoutError:
+                await reject(408, f"{label} request timed out.")
+                return
+            _ = staged.seek(0)
+            remaining, delivered = size, False
+
+            async def replay() -> Message:
+                nonlocal remaining, delivered
+                if delivered and not remaining:
+                    return await receive()
+                delivered = True
+                data = await run_in_threadpool(staged.read, min(remaining, 64 * 1024))
+                remaining -= len(data)
+                return {"type": "http.request", "body": data, "more_body": remaining > 0}
+
+            await self.app(scope, replay, send)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
@@ -34,6 +123,7 @@ class MultiplayerAuth:
             return
         headers = Headers(scope=scope)
         path, method = scope["path"], scope["method"]
+        chat_write = _CHAT.fullmatch(path) if method == "POST" else None
         hosts = headers.getlist("host")
         host = hosts[0].lower() if len(hosts) == 1 else ""
 
@@ -65,7 +155,7 @@ class MultiplayerAuth:
             if path.startswith("/_preview/"):
                 await reject(404, "Not found")
                 return
-            agent_path = path in {"/mcp", "/mcp/", "/api/review/hooks"}
+            agent_path = not self.shared_shell and path in {"/mcp", "/mcp/", "/api/review/hooks"}
             origins = headers.getlist("origin")
             if (agent_path and origins) or (
                 method not in {"GET", "HEAD"}
@@ -87,8 +177,17 @@ class MultiplayerAuth:
                         raise AccessDenied
                     actor = self.sharing.agent(authorization[7:])
                 else:
-                    principal = await self.provider.authenticate(headers)
+                    verified = (
+                        scope.get("state", {}).get("verified_guest") if self.shared_shell else None
+                    )
+                    principal = (
+                        verified
+                        if isinstance(verified, Principal)
+                        else await self.provider.authenticate(headers)
+                    )
                     actor = await run_in_threadpool(self.sharing.human, principal)
+                    if self.shared_shell:
+                        scope.setdefault("state", {})["verified_guest"] = principal
                 scope.setdefault("state", {})["actor"] = actor
             except AuthenticationError, AccessDenied, ValueError:
                 await reject(401, "Authentication required")
@@ -122,43 +221,109 @@ class MultiplayerAuth:
                     (b"referrer-policy", b"no-referrer"),
                 ]
                 if not any(key.lower() == b"content-security-policy" for key, _ in current):
+                    origin = self.config.public_url
+                    style = " 'unsafe-inline'" if self.shared_shell else ""
+                    frames = ""
+                    if self.shared_shell:
+                        workspace = scope.get("state", {}).get("editor_workspace", "default")
+                        prefix = workspace_editor_path(str(workspace))
+                        frames = (
+                            f"{origin}{prefix}api/artifacts/ {origin}{prefix}api/decks/ "
+                            f"{origin}{prefix}api/designs/ "
+                            f"{origin}{prefix}decks/ about: "
+                        )
+                    base = "'self'" if self.shared_shell else "'none'"
+                    images = "img-src 'self' data: blob:; " if self.shared_shell else ""
                     policy = (
-                        "default-src 'self'; script-src 'self'; style-src 'self'; "
-                        f"frame-src {self.config.public_url}/api/workspaces/ "
+                        f"default-src 'self'; script-src 'self'; style-src 'self'{style}; "
+                        f"{images}"
+                        f"frame-src {frames}{origin}/api/workspaces/ "
                         f"{self.config.preview_url}/_preview/; "
-                        "object-src 'none'; base-uri 'none'; form-action 'self'; "
+                        f"object-src 'none'; base-uri {base}; form-action 'self'; "
                         "frame-ancestors 'none'"
                     )
                     current.append((b"content-security-policy", policy.encode()))
                 message["headers"] = current
             await send(message)
 
+        # Keep cold editor asset loads out of the shared data request budget.
+        asset = (
+            self.shared_shell
+            and host == self.host
+            and method in {"GET", "HEAD"}
+            and path.startswith(("/web/", "/runtime/"))
+        )
+        if asset and self.asset_waiters >= 256:
+            await reject(429, "Server busy. Retry shortly.")
+            return
+        upload_limit = (
+            owner_upload_limit(path)
+            if self.shared_shell and host == self.host and method == "POST"
+            else None
+        )
+        if upload_limit is not None:
+            actor = cast(Actor, scope["state"]["actor"])
+            workspace = cast(str, scope["state"].get("editor_workspace", "default"))
+            if not await run_in_threadpool(self.sharing.owner, actor, workspace):
+                await reject(404, "Not found")
+                return
+            if self.owner_upload_slot.locked():
+                await reject(429, "An upload is in progress. Try again shortly.")
+                return
+            async with self.owner_upload_slot:
+                label = "Import" if path == "/api/artifacts/import" else "Upload"
+                await self._receive_owner_upload(
+                    scope, receive, secure_send, reject, upload_limit, label
+                )
+            return
         # Admit before buffering to bound memory even with many slow connections.
         slots = (
             self.preview_slots
             if host == self.preview
+            else self.asset_slots
+            if asset
+            else self.chat_upload_slot
+            if chat_write is not None
+            else self.chat_download_slots
+            if _CHAT_FILE.fullmatch(path)
             else self.hook_slots
             if path == "/api/review/hooks"
             else self.agent_slots
             if path in {"/mcp", "/mcp/"}
             else self.slots
         )
+        if asset:
+            self.asset_waiters += 1
         try:
-            await asyncio.wait_for(slots.acquire(), timeout=1)
+            await asyncio.wait_for(slots.acquire(), timeout=10 if asset else 1)
         except TimeoutError:
             await reject(429, "Server busy. Retry shortly.")
             return
+        finally:
+            if asset:
+                self.asset_waiters -= 1
         try:
+            if chat_write is not None:
+                # Reject out-of-scope uploads before allocating a request body.
+                actor = cast(Actor, scope["state"]["actor"])
+                grant = GrantScope(chat_write[1], "artifact", chat_write[2])
+                try:
+                    await run_in_threadpool(self.sharing.require, actor, grant, "comment")
+                except AccessDenied:
+                    await reject(404, "Not found")
+                    return
             data = bytearray()
-            async with asyncio.timeout(15):
+            limit = _CHAT_LIMIT if chat_write is not None else _REQUEST_LIMIT
+            async with asyncio.timeout(120 if chat_write is not None else 15):
                 while True:
                     message = await receive()
                     if message["type"] == "http.disconnect":
                         return
-                    data.extend(message.get("body", b""))
-                    if len(data) > 2 * 1024 * 1024:
-                        await reject(413, "Request exceeds 2 MiB")
+                    chunk = message.get("body", b"")
+                    if len(data) + len(chunk) > limit:
+                        await reject(413, f"Request exceeds {limit // (1024 * 1024)} MiB")
                         return
+                    data.extend(chunk)
                     if not message.get("more_body", False):
                         break
             delivered = False
@@ -168,7 +333,9 @@ class MultiplayerAuth:
                 if delivered:
                     return await receive()
                 delivered = True
-                return {"type": "http.request", "body": bytes(data), "more_body": False}
+                body = bytes(data)
+                data.clear()
+                return {"type": "http.request", "body": body, "more_body": False}
 
             await self.app(scope, replay, secure_send)
         except TimeoutError:

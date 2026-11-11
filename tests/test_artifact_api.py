@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 
 from artifact_studio import app as service
-from artifact_studio import artifact_api, hub_previews
 from artifact_studio import artifacts as artifact_module
+from artifact_studio import hub_previews
 from artifact_studio.artifact_models import (
     ArtifactFile,
     ArtifactFileInput,
@@ -105,7 +105,7 @@ def test_cover_cache_publishes_atomically_without_blocking_warm_covers(
         Path(dst).write_bytes(Path(src).read_bytes())
         return str(dst)
 
-    monkeypatch.setattr(artifact_api, "capture_artifact_image", fake_capture)
+    monkeypatch.setattr(hub_previews, "capture_artifact_image", fake_capture)
     monkeypatch.setattr(hub_previews.shutil, "copyfile", slow_copy)
     url = cover_url(cold.id, cold_token)
     assert client.get(url).status_code == 202

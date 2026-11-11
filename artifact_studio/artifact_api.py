@@ -5,6 +5,8 @@ import binascii
 import mimetypes
 import tempfile
 from collections.abc import Callable
+from contextlib import nullcontext
+from functools import partial
 from pathlib import Path
 from typing import Annotated
 
@@ -12,30 +14,20 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import Field
 
-from .artifact_capture import capture_artifact_image
 from .artifact_context import artifact_context
 from .artifact_models import ArtifactFeedback, ArtifactFeedbackInput, ArtifactView, ProjectView
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore, relative_path
-from .design_library import (
-    PREVIEW_TYPES,
-    DesignCreate,
-    DesignDelete,
-    DesignDetail,
-    DesignLibrary,
-    DesignTextEdit,
-)
-from .design_references import ReferenceInput, RemoveReferenceInput
-from .design_thumbnails import THUMBNAIL_SUFFIXES
-from .design_thumbnails import design_thumbnail as make_design_thumbnail
+from .design_library import DesignLibrary
+from .design_library_api import design_library_routes
 from .feedback_previews import feedback_image_response
-from .hub_previews import cover_metadata, request_cover
+from .hub_previews import cover_metadata, render_library_cover, request_cover
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel
+from .multiplayer_access import Sharing
 from .navigation import Navigation, NavigationSnapshot, NavigationVisit
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .review import Reviews
 from .storage import Store
-from .visuals import capture
 
 
 class ProjectInput(StrictModel):
@@ -49,6 +41,33 @@ class ProjectAssignment(StrictModel):
     """An explicit change to a related artifact's project membership."""
 
     project_id: str
+    access_hash: str = Field(default="", pattern=r"^(?:[a-f0-9]{64})?$")
+
+
+def project_move_confirmation(
+    sharing: Sharing, workspace: str, artifact: ArtifactView, body: ProjectAssignment
+) -> JSONResponse | None:
+    """Require confirmation before a project move can affect inherited access."""
+    required = sharing.project_move_confirmation(
+        workspace, artifact.id, artifact.project_id, body.project_id, body.access_hash
+    )
+    if required is None:
+        return None
+    changes: list[str] = []
+    if required.destination_shared:
+        changes.append(
+            "People and agents with access through the destination project may gain access."
+        )
+    if required.source_shared:
+        changes.append("People and agents with access through the current project may lose access.")
+    return JSONResponse(
+        {
+            "detail": " ".join(changes) or "Project access changed. Confirm the move again.",
+            "code": "project-access-changed",
+            "access_hash": required.access_hash,
+        },
+        status_code=409,
+    )
 
 
 class UploadFile(StrictModel):
@@ -75,11 +94,13 @@ class ArtifactApproval(SlideSeenInput):
     approved: bool = True
 
 
-def import_upload(artifacts: ArtifactStore, body: ArtifactImport) -> ArtifactView:
+def import_upload(
+    artifacts: ArtifactStore, body: ArtifactImport, *, staging_root: Path | None = None
+) -> ArtifactView:
     """Validate all uploaded paths and bytes before registering a durable owned copy."""
     paths: set[str] = set()
     total = 0
-    with tempfile.TemporaryDirectory(prefix="artifact-import-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="artifact-import-", dir=staging_root) as temporary:
         folder = Path(temporary)
         for file in body.files:
             name = relative_path(file.name)
@@ -161,83 +182,7 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
         """Organize projects and nested folders without changing artifact membership."""
         return ProjectTree(get_store()).change(body)
 
-    @router.get("/api/design-library/deleted")
-    def deleted_designs() -> list[dict[str, object]]:
-        return [item.model_dump() for item in DesignLibrary(get_store()).deleted()]
-
-    @router.get("/api/design-library/{design_id}")
-    def design_context(design_id: str) -> DesignDetail:
-        return DesignLibrary(get_store()).get(design_id)
-
-    @router.post("/api/design-library/{design_id}/default")
-    def default_design(design_id: str) -> dict[str, str]:
-        """Choose the workspace default for future presentations without changing existing work."""
-        store = get_store()
-        return {"default_design_id": store.set_default_design(design_id)}
-
-    @router.post("/api/design-library")
-    def add_design(body: DesignCreate) -> DesignDetail:
-        return DesignLibrary(get_store()).create(body)
-
-    @router.post("/api/design-library/{design_id}/files")
-    def attach_design_files(design_id: str, body: ReferenceInput) -> DesignDetail:
-        return DesignLibrary(get_store()).attach(design_id, body)
-
-    @router.post("/api/design-library/{design_id}/files/remove")
-    def remove_design_file(design_id: str, body: RemoveReferenceInput) -> DesignDetail:
-        return DesignLibrary(get_store()).remove_file(design_id, body)
-
-    @router.post("/api/design-library/{design_id}/files/edit")
-    def edit_design_text(design_id: str, body: DesignTextEdit) -> DesignDetail:
-        """Save a human-edited source without overwriting a newer agent or filesystem edit."""
-        return DesignLibrary(get_store()).edit_text(design_id, body)
-
-    @router.post("/api/design-library/{design_id}/delete")
-    def delete_design(design_id: str, body: DesignDelete) -> dict[str, bool]:
-        DesignLibrary(get_store()).delete(design_id, body)
-        return {"deleted": True}
-
-    @router.post("/api/design-library/{design_id}/restore")
-    def restore_design(design_id: str) -> DesignDetail:
-        return DesignLibrary(get_store()).restore(design_id)
-
-    @router.get("/api/design-library/{design_id}/files/{path:path}")
-    def download_design_file(design_id: str, path: str) -> FileResponse:
-        target = DesignLibrary(get_store()).file(design_id, path)
-        return FileResponse(target, filename=target.name, media_type="application/octet-stream")
-
-    @router.get("/api/design-library/{design_id}/thumbnail/{path:path}")
-    def design_thumbnail(design_id: str, path: str) -> Response:
-        """Serve a bounded raster preview for an inventoried image or PowerPoint."""
-        target = DesignLibrary(get_store()).file(design_id, path)
-        if target.suffix.lower() not in THUMBNAIL_SUFFIXES:
-            raise FileNotFoundError("No thumbnail available.")
-        headers = {
-            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
-            "X-Content-Type-Options": "nosniff",
-            "Cache-Control": "private, no-store",
-        }
-        try:
-            data = make_design_thumbnail(target)
-        except FileNotFoundError:
-            return Response(status_code=204, headers=headers)
-        return Response(data, media_type="image/png", headers=headers)
-
-    @router.get("/api/design-library/{design_id}/image/{path:path}")
-    def design_image(design_id: str, path: str) -> FileResponse:
-        """Show only inert image formats in design cards; originals remain downloads."""
-        target = DesignLibrary(get_store()).file(design_id, path)
-        media_type = PREVIEW_TYPES.get(target.suffix.lower())
-        if not media_type:
-            raise ValueError("Choose an image from the design context.")
-        return FileResponse(
-            target,
-            media_type=media_type,
-            headers={
-                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
-                "X-Content-Type-Options": "nosniff",
-            },
-        )
+    router.include_router(design_library_routes(lambda _: nullcontext(get_store())))
 
     @router.get("/api/hub/context")
     def context(artifact_id: str = "", project_id: str = "") -> dict[str, object]:
@@ -263,10 +208,19 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
             "delivery": {"live_available": workflow.review_connected},
         }
 
-    @router.post("/api/artifacts/{artifact_id}/project")
-    def assign_project(artifact_id: str, body: ProjectAssignment) -> ArtifactView:
+    @router.post("/api/artifacts/{artifact_id}/project", response_model=ArtifactView)
+    def assign_project(
+        request: Request, artifact_id: str, body: ProjectAssignment
+    ) -> ArtifactView | JSONResponse:
         """Group related work without relocating canonical source files."""
-        return artifacts().set_artifact_project(artifact_id, body.project_id)
+        service = artifacts()
+        sharing = getattr(request.state, "collaboration_sharing", None)
+        if isinstance(sharing, Sharing):
+            # HostedAuth already holds the collaboration file lock for this request.
+            current = service.get_artifact(artifact_id)
+            if confirmation := project_move_confirmation(sharing, "default", current, body):
+                return confirmation
+        return service.set_artifact_project(artifact_id, body.project_id)
 
     @router.post("/api/artifacts/{artifact_id}/review/disconnect")
     def end_review(artifact_id: str) -> FeedbackWorkflow:
@@ -382,34 +336,13 @@ def artifact_routes(get_store: Callable[[], Store]) -> APIRouter:
     @router.get("/api/hub/previews/{artifact_id}")
     def thumbnail(artifact_id: str, request: Request) -> Response:
         """Serve a saved exact-version cover or queue one bounded background update."""
-        service = artifacts()
         store = get_store()
-
-        def render(view: ArtifactView, output: Path) -> Path:
-            """Keep original capture geometry and source files; intermediates are temporary."""
-            if view.kind == "image":
-                source = service.resolve_file(view.id, view.entrypoint, revision=view.revision)
-                target = output / "raster.png"
-                _ = target.write_bytes(make_design_thumbnail(source, maximum=1280))
-                return target
-            if view.legacy_deck_id:
-                return Path(
-                    capture(
-                        store,
-                        view.legacy_deck_id,
-                        output,
-                        slide_id=store.read(view.legacy_deck_id).slides[0].id,
-                    ).path
-                )
-            if view.kind in {"html", "markdown", "svg"}:
-                return Path(
-                    capture_artifact_image(
-                        service, view.id, output, width=1280, height=800, revision=view.revision
-                    ).path
-                )
-            raise FileNotFoundError("This file has no visual preview.")
-
-        reply = request_cover(store, artifact_id, request.query_params.get("v", ""), render)
+        reply = request_cover(
+            store,
+            artifact_id,
+            request.query_params.get("v", ""),
+            partial(render_library_cover, store),
+        )
         if reply.path is not None:
             request.state.cache_cover = True
             return FileResponse(reply.path, media_type="image/png")

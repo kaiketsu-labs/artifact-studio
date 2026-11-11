@@ -39,7 +39,7 @@
     const select = document.createElement('select');
     select.setAttribute('aria-label', 'Choose project');
     for (const entry of data.projects) select.add(new Option(entry.title, entry.id, false, entry.id === project.id));
-    select.addEventListener('change', () => { location.href = `/?project=${encodeURIComponent(select.value)}`; });
+    select.addEventListener('change', () => { location.href = `${window.ArtifactSession.home()}?project=${encodeURIComponent(select.value)}`; });
     header.append(select);
     const related = data.artifacts.filter(item => item.project_id === project.id);
     const ordered = [...related.filter(item => item.id !== active.id), active];
@@ -57,7 +57,7 @@
         if (item.legacy_deck_id && [...picker.options].some(option => option.value === item.legacy_deck_id)) {
           picker.value = item.legacy_deck_id;
           picker.dispatchEvent(new Event('change', {bubbles:true}));
-        } else location.href = `/?artifact=${encodeURIComponent(item.id)}`;
+        } else location.href = `${window.ArtifactSession.home()}?artifact=${encodeURIComponent(item.id)}`;
       });
       items.append(button);
     }
@@ -72,7 +72,7 @@
     const serial = ++request;
     if (cached) render(deckId, cached.data);
     try {
-      const response = await fetch('/api/hub');
+      const response = await fetch(window.ArtifactSession.path('/api/hub'));
       if (!response.ok) throw new Error('Registry unavailable');
       const data = await response.json();
       cache.set(deckId, {data,at:Date.now()});

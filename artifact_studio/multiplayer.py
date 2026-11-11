@@ -11,9 +11,11 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
+from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
@@ -25,15 +27,27 @@ from .artifact_preview import artifact_file_headers, preview_document, preview_h
 from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
 from .deployment import DeploymentConfig
+from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
-from .models import StrictModel
-from .multiplayer_access import AccessDenied, Actor, Kind, Scope, Sharing, checksum
+from .models import FileInput, StrictModel
+from .multiplayer_access import (
+    AccessDenied,
+    Actor,
+    Kind,
+    Scope,
+    Sharing,
+    checksum,
+    workspace_editor_path,
+)
 from .multiplayer_chat import Channel, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
-from .projects import AssetEmbedder
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
+from .visuals import ScopedDeckEmbedder
+
+# The separator is outside the ordinary ticket alphabet.
+HISTORY_PREVIEW_PREFIX = "history~"
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -62,12 +76,13 @@ class AcceptInput(StrictModel):
 
 class ChatInput(StrictModel):
     channel: Channel = "shared"
-    message: str = Field(min_length=1, max_length=10000)
+    message: str = Field(max_length=10000)
     request_id: str = Field(min_length=8, max_length=100)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
+    files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
 def actor_of(request: Request) -> Actor:
@@ -98,7 +113,12 @@ def create_app(
         )
         if root.resolve().is_relative_to(collection.resolve()):
             raise ValueError("Keep multiplayer credentials outside the artifact collection.")
-        sharing = Sharing(root, Store(collection, database), owner)
+        sharing = Sharing(
+            root,
+            Store(collection, database),
+            owner,
+            personal_workspace_emails=config.personal_workspace_emails,
+        )
     hub = sharing
     chat = Conversations(hub)
     mcp = MCPServer[None](
@@ -143,6 +163,19 @@ def create_app(
     async def denied(_: Request, __: AccessDenied) -> JSONResponse:
         return JSONResponse({"detail": "This item is unavailable or your access has changed."}, 404)
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
+        """Return field diagnostics without echoing submitted files or secrets."""
+        detail = [
+            {
+                "loc": [str(part)[:100] for part in item["loc"][:8]],
+                "type": item["type"],
+                "msg": item["msg"][:200],
+            }
+            for item in error.errors()[:10]
+        ]
+        return JSONResponse({"detail": detail}, status_code=422)
+
     @app.exception_handler(ConflictError)
     async def conflict(_: Request, error: ConflictError) -> JSONResponse:
         return JSONResponse({"detail": str(error)}, 409)
@@ -156,6 +189,7 @@ def create_app(
         return JSONResponse({"detail": "Item unavailable."}, 404)
 
     @app.get("/", response_class=HTMLResponse)
+    @app.get("/together", response_class=HTMLResponse)
     def index() -> str:
         return (PROJECT / "web/multiplayer.html").read_text()
 
@@ -166,6 +200,7 @@ def create_app(
         return FileResponse(PROJECT / "web" / name)
 
     @app.get("/api/session")
+    @app.get("/api/together/session")
     def session(request: Request) -> dict[str, object]:
         actor = actor_of(request)
         with hub.locked(), hub.connect() as db:
@@ -194,6 +229,11 @@ def create_app(
                 "workspaces": workspaces,
                 "can_create": person["email"] == hub.owner_email,
                 "mcp_url": config.public_url + "/mcp",
+                "editor_available": (
+                    person["email"] == hub.owner_email
+                    and getattr(request.state, "unified_studio", False)
+                ),
+                "scoped_editor_available": getattr(request.state, "unified_studio", False),
             }
 
     @app.post("/api/workspaces")
@@ -286,10 +326,15 @@ def create_app(
         invitation = hub.invite(
             actor_of(request), Scope(workspace, body.kind, body.resource), body.email, body.role
         )
+        path = (
+            workspace_editor_path(workspace)
+            if getattr(request.state, "unified_studio", False)
+            else "/"
+        )
         # Fragment keeps the secret out of HTTP access logs and Referer headers.
         return {
             "id": invitation["id"],
-            "url": config.public_url + "/#invite=" + invitation["token"],
+            "url": config.public_url + path + "#invite=" + invitation["token"],
         }
 
     @app.post("/api/workspaces/{workspace}/access/{identifier}/revoke")
@@ -375,7 +420,36 @@ def create_app(
             body.released,
             body.target,
             body.content_hash,
+            body.files,
         )
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")
+    def chat_file(
+        request: Request,
+        workspace: str,
+        artifact: str,
+        event_id: int,
+        index: int,
+        preview: bool = False,
+        full: bool = False,
+    ) -> Response:
+        """Serve a visible message's original file or a newly encoded raster preview."""
+        metadata, data = chat.attachment(
+            actor_of(request), Scope(workspace, "artifact", artifact), event_id, index
+        )
+        headers = {
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+            "Cross-Origin-Resource-Policy": "same-origin",
+        }
+        if preview:
+            try:
+                raster = raster_thumbnail(data, maximum=2048 if full else 640)
+            except FileNotFoundError:
+                return Response(status_code=204, headers=headers)
+            return Response(raster, media_type="image/png", headers=headers)
+        filename = quote(metadata["name"], safe="")
+        headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{filename}"
+        return Response(data, media_type="application/octet-stream", headers=headers)
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/release")
     def release(
@@ -400,23 +474,31 @@ def create_app(
         "/api/workspaces/{workspace}/artifacts/{artifact}/preview", response_class=HTMLResponse
     )
     def preview(
-        request: Request, workspace: str, artifact: str, slide_id: str = ""
+        request: Request,
+        workspace: str,
+        artifact: str,
+        slide_id: str = "",
+        history_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
     ) -> HTMLResponse:
         if request.headers.get("sec-fetch-dest") not in {"iframe", "frame"}:
             raise HTTPException(403, "Open this preview inside the workspace.")
         actor = actor_of(request)
-        with hub.guard(actor, Scope(workspace, "artifact", artifact)) as store:
+        scope = Scope(workspace, "artifact", artifact)
+        with hub.guard(actor, scope) as store:
             service = ArtifactStore(store)
             item = service.get_artifact(artifact)
+            if history_revision is not None and (
+                item.legacy_deck_id or not hub.owner(actor, workspace)
+            ):
+                raise AccessDenied
             if item.legacy_deck_id:
                 deck = store.read(artifact)
                 slide = store.locate(deck, slide_id) if slide_id else deck.slides[0]
-                folder = store.folder(artifact)
-                embedder = AssetEmbedder(folder)
+                embedder = ScopedDeckEmbedder(store, artifact)
                 css = (
                     (PROJECT / "runtime/viewer.css").read_text()
                     + "\n"
-                    + embedder.css((folder / "theme.css").read_text())
+                    + embedder.css(embedder.local_path("theme.css").read_text())
                 )
                 css += (
                     "\nhtml,body{height:100%;margin:0;overflow:hidden;"
@@ -440,6 +522,11 @@ def create_app(
                 )
                 return HTMLResponse(document, headers={"Content-Security-Policy": policy})
             token = secrets.token_urlsafe(32)
+            if history_revision is not None:
+                token = HISTORY_PREVIEW_PREFIX + token
+            revision = history_revision if history_revision is not None else item.revision
+            root = config.preview_url + "/_preview/" + token
+            document = preview_document(service, artifact, config.public_url, revision, root)
             with hub.connect() as db:
                 db.execute("DELETE FROM preview_tickets WHERE expires<?", (time.time(),))
                 db.execute(
@@ -449,14 +536,12 @@ def create_app(
                         actor.person,
                         workspace,
                         artifact,
-                        item.revision,
+                        revision,
                         time.time() + 3600,
                     ),
                 )
-            root = config.preview_url + "/_preview/" + token
             return HTMLResponse(
-                preview_document(service, artifact, config.public_url, item.revision, root),
-                headers=preview_headers(artifact, item.revision, config.public_url, root),
+                document, headers=preview_headers(artifact, revision, config.public_url, root)
             )
 
     @app.api_route("/_preview/{token}/{path:path}", methods=["GET", "HEAD"])
@@ -473,6 +558,8 @@ def create_app(
                 Scope(cast(str, row["workspace"]), "artifact", cast(str, row["artifact"])),
             )
             hub.require(actor, scope)
+            if token.startswith(HISTORY_PREVIEW_PREFIX) and not hub.owner(actor, scope.workspace):
+                raise AccessDenied
             revision = cast(int, row["revision"])
             root = config.preview_url + "/_preview/" + token
             prefix = f"api/artifacts/{scope.resource}/revisions/{revision}/files/"

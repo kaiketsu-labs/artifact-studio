@@ -23,10 +23,20 @@ dialog.app-about::backdrop{background:#10182866}
 .app-session-identity{display:grid;gap:4px;margin:0 0 20px;padding:12px 14px;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:9px;font-size:13px;line-height:1.45;color:var(--hub-muted,var(--subtle,#5f6b7a))}
 .app-session-identity strong{color:var(--hub-ink,var(--ink,#20242b));font-size:14px}.app-session-identity span,.app-session-identity small{overflow-wrap:anywhere}.app-session-identity small{font-size:12px}
 
+.app-workspace-switcher>a{justify-content:flex-start;white-space:normal;overflow-wrap:anywhere}
+.app-workspace-switcher>a[aria-current="page"]{color:inherit;font-weight:600}
+.app-workspace-switcher form{display:grid;gap:8px;margin-top:6px}
+.app-workspace-switcher label{display:grid;gap:4px}
+.app-workspace-switcher :is(input,form button){min-width:0;padding:7px 9px;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:6px;background:transparent;color:inherit;font:inherit}
+.app-workspace-switcher form button{justify-self:start;cursor:pointer}
+@media(max-width:600px){.app-workspace-switcher :is(a,input,form button){min-height:44px;box-sizing:border-box}}
+
 .hub-session-mode{font-size:12px!important;color:var(--hub-muted,var(--subtle,#5f6b7a))!important;border:1px solid var(--hub-line,var(--line,#d8deea))!important;white-space:nowrap}.hub-connect-url{display:flex;gap:8px}.hub-connect-url input{min-width:0;flex:1}.hub-connect-url button{border:1px solid var(--hub-line);border-radius:6px}.hub-connect label{font-size:12px}.hub-connect p{overflow-wrap:anywhere}
 .app-security-checks{margin:-8px 0 20px;font-size:13px;line-height:1.45;border-bottom:1px solid var(--hub-line,var(--line,#d8deea));padding-bottom:12px}
 .app-security-checks summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}.app-security-checks>div{padding-top:8px}.app-security-item{padding:8px 0}.app-security-item strong{font-size:13px}.app-about .app-security-item p{font-size:12px;margin:3px 0;color:var(--hub-muted,var(--subtle,#5f6b7a))}
-.app-session-review::after{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#b77912;margin-left:6px;vertical-align:middle}
+.hub-hosted-status{display:inline-flex;align-items:center;gap:6px;padding:0 6px;color:var(--hub-muted,var(--subtle,#5f6b7a));font-size:12px;white-space:nowrap}
+.hub-hosted-status::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--hub-green,var(--green,#28765a))}
+.hub-hosted-status[hidden],.hub-session-mode[hidden]{display:none}
 .app-session-expired{position:fixed;z-index:9999;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:min(540px,calc(100vw - 32px));box-sizing:border-box;padding:12px 14px;border:1px solid #b77912;border-radius:9px;background:var(--hub-panel,var(--surface,#fff));color:var(--hub-ink,var(--ink,#20242b));box-shadow:0 4px 20px #0003;font-size:13px}.app-session-expired[hidden]{display:none}.app-session-expired button{flex:none;padding:8px;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;cursor:pointer}.app-session-expired button:focus-visible,.app-security-checks summary:focus-visible{outline:2px solid var(--hub-blue,var(--blue,#315fce));outline-offset:3px}
 
 .app-security-item{padding:0;border-top:1px solid var(--hub-line,var(--line,#d8deea))}.app-security-item summary{padding:8px 0;font-weight:500}.app-security-item p{padding:0 0 8px 18px}.app-security-checks>div>a{margin-top:8px}.app-session-expired-modal{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #b77912;border-radius:8px;font-size:13px}.app-session-expired-modal button{flex:none;padding:8px;color:inherit;background:transparent;border:1px solid currentColor;border-radius:6px;cursor:pointer}

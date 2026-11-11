@@ -8,7 +8,54 @@
     dialog.innerHTML='<header><h2 id="app-about-title">About Artifact Studio</h2><button type="button" aria-label="Close">×</button></header><div class="app-version-row"><p class="app-about-version" data-installed-version>Version unavailable</p><a class="app-release-link" target="_blank" rel="noopener noreferrer" hidden>View release notes</a></div><p class="app-installed-build" hidden></p><p class="app-about-status" role="status" aria-live="polite">Checking for updates…</p><label class="app-nightly-option"><input type="checkbox" aria-describedby="app-nightly-help">Include nightly builds</label><p id="app-nightly-help" class="app-nightly-help">Preview builds from main. May be less stable.</p><p data-update-help hidden>Mac app: choose <strong>Update…</strong> in the menu bar. For other installations, see the release notes.</p>';
     doc.body.append(dialog);
     const identity=doc.createElement('section');identity.className='app-session-identity';identity.setAttribute('aria-label','Active workspace');identity.textContent='Checking workspace connection…';dialog.insertBefore(identity,dialog.children[1]);
-    const checks=doc.createElement('details');checks.className='app-security-checks';checks.innerHTML='<summary>Server checks</summary><div></div>';identity.after(checks);
+    const workspaces=doc.createElement('section');workspaces.className='app-session-identity app-workspace-switcher';workspaces.hidden=true;workspaces.setAttribute('aria-label','Workspaces');identity.after(workspaces);
+    const checks=doc.createElement('details');checks.className='app-security-checks';checks.innerHTML='<summary>Server checks</summary><div></div>';workspaces.after(checks);
+    async function workspaceList(){
+      const session=await root.ArtifactSession.get();
+      if(!session.collaboration_url||sessionExpired)return;
+      const response=root.ArtifactSession.observe(await root.fetch('/api/together/session',{cache:'no-store'}));
+      root.ArtifactSession.assertActive();
+      if(!response.ok)throw new Error('Workspaces could not be loaded.');
+      const data=await response.json();
+      workspaces.replaceChildren();
+      workspaces.hidden=data.workspaces.length<2&&!data.can_create;
+      if(workspaces.hidden)return;
+      const heading=doc.createElement('strong');heading.textContent='Workspaces';
+      const warning=doc.createElement('p');warning.hidden=true;warning.setAttribute('role','alert');
+      warning.textContent='Finish your current draft or edit before switching workspaces.';
+      workspaces.append(heading,warning);
+      function canChangeWorkspace(){
+        const allowed=root.dispatchEvent(new CustomEvent('studio:before-conversation-change',{cancelable:true}));
+        warning.hidden=allowed;
+        return allowed;
+      }
+      for(const item of data.workspaces){
+        const link=doc.createElement('a');link.textContent=item.title;link.href=root.ArtifactSession.home(item.id);
+        if(item.id===root.ArtifactSession.workspace)link.setAttribute('aria-current','page');
+        link.addEventListener('click',event=>{
+          if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+          if(item.id===root.ArtifactSession.workspace||!canChangeWorkspace())event.preventDefault();
+        });
+        workspaces.append(link);
+      }
+      if(!data.can_create)return;
+      const form=doc.createElement('form');
+      form.innerHTML='<label>Workspace name <input name="title" required maxlength="160"></label> <button type="submit">New workspace</button><p role="alert" hidden></p>';
+      form.addEventListener('submit',async event=>{
+        event.preventDefault();
+        if(!canChangeWorkspace())return;
+        const button=event.submitter,error=form.querySelector('[role="alert"]');
+        button.disabled=true;error.hidden=true;
+        try{
+          const body=JSON.stringify({title:new FormData(form).get('title')});
+          const result=root.ArtifactSession.observe(await root.fetch('/api/workspaces',{method:'POST',headers:{'Content-Type':'application/json'},body}));
+          root.ArtifactSession.assertActive();
+          if(!result.ok)throw new Error('The workspace could not be created.');
+          root.location.assign(root.ArtifactSession.home((await result.json()).id));
+        }catch(reason){error.textContent=reason.message;error.hidden=false;button.disabled=false;}
+      });
+      workspaces.append(form);
+    }
     function renderSecurity(security){
       const body=checks.querySelector('div');body.replaceChildren();
       const counts=security?.counts;
@@ -40,23 +87,33 @@
         const notice=expiredBanner.cloneNode(true);notice.className='app-session-expired-modal';notice.querySelector('button').addEventListener('click',()=>root.location.reload());modal.prepend(notice);
       }
       identity.textContent='Your session has expired. Sign in again to continue.';
+      workspaces.hidden=true;
     });
     void root.ArtifactSession.get().then(session=>{
       if(sessionExpired)return;
-      const hosted=session.mode==='hosted';renderSecurity(session.security);checks.hidden=!hosted;
+      const hosted=session.mode==='hosted';
+      checks.hidden=!hosted||(session.scoped_editor&&!session.security);
+      if(!checks.hidden)renderSecurity(session.security);
       identity.replaceChildren();
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
-      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent='All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.textContent=hosted?'Hosted':'Local';node.dataset.sessionMode=hosted?'hosted':'local';node.title=hosted?'Hosted workspace':'Local workspace';const review=hosted&&(!session.security||session.security.summary==='review');node.classList.toggle('app-session-review',review);node.setAttribute('aria-label',review?'Hosted workspace, server checks need review':'About workspace');});
+      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
+      doc.querySelectorAll('[data-hosted-status]').forEach(node=>{node.hidden=!hosted;});
+      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
       if(hosted){
+        const label='Workspace & server';
+        dialog.querySelector('#app-about-title').textContent=label;
+        for(const entry of entries){
+          entry.querySelector('span').textContent=label;
+          entry.setAttribute('aria-label',label);
+        }
         doc.querySelectorAll('[data-local-only], #storage-status, #libraries-button, a[href="/web/copilot-setup.html"]').forEach(node=>{node.hidden=true;});
         dialog.querySelector('.app-nightly-option').hidden=true;dialog.querySelector('#app-nightly-help').hidden=true;dialog.querySelector('.app-about-status').hidden=true;
       }
       if(session.capabilities?.automatic_feedback===false)doc.querySelectorAll('[data-automatic-feedback]').forEach(node=>{node.hidden=true;});
-      if(hosted&&session.capabilities?.hosted_hooks){
+      if(hosted&&session.capabilities?.hosted_hooks&&!session.collaboration_url){
         for(const panel of doc.querySelectorAll('#connect-dialog, .hub-connect')){
           const link=doc.createElement('a');link.dataset.hostedHooksLink='';link.className='app-hosted-hooks';link.href='/api/agent/hooks-client';link.download='artifact-studio-agent-hooks.zip';link.textContent='Download agent hooks';link.title='Optional client for automatic feedback in an open Codex or Claude Code session';panel.append(link);
         }
@@ -72,15 +129,23 @@
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);
     let opener=null,timer=null,reading=false,checking=false,saving=false,sequence=0,lastInfo=null;
     const workspaceButton=doc.querySelector('[data-session-mode]');
-    workspaceButton?.addEventListener('click',()=>{opener=workspaceButton;checks.open=workspaceButton.classList.contains('app-session-review');dialog.showModal();void refresh();});
+    function showAbout(trigger){
+      opener=trigger;
+      dialog.showModal();
+      void refresh();
+      void workspaceList().catch(()=>{workspaces.hidden=true;});
+    }
+    root.StudioAbout={open:showAbout};
+    workspaceButton?.addEventListener('click',()=>showAbout(workspaceButton));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){
       const icon=doc.createElement('span');icon.className='app-update-icon';icon.hidden=true;icon.innerHTML=mark;entry.append(icon);
       entry.addEventListener('click',event=>{
         event.preventDefault();
-        const panel=entry.closest('[popover]');opener=panel?triggers.find(item=>item.getAttribute('aria-controls')===panel.id||item.getAttribute('popovertarget')===panel.id):entry;
+        const panel=entry.closest('[popover]');
+        const trigger=panel?triggers.find(item=>item.getAttribute('aria-controls')===panel.id||item.getAttribute('popovertarget')===panel.id):entry;
         if(panel?.matches(':popover-open'))panel.hidePopover();
-        dialog.showModal();void refresh();
+        showAbout(trigger);
       });
     }
     const connectEntry=doc.querySelector('[data-hub-connect]');
@@ -117,14 +182,14 @@
     function schedule(){clearTimeout(timer);if(!doc.hidden&&!sessionExpired)timer=setTimeout(()=>void refresh(),checking?1500:60000);}
     async function refresh(){
       if(reading||saving||doc.hidden||sessionExpired)return;reading=true;const request=++sequence;
-      try{const response=root.ArtifactSession.observe(await root.fetch('/api/app-info',{cache:'no-store'}));if(!response.ok)throw new Error('Version unavailable');const info=await response.json();if(typeof info.version!=='string'||!info.version)throw new Error('Version unavailable');if(request===sequence)render(info);}
+      try{const response=root.ArtifactSession.observe(await root.fetch(root.ArtifactSession.path('/api/app-info'),{cache:'no-store'}));if(!response.ok)throw new Error('Version unavailable');const info=await response.json();if(typeof info.version!=='string'||!info.version)throw new Error('Version unavailable');if(request===sequence)render(info);}
       catch{if(request===sequence){checking=false;if(lastInfo)render({...lastInfo,latest_tag:null,update_available:false,update_check:'unavailable'});else status.textContent='Update information is unavailable.';}}
       finally{reading=false;schedule();}
     }
     nightly.addEventListener('change',async()=>{
       const previous=lastInfo?.include_nightly===true;const include=nightly.checked;const request=++sequence;
       saving=true;nightly.disabled=true;clearTimeout(timer);
-      try{const response=root.ArtifactSession.observe(await root.fetch('/api/app-info/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({include_nightly:include})}));if(!response.ok)throw new Error('Could not save the update preference.');const info=await response.json();if(request===sequence)render(info);}
+      try{const response=root.ArtifactSession.observe(await root.fetch(root.ArtifactSession.path('/api/app-info/settings'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({include_nightly:include})}));if(!response.ok)throw new Error('Could not save the update preference.');const info=await response.json();if(request===sequence)render(info);}
       catch{nightly.checked=previous;status.textContent='Could not save the update preference. Try again.';}
       finally{saving=false;nightly.disabled=false;schedule();}
     });

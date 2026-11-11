@@ -52,7 +52,9 @@ function fixture(options={}){
 
 test('only exact versioned local cover URLs are accepted',()=>{
   assert.equal(coverURL(url()),url());
-  for(const value of [null,'/api/artifacts/one/files/large.png','https://example.test'+url(),'//example.test'+url(),url()+'#x','/api/hub/previews/one?v=','/api/hub/previews/one'])assert.equal(coverURL(value),'');
+  const workspace='/workspaces/1234567890abcdef12345678';
+  assert.equal(coverURL(workspace+url()),workspace+url());
+  for(const value of [null,'/api/artifacts/one/files/large.png','https://example.test'+url(),'//example.test'+url(),url()+'#x','/api/hub/previews/one?v=','/api/hub/previews/one','/workspaces/invalid'+url(),workspace+'/other'+url()])assert.equal(coverURL(value),'');
 });
 
 test('viewport covers take priority, deduplicate and cap requests even before observer delivery',async()=>{
@@ -97,9 +99,12 @@ test('pending saved covers honor Retry-After and settle without repeated grid re
   const f=fixture(),one=card(url());f.mount([one]);
   f.requests[0].answer(result(202,'cover_pending','3'));await flush();
   assert.equal(one.node.dataset.previewState,'loading');assert.equal(one.retry.hidden,true);
+  assert.equal(one.status.hidden,false);assert.equal(one.status.textContent,'Loading preview');
+  assert.equal(one.open.attributes['aria-description'],'Preview loading.');
   f.mount([one]);await f.advance(2999);assert.equal(f.requests.length,1);
   await f.advance(1);assert.equal(f.requests.length,2);
   f.requests[1].answer(png());await flush();assert.equal(one.node.dataset.previewState,'ready');
+  assert.equal(one.status.hidden,true);assert.equal(one.open.attributes['aria-description'],undefined);
   await f.advance(60000);assert.equal(f.requests.length,2);
   f.loader.destroy();
 });

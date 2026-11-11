@@ -84,6 +84,7 @@ class ArtifactView(ArtifactManifest):
     source_path: str
     snapshot_mode: Literal["immutable", "legacy-in-place"] = "immutable"
     files_complete: bool = True
+    presentation_versions: dict[str, tuple[str, int]] = Field(default_factory=dict, exclude=True)
 
 
 class ArtifactRegion(StrictModel):

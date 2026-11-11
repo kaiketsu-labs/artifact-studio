@@ -1,6 +1,7 @@
 /* Local portable projects and audience exports. */
 window.SlideProjects={
   init({toast,read,capture,restore}){
+    const studioPath=path=>window.ArtifactSession?.path?.(path) ?? path;
     const $=id=>document.getElementById(id),dialog=$('project-dialog');
     const {button,svg}=window.SlideIcons;
     for(const [id,icon,label,show] of [
@@ -24,7 +25,7 @@ window.SlideProjects={
     $('close-project').addEventListener('click',()=>dialog.close());
     $('save-project').addEventListener('click',async()=>{
       const deck=read();if(!deck||busy)return;busy=true;update();$('project-error').textContent='';
-      try{const state=await capture();if(read()?.id!==deck.id)throw new Error('The presentation changed. Save the current project again.');const response=await responseData(await fetch(`/api/decks/${encodeURIComponent(deck.id)}/project`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)}));download(await response.blob(),`${deck.id}.artifact-studio.zip`);toast('Project saved.');dialog.close();}
+      try{const state=await capture();if(read()?.id!==deck.id)throw new Error('The presentation changed. Save the current project again.');const response=await responseData(await fetch(studioPath(`/api/decks/${encodeURIComponent(deck.id)}/project`),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)}));download(await response.blob(),`${deck.id}.artifact-studio.zip`);toast('Project saved.');dialog.close();}
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();}
     });
@@ -33,13 +34,13 @@ window.SlideProjects={
       const file=event.target.files[0];if(!file||busy)return;
       if(file.size>100*1024*1024){$('project-error').textContent='Choose a project file below 100 MB.';event.target.value='';return;}
       busy=true;update();$('project-error').textContent='';
-      try{await capture();const response=await responseData(await fetch('/api/projects/open',{method:'POST',headers:{'Content-Type':'application/zip'},body:file}));const opened=await response.json();await restore(opened);dialog.close();toast('Project opened.');}
+      try{await capture();const response=await responseData(await fetch(studioPath('/api/projects/open'),{method:'POST',headers:{'Content-Type':'application/zip'},body:file}));const opened=await response.json();await restore(opened);dialog.close();toast('Project opened.');}
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();event.target.value='';}
     });
     $('export-html').addEventListener('click',async()=>{
       const deck=read();if(!deck||busy)return;busy=true;update();$('project-error').textContent='';
-      try{const response=await responseData(await fetch(`/api/decks/${encodeURIComponent(deck.id)}/exports/html`));download(await response.blob(),`${deck.id}.html`);dialog.close();}
+      try{const response=await responseData(await fetch(studioPath(`/api/decks/${encodeURIComponent(deck.id)}/exports/html`)));download(await response.blob(),`${deck.id}.html`);dialog.close();}
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();}
     });

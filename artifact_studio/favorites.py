@@ -2,10 +2,12 @@
 
 import base64
 import json
+import sqlite3
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from typing import Literal, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from pydantic import Field
 
 from .artifacts import ArtifactStore
@@ -53,29 +55,56 @@ class FavoriteSlide(StrictModel):
 class Favorites:
     """Persist human bookmarks independently of authored source and review state."""
 
-    def __init__(self, store: Store) -> None:
+    def __init__(
+        self,
+        store: Store,
+        *,
+        connect: Callable[[], sqlite3.Connection] | None = None,
+        reader: str = "",
+        can_view: Callable[[str], bool] | None = None,
+    ) -> None:
+        """Open a local bookmark table or an explicitly scoped reader's records."""
         self.store = store
-        with store.connect() as db:
+        self.connect = connect or store.connect
+        self.reader = reader
+        self.can_view = can_view
+        with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
+            columns = {cast(str, row[1]) for row in db.execute("PRAGMA table_info(favorites)")}
+            migrate = bool(columns and "reader" not in columns)
+            if migrate:
+                _ = db.execute("ALTER TABLE favorites RENAME TO favorites_previous")
             _ = db.execute(
                 "CREATE TABLE IF NOT EXISTS favorites ("
+                "reader TEXT NOT NULL DEFAULT '', "
                 "kind TEXT NOT NULL, artifact TEXT NOT NULL, slide TEXT NOT NULL, "
                 "description TEXT NOT NULL DEFAULT '', "
-                "PRIMARY KEY(kind, artifact, slide))"
+                "PRIMARY KEY(reader, kind, artifact, slide))"
             )
-            if "description" not in {row[1] for row in db.execute("PRAGMA table_info(favorites)")}:
+            if migrate:
+                description = "description" if "description" in columns else "''"
                 _ = db.execute(
-                    "ALTER TABLE favorites ADD COLUMN description TEXT NOT NULL DEFAULT ''"
+                    "INSERT INTO favorites(kind, artifact, slide, description) "
+                    f"SELECT kind, artifact, slide, {description} FROM favorites_previous"
                 )
+                _ = db.execute("DROP TABLE favorites_previous")
+
+    def _visible(self, artifact: str) -> bool:
+        """Resolve current authorization without exposing stale bookmark identifiers."""
+        return self.can_view is None or self.can_view(artifact)
 
     def index(self) -> dict[str, list[str]]:
         """Return only bookmark identifiers, including temporarily unavailable slides."""
         result: dict[str, list[str]] = {"artifacts": [], "slides": []}
-        with self.store.connect() as db:
+        with self.connect() as db:
             for row in db.execute(
-                "SELECT kind, artifact, slide FROM favorites ORDER BY artifact, slide"
+                "SELECT kind, artifact, slide FROM favorites WHERE reader=? "
+                "ORDER BY artifact, slide",
+                (self.reader,),
             ):
                 kind, artifact, slide = cast(tuple[str, str, str], tuple(row))
+                if not self._visible(artifact):
+                    continue
                 result["artifacts" if kind == "artifact" else "slides"].append(
                     artifact if kind == "artifact" else artifact + "/" + slide
                 )
@@ -86,42 +115,51 @@ class Favorites:
         if (body.kind == "slide") != bool(body.slide_id):
             raise ValueError("A slide star needs a slide ID; an artifact star does not.")
         if body.starred:
+            if not self._visible(body.artifact_id):
+                raise FileNotFoundError("This item is unavailable.")
             artifact = ArtifactStore(self.store).get_artifact(body.artifact_id)
             if body.kind == "slide":
                 if not artifact.legacy_deck_id:
                     raise ValueError("Only presentation slides can be starred.")
                 _ = self.store.locate(self.store.read(body.artifact_id), body.slide_id)
-        with self.store.connect() as db:
+        with self.connect() as db:
             if body.starred:
                 _ = db.execute(
-                    "INSERT OR IGNORE INTO favorites(kind, artifact, slide) VALUES (?,?,?)",
-                    (body.kind, body.artifact_id, body.slide_id),
+                    "INSERT OR IGNORE INTO favorites(reader, kind, artifact, slide) "
+                    "VALUES (?,?,?,?)",
+                    (self.reader, body.kind, body.artifact_id, body.slide_id),
                 )
             else:
                 _ = db.execute(
-                    "DELETE FROM favorites WHERE kind=? AND artifact=? AND slide=?",
-                    (body.kind, body.artifact_id, body.slide_id),
+                    "DELETE FROM favorites WHERE reader=? AND kind=? AND artifact=? AND slide=?",
+                    (self.reader, body.kind, body.artifact_id, body.slide_id),
                 )
         return self.index()
 
     def descriptions(self) -> dict[str, str]:
         """Read only human bookmark context, never presentation notes or agent guidance."""
-        with self.store.connect() as db:
+        with self.connect() as db:
             return {
                 cast(str, row[0]) + "/" + cast(str, row[1]): cast(str, row[2])
                 for row in db.execute(
-                    "SELECT artifact, slide, description FROM favorites WHERE kind='slide'"
+                    "SELECT artifact, slide, description FROM favorites "
+                    "WHERE reader=? AND kind='slide'",
+                    (self.reader,),
                 )
+                if self._visible(cast(str, row[0]))
             }
 
     def describe(self, deck_id: str, slide_id: str, body: DescriptionInput) -> str:
         """Save or clear a description without overwriting another editor's change."""
+        if not self._visible(deck_id):
+            raise FileNotFoundError("This item is unavailable.")
         description = body.description.strip()
-        with self.store.connect() as db:
+        with self.connect() as db:
             _ = db.execute("BEGIN IMMEDIATE")
             row = db.execute(
-                "SELECT description FROM favorites WHERE kind='slide' AND artifact=? AND slide=?",
-                (deck_id, slide_id),
+                "SELECT description FROM favorites WHERE reader=? AND kind='slide' "
+                "AND artifact=? AND slide=?",
+                (self.reader, deck_id, slide_id),
             ).fetchone()
             if row is None:
                 raise ValueError("This slide is no longer a favorite. Reopen Favorite slides.")
@@ -130,8 +168,9 @@ class Favorites:
                     "Description changed elsewhere. Reopen it to see the latest version."
                 )
             _ = db.execute(
-                "UPDATE favorites SET description=? WHERE kind='slide' AND artifact=? AND slide=?",
-                (description, deck_id, slide_id),
+                "UPDATE favorites SET description=? WHERE reader=? AND kind='slide' "
+                "AND artifact=? AND slide=?",
+                (description, self.reader, deck_id, slide_id),
             )
         return description
 
@@ -143,22 +182,27 @@ class Favorites:
     def slides(self) -> list[FavoriteSlide]:
         """Resolve bookmarks by stable IDs, keeping presentation order within each deck."""
         descriptions = self.descriptions()
-        wanted = set(descriptions)
+        wanted = {key.split("/", 1)[0] for key in descriptions}
+        if not wanted:
+            return []
         result: list[FavoriteSlide] = []
         for item in self.store.list_decks():
             deck_id = item["id"]
-            if not any(key.startswith(deck_id + "/") for key in wanted):
+            if deck_id not in wanted:
                 continue
             deck = self.store.read(deck_id)
             for number, slide in enumerate(deck.slides, 1):
-                if deck_id + "/" + slide.id in wanted:
+                if deck_id + "/" + slide.id in descriptions:
                     description = descriptions[deck_id + "/" + slide.id]
                     token, error = "", ""
                     try:
-                        _, token = self._prepare(deck_id, slide, number)
+                        if self.can_view is None:
+                            _, token = self._prepare(deck_id, slide, number)
+                        else:
+                            token = self.store.content_hash(deck_id, slide)
                         token = self._reference_token(token, description)
                     except (ValueError, FileNotFoundError) as reason:
-                        error = str(reason)
+                        error = str(reason) if self.can_view is None else "Preview unavailable."
                     result.append(
                         FavoriteSlide(
                             deck_id=deck_id,
@@ -243,25 +287,46 @@ class Favorites:
         )
 
 
-def favorite_routes(get_store: Callable[[], Store]) -> APIRouter:
+def favorite_routes(
+    get_store: Callable[[], Store],
+    *,
+    scoped: Callable[[Request], AbstractContextManager[Favorites | None]] | None = None,
+) -> APIRouter:
     """Use the existing human-only HTTP surface and feedback attachment delivery path."""
     router = APIRouter(tags=["Favorites"])
 
+    def access(request: Request) -> AbstractContextManager[Favorites | None]:
+        """Select the request's private bookmark collection."""
+        return scoped(request) if scoped is not None else nullcontext(Favorites(get_store()))
+
     @router.get("/api/favorites")
-    def index() -> dict[str, list[str]]:
-        return Favorites(get_store()).index()
+    def index(request: Request) -> dict[str, list[str]]:
+        with access(request) as favorites:
+            return favorites.index() if favorites else {"artifacts": [], "slides": []}
 
     @router.post("/api/favorites")
-    def set_star(body: StarInput) -> dict[str, list[str]]:
-        return Favorites(get_store()).set(body)
+    def set_star(request: Request, body: StarInput) -> dict[str, list[str]]:
+        with access(request) as favorites:
+            if favorites is None:
+                raise FileNotFoundError("This item is unavailable.")
+            return favorites.set(body)
 
     @router.get("/api/favorites/slides")
-    def slides() -> list[FavoriteSlide]:
-        return Favorites(get_store()).slides()
+    def slides(request: Request) -> list[FavoriteSlide]:
+        with access(request) as favorites:
+            return favorites.slides() if favorites else []
 
     @router.post("/api/favorites/slides/{deck_id}/{slide_id}/description")
-    def description(deck_id: str, slide_id: str, body: DescriptionInput) -> dict[str, str]:
-        return {"description": Favorites(get_store()).describe(deck_id, slide_id, body)}
+    def description(
+        request: Request, deck_id: str, slide_id: str, body: DescriptionInput
+    ) -> dict[str, str]:
+        with access(request) as favorites:
+            if favorites is None:
+                raise FileNotFoundError("This item is unavailable.")
+            return {"description": favorites.describe(deck_id, slide_id, body)}
+
+    if scoped is not None:
+        return router
 
     @router.post("/api/favorites/slides/{deck_id}/{slide_id}/reference")
     def reference(deck_id: str, slide_id: str, body: ReferenceInput) -> FileInput:

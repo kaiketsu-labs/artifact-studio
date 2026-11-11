@@ -94,8 +94,9 @@ def test_original_file_and_excluded_dependency(tmp_path: Path) -> None:
         sharing.prepare_artifact(artifact.id)
 
 
+@pytest.mark.parametrize("scoped", [False, True])
 def test_pdf_hidden_choice_applies_to_artifacts_and_project_archives(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, scoped: bool
 ) -> None:
     """Propagate the option through project ZIPs without affecting interactive HTML exports."""
     from tests.design_factory import TEMPLATE_ID, make_design
@@ -119,8 +120,11 @@ def test_pdf_hidden_choice_applies_to_artifacts_and_project_archives(
         return b"%PDF-fixture"
 
     monkeypatch.setattr("artifact_studio.sharing._pdf", pdf)
+    monkeypatch.setattr(
+        "artifact_studio.sharing._scoped_pdf", lambda document, _limit, _deadline: pdf(document)
+    )
     registry = ArtifactStore(store)
-    sharing = SharingService(store, registry)
+    sharing = SharingService(store, registry, scoped_limit=100_000_000 if scoped else None)
     _ = sharing.prepare_artifact(deck.id, "pdf", include_hidden=False)
     assert "HIDDEN_APPENDIX_SENTINEL" not in documents[-1]
     _ = sharing.prepare_project(

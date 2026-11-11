@@ -2,6 +2,7 @@
 
 import fcntl
 import hashlib
+import json
 import re
 import secrets
 import sqlite3
@@ -20,10 +21,20 @@ from .storage import Store
 Role = Literal["view", "comment", "edit"]
 Kind = Literal["workspace", "project", "artifact"]
 LEVEL = {"view": 1, "comment": 2, "edit": 3}
+WORKSPACE_ID = re.compile(r"[0-9a-f]{24}")
 
 
 class AccessDenied(FileNotFoundError):
     """Do not reveal whether an inaccessible object exists."""
+
+
+def workspace_editor_path(workspace: str) -> str:
+    """Return the native editor root for a registered workspace identifier."""
+    if workspace == "default":
+        return "/"
+    if not WORKSPACE_ID.fullmatch(workspace):
+        raise AccessDenied
+    return f"/workspaces/{workspace}/"
 
 
 @dataclass(frozen=True)
@@ -41,6 +52,15 @@ class Actor:
     @property
     def key(self) -> str:
         return self.agent or self.person
+
+
+@dataclass(frozen=True)
+class ProjectMoveConfirmation:
+    """Describe inherited access affected by moving an artifact."""
+
+    access_hash: str
+    source_shared: bool
+    destination_shared: bool
 
 
 def checksum(value: str) -> str:
@@ -61,11 +81,19 @@ class Sharing:
     are trusted operators; do not run a second unscoped server against these collections.
     """
 
-    def __init__(self, root: Path, default: Store, owner_email: str) -> None:
+    def __init__(
+        self,
+        root: Path,
+        default: Store,
+        owner_email: str,
+        *,
+        personal_workspace_emails: tuple[str, ...] = (),
+    ) -> None:
         self.root = root.resolve()
         self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
         self.database = self.root / "sharing.sqlite3"
         self.owner_email = email_address(owner_email)
+        self._personal_emails = frozenset(map(email_address, personal_workspace_emails))
         self._lock = threading.RLock()
         self._depth = threading.local()
         self._stores: dict[str, Store] = {"default": default}
@@ -91,6 +119,10 @@ class Sharing:
                 CREATE TABLE IF NOT EXISTS preview_tickets (
                   token TEXT PRIMARY KEY, person TEXT NOT NULL, workspace TEXT NOT NULL,
                   artifact TEXT NOT NULL, revision INTEGER NOT NULL, expires REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS opened_revisions (
+                  workspace TEXT NOT NULL, person TEXT NOT NULL, artifact TEXT NOT NULL,
+                  slide TEXT NOT NULL, content_hash TEXT NOT NULL,
+                  PRIMARY KEY(workspace, person, artifact, slide));
             """)
         self.database.chmod(0o600)
 
@@ -98,6 +130,39 @@ class Sharing:
         db = sqlite3.connect(self.database, timeout=30)
         db.row_factory = sqlite3.Row
         return db
+
+    def opened_revisions(
+        self, actor: Actor, workspace: str, artifact: str = ""
+    ) -> dict[str, dict[str, str]]:
+        """Return only this human's opened revision hashes in the selected workspace."""
+        if actor.agent:
+            raise AccessDenied
+        by_artifact: dict[str, dict[str, str]] = {}
+        where = " AND artifact=?" if artifact else ""
+        params = (workspace, actor.person, artifact) if artifact else (workspace, actor.person)
+        with self.connect() as db:
+            for row in db.execute(
+                "SELECT artifact,slide,content_hash FROM opened_revisions "
+                "WHERE workspace=? AND person=?" + where,
+                params,
+            ):
+                by_artifact.setdefault(cast(str, row["artifact"]), {})[cast(str, row["slide"])] = (
+                    cast(str, row["content_hash"])
+                )
+        return by_artifact
+
+    def record_opened(self, actor: Actor, scope: Scope, slide: str, content_hash: str) -> None:
+        """Persist an opened hash validated by the caller under the current grant lock."""
+        if actor.agent:
+            raise AccessDenied
+        with self.connect() as db:
+            db.execute(
+                "INSERT INTO opened_revisions VALUES (?,?,?,?,?) "
+                "ON CONFLICT(workspace,person,artifact,slide) DO UPDATE "
+                "SET content_hash=excluded.content_hash "
+                "WHERE opened_revisions.content_hash!=excluded.content_hash",
+                (scope.workspace, actor.person, scope.resource, slide, content_hash),
+            )
 
     @contextmanager
     def locked(self) -> Generator[None]:
@@ -116,13 +181,19 @@ class Sharing:
                 self._depth.value = depth
 
     def human(self, principal: Principal) -> Actor:
+        """Bind a verified identity and provision its configured personal workspace once."""
         if principal.service or not principal.subject or not principal.email:
             raise AccessDenied
         email = email_address(principal.email)
         person = checksum(principal.subject)
+        personal = email in self._personal_emails
         with self.connect() as db:
             existing = db.execute("SELECT email FROM people WHERE id=?", (person,)).fetchone()
-            if existing and existing["email"] == email:
+            if (
+                existing
+                and existing["email"] == email
+                and (not personal or self._owns_workspace(db, person))
+            ):
                 return Actor(person)
         with self.locked(), self.connect() as db:
             prior = db.execute("SELECT id FROM people WHERE email=?", (email,)).fetchone()
@@ -137,7 +208,31 @@ class Sharing:
                     "INSERT OR IGNORE INTO workspaces VALUES ('default','My workspace',?)",
                     (person,),
                 )
+            elif personal and not self._owns_workspace(db, person):
+                db.execute(
+                    "INSERT INTO workspaces VALUES (?, 'Personal workspace', ?)",
+                    (secrets.token_hex(12), person),
+                )
         return Actor(person)
+
+    @staticmethod
+    def _owns_workspace(db: sqlite3.Connection, person: str) -> bool:
+        """Check for a workspace already provisioned to this identity."""
+        return bool(db.execute("SELECT 1 FROM workspaces WHERE owner=?", (person,)).fetchone())
+
+    def personal_home(self, actor: Actor) -> str | None:
+        """Open the personal library when the default library would be empty."""
+        if actor.agent:
+            return None
+        with self.connect() as db:
+            row = db.execute(
+                """SELECT id FROM workspaces
+                   WHERE owner=? AND id<>'default'
+                     AND NOT EXISTS (SELECT 1 FROM grants WHERE workspace='default' AND person=?)
+                   ORDER BY id LIMIT 1""",
+                (actor.person, actor.person),
+            ).fetchone()
+        return cast(str, row["id"]) if row else None
 
     def agent(self, token: str) -> Actor:
         if not 32 <= len(token) <= 200:
@@ -182,6 +277,8 @@ class Sharing:
             ancestors.append(("project", scope.resource))
         elif scope.kind == "artifact":
             try:
+                if (store.folder(scope.resource) / "design.json").exists():
+                    raise AccessDenied
                 item = ArtifactStore(store).get_artifact(scope.resource)
             except ValueError, FileNotFoundError:
                 raise AccessDenied from None
@@ -194,6 +291,20 @@ class Sharing:
         with self.connect() as db:
             row = db.execute("SELECT owner FROM workspaces WHERE id=?", (workspace,)).fetchone()
         return bool(row and row["owner"] == actor.person and not actor.agent)
+
+    def has_workspace_entry(self, actor: Actor, workspace: str) -> bool:
+        """Check whether a human owns or has been invited into the workspace."""
+        if actor.agent:
+            return False
+        with self.connect() as db:
+            return bool(
+                db.execute(
+                    "SELECT 1 FROM workspaces WHERE id=? AND "
+                    "(owner=? OR EXISTS (SELECT 1 FROM grants "
+                    "WHERE grants.workspace=workspaces.id AND person=?))",
+                    (workspace, actor.person, actor.person),
+                ).fetchone()
+            )
 
     def sources(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
         ancestors = self.ancestors(scope)
@@ -237,6 +348,45 @@ class Sharing:
         if not self.owner(actor, scope.workspace):
             raise AccessDenied
         self.ancestors(scope)
+
+    def project_move_confirmation(
+        self, workspace: str, artifact: str, source: str, destination: str, expected: str
+    ) -> ProjectMoveConfirmation | None:
+        """Check the project sharing state while the caller holds the collaboration lock."""
+        if source == destination:
+            return None
+        params = (workspace, source, destination)
+        now = time.time()
+        with self.connect() as db:
+            grants = db.execute(
+                "SELECT resource,id,role FROM grants WHERE workspace=? AND kind='project' "
+                "AND resource IN (?,?) ORDER BY id",
+                params,
+            ).fetchall()
+            invites = db.execute(
+                "SELECT resource,id FROM invitations WHERE workspace=? AND kind='project' "
+                "AND resource IN (?,?) AND accepted=0 AND expires>? ORDER BY id",
+                (*params, now),
+            ).fetchall()
+            agents = db.execute(
+                "SELECT resource,id FROM agents WHERE workspace=? AND kind='project' "
+                "AND resource IN (?,?) AND revoked=0 AND expires>? ORDER BY id",
+                (*params, now),
+            ).fetchall()
+        if not (grants or invites or agents or expected):
+            return None
+        payload = [
+            workspace,
+            artifact,
+            source,
+            destination,
+            [[list(row) for row in rows] for rows in (grants, invites, agents)],
+        ]
+        current = checksum(json.dumps(payload))
+        if expected == current:
+            return None
+        shared = {cast(str, row["resource"]) for rows in (grants, invites, agents) for row in rows}
+        return ProjectMoveConfirmation(current, source in shared, destination in shared)
 
     def create_workspace(self, actor: Actor, title: str) -> str:
         title = title.strip()

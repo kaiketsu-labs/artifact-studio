@@ -1,10 +1,13 @@
-# Hosted shared workspace
+# Hosted workspace with whole-workspace membership
 
-For scoped invitations, multiple workspaces, private chats and simultaneous agents,
-use the opt-in [multiplayer server](MULTIPLAYER.md). Its per-agent authentication and
-tunnel path configuration differ from this older whole-workspace hosted mode.
+For the regular Studio editor with scoped invitations, private chats and
+simultaneous agents, use [shared projects](MULTIPLAYER.md). See the [remote hosting
+architecture](MULTIPLAYER.md#remote-hosting-architecture) and use that guide's
+agent-token and Tunnel rules for shared projects.
 
-Hosted mode is an implementation draft and has not been validated against a live Cloudflare account. Local mode remains the default. A hosted server is a separate workspace: open its HTTPS URL in a browser on a Mac, iPhone or other device. The Mac controller continues to manage the local installation. No mode switch moves files between workspaces.
+Local mode remains the default. Open a hosted workspace at its HTTPS URL on a Mac,
+iPhone or other device. The Mac controller manages the local installation.
+Moving work to the hosted workspace requires an import or a verified restore.
 
 ![Hosted agent connection in the library, using a fictional workspace.](assets/hosted-connection.png)
 
@@ -54,7 +57,7 @@ provider loading is blocked; exit code 0 means the local configuration was
 accepted, **not** that the deployment passed a security audit. Provider error
 details and authentication options are not printed.
 
-In the browser, select **Hosted → Server checks**. It distinguishes configured
+In the browser, open **Menu → Workspace & server → Server checks**. It distinguishes configured
 protections, warnings with an action to take, and unverified account settings.
 Hosts sharing a domain suffix prompt a cookie-isolation warning. Studio cannot
 inspect actual cookie scope, MFA enforcement, firewall rules, tunnel logging,
@@ -154,7 +157,7 @@ can exhaust a small VM before a script deadline expires.
 
 ## What runs where
 
-| Workflow | Local | Hosted draft |
+| Workflow | Local | Hosted |
 | --- | --- | --- |
 | Library, uploads, slide editing, notes, chat and review | Available | Available to every configured human member |
 | Agent edits and visual checks | Full local MCP | Constrained remote MCP; discover its schemas after connecting |

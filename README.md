@@ -4,9 +4,9 @@
 
 <h1 align="center">Artifact Studio</h1>
 
-Work with other people and their agents using the opt-in
-[multiplayer server](docs/MULTIPLAYER.md): scoped invitations, multiple workspaces,
-and Shared / My agent chats through an authenticated tunnel.
+Work with other people and their agents from the regular Studio editor using
+[shared projects](docs/MULTIPLAYER.md). Invite collaborators to selected work and
+give each agent its own scoped connection.
 
 <p align="center">
   An artifact workspace for you and your agent — locally or on your own server.<br>
@@ -106,7 +106,12 @@ and must be checked in your hosting account.
 
 **Local (default):** run Studio on your computer, use its loopback URL and the Mac controller, and keep files on that computer. The quick start below uses this mode.
 
-**Hosted (draft):** run a separate shared server and open its HTTPS URL in a browser on Mac, iPhone or another device. Every configured human member shares its content; agent identities use the constrained MCP interface. The Mac controller still manages your local installation. See [hosted setup](docs/HOSTED.md), [client-only agent hooks](docs/HOSTED-AGENT-HOOKS.md), and [authentication providers](docs/AUTH-PROVIDERS.md). Switching addresses does not move files.
+**Self-hosted:** run Studio on your server and open its HTTPS URL in a browser.
+Share individual projects and artifacts with [scoped invitations](docs/MULTIPLAYER.md#share-and-collaborate).
+See the [remote hosting architecture](docs/MULTIPLAYER.md#remote-hosting-architecture)
+and [authentication providers](docs/AUTH-PROVIDERS.md). The Mac controller manages
+the local installation. To move an existing workspace, follow the
+[backup and cutover procedure](docs/MULTIPLAYER.md#remote-hosting-architecture).
 
 ## Quick start
 

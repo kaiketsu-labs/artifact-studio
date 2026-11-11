@@ -29,7 +29,7 @@ from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
 from .copilot_capture import capture_cloud_slide
 from .element_alternatives import ElementAlternatives, ElementInput
 from .hook_bundle import client_files
-from .models import FeedbackFile, Slide, SlidePatch
+from .models import DesignFile, Slide, SlidePatch
 from .review import Reviews
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import SAFE_ID, ConflictError, Store, digest
@@ -60,7 +60,7 @@ REFERENCE_SECTIONS = {
 def attachment_page(
     path: Path,
     boundary: Path,
-    file: FeedbackFile,
+    file: DesignFile,
     offset: int,
     max_bytes: int,
     encoding: Literal["utf-8", "base64"],

@@ -5,6 +5,12 @@
     const doc=root.document,dialog=doc.getElementById('hub-dialog');
     let selected=null,pending=[],busy=false,textRequest=null,textPreview=null,editorLoad=null;
     const path=id=>`/api/design-library/${encodeURIComponent(id)}`;
+    const studioPath=url=>root.ArtifactSession?.path?.(url)||url;
+    const studioHome=()=>root.ArtifactSession?.home?.()||'/';
+    const scoped=doc.documentElement?.hasAttribute('data-shared-editor');
+    const exampleUrl=id=>scoped
+      ? studioPath(`/decks/${encodeURIComponent(id)}/presenter?present=1&audience=1`)
+      : `/?deck=${encodeURIComponent(id)}`;
     const control=(action,label,name,attrs='')=>`<button type="button" data-design-action="${action}" ${attrs}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
     const type=file=>file.name.includes('.')?file.name.split('.').at(-1).toUpperCase().slice(0,8):'FILE';
     const fileLabel=file=>file.path.startsWith('reference/uploads/')?'Uploaded reference':file.path;
@@ -15,7 +21,7 @@
     const fileIcons={slides:'presentation',pdf:'pdf',document:'notes',data:'table',stylesheet:'palette',script:'code',typescript:'code',markup:'code',code:'code',archive:'archive',font:'font',image:'image',file:'file'};
     function filePreview(file){
       const extension=type(file),endpoint=extension==='SVG'?'image':imageTypes.has(extension)||['PPTX','POTX'].includes(extension)?'thumbnail':'';
-      return endpoint?`${file.url.replace('/files/',`/${endpoint}/`)}?v=${encodeURIComponent(file.version)}`:'';
+      return endpoint?`${studioPath(file.url.replace('/files/',`/${endpoint}/`))}?v=${encodeURIComponent(file.version)}`:'';
     }
     function fileVisual(file){
       const extension=type(file),kind=imageTypes.has(extension)?'image':fileKinds[extension]||'file',preview=filePreview(file);
@@ -24,12 +30,12 @@
     }
     function fileRow(file){
       const label=`<strong>${escape(file.name)}</strong><small>${escape(fileLabel(file))}</small>`;
-      const name=textFile(file)?`<button type="button" class="design-file-name" data-design-action="preview-file" data-file-path="${escape(file.path)}" title="${escape(file.path)}" aria-label="Open ${escape(file.name)}">${label}</button>`:`<a href="${escape(file.url)}" title="${escape(file.path)}" download>${label}</a>`;
+      const name=textFile(file)?`<button type="button" class="design-file-name" data-design-action="preview-file" data-file-path="${escape(file.path)}" title="${escape(file.path)}" aria-label="Open ${escape(file.name)}">${label}</button>`:`<a href="${escape(studioPath(file.url))}" title="${escape(file.path)}" download>${label}</a>`;
       return `<li>${fileVisual(file)}${name}<small class="design-file-size">${sizeLabel(file.size)}</small>${file.removable?control('remove-file','','trash',`data-file-path="${escape(file.path)}" class="hub-icon-only" aria-label="Remove ${escape(file.name)} from design context" title="Remove from context"`):''}</li>`;
     }
     /** Bound reference reads without preloading file bodies into discovery or agent context. */
     async function readText(file,signal){
-      const response=await root.fetch(file.url,{signal,cache:'no-store'});
+      const response=await root.fetch(studioPath(file.url),{signal,cache:'no-store'});
       if(!response.ok)throw Error('This file could not be opened.');
       const reader=response.body?.getReader();if(!reader)return {text:'',truncated:false};
       const limit=1024*1024,chunks=[];let total=0,truncated=false;
@@ -108,7 +114,7 @@
     async function openText(file){
       textRequest?.abort();textPreview?.editor?.destroy();const request=new AbortController();textRequest=request;textPreview=null;
       const markdown=['MD','MARKDOWN','MDOWN','MKD'].includes(type(file));
-      modal(file.name,`<section class="design-text-preview"><div class="design-text-toolbar">${markdown?`<div class="design-text-views" role="group" aria-label="File view" data-text-read>${control('text-view','Preview','eye','data-text-view="preview" aria-pressed="true"')}${control('text-view','Source','code','data-text-view="source" aria-pressed="false"')}</div>`:'<span></span>'}<div class="design-text-actions"><a href="${escape(file.url)}" download data-text-read>${icon('download')}Download original</a>${control('edit-text','Edit','edit','data-text-read disabled')}${control('cancel-text','Cancel','close','data-text-edit hidden')}${control('save-text','Save','save','class="hub-primary" data-text-edit hidden disabled title="Save (⌘S / Ctrl+S)"')}</div></div><div class="design-text-content" data-design-text-content tabindex="0" aria-label="File content"><p class="design-text-state" role="status">Loading…</p></div><div class="design-text-error" data-design-text-error hidden><p role="alert"></p><div data-text-conflict hidden>${control('copy-text','Copy edits','copy')}${control('reload-text','Open latest','refresh')}</div></div><small class="design-text-limit" hidden>Preview limited to the first 1 MB. Download the original to edit the complete file.</small></section>`);
+      modal(file.name,`<section class="design-text-preview"><div class="design-text-toolbar">${markdown?`<div class="design-text-views" role="group" aria-label="File view" data-text-read>${control('text-view','Preview','eye','data-text-view="preview" aria-pressed="true"')}${control('text-view','Source','code','data-text-view="source" aria-pressed="false"')}</div>`:'<span></span>'}<div class="design-text-actions"><a href="${escape(studioPath(file.url))}" download data-text-read>${icon('download')}Download original</a>${control('edit-text','Edit','edit','data-text-read disabled')}${control('cancel-text','Cancel','close','data-text-edit hidden')}${control('save-text','Save','save','class="hub-primary" data-text-edit hidden disabled title="Save (⌘S / Ctrl+S)"')}</div></div><div class="design-text-content" data-design-text-content tabindex="0" aria-label="File content"><p class="design-text-state" role="status">Loading…</p></div><div class="design-text-error" data-design-text-error hidden><p role="alert"></p><div data-text-conflict hidden>${control('copy-text','Copy edits','copy')}${control('reload-text','Open latest','refresh')}</div></div><small class="design-text-limit" hidden>Preview limited to the first 1 MB. Download the original to edit the complete file.</small></section>`);
       const panel=dialog.querySelector('.design-text-preview');
       try{const result=await readText(file,request.signal);if(textRequest!==request||!panel.isConnected||!dialog.open)return;textPreview={panel,...result,markdown,file,designId:selected.id,editing:false,saving:false};panel.querySelector('.design-text-limit').hidden=!result.truncated;showText();}
       catch(error){if(request.signal.aborted||!panel.isConnected)return;const content=panel.querySelector('[data-design-text-content]');content.replaceChildren();const message=doc.createElement('p');message.className='design-text-state';message.setAttribute('role','alert');message.textContent=error.message;content.append(message);}
@@ -122,7 +128,7 @@
     function cover(item){
       const formats=(item.formats||[]).filter(format=>!['CSS','HTML','JS'].includes(format)).slice(0,3);
       const fallback=`<span class="design-cover-sheet"><b>${escape(formats[0]||'DESIGN')}</b><span>${escape(item.name)}</span><i></i><i></i><i></i></span><span class="design-cover-formats">${formats.map(format=>`<b>${escape(format)}</b>`).join('')}</span>`;
-      const preview=item.preview_url?(item.kind==='slide_pack'?`<iframe src="${escape(item.preview_url)}" title="${escape(item.name)} design preview" tabindex="-1" sandbox loading="lazy"></iframe>`:`<img src="${escape(item.preview_url)}" alt="" loading="lazy" decoding="async" data-design-preview>`):'';
+      const preview=item.preview_url?(item.kind==='slide_pack'?`<iframe src="${escape(studioPath(item.preview_url))}" title="${escape(item.name)} design preview" tabindex="-1" sandbox loading="lazy"></iframe>`:`<img src="${escape(studioPath(item.preview_url))}" alt="" loading="lazy" decoding="async" data-design-preview>`):'';
       return `<span class="design-card-art" aria-hidden="true">${fallback}${preview}</span>`;
     }
     function cards(items,search=''){
@@ -138,7 +144,7 @@
       selected=item;
       const order=['References','Guidance','Assets & styling','Examples & player'];
       const groups=[...new Set(item.files.map(file=>file.group))].sort((a,b)=>order.indexOf(a)-order.indexOf(b));
-      return `<nav class="hub-crumbs" aria-label="Breadcrumb">${control('back','Designs','palette')}${icon('right')}<span>${escape(item.name)}</span></nav><header class="design-detail-heading"><div><p class="design-eyebrow">${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</p><h1>${escape(item.name)}</h1><p class="design-description">${escape(item.description)}</p></div><div class="design-detail-actions">${defaultControl(item)}${control('use','Use with agent','robot',`class="hub-primary" ${!item.files.length&&!item.description.trim()?'disabled title="Add reference files or a description first"':''}`)}${control('attach','Add files','attach')}${control('refresh','','refresh','aria-label="Refresh design context" title="Refresh context"')}${control('delete','','trash',`data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</div></header><section class="design-context"><header><div><h2>Context files <span class="hub-count">${item.files.length}</span></h2><p>Available to your agent as references. Adding files does not apply their styling automatically.</p></div></header>${groups.length?groups.map(group=>`<section class="design-file-group"><h3>${escape(group)}</h3><ul>${item.files.filter(file=>file.group===group).map(fileRow).join('')}</ul></section>`).join(''):`<div class="design-empty-files">${icon('attach')}<p>No context files yet.</p>${control('attach','Add files','plus')}</div>`}</section>${item.kind==='slide_pack'?`<a class="design-example-link" href="/?deck=${encodeURIComponent(item.folder_id)}">${icon('presentation')}Open example slides${icon('external')}</a>`:''}`;
+      return `<nav class="hub-crumbs" aria-label="Breadcrumb">${control('back','Designs','palette')}${icon('right')}<span>${escape(item.name)}</span></nav><header class="design-detail-heading"><div><p class="design-eyebrow">${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</p><h1>${escape(item.name)}</h1><p class="design-description">${escape(item.description)}</p></div><div class="design-detail-actions">${defaultControl(item)}${control('use','Use with agent','robot',`class="hub-primary" ${!item.files.length&&!item.description.trim()?'disabled title="Add reference files or a description first"':''}`)}${control('attach','Add files','attach')}${control('refresh','','refresh','aria-label="Refresh design context" title="Refresh context"')}${control('delete','','trash',`data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</div></header><section class="design-context"><header><div><h2>Context files <span class="hub-count">${item.files.length}</span></h2><p>Available to your agent as references. Adding files does not apply their styling automatically.</p></div></header>${groups.length?groups.map(group=>`<section class="design-file-group"><h3>${escape(group)}</h3><ul>${item.files.filter(file=>file.group===group).map(fileRow).join('')}</ul></section>`).join(''):`<div class="design-empty-files">${icon('attach')}<p>No context files yet.</p>${control('attach','Add files','plus')}</div>`}</section>${item.kind==='slide_pack'?`<a class="design-example-link" href="${escape(exampleUrl(item.folder_id))}">${icon('presentation')}Open example slides${icon('external')}</a>`:''}`;
     }
     function filesForm(creating){
       pending=[];
@@ -178,10 +184,10 @@
       pending=next;doc.getElementById('design-library-error').textContent='';renderPending();
     }
     function useDialog(){
-      const link=new URL('/',root.location.origin);link.searchParams.set('view','designs');link.searchParams.set('design',selected.id);
+      const link=new URL(studioHome(),root.location.origin);link.searchParams.set('view','designs');link.searchParams.set('design',selected.id);
       const message=`Use “${selected.name}” from my Artifact Studio design library as visual reference for my next task. Inspect its current references first and flag anything you cannot read.
 
-${link}`;
+${link}${scoped?`\n\nUse a connection scoped to this workspace. Read get_design_context for design “${selected.id}” and open its references with read_design_reference.`:''}`;
       const share=root.ArtifactSharing.canShare({title:selected.name,text:message})?control('share-message','Share…','share','aria-label="Share message" title="Share this message using apps on your device"'):'';
       modal('Use with agent',`<div class="design-agent-handoff"><p>Use this message in your connected agent’s chat.</p><label class="hub-field"><span>Message for your agent</span><textarea id="design-agent-message" readonly rows="7">${escape(message)}</textarea></label><p id="design-agent-copy-status" role="status"></p><div class="hub-form-actions">${share}${control('copy-message','Copy message','copy','class="hub-primary"')}</div></div>`);
     }
@@ -222,7 +228,7 @@ ${link}`;
         if(action==='preview-file'){
           const file=selected.files.find(file=>file.path===node.dataset.filePath);
           if(textFile(file))return openText(file);
-          modal(file.name,`<div class="design-preview-dialog"><img src="${escape(filePreview(file))}" alt="${escape(file.name)}" decoding="async"><a href="${escape(file.url)}" download>${icon('download')}Download original</a></div>`);return;
+          modal(file.name,`<div class="design-preview-dialog"><img src="${escape(filePreview(file))}" alt="${escape(file.name)}" decoding="async"><a href="${escape(studioPath(file.url))}" download>${icon('download')}Download original</a></div>`);return;
         }
         if(action==='share-message'){
           const field=doc.getElementById('design-agent-message');node.disabled=true;doc.getElementById('design-agent-copy-status').textContent='';

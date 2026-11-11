@@ -13,12 +13,16 @@ from collections import OrderedDict
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import cast
 from urllib.parse import quote
 
+from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
+from .design_thumbnails import design_thumbnail
+from .hosted_policy import deck_asset_path
 from .projects import RootSettings
 from .renderer_health import (
     RendererUnavailable,
@@ -26,12 +30,15 @@ from .renderer_health import (
     ensure_renderer_ready,
 )
 from .storage import SAFE_ID, Store, digest, replace_text
+from .visuals import CaptureOptions, ScopedDeckEmbedder, capture, capture_snapshot, snapshot
 
 TOKEN = re.compile(r"^[a-f0-9]{64}$")
 CONTRACT = "library-cover-v2-full-layout"
+SCOPED_CONTRACT = "shared-library-cover-v1"
 MAX_COVERS = 256
 MAX_CACHE_BYTES = 128 * 1024 * 1024
 MAX_COVER_BYTES = 8 * 1024 * 1024
+COVER_KINDS = frozenset({"presentation", "html", "markdown", "image", "svg"})
 
 
 def cache_folder(store: Store) -> Path:
@@ -69,11 +76,15 @@ def _root_identity(path: Path) -> str:
     return json.dumps(settings.attributes)
 
 
-def cover_token(store: Store, view: ArtifactView) -> str:
+def cover_token(store: Store, view: ArtifactView, *, scoped: bool = False) -> str:
     """Keep review identity separate from exact visual dependency identity for legacy decks."""
-    parts = [CONTRACT, view.id, view.content_hash]
+    parts = [SCOPED_CONTRACT if scoped else CONTRACT, view.id, view.content_hash]
     if view.legacy_deck_id:
         folder = store.folder(view.legacy_deck_id)
+        if scoped and (
+            (store.root / view.legacy_deck_id).is_symlink() or (folder / "index.html").is_symlink()
+        ):
+            raise ValueError("Shared presentations require an unlinked source file.")
         checksum = hashlib.sha256()
         # Legacy review hashes use asset timestamps. Covers additionally hash bytes,
         # so externally replaced images still refresh when size/time were preserved.
@@ -87,6 +98,11 @@ def cover_token(store: Store, view: ArtifactView) -> str:
                 continue
             if relative.as_posix() in {"README.md", "AGENT-GUIDE.md", "PREFERENCES.md"}:
                 continue
+            if scoped and relative.as_posix() != "index.html":
+                try:
+                    path = deck_asset_path(folder, relative.as_posix())
+                except ValueError:
+                    continue
             checksum.update(relative.as_posix().encode())
             checksum.update(b"\0")
             if relative.as_posix() == "index.html":
@@ -107,16 +123,24 @@ def cached(store: Store, artifact_id: str, token: str) -> Path | None:
     return path if path.is_file() and not path.is_symlink() else None
 
 
-def cover_metadata(store: Store, view: ArtifactView) -> dict[str, str | bool]:
+def cover_metadata(
+    store: Store, view: ArtifactView, *, scoped: bool = False
+) -> dict[str, str | bool]:
     """Expose current identity and a clearly separate last-good preview, never source bytes."""
-    if view.kind not in {"presentation", "html", "markdown", "image", "svg"}:
-        return {"preview_url": "", "preview_fallback_url": "", "preview_cached": False}
-    token = cover_token(store, view)
+    empty = {"preview_url": "", "preview_fallback_url": "", "preview_cached": False}
+    if view.kind not in COVER_KINDS:
+        return empty
+    try:
+        token = cover_token(store, view, scoped=scoped)
+    except OSError, ValueError:
+        if scoped:
+            return empty
+        raise
     ready = cached(store, view.id, token) is not None
     fallback = ""
     pointer = cache_folder(store) / f"last-{view.id}.json"
     try:
-        if not ready and pointer.is_file() and pointer.stat().st_size < 1024:
+        if not scoped and not ready and pointer.is_file() and pointer.stat().st_size < 1024:
             previous = json.loads(pointer.read_text())
             old = previous.get("token", "")
             if isinstance(old, str) and TOKEN.fullmatch(old) and cached(store, view.id, old):
@@ -148,6 +172,7 @@ class _Job:
     token: str
     kind: str
     render: Callable[[ArtifactView, Path], Path]
+    scoped: bool = False
 
     @property
     def key(self) -> tuple[str, str, str]:
@@ -285,7 +310,7 @@ class CoverWorker:
             ensure_renderer_ready()
         service = ArtifactStore(job.store)
         view = service.get_artifact(job.artifact_id)
-        if cover_token(job.store, view) != job.token:
+        if cover_token(job.store, view, scoped=job.scoped) != job.token:
             self._remember(job, "cover_changed", "The artifact changed. Refresh its preview.", 30)
             return
         folder = cache_folder(job.store)
@@ -295,7 +320,7 @@ class CoverWorker:
             if not source.is_file() or source.stat().st_size > MAX_COVER_BYTES:
                 raise ValueError("The generated preview exceeds the image size limit.")
             latest = service.get_artifact(job.artifact_id)
-            if cover_token(job.store, latest) != job.token:
+            if cover_token(job.store, latest, scoped=job.scoped) != job.token:
                 self._remember(
                     job, "cover_changed", "The artifact changed while its preview was prepared.", 30
                 )
@@ -303,7 +328,8 @@ class CoverWorker:
             staged = Path(temporary) / "complete.png"
             _ = shutil.copyfile(source, staged)
             _ = staged.replace(cover_path(job.store, job.artifact_id, job.token))
-        replace_text(folder / f"last-{job.artifact_id}.json", json.dumps({"token": job.token}))
+        if not job.scoped:
+            replace_text(folder / f"last-{job.artifact_id}.json", json.dumps({"token": job.token}))
         self._failure_path(job).unlink(missing_ok=True)
         self._prune(folder, cover_path(job.store, job.artifact_id, job.token))
 
@@ -323,6 +349,62 @@ class CoverWorker:
 
 
 WORKER = CoverWorker()
+
+
+def render_library_cover(
+    store: Store, view: ArtifactView, output: Path, *, scoped: bool = False
+) -> Path:
+    """Render the current library cover with the existing isolated capture pipeline."""
+    service = ArtifactStore(store)
+    if view.kind == "image":
+        source = service.resolve_file(view.id, view.entrypoint, revision=view.revision)
+        target = output / "raster.png"
+        _ = target.write_bytes(design_thumbnail(source, maximum=1280))
+        return target
+    if view.legacy_deck_id:
+        if scoped:
+            embedder = ScopedDeckEmbedder(store, view.legacy_deck_id)
+            slide = store.read(view.legacy_deck_id).slides[0]
+            options = CaptureOptions()
+            prepared = snapshot(
+                store, view.legacy_deck_id, slide, 1, options, scoped_embedder=embedder
+            )
+            target = output / "shared-slide.png"
+            _ = target.write_bytes(capture_snapshot(prepared, options))
+            return target
+        return Path(
+            capture(
+                store,
+                view.legacy_deck_id,
+                output,
+                slide_id=store.read(view.legacy_deck_id).slides[0].id,
+            ).path
+        )
+    if view.kind in COVER_KINDS:
+        return Path(
+            capture_artifact_image(
+                service, view.id, output, width=1280, height=800, revision=view.revision
+            ).path
+        )
+    raise FileNotFoundError("This file has no visual preview.")
+
+
+def request_current_cover(store: Store, view: ArtifactView, token: str) -> CoverReply:
+    """Queue or read only the current cover after the caller has checked its grant."""
+    if view.kind not in COVER_KINDS:
+        raise FileNotFoundError("This file has no visual preview.")
+    if not TOKEN.fullmatch(token) or token != cover_token(store, view, scoped=True):
+        return CoverReply("cover_changed", "Refresh the library to load this preview.", 409)
+    return WORKER.request(
+        _Job(
+            store,
+            view.id,
+            token,
+            view.kind,
+            partial(render_library_cover, store, scoped=True),
+            True,
+        )
+    )
 
 
 def request_cover(

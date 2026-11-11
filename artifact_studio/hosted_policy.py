@@ -132,37 +132,44 @@ def scoped_deck_routes(get_store: Callable[[], Store]) -> APIRouter:
 
     @router.get("/decks/{deck_id}/{asset_path:path}")
     def deck_asset(deck_id: str, asset_path: str) -> FileResponse:
-        parts = asset_path.split("/")
-        if any(not part or part.startswith(".") or "\\" in part for part in parts):
-            raise HTTPException(status_code=404)
-        if asset_path != "theme.css" and not (
-            len(parts) >= 2
-            and parts[0] == "assets"
-            and Path(parts[-1]).suffix.lower() in _ASSET_TYPES
-        ):
-            raise HTTPException(status_code=404)
-        store = get_store()
-        try:
-            # A valid embedded document establishes that this is an actual deck.
-            if (store.root / deck_id).is_symlink():
-                raise ValueError("Symlinks are not served")
-            store.read(deck_id)
-            folder = store.folder(deck_id)
-            target = folder
-            for part in parts:
-                target = target / part
-                if target.is_symlink():
-                    raise ValueError("Symlinks are not served")
-            if not target.is_file() or not target.resolve().is_relative_to(folder):
-                raise ValueError("Missing asset")
-        except ValueError, OSError:
-            raise HTTPException(status_code=404) from None
-        return FileResponse(
-            target,
-            headers={
-                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
-                "X-Content-Type-Options": "nosniff",
-            },
-        )
+        return deck_asset_response(get_store(), deck_id, asset_path)
 
     return router
+
+
+def deck_asset_path(folder: Path, asset_path: str) -> Path:
+    """Resolve only unlinked theme and passive asset files from a validated deck folder."""
+    parts = asset_path.split("/")
+    if any(not part or part.startswith(".") or "\\" in part for part in parts):
+        raise ValueError("Invalid deck asset path")
+    if asset_path != "theme.css" and not (
+        len(parts) >= 2 and parts[0] == "assets" and Path(parts[-1]).suffix.lower() in _ASSET_TYPES
+    ):
+        raise ValueError("Unsupported deck asset")
+    target = folder
+    for part in parts:
+        target = target / part
+        if target.is_symlink():
+            raise ValueError("Symlinks are not served")
+    if not target.is_file() or not target.resolve().is_relative_to(folder):
+        raise ValueError("Missing asset")
+    return target
+
+
+def deck_asset_response(store: Store, deck_id: str, asset_path: str) -> FileResponse:
+    """Return a passive asset from a validated deck."""
+    try:
+        # A valid embedded document establishes that this is an actual deck.
+        if (store.root / deck_id).is_symlink():
+            raise ValueError("Symlinks are not served")
+        store.read(deck_id)
+        target = deck_asset_path(store.folder(deck_id), asset_path)
+    except ValueError, OSError:
+        raise HTTPException(status_code=404) from None
+    return FileResponse(
+        target,
+        headers={
+            "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )

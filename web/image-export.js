@@ -41,7 +41,7 @@
     const file=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!file)throw Error('This image could not be exported.');download(file,'image.png');
   }
   async function request(endpoint,body){
-    const response=await root.fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const response=await root.fetch(root.ArtifactSession?.path?.(endpoint) ?? endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!response.ok){let result;try{result=await response.json();}catch{}throw Error(typeof result?.detail==='string'?result.detail:'The image could not be exported.');}
     return response;
   }

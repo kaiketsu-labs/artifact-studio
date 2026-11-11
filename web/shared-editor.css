@@ -1,0 +1,56 @@
+/* The existing editor chrome with actions limited to the shared resource. */
+[data-shared-editor] :is(
+  [data-action="context"],
+  #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
+  #deck-design-references, #instructions-button, #storage-status,
+  #libraries-button, #removed-presentations,
+  #remove-presentation,
+  #toggle-design-chat
+) {
+  display: none !important;
+}
+[data-shared-editor]:not([data-workspace-owner]) :is(
+  [data-action="new-project"], [data-action="import"],
+  [data-action="project-add"], [data-action="move"], .hub-card-move,
+  [data-action="history"],
+  [data-new-presentation], #new-button, #new-project-option,
+  [data-project="designs"], [data-design-action], #selected-design-references
+) {
+  display: none !important;
+}
+#shared-deck-role {
+  margin: 0;
+  padding: 8px 16px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+[data-native-conversation] :is(#reference-slides, #start-help) {
+  display: none !important;
+}
+[data-shared-editor]:not([data-shared-role="edit"]) :is(#element-tools, #element-properties, #objects-button) {
+  display: none !important;
+}
+.shared-channel select {
+  padding: 5px 8px;
+  color: var(--hub-ink, var(--ink));
+  background: var(--hub-panel, var(--surface));
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+}
+
+
+[data-shared-editor]:not([data-shared-role="edit"]) :is(
+  #add-slide, #add-section, #deleted-slides, #hide-slide, #approve-button, [data-visibility-id], [data-action="select"],
+  #slide-menu, #slide-list-menu, #slide-sorter-menu, #section-menu, .hub-approve
+) {
+  display: none !important;
+}
+[data-shared-editor] [data-slide-extra="comment"] {
+  display: none !important;
+}
+[data-native-conversation] :is([data-action="reference-slides"], .hub-chat-context, .hub-message-body:empty) {
+  display: none !important;
+}
+.hub-chat > .shared-channel { margin: 4px 16px 0; }
+.shared-message-label { color: var(--hub-muted, var(--muted)); font-weight: 500; }
