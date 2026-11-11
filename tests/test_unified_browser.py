@@ -15,7 +15,7 @@ from tests.integration.multiplayer_fixture import (
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, grant, human
-from tests.test_unified_hosting import seed_isolated_presentation
+from tests.test_unified_hosting import seed_artifact_history, seed_isolated_presentation
 
 pytestmark = [
     pytest.mark.browser,
@@ -518,5 +518,49 @@ def test_personal_favorite_slides_open_in_the_same_workspace(tmp_path: Path) -> 
                 gallery.locator(".favorite-pick").click()
                 expect(page).to_have_url(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
                 expect(star).to_have_attribute("aria-pressed", "true")
+        finally:
+            browser.close()
+
+
+def test_personal_artifact_timeline_reuses_native_preview_and_restore(tmp_path: Path) -> None:
+    """Open the native timeline, inspect the pinned old assets and restore a new version."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(
+            root,
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, "alice") as owner,
+        sync_playwright() as playwright,
+    ):
+        home = owner.get("/").headers["location"]
+        artifact = seed_artifact_history(root, app, home.split("/")[2])
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}{home}?artifact={artifact}")
+                page.get_by_role("button", name="Version history", exact=True).click()
+                timeline = page.get_by_role("dialog", name="Version history")
+                preview = timeline.frame_locator("iframe")
+                expect(preview.get_by_role("heading", name="Current draft")).to_be_visible()
+                timeline.get_by_text("1 earlier version").click()
+                timeline.locator('[data-version="artifact:1"]').click()
+                heading = preview.get_by_role("heading", name="Original draft")
+                expect(heading).to_have_css("color", "rgb(93, 24, 117)")
+                expect(timeline.locator('[data-version="artifact:1"] img')).to_have_js_property(
+                    "naturalWidth", 400
+                )
+                timeline.get_by_role("button", name="Restore version", exact=True).click()
+                expect(timeline.get_by_text("Anyone with access", exact=False)).to_be_visible()
+                timeline.get_by_role("button", name="Restore", exact=True).click()
+                expect(timeline).to_be_hidden()
+                expect(
+                    page.frame_locator("#hub-html-preview").get_by_role(
+                        "heading", name="Original draft"
+                    )
+                ).to_be_visible()
         finally:
             browser.close()

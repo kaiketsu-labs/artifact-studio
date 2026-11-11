@@ -5,7 +5,7 @@
   #deck-design-references, #instructions-button, #storage-status,
   #share-artifact,
   #libraries-button, #removed-presentations,
-  #remove-presentation, [data-action="history"],
+  #remove-presentation,
   #toggle-design-chat
 ) {
   display: none !important;
@@ -13,6 +13,7 @@
 [data-shared-editor]:not([data-workspace-owner]) :is(
   [data-action="new-project"], [data-action="import"],
   [data-action="project-add"], [data-action="move"], .hub-card-move,
+  [data-action="history"],
   [data-new-presentation], #new-button, #new-project-option,
   [data-project="designs"], [data-design-action], #selected-design-references
 ) {

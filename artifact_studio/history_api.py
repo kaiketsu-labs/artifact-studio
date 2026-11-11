@@ -44,10 +44,12 @@ def history_routes(
         """Use only the workspace resolved for this request."""
         return VersionHistory(store, ArtifactStore(store))
 
-    def access(request: Request, deck_id: str, role: Role) -> AbstractContextManager[Store]:
+    def access(
+        request: Request, identifier: str, role: Role, *, kind: Literal["deck", "artifact"] = "deck"
+    ) -> AbstractContextManager[Store]:
         """Keep the selected grant active for the duration of a read or write."""
         if scoped_access is not None:
-            return scoped_access(request, "deck", deck_id, role)
+            return scoped_access(request, kind, identifier, role)
         return nullcontext(current_store())
 
     @router.get("/api/decks/{deck_id}/slides/{slide_id}/history")
@@ -144,35 +146,46 @@ def history_routes(
             )
         return FileResponse(path, media_type="image/png")
 
-    # A current artifact grant does not expose retired files in earlier bundles.
-    if scoped_access is not None:
-        return router
-
     @router.get("/api/artifacts/{artifact_id}/history")
     def artifact_history(
+        request: Request,
         artifact_id: str,
         cursor: str | None = None,
         include_all: bool = False,
         limit: Annotated[int, Query(ge=1, le=100)] = 30,
     ) -> HistoryPage:
         """Read a source-free, cursor-paginated bundle timeline."""
-        return history(current_store()).list_artifact(
-            artifact_id, cursor=cursor, limit=limit, include_all=include_all
-        )
+        with access(request, artifact_id, "view", kind="artifact") as store:
+            return history(store).list_artifact(
+                artifact_id, cursor=cursor, limit=limit, include_all=include_all
+            )
 
-    @router.post("/api/artifacts/{artifact_id}/history/restore")
-    def restore_artifact(artifact_id: str, body: VersionRestore) -> ArtifactView:
+    @router.post(
+        "/api/artifacts/{artifact_id}/history/restore",
+        response_model=ArtifactView if scoped_access is None else dict[str, bool],
+    )
+    def restore_artifact(
+        request: Request, artifact_id: str, body: VersionRestore
+    ) -> ArtifactView | dict[str, bool]:
         """Copy a retained bundle into a new current revision with concurrency checks."""
-        return history(current_store()).restore_artifact(
-            artifact_id, body.version_id, body.expected_hash, body.request_id
-        )
+        with access(request, artifact_id, "edit", kind="artifact") as store:
+            saved = history(store).restore_artifact(
+                artifact_id, body.version_id, body.expected_hash, body.request_id
+            )
+            return saved if scoped_access is None else {"saved": True}
 
     @router.get("/api/artifacts/{artifact_id}/history/thumbnail")
-    def artifact_thumbnail(artifact_id: str, version_id: str) -> FileResponse:
+    def artifact_thumbnail(request: Request, artifact_id: str, version_id: str) -> FileResponse:
         """Return a small image of an exact retained visual bundle."""
-        path = history_thumbnail(
-            history(current_store()), artifact_id=artifact_id, version_id=version_id
-        )
+        with access(request, artifact_id, "view", kind="artifact") as store:
+            service = history(store)
+        path = history_thumbnail(service, artifact_id=artifact_id, version_id=version_id)
+        if scoped_access is not None:
+            # Rendering can take several seconds. Recheck access before returning its bytes.
+            with access(request, artifact_id, "view", kind="artifact"):
+                return FileResponse(
+                    path, media_type="image/png", headers={"Cache-Control": "no-store"}
+                )
         return FileResponse(path, media_type="image/png")
 
     return router

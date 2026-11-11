@@ -72,6 +72,11 @@ the sidebar opens your own gallery, including any descriptions you add. Stars
 and descriptions are private to your account and workspace. When your access to
 a shared artifact ends, Studio stops showing its bookmarks and previews.
 
+Owners can open **Version history** on an artifact to inspect retained files and
+restore them as a new version. The timeline and its old previews are private to
+the workspace owner. Collaborators with current access can see files once the
+owner restores them to the current version.
+
 Use **Designs** in a personal workspace to manage reference files and set a
 default slide pack. The owner can open example slides in presentation view.
 For private designs, connect your agent from the Designs page so the connection
