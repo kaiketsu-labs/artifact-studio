@@ -395,7 +395,7 @@
     else {
       commands.push(menuCommand('View','eye',()=>openArtifactCommand(id,'view')));
       if(!sharedEditor||['comment','edit'].includes(item.access_role))commands.push(menuCommand('Comment','chat',()=>openArtifactCommand(id,'comment')));
-      if(!sharedEditor)commands.push(menuCommand('Version history','history',()=>{if(artifactEditor.finish())versions.open({kind:'artifact',artifactId:id,title:item.title});}));
+      if(canManageWorkspace())commands.push(menuCommand('Version history','history',()=>openArtifactHistory(item)));
     }
     if(root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
     if(canManageWorkspace())commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)));
@@ -549,7 +549,7 @@
   }
   function viewer(item) {
     const kind=kindOf(item), sourceView=kind==='markdown' && state.sourceView;
-    if(kind==='html')return `<div id="hub-preview-warning" class="hub-preview-warning" role="alert" hidden><span>Preview navigation was blocked. Reload to return to the artifact.</span>${button('replay','Reload preview','refresh')}</div><div class="hub-preview-scroll"><iframe id="hub-html-preview" class="hub-html-frame" title="${escape(item.title)} preview" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" src="${escape(artifactPath(item.id,'/preview'))}?revision=${encodeURIComponent(item.revision)}" style="width:${state.viewport==='fluid'?'100%':state.viewport+'px'}"></iframe></div>`;
+    if(kind==='html')return `<div id="hub-preview-warning" class="hub-preview-warning" role="alert" hidden><span>Preview navigation was blocked. Reload to return to the artifact.</span>${button('replay','Reload preview','refresh')}</div><div class="hub-preview-scroll"><iframe id="hub-html-preview" class="hub-html-frame" title="${escape(item.title)} preview" sandbox="allow-scripts allow-downloads" referrerpolicy="no-referrer" src="${escape(root.ArtifactSession.artifactPreview(item.id))}?revision=${encodeURIComponent(item.revision)}" style="width:${state.viewport==='fluid'?'100%':state.viewport+'px'}"></iframe></div>`;
     if(kind==='markdown')return sourceView?`<pre id="hub-markdown-source" class="hub-source">${escape(state.source)}</pre>`:`<article id="hub-markdown" class="hub-markdown ${state.selecting?'is-selecting':''}">${renderDocument(root.marked,item,state.source)}</article>`;
     if(kind==='image')return `<div class="hub-image-canvas" id="hub-image-canvas"><div class="hub-image-wrap ${state.selecting?'is-selecting':''}" id="hub-image-wrap"><img id="hub-image" src="${escape(filePath(item))}" alt="${escape(item.title)}" draggable="false"><div id="hub-region" class="hub-region" hidden></div></div></div><p id="hub-image-meta" class="hub-image-meta">${escape(item.entrypoint)}</p>`;
     return `<section class="hub-file-view">${icon(kinds[kind].icon)}<h2>${escape(item.entrypoint || item.title)}</h2><p>This file is stored in its original format. A dedicated preview is not available.</p><a class="hub-download hub-primary" href="${escape(filePath(item))}" download>${icon('down')}Download file</a></section>`;
@@ -959,6 +959,11 @@
   }
   if(!nativeChat)root.ChatReferences.register({inputId:'hub-feedback-text',key:()=>state.active,attach:addAttachments});
   const versions=root.VersionTimeline.create({api,onRestored:async target=>{await openArtifact(target.artifactId,false);toast('Version restored.');}});
+  function openArtifactHistory(item){
+    if(canManageWorkspace()&&item&&!item.legacy_deck_id&&artifactEditor.finish()){
+      versions.open({kind:'artifact',artifactId:item.id,title:item.title});
+    }
+  }
   root.FavoriteSlides.onChange(()=>{
     state.artifacts=state.artifacts.map(item=>({...item,starred:root.FavoriteSlides.has('artifact',item.id)}));
     if(!state.active && !state.designActive && doc.getElementById('hub-grid')){const focus=doc.activeElement?.dataset.starId;refreshCards();if(focus)[...doc.querySelectorAll('[data-star-id]')].find(node=>node.dataset.starId===focus)?.focus();}
@@ -968,7 +973,7 @@
     if(name==='reference-slides'){const id=state.active;return root.FavoriteSlides.open({attach:files=>id===state.active&&addAttachments(files)});}
     if(name==='retry-cover'){coverLoader.retry(node.dataset.coverRetry);return;}
     if(name==='sort-direction'){updateSort({...sort,direction:sort.direction==='asc'?'desc':'asc'});return;}
-    if(name==='history'){if(!artifactEditor.finish())return;versions.open({kind:'artifact',artifactId:state.detail.id,title:state.detail.title});return;}
+    if(name==='history')return openArtifactHistory(state.detail);
     if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
     if(name==='auto-update'){previewUpdates.set(!previewUpdates.enabled);return;}
     if(name==='home')return home();

@@ -7,9 +7,9 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 from shutil import disk_usage
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -524,11 +524,15 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def history_access(
         request: Request, kind: Literal["deck", "artifact"], identifier: str, role: Role
     ) -> Generator[Store]:
-        """Limit retained history to presentations with an active grant."""
-        if kind != "deck":
-            raise AccessDenied
-        with deck_access(request, identifier, role) as store:
-            yield store
+        """Keep earlier artifact bundles private to the current workspace owner."""
+        if kind == "deck":
+            with deck_access(request, identifier, role) as store:
+                yield store
+        else:
+            scope = artifact_scope(request, identifier)
+            with hub.locked():
+                hub.manage(actor_of(request), scope)
+                yield hub.store(scope.workspace)
 
     app.include_router(deck_edit_routes(deck_access))
     app.include_router(history_routes(lambda: hub.store("default"), scoped_access=history_access))
@@ -564,12 +568,19 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             }
 
     @app.get("/api/artifacts/{artifact_id}/preview")
-    def preview(request: Request, artifact_id: str) -> RedirectResponse:
+    def preview(
+        request: Request,
+        artifact_id: str,
+        history_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+    ) -> RedirectResponse:
         scope = artifact_scope(request, artifact_id)
-        with hub.guard(actor_of(request), scope):
-            return RedirectResponse(
-                f"/api/workspaces/{scope.workspace}/artifacts/{artifact_id}/preview"
-            )
+        actor = actor_of(request)
+        with hub.guard(actor, scope):
+            if history_revision is not None:
+                hub.manage(actor, scope)
+            target = f"/api/workspaces/{scope.workspace}/artifacts/{artifact_id}/preview"
+            query = f"?history_revision={history_revision}" if history_revision is not None else ""
+            return RedirectResponse(target + query)
 
     @app.post("/api/artifacts/{artifact_id}/approve")
     def approve_artifact(

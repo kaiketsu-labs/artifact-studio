@@ -11,10 +11,10 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Literal, cast
+from typing import Annotated, Literal, cast
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from mcp.server.mcpserver import MCPServer
@@ -45,6 +45,9 @@ from .multiplayer_tools import MultiplayerTools
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
 from .visuals import ScopedDeckEmbedder
+
+# The separator is outside the ordinary ticket alphabet.
+HISTORY_PREVIEW_PREFIX = "history~"
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -471,14 +474,23 @@ def create_app(
         "/api/workspaces/{workspace}/artifacts/{artifact}/preview", response_class=HTMLResponse
     )
     def preview(
-        request: Request, workspace: str, artifact: str, slide_id: str = ""
+        request: Request,
+        workspace: str,
+        artifact: str,
+        slide_id: str = "",
+        history_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
     ) -> HTMLResponse:
         if request.headers.get("sec-fetch-dest") not in {"iframe", "frame"}:
             raise HTTPException(403, "Open this preview inside the workspace.")
         actor = actor_of(request)
-        with hub.guard(actor, Scope(workspace, "artifact", artifact)) as store:
+        scope = Scope(workspace, "artifact", artifact)
+        with hub.guard(actor, scope) as store:
             service = ArtifactStore(store)
             item = service.get_artifact(artifact)
+            if history_revision is not None and (
+                item.legacy_deck_id or not hub.owner(actor, workspace)
+            ):
+                raise AccessDenied
             if item.legacy_deck_id:
                 deck = store.read(artifact)
                 slide = store.locate(deck, slide_id) if slide_id else deck.slides[0]
@@ -510,6 +522,11 @@ def create_app(
                 )
                 return HTMLResponse(document, headers={"Content-Security-Policy": policy})
             token = secrets.token_urlsafe(32)
+            if history_revision is not None:
+                token = HISTORY_PREVIEW_PREFIX + token
+            revision = history_revision if history_revision is not None else item.revision
+            root = config.preview_url + "/_preview/" + token
+            document = preview_document(service, artifact, config.public_url, revision, root)
             with hub.connect() as db:
                 db.execute("DELETE FROM preview_tickets WHERE expires<?", (time.time(),))
                 db.execute(
@@ -519,14 +536,12 @@ def create_app(
                         actor.person,
                         workspace,
                         artifact,
-                        item.revision,
+                        revision,
                         time.time() + 3600,
                     ),
                 )
-            root = config.preview_url + "/_preview/" + token
             return HTMLResponse(
-                preview_document(service, artifact, config.public_url, item.revision, root),
-                headers=preview_headers(artifact, item.revision, config.public_url, root),
+                document, headers=preview_headers(artifact, revision, config.public_url, root)
             )
 
     @app.api_route("/_preview/{token}/{path:path}", methods=["GET", "HEAD"])
@@ -543,6 +558,8 @@ def create_app(
                 Scope(cast(str, row["workspace"]), "artifact", cast(str, row["artifact"])),
             )
             hub.require(actor, scope)
+            if token.startswith(HISTORY_PREVIEW_PREFIX) and not hub.owner(actor, scope.workspace):
+                raise AccessDenied
             revision = cast(int, row["revision"])
             root = config.preview_url + "/_preview/" + token
             prefix = f"api/artifacts/{scope.resource}/revisions/{revision}/files/"

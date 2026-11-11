@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 import httpx
 import pytest
 
+from artifact_studio.artifact_models import ArtifactFileInput
+from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.deployment import DeploymentConfig
 from artifact_studio.multiplayer_access import Sharing
 from artifact_studio.unified import create_app
@@ -233,6 +235,102 @@ def seed_isolated_presentation(root: Path, app: MultiplayerApp, workspace: str) 
         isolated = shared.store(workspace)
         make_design(isolated.root / TEMPLATE_ID)
         isolated.create(app.deck_id, "Isolated presentation", "test-brand")
+
+
+def seed_artifact_history(root: Path, app: MultiplayerApp, workspace: str) -> str:
+    """Retain a previous fictional page and stylesheet in the selected workspace."""
+    source = root / "history-fixture"
+    source.mkdir()
+    _ = (source / "index.html").write_text(
+        '<link rel="stylesheet" href="retired.css"><h1>Original draft</h1>'
+    )
+    _ = (source / "retired.css").write_text("h1 { color: rgb(93, 24, 117) }")
+    shared = Sharing(root / "sharing", app.store, "owner@example.test")
+    with shared.locked():
+        service = ArtifactStore(shared.store(workspace))
+        project = service.create_project("History fixture")
+        initial = service.register_artifact(project.id, "History sample", source, "index.html")
+        _ = service.revise_artifact(
+            initial.id,
+            [
+                ArtifactFileInput(path="index.html", text="<h1>Current draft</h1>"),
+                ArtifactFileInput(path="retired.css", delete=True),
+            ],
+            initial.content_hash,
+            "fixture-current-draft",
+        )
+    return initial.id
+
+
+def test_artifact_history_is_private_until_the_owner_restores_it(tmp_path: Path) -> None:
+    """A current editor cannot see retired files, while the owner can restore atomically."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(
+            root,
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, "alice") as owner,
+        human(app, "bob") as editor,
+    ):
+        home = owner.get("/").headers["location"]
+        workspace = home.split("/")[2]
+        artifact = seed_artifact_history(root, app, workspace)
+        api = f"{home}api/artifacts/{artifact}"
+        timeline = api + "/history"
+        preview = f"/api/workspaces/{workspace}/artifacts/{artifact}/preview"
+        invite = (
+            owner.post(
+                f"/api/workspaces/{workspace}/invitations",
+                json={
+                    "kind": "artifact",
+                    "resource": artifact,
+                    "role": "edit",
+                    "email": "bob@example.test",
+                },
+            )
+            .raise_for_status()
+            .json()["url"]
+        )
+        accept(editor, invite.split("#invite=")[1])
+        assert editor.get(api).is_success
+        assert editor.get(timeline).status_code == 404
+        assert (
+            editor.get(timeline + "/thumbnail", params={"version_id": "artifact:1"}).status_code
+            == 404
+        )
+        current = owner.get(timeline).raise_for_status().json()
+        body = {
+            "version_id": "artifact:1",
+            "expected_hash": current["expected_hash"],
+            "request_id": "fixture-restore-original",
+        }
+        assert editor.post(timeline + "/restore", json=body).status_code == 404
+        assert (
+            owner.post(timeline + "/restore", json={**body, "expected_hash": "0" * 64}).status_code
+            == 409
+        )
+        frame = {"sec-fetch-dest": "iframe"}
+        params = {"history_revision": 1}
+        assert editor.get(api + "/preview", headers=frame, params=params).status_code == 404
+        assert editor.get(preview, headers=frame, params=params).status_code == 404
+        document = owner.get(preview, headers=frame, params=params).raise_for_status().text
+        assert "Original draft" in document
+        match = re.search(r"https://preview\.example\.test/_preview/[^/\"\s]+", document)
+        assert match
+        asset = urlsplit(match[0]).path + f"/api/artifacts/{artifact}/revisions/1/files/retired.css"
+        response = owner.get(
+            asset, headers={"host": "preview.example.test", "sec-fetch-dest": "style"}
+        )
+        assert response.is_success and "rgb(93, 24, 117)" in response.text
+        assert editor.get(api + "/files/retired.css").status_code == 404
+        saved = owner.post(timeline + "/restore", json=body).raise_for_status()
+        assert saved.json() == {"saved": True}
+        assert editor.get(api).json()["revision"] == 3
+        assert "rgb(93, 24, 117)" in editor.get(api + "/files/retired.css").text
+        assert editor.get(timeline).status_code == 404
 
 
 def test_native_workspace_routes_never_use_the_default_collection(tmp_path: Path) -> None:

@@ -3,9 +3,9 @@
   'use strict';
   function create({api,onRestored=()=>{},onOpened=()=>{}}){
     const studioPath=path=>root.ArtifactSession?.path?.(path) ?? path;
-    const doc=root.document,escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])),icon=name=>root.SlideIcons.svg(name);
+    const doc=root.document,shared=doc.documentElement.hasAttribute('data-shared-editor'),escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])),icon=name=>root.SlideIcons.svg(name);
     const dialog=doc.createElement('dialog');dialog.className='version-history';dialog.setAttribute('aria-labelledby','version-history-title');
-    dialog.innerHTML=`<header role="presentation"><div><h2 id="version-history-title">Version history</h2><p class="version-subtitle"></p></div><div class="version-actions"><select aria-label="Version filter"><option value="content">Content changes</option><option value="all">All saves</option></select><button type="button" data-history-close aria-label="Close version history">${icon('close')}</button></div></header><div class="version-layout"><nav class="version-list" aria-label="Saved versions"></nav><section class="version-detail"><div class="version-preview-heading"><strong class="version-name"></strong><span class="version-current"></span></div><p class="version-filter-help"></p><div class="version-preview" aria-label="Saved version preview"></div><div class="version-footer"><details><summary>About this preview</summary><p class="version-fidelity"></p></details><button type="button" class="version-restore">${icon('restore')}<span>Restore version</span></button></div><p class="version-confirm" hidden>Restore as a new version? Current notes stay unchanged. <button type="button" data-confirm-restore>Restore</button> <button type="button" data-cancel-restore>Cancel</button></p><p class="version-error" role="alert"></p><p class="version-status" role="status"></p></section></div>`;
+    dialog.innerHTML=`<header role="presentation"><div><h2 id="version-history-title">Version history</h2><p class="version-subtitle"></p></div><div class="version-actions"><select aria-label="Version filter"><option value="content">Content changes</option><option value="all">All saves</option></select><button type="button" data-history-close aria-label="Close version history">${icon('close')}</button></div></header><div class="version-layout"><nav class="version-list" aria-label="Saved versions"></nav><section class="version-detail"><div class="version-preview-heading"><strong class="version-name"></strong><span class="version-current"></span></div><p class="version-filter-help"></p><div class="version-preview" aria-label="Saved version preview"></div><div class="version-footer"><details><summary>About this preview</summary><p class="version-fidelity"></p></details><button type="button" class="version-restore">${icon('restore')}<span>Restore version</span></button></div><p class="version-confirm" hidden><span data-restore-message></span> <button type="button" data-confirm-restore>Restore</button> <button type="button" data-cancel-restore>Cancel</button></p><p class="version-error" role="alert"></p><p class="version-status" role="status"></p></section></div>`;
     doc.body.append(dialog);
     const $=selector=>dialog.querySelector(selector);let target=null,items=[],counts=new Map(),next=null,selected=null,expected='',epoch=0,busy=false,opener=null,openedLocation='',restoreCompleted=false,loadBusy=false,restoreRequest=null,includeAll=false;
     const date=value=>value?new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Earlier save';
@@ -48,7 +48,10 @@
     function select(item){
       selected=item;restoreRequest=null;$('.version-confirm').hidden=true;$('.version-error').textContent='';$('.version-name').textContent=`Version ${item.revision}`;$('.version-current').textContent=item.is_current?'Current':'';$('.version-restore').disabled=item.is_current||busy;render();
       const container=$('.version-preview');container.replaceChildren();const frame=doc.createElement('iframe');frame.title=`Version ${item.revision} preview`;frame.setAttribute('sandbox','allow-scripts allow-downloads');frame.referrerPolicy='no-referrer';
-      frame.src=studioPath(target.kind==='slide'?`${target.path}/preview?version_id=${encodeURIComponent(item.version_id)}`:`/api/artifacts/${encodeURIComponent(target.artifactId)}/preview?revision=${encodeURIComponent(item.version_id.split(':')[1])}`);
+      frame.src=target.kind==='slide'
+        ?studioPath(`${target.path}/preview?version_id=${encodeURIComponent(item.version_id)}`)
+        :root.ArtifactSession.artifactPreview(target.artifactId)+'?'+
+          (shared?'history_revision':'revision')+'='+encodeURIComponent(item.version_id.split(':')[1]);
       container.append(frame);scale();const row=$('.version-list').querySelector(`[data-version="${CSS.escape(item.version_id)}"]`);row?.focus({preventScroll:true});row?.scrollIntoView({block:'nearest'});
     }
     async function load(){
@@ -70,7 +73,7 @@
       if(event.target.closest('[data-history-close]')){if(!busy)dialog.close();return;}
       const choice=event.target.closest('[data-version]');if(choice&&!busy){select(items.find(item=>item.version_id===choice.dataset.version));return;}
       if(event.target.closest('.version-earlier')){void load();return;}
-      if(event.target.closest('.version-restore')&&!target?.readOnly){$('.version-confirm').hidden=false;$('[data-confirm-restore]').focus();return;}
+      if(event.target.closest('.version-restore')&&!target?.readOnly){$('[data-restore-message]').textContent=target.kind==='slide'?'Restore as a new version? Current notes stay unchanged.':(shared||root.StudioInvitation?.available)?'Restore as a new version? Anyone with access to this artifact can see the restored files.':'Restore as a new version?';$('.version-confirm').hidden=false;$('[data-confirm-restore]').focus();return;}
       if(event.target.closest('[data-cancel-restore]')){cancelRestore();return;}
       if(!event.target.closest('[data-confirm-restore]')||busy||target?.readOnly)return;
       busy=true;dialog.setAttribute('aria-busy','true');dialog.querySelectorAll('button,select').forEach(button=>button.disabled=true);$('.version-error').textContent='';
