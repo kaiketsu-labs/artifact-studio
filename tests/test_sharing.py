@@ -119,10 +119,11 @@ def test_pdf_hidden_choice_applies_to_artifacts_and_project_archives(
         documents.append(document)
         return b"%PDF-fixture"
 
+    def scoped_pdf(document: str, _limit: int, _deadline: float | None) -> bytes:
+        return pdf(document)
+
     monkeypatch.setattr("artifact_studio.sharing._pdf", pdf)
-    monkeypatch.setattr(
-        "artifact_studio.sharing._scoped_pdf", lambda document, _limit, _deadline: pdf(document)
-    )
+    monkeypatch.setattr("artifact_studio.sharing._scoped_pdf", scoped_pdf)
     registry = ArtifactStore(store)
     sharing = SharingService(store, registry, scoped_limit=100_000_000 if scoped else None)
     _ = sharing.prepare_artifact(deck.id, "pdf", include_hidden=False)
