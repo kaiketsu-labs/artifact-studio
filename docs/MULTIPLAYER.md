@@ -61,6 +61,12 @@ a blank cover when there are none. Project guests continue to use their
 invitation roles. The **Hosted** button switches between personal and shared
 workspaces. Sharing a project leaves the rest of either user's workspace private.
 
+Workspace owners can create nested sidebar folders, reorder projects and drag
+artifacts between projects from the regular library. Sidebar folders are private
+organization. Moving an artifact between projects may change inherited access.
+Studio asks for confirmation when either project has current grants, pending
+invitations or active agent connections.
+
 Use **Designs** in a personal workspace to manage reference files and set a
 default slide pack. The owner can open example slides in presentation view.
 For private designs, connect your agent from the Designs page so the connection

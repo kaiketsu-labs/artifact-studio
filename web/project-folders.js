@@ -16,9 +16,10 @@
     const validDestination = (target, transfer) => {
       if (!drag || busy || !transfer || Array.from(transfer.types || []).includes('Files')) return null;
       const node = folder(target), projectId = node?.dataset.projectFolder;
-      if (!safeId(projectId) || projectId === drag.projectId || !getProjects().some(project => project.id === projectId)) return null;
+      if (!safeId(projectId) || projectId === drag.projectId) return null;
       const artifact = getArtifacts().find(item => item.id === drag.id);
       if (!artifact || artifact.project_id !== drag.projectId) return null;
+      if (!getProjects().some(project => project.id === projectId && (!project.legacy || artifact.legacy_deck_id))) return null;
       return node;
     };
     const handlers = {

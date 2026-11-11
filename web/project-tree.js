@@ -23,7 +23,7 @@
     return {action:'move',id,parent_id,before_id};
   }
   /** Render compact rows with separate folder disclosure and project navigation controls. */
-  function markup({tree,projects,selected,collapsed,icon}) {
+  function markup({tree,projects,selected,collapsed,icon,manage=true}) {
     const projectMap=new Map(projects.map(project=>[project.id,project]));
     function branch(parent=null,depth=0) {
       return children(tree,parent).map(node=>{
@@ -31,10 +31,10 @@
         if(!title)return '';
         const open=!collapsed.has(node.id),key=folder?'folder:'+node.id:node.id;
         const count=folder?projectsIn(tree,node.id).length:project.artifact_count;
-        return `<div class="project-tree-row" data-tree-node="${escape(node.id)}" data-node-kind="${node.kind}" ${folder?'':`data-project-folder="${escape(node.id)}"`} draggable="true" style="--tree-depth:${Math.min(depth,8)}"><button type="button" class="project-tree-disclosure ${folder?'':'is-spacer'}" ${folder?`data-toggle-folder="${escape(node.id)}" aria-expanded="${open}" aria-label="${open?'Collapse':'Expand'} ${escape(title)}" title="${open?'Collapse':'Expand'} folder"`:'tabindex="-1" aria-hidden="true"'}>${folder?icon('right'):''}</button><button type="button" class="project-tree-open" aria-label="${escape(title)}" data-project="${escape(key)}" aria-current="${selected===key}" title="${escape(title)}">${icon(folder?(open?'folderOpen':'folder'):'project')}<span>${escape(title)}</span>${count?`<span class="hub-count" aria-hidden="true" title="${folder?'Projects':'Artifacts'}">${count}</span>`:''}</button><button type="button" class="project-tree-options" data-tree-menu="${escape(node.id)}" aria-label="Options for ${escape(title)}" title="Options" aria-haspopup="menu">${icon('more')}</button></div>${folder&&open?`<div class="project-tree-children" data-folder-children="${escape(node.id)}">${branch(node.id,depth+1)}</div>`:''}`;
+        return `<div class="project-tree-row" data-tree-node="${escape(node.id)}" data-node-kind="${node.kind}" ${folder||!manage?'':`data-project-folder="${escape(node.id)}"`} draggable="${manage}" style="--tree-depth:${Math.min(depth,8)}"><button type="button" class="project-tree-disclosure ${folder?'':'is-spacer'}" ${folder?`data-toggle-folder="${escape(node.id)}" aria-expanded="${open}" aria-label="${open?'Collapse':'Expand'} ${escape(title)}" title="${open?'Collapse':'Expand'} folder"`:'tabindex="-1" aria-hidden="true"'}>${folder?icon('right'):''}</button><button type="button" class="project-tree-open" aria-label="${escape(title)}" data-project="${escape(key)}" aria-current="${selected===key}" title="${escape(title)}">${icon(folder?(open?'folderOpen':'folder'):'project')}<span class="project-tree-name">${escape(title)}</span>${count?`<span class="hub-count" aria-hidden="true" title="${folder?'Projects':'Artifacts'}">${count}</span>`:''}</button>${manage?`<button type="button" class="project-tree-options" data-tree-menu="${escape(node.id)}" aria-label="Options for ${escape(title)}" title="Options" aria-haspopup="menu">${icon('more')}</button>`:''}</div>${folder&&open?`<div class="project-tree-children" data-folder-children="${escape(node.id)}">${branch(node.id,depth+1)}</div>`:''}`;
       }).join('');
     }
-    return `<nav class="project-tree" aria-label="Projects">${branch()}<div class="project-tree-root" data-tree-root-drop>${icon('folder')}<span>Move to top level</span></div></nav>`;
+    return `<nav class="project-tree" aria-label="Projects">${branch()}${manage?`<div class="project-tree-root" data-tree-root-drop>${icon('folder')}<span>Move to top level</span></div>`:''}</nav>`;
   }
   /** Attach pointer and keyboard moves to the stable workspace container. */
   function create({content,getTree,onMove,onExpand,onError}) {

@@ -15,7 +15,14 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from pydantic import Field
 
 from . import __version__
-from .artifact_api import ArtifactApproval, ArtifactImport, ProjectInput, import_upload
+from .artifact_api import (
+    ArtifactApproval,
+    ArtifactImport,
+    ProjectAssignment,
+    ProjectInput,
+    import_upload,
+    project_move_confirmation,
+)
 from .artifact_models import ArtifactView
 from .artifact_preview import artifact_file_headers
 from .artifacts import LEGACY_PROJECT, ArtifactStore
@@ -32,6 +39,7 @@ from .models import CreateInput, DeckView, FeedbackWorkflow, SlideSeenInput, Sli
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
 from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth, owner_upload_limit
 from .navigation import NavigationSnapshot
+from .project_tree import ProjectTree, TreeChange, TreeView
 from .sections import sections_hash
 from .storage import ConflictError, Store
 from .version_authors import revision_author
@@ -263,12 +271,16 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 )
                 info["artifact_count"] = cast(int, info["artifact_count"]) + 1
                 result.append(entry)
-            designs = DesignLibrary(store).list() if hub.owner(actor, workspace) else []
-            return {
+            owner = hub.owner(actor, workspace)
+            designs = DesignLibrary(store).list() if owner else []
+            data: dict[str, object] = {
                 "projects": list(projects.values()),
                 "artifacts": result,
                 "designs": [item.model_dump() for item in designs],
             }
+            if owner:
+                data["project_tree"] = ProjectTree(store).view(list(projects)).model_dump()
+            return data
 
     @app.post("/api/hub/projects")
     def new_project(request: Request, body: ProjectInput) -> dict[str, str]:
@@ -278,6 +290,31 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             hub.manage(actor, Scope(workspace))
             item = ArtifactStore(hub.store(workspace)).create_project(body.title, body.context)
             return {"id": item.id, "title": item.title}
+
+    @app.post("/api/hub/project-tree")
+    def change_project_tree(request: Request, body: TreeChange) -> TreeView:
+        """Change the private folder tree for the current workspace owner."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        with hub.locked():
+            hub.manage(actor, Scope(workspace))
+            return ProjectTree(hub.store(workspace)).change(body)
+
+    @app.post("/api/artifacts/{artifact_id}/project", response_model=None)
+    def assign_project(
+        request: Request, artifact_id: str, body: ProjectAssignment
+    ) -> dict[str, str] | JSONResponse:
+        """Move an owned artifact inside its workspace without moving its files."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        with hub.locked():
+            hub.manage(actor, artifact_scope(request, artifact_id))
+            hub.manage(actor, Scope(workspace, "project", body.project_id))
+            service = ArtifactStore(hub.store(workspace))
+            current = service.get_artifact(artifact_id)
+            if current.project_id != body.project_id:
+                if confirmation := project_move_confirmation(hub, workspace, current, body):
+                    return confirmation
+                current = service.set_artifact_project(artifact_id, body.project_id)
+            return {"id": current.id, "project_id": current.project_id}
 
     @app.post("/api/artifacts/import")
     def import_artifact(request: Request, body: ArtifactImport) -> dict[str, str]:

@@ -376,3 +376,114 @@ def test_configured_personal_owner_is_separate_from_primary_owner(tmp_path: Path
             workspace: True,
             "default": False,
         }
+
+
+@pytest.mark.parametrize("owner_name", ("owner", "alice"))
+def test_organizing_hosted_projects_keeps_inherited_access_explicit(
+    tmp_path: Path, owner_name: str
+) -> None:
+    """Folder changes are private and moving content requires current access confirmation."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app",
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, owner_name) as owner,
+        human(app, "bob") as guest,
+    ):
+        home = owner.get("/").headers["location"] if owner_name == "alice" else "/"
+        workspace = home.split("/")[2] if owner_name == "alice" else "default"
+        api = home + "api/"
+        projects = api + "hub/projects"
+        source = owner.post(projects, json={"title": "Research"}).raise_for_status().json()["id"]
+        destination = (
+            owner.post(projects, json={"title": "Delivery"}).raise_for_status().json()["id"]
+        )
+        artifact = (
+            owner.post(
+                api + "artifacts/import",
+                json={
+                    "project_id": source,
+                    "title": "Fictional notes",
+                    "files": [{"name": "notes.md", "data_base64": "IyBOb3Rlcwo="}],
+                },
+            )
+            .raise_for_status()
+            .json()["id"]
+        )
+        path = f"{api}artifacts/{artifact}"
+        original = owner.get(path).raise_for_status().json()
+        invites = f"/api/workspaces/{workspace}/invitations"
+        invite = (
+            owner.post(
+                invites,
+                json={
+                    "kind": "project",
+                    "resource": source,
+                    "email": "bob@example.test",
+                    "role": "edit",
+                },
+            )
+            .raise_for_status()
+            .json()["url"]
+        )
+        accept(guest, invite.split("#invite=")[1])
+        document = guest.get(
+            f"/api/workspaces/{workspace}/artifacts/{artifact}/preview",
+            headers={"sec-fetch-dest": "iframe"},
+        )
+        assert document.is_success
+        ticket = re.search(r"https://preview\.example\.test/_preview/[^/\"\s]+", document.text)
+        assert ticket
+        preview = urlsplit(ticket[0]).path + f"/api/artifacts/{artifact}/revisions/1/files/notes.md"
+        preview_host = {"host": "preview.example.test"}
+        assert guest.get(preview, headers=preview_host).is_success
+        tree_path = api + "hub/project-tree"
+        tree_hash = owner.get(api + "hub").json()["project_tree"]["content_hash"]
+        create = {"action": "create", "title": "Private folder", "expected_hash": tree_hash}
+        assert guest.post(tree_path, json=create).status_code == 404
+        tree = owner.post(tree_path, json=create).raise_for_status().json()
+        folder = next(node for node in tree["nodes"] if node["kind"] == "folder")
+        owner.post(
+            tree_path,
+            json={
+                "action": "move",
+                "id": source,
+                "parent_id": folder["id"],
+                "expected_hash": tree["content_hash"],
+            },
+        ).raise_for_status()
+        assert "project_tree" not in guest.get(api + "hub").raise_for_status().json()
+        assert guest.get(path).is_success
+        move = {"project_id": destination}
+        assert guest.post(path + "/project", json=move).status_code == 404
+        first = owner.post(path + "/project", json=move)
+        assert first.status_code == 409 and first.json()["code"] == "project-access-changed"
+        assert guest.get(path).is_success
+        owner.post(
+            invites,
+            json={
+                "kind": "project",
+                "resource": destination,
+                "email": "alice@example.test" if owner_name == "owner" else "owner@example.test",
+                "role": "view",
+            },
+        ).raise_for_status()
+        second = owner.post(
+            path + "/project", json={**move, "access_hash": first.json()["access_hash"]}
+        )
+        assert (
+            second.status_code == 409
+            and second.json()["access_hash"] != first.json()["access_hash"]
+        )
+        owner.post(
+            path + "/project", json={**move, "access_hash": second.json()["access_hash"]}
+        ).raise_for_status()
+        assert guest.get(path).status_code == 404
+        assert guest.get(preview, headers=preview_host).status_code == 404
+        current = owner.get(path).raise_for_status().json()
+        assert current["project_id"] == destination
+        assert current["content_hash"] == original["content_hash"]
+        assert current["revision"] == original["revision"]

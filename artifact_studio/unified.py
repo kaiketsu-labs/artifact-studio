@@ -1,7 +1,6 @@
 """Host the full owner editor and scoped collaboration in one server."""
 
 import os
-from pathlib import Path
 from typing import cast
 from urllib.parse import parse_qs, quote, urlencode, urlsplit
 
@@ -24,14 +23,14 @@ class UnifiedStudio:
         editor: ASGIApp,
         collaboration: ASGIApp,
         shared_editor: ASGIApp,
-        lock_path: Path,
+        sharing: Sharing,
     ) -> None:
         self.editor = editor
         self.collaboration = collaboration
         self.shared_editor = shared_editor
         self.workspace_host = urlsplit(config.public_url).netloc
         self.preview_host = urlsplit(config.preview_url).netloc
-        self.lock_path = lock_path
+        self.sharing = sharing
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -123,7 +122,8 @@ class UnifiedStudio:
             state = scope.setdefault("state", {})
             state["unified_studio"] = True
             state["shared_editor"] = self.shared_editor
-            state["collaboration_lock"] = self.lock_path
+            state["collaboration_lock"] = self.sharing.root / "access.lock"
+            state["collaboration_sharing"] = self.sharing
             await self.editor(scope, receive, send)
 
 
@@ -143,4 +143,4 @@ def create_app() -> UnifiedStudio:
     collaboration = create_collaboration(config, auth_provider)
     sharing = cast(Sharing, collaboration.state.sharing)
     guests = create_shared_editor(config, auth_provider, sharing)
-    return UnifiedStudio(config, app, collaboration, guests, sharing.root / "access.lock")
+    return UnifiedStudio(config, app, collaboration, guests, sharing)
