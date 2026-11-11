@@ -729,16 +729,22 @@ def test_named_workspace_design_review_for_collaborator_and_reader(tmp_path: Pat
                     routed_multiplayer_context(browser, app, "alice") as alice,
                     routed_multiplayer_context(browser, app, "bob") as bob,
                 ):
-                    held: list[Route] = []
-                    state_path = f"**/artifacts/{app.deck_id}/state"
-
-                    def hold_state(route: Route) -> None:
-                        held.append(route)
-
                     for context, editable in ((bob, False), (alice, True)):
                         page = context.new_page()
                         if editable:
-                            page.route(state_path, hold_state)
+                            page.add_init_script("""
+                                const realFetch = window.fetch;
+                                const stateGate = new Promise(resolve => {
+                                    window.releaseFixtureState = resolve;
+                                });
+                                window.fetch = async function(input, ...args) {
+                                    if (typeof input === 'string' && input.endsWith('/state')) {
+                                        window.waitingForFixtureState = true;
+                                        await stateGate;
+                                    }
+                                    return realFetch.call(this, input, ...args);
+                                };
+                            """)
                         else:
                             page.set_viewport_size({"width": 900, "height": 800})
                         page.goto(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
@@ -757,10 +763,8 @@ def test_named_workspace_design_review_for_collaborator_and_reader(tmp_path: Pat
                             expect(page.locator("[data-sd-use-candidate]")).to_be_hidden()
                             page.keyboard.press("Escape")
                             continue
-                        assert held
-                        page.unroute(state_path)
-                        for route in held:
-                            route.fallback()
+                        assert page.evaluate("window.waitingForFixtureState")
+                        _ = page.evaluate("window.releaseFixtureState()")
                         page.locator("#feedback-text").fill("Make the Editorial title shorter")
                         expect(page.locator("#feedback-design-context")).to_have_text(
                             "Design · Editorial"
