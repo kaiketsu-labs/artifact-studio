@@ -91,15 +91,24 @@
     });
     void root.ArtifactSession.get().then(session=>{
       if(sessionExpired)return;
-      const hosted=session.mode==='hosted';renderSecurity(session.security);checks.hidden=!hosted;
+      const hosted=session.mode==='hosted';
+      checks.hidden=!hosted||(session.scoped_editor&&!session.security);
+      if(!checks.hidden)renderSecurity(session.security);
       identity.replaceChildren();
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
       if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.textContent=hosted?'Hosted':'Local';node.dataset.sessionMode=hosted?'hosted':'local';node.title=hosted?'Hosted workspace':'Local workspace';const review=hosted&&(!session.security||session.security.summary==='review');node.classList.toggle('app-session-review',review);node.setAttribute('aria-label',review?'Hosted workspace, server checks need review':'About workspace');});
+      doc.querySelectorAll('[data-hosted-status]').forEach(node=>{node.hidden=!hosted;});
+      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
       if(hosted){
+        const label='Workspace & server';
+        dialog.querySelector('#app-about-title').textContent=label;
+        for(const entry of entries){
+          entry.querySelector('span').textContent=label;
+          entry.setAttribute('aria-label',label);
+        }
         doc.querySelectorAll('[data-local-only], #storage-status, #libraries-button, a[href="/web/copilot-setup.html"]').forEach(node=>{node.hidden=true;});
         dialog.querySelector('.app-nightly-option').hidden=true;dialog.querySelector('#app-nightly-help').hidden=true;dialog.querySelector('.app-about-status').hidden=true;
       }
@@ -120,15 +129,23 @@
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);
     let opener=null,timer=null,reading=false,checking=false,saving=false,sequence=0,lastInfo=null;
     const workspaceButton=doc.querySelector('[data-session-mode]');
-    workspaceButton?.addEventListener('click',()=>{opener=workspaceButton;checks.open=workspaceButton.classList.contains('app-session-review');dialog.showModal();void refresh();void workspaceList().catch(()=>{workspaces.hidden=true;});});
+    function showAbout(trigger){
+      opener=trigger;
+      dialog.showModal();
+      void refresh();
+      void workspaceList().catch(()=>{workspaces.hidden=true;});
+    }
+    root.StudioAbout={open:showAbout};
+    workspaceButton?.addEventListener('click',()=>showAbout(workspaceButton));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){
       const icon=doc.createElement('span');icon.className='app-update-icon';icon.hidden=true;icon.innerHTML=mark;entry.append(icon);
       entry.addEventListener('click',event=>{
         event.preventDefault();
-        const panel=entry.closest('[popover]');opener=panel?triggers.find(item=>item.getAttribute('aria-controls')===panel.id||item.getAttribute('popovertarget')===panel.id):entry;
+        const panel=entry.closest('[popover]');
+        const trigger=panel?triggers.find(item=>item.getAttribute('aria-controls')===panel.id||item.getAttribute('popovertarget')===panel.id):entry;
         if(panel?.matches(':popover-open'))panel.hidePopover();
-        dialog.showModal();void refresh();
+        showAbout(trigger);
       });
     }
     const connectEntry=doc.querySelector('[data-hub-connect]');

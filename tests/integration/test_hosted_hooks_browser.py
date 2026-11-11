@@ -29,7 +29,7 @@ def test_hook_download_disappears_after_expiry_and_stays_hidden_on_reopen(
         page = context.new_page()
         page.set_viewport_size(viewport)
         page.goto(WORKSPACE)
-        expect(page.locator("[data-session-mode]")).to_have_text("Hosted")
+        expect(page.locator("[data-hosted-status]")).to_be_visible()
         page.locator("#hub-tools-button").click()
         page.locator("[data-hub-connect]").click()
         dialog = page.get_by_role("dialog", name="Agent connection")

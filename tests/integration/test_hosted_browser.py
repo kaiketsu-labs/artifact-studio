@@ -84,7 +84,7 @@ def test_hosted_authentication_and_browser_write(
             assert result["body"]["title"] == "Fictional browser write"
 
 
-@pytest.mark.parametrize("width,height", [(1440, 900), (390, 844)])
+@pytest.mark.parametrize("width,height", [(1440, 900), (390, 844), (320, 700)])
 def test_hosted_connection_is_discoverable_without_local_admin_requests(
     browser: Browser, tmp_path: Path, artifacts: Path, width: int, height: int
 ) -> None:
@@ -100,7 +100,12 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
             lambda response: failures.append(response.url) if response.status >= 400 else None,
         )
         page.goto(WORKSPACE)
-        expect(page.locator("[data-session-mode]")).to_have_text("Hosted")
+        hosted = page.locator("[data-hosted-status]")
+        expect(hosted).to_be_visible()
+        expect(hosted).to_have_text("Hosted")
+        expect(page.locator("[data-session-mode]")).to_be_hidden()
+        expect(page.get_by_role("button", name="Hosted", exact=True)).to_have_count(0)
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         page.locator("#hub-tools-button").click()
         page.locator("[data-hub-connect]").click()
         dialog = page.get_by_role("dialog", name="Agent connection")
@@ -110,12 +115,13 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
         assert dialog.evaluate("e => e.scrollWidth <= e.clientWidth")
         page.keyboard.press("Escape")
         expect(page.locator("#hub-tools-button")).to_be_focused()
-        page.locator("[data-session-mode]").click()
-        expect(page.get_by_role("dialog", name="About Artifact Studio")).to_contain_text(
-            "reviewer@example.test"
-        )
+        page.locator("#hub-tools-button").click()
+        page.get_by_role("menuitem", name="Workspace & server").click()
+        about = page.get_by_role("dialog", name="Workspace & server")
+        expect(about).to_contain_text("reviewer@example.test")
+        expect(about.get_by_text("Server checks", exact=False).first).to_be_visible()
         page.keyboard.press("Escape")
-        expect(page.locator("[data-session-mode]")).to_be_focused()
+        expect(page.locator("#hub-tools-button")).to_be_focused()
         assert not failures
 
 
@@ -131,7 +137,7 @@ def test_expiry_clears_open_connection_and_preserves_review_page(
         context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
         page = context.new_page()
         page.goto(WORKSPACE)
-        expect(page.locator("[data-session-mode]")).to_have_text("Hosted")
+        expect(page.locator("[data-hosted-status]")).to_be_visible()
         page.locator("#hub-tools-button").click()
         page.locator("[data-hub-connect]").click()
         dialog = page.get_by_role("dialog", name="Agent connection")
