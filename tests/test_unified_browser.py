@@ -564,3 +564,41 @@ def test_personal_artifact_timeline_reuses_native_preview_and_restore(tmp_path: 
                 ).to_be_visible()
         finally:
             browser.close()
+
+
+@pytest.mark.parametrize("width", (1440, 390), ids=("desktop", "narrow"))
+def test_collaborator_downloads_through_the_regular_share_panel(tmp_path: Path, width: int) -> None:
+    """Reuse the artifact context menu and project header for scoped file downloads."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as reader,
+        sync_playwright() as playwright,
+    ):
+        accept(reader, grant(owner, "alice", app.project_id, "view", "project"))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": width, "height": 844})
+                page.goto(WORKSPACE)
+                card = page.get_by_role("button", name=re.compile("^Open Shared candidate"))
+                card.click(button="right")
+                expect(page.get_by_role("menuitem", name="Share link…")).to_have_count(0)
+                page.get_by_role("menuitem", name="Share files", exact=True).click()
+                panel = page.get_by_role("dialog", name="Share", exact=True)
+                expect(panel.get_by_role("button", name="Outlook")).to_be_hidden()
+                with page.expect_download() as selected:
+                    panel.get_by_role("button", name="Save file").click()
+                assert selected.value.suggested_filename == "Shared-candidate.md"
+                assert selected.value.path().read_text() == "Fictional shared artifact"
+                panel.get_by_role("button", name="Close share panel").click()
+                expect(card).to_be_focused()
+                page.get_by_role("button", name="Fictional project", exact=True).click()
+                page.get_by_role("button", name="Share project", exact=True).click()
+                panel = page.get_by_role("dialog", name="Share project", exact=True)
+                with page.expect_download() as selected:
+                    panel.get_by_role("button", name="Save file").click()
+                assert selected.value.suggested_filename == "Fictional-project.zip"
+        finally:
+            browser.close()

@@ -356,15 +356,17 @@
     const tree=state.projectTree,node=tree.nodes.find(item=>item.id===id),folder=node?.kind==='folder';
     if(!node){showHubMenu(anchor,'Add to projects',creationCommands('all',null),point);return;}
     const project=selectedProject(id),siblings=root.ProjectNavigation.children(tree,node.parent_id),index=siblings.findIndex(item=>item.id===id),key=folder?'folder:'+id:id;
+    const opener=anchor.matches('button')?anchor:anchor.querySelector('.project-tree-open');
     const commands=[menuCommand('Open','folderOpen',()=>home(key))];
     if(!canManageWorkspace()){
+      if(canShareProject(project))commands.push(menuCommand('Share files','share',()=>shareProject(id,opener)));
       showHubMenu(anchor,'Project actions',commands,point);return;
     }
     if(folder)commands.push(menuCommand(collapsedFolders.has(id)?'Expand folder':'Collapse folder','folder',()=>toggleFolder(id)));
     else if(project){
       if(!sharedEditor)commands.push(menuCommand('Project brief','notes',()=>contextDialog({projectId:id})));
       if(root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
-      if(!sharedEditor)commands.push(menuCommand(root.StudioInvitation?.available?'Share files':'Share project','share',()=>shareProject(id)));
+      if(canShareProject(project))commands.push(menuCommand(shareFileLabel('Share project'),'share',()=>shareProject(id,opener)));
     }
     commands.push({separator:true},...creationCommands(key,folder?id:node.parent_id).filter(command=>command.label!=='Import artifact'||folder||!project?.legacy),{separator:true},menuCommand('Move to…','folder',()=>treeAction('move',id)),menuCommand('Move up','up',()=>treeAction('up',id),{keys:'Alt+↑',disabled:index===0}),menuCommand('Move down','down',()=>treeAction('down',id),{keys:'Alt+↓',disabled:index===siblings.length-1}));
     if(node.parent_id)commands.push(menuCommand('Move out','left',()=>treeAction('out',id),{keys:'Alt+←'}));
@@ -399,7 +401,8 @@
     }
     if(root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
     if(canManageWorkspace())commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)));
-    if(!sharedEditor)commands.push(menuCommand(root.StudioInvitation?.available?'Share files':'Share','share',()=>shareArtifact(id)));
+    const opener=anchor.matches('button')?anchor:anchor.querySelector('.hub-card-open');
+    commands.push(menuCommand(shareFileLabel('Share'),'share',()=>shareArtifact(id,opener)));
     commands.push(menuCommand('Copy link','copy',()=>copyArtifactLink(item)));
     if(!sharedEditor)commands.push({separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
     showHubMenu(anchor,'Artifact actions',commands,point);
@@ -419,25 +422,26 @@
     return `<span ${id?`id="${escape(id)}"`:''} class="hub-status ${state}">${icon(glyph)}${label}</span>`;
   }
 
+  const shareFileLabel=local=>sharedEditor||root.StudioInvitation?.available?'Share files':local;
+  const canShareProject=project=>project&&project.id!=='shared-with-me';
   /** Put Share beside the item it exports, keeping library navigation unchanged. */
   function mountSharing(cardsOnly=false) {
-    if(sharedEditor)return;
     const control=(label,key,id,css='')=>{const node=doc.createElement('button');node.type='button';node.dataset[key]=id;node.className=css;node.innerHTML=icon('share');node.setAttribute('aria-label',label);node.title=label;return node;};
     for(const card of content.querySelectorAll('.hub-card[data-drag-artifact]'))card.append(control(`Share ${state.artifacts.find(item=>item.id===card.dataset.dragArtifact)?.title || 'artifact'}`,'shareArtifact',card.dataset.dragArtifact,'hub-card-share'));
     if(cardsOnly)return;
     const project=selectedProject(state.project);
-    if(!state.active && project){const header=content.querySelector('.hub-heading'),search=header.querySelector('.hub-search'),actions=doc.createElement('div');actions.className='hub-heading-actions';actions.append(control('Share project','shareProject',project.id),search);header.append(actions);}
+    if(!state.active && canShareProject(project)){const header=content.querySelector('.hub-heading'),search=header.querySelector('.hub-search'),actions=doc.createElement('div');actions.className='hub-heading-actions';actions.append(control('Share project','shareProject',project.id),search);header.append(actions);}
     if(state.active){const heading=content.querySelector('.hub-edit-heading'),approve=heading.querySelector('.hub-approve'),actions=doc.createElement('div');actions.className='hub-artifact-actions';actions.append(control('Share artifact','shareArtifact',state.active),approve);heading.append(actions);}
   }
-  async function shareArtifact(id) {
+  async function shareArtifact(id,opener) {
     if(id===state.active && !artifactEditor.finish())return;
     const item=id===state.active?state.detail:state.artifacts.find(item=>item.id===id);
     if(!item)return;
-    await sharing.open({scope:'artifact',id:item.id,title:item.title,kind:kindOf(item),presentation:!!item.legacy_deck_id,expected_hash:item.content_hash,bundle:fileRecords(item).length>1});
+    await sharing.open({scope:'artifact',id:item.id,title:item.title,kind:kindOf(item),presentation:!!item.legacy_deck_id,expected_hash:item.content_hash,bundle:fileRecords(item).length>1},opener);
   }
-  async function shareProject(id) {
+  async function shareProject(id,opener) {
     const item=selectedProject(id),children=state.artifacts.filter(item=>item.project_id===id);
-    if(item)await sharing.open({scope:'project',id,title:item.title,count:children.length,presentation:children.some(item=>item.legacy_deck_id)});
+    if(canShareProject(item))await sharing.open({scope:'project',id,title:item.title,count:children.length,presentation:children.some(item=>item.legacy_deck_id)},opener);
   }
 
   async function api(path, body) {

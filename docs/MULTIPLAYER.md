@@ -77,6 +77,12 @@ restore them as a new version. The timeline and its old previews are private to
 the workspace owner. Collaborators with current access can see files once the
 owner restores them to the current version.
 
+Use **Share files** to save an artifact or project ZIP. Presentation exports
+offer HTML or PDF and omit speaker notes and review chats. The share panel can
+open the browser's file-sharing sheet when available. A prepared download is
+private to the account that requested it and requires current access to its
+contents.
+
 Use **Designs** in a personal workspace to manage reference files and set a
 default slide pack. The owner can open example slides in presentation view.
 For private designs, connect your agent from the Designs page so the connection
