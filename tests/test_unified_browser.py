@@ -477,3 +477,46 @@ def test_personal_project_folder_and_artifact_moves(tmp_path: Path) -> None:
                 )
         finally:
             browser.close()
+
+
+def test_personal_favorite_slides_open_in_the_same_workspace(tmp_path: Path) -> None:
+    """Use the regular star and gallery in a hosted workspace with overlapping deck IDs."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(
+            root,
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+        ) as app,
+        human(app, "alice") as personal,
+        sync_playwright() as playwright,
+    ):
+        home = personal.get("/").headers["location"]
+        seed_isolated_presentation(root, app, home.split("/")[2])
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
+                star = page.locator('[data-star-kind="slide"][data-star-slide="cover"]')
+                star.focus()
+                star.press("Enter")
+                expect(star).to_have_attribute("aria-pressed", "true")
+                page.goto(WORKSPACE + home)
+                page.get_by_role("button", name="Favorite slides", exact=True).click()
+                gallery = page.get_by_role("dialog", name="Favorite slides")
+                expect(gallery.get_by_text("Isolated presentation · 01")).to_be_visible()
+                expect(
+                    gallery.frame_locator(".favorite-cover iframe").locator(".slide")
+                ).to_be_visible()
+                gallery.get_by_role("button", name=re.compile("^Add description for")).click()
+                description = page.get_by_role("dialog", name="Slide description")
+                description.get_by_role("textbox").fill("A useful opener")
+                description.get_by_role("button", name="Save", exact=True).click()
+                expect(gallery.get_by_text("A useful opener")).to_be_visible()
+                gallery.locator(".favorite-pick").click()
+                expect(page).to_have_url(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
+                expect(star).to_have_attribute("aria-pressed", "true")
+        finally:
+            browser.close()

@@ -4,6 +4,7 @@ import errno
 import mimetypes
 from collections.abc import Generator
 from contextlib import contextmanager
+from functools import cache
 from pathlib import Path
 from shutil import disk_usage
 from typing import Literal, cast
@@ -31,6 +32,7 @@ from .deck_edit_api import deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_library import DesignLibrary
 from .design_library_api import design_library_routes
+from .favorites import Favorites, favorite_routes
 from .history_api import history_routes
 from .hosted_policy import deck_asset_response
 from .hosted_presenter import hosted_presenter_router
@@ -626,12 +628,32 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def navigation() -> NavigationSnapshot:
         return NavigationSnapshot(connected=[], recent=[])
 
-    @app.get("/api/favorites")
-    def favorites() -> dict[str, object]:
-        return {"projects": [], "artifacts": [], "slides": []}
+    @contextmanager
+    def reader_favorites(request: Request) -> Generator[Favorites | None]:
+        """Keep each human's bookmarks private and filter them through current grants."""
+        actor, workspace = actor_of(request), workspace_of(request)
+        if actor.agent:
+            raise AccessDenied
 
-    @app.get("/api/favorites/slides")
-    def favorite_slides() -> list[object]:
-        return []
+        @cache
+        def can_view(identifier: str) -> bool:
+            """Treat unavailable or removed artifacts as invisible."""
+            try:
+                return hub.level(actor, Scope(workspace, "artifact", identifier)) > 0
+            except AccessDenied:
+                return False
+
+        with hub.locked():
+            if not hub.has_workspace_entry(actor, workspace):
+                yield None
+                return
+            yield Favorites(
+                hub.store(workspace),
+                connect=hub.connect,
+                reader=f"{workspace}:{actor.person}",
+                can_view=can_view,
+            )
+
+    app.include_router(favorite_routes(lambda: hub.store("default"), scoped=reader_favorites))
 
     return app

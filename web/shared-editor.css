@@ -1,7 +1,6 @@
 /* The existing editor chrome with actions limited to the shared resource. */
 [data-shared-editor] :is(
-  [data-action="favorite-slides"], [data-action="context"],
-  [data-favorite], [data-star-kind], .hub-card-star,
+  [data-action="context"],
   #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
   #deck-design-references, #instructions-button, #storage-status,
   #share-artifact,
@@ -47,7 +46,7 @@
 ) {
   display: none !important;
 }
-[data-shared-editor] [data-slide-extra]:is([data-slide-extra="favorite"], [data-slide-extra="comment"]) {
+[data-shared-editor] [data-slide-extra="comment"] {
   display: none !important;
 }
 [data-native-conversation] :is([data-action="reference-slides"], .hub-chat-context, .hub-message-body:empty) {

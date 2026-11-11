@@ -292,6 +292,20 @@ class Sharing:
             row = db.execute("SELECT owner FROM workspaces WHERE id=?", (workspace,)).fetchone()
         return bool(row and row["owner"] == actor.person and not actor.agent)
 
+    def has_workspace_entry(self, actor: Actor, workspace: str) -> bool:
+        """Check whether a human owns or has been invited into the workspace."""
+        if actor.agent:
+            return False
+        with self.connect() as db:
+            return bool(
+                db.execute(
+                    "SELECT 1 FROM workspaces WHERE id=? AND "
+                    "(owner=? OR EXISTS (SELECT 1 FROM grants "
+                    "WHERE grants.workspace=workspaces.id AND person=?))",
+                    (workspace, actor.person, actor.person),
+                ).fetchone()
+            )
+
     def sources(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
         ancestors = self.ancestors(scope)
         if actor.agent:

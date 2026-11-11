@@ -69,12 +69,13 @@
   }
   if(typeof module!=='undefined'&&module.exports){module.exports={createPreviews};return;}
   const doc=root.document,escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const shared=doc.documentElement.hasAttribute('data-shared-editor');
   const icon=()=>root.SlideIcons.svg('star');
   let saved={artifacts:[],slides:[]},epoch=0,picker=null,busy=false,writeQueue=Promise.resolve();
   const pendingStars=new Set();
   const starKey=node=>[node.dataset.starKind,node.dataset.starId,node.dataset.starSlide].join('/');
   const listeners=new Set();
-  async function api(path,body){const response=await fetch(root.ArtifactSession?.path?.(path) ?? path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.detail==='string'?data.detail:'Could not load favorites. Try again.');}return response.json();}
+  async function api(path,body){const response=await fetch(root.ArtifactSession?.path?.(path) ?? path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});root.ArtifactSession?.observe(response);root.ArtifactSession?.assertActive();if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.detail==='string'?data.detail:'Could not load favorites. Try again.');}return response.json();}
   function has(kind,id,slide=''){return saved[kind==='artifact'?'artifacts':'slides'].includes(kind==='artifact'?id:`${id}/${slide}`);}
   const actionLabel=active=>active?'Remove from favorites':'Add to favorites';
   const buttonLabel=(kind,active,title)=>kind==='slide'?`${actionLabel(active)}: ${title}`:`${active?'Unstar':'Star'} ${title}`;
@@ -122,7 +123,7 @@
   function editDescription(item){
     if(!descriptionDialog){
       descriptionDialog=doc.createElement('dialog');descriptionDialog.className='favorites-dialog favorite-description-dialog';descriptionDialog.setAttribute('aria-labelledby','favorite-description-title');
-      descriptionDialog.innerHTML=`<form><div class="favorites-heading"><div><h2 id="favorite-description-title">Slide description</h2><p id="favorite-description-slide"></p></div><button type="button" data-description-close aria-label="Close slide description">${root.SlideIcons.svg('close')}</button></div><label for="favorite-description-text">What makes this slide useful?</label><textarea id="favorite-description-text" rows="3" maxlength="300" placeholder="e.g. A clear layout for comparing two options."></textarea><p class="favorite-description-help">Searchable, and included with this slide when you reference it in chat.</p><p class="favorites-error" role="alert"></p><div class="favorite-description-actions"><button type="button" data-description-cancel>Cancel</button><button type="submit" class="primary">Save</button></div></form>`;
+      descriptionDialog.innerHTML=`<form><div class="favorites-heading"><div><h2 id="favorite-description-title">Slide description</h2><p id="favorite-description-slide"></p></div><button type="button" data-description-close aria-label="Close slide description">${root.SlideIcons.svg('close')}</button></div><label for="favorite-description-text">What makes this slide useful?</label><textarea id="favorite-description-text" rows="3" maxlength="300" placeholder="e.g. A clear layout for comparing two options."></textarea><p class="favorite-description-help">${shared?'Only you can see this description.':'Searchable, and included with this slide when you reference it in chat.'}</p><p class="favorites-error" role="alert"></p><div class="favorite-description-actions"><button type="button" data-description-cancel>Cancel</button><button type="submit" class="primary">Save</button></div></form>`;
       doc.body.append(descriptionDialog);
       for(const button of descriptionDialog.querySelectorAll('[data-description-close],[data-description-cancel]'))button.addEventListener('click',()=>{if(!descriptionSaving)descriptionDialog.close();});
       descriptionDialog.addEventListener('cancel',event=>{if(descriptionSaving)event.preventDefault();});
@@ -197,10 +198,15 @@
     const keys=new Set(matches.map(item=>item.deck_id+'/'+item.slide_id));
     for(const child of [...grid.childNodes])if(!keys.has(child.dataset?.favoriteCard))child.remove();
     matches.forEach((item,index)=>{
-      const key=item.deck_id+'/'+item.slide_id,url=`/?deck=${encodeURIComponent(item.deck_id)}#${encodeURIComponent(item.slide_id)}`;
+      const key=item.deck_id+'/'+item.slide_id,deck=encodeURIComponent(item.deck_id),slide=encodeURIComponent(item.slide_id);
+      const url=`${root.ArtifactSession?.home() ?? '/'}?deck=${deck}#${slide}`;
+      const preview=shared
+        ?`/api/workspaces/${encodeURIComponent(root.ArtifactSession.workspace)}/artifacts/${deck}/preview?slide_id=${slide}`
+        :`/api/decks/${deck}/slides/${slide}/preview`;
       const signature=JSON.stringify([item,!!attach]),previous=existing.get(key);let card=previous;
       if(!card||card.dataset.signature!==signature){
-        const body=`<span class="favorite-cover" data-favorite-preview="/api/decks/${encodeURIComponent(item.deck_id)}/slides/${encodeURIComponent(item.slide_id)}/preview?v=${encodeURIComponent(item.content_hash)}" data-preview-title="Preview of ${escape(item.title)}"><span class="favorite-preview-placeholder" aria-hidden="true">${root.SlideIcons.svg('slides')}</span><span class="favorite-check" aria-hidden="true">${root.SlideIcons.svg('check')}</span></span><span class="favorite-caption"><strong>${escape(item.title)}</strong><small>${escape(item.deck_title)} · ${String(item.number).padStart(2,'0')}</small>${item.reference_error?`<small class="favorites-error">${escape(item.reference_error)}</small>`:''}</span>`;
+        const previewURL=preview+(shared?'&':'?')+'v='+encodeURIComponent(item.content_hash);
+        const body=`<span class="favorite-cover" data-favorite-preview="${escape(previewURL)}" data-preview-title="Preview of ${escape(item.title)}"><span class="favorite-preview-placeholder" aria-hidden="true">${root.SlideIcons.svg('slides')}</span><span class="favorite-check" aria-hidden="true">${root.SlideIcons.svg('check')}</span></span><span class="favorite-caption"><strong>${escape(item.title)}</strong><small>${escape(item.deck_title)} · ${String(item.number).padStart(2,'0')}</small>${item.reference_error?`<small class="favorites-error">${escape(item.reference_error)}</small>`:''}</span>`;
         card=doc.createElement('article');card.className='favorite-card';card.dataset.favoriteCard=key;card.dataset.signature=signature;
         card.innerHTML=`<div class="favorite-main">${attach?`<button type="button" class="favorite-pick" data-favorite-pick="${escape(key)}" aria-pressed="${chosen.has(key)}" aria-label="Reference ${escape(item.title)} from ${escape(item.deck_title)}">${body}</button>`:`<a class="favorite-pick" href="${url}">${body}</a>`}<div class="favorite-card-tools"><a href="${url}" target="_blank" rel="noopener" title="Open original slide" aria-label="Open ${escape(item.title)} in presentation">${root.SlideIcons.svg('external')}</a>${button('slide',item.deck_id,item.title,item.slide_id)}</div></div><button type="button" class="favorite-description${item.description?' has-description':''}" data-favorite-description="${escape(key)}" aria-label="${item.description?'Edit':'Add'} description for ${escape(item.title)}" title="${item.description?'Edit':'Add'} description">${root.SlideIcons.svg('edit')}<span>${escape(item.description||'Add description')}</span></button>`;
         if(previous)previous.replaceWith(card);
