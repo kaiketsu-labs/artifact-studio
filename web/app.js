@@ -64,7 +64,7 @@
   let deckValidator=null;
   const deckPresence=window.StudioDeckPresence.create({button:$('deck-presence'),panel:$('deck-viewers'),rail:$('slides'),session:window.ArtifactSession});
   const canEditShared=()=>!sharedEditor||deck?.access_role==='edit';
-  const structureReview=window.StructureReview.create({api,escape,button:$('structure-review-trigger'),dialog:$('structure-review-dialog')});
+  const structureReview=window.StructureReview.create({api,escape,button:$('structure-review-trigger'),dialog:$('structure-review-dialog'),identity:()=>conversation?.person || ''});
   let selectedElements=[],groupEditor=null;
   let visibilityBusy=false,copyingSlideImage=false,menuSlide=null;
   let orderEpoch=0, selectionEpoch=0;

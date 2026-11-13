@@ -55,3 +55,38 @@ def _exercise(page: Page) -> None:
     assert calls[0]['expected_slide_ids'] == ['a', 'b']
     assert calls[1]['expected_slide_ids'] == ['b', 'a']
     assert calls[1]['decision'] == 'request_change'
+
+
+def test_deck_switch_during_submission() -> None:
+    """A late response cannot alter the newly opened deck's review."""
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<button id="trigger" hidden></button><dialog id="review"></dialog>')
+        page.add_script_tag(path=str(Path(__file__).parents[1] / 'web/structure-review.js'))
+        page.evaluate("""() => {
+          window.ArtifactSession = {workspace:'fiction'};
+          if (!window.crypto.randomUUID) window.crypto.randomUUID = () => 'fictional-request-id';
+          window.review = StructureReview.create({button:document.querySelector('#trigger'),
+            dialog:document.querySelector('#review'), escape:value => String(value),
+            api:async (path, body) => {
+              if (body) return new Promise(resolve => { window.finishRequest = resolve; });
+              const name = path.includes('/artifacts/first/') ? 'First' : 'Second';
+              return {slide_ids:['a'], sections_hash:'one', slides:[{id:'a',title:name}],
+                proposals:[{id:'p', summary:name, base_slide_ids:['a'],
+                  base_sections_hash:'one', proposed_slide_ids:['a'],
+                  missing:[], extra:[], status:'pending'}]};
+            }});
+        }""")
+        page.evaluate("() => window.review.sync('first', true)")
+        page.get_by_role('button', name='Review slide structure (1)').click()
+        page.get_by_label('Keep current order').check()
+        page.get_by_role('button', name='Send decision').click()
+        page.wait_for_function('window.finishRequest !== undefined')
+        page.evaluate("() => window.review.sync('second', true)")
+        page.get_by_role('button', name='Review slide structure (1)').click()
+        expect(page.locator('.structure-review-body > p').filter(has_text='Second')).to_be_visible()
+        page.evaluate('() => window.finishRequest()')
+        expect(page.locator('.structure-review-body > p').filter(has_text='Second')).to_be_visible()
+        expect(page.get_by_role('dialog')).to_be_visible()
+        browser.close()
