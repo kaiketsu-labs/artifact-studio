@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from pydantic import Field
 
 from . import __version__
+from .app_info import build_revision
 from .artifact_api import (
     ArtifactApproval,
     ArtifactImport,
@@ -658,7 +659,13 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     @app.get("/api/app-info")
     def app_info() -> dict[str, object]:
-        return {"version": __version__, "update_check": "disabled", "update_available": False}
+        """Identify the running build without reading any workspace data."""
+        return {
+            "version": __version__,
+            "build_revision": build_revision(),
+            "update_check": "disabled",
+            "update_available": False,
+        }
 
     @app.get("/api/navigation")
     def navigation() -> NavigationSnapshot:

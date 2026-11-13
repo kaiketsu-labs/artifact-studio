@@ -324,9 +324,16 @@ def test_project_rejects_stale_presentation_before_pdf_render(
     audience_html = sharing.audience_html
 
     def changed_html(
-        store: Store, deck_id: str, *, printing: bool = False, include_hidden: bool = True
+        store: Store,
+        deck_id: str,
+        *,
+        printing: bool = False,
+        include_hidden: bool = True,
+        slide_ids: list[str] | None = None,
     ) -> str:
-        document = audience_html(store, deck_id, printing=printing, include_hidden=include_hidden)
+        document = audience_html(
+            store, deck_id, printing=printing, include_hidden=include_hidden, slide_ids=slide_ids
+        )
         theme = store.folder(deck_id) / "theme.css"
         _ = theme.write_text(theme.read_text() + "\n/* Changed during capture */\n")
         return document

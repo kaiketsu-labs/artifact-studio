@@ -9,6 +9,8 @@ from pydantic import Field
 from .models import StrictModel
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing
 
+PRESENCE_TTL = 45
+
 
 class PresenceInput(StrictModel):
     """Identify a browser tab and its selected slide, or release its activity."""
@@ -66,7 +68,7 @@ class DeckPresence:
                 if current is not None and current.tab == body.tab:
                     del self.active[key]
                 return []
-            self.active[key] = Viewing(body.tab, body.slide_id, now + 25)
+            self.active[key] = Viewing(body.tab, body.slide_id, now + PRESENCE_TTL)
             viewers: list[DeckViewer] = []
             for person, email in contacts.items():
                 if person == actor.person:

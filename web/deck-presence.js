@@ -6,6 +6,8 @@
     const workspace = encodeURIComponent(session.workspace);
     const endpoint = deck => `/api/workspaces/${workspace}/artifacts/${encodeURIComponent(deck)}/presence`;
     let target = null, viewers = [], listening = false, pending = false, pageActive = true;
+    let lastSuccess = 0;
+    const staleAfter = 45000;
 
     function badge(text, label) {
       const mark = document.createElement('span');
@@ -50,7 +52,7 @@
       button.hidden = !viewers.length;
       if (!viewers.length && panel.matches(':popover-open')) panel.hidePopover();
       button.setAttribute('aria-label', `People in this deck (${viewers.length})`);
-      button.replaceChildren(...badges(viewers, 2));
+      button.replaceChildren(...badges(viewers, 1));
       panel.replaceChildren(...viewers.map(({name, slide_id: id}) => {
         const row = document.createElement('li');
         const person = document.createElement('span');
@@ -86,17 +88,23 @@
       pending = true;
       try {
         const response = session.observe(await post(current.deck, current.slide, {signal: AbortSignal.timeout(8000)}));
+        if (target === current && [401, 403, 404].includes(response.status)) clear();
         if (!response.ok || response.redirected) throw new Error('Presence unavailable');
         const next = await response.json();
-        if (target === current && listening && pageActive && !document.hidden && JSON.stringify(next) !== JSON.stringify(viewers)) {
-          viewers = next;
-          render();
+        if (target === current && listening && pageActive) {
+          lastSuccess = Date.now();
+          if (JSON.stringify(next) !== JSON.stringify(viewers)) {
+            viewers = next;
+            render();
+          }
         }
       } catch {
-        if (target === current) clear();
+        if (target === current && Date.now() - lastSuccess >= staleAfter) clear();
       } finally {
         pending = false;
-        if (current.deck !== target?.deck || document.hidden || !pageActive) leave(current.deck);
+        if (current.deck !== target?.deck || !pageActive) {
+          void post(current.deck, null, {keepalive: true}).catch(() => {});
+        }
         if (target !== current) void refresh();
       }
     }
@@ -104,7 +112,7 @@
       if (info.collaboration_url !== '/together') return;
       listening = true;
       const timer = root.setInterval(refresh, 5000);
-      document.addEventListener('visibilitychange', () => { if (document.hidden) leave(); else void refresh(); });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) void refresh(); });
       root.addEventListener('pagehide', () => { pageActive = false; leave(); });
       root.addEventListener('pageshow', () => { pageActive = true; void refresh(); });
       root.addEventListener('artifact-session-expired', () => { listening = false; root.clearInterval(timer); clear(); }, {once: true});

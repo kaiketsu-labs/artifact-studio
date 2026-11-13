@@ -194,6 +194,15 @@ import, export and backup controls are not yet available in this UI.
 
 ## Share and collaborate
 
+The presentation rail marks the slides other people are viewing. The people
+button lists their names and slide numbers. A background tab remains visible
+for up to 45 seconds after its last heartbeat. Closing a tab or leaving the
+presentation clears its presence when the server receives the departure.
+
+In Shared chat, type `@` and choose a collaborator with access to the
+presentation. Studio highlights the message for that person. Their unread
+mention badge opens the referenced slide and message.
+
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
    Access, and complete MFA. The regular library opens at **All artifacts**.
    Select a project in the sidebar to see its work.

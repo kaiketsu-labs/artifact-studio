@@ -45,7 +45,7 @@
 
 [data-shared-editor]:not([data-shared-role="edit"]) :is(
   #add-slide, #add-section, #deleted-slides, #hide-slide, #approve-button, [data-visibility-id], [data-action="select"],
-  #slide-menu, #slide-list-menu, #slide-sorter-menu, #section-menu, .hub-approve
+  #slide-list-menu, #slide-sorter-menu, #section-menu, .hub-approve
 ) {
   display: none !important;
 }
@@ -119,7 +119,3 @@
 #deck-viewers li { display: flex; gap: 12px; justify-content: space-between; padding: 7px 9px; font-size: 13px; }
 #deck-viewers li span { overflow-wrap: anywhere; }
 #deck-viewers small { color: var(--muted); white-space: nowrap; }
-@media (max-width: 600px) {
-  #deck-presence .presence-badge:nth-child(n+2) { display: none; }
-  .slide-presence-markers .presence-badge:nth-child(n+2) { display: none; }
-}

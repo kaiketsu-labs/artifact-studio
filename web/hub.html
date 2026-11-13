@@ -55,12 +55,13 @@
   <script src="/web/hub.js" defer></script>
   <link rel="stylesheet" href="/web/app-version.css">
   <script src="/web/app-version.js" defer></script>
+  <script src="/web/report-issue.js" defer></script>
 </head>
 <body>
   <header class="hub-top">
     <a class="hub-brand" href="/" aria-label="Artifact Studio library"><img src="/web/brand/mark.svg" width="30" height="30" alt=""><span>Artifact Studio</span></a>
     <div class="hub-top-actions">
-      <span data-hosted-status class="hub-hosted-status" title="Hosted workspace" hidden>Hosted</span>
+      <button type="button" data-server-version class="hub-session-mode" aria-haspopup="dialog" hidden></button>
       <button type="button" data-session-mode aria-label="About workspace" aria-haspopup="dialog" class="hub-session-mode" hidden>Local</button>
       <button type="button" data-collaborate hidden>Collaborate</button>
       <button id="storage-status" type="button" aria-label="Storage and backup" aria-haspopup="dialog" class="hub-icon-only"></button>
@@ -74,7 +75,7 @@
       <button type="button" data-action="import" data-icon="upload" class="hub-primary">Import</button>
     </div>
     <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
-    <div id="hub-tools-menu" class="hub-tools-menu" popover><a href="/?editor=1&amp;new=1" data-new-presentation data-icon="slideAdd">New presentation</a><a href="/?editor=1" data-icon="slides">Presentation tools</a><a href="#connect" data-hub-connect aria-haspopup="dialog">Agent connection</a><a href="/web/copilot-setup.html" data-icon="plug">Microsoft 365 Copilot</a><a href="#about" data-app-about aria-haspopup="dialog"><span>About Artifact Studio</span><small class="app-version-label" data-app-version>Version…</small></a></div>
+    <div id="hub-tools-menu" class="hub-tools-menu" popover><a href="/?editor=1&amp;new=1" data-new-presentation data-icon="slideAdd">New presentation</a><a href="/?editor=1" data-icon="slides">Presentation tools</a><a href="#connect" data-hub-connect aria-haspopup="dialog">Agent connection</a><a href="/web/copilot-setup.html" data-icon="plug">Microsoft 365 Copilot</a><button type="button" data-report-issue aria-haspopup="dialog">Report an issue</button><a href="#about" data-app-about aria-haspopup="dialog"><span>About Artifact Studio</span><small class="app-version-label" data-app-version>Version…</small></a></div>
   </header>
   <div id="hub-content"><main class="hub-loading" role="status">Loading your artifacts…</main></div>
   <div id="hub-toast" class="hub-toast" role="status" hidden></div>
