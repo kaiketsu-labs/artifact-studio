@@ -299,6 +299,40 @@ def test_sync_merges_independent_file_changes(
         assert api.post(endpoint, headers=OWNER).json()["reports"][0]["action"] == "unchanged"
 
 
+def test_automatic_merge_retries_after_github_push_without_losing_studio_changes(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recover when the Git commit succeeds but Studio's local revision write fails."""
+    editor, sharing, project, artifact, binding, scratch = sync_fixture
+    sync = ProjectGitHubSync(sharing, [binding], scratch=scratch)
+    scope = Scope("default", "project", project)
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    _ = sync.run(owner, scope)
+    service = ArtifactStore(sharing.store("default"))
+    revise(service, artifact, "<h1>Studio independent edit</h1>")
+    _ = remote(editor, delete="asset.txt")
+
+    def interrupted(*_args: object, **_kwargs: object) -> None:
+        """Simulate the failed local apply after GitHub accepts the commit."""
+        raise OSError("Fictional local interruption.")
+
+    with monkeypatch.context() as fixture:
+        fixture.setattr(sync, "_apply_source", interrupted)
+        assert sync.run(owner, scope).reports[0].action == "blocked"
+    _ = git(editor, "pull", "--ff-only")
+    expected = b"<h1>Studio independent edit</h1>"
+    assert (editor / "demo/site/index.html").read_bytes() == expected
+    assert not (editor / "demo/site/asset.txt").exists()
+    assert "asset.txt" in service.snapshot_files(artifact)
+
+    restarted = ProjectGitHubSync(sharing, [binding], scratch=scratch)
+    assert restarted.run(owner, scope).reports[0].action == "merge"
+    assert service.snapshot_files(artifact) == {"index.html": expected}
+    assert service.snapshot_files(artifact, 2)["asset.txt"] == b"Studio asset"
+    assert restarted.run(owner, scope).reports[0].action == "unchanged"
+
+
 def test_missing_source_does_not_block_other_project_bundles(
     sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
 ) -> None:
