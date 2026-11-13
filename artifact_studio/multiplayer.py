@@ -142,7 +142,7 @@ def create_app(
             "Use expected hashes and stable request IDs. Replies stay in the original chat."
         ),
     )
-    toolset = MultiplayerTools(hub, chat, config.public_url)
+    toolset = MultiplayerTools(hub, chat, config.public_url, presence)
     toolset.register(mcp)
     mcp_app = mcp.streamable_http_app(
         stateless_http=True,
@@ -440,7 +440,10 @@ def create_app(
                 "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
 
-    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/presence",
+        response_model_exclude_defaults=True,
+    )
     def deck_presence(
         request: Request, workspace: str, artifact: str, body: PresenceInput
     ) -> list[DeckViewer]:
