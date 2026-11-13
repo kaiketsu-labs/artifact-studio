@@ -366,6 +366,23 @@ def test_owner_creates_link_from_native_context_menu(tmp_path: Path) -> None:
                         accept(invitee, token)
                         assert invitee.get(f"/api/artifacts/{app.artifact_id}").is_success
                         assert invitee.get(f"/api/artifacts/{app.sibling_id}").status_code == 404
+                    elif title == "Fictional team deck":
+                        page.set_viewport_size({"width": 360, "height": 640})
+                        _ = page.evaluate("""Object.defineProperty(navigator, 'clipboard', {
+                          value: {write: () => Promise.reject(new Error('Permission denied')),
+                                  writeText: () => Promise.reject(new Error('Permission denied'))}
+                        })""")
+                        dialog.get_by_label("Email address").fill("bob@example.test")
+                        expect(dialog.get_by_label("Link expires")).to_have_value("7d")
+                        dialog.get_by_role("button", name="Create link").click()
+                        expect(dialog.get_by_role("status")).to_have_text(
+                            "Use Copy link to copy your invitation."
+                        )
+                        dialog.get_by_role("button", name="Copy link").press("Enter")
+                        field = dialog.get_by_label("Invitation link", exact=True)
+                        expect(field).to_be_focused()
+                        assert field.evaluate("el => el.selectionEnd === el.value.length")
+                        page.set_viewport_size({"width": 1600, "height": 1000})
                     page.keyboard.press("Escape")
                     expect(anchor).to_be_focused()
         finally:
