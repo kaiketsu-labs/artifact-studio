@@ -51,6 +51,7 @@ from .sections import Sections, section_layout
 from .slide_actions import SlideActions
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import Store
+from .structure_proposals import StructureProposals
 from .version_authors import revision_author
 
 Ctx = Context[None, Request]
@@ -538,6 +539,30 @@ class MultiplayerTools:
                 section_id,
             )
 
+    def publish_structure_proposal(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        summary: str,
+        base_slide_ids: list[str],
+        base_sections_hash: str,
+        proposed_slide_ids: list[str],
+        request_id: str,
+        proposed_titles: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        """Request a human decision on a proposed presentation structure without editing it."""
+        actor = self.actor(ctx)
+        return StructureProposals(self.sharing).publish(
+            actor,
+            self.scope(actor, deck_id),
+            summary,
+            base_slide_ids,
+            base_sections_hash,
+            proposed_slide_ids,
+            request_id,
+            proposed_titles,
+        )
+
     def reorder_slides(
         self,
         ctx: Ctx,
@@ -997,6 +1022,7 @@ class MultiplayerTools:
             self.add_slide,
             self.create_presentation,
             self.reorder_slides,
+            self.publish_structure_proposal,
             self.set_presentation_sections,
             self.restore_slides,
             self.publish_slide_designs,

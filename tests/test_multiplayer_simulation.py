@@ -394,3 +394,168 @@ def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: P
         finally:
             for peer in peers:
                 peer.client.close()
+
+
+def test_structural_proposal_decision_is_scoped_and_single_winner(tmp_path: Path) -> None:
+    """Concurrent reviewers deliver only one decision to the original agent."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        )
+        connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with closing((peer := Peer(app, connection.json()["token"])).client):
+            before = owner.get(base).json()
+            ids = before["slide_ids"]
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review order",
+                base_slide_ids=ids,
+                base_sections_hash=before["sections_hash"],
+                proposed_slide_ids=list(reversed(ids)),
+                request_id="proposal-unique",
+            )
+            body = {
+                "decision": "accept",
+                "message": "Please proceed",
+                "expected_slide_ids": ids,
+                "expected_sections_hash": before["sections_hash"],
+            }
+            endpoint = f"{base}/{proposal['id']}/decision"
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pending = [
+                    pool.submit(client.post, endpoint, json=body | {"request_id": request_id})
+                    for client, request_id in [(owner, "owner-decision"), (alice, "alice-decision")]
+                ]
+                replies = [response.result() for response in pending]
+            assert sorted(response.status_code for response in replies) == [200, 409]
+            events = cast(
+                list[dict[str, str]], peer.value("read_feedback", artifact_id=app.deck_id)["events"]
+            )
+            assert len(events) == 1
+            assert events[0]["channel"] == "shared"
+            assert "Please proceed" in events[0]["message"]
+            assert owner.get(base).json()["slide_ids"] == ids
+
+
+def test_structural_proposal_validator_rechecks_access_and_detects_decisions(
+    tmp_path: Path,
+) -> None:
+    """An unchanged comparison has no body, while a decision invalidates its validator."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        )
+        connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        initial = owner.get(base)
+        initial.raise_for_status()
+        headers = {"If-None-Match": initial.headers["ETag"]}
+        assert owner.get(base, headers=headers).status_code == 304
+        assert alice.get(base, headers=headers).status_code == 404
+        body = initial.json()
+        with closing((peer := Peer(app, connection.json()["token"])).client):
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review outline",
+                base_slide_ids=body["slide_ids"],
+                base_sections_hash=body["sections_hash"],
+                proposed_slide_ids=list(reversed(body["slide_ids"])),
+                request_id="conditional-proposal",
+            )
+            pending = owner.get(base, headers=headers)
+            pending.raise_for_status()
+            assert pending.headers["ETag"] != initial.headers["ETag"]
+            reply = owner.post(
+                f"{base}/{proposal['id']}/decision",
+                json={
+                    "decision": "keep",
+                    "expected_slide_ids": body["slide_ids"],
+                    "expected_sections_hash": body["sections_hash"],
+                    "request_id": "conditional-decision",
+                },
+            )
+            reply.raise_for_status()
+            decided = owner.get(base, headers={"If-None-Match": pending.headers["ETag"]})
+            decided.raise_for_status()
+            assert decided.json()["proposals"][0]["status"] == "decided"
+            assert decided.headers["ETag"] != pending.headers["ETag"]
+
+
+def test_structural_proposal_stale_and_revoked_agent(tmp_path: Path) -> None:
+    """A stale comparison cannot be accepted and revoked agents receive no decisions."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+    ):
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        ).json()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with closing((peer := Peer(app, connection["token"])).client):
+            before = owner.get(base).json()
+            ids = before["slide_ids"]
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review order",
+                base_slide_ids=ids,
+                base_sections_hash=before["sections_hash"],
+                proposed_slide_ids=list(reversed(ids)),
+                request_id="proposal-stale",
+            )
+            peer.value(
+                "reorder_slides",
+                deck_id=app.deck_id,
+                slide_ids=list(reversed(ids)),
+                expected_slide_ids=ids,
+            )
+            current = owner.get(base).json()
+            body = {
+                "decision": "accept",
+                "message": "",
+                "expected_slide_ids": current["slide_ids"],
+                "expected_sections_hash": current["sections_hash"],
+                "request_id": "decision-stale",
+            }
+            endpoint = f"{base}/{proposal['id']}/decision"
+            assert owner.post(endpoint, json=body).status_code == 409
+            assert owner.post(f"/api/agents/{connection['id']}/revoke").is_success
+            body["decision"] = "request_change"
+            assert owner.post(endpoint, json=body).status_code == 404
+            assert owner.get(base).json()["proposals"][0]["status"] == "pending"
+
+
+def test_structure_list_does_not_wait_for_write_lock_and_requires_edit(tmp_path: Path) -> None:
+    """Read the atomic file snapshot during a write and deny view-only collaborators."""
+    import sqlite3
+
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with sqlite3.connect(root / "state/review.sqlite3") as db:
+            db.execute("BEGIN IMMEDIATE")
+            response = owner.get(endpoint, timeout=3)
+            assert response.status_code == 200
+            assert response.json()["slide_ids"]
+        assert alice.get(endpoint).status_code == 404

@@ -1,0 +1,9 @@
+.structure-review-trigger{margin:8px 12px;padding:9px;text-align:left;border:1px solid var(--line);border-radius:8px;background:transparent;font:inherit}
+#structure-review-dialog{width:min(760px,calc(100vw - 32px));max-height:calc(100dvh - 32px);color:var(--ink,#20242b);background:var(--surface,#fff);border:1px solid var(--line);border-radius:10px;padding:0}
+#structure-review-dialog header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
+#structure-review-dialog header h2{margin:0;font-size:16px}
+#structure-review-dialog header button{font-size:22px}
+.structure-review-body{padding:18px;overflow:auto;max-height:calc(100dvh - 110px)}
+.structure-review-body label{display:block}.structure-review-body select,.structure-review-body textarea{display:block;width:100%;margin:6px 0 12px;font:inherit}
+.structure-comparison{display:grid;grid-template-columns:1fr 1fr;gap:12px}.structure-comparison section{min-width:0;border:1px solid var(--line);border-radius:8px;padding:10px}.structure-comparison h3{font-size:13px;margin:0}.structure-comparison ol{padding-left:24px;overflow-wrap:anywhere}.structure-review-body fieldset{border:0;padding:0;margin:16px 0}.structure-review-body fieldset label{padding:5px 0}.structure-warning{padding:10px;border:1px solid #b68a3a;border-radius:6px}.structure-error{color:var(--red,#b33)}
+@media(max-width:500px){.structure-comparison{grid-template-columns:1fr}}

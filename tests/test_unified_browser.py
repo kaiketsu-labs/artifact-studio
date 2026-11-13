@@ -32,6 +32,71 @@ pytestmark = [
 ]
 
 
+def test_structure_review_preserves_a_concurrent_edit_and_reaches_origin_agent(
+    tmp_path: Path,
+) -> None:
+    """Two fictional editors share a structural proposal while one reorders the deck."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app", tmp_path / "server.log", unified=True, startup_timeout=30
+        ) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        peer = Peer(app, agent(owner, app.deck_id))
+        unrelated = Peer(app, agent(alice, app.deck_id))
+        outline = peer.value("get_presentation_outline", deck_id=app.deck_id)
+        _ = peer.value(
+            "publish_structure_proposal",
+            deck_id=app.deck_id,
+            summary="Fictional proposed outline",
+            base_slide_ids=["cover", "next"],
+            base_sections_hash=outline["sections_hash"],
+            proposed_slide_ids=["next", "missing"],
+            proposed_titles={"missing": "Fictional additional slide"},
+            request_id="fictional-outline-proposal",
+        )
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 850, "height": 720})
+                page.emulate_media(color_scheme="dark")
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                page.locator("#structure-review-trigger").click()
+                dialog = page.get_by_role("dialog", name="Review slide structure")
+                expect(
+                    dialog.locator("li").filter(has_text="Fictional additional slide")
+                ).to_be_visible()
+                dialog.get_by_role("radio", name="Accept proposal").check()
+                message = dialog.get_by_role("textbox", name="Message to the proposing agent")
+                message.fill("Keep the recent edit and review the extra slide.")
+                response = alice.post(
+                    f"/api/decks/{app.deck_id}/slide-order",
+                    json={"slide_ids": ["next", "cover"], "expected_slide_ids": ["cover", "next"]},
+                )
+                response.raise_for_status()
+                dialog.get_by_role("button", name="Send decision").click()
+                expect(dialog.get_by_role("alert").filter(has_text="changed")).to_be_visible()
+                expect(message).to_have_value("Keep the recent edit and review the extra slide.")
+                expect(dialog.get_by_role("radio", name="Accept proposal")).to_be_disabled()
+                dialog.get_by_role("radio", name="Request changes").check()
+                dialog.get_by_role("button", name="Send decision").click()
+                expect(dialog.get_by_text(re.compile("Decision: Request changes"))).to_be_visible()
+                mine = peer.value("read_feedback", deck_id=app.deck_id)
+                other = unrelated.value("read_feedback", deck_id=app.deck_id)
+                assert "Keep the recent edit" in str(mine)
+                assert "Keep the recent edit" not in str(other)
+                assert [item.id for item in app.store.read(app.deck_id).slides] == ["next", "cover"]
+        finally:
+            unrelated.client.close()
+            peer.client.close()
+            browser.close()
+
+
 def test_owner_can_toggle_full_shared_history_for_one_agent(tmp_path: Path) -> None:
     """Exercise the presentation permission through the owner's agent dialog."""
     with (

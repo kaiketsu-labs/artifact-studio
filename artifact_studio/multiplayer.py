@@ -47,6 +47,7 @@ from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
+from .structure_proposals import StructureDecision, StructureProposals
 from .visuals import ScopedDeckEmbedder
 
 # The separator is outside the ordinary ticket alphabet.
@@ -134,6 +135,7 @@ def create_app(
     hub = sharing
     chat = Conversations(hub)
     presence = DeckPresence(hub)
+    structure = StructureProposals(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
         version=__version__,
@@ -440,6 +442,30 @@ def create_app(
                 "mentions": [] if actor.agent else chat.mentions(actor, scope),
                 "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals")
+    def structure_list(request: Request, workspace: str, artifact: str) -> Response:
+        """Return presentation structure and its agent proposals."""
+        result, validator = structure.snapshot(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            request.headers.get("If-None-Match", ""),
+        )
+        headers = {"ETag": validator} if validator else {}
+        if result is None:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(result, headers=headers)
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals/{proposal_id}/decision"
+    )
+    def structure_decision(
+        request: Request, workspace: str, artifact: str, proposal_id: str, body: StructureDecision
+    ) -> dict[str, object]:
+        """Deliver a reviewed decision to the proposal's originating agent."""
+        return structure.decide(
+            actor_of(request), Scope(workspace, "artifact", artifact), proposal_id, body
+        )
 
     @app.post(
         "/api/workspaces/{workspace}/artifacts/{artifact}/presence",
