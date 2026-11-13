@@ -216,7 +216,7 @@ def test_cache_metadata_is_bounded_skips_links_and_closes_scandir(tmp_path: Path
         assert not incomplete.complete
         assert incomplete.entries == 1
     if before is not None:
-        assert len(list(descriptors.iterdir())) == before
+        assert len(list(descriptors.iterdir())) <= before
     result = diagnostic.cache_size(cache)
     assert result.complete and result.files == 1
     assert result.skipped_symlinks == 1

@@ -17,6 +17,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
+from .design_transfer import MAX_DESIGN_ZIP
 from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
 from .multiplayer_access import Scope as GrantScope
 
@@ -28,6 +29,7 @@ _OWNER_UPLOAD_LIMITS = {
     "/api/artifacts/import": 140 * 1024 * 1024,
     "/api/decks": _CHAT_LIMIT,
     "/api/design-library": _CHAT_LIMIT,
+    "/api/design-library/import": MAX_DESIGN_ZIP,
 }
 _DESIGN_FILES = re.compile(
     r"/api/(?:design-library/[a-z0-9][a-z0-9-]{0,99}/files|"
