@@ -1,12 +1,17 @@
 """Native design library routes bound to the current workspace."""
 
+import asyncio
 import errno
+import tempfile
 from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, contextmanager
+from pathlib import Path
 from shutil import disk_usage
+from threading import BoundedSemaphore
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 from .design_library import (
     PREVIEW_TYPES,
@@ -23,8 +28,10 @@ from .design_references import (
     RemoveReferenceInput,
 )
 from .design_thumbnails import THUMBNAIL_SUFFIXES, design_thumbnail
+from .design_transfer import DESIGN_ZIP_LIMIT, MAX_DESIGN_ZIP, export_design, import_design
 from .models import FileInput
-from .storage import Store
+from .recovery_api import ArchiveDownload
+from .storage import ConflictError, Store
 
 INERT_FILE_HEADERS = {
     "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
@@ -40,6 +47,7 @@ def design_library_routes(
     router = APIRouter()
     library = APIRouter(prefix="/api/design-library")
     scoped = disk_reserve > 0
+    transfer_slot = BoundedSemaphore()
 
     @contextmanager
     def write_access(request: Request, files: list[FileInput]) -> Generator[Store]:
@@ -69,10 +77,93 @@ def design_library_routes(
         with access(request) as store:
             return [item.model_dump() for item in DesignLibrary(store).deleted()]
 
+    @library.post("/import")
+    async def import_archive(request: Request) -> dict[str, object]:
+        """Stage a bounded ZIP and recheck workspace ownership before installing it."""
+        declared = request.headers.get("content-length")
+        if declared and (not declared.isdecimal() or int(declared) > MAX_DESIGN_ZIP):
+            raise HTTPException(413, DESIGN_ZIP_LIMIT)
+        if request.headers.get("content-type") != "application/zip":
+            raise HTTPException(415, "Choose an Artifact Studio design ZIP.")
+
+        def upload_directory() -> Path:
+            """Check access before allocating upload scratch on the workspace disk."""
+            with access(request) as store:
+                return store.root
+
+        if not transfer_slot.acquire(blocking=False):
+            raise HTTPException(429, "A design transfer is in progress. Try again shortly.")
+        try:
+            directory = await run_in_threadpool(upload_directory)
+            with tempfile.TemporaryFile(dir=directory) as source:
+                size = 0
+                try:
+                    async with asyncio.timeout(120):
+                        async for chunk in request.stream():
+                            size += len(chunk)
+                            if size > MAX_DESIGN_ZIP:
+                                raise HTTPException(413, DESIGN_ZIP_LIMIT)
+                            _ = await run_in_threadpool(source.write, chunk)
+                except TimeoutError as error:
+                    raise HTTPException(408, "The design upload timed out.") from error
+
+                def install() -> dict[str, object]:
+                    """Validate and publish against the currently authorized workspace."""
+                    with write_access(request, []) as store:
+                        _ = source.seek(0)
+                        return response(import_design(store, source, disk_reserve=disk_reserve))
+
+                return await run_in_threadpool(install)
+        except ConflictError as error:
+            raise HTTPException(409, str(error)) from error
+        except ValueError as error:
+            raise HTTPException(400, str(error).splitlines()[0]) from error
+        except OSError as error:
+            if error.errno == errno.ENOSPC:
+                raise HTTPException(507, "Not enough workspace storage for this design.") from error
+            raise
+        finally:
+            transfer_slot.release()
+
     @library.get("/{design_id}")
     def design_context(request: Request, design_id: str) -> dict[str, object]:
         with access(request) as store:
             return response(DesignLibrary(store).get(design_id))
+
+    @library.get("/{design_id}/export")
+    def export_archive(request: Request, design_id: str) -> ArchiveDownload:
+        """Download one owned design with temporary output removed on completion."""
+        if not transfer_slot.acquire(blocking=False):
+            raise HTTPException(429, "A design transfer is in progress. Try again shortly.")
+        temporary: tempfile.TemporaryDirectory[str] | None = None
+
+        def cleanup() -> None:
+            """Release scratch and capacity on success, failure or disconnect."""
+            try:
+                if temporary is not None:
+                    temporary.cleanup()
+            finally:
+                transfer_slot.release()
+
+        try:
+            with access(request) as store:
+                design = DesignLibrary(store).item(design_id)
+                temporary = tempfile.TemporaryDirectory(prefix=".design-export-", dir=store.root)
+                target = Path(temporary.name) / f"{design.id}.design.zip"
+                export_design(store, design_id, target)
+            return ArchiveDownload(target, cleanup)
+        except ValueError as error:
+            cleanup()
+            status = 409 if isinstance(error, ConflictError) else 400
+            raise HTTPException(status, str(error)) from error
+        except OSError as error:
+            cleanup()
+            if error.errno == errno.ENOSPC:
+                raise HTTPException(507, "Not enough workspace storage for this design.") from error
+            raise
+        except BaseException:
+            cleanup()
+            raise
 
     @library.post("/{design_id}/default")
     def default_design(request: Request, design_id: str) -> dict[str, str]:

@@ -1,7 +1,10 @@
 """Design contexts are reusable file collections, not synthetic presentations."""
 
 import base64
+import io
+import stat
 from pathlib import Path
+from zipfile import ZipFile, ZipInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +15,7 @@ from artifact_studio.artifact_context import artifact_context
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.design_library import DesignCreate, DesignDelete, DesignLibrary, DesignTextEdit
 from artifact_studio.design_references import ReferenceInput, RemoveReferenceInput
+from artifact_studio.design_transfer import export_design, import_design
 from artifact_studio.models import DesignManifest, FileInput
 from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -24,6 +28,67 @@ def upload(name: str, data: bytes = b"Fictional reference") -> FileInput:
 @pytest.fixture
 def library(tmp_path: Path) -> DesignLibrary:
     return DesignLibrary(Store(tmp_path / "collection", tmp_path / "state/review.sqlite3"))
+
+
+def test_design_zip_preserves_examples_and_references_with_trusted_viewer(
+    library: DesignLibrary, tmp_path: Path
+) -> None:
+    """Install a portable pack and retain an existing default and design identity."""
+    source = library.store.root / TEMPLATE_ID
+    make_design(source)
+    _ = (source / ".env").write_text("must stay private")
+    _ = (source / "review.sqlite3-wal").write_text("must also stay private")
+    example = source / "index.html"
+    _ = example.write_text(
+        example.read_text().replace("<html", '<html class="brand" onload="untrusted()"', 1)
+    )
+    _ = (source / "presentation.js").write_text("window.untrustedArchiveViewer = true;")
+    archive = tmp_path / "pack.zip"
+    export_design(library.store, "test-brand", archive)
+    with ZipFile(archive) as bundle:
+        assert ".env" not in bundle.namelist()
+        assert "review.sqlite3-wal" not in bundle.namelist()
+        assert bundle.read("Master.pptx") == (source / "Master.pptx").read_bytes()
+    target = Store(tmp_path / "target", tmp_path / "target-state/review.sqlite3")
+    make_design(target.root / "2026-11-12-current-design", "current-design")
+    with archive.open("rb") as incoming:
+        imported = import_design(target, incoming)
+    assert imported.id == "test-brand"
+    assert target.default_design_id() == "current-design"
+    assert target.read(imported.folder_id).id == imported.folder_id
+    assert target.read(imported.folder_id).slides == library.store.read(TEMPLATE_ID).slides
+    installed_html = (target.folder(imported.folder_id) / "index.html").read_text()
+    assert 'class="brand"' in installed_html and "untrusted()" not in installed_html
+    assert (
+        b"untrustedArchiveViewer"
+        not in (target.folder(imported.folder_id) / "presentation.js").read_bytes()
+    )
+    with archive.open("rb") as incoming, pytest.raises(ConflictError, match="already"):
+        _ = import_design(target, incoming)
+    imported_library = DesignLibrary(target)
+    imported_library.delete(imported.id, DesignDelete(expected_version=imported.version))
+    with archive.open("rb") as incoming, pytest.raises(ConflictError, match="already"):
+        _ = import_design(target, incoming)
+
+
+@pytest.mark.parametrize("path", ["../outside.txt", "assets/link", "Assets/A.txt"])
+def test_design_zip_rejects_traversal_links_and_case_collisions(
+    library: DesignLibrary, path: str
+) -> None:
+    """Invalid archives never add a design or leave partially installed files."""
+    data = io.BytesIO()
+    with ZipFile(data, "w") as bundle:
+        bundle.writestr("design-context.json", '{"id":"fake","name":"Fake"}')
+        bundle.writestr("assets/a.txt", "first")
+        entry = ZipInfo(path)
+        if path == "assets/link":
+            entry.create_system = 3
+            entry.external_attr = (stat.S_IFLNK | 0o777) << 16
+        bundle.writestr(entry, "invalid")
+    _ = data.seek(0)
+    with pytest.raises(ValueError):
+        _ = import_design(library.store, data)
+    assert not list(library.store.root.iterdir())
 
 
 def test_file_collection_needs_no_slides_and_matches_agent_context(library: DesignLibrary) -> None:

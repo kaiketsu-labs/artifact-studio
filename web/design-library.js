@@ -12,6 +12,7 @@
       ? studioPath(`/decks/${encodeURIComponent(id)}/presenter?present=1&audience=1`)
       : `/?deck=${encodeURIComponent(id)}`;
     const control=(action,label,name,attrs='')=>`<button type="button" data-design-action="${action}" ${attrs}>${icon(name)}${label?`<span>${label}</span>`:''}</button>`;
+    const download=item=>`<a class="design-export hub-icon-only" href="${escape(studioPath(path(item.id)+'/export'))}" download aria-label="Export ${escape(item.name)} design" title="Export design ZIP">${icon('download')}</a>`;
     const type=file=>file.name.includes('.')?file.name.split('.').at(-1).toUpperCase().slice(0,8):'FILE';
     const fileLabel=file=>file.path.startsWith('reference/uploads/')?'Uploaded reference':file.path;
     const imageTypes=new Set(['SVG','PNG','JPG','JPEG','WEBP','GIF','AVIF','BMP','TIF','TIFF','ICO']);
@@ -133,18 +134,41 @@
     }
     function cards(items,search=''){
       if(!items.length)return `<div class="hub-empty">${icon('palette')}<h2>${search?'No matching designs':'Build your design library'}</h2><p>${search?'Try another name.':'Collect guidelines, images, fonts, masters and other references.'}</p>${search?'':control('new','Add design','plus','class="hub-primary"')}</div>`;
-      return items.map(item=>`<article class="design-card-summary"><button class="design-card-body" data-open-design="${escape(item.id)}" aria-label="Open ${escape(item.name)} design" aria-describedby="${item.is_default?`design-default-${escape(item.id)} `:''}design-description-${escape(item.id)}">${cover(item)}<span class="design-card-heading">${escape(item.name)}${item.is_default?`<small id="design-default-${escape(item.id)}">Default</small>`:''}</span><span class="design-card-description" id="design-description-${escape(item.id)}">${escape(item.description||'Add references to define this design.')}</span></button><footer class="design-card-meta"><span>${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</span><span>${item.file_count} ${item.file_count===1?'file':'files'}</span>${defaultControl(item)}${control('delete','','trash',`class="design-card-delete" data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</footer></article>`).join('');
+      return items.map(item=>`<article class="design-card-summary"><button class="design-card-body" data-open-design="${escape(item.id)}" aria-label="Open ${escape(item.name)} design" aria-describedby="${item.is_default?`design-default-${escape(item.id)} `:''}design-description-${escape(item.id)}">${cover(item)}<span class="design-card-heading">${escape(item.name)}${item.is_default?`<small id="design-default-${escape(item.id)}">Default</small>`:''}</span><span class="design-card-description" id="design-description-${escape(item.id)}">${escape(item.description||'Add references to define this design.')}</span></button><footer class="design-card-meta"><span>${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</span><span>${item.file_count} ${item.file_count===1?'file':'files'}</span>${defaultControl(item)}${download(item)}${control('delete','','trash',`class="design-card-delete" data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</footer></article>`).join('');
     }
     function defaultControl(item){
       if(item.kind!=='slide_pack')return '';
       const label=item.is_default?`${item.name} is the default design`:`Set ${item.name} as default`;
       return control('set-default','','star',`class="hub-icon-only design-default-control" data-design-id="${escape(item.id)}" aria-label="${escape(label)}" title="${escape(item.is_default?'Default for new presentations':'Set as default for new presentations')}" aria-pressed="${!!item.is_default}"`);
     }
+    function importDialog(){
+      modal('Import design',`<form id="design-import-form" class="hub-form"><label class="hub-field"><span>Design ZIP</span><input type="file" name="archive" accept=".zip,application/zip" required></label><p class="hub-compose-error" role="alert"></p><div class="hub-form-actions"><button type="submit" class="hub-primary">${icon('upload')}<span>Import design</span></button></div></form>`);
+    }
+    async function importArchive(form){
+      const input=form.elements.namedItem('archive'),file=input.files[0],error=form.querySelector('[role="alert"]');
+      const submit=form.querySelector('[type=submit]'),label=submit.querySelector('span');
+      error.textContent='';
+      if(!file||!file.name.toLowerCase().endsWith('.zip')){error.textContent='Choose an Artifact Studio design ZIP.';return;}
+      if(file.size>90000000){error.textContent='Choose a design ZIP no larger than 90 MB.';return;}
+      busy=true;input.disabled=true;submit.disabled=true;label.textContent='Importing…';
+      try{
+        const result=await root.fetch(studioPath('/api/design-library/import'),{
+          method:'POST',headers:{'Content-Type':'application/zip'},body:file
+        });
+        root.ArtifactSession?.observe(result);
+        root.ArtifactSession?.assertActive();
+        const item=await result.json().catch(()=>({}));
+        if(!result.ok)throw Error(item.detail||'The design could not be imported.');
+        if(dialog.open&&form.isConnected)dialog.close();
+        await changed(item.id);toast('Design imported.');
+      }catch(failure){if(dialog.open&&form.isConnected)error.textContent=failure.message;else toast(failure.message,true);}
+      finally{busy=false;input.disabled=false;submit.disabled=false;label.textContent='Import design';}
+    }
     function detail(item){
       selected=item;
       const order=['References','Guidance','Assets & styling','Examples & player'];
       const groups=[...new Set(item.files.map(file=>file.group))].sort((a,b)=>order.indexOf(a)-order.indexOf(b));
-      return `<nav class="hub-crumbs" aria-label="Breadcrumb">${control('back','Designs','palette')}${icon('right')}<span>${escape(item.name)}</span></nav><header class="design-detail-heading"><div><p class="design-eyebrow">${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</p><h1>${escape(item.name)}</h1><p class="design-description">${escape(item.description)}</p></div><div class="design-detail-actions">${defaultControl(item)}${control('use','Use with agent','robot',`class="hub-primary" ${!item.files.length&&!item.description.trim()?'disabled title="Add reference files or a description first"':''}`)}${control('attach','Add files','attach')}${control('refresh','','refresh','aria-label="Refresh design context" title="Refresh context"')}${control('delete','','trash',`data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</div></header><section class="design-context"><header><div><h2>Context files <span class="hub-count">${item.files.length}</span></h2><p>Available to your agent as references. Adding files does not apply their styling automatically.</p></div></header>${groups.length?groups.map(group=>`<section class="design-file-group"><h3>${escape(group)}</h3><ul>${item.files.filter(file=>file.group===group).map(fileRow).join('')}</ul></section>`).join(''):`<div class="design-empty-files">${icon('attach')}<p>No context files yet.</p>${control('attach','Add files','plus')}</div>`}</section>${item.kind==='slide_pack'?`<a class="design-example-link" href="${escape(exampleUrl(item.folder_id))}">${icon('presentation')}Open example slides${icon('external')}</a>`:''}`;
+      return `<nav class="hub-crumbs" aria-label="Breadcrumb">${control('back','Designs','palette')}${icon('right')}<span>${escape(item.name)}</span></nav><header class="design-detail-heading"><div><p class="design-eyebrow">${item.kind==='slide_pack'?'Slide design pack':'Reference collection'}</p><h1>${escape(item.name)}</h1><p class="design-description">${escape(item.description)}</p></div><div class="design-detail-actions">${defaultControl(item)}${control('use','Use with agent','robot',`class="hub-primary" ${!item.files.length&&!item.description.trim()?'disabled title="Add reference files or a description first"':''}`)}${control('attach','Add files','attach')}${control('refresh','','refresh','aria-label="Refresh design context" title="Refresh context"')}${download(item)}${control('delete','','trash',`data-design-id="${escape(item.id)}" aria-label="Delete ${escape(item.name)} design" title="Delete design"`)}</div></header><section class="design-context"><header><div><h2>Context files <span class="hub-count">${item.files.length}</span></h2><p>Available to your agent as references. Adding files does not apply their styling automatically.</p></div></header>${groups.length?groups.map(group=>`<section class="design-file-group"><h3>${escape(group)}</h3><ul>${item.files.filter(file=>file.group===group).map(fileRow).join('')}</ul></section>`).join(''):`<div class="design-empty-files">${icon('attach')}<p>No context files yet.</p>${control('attach','Add files','plus')}</div>`}</section>${item.kind==='slide_pack'?`<a class="design-example-link" href="${escape(exampleUrl(item.folder_id))}">${icon('presentation')}Open example slides${icon('external')}</a>`:''}`;
     }
     function filesForm(creating){
       pending=[];
@@ -216,6 +240,7 @@ ${link}${scoped?`\n\nUse a connection scoped to this workspace. Read get_design_
           finally{busy=false;if(node.isConnected){node.disabled=false;node.focus({preventScroll:true});}}return;
         }
         if(action==='new')return filesForm(true);
+        if(action==='import')return importDialog();
         if(action==='attach')return filesForm(false);
         if(action==='use')return useDialog();
         if(action==='text-view'){showText(node.dataset.textView==='source');return;}
@@ -283,6 +308,9 @@ ${link}${scoped?`\n\nUse a connection scoped to this workspace. Read get_design_
       event.preventDefault();zone.classList.remove('is-dragover');addFiles([...event.dataTransfer.files]);
     });
     doc.addEventListener('submit',event=>{
+      if(event.target.id==='design-import-form'){
+        event.preventDefault();if(!busy)void importArchive(event.target);return;
+      }
       const form=event.target;if(!['design-library-form','design-delete-form'].includes(form.id))return;
       event.preventDefault();if(busy)return;busy=true;
       const error=form.querySelector('[role=alert]');error.textContent='';
@@ -299,7 +327,8 @@ ${link}${scoped?`\n\nUse a connection scoped to this workspace. Read get_design_
         pending=[];dialog.close();await changed(item.id);toast(creating?'Design added.':'Reference files added.');
       })().catch(failure=>{error.textContent=failure.message;}).finally(()=>{busy=false;form.removeAttribute('aria-busy');submit.textContent=label;for(const node of form.querySelectorAll('button,input,textarea'))node.disabled=false;updateSubmit();});
     });
-    return {cards,detail};
+    const importControl=()=>control('import','','upload','class="hub-icon-only design-import" aria-label="Import design" title="Import design ZIP"');
+    return {cards,detail,importControl};
   }
   root.SlideDesignLibrary={create};
 })(window);
