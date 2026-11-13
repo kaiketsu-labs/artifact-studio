@@ -99,6 +99,9 @@ class Conversations:
                   PRIMARY KEY(message,person));
                 CREATE INDEX IF NOT EXISTS chat_mentions_unread
                   ON chat_mentions(person,message) WHERE seen=0;
+                CREATE TABLE IF NOT EXISTS agent_shared_history (
+                  workspace TEXT NOT NULL, artifact TEXT NOT NULL, agent TEXT NOT NULL,
+                  PRIMARY KEY(workspace,artifact,agent));
                 CREATE INDEX IF NOT EXISTS conversation_scope
                   ON conversations(workspace,artifact,id);
                 CREATE TABLE IF NOT EXISTS chat_delivery (
@@ -188,7 +191,8 @@ class Conversations:
     def history(
         self, actor: Actor, scope: Scope, channel: Channel, before: int = 0
     ) -> list[dict[str, object]]:
-        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+        with self.sharing.guard(actor, scope) as store, self.sharing.connect() as db:
+            restricted = self._restrict_shared_agent(actor, scope, store, db, channel)
             rows = db.execute(
                 "SELECT c.*,p.email AS author_name,d.id AS cursor, "
                 "EXISTS(SELECT 1 FROM chat_mentions m WHERE m.message=c.id AND m.person=?) "
@@ -196,7 +200,8 @@ class Conversations:
                 "JOIN people p ON p.id=c.person JOIN chat_delivery d ON d.message=c.id "
                 "WHERE workspace=? AND artifact=? AND channel=? "
                 "AND (?=0 OR d.id<?) AND (channel='shared' OR person=?) "
-                "AND (released=1 OR (person=? AND ?=0)) ORDER BY d.id DESC LIMIT 100",
+                "AND (released=1 OR (person=? AND ?=0)) "
+                "AND (?=0 OR c.assigned=? OR c.author=?) ORDER BY d.id DESC LIMIT 100",
                 (
                     actor.person,
                     scope.workspace,
@@ -207,6 +212,9 @@ class Conversations:
                     actor.person,
                     actor.person,
                     bool(actor.agent),
+                    restricted,
+                    actor.agent,
+                    actor.agent,
                 ),
             ).fetchall()
             return [
@@ -214,6 +222,49 @@ class Conversations:
                 | {"author_name": row["author_name"], "mentioned": bool(row["mentioned"])}
                 for row in reversed(rows)
             ]
+
+    def _restrict_shared_agent(
+        self, actor: Actor, scope: Scope, store: Store, db: sqlite3.Connection, channel: Channel
+    ) -> bool:
+        """Limit presentation discussion to the agent's own requests and replies by default."""
+        if not actor.agent or channel != "shared":
+            return False
+        if ArtifactStore(store).get_artifact(scope.resource).legacy_deck_id is None:
+            return False
+        return (
+            db.execute(
+                "SELECT 1 FROM agent_shared_history WHERE workspace=? AND artifact=? AND agent=?",
+                (scope.workspace, scope.resource, actor.agent),
+            ).fetchone()
+            is None
+        )
+
+    def shared_history_access(
+        self, actor: Actor, scope: Scope, agent_id: str, enabled: bool | None = None
+    ) -> bool:
+        """Read or change one owner's agent access to one presentation discussion."""
+        with self.sharing.guard(actor, scope, "edit") as store, self.sharing.connect() as db:
+            self.sharing.manage(actor, scope)
+            if ArtifactStore(store).get_artifact(scope.resource).legacy_deck_id is None:
+                raise AccessDenied
+            connection = Actor(actor.person, agent_id)
+            self.sharing.require(connection, scope)
+            key = (scope.workspace, scope.resource, agent_id)
+            if enabled is True:
+                _ = db.execute("INSERT OR IGNORE INTO agent_shared_history VALUES (?,?,?)", key)
+            elif enabled is False:
+                _ = db.execute(
+                    "DELETE FROM agent_shared_history WHERE workspace=? AND artifact=? AND agent=?",
+                    key,
+                )
+            return (
+                db.execute(
+                    "SELECT 1 FROM agent_shared_history "
+                    "WHERE workspace=? AND artifact=? AND agent=?",
+                    key,
+                ).fetchone()
+                is not None
+            )
 
     def contacts(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
         """List only verified people who currently have access to this artifact."""
@@ -225,6 +276,25 @@ class Conversations:
                 for person, email in sorted(self.sharing.human_contacts(scope).items())
                 if person != actor.person
             ]
+
+    def incoming_cursors(self, actor: Actor, scope: Scope) -> dict[str, dict[str, int]]:
+        """Return the latest visible incoming message for each conversation and slide."""
+        if actor.agent:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            rows = db.execute(
+                "SELECT c.channel, COALESCE(json_extract(c.target, '$.slide_id'), '') AS slide, "
+                "MAX(d.id) AS cursor FROM conversations c JOIN chat_delivery d ON d.message=c.id "
+                "WHERE c.workspace=? AND c.artifact=? AND c.released=1 AND c.author<>? "
+                "AND (c.channel='shared' OR c.person=?) GROUP BY c.channel, slide",
+                (scope.workspace, scope.resource, actor.person, actor.person),
+            )
+            result: dict[str, dict[str, int]] = {"shared": {}, "private": {}}
+            for row in rows:
+                result[cast(str, row["channel"])][cast(str, row["slide"])] = cast(
+                    int, row["cursor"]
+                )
+            return result
 
     def mentions(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:
         """Return released unread mentions for this person in this artifact."""
@@ -429,13 +499,17 @@ class Conversations:
         """Read only the requested bytes of a currently visible message attachment."""
         if not 1 <= event <= 2**63 - 1 or not 0 <= index < 5 or not 0 <= offset <= 25_000_000:
             raise AccessDenied
-        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+        with self.sharing.guard(actor, scope) as store, self.sharing.connect() as db:
             message = db.execute(
-                "SELECT channel,person,released,files FROM conversations "
+                "SELECT channel,person,author,assigned,released,files FROM conversations "
                 "WHERE id=? AND workspace=? AND artifact=?",
                 (event, scope.workspace, scope.resource),
             ).fetchone()
             if message is None or not self._visible(actor, message):
+                raise AccessDenied
+            if self._restrict_shared_agent(actor, scope, store, db, message["channel"]) and (
+                actor.agent not in (message["assigned"], message["author"])
+            ):
                 raise AccessDenied
             files = cast(list[ChatFile], json.loads(cast(str, message["files"])))
             if index >= len(files):
