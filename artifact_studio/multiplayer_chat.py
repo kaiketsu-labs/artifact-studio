@@ -740,10 +740,12 @@ class Conversations:
                 }
             scope = Scope(workspace, "artifact", artifact)
             self.sharing.require(actor, scope, "edit")
-            db.execute(
-                "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
-                (actor.agent, session, scope.workspace, artifact, time.time() + 120),
-            )
+            now = time.time()
+            if not existing or existing["artifact"] != artifact or existing["expires"] <= now + 60:
+                db.execute(
+                    "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
+                    (actor.agent, session, scope.workspace, artifact, now + 120),
+                )
             available = body.event == "Stop" and self._has_pending(db, actor, scope)
             reason = ""
             if available:

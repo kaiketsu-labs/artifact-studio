@@ -4,6 +4,7 @@ import json
 import re
 import shlex
 from pathlib import Path
+from urllib.error import HTTPError
 
 import pytest
 
@@ -274,6 +275,29 @@ def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: st
         harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     )
     assert result == {"decision": "block", "reason": reason}
+
+
+@pytest.mark.parametrize(("status", "retries"), [(429, True), (503, True), (401, False)])
+def test_stop_retries_transient_failures_only(
+    monkeypatch: pytest.MonkeyPatch, status: int, retries: bool
+) -> None:
+    """Keep waiting through transient failures without retrying rejected credentials."""
+    calls = 0
+
+    def poll(url: str, _message: dict[str, object], _timeout: int) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise HTTPError(url, status, "Fixture response", None, None)
+        return {"listening": True, "feedback_available": True, "reason": "New feedback"}
+
+    monkeypatch.setattr(client, "_post", poll)
+    monkeypatch.setattr(client.time, "sleep", lambda _seconds: None)
+    result = client.handle_event(
+        "claude-code", "Stop", "http://localhost", "artifact-studio", {"session_id": "fixture"}
+    )
+    assert calls == (2 if retries else 1)
+    assert result == ({"decision": "block", "reason": "New feedback"} if retries else {})
 
 
 def test_conflicting_reviewer_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:

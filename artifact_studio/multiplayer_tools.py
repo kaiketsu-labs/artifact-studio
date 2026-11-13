@@ -22,6 +22,7 @@ from .copilot_tools import (
     MAX_READ_BYTES,
     READ,
     WRITE,
+    RequestID,
     ScopedTools,
     attachment_page,
     public_object,
@@ -346,7 +347,17 @@ class MultiplayerTools:
             return ScopedTools(store, "", True).read_artifact_files(artifact_id, paths, revision)
 
     def revise_artifact(
-        self, ctx: Ctx, artifact_id: str, files_json: str, expected_revision: int, request_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        files_json: Annotated[
+            str,
+            Field(
+                description="JSON array of file changes with path and text, data_base64, or delete."
+            ),
+        ],
+        expected_revision: Annotated[int, Field(ge=1)],
+        request_id: RequestID,
     ) -> dict[str, object]:
         """Publish changed inline files with optimistic concurrency and an idempotent request ID."""
         actor = self.actor(ctx)
@@ -981,7 +992,13 @@ class MultiplayerTools:
         )
 
     def reply_to_feedback(
-        self, ctx: Ctx, artifact_id: str, event_id: int, claim: str, message: str, request_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        event_id: int,
+        claim: str,
+        message: str,
+        request_id: RequestID,
     ) -> dict[str, object]:
         """Reply in the request's original channel and acknowledge the claimed task atomically."""
         if not message.strip() or len(message) > 10000:
