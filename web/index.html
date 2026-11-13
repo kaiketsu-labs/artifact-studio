@@ -14,6 +14,7 @@
   <script src="/web/chat-timeline.js" defer></script>
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/slide-questions.css">
+  <link rel="stylesheet" href="/web/structure-review.css">
   <link rel="stylesheet" href="/web/element-controls.css">
   <link rel="stylesheet" href="/web/element-properties.css">
   <link rel="stylesheet" href="/web/workspace-panels.css">
@@ -53,6 +54,7 @@
   <script src="/web/notes-autosave.js" defer></script>
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-questions.js" defer></script>
+  <script src="/web/structure-review.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
   <script src="/web/element-properties.js" defer></script>
   <script src="/web/workspace-panels.js" defer></script>
@@ -197,6 +199,7 @@
       <div id="questions" hidden></div>
       <details id="alternatives-panel" hidden><summary>Alternatives <span id="alternative-count"></span></summary><div id="alternatives"></div></details>
     </details>
+    <button id="structure-review-trigger" class="structure-review-trigger" type="button" hidden></button>
     <div id="feedback-list" aria-live="polite"></div>
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
@@ -383,6 +386,7 @@
   <p id="design-reference-status" role="status" aria-live="polite"></p>
   <div class="dialog-actions"><button id="save-design-references" type="button" class="primary" disabled>Save references</button></div>
 </dialog>
+<dialog id="structure-review-dialog" aria-labelledby="structure-review-title"></dialog>
 <dialog id="notes-conflict-dialog" aria-labelledby="notes-conflict-title">
   <header><h2 id="notes-conflict-title">Notes changed elsewhere</h2><button id="close-notes-conflict" type="button" aria-label="Close"></button></header>
   <div class="notes-comparison"><label>Your draft<textarea id="notes-conflict-draft" readonly></textarea></label><label>Saved on this device<textarea id="notes-conflict-saved" readonly></textarea></label></div>
