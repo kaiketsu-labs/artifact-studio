@@ -22,10 +22,12 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
+from . import __version__
 from .artifact_models import ArtifactTarget
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
+from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
@@ -39,7 +41,7 @@ from .multiplayer_access import (
     checksum,
     workspace_editor_path,
 )
-from .multiplayer_chat import Channel, Conversations
+from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .review import ReviewHookInput
@@ -60,6 +62,7 @@ class ScopeInput(StrictModel):
 class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
+    no_expiry: bool = False
 
 
 class AgentInput(ScopeInput):
@@ -82,6 +85,8 @@ class ChatInput(StrictModel):
     released: bool = True
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
+    slide_content_hash: str = Field(default="", max_length=64)
+    proposal: ChatProposal | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
@@ -121,8 +126,10 @@ def create_app(
         )
     hub = sharing
     chat = Conversations(hub)
+    presence = DeckPresence(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
+        version=__version__,
         instructions=(
             "Start with get_working_context. Your token selects one workspace and access scope. "
             "Only assigned released requests appear in read_feedback. Claim before acting. "
@@ -195,7 +202,12 @@ def create_app(
 
     @app.get("/web/{name}")
     def static(name: str) -> FileResponse:
-        if name not in {"multiplayer.js", "multiplayer.css"}:
+        if name not in {
+            "multiplayer.js",
+            "multiplayer.css",
+            "chat-timeline.js",
+            "chat-timeline.css",
+        }:
             raise AccessDenied
         return FileResponse(PROJECT / "web" / name)
 
@@ -324,7 +336,11 @@ def create_app(
     @app.post("/api/workspaces/{workspace}/invitations")
     def invite(request: Request, workspace: str, body: InviteInput) -> dict[str, str]:
         invitation = hub.invite(
-            actor_of(request), Scope(workspace, body.kind, body.resource), body.email, body.role
+            actor_of(request),
+            Scope(workspace, body.kind, body.resource),
+            body.email,
+            body.role,
+            no_expiry=body.no_expiry,
         )
         path = (
             workspace_editor_path(workspace)
@@ -371,9 +387,10 @@ def create_app(
                     {
                         "id": slide.id,
                         "title": slide.title,
-                        "content_hash": store.content_hash(artifact, slide),
+                        "content_hash": item.presentation_versions[slide.id][0],
                     }
                     for slide in store.read(artifact).slides
+                    if slide.id in item.presentation_versions
                 ]
             with hub.connect() as db:
                 draft_counts = {
@@ -395,6 +412,13 @@ def create_app(
                 "agents": chat.agents(actor, scope),
                 "draft_counts": draft_counts,
             }
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
+    def deck_presence(
+        request: Request, workspace: str, artifact: str, body: PresenceInput
+    ) -> list[DeckViewer]:
+        """Refresh one human's slide position and return current viewers of this deck."""
+        return presence.update(actor_of(request), Scope(workspace, "artifact", artifact), body)
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def history(
@@ -421,6 +445,8 @@ def create_app(
             body.target,
             body.content_hash,
             body.files,
+            slide_content_hash=body.slide_content_hash,
+            proposal=body.proposal,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")

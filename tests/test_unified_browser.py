@@ -2,11 +2,13 @@
 
 import os
 import re
+import sqlite3
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import Route, expect, sync_playwright
 
 from artifact_studio.models import SlidePatch
 from tests.integration.multiplayer_fixture import (
@@ -15,6 +17,7 @@ from tests.integration.multiplayer_fixture import (
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, grant, human
+from tests.test_multiplayer_simulation import Peer
 from tests.test_unified_hosting import seed_artifact_history, seed_isolated_presentation
 
 pytestmark = [
@@ -23,6 +26,117 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> None:
+    """A saved message shows and unlocks the composer while refresh requests are pending."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="comment"))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                composer = page.locator("#feedback-text")
+                composer.fill("Fictional guest discussion")
+                held: list[Route] = []
+
+                def hold_refresh(route: Route) -> None:
+                    if route.request.method == "GET":
+                        held.append(route)
+                    else:
+                        route.fallback()
+
+                page.route(f"**/api/decks/{app.deck_id}", hold_refresh)
+                page.route(f"**/artifacts/{app.deck_id}/state", hold_refresh)
+                initial = app.store.view(app.deck_id).slides[0]
+                _ = app.store.revise_view(
+                    app.deck_id,
+                    initial.id,
+                    initial.expected_hash,
+                    "fixture-discussion-revision",
+                    SlidePatch(title="Revised cover"),
+                )
+                with page.expect_request(f"**/api/decks/{app.deck_id}"):
+                    _ = page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                composer.press("Enter")
+                expect(page.locator("#feedback-list")).to_contain_text("Fictional guest discussion")
+                expect(composer).to_have_value("")
+                expect(composer).to_be_enabled()
+                composer.fill("Second message while refresh is pending")
+                composer.press("Enter")
+                expect(page.locator("#feedback-list")).to_contain_text(
+                    "Second message while refresh is pending"
+                )
+                response = owner.get(f"/api/workspaces/default/artifacts/{app.deck_id}/chat")
+                assert [message["message"] for message in response.json()] == [
+                    "Fictional guest discussion",
+                    "Second message while refresh is pending",
+                ]
+                for route in held:
+                    route.abort()
+        finally:
+            browser.close()
+
+
+@pytest.mark.parametrize("presentation", [True, False], ids=["slides", "artifact"])
+def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentation: bool) -> None:
+    """Fictional guests see incoming messages at left and their own replies at right."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        resource = app.deck_id if presentation else app.artifact_id
+        accept(alice, grant(owner, "alice", resource, role="comment"))
+        endpoint = f"/api/workspaces/default/artifacts/{resource}/chat"
+        for index in range(2):
+            posted = owner.post(
+                endpoint,
+                json={
+                    "channel": "shared",
+                    "message": f"Fictional owner message {index}",
+                    "request_id": f"fictional-owner-chat-{index}",
+                    "target": {"kind": "slide", "slide_id": "cover"} if presentation else None,
+                },
+            )
+            assert posted.status_code == 200, posted.text
+        with sqlite3.connect(root / "sharing" / "sharing.sqlite3") as db:
+            _ = db.execute("UPDATE conversations SET created=?", (time.time() - 172800,))
+
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 900, "height": 760})
+                page.emulate_media(color_scheme="dark")
+                route = f"?deck={resource}#cover" if presentation else f"?artifact={resource}"
+                page.goto(f"{WORKSPACE}/{route}")
+                if presentation:
+                    page.get_by_role("button", name="Open chat", exact=True).click()
+                thread = page.locator("#feedback-list" if presentation else "#hub-thread")
+                day_markers = thread.locator(".chat-day")
+                incoming = thread.locator("article").filter(has_text="Fictional owner message 0")
+                expect(incoming).to_contain_text("owner@example.test")
+                expect(incoming).to_have_css("align-self", "flex-start")
+                expect(day_markers).to_have_count(1)
+                composer = page.locator("#feedback-text" if presentation else "#hub-feedback-text")
+                composer.fill("Fictional guest reply")
+                composer.press("Enter")
+                outgoing = thread.locator("article").filter(has_text="Fictional guest reply")
+                expect(outgoing).to_have_css("align-self", "flex-end")
+                expect(day_markers).to_have_count(2)
+                assert day_markers.nth(0).text_content() != day_markers.nth(1).text_content()
+                assert page.locator("html").get_attribute("data-theme") == "dark"
+        finally:
+            browser.close()
 
 
 def test_shared_artifact_uses_existing_approve_control(tmp_path: Path) -> None:
@@ -141,6 +255,8 @@ def test_invited_guest_opens_normal_editor_with_only_shared_items(tmp_path: Path
         try:
             with routed_multiplayer_context(browser, app, "alice") as guest:
                 page = guest.new_page()
+                page.goto(WORKSPACE)
+                page.wait_for_function("Boolean(window.StudioInvitation && window.ArtifactSession)")
                 page.goto(f"{WORKSPACE}/#invite={invite}")
                 page.get_by_role("button", name="Join", exact=True).click()
                 expect(page.locator("#slide-title")).to_be_visible()
@@ -205,6 +321,7 @@ def test_owner_creates_link_from_native_context_menu(tmp_path: Path) -> None:
         browser = playwright.chromium.launch()
         try:
             with routed_multiplayer_context(browser, app) as owner:
+                owner.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
                 page = owner.new_page()
                 page.goto(WORKSPACE)
                 page.wait_for_function("window.StudioInvitation?.available === true")
@@ -230,18 +347,42 @@ def test_owner_creates_link_from_native_context_menu(tmp_path: Path) -> None:
                     expect(dialog.get_by_label("Access")).to_have_value("view")
                     if title == "Shared candidate":
                         dialog.get_by_label("Email address").fill("alice@example.test")
+                        dialog.get_by_label("Link expires").select_option("never")
                         dialog.get_by_role("button", name="Create link").click()
                         field = dialog.get_by_label("Invitation link", exact=True)
                         expect(field).to_have_value(
                             re.compile(r"https://studio\.example\.test/#invite=")
                         )
                         expect(dialog.get_by_role("button", name="Copy link")).to_be_focused()
+                        expect(dialog.get_by_role("status")).to_have_text("Link copied.")
+                        copied = page.evaluate("navigator.clipboard.readText()")
+                        assert copied == field.input_value()
+                        dialog.get_by_text("Manage access").click()
+                        pending = dialog.get_by_text("alice@example.test · Can view · No expiry")
+                        expect(pending).to_be_visible()
                         token = field.input_value().split("#invite=")[1]
                         wrong = other.post("/api/invitations/accept", json={"token": token})
                         assert wrong.status_code in {403, 404}
                         accept(invitee, token)
                         assert invitee.get(f"/api/artifacts/{app.artifact_id}").is_success
                         assert invitee.get(f"/api/artifacts/{app.sibling_id}").status_code == 404
+                    elif title == "Fictional team deck":
+                        page.set_viewport_size({"width": 360, "height": 640})
+                        _ = page.evaluate("""Object.defineProperty(navigator, 'clipboard', {
+                          value: {write: () => Promise.reject(new Error('Permission denied')),
+                                  writeText: () => Promise.reject(new Error('Permission denied'))}
+                        })""")
+                        dialog.get_by_label("Email address").fill("bob@example.test")
+                        expect(dialog.get_by_label("Link expires")).to_have_value("7d")
+                        dialog.get_by_role("button", name="Create link").click()
+                        expect(dialog.get_by_role("status")).to_have_text(
+                            "Use Copy link to copy your invitation."
+                        )
+                        dialog.get_by_role("button", name="Copy link").press("Enter")
+                        field = dialog.get_by_label("Invitation link", exact=True)
+                        expect(field).to_be_focused()
+                        assert field.evaluate("el => el.selectionEnd === el.value.length")
+                        page.set_viewport_size({"width": 1600, "height": 1000})
                     page.keyboard.press("Escape")
                     expect(anchor).to_be_focused()
         finally:
@@ -328,7 +469,10 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                     )
                     page.keyboard.press("Escape")
                     expect(page.locator("#feedback-text")).to_have_value("Unsent draft")
-                    page.locator("#feedback-text").fill("")
+                    composer = page.locator("#feedback-text")
+                    composer.press("ControlOrMeta+a")
+                    composer.press("Backspace")
+                    expect(composer).to_have_value("")
                     page.locator("#workspace-menu-button").click()
                     page.locator("[data-app-about]").click()
                     page.get_by_role("link", name="My workspace").click()
@@ -608,3 +752,130 @@ def test_collaborator_downloads_through_the_regular_share_panel(tmp_path: Path, 
                 assert selected.value.suggested_filename == "Fictional-project.zip"
         finally:
             browser.close()
+
+
+def test_named_workspace_design_review_for_collaborator_and_reader(tmp_path: Path) -> None:
+    """Review frozen designs in the normal editor and keep proposal chat attached."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as reader,
+        sync_playwright() as playwright,
+    ):
+        workspace = str(
+            owner.post("/api/workspaces", json={"title": "Fictional design review"})
+            .raise_for_status()
+            .json()["id"]
+        )
+        home = f"/workspaces/{workspace}/"
+        seed_isolated_presentation(root, app, workspace)
+        for identity, client, role in (("alice", editor, "edit"), ("bob", reader, "view")):
+            invite = (
+                owner.post(
+                    f"/api/workspaces/{workspace}/invitations",
+                    json={
+                        "kind": "artifact",
+                        "resource": app.deck_id,
+                        "email": f"{identity}@example.test",
+                        "role": role,
+                    },
+                )
+                .raise_for_status()
+                .json()["url"]
+            )
+            accept(client, str(invite).split("#invite=")[1])
+        token = str(
+            editor.post(
+                f"/api/workspaces/{workspace}/agents",
+                json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional designer"},
+            )
+            .raise_for_status()
+            .json()["token"]
+        )
+        peer = Peer(app, token)
+        try:
+            cover = peer.value("get_slide", deck_id=app.deck_id, slide_id="cover")
+            peer.value(
+                "publish_slide_designs",
+                deck_id=app.deck_id,
+                slide_id="cover",
+                expected_content_hash=cover["content_hash"],
+                request_id="named-designs",
+                options=[
+                    {
+                        "name": "Editorial",
+                        "html": '<article class="slide"><h1>Editorial direction</h1></article>',
+                    }
+                ],
+            )
+            browser = playwright.chromium.launch()
+            try:
+                with (
+                    routed_multiplayer_context(browser, app, "alice") as alice,
+                    routed_multiplayer_context(browser, app, "bob") as bob,
+                ):
+                    for context, editable in ((bob, False), (alice, True)):
+                        page = context.new_page()
+                        if editable:
+                            page.add_init_script("""
+                                const realFetch = window.fetch;
+                                const stateGate = new Promise(resolve => {
+                                    window.releaseFixtureState = resolve;
+                                });
+                                window.fetch = async function(input, ...args) {
+                                    if (typeof input === 'string' && input.endsWith('/state')) {
+                                        window.waitingForFixtureState = true;
+                                        await stateGate;
+                                    }
+                                    return realFetch.call(this, input, ...args);
+                                };
+                            """)
+                        else:
+                            page.set_viewport_size({"width": 900, "height": 800})
+                        page.goto(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
+                        tray = page.locator("#slide-design-tray")
+                        expect(tray).to_be_visible()
+                        tray.get_by_role("tab", name="Editorial", exact=True).click()
+                        expect(
+                            page.frame_locator(".sd-canvas-overlay iframe").locator("h1")
+                        ).to_have_text("Editorial direction")
+                        if not editable:
+                            expect(tray.locator("[data-sd-use]")).to_be_hidden()
+                            tray.get_by_role("button", name="Compare", exact=True).click()
+                            expect(
+                                page.get_by_role("dialog", name="Compare designs")
+                            ).to_be_visible()
+                            expect(page.locator("[data-sd-use-candidate]")).to_be_hidden()
+                            page.keyboard.press("Escape")
+                            continue
+                        assert page.evaluate("window.waitingForFixtureState")
+                        _ = page.evaluate("window.releaseFixtureState()")
+                        page.locator("#feedback-text").fill("Make the Editorial title shorter")
+                        expect(page.locator("#feedback-design-context")).to_have_text(
+                            "Design · Editorial"
+                        )
+                        page.locator("#send-feedback").click()
+                        expect(page.locator("#feedback-list")).to_contain_text(
+                            "Make the Editorial title shorter"
+                        )
+                        events = (
+                            editor.get(f"/api/workspaces/{workspace}/artifacts/{app.deck_id}/chat")
+                            .raise_for_status()
+                            .json()
+                        )
+                        assert events[0]["proposal"]["name"] == "Editorial"
+                        tray.locator("[data-sd-use]").click()
+                        expect(page.locator("#slide-design-tray")).to_be_hidden()
+                        with page.expect_response("**/designs/undo") as response:
+                            page.locator("#toast").get_by_role(
+                                "button", name="Undo", exact=True
+                            ).click()
+                        assert response.value.ok
+                        after = peer.value("get_slide", deck_id=app.deck_id, slide_id="cover")
+                        assert after["html"] == cover["html"]
+            finally:
+                browser.close()
+        finally:
+            peer.client.close()

@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/web/hub-rail.css">
   <link rel="stylesheet" href="/web/objects.css">
   <link rel="stylesheet" href="/web/chat.css">
+  <link rel="stylesheet" href="/web/chat-timeline.css">
+  <script src="/web/chat-timeline.js" defer></script>
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/slide-questions.css">
   <link rel="stylesheet" href="/web/element-controls.css">
@@ -24,6 +26,7 @@
   <link rel="stylesheet" href="/web/storage-status.css">
   <link rel="stylesheet" href="/web/editor-layout.css">
   <link rel="stylesheet" href="/web/shared-editor.css">
+  <script src="/web/deck-presence.js" defer></script>
   <link rel="stylesheet" href="/web/voice-input.css">
   <link rel="stylesheet" href="/web/element-commands.css">
   <script src="/web/element-commands.js" defer></script>
@@ -94,6 +97,8 @@
 <header class="topbar">
   <a class="identity" href="/" aria-label="Artifact Studio"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span><span class="identity-name">Artifact Studio</span></a>
   <div class="top-actions">
+    <button id="deck-presence" type="button" popovertarget="deck-viewers" aria-label="People in this deck" hidden></button>
+    <ul id="deck-viewers" popover aria-label="People in this deck"></ul>
     <span data-hosted-status class="hub-hosted-status" title="Hosted workspace" hidden>Hosted</span>
     <button type="button" data-session-mode aria-label="About workspace" aria-haspopup="dialog" class="hub-session-mode" hidden>Local</button>
     <button type="button" data-collaborate class="quiet" hidden>Collaborate</button>
@@ -175,8 +180,7 @@
   </section>
   <div id="chat-resizer" class="chat-resizer" role="separator" tabindex="0" aria-label="Resize chat panel" aria-orientation="vertical" aria-controls="chat-panel" title="Drag to resize chat · Arrow keys to resize · Enter or double-click to reset"></div>
   <aside id="chat-panel" class="discussion" aria-label="Agent context and feedback">
-    <p class="shared-role" id="shared-deck-role" hidden></p>
-    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="feedback-count"></span><button id="chat-question-status" type="button" hidden aria-label="Jump to unanswered question"></button></header>
+    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="shared-deck-role" hidden></span><span id="feedback-count"></span><button id="chat-question-status" type="button" hidden aria-label="Jump to unanswered question"></button></header>
     <section class="delivery-panel" aria-label="Feedback delivery mode">
       <label class="shared-channel" id="shared-channel-control" hidden><span class="sr-only">Conversation</span><select id="shared-channel"><option value="shared">Shared</option><option value="private">My agent</option></select></label>
       <div class="mode-switch"><button id="mode-live" type="button" aria-pressed="true">Live</button><button id="mode-batch" type="button" aria-pressed="false">Batch</button></div>

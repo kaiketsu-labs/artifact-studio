@@ -15,8 +15,10 @@ import pytest
 from artifact_studio.artifact_models import ArtifactFileInput
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.deployment import DeploymentConfig
+from artifact_studio.element_alternatives import ElementSet
 from artifact_studio.models import SlidePatch, Source
 from artifact_studio.multiplayer_access import Sharing
+from artifact_studio.slide_designs import DesignPage, DesignSet
 from artifact_studio.unified import create_app
 from tests.design_factory import TEMPLATE_ID, make_design
 from tests.integration.multiplayer_fixture import (
@@ -704,3 +706,220 @@ def test_hosted_favorites_follow_reader_and_grant(tmp_path: Path) -> None:
         assert (
             alice.post(unknown, json=star).status_code == alice.post(index, json=star).status_code
         )
+
+
+def test_hosted_agents_author_native_decks_with_their_existing_grants(tmp_path: Path) -> None:
+    """Run native authoring, proposal review and reversible removal over authenticated MCP."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as viewer,
+    ):
+        token = (
+            owner.post(
+                "/api/workspaces/default/agents",
+                json={"kind": "project", "resource": app.project_id, "name": "Project author"},
+            )
+            .raise_for_status()
+            .json()["token"]
+        )
+        owner_peer = Peer(app, token)
+        with closing(owner_peer.client):
+            creation = {
+                "deck_id": "2026-11-11-fictional-parity",
+                "title": "Fictional parity deck",
+                "brief": "A short presentation about shared authoring.",
+                "request_id": "create-native-deck",
+            }
+            created = owner_peer.value("create_presentation", **creation)
+            assert created == owner_peer.value("create_presentation", **creation)
+            assert owner_peer.call(
+                "create_presentation", **(creation | {"title": "Changed"})
+            ).is_error
+            deck_id = str(created["id"])
+            assert owner.get(urlsplit(str(created["audience_url"])).path + "?audience=1").is_success
+            assert ArtifactStore(app.store).get_artifact(deck_id).project_id == app.project_id
+        accept(editor, grant(owner, "alice", deck_id))
+        accept(viewer, grant(owner, "bob", deck_id, "view"))
+        peer, reader = Peer(app, agent(editor, deck_id)), Peer(app, agent(viewer, deck_id))
+        with closing(peer.client), closing(reader.client):
+            assert peer.call("create_presentation", **creation).is_error
+            outline = peer.value("get_presentation_outline", deck_id=deck_id)
+            assert "shared authoring" in str(outline["context_markdown"])
+            cover_id = app.store.read(deck_id).slides[0].id
+            ids = [cover_id]
+            added = peer.value(
+                "add_slide",
+                deck_id=deck_id,
+                after_slide_id=cover_id,
+                expected_slide_ids=ids,
+                expected_sections_hash=outline["sections_hash"],
+                request_id="add-second-slide",
+                slide_json=json.dumps(
+                    {
+                        "id": "detail",
+                        "title": "Detail",
+                        "html": '<article class="slide"><h1 id="headline">Detail</h1></article>',
+                    }
+                ),
+            )
+            assert added["id"] == "detail"
+            ordered = peer.value(
+                "reorder_slides",
+                deck_id=deck_id,
+                slide_ids=["detail", cover_id],
+                expected_slide_ids=[cover_id, "detail"],
+            )
+            assert ordered["slide_ids"] == ["detail", cover_id]
+            grouped = peer.value(
+                "set_presentation_sections",
+                deck_id=deck_id,
+                sections=[
+                    {"id": "overview", "title": "Overview", "slide_ids": [cover_id, "detail"]}
+                ],
+                expected_slide_ids=["detail", cover_id],
+                expected_sections_hash=outline["sections_hash"],
+            )
+            assert grouped["slide_ids"] == [cover_id, "detail"]
+            assert not peer.call(
+                "append_presentation_context",
+                deck_id=deck_id,
+                markdown="Updated continuation.",
+                expected_hash=outline["context_hash"],
+            ).is_error
+            theme = peer.value("get_presentation_theme", deck_id=deck_id)
+            assert reader.call(
+                "update_presentation_theme",
+                deck_id=deck_id,
+                css="h1 { color: navy; }",
+                expected_hash=theme["expected_hash"],
+            ).is_error
+            assert (
+                peer.value(
+                    "update_presentation_theme",
+                    deck_id=deck_id,
+                    css="h1 { color: navy; }",
+                    expected_hash=theme["expected_hash"],
+                )["expected_hash"]
+                != theme["expected_hash"]
+            )
+            upload = {
+                "deck_id": deck_id,
+                "asset_path": "assets/widget.js",
+                "data_base64": "Y29uc29sZS5sb2coJ2ZpeHR1cmUnKQ==",
+            }
+            assert peer.value("upload_presentation_asset", **upload)["size"] == 22
+            assets = peer.value("list_presentation_assets", deck_id=deck_id)
+            assert "import_directory" not in assets
+            assert "assets/widget.js" in str(assets)
+            assert "console.log" in str(
+                peer.call(
+                    "prepare_interactive_html",
+                    deck_id=deck_id,
+                    include_theme=False,
+                    html='<script src="assets/widget.js"></script>',
+                ).content
+            )
+            assert peer.call(
+                "prepare_interactive_html",
+                deck_id=deck_id,
+                html='<script src="README.md"></script>',
+            ).is_error
+            slide = peer.value("get_slide", deck_id=deck_id, slide_id="detail")
+            publish = {
+                "deck_id": deck_id,
+                "slide_id": "detail",
+                "expected_content_hash": slide["content_hash"],
+                "request_id": "publish-designs",
+                "options": [
+                    {
+                        "name": "Editorial",
+                        "html": '<article class="slide"><h1>Editorial</h1></article>',
+                    }
+                ],
+            }
+            assert reader.call("publish_slide_designs", **publish).is_error
+            proposal = peer.value("publish_slide_designs", **publish)
+            assert peer.value("publish_slide_designs", **publish) == proposal
+            option = DesignSet.model_validate(proposal).options[1]
+            page = DesignPage.model_validate(
+                reader.value("get_slide_designs", deck_id=deck_id, slide_id="detail")
+            )
+            assert page.sets[0].id == proposal["id"]
+            assert "Editorial" in str(
+                reader.value(
+                    "get_slide_design",
+                    deck_id=deck_id,
+                    slide_id="detail",
+                    design_id=option.id,
+                )["html"]
+            )
+            document = viewer.get(option.preview_url).raise_for_status()
+            assert (
+                "Editorial" in document.text
+                and "sandbox" in document.headers["content-security-policy"]
+            )
+            assert "no-store" in document.headers["cache-control"]
+            assert "Detail" in app.store.read(deck_id).slides[1].html
+
+            element = peer.value(
+                "publish_element_alternatives",
+                deck_id=deck_id,
+                slide_id="detail",
+                target_id="headline",
+                kind="headline",
+                label="Heading",
+                expected_content_hash=slide["content_hash"],
+                request_id="publish-element",
+                options=[{"name": "Short", "html": '<h1 id="headline">Brief</h1>'}],
+            )
+            assert viewer.get(ElementSet.model_validate(element).options[1].preview_url).is_success
+            path = f"/api/decks/{deck_id}/slides/detail/designs"
+            decision = {
+                "set_id": proposal["id"],
+                "option_id": option.id,
+                "expected_content_hash": slide["content_hash"],
+                "request_id": "choose-design",
+            }
+            assert viewer.post(path + "/decide", json=decision).status_code == 404
+            chosen = editor.post(path + "/decide", json=decision).raise_for_status().json()
+            assert chosen["action"] == "choose"
+            restored = (
+                editor.post(
+                    path + "/undo",
+                    json={
+                        "decision_id": chosen["id"],
+                        "expected_content_hash": chosen["content_hash"],
+                        "request_id": "undo-design",
+                    },
+                )
+                .raise_for_status()
+                .json()
+            )
+            assert restored["action"] == "undo"
+
+            removal = {
+                "deck_id": deck_id,
+                "slide_id": "detail",
+                "expected_hash": slide["expected_hash"],
+                "request_id": "remove-detail",
+            }
+            assert reader.call("remove_slide", **removal).is_error
+            assert peer.call("remove_slide", **removal).is_error
+            current = peer.value("get_slide", deck_id=deck_id, slide_id="detail")
+            removal["expected_hash"] = current["expected_hash"]
+            removed = peer.value("remove_slide", **removal)
+            assert peer.value("remove_slide", **removal) == removed
+            recovery = f"/api/decks/{deck_id}/deleted-slides"
+            assert (
+                editor.get(recovery).raise_for_status().json()[0]["operation_id"]
+                == removed["operation_id"]
+            )
+            assert peer.value(
+                "restore_slides",
+                deck_id=deck_id,
+                deletion_id=removed["operation_id"],
+                request_id="restore-detail",
+            )["added_ids"] == ["detail"]
+            assert editor.get(recovery).raise_for_status().json() == []

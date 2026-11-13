@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
+from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
 from .authentication import Principal
 from .storage import Store
@@ -265,6 +266,18 @@ class Sharing:
             self._stores[workspace] = Store(path / "collection", path / "state/review.sqlite3")
         return self._stores[workspace]
 
+    def _artifact_ancestry(
+        self, store: Store, resource: str
+    ) -> tuple[ArtifactView, list[tuple[str, str]]]:
+        """Resolve the artifact and the grants that can cover it from one read."""
+        try:
+            if (store.folder(resource) / "design.json").exists():
+                raise AccessDenied
+            item = ArtifactStore(store).get_artifact(resource)
+        except ValueError, FileNotFoundError:
+            raise AccessDenied from None
+        return item, [("workspace", ""), ("project", item.project_id), ("artifact", item.id)]
+
     def ancestors(self, scope: Scope) -> list[tuple[str, str]]:
         store = self.store(scope.workspace)
         ancestors: list[tuple[str, str]] = [("workspace", "")]
@@ -276,13 +289,7 @@ class Sharing:
                 raise AccessDenied
             ancestors.append(("project", scope.resource))
         elif scope.kind == "artifact":
-            try:
-                if (store.folder(scope.resource) / "design.json").exists():
-                    raise AccessDenied
-                item = ArtifactStore(store).get_artifact(scope.resource)
-            except ValueError, FileNotFoundError:
-                raise AccessDenied from None
-            ancestors.extend([("project", item.project_id), ("artifact", item.id)])
+            _, ancestors = self._artifact_ancestry(store, scope.resource)
         else:
             raise AccessDenied
         return ancestors
@@ -307,7 +314,12 @@ class Sharing:
             )
 
     def sources(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
-        ancestors = self.ancestors(scope)
+        return self._sources(actor, scope, self.ancestors(scope))
+
+    def _sources(
+        self, actor: Actor, scope: Scope, ancestors: list[tuple[str, str]]
+    ) -> list[dict[str, str]]:
+        """Resolve current grants for an already validated ancestor list."""
         if actor.agent:
             connection = self.agent_record(actor)
             if (
@@ -334,6 +346,23 @@ class Sharing:
     def level(self, actor: Actor, scope: Scope) -> int:
         return max((LEVEL[source["role"]] for source in self.sources(actor, scope)), default=0)
 
+    def human_contacts(self, scope: Scope, people: set[str]) -> dict[str, str]:
+        """Read verified identities with a current grant to the selected resource."""
+        ancestors = set(self.ancestors(scope))
+        with self.connect() as db:
+            rows = db.execute(
+                "SELECT people.id, people.email, 'workspace' AS kind, '' AS resource "
+                "FROM people JOIN workspaces ON people.id=workspaces.owner WHERE workspaces.id=? "
+                "UNION ALL SELECT people.id, people.email, grants.kind, grants.resource "
+                "FROM grants JOIN people ON people.id=grants.person WHERE grants.workspace=?",
+                (scope.workspace, scope.workspace),
+            ).fetchall()
+        return {
+            cast(str, row["id"]): cast(str, row["email"])
+            for row in rows
+            if row["id"] in people and (row["kind"], row["resource"]) in ancestors
+        }
+
     def require(self, actor: Actor, scope: Scope, role: Role = "view") -> None:
         if self.level(actor, scope) < LEVEL[role]:
             raise AccessDenied
@@ -343,6 +372,26 @@ class Sharing:
         with self.locked():
             self.require(actor, scope, role)
             yield self.store(scope.workspace)
+
+    @contextmanager
+    def guard_deck_asset(self, actor: Actor, workspace: str, deck_id: str) -> Generator[Path]:
+        """Authorize and validate a legacy presentation once before resolving a passive asset."""
+        scope = Scope(workspace, "artifact", deck_id)
+        with self.locked():
+            store = self.store(workspace)
+            try:
+                folder = store.folder(deck_id)
+                if (store.root / deck_id).is_symlink():
+                    raise AccessDenied
+                item, ancestors = self._artifact_ancestry(store, deck_id)
+            except ValueError, OSError:
+                raise AccessDenied from None
+            if item.legacy_deck_id != deck_id or not any(
+                LEVEL[source["role"]] >= LEVEL["view"]
+                for source in self._sources(actor, scope, ancestors)
+            ):
+                raise AccessDenied
+            yield folder
 
     def manage(self, actor: Actor, scope: Scope) -> None:
         if not self.owner(actor, scope.workspace):
@@ -365,7 +414,7 @@ class Sharing:
             ).fetchall()
             invites = db.execute(
                 "SELECT resource,id FROM invitations WHERE workspace=? AND kind='project' "
-                "AND resource IN (?,?) AND accepted=0 AND expires>? ORDER BY id",
+                "AND resource IN (?,?) AND accepted=0 AND (expires=0 OR expires>?) ORDER BY id",
                 (*params, now),
             ).fetchall()
             agents = db.execute(
@@ -400,7 +449,10 @@ class Sharing:
             db.execute("INSERT INTO workspaces VALUES (?,?,?)", (workspace, title, actor.person))
         return workspace
 
-    def invite(self, actor: Actor, scope: Scope, email: str, role: Role) -> dict[str, str]:
+    def invite(
+        self, actor: Actor, scope: Scope, email: str, role: Role, *, no_expiry: bool = False
+    ) -> dict[str, str]:
+        """Issue one email-bound link that can be accepted once or revoked."""
         with self.locked(), self.connect() as db:
             self.manage(actor, scope)
             # A newer invitation supersedes older links for this recipient/scope.
@@ -419,7 +471,7 @@ class Sharing:
                     scope.resource,
                     email_address(email),
                     role,
-                    time.time() + 7 * 86400,
+                    0 if no_expiry else time.time() + 7 * 86400,
                 ),
             )
         return {"id": identifier, "token": token}
@@ -429,7 +481,8 @@ class Sharing:
             if actor.agent:
                 raise AccessDenied
             row = db.execute(
-                "SELECT * FROM invitations WHERE token=? AND expires>? AND accepted=0",
+                "SELECT * FROM invitations WHERE token=? AND accepted=0 "
+                "AND (expires=0 OR expires>?)",
                 (checksum(token), time.time()),
             ).fetchone()
             person = db.execute("SELECT email FROM people WHERE id=?", (actor.person,)).fetchone()
@@ -483,7 +536,7 @@ class Sharing:
                 dict(row)
                 for row in db.execute(
                     "SELECT id,email,role,expires FROM invitations WHERE workspace=? AND kind=? "
-                    "AND resource=? AND accepted=0 AND expires>?",
+                    "AND resource=? AND accepted=0 AND (expires=0 OR expires>?)",
                     (scope.workspace, scope.kind, scope.resource, time.time()),
                 )
             ]

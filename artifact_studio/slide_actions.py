@@ -101,6 +101,31 @@ class SlideActions:
             if result.action == "delete" and result.operation_id not in restored
         ]
 
+    def deletion_summaries(self, deck_id: str) -> list[dict[str, object]]:
+        """List recoverable deletions with their original slide IDs and titles."""
+        deleted = {item.operation_id: item for item in self.deleted(deck_id)}
+        with self.store.connect() as db:
+            rows = db.execute(
+                "SELECT request_id,before_json FROM slide_actions WHERE deck=? ORDER BY rowid DESC",
+                (deck_id,),
+            ).fetchall()
+        result: list[dict[str, object]] = []
+        for row in rows:
+            item = deleted.get(str(row["request_id"]))
+            if item is not None:
+                before = Deck.model_validate_json(str(row["before_json"]))
+                result.append(
+                    {
+                        "operation_id": item.operation_id,
+                        "slides": [
+                            {"id": slide.id, "title": slide.title}
+                            for slide in before.slides
+                            if slide.id in item.deleted_ids
+                        ],
+                    }
+                )
+        return result
+
     def _run(self, deck_id: str, request_id: str, payload: dict[str, object]) -> SlideActionResult:
         """Prepare an idempotent change and finalize it after its file write."""
         if not 8 <= len(request_id) <= 100:
@@ -221,8 +246,8 @@ class SlideActions:
                     if slide_id in deleted.deleted_ids
                 )
             return after, result
-        expected = cast(list[str], payload["expected_slide_ids"])
-        if ids != expected:
+        expected = payload.get("expected_slide_ids")
+        if expected is not None and ids != expected:
             raise ConflictError("Slide order changed. Try again.")
         selected = cast(list[str], payload["selected_ids"])
         if not selected or len(set(selected)) != len(selected) or not set(selected) <= set(ids):
@@ -325,6 +350,20 @@ class SlideActions:
                 "selected_ids": slide_ids,
                 "expected_slide_ids": expected_slide_ids,
                 "expected_hashes": expected_hashes,
+            },
+        )
+
+    def remove(
+        self, deck_id: str, slide_id: str, expected_hash: str, request_id: str
+    ) -> SlideActionResult:
+        """Remove one exact slide without imposing an unrelated slide-order precondition."""
+        return self._run(
+            deck_id,
+            request_id,
+            {
+                "action": "delete",
+                "selected_ids": [slide_id],
+                "expected_hashes": {slide_id: expected_hash},
             },
         )
 

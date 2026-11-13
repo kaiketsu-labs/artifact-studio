@@ -23,12 +23,19 @@ class ReviewHookInput(StrictModel):
     seen_design_cursor: int | None = Field(default=None, ge=0)
     start_review: bool = False
     auto_start: bool = False
+    passive: bool = False
 
     @model_validator(mode="after")
     def one_target(self) -> Self:
         """Reject ambiguous target selection before changing a review connection."""
         if self.deck_id and self.artifact_id:
             raise ValueError("Select deck_id or artifact_id, not both.")
+        if self.passive and (
+            self.harness != "claude-code"
+            or self.event != "PostToolUse"
+            or not (self.deck_id or self.artifact_id)
+        ):
+            raise ValueError("Passive review checks require a targeted Claude Code tool call.")
         return self
 
 
@@ -235,6 +242,8 @@ class Reviews:
 
     async def handle(self, body: ReviewHookInput, timeout: float = 25) -> ReviewHookReply:
         """Long-poll a stop hook without spending model requests on each polling interval."""
+        if body.passive:
+            return ReviewHookReply()
         if body.event == "PostToolUse":
             return await asyncio.to_thread(self.bind, body)
         if body.event != "Stop":

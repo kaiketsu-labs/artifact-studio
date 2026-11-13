@@ -1,10 +1,12 @@
 """Authenticated, bounded transport for the separate multiplayer application."""
 
 import asyncio
+import logging
 import re
 import tempfile
 from collections.abc import Awaitable, Callable
 from shutil import disk_usage
+from time import monotonic
 from typing import cast
 from urllib.parse import urlsplit
 
@@ -33,6 +35,8 @@ _DESIGN_FILES = re.compile(
 )
 _DESIGN_TEXT = re.compile(r"/api/design-library/[a-z0-9][a-z0-9-]{0,99}/files/edit")
 IMPORT_DISK_RESERVE = 512 * 1024 * 1024
+_LOGGER = logging.getLogger(__name__)
+_BUSY_LOG_INTERVAL = 30
 
 
 def owner_upload_limit(path: str) -> int | None:
@@ -67,6 +71,21 @@ class MultiplayerAuth:
         self.chat_upload_slot = asyncio.Semaphore(1)
         self.chat_download_slots = asyncio.Semaphore(2)
         self.owner_upload_slot = asyncio.Semaphore(1)
+        self._last_busy_log: dict[tuple[str, str], float] = {}
+
+    def _log_busy(self, pool: str, reason: str) -> None:
+        """Report overload using fixed categories without logging request data."""
+        now = monotonic()
+        key = (pool, reason)
+        previous = self._last_busy_log.get(key)
+        if previous is None or now - previous >= _BUSY_LOG_INTERVAL:
+            self._last_busy_log[key] = now
+            _LOGGER.warning(
+                "Multiplayer admission busy: surface=%s pool=%s reason=%s",
+                "shared_editor" if self.shared_shell else "collaboration",
+                pool,
+                reason,
+            )
 
     async def _receive_owner_upload(
         self,
@@ -128,9 +147,12 @@ class MultiplayerAuth:
         host = hosts[0].lower() if len(hosts) == 1 else ""
 
         async def reject(status: int, detail: str) -> None:
-            await JSONResponse(
-                {"detail": detail}, status_code=status, headers={"Cache-Control": "no-store"}
-            )(scope, receive, send)
+            response_headers = {"Cache-Control": "no-store"}
+            if status == 429:
+                response_headers["Retry-After"] = "2"
+            await JSONResponse({"detail": detail}, status_code=status, headers=response_headers)(
+                scope, receive, send
+            )
 
         if (
             path == "/api/health"
@@ -254,6 +276,7 @@ class MultiplayerAuth:
             and path.startswith(("/web/", "/runtime/"))
         )
         if asset and self.asset_waiters >= 256:
+            self._log_busy("editor_assets", "queue_full")
             await reject(429, "Server busy. Retry shortly.")
             return
         upload_limit = (
@@ -268,6 +291,7 @@ class MultiplayerAuth:
                 await reject(404, "Not found")
                 return
             if self.owner_upload_slot.locked():
+                self._log_busy("owner_upload", "already_active")
                 await reject(429, "An upload is in progress. Try again shortly.")
                 return
             async with self.owner_upload_slot:
@@ -277,26 +301,27 @@ class MultiplayerAuth:
                 )
             return
         # Admit before buffering to bound memory even with many slow connections.
-        slots = (
-            self.preview_slots
+        pool, slots = (
+            ("preview", self.preview_slots)
             if host == self.preview
-            else self.asset_slots
+            else ("editor_assets", self.asset_slots)
             if asset
-            else self.chat_upload_slot
+            else ("chat_write", self.chat_upload_slot)
             if chat_write is not None
-            else self.chat_download_slots
+            else ("chat_download", self.chat_download_slots)
             if _CHAT_FILE.fullmatch(path)
-            else self.hook_slots
+            else ("review_hook", self.hook_slots)
             if path == "/api/review/hooks"
-            else self.agent_slots
+            else ("agent", self.agent_slots)
             if path in {"/mcp", "/mcp/"}
-            else self.slots
+            else ("data", self.slots)
         )
         if asset:
             self.asset_waiters += 1
         try:
             await asyncio.wait_for(slots.acquire(), timeout=10 if asset else 1)
         except TimeoutError:
+            self._log_busy(pool, "wait_timeout")
             await reject(429, "Server busy. Retry shortly.")
             return
         finally:

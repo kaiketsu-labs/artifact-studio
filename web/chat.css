@@ -9,10 +9,10 @@
 .discussion .agent-panel{flex-shrink:0;max-height:24vh;overflow:auto;margin-bottom:8px;padding:8px 2px;border:0;border-bottom:1px solid var(--line,#e4e9f1);border-radius:0;background:transparent;font-size:12px}
 .discussion>#feedback-list{min-height:60px;max-height:none;flex:1 1 180px;overflow:auto;overscroll-behavior:contain;padding:10px 2px;scroll-padding:10px;display:flex;flex-direction:column;gap:12px}
 .discussion .comment{flex-shrink:0;align-self:flex-start;max-width:94%;padding:9px 11px;margin:0;border:1px solid var(--line,#e5eaf2);background:var(--surface,#fff);border-radius:10px 10px 10px 3px;box-shadow:none}
-.discussion .comment.user{align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:10px 10px 3px 10px}
+.discussion .comment.user:not([data-collaborator]){align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:10px 10px 3px 10px}
 .discussion .comment.agent{padding-left:12px;border-left:1px solid #e5eaf2}
 .discussion .comment-header{gap:18px;margin-bottom:6px;font-size:11px;color:var(--subtle,#7a899e)}
-.discussion .comment.user .comment-header{flex-direction:row-reverse}
+.discussion .comment.user:not([data-collaborator]) .comment-header{flex-direction:row-reverse}
 .chat-sender{display:inline-flex;align-items:center;gap:6px}
 .chat-reply{display:inline-flex;color:var(--subtle,#718096)}
 .chat-reply .ui-icon{width:14px;height:14px}

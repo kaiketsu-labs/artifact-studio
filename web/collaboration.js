@@ -95,9 +95,10 @@
       <form class="studio-invite-form">
         <label>Email address<input type="email" name="email" required autofocus autocomplete="email" maxlength="254"></label>
         <label>Access<select name="role"><option value="view">Can view</option><option value="comment">Can comment</option><option value="edit">Can edit</option></select></label>
+        <label>Link expires<select name="expiry"><option value="7d">In 7 days</option><option value="never">Never</option></select></label>
         <button type="submit" class="studio-share-system">Create link</button>
       </form>
-      <p class="studio-invite-note">Only this email can accept. The link expires in 7 days. The recipient must be allowed to sign in.</p>
+      <p class="studio-invite-note">Only this email can accept. The recipient must be allowed to sign in.</p>
       <div class="studio-invite-result" hidden><label for="studio-invitation-link">Invitation link</label><div><input id="studio-invitation-link" readonly spellcheck="false"><button type="button" class="studio-share-system">Copy link</button></div></div>
       <details class="studio-invite-manage"><summary>Manage access</summary><div class="studio-access-list" aria-live="polite"></div></details>
       <p class="studio-share-status" role="status"></p><p class="studio-share-error" role="alert" hidden></p>`;
@@ -115,7 +116,7 @@
       const rows = [...access.grants, ...access.invitations.map(item => ({...item, pending: true}))];
       list.replaceChildren(...rows.map(item => {
         const row = document.createElement('div'), label = document.createElement('span'), button = document.createElement('button');
-        label.textContent = item.email + ' · ' + ({view:'Can view',comment:'Can comment',edit:'Can edit'}[item.role]);
+        label.textContent = item.email + ' · ' + ({view:'Can view',comment:'Can comment',edit:'Can edit'}[item.role]) + (item.pending && item.expires === 0 ? ' · No expiry' : '');
         button.textContent = item.inherited ? 'Manage parent' : item.pending ? 'Cancel link' : 'Remove';
         button.type = 'button';
         button.addEventListener('click', async () => {
@@ -137,8 +138,14 @@
       if (manage.open) loadAccess().catch(reason => { error.textContent=reason.message;error.hidden=false; });
     });
     dialog.querySelector('[data-invite-close]').addEventListener('click', () => dialog.close());
-    output.querySelector('button').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(link.value); notice.textContent = 'Link copied.'; }
+    const copyButton = output.querySelector('button');
+    const showCopyResult = copied => {
+      if (!dialog.open) return;
+      notice.textContent = copied ? 'Link copied.' : 'Use Copy link to copy your invitation.';
+      copyButton.focus();
+    };
+    copyButton.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(link.value); showCopyResult(true); }
       catch { link.focus(); link.select(); notice.textContent = 'Copy the selected link.'; }
     });
     form.addEventListener('submit', async event => {
@@ -147,14 +154,30 @@
       if (submit.disabled) return;
       submit.disabled = true; error.hidden = true; output.hidden = true; notice.textContent = '';
       const fields = new FormData(form);
+      const invitation = scopedRequest(workspaceAPI + '/invitations', {
+        kind, resource: id, email: fields.get('email'), role: fields.get('role'),
+        no_expiry: fields.get('expiry') === 'never',
+      });
+      // Start the clipboard write while the submit gesture still grants access.
+      const copy = (async () => {
+        const clipboard = navigator.clipboard;
+        if (root.ClipboardItem && clipboard?.write) {
+          const text = invitation.then(result => new Blob([result.url], {type: 'text/plain'}));
+          void text.catch(() => {});
+          await clipboard.write([new root.ClipboardItem({'text/plain': text})]);
+        } else {
+          const {url} = await invitation;
+          await clipboard.writeText(url);
+        }
+        return true;
+      })().catch(() => false);
       try {
-        const result = await scopedRequest(workspaceAPI + '/invitations', {
-          kind, resource: id, email: fields.get('email'), role: fields.get('role'),
-        });
+        const result = await invitation;
         link.value = result.url;
         output.hidden = false;
+        copyButton.focus();
+        showCopyResult(await copy);
         if (manage.open) await loadAccess();
-        root.requestAnimationFrame(() => { if (dialog.open) output.querySelector('button').focus(); });
       } catch (reason) { error.textContent = reason.message; error.hidden = false; }
       finally { submit.disabled = false; }
     });
@@ -164,8 +187,9 @@
   }
   /** Accept a new link from the normal library, before opening its scoped resource. */
   function showJoin(session, token) {
+    if (document.querySelector('.studio-join[open]')) return;
     const dialog = document.createElement('dialog');
-    dialog.className = 'studio-share';
+    dialog.className = 'studio-share studio-join';
     dialog.setAttribute('aria-labelledby', 'studio-join-title');
     dialog.innerHTML = `<header class="studio-share-header"><h2 id="studio-join-title">Join Artifact Studio</h2><button type="button" aria-label="Close invitation">${root.SlideIcons.svg('close')}</button></header>
       <p class="studio-invite-note"></p><form class="studio-invite-form"><button class="studio-share-system" type="submit">Join</button></form>
@@ -199,8 +223,12 @@
     if (session.collaboration_url !== '/together') return;
     root.SlideIcons.button(button, 'chat', 'Collaborate', true);
     button.hidden = !!session.scoped_editor;
-    const token = new URLSearchParams(root.location.hash.slice(1)).get('invite');
-    if (token && token.length <= 200) showJoin(session, token);
+    const showCurrentInvitation = () => {
+      const token = new URLSearchParams(root.location.hash.slice(1)).get('invite');
+      if (token && token.length <= 200) showJoin(session, token);
+    };
+    root.addEventListener('hashchange', showCurrentInvitation);
+    showCurrentInvitation();
     root.StudioInvitation.available = !session.scoped_editor || session.workspace_owner === true;
     document.documentElement.toggleAttribute('data-workspace-owner', session.workspace_owner === true);
     const chatURL = new URL(root.location.href);

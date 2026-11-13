@@ -48,6 +48,7 @@ AUTO_REVIEW_TOOLS = {
     "read_artifact_feedback",
     "reply_to_artifact_feedback",
 }
+PASSIVE_CHECK_TOOLS = ("get_working_context", "start_live_review")
 
 
 def _object(value: object) -> dict[str, object]:
@@ -67,6 +68,8 @@ def _generated_handler(value: object, harness: str, event: str, server_name: str
         return False
     if len(arguments) > 1 and arguments[1] == "--no-cache":
         _ = arguments.pop(1)
+    if arguments[-2:] == ["--claude-mode", "passive"]:
+        arguments = arguments[:-2]
     if (
         len(arguments) == 11
         and Path(arguments[1]).name == "hook_client.py"
@@ -109,10 +112,18 @@ def _replace_generated(
 
 
 def configure(
-    harness: str, project: Path | None, url: str, server_name: str, dry_run: bool
+    harness: str,
+    project: Path | None,
+    url: str,
+    server_name: str,
+    dry_run: bool,
+    *,
+    passive: bool = False,
 ) -> Path:
     """Merge project hooks, or user-level hooks when project is None, keeping other settings."""
     _validate_url(url)
+    if passive and harness != "claude-code":
+        raise ValueError("Passive mode is available only for Claude Code")
     if project is not None and (not project.is_absolute() or not project.is_dir()):
         raise ValueError("project must be an existing absolute directory")
     standalone = not __package__ or urlsplit(url).scheme == "https"
@@ -138,6 +149,15 @@ def configure(
     if harness == "codex":
         events["Interrupt"] = 3
     for event, timeout in events.items():
+        existing = hooks.setdefault(event, [])
+        if not isinstance(existing, list):
+            raise ValueError(f"{event} hooks must be a list")
+        entries = cast("list[object]", existing)
+        entries[:] = _replace_generated(entries, harness, event, server_name)
+        if passive and event != "PostToolUse":
+            if not entries:
+                del hooks[event]
+            continue
         command = shlex.join(
             [
                 str(Path(uv or "uv").resolve()),
@@ -176,19 +196,17 @@ def configure(
                     server_name,
                 ]
             )
-        entry: dict[str, object] = {
-            "hooks": [{"type": "command", "command": command, "timeout": timeout}]
-        }
+        handler: dict[str, object] = {"type": "command", "command": command, "timeout": timeout}
+        if passive:
+            handler["command"] = command + " --claude-mode passive"
+            handler["async"] = True
+        entry: dict[str, object] = {"hooks": [handler]}
         if event == "PostToolUse":
             server_pattern = "".join(
                 "[-_]" if char in "-_" else re.escape(char) for char in server_name
             )
-            entry["matcher"] = f"^mcp__{server_pattern}__.*$"
-        existing = hooks.setdefault(event, [])
-        if not isinstance(existing, list):
-            raise ValueError(f"{event} hooks must be a list")
-        entries = cast("list[object]", existing)
-        entries[:] = _replace_generated(entries, harness, event, server_name)
+            tool_pattern = f"({'|'.join(PASSIVE_CHECK_TOOLS)})" if passive else ".*"
+            entry["matcher"] = f"^mcp__{server_pattern}__{tool_pattern}$"
         entries.append(entry)
     rendered = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     if dry_run:
@@ -339,7 +357,13 @@ def _post(url: str, message: dict[str, object], timeout: int) -> dict[str, objec
 
 
 def handle_event(
-    harness: str, event: str, url: str, server_name: str, payload: dict[str, object]
+    harness: str,
+    event: str,
+    url: str,
+    server_name: str,
+    payload: dict[str, object],
+    *,
+    passive: bool = False,
 ) -> dict[str, object]:
     """Keep idle polling local; continue only for feedback or a bounded review renewal."""
     try:
@@ -349,6 +373,17 @@ def handle_event(
     message = normalize(harness, event, server_name, payload)
     if not message:
         return {}
+    if passive:
+        name = payload.get("tool_name")
+        if (
+            harness != "claude-code"
+            or event != "PostToolUse"
+            or not isinstance(name, str)
+            or name.rsplit("__", 1)[-1] not in PASSIVE_CHECK_TOOLS
+            or not (message.get("artifact_id") or message.get("deck_id"))
+        ):
+            return {}
+        message["passive"] = True
     deadline = time.monotonic() + 540
     while True:
         try:
@@ -357,6 +392,8 @@ def handle_event(
             return {}
         reason = result.get("reason")
         if event == "PostToolUse" and isinstance(reason, str) and reason:
+            if passive and result.get("feedback_available") is not True:
+                return {}
             return {
                 "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": reason}
             }
@@ -390,10 +427,19 @@ def main() -> int:
         subparser.add_argument("--harness", required=True, choices=["codex", "claude-code"])
         subparser.add_argument("--url", default="http://127.0.0.1:8790")
         subparser.add_argument("--server-name", default="artifact-studio")
+        subparser.add_argument("--claude-mode", choices=["live", "passive"], default="live")
     args = parser.parse_args()
+    passive = args.claude_mode == "passive"
     if args.command == "configure":
         try:
-            target = configure(args.harness, args.project, args.url, args.server_name, args.dry_run)
+            target = configure(
+                args.harness,
+                args.project,
+                args.url,
+                args.server_name,
+                args.dry_run,
+                passive=passive,
+            )
             if not args.dry_run:
                 print(f"Saved {target}. Reload the agent session and review hooks in /hooks.")
         except (OSError, ValueError) as exc:
@@ -405,7 +451,9 @@ def main() -> int:
             if len(raw) > 2 * 1024 * 1024:
                 raise ValueError("Hook input exceeds the client budget")
             payload = _object(json.loads(raw))
-            result = handle_event(args.harness, args.event, args.url, args.server_name, payload)
+            result = handle_event(
+                args.harness, args.event, args.url, args.server_name, payload, passive=passive
+            )
         except (OSError, ValueError, RecursionError):
             result = {}
         print(json.dumps(result))

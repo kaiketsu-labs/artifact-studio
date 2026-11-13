@@ -804,10 +804,12 @@ class ScopedTools:
         slide_id: Identifier,
         element_option_id: Identifier,
         context_hash: str = "",
+        *,
+        scoped: bool = False,
     ) -> CallToolResult:
         """Capture full-slide pixels for an element proposal, optionally in a retained context."""
         _ = self.deck(deck_id)
-        alternatives = ElementAlternatives(self.store)
+        alternatives = ElementAlternatives(self.store, scoped=scoped)
         source = alternatives.read(
             deck_id, slide_id, element_option_id, context_hash=context_hash or None
         )

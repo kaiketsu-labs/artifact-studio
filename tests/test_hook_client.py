@@ -125,6 +125,37 @@ def test_configure_global(
     assert set(json.loads(target.read_text())["hooks"]) >= {"PostToolUse", "Stop", "SessionEnd"}
 
 
+def test_configure_passive_claude_mode(tmp_path: Path) -> None:
+    """Replace live Claude hooks with a background check and preserve unrelated hooks."""
+    url = "https://studio.example.test"
+    target = client.configure("claude-code", tmp_path, url, "artifact-studio", False)
+    original = json.loads(target.read_text())
+    unrelated = {"type": "command", "command": "echo keep-this", "timeout": 1}
+    original["hooks"]["Stop"][0]["hooks"].append(unrelated)
+    target.write_text(json.dumps(original))
+
+    _ = client.configure("claude-code", tmp_path, url, "artifact-studio", False, passive=True)
+    configured = json.loads(target.read_text())
+    assert set(configured["hooks"]) == {"PostToolUse", "Stop"}
+    assert configured["hooks"]["Stop"] == [{"hooks": [unrelated]}]
+    group = configured["hooks"]["PostToolUse"][0]
+    assert group["matcher"] == "^mcp__artifact[-_]studio__(get_working_context|start_live_review)$"
+    assert len(group["hooks"]) == 1
+    handler = group["hooks"][0]
+    assert handler["async"] is True
+    assert "asyncRewake" not in handler
+    assert shlex.split(handler["command"])[-2:] == ["--claude-mode", "passive"]
+
+    before = target.read_text()
+    _ = client.configure("claude-code", tmp_path, url, "artifact-studio", False, passive=True)
+    assert target.read_text() == before
+    _ = client.configure("claude-code", tmp_path, url, "artifact-studio", False)
+    restored = json.loads(target.read_text())
+    assert restored["hooks"]["PostToolUse"] == original["hooks"]["PostToolUse"]
+    assert restored["hooks"]["Stop"][0] == {"hooks": [unrelated]}
+    assert len(restored["hooks"]["Stop"]) == 2
+
+
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_migrate_cache_dependent_hooks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harness: str

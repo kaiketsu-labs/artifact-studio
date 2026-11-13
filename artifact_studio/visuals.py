@@ -151,13 +151,14 @@ class ReviewEmbedder(AssetEmbedder):
 class ScopedDeckEmbedder(ReviewEmbedder):
     """Inline only current assets that the scoped deck file API can serve."""
 
-    def __init__(self, store: Store, deck_id: str) -> None:
+    def __init__(self, store: Store, deck_id: str, *, embedded: bool = False) -> None:
         """Reject linked source and theme files before preparing a shared preview."""
         folder = store.folder(deck_id)
         source = folder / "index.html"
         if (store.root / deck_id).is_symlink() or source.is_symlink() or not source.is_file():
             raise ValueError("Shared presentations require an unlinked source file.")
         super().__init__(folder)
+        self.embedded = embedded
         _ = self.local_path("theme.css")
 
     def local_path(self, url: str, directory: Path | None = None) -> Path:
@@ -166,7 +167,9 @@ class ScopedDeckEmbedder(ReviewEmbedder):
         path = (directory or self.folder) / unquote(parsed.path)
         if parsed.scheme or parsed.netloc or not path.is_relative_to(self.folder):
             raise ValueError("Use a shared deck asset.")
-        _ = deck_asset_path(self.folder, path.relative_to(self.folder).as_posix())
+        _ = deck_asset_path(
+            self.folder, path.relative_to(self.folder).as_posix(), embedded=self.embedded
+        )
         return super().local_path(url, directory)
 
 
@@ -265,6 +268,7 @@ def snapshot(
     viewport: tuple[int, int] | None = None,
     preview_html: str = "",
     scoped_embedder: ScopedDeckEmbedder | None = None,
+    prepared_interactive: bool = False,
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
     if slide.interactive_html and options.stage not in {None, 0}:
@@ -278,7 +282,11 @@ def snapshot(
     embedder = scoped_embedder if scoped_embedder is not None else ReviewEmbedder(folder)
     theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
     markup = embedder.markup(preview_html or slide.html)
-    interactive = "" if preview_html or scoped_embedder is not None else slide.interactive_html
+    interactive = (
+        ""
+        if preview_html or (scoped_embedder is not None and not prepared_interactive)
+        else slide.interactive_html
+    )
     runtime = (PROJECT / "runtime/presentation.js").read_text()
     runtime_styles = (PROJECT / "runtime/slideshow.css").read_text()
     adapter = (PROJECT / "runtime/capture.js").read_text()

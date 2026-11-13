@@ -36,7 +36,9 @@ approval of the current slide or artifact version, and edits through a scoped ag
 Update markers clear for each person as they open a revised slide or artifact.
 **Agent connection** in the regular
 menu connects your own agent to the selected artifact or project. Shared and
-My agent conversations appear in the regular sidebar. The owner can switch
+My agent conversations appear in the regular sidebar. Your messages appear on
+the right, incoming messages on the left, and date separators mark each day in
+your browser's time zone. The owner can switch
 between **Collaborate** and **Local review**; older local messages remain private
 to the owner. Open **Menu → Workspace & server → Workspaces** in the
 library or editor to switch workspaces. The
@@ -91,6 +93,32 @@ For private designs, connect your agent from the Designs page so the connection
 is scoped to your workspace. Use `get_design_context` and `read_design_reference`
 to inspect source material, or `create_design_pack` to scaffold a reusable
 theme. Design references remain private when you share a workspace or project.
+
+### Author presentations with a hosted agent
+
+Connect from the same presentation or project you want the agent to edit. Existing
+connections can use the new tools after refreshing the MCP tool list or reconnecting
+the agent session. Keep the same token and its current scope.
+
+- Start with `get_working_context` and `get_presentation_outline`. An owner can use
+  `create_presentation` with a workspace or project connection. For a shared
+  presentation, collaborators with edit access can use their own deck connection
+  to add, revise, reorder, group and remove slides. A deck connection applies to
+  that deck.
+- Use `publish_slide_designs` to propose alternate designs on one slide, or
+  `publish_element_alternatives` for a static element with a unique HTML ID. Use
+  the matching `get_*` and `capture_*` tools to read and render the proposals.
+  Viewers can compare in the regular slide editor. Editors can choose, keep or
+  undo a design. Comments written while previewing an option keep its identity
+  in the shared conversation, which agents can read with `read_chat`.
+- Read a fresh `expected_hash` before using `remove_slide` and reuse the request
+  ID if a response is lost. Editors can recover from **Deleted slides** in the
+  browser or with `get_deleted_slides` and `restore_slides`.
+- Use the presentation context and theme tools to edit the brief and CSS.
+  `list_presentation_assets` lists paths and hashes. Upload supported assets up
+  to 1 MiB inline with `upload_presentation_asset`, then use
+  `prepare_interactive_html` to embed dependencies from the selected deck.
+  Larger reference files can be shared through the browser.
 
 The brief text is authoring context available to agents with access to that
 deck. Brief attachments are visible in **Agent notes** for the workspace owner.
@@ -175,8 +203,10 @@ import, export and backup controls are not yet available in this UI.
    workspace-wide access or you share it.
 3. Right-click the project in the sidebar and select **Share link…**. Enter the
    recipient's exact sign-in email and choose **Can view**, **Can comment** or
-   **Can edit**. Copy the link and send it to that person. The link expires in
-   seven days and can be used once by that account. The recipient also needs
+   **Can edit**. Choose whether the link expires in seven days or stays valid
+   until accepted or cancelled. **Create link** copies it where the browser
+   permits it. Use **Copy link** if the browser requires a separate click. Send
+   the link to that person. It can be used once by that account, which also needs
    permission to sign in through Cloudflare Access.
 4. The recipient selects **Join** and opens the project in their regular Studio
    library. A project grant applies to its existing and future artifacts. To
@@ -224,6 +254,13 @@ on each cover request and keeps older thumbnail revisions out of the shared view
 Right-click a shared card to view, comment where permitted, or present. **Copy link**
 opens the item for people who already have access. Use **Share link…** to invite
 someone when you own the workspace.
+
+In an open shared presentation, initials in the editor header show other people
+viewing the deck. Select the initials to see their names and slide numbers. The
+same initials appear beside each slide they are viewing. The indicators update
+every few seconds and expire after a short disconnect. In Shared chat, ordinary
+slide discussion can continue while the slide is being revised. Comments on
+selected objects and agent edit requests still refer to the revision you reviewed.
 
 In standalone collaboration, the server owner creates isolated workspaces with
 **＋** beside the selector. Invited
@@ -281,6 +318,15 @@ with a final `http_status:404` ingress rule. A temporary public URL without thes
 identity and path policies is not equivalent. Keep the tunnel and computer running.
 When offline, collaborators cannot connect; their unsent text drafts remain in their
 own browser.
+
+If users report **Server busy**, check the Studio server logs for
+`Multiplayer admission busy`. The entry names the request pool and rejection reason,
+with at most one warning per pool and reason every 30 seconds. Rejected requests
+include a `Retry-After` header. The warnings omit identities and request URLs so
+application access logs can stay disabled and preview capability URLs stay private.
+
+Each scoped presentation asset request checks the recipient's current grants and
+validates the presentation in the same read before serving the passive file.
 
 ## Agent setup and delivery
 

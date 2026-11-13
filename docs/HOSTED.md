@@ -157,6 +157,10 @@ can exhaust a small VM before a script deadline expires.
 
 ## What runs where
 
+The table describes the original shared-account hosted entry point. For
+per-project access and scoped agent tokens, see [hosted presentation authoring
+in shared projects](MULTIPLAYER.md#author-presentations-with-a-hosted-agent).
+
 | Workflow | Local | Hosted |
 | --- | --- | --- |
 | Library, uploads, slide editing, notes, chat and review | Available | Available to every configured human member |
