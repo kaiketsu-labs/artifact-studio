@@ -65,6 +65,45 @@ class Peer:
         return cast(dict[str, object], json.loads(text))
 
 
+def test_slide_activity_is_explicit_scoped_and_revocable(tmp_path: Path) -> None:
+    """Publish anonymous activity only for current readers of the slide's deck."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        connections = "/api/workspaces/default/agents"
+        request = {"kind": "artifact", "resource": app.deck_id, "name": "Private agent label"}
+        editor = owner.post(connections, json=request).json()
+        reader = alice.post(connections, json=request).json()
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/presence"
+        slide = {"tab": "b" * 32, "slide_id": "cover"}
+        marker = {"name": "Agent working", "slide_id": "cover", "agent": True}
+        peer = Peer(app, editor["token"])
+        reader_peer = Peer(app, reader["token"])
+        with closing(peer.client), closing(reader_peer.client):
+            args = {"deck_id": app.deck_id, "slide_id": "cover"}
+            assert not peer.call("get_slide", **args).is_error
+            assert alice.post(endpoint, json=slide).json() == []
+            assert reader_peer.call("set_slide_activity", **args, active=True).is_error
+            assert peer.call(
+                "set_slide_activity", **{**args, "slide_id": "absent"}, active=True
+            ).is_error
+            assert peer.call(
+                "set_slide_activity", **{**args, "deck_id": app.sibling_id}, active=True
+            ).is_error
+            assert peer.value("set_slide_activity", **args, active=True) == {"expires_in": 90}
+            assert alice.post(endpoint, json=slide).json() == [marker]
+            assert bob.post(endpoint, json=slide).status_code == 404
+            assert peer.value("set_slide_activity", **args, active=False) == {"expires_in": 0}
+            assert alice.post(endpoint, json=slide).json() == []
+            peer.value("set_slide_activity", **args, active=True)
+            assert owner.post(f"/api/agents/{editor['id']}/revoke").is_success
+            assert alice.post(endpoint, json=slide).json() == []
+
+
 def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path: Path) -> None:
     """Check live permission changes and isolation of private and unreleased messages."""
     with (

@@ -1,4 +1,4 @@
-/* Show human viewers of this deck without changing the slide previews. */
+/* Show viewers and shared agent activity without changing slide previews. */
 ((root) => {
   'use strict';
   function create({button, panel, rail, session}) {
@@ -12,16 +12,21 @@
     function badge(text, label) {
       const mark = document.createElement('span');
       mark.className = 'presence-badge';
-      mark.textContent = text;
+      if (text === null) {
+        mark.classList.add('presence-agent');
+        mark.innerHTML = root.SlideIcons.svg('robot');
+      } else mark.textContent = text;
       mark.title = label;
       mark.setAttribute('aria-hidden', 'true');
       return mark;
     }
     function badges(people, limit) {
-      const marks = people.slice(0, limit).map(({name}) => badge(
+      const humans = people.filter(person => !person.agent);
+      const marks = humans.slice(0, limit).map(({name}) => badge(
         name.split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join('').toUpperCase(), name,
       ));
-      if (people.length > limit) marks.push(badge(`+${people.length - limit}`, people.slice(limit).map(({name}) => name).join(', ')));
+      if (humans.length > limit) marks.push(badge(`+${humans.length - limit}`, humans.slice(limit).map(({name}) => name).join(', ')));
+      if (people.some(person => person.agent)) marks.push(badge(null, 'Agent working'));
       return marks;
     }
     function render() {
@@ -36,27 +41,34 @@
         const id = thumb.dataset.id, people = bySlide.get(id) || [];
         locations.set(id, `Slide ${index + 1}`);
         const existing = thumb.querySelector('.slide-presence-markers');
-        const names = people.map(({name}) => name).join(', ');
-        if (names && existing?.dataset.names !== names) {
+        const names = people.filter(person => !person.agent).map(({name}) => name).join(', ');
+        const agent = people.some(person => person.agent);
+        const description = [names && `Viewing this slide: ${names}`, agent && 'Agent working on this slide'].filter(Boolean).join('. ');
+        if (description && existing?.dataset.description !== description) {
           const markers = existing || document.createElement('span');
           markers.className = 'slide-presence-markers';
-          markers.dataset.names = names;
+          markers.dataset.description = description;
           markers.replaceChildren(...badges(people, 1));
           thumb.querySelector('.thumb-caption').insertBefore(markers, thumb.querySelector('.dot'));
-          thumb.setAttribute('aria-description', `Viewing this slide: ${names}`);
-        } else if (!names && existing) {
+          thumb.setAttribute('aria-description', description);
+        } else if (!description && existing) {
           existing.remove();
           thumb.removeAttribute('aria-description');
         }
       });
       button.hidden = !viewers.length;
       if (!viewers.length && panel.matches(':popover-open')) panel.hidePopover();
-      button.setAttribute('aria-label', `People in this deck (${viewers.length})`);
+      const people = viewers.filter(person => !person.agent).length;
+      const working = viewers.some(person => person.agent);
+      button.setAttribute('aria-label', [people && `People in this deck (${people})`, working && 'Agent activity'].filter(Boolean).join(', '));
+      button.title = button.getAttribute('aria-label');
+      panel.setAttribute('aria-label', working ? 'Deck activity' : 'People in this deck');
       button.replaceChildren(...badges(viewers, 1));
-      panel.replaceChildren(...viewers.map(({name, slide_id: id}) => {
+      panel.replaceChildren(...viewers.map(({name, slide_id: id, agent}) => {
         const row = document.createElement('li');
         const person = document.createElement('span');
-        person.textContent = name;
+        if (agent) person.append(badge(null, name), document.createTextNode(name));
+        else person.textContent = name;
         const location = document.createElement('small');
         location.textContent = locations.get(id) || '';
         row.append(person, location);

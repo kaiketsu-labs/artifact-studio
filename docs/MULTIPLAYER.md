@@ -405,6 +405,12 @@ Lost responses can be retried with the same request ID; unacknowledged work rema
 pending. This is retryable delivery, not exactly-once network delivery. Ending one
 native session does not stop another. A stopped session requires explicit resume.
 
+For explicitly shareable work on a specific slide, the hosted MCP tool
+`set_slide_activity(deck_id, slide_id, active)` shows a small robot marker to
+current deck readers. Send `active=true` when starting, refresh during long
+edits, and send `active=false` when done. Unrefreshed markers expire after
+90 seconds. Reading slides or handling private feedback never starts a marker.
+
 Stale concurrent edits are rejected; agents must re-read and reconcile. There is no
 silent source merge. Access checks, writes and revocation share a cross-process lock.
 A write committed before revocation remains in history; subsequent writes are denied.
