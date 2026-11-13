@@ -186,6 +186,7 @@
   });
   const elementMenu=root.ElementCommands.menu({doc,onError:message=>toast(message,true)});
   const hubMenu=root.ElementCommands.menu({doc,id:'hub-context-menu',onError:message=>toast(message,true)});
+  let deferredLibraryRefresh=false;
   let elementMenuEpoch=0;
   let pendingImageExport=null;
   const imageSelectors=new Set();
@@ -520,6 +521,14 @@
     }
     refreshCards();
   }
+  function refreshLibraryAfterMenu() {
+    if(hubMenu.isOpen()){deferredLibraryRefresh=true;return;}
+    const focused=doc.activeElement,artifact=focused?.dataset.artifact,tree=focused?.closest('[data-tree-node]')?.dataset.treeNode,main=focused?.matches('.hub-main');
+    library();
+    const target=artifact?doc.querySelector(`[data-artifact="${CSS.escape(artifact)}"]`):tree?doc.querySelector(`[data-tree-node="${CSS.escape(tree)}"] .project-tree-open`):main?doc.querySelector('.hub-main'):null;
+    target?.focus({preventScroll:true});
+  }
+  hubMenu.panel.addEventListener('toggle',()=>{if(!hubMenu.isOpen()&&deferredLibraryRefresh&&!state.active&&!state.designActive)refreshLibraryAfterMenu();});
   function cards() {
     if(state.project==='designs')return designCards();
     const items=filteredArtifacts();
@@ -538,6 +547,7 @@
     }).join('');
   }
   function library() {
+    deferredLibraryRefresh=false;
     if(sharedEditor)doc.querySelector('[data-new-presentation]').href=presentationCreationUrl(state.project);
     const collaboration=doc.querySelector('[data-collaborate]');
     if(collaboration)delete collaboration.dataset.artifact;
@@ -1237,7 +1247,7 @@
         if(!state.designs.some(item=>item.id===state.designActive))home('designs');
       }else if(!state.active && previous!==JSON.stringify([state.artifacts,state.designs,state.projects,state.projectTree])){
         const search=doc.getElementById('hub-search'),focused=doc.activeElement===search,position=search?.selectionStart;
-        library();if(focused){const next=doc.getElementById('hub-search');next.focus();try{next.setSelectionRange(position,position);}catch{}}
+        refreshLibraryAfterMenu();if(focused){const next=doc.getElementById('hub-search');next.focus();try{next.setSelectionRange(position,position);}catch{}}
       }
     }catch{}finally{refreshing=false;}
   }

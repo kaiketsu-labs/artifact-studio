@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 import pytest
 from playwright.sync_api import Route, expect, sync_playwright
 
+from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.models import SlidePatch
 from tests.integration.multiplayer_fixture import (
     WORKSPACE,
@@ -26,6 +27,41 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+def test_library_poll_preserves_open_context_menu(tmp_path: Path) -> None:
+    """Keep the menu anchor and keyboard focus until a pending library update can render."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        sync_playwright() as playwright,
+    ):
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.goto(WORKSPACE)
+                card = page.get_by_role("button", name=re.compile("^Open Shared candidate"))
+                expect(card).to_be_visible()
+                anchor = card.element_handle()
+                assert anchor is not None
+                card.click(button="right")
+                menu = page.get_by_role("menu", name="Artifact actions")
+                expect(menu).to_be_visible()
+                ArtifactStore(app.store).create_project("Fictional poll update")
+                with page.expect_response(
+                    lambda response: response.url.endswith("/api/hub"), timeout=20000
+                ):
+                    pass
+                page.wait_for_timeout(500)
+                assert anchor.evaluate("element => element.isConnected")
+                expect(menu).to_be_visible()
+                expect(page.get_by_text("Fictional poll update")).to_have_count(0)
+                page.keyboard.press("Escape")
+                expect(menu).to_be_hidden()
+                expect(page.get_by_text("Fictional poll update")).to_be_visible()
+                expect(card).to_be_focused()
+        finally:
+            browser.close()
 
 
 def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
