@@ -443,9 +443,17 @@ def create_app(
             }
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals")
-    def structure_list(request: Request, workspace: str, artifact: str) -> dict[str, object]:
+    def structure_list(request: Request, workspace: str, artifact: str) -> Response:
         """Return presentation structure and its agent proposals."""
-        return structure.list(actor_of(request), Scope(workspace, "artifact", artifact))
+        result, validator = structure.snapshot(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            request.headers.get("If-None-Match", ""),
+        )
+        headers = {"ETag": validator} if validator else {}
+        if result is None:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(result, headers=headers)
 
     @app.post(
         "/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals/{proposal_id}/decision"

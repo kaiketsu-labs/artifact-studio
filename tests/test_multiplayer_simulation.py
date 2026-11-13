@@ -406,6 +406,57 @@ def test_structural_proposal_decision_is_scoped_and_single_winner(tmp_path: Path
             assert owner.get(base).json()["slide_ids"] == ids
 
 
+def test_structural_proposal_validator_rechecks_access_and_detects_decisions(
+    tmp_path: Path,
+) -> None:
+    """An unchanged comparison has no body, while a decision invalidates its validator."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        )
+        connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        initial = owner.get(base)
+        initial.raise_for_status()
+        headers = {"If-None-Match": initial.headers["ETag"]}
+        assert owner.get(base, headers=headers).status_code == 304
+        assert alice.get(base, headers=headers).status_code == 404
+        body = initial.json()
+        with closing((peer := Peer(app, connection.json()["token"])).client):
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review outline",
+                base_slide_ids=body["slide_ids"],
+                base_sections_hash=body["sections_hash"],
+                proposed_slide_ids=list(reversed(body["slide_ids"])),
+                request_id="conditional-proposal",
+            )
+            pending = owner.get(base, headers=headers)
+            pending.raise_for_status()
+            assert pending.headers["ETag"] != initial.headers["ETag"]
+            reply = owner.post(
+                f"{base}/{proposal['id']}/decision",
+                json={
+                    "decision": "keep",
+                    "expected_slide_ids": body["slide_ids"],
+                    "expected_sections_hash": body["sections_hash"],
+                    "request_id": "conditional-decision",
+                },
+            )
+            reply.raise_for_status()
+            decided = owner.get(base, headers={"If-None-Match": pending.headers["ETag"]})
+            decided.raise_for_status()
+            assert decided.json()["proposals"][0]["status"] == "decided"
+            assert decided.headers["ETag"] != pending.headers["ETag"]
+
+
 def test_structural_proposal_stale_and_revoked_agent(tmp_path: Path) -> None:
     """A stale comparison cannot be accepted and revoked agents receive no decisions."""
     with (

@@ -210,28 +210,63 @@ class StructureProposals:
 
     def list(self, actor: Actor, scope: Scope) -> dict[str, object]:
         """Read one atomic presentation snapshot without taking its structural write lock."""
+        result, _ = self.snapshot(actor, scope)
+        assert result is not None
+        return result
+
+    def snapshot(
+        self, actor: Actor, scope: Scope, validator: str = ""
+    ) -> tuple[dict[str, object] | None, str]:
+        """Reauthorize the reader before comparing the canonical source and proposal version."""
         with self.sharing.guard_presentation_snapshot(actor, scope.workspace, scope.resource) as (
             store,
             _,
             level,
         ):
-            if level < LEVEL["edit"]:
+            if actor.agent or level < LEVEL["edit"]:
                 raise AccessDenied
-            deck = store.read(scope.resource)
-            ids = [slide.id for slide in deck.slides]
-            titles = {slide.id: slide.title for slide in deck.slides}
+            source = store.folder(scope.resource) / "index.html"
+            details = source.stat()
             with self.sharing.connect() as db:
+                version = db.execute(
+                    "SELECT COUNT(*),COALESCE(MAX(rowid),0),COUNT(NULLIF(decision,'')) "
+                    "FROM structure_proposals WHERE workspace=? AND artifact=?",
+                    (scope.workspace, scope.resource),
+                ).fetchone()
+                assert version is not None
+                tag = (
+                    '"'
+                    + checksum(
+                        json.dumps(
+                            [
+                                scope.workspace,
+                                scope.resource,
+                                details.st_ino,
+                                details.st_size,
+                                details.st_mtime_ns,
+                                details.st_ctime_ns,
+                                *version,
+                            ]
+                        )
+                    )
+                    + '"'
+                )
+                if tag == validator:
+                    return None, tag
                 rows = db.execute(
                     "SELECT * FROM structure_proposals WHERE workspace=? AND artifact=? "
                     "ORDER BY (decision='') DESC, rowid DESC LIMIT 200",
                     (scope.workspace, scope.resource),
                 ).fetchall()
+            deck = store.read(scope.resource)
+            ids = [slide.id for slide in deck.slides]
+            titles = {slide.id: slide.title for slide in deck.slides}
             return {
                 "slide_ids": ids,
                 "sections_hash": sections_hash(deck.sections),
                 "slides": [{"id": slide.id, "title": slide.title} for slide in deck.slides],
                 "proposals": [self._proposal(row, ids, titles) for row in rows],
-            }
+            }, tag if source.stat() == details else ""
 
     def decide(
         self, actor: Actor, scope: Scope, proposal_id: str, body: StructureDecision

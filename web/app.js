@@ -64,7 +64,7 @@
   let deckValidator=null;
   const deckPresence=window.StudioDeckPresence.create({button:$('deck-presence'),panel:$('deck-viewers'),rail:$('slides'),session:window.ArtifactSession});
   const canEditShared=()=>!sharedEditor||deck?.access_role==='edit';
-  const structureReview=window.StructureReview.create({api,escape,button:$('structure-review-trigger'),dialog:$('structure-review-dialog'),identity:()=>conversation?.person || ''});
+  const structureReview=window.StructureReview.create({api,readResponse:readStructureReview,escape,button:$('structure-review-trigger'),dialog:$('structure-review-dialog'),identity:()=>conversation?.person || ''});
   let selectedElements=[],groupEditor=null;
   let visibilityBusy=false,copyingSlideImage=false,menuSlide=null;
   let orderEpoch=0, selectionEpoch=0;
@@ -296,6 +296,11 @@
   }
   async function api(url,body,options={}){
     return responseJson(await apiResponse(url,body,options));
+  }
+  async function readStructureReview(url,validator){
+    const response=await apiResponse(url,undefined,{cache:'no-store',headers:validator?{'If-None-Match':validator}:undefined});
+    if(response.status===304)return {result:null,validator};
+    return {result:await responseJson(response),validator:response.headers.get('ETag')};
   }
   /** Keep conditional validators in memory and never persist shared slide bodies. */
   async function readDeck(id,validator=null){
