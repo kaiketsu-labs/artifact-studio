@@ -75,6 +75,21 @@ def test_equivalent_scoped_html_returns_receipt_without_writing_deck(
         assert receipt.content_hash == before.content_hash
 
 
+def test_local_agent_can_list_deleted_slide_ids(store: Store) -> None:
+    """Expose the same recoverable deletion records to local agents and browser editors."""
+    before = service.get_slide(TEMPLATE_ID, "cover")
+    _ = service.remove_slide(TEMPLATE_ID, "cover", before.expected_hash)
+    deletions = service.get_deleted_slides(TEMPLATE_ID)
+    assert len(deletions) == 1
+    assert deletions[0]["slides"] == [{"id": "cover", "title": before.title}]
+    with pytest.raises(ToolError, match="Restore it explicitly"):
+        _ = service.add_slide(
+            TEMPLATE_ID,
+            Slide(id="cover", title="New copy", html="<article>Do not restore</article>"),
+            request_id="try-to-recreate-deletion",
+        )
+
+
 @pytest.mark.parametrize("drift", ["theme", "asset"])
 def test_revision_replay_retains_visual_baseline_and_original_status(
     store: Store, drift: str

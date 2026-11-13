@@ -71,6 +71,22 @@ def recover_pending(store: Store, db: sqlite3.Connection, deck_id: str) -> None:
         )
 
 
+def pending_deletions(db: sqlite3.Connection, deck_id: str) -> list[SlideActionResult]:
+    """Read completed deletions still eligible for explicit recovery."""
+    rows = db.execute(
+        "SELECT result_json FROM slide_actions "
+        "WHERE deck=? AND completed=1 ORDER BY rowid DESC",
+        (deck_id,),
+    ).fetchall()
+    results = [SlideActionResult.model_validate_json(cast(str, row[0])) for row in rows]
+    restored = {result.deletion_id for result in results if result.action == "restore"}
+    return [
+        result
+        for result in results
+        if result.action == "delete" and result.operation_id not in restored
+    ]
+
+
 class SlideActions:
     """Apply slide actions using a durable journal around the canonical file write."""
 
@@ -88,18 +104,7 @@ class SlideActions:
         """List deletion operations that have not already been restored."""
         self.recover(deck_id)
         with self.store.connect() as db:
-            rows = db.execute(
-                "SELECT result_json FROM slide_actions "
-                "WHERE deck=? AND completed=1 ORDER BY rowid DESC",
-                (deck_id,),
-            ).fetchall()
-        results = [SlideActionResult.model_validate_json(cast(str, row[0])) for row in rows]
-        restored = {result.deletion_id for result in results if result.action == "restore"}
-        return [
-            result
-            for result in results
-            if result.action == "delete" and result.operation_id not in restored
-        ]
+            return pending_deletions(db, deck_id)
 
     def deletion_summaries(self, deck_id: str) -> list[dict[str, object]]:
         """List recoverable deletions with their original slide IDs and titles."""

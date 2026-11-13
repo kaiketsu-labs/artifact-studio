@@ -1583,6 +1583,15 @@ def remove_slide(deck_id: str, slide_id: str, expected_hash: str) -> str:
     return "Slide removed; source retained in local history."
 
 
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_deleted_slides(deck_id: str) -> list[dict[str, object]]:
+    """List recoverable local deletions so agents can avoid re-adding those slide IDs."""
+    from .slide_actions import SlideActions
+
+    return SlideActions(store).deletion_summaries(deck_id)
+
+
 register_artifact_tools(mcp, lambda: store)
 
 
