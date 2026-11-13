@@ -132,12 +132,15 @@
   height: 22px;
   padding: 0 3px;
   border-radius: 999px;
-  background: var(--selected);
-  color: var(--ink);
+  background: var(--selected, #edf2ff);
+  color: var(--ink, #20242b);
   font-size: 10px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
+.presence-agent { color: var(--blue); }
+.presence-agent .ui-icon { width: 13px; height: 13px; }
+#deck-viewers li > span:has(.presence-agent) { display: flex; align-items: center; gap: 6px; }
 .slide-presence-markers { display: inline-flex; flex: none; gap: 2px; }
 .slide-presence-markers .presence-badge { min-width: 17px; height: 17px; font-size: 9px; }
 #deck-viewers {
@@ -148,12 +151,12 @@
   max-height: 50dvh;
   overflow: auto;
   list-style: none;
-  color: var(--ink);
-  background: var(--surface);
+  color: var(--ink, #20242b);
+  background: var(--surface, #fff);
   border: 1px solid var(--line);
   border-radius: 9px;
   box-shadow: 0 8px 24px #10284a26;
 }
 #deck-viewers li { display: flex; gap: 12px; justify-content: space-between; padding: 7px 9px; font-size: 13px; }
 #deck-viewers li span { overflow-wrap: anywhere; }
-#deck-viewers small { color: var(--muted); white-space: nowrap; }
+#deck-viewers small { color: var(--subtle); white-space: nowrap; }
