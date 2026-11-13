@@ -1,7 +1,10 @@
 services:
   studio:
     image: ${ARTIFACT_STUDIO_IMAGE:-artifact-studio:local}
-    build: .
+    build:
+      context: .
+      args:
+        ARTIFACT_STUDIO_BUILD_REVISION: ${ARTIFACT_STUDIO_BUILD_REVISION:-}
     ports:
       - "127.0.0.1:${ARTIFACT_STUDIO_PORT:-8790}:8790"
     volumes:
