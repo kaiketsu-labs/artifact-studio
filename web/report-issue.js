@@ -4,32 +4,45 @@
   const doc = root.document;
   const trigger = doc.querySelector('[data-report-issue]');
   if (!trigger) return;
+  const icon = root.SlideIcons.svg;
 
   const dialog = doc.createElement('dialog');
   dialog.className = 'app-about studio-report';
   dialog.setAttribute('aria-labelledby', 'studio-report-title');
   dialog.setAttribute('data-voice-exclude', '');
   dialog.innerHTML = `
-    <header><h2 id="studio-report-title">Report an issue</h2>
-      <button type="button" aria-label="Close report">×</button></header>
+    <header><div class="studio-report-heading">${icon('flag')}<h2 id="studio-report-title">Report an issue</h2></div>
+      <button type="button" aria-label="Close report" title="Close report">${icon('close')}</button></header>
     <form>
-      <label>Title<input name="title" required maxlength="120" autofocus></label>
-      <label>What happened?<textarea name="body" required maxlength="1000" rows="4"></textarea></label>
-      <p>GitHub issues are public. Review your text and screenshot for private information.</p>
-      <div class="studio-report-actions">
-        <button type="button" data-capture>Capture browser tab</button>
-        <label>Choose screenshot<input type="file" accept="image/png,image/jpeg,image/webp"></label>
+      <div class="studio-report-fields">
+        <label>Title<input name="title" required maxlength="120" autofocus></label>
+        <label>What happened?<textarea name="body" required maxlength="1000" rows="4"></textarea></label>
       </div>
-      <figure hidden><img alt="Screenshot preview">
-        <figcaption><a download="artifact-studio-issue.png">Save screenshot</a>
-          <button type="button" data-remove>Remove screenshot</button></figcaption></figure>
-      <p role="status"></p>
-      <button type="submit">Open GitHub draft</button>
+      <fieldset class="studio-report-attachment">
+        <legend>Screenshot <span>optional</span></legend>
+        <div class="studio-report-actions">
+          <button type="button" data-capture>${icon('image')}<span>Capture tab</span></button>
+          <button type="button" data-choose>${icon('upload')}<span>Choose screenshot</span></button>
+          <input type="file" aria-label="Choose screenshot" accept="image/png,image/jpeg,image/webp" hidden>
+        </div>
+        <figure hidden><img alt="Screenshot preview">
+          <figcaption><a download="artifact-studio-issue.png">${icon('download')}<span>Save screenshot</span></a>
+            <button type="button" data-remove aria-label="Remove screenshot" title="Remove screenshot">${icon('trash')}</button></figcaption>
+          <p>Save the image to attach it manually in GitHub.</p>
+        </figure>
+        <p role="status"></p>
+      </fieldset>
+      <footer class="studio-report-footer">
+        <p>${icon('info')}<span>GitHub issues are public. Check your report for private information.</span></p>
+        <button type="submit">Open GitHub draft ${icon('external')}</button>
+      </footer>
     </form>`;
   doc.body.append(dialog);
   const form = dialog.querySelector('form');
   const capture = dialog.querySelector('[data-capture]');
   const picker = dialog.querySelector('input[type=file]');
+  const choose = dialog.querySelector('[data-choose]');
+  const remove = dialog.querySelector('[data-remove]');
   const figure = dialog.querySelector('figure');
   const preview = figure.querySelector('img');
   const save = figure.querySelector('a');
@@ -53,15 +66,17 @@
     save.href = url;
     save.download = 'artifact-studio-issue.' + extension;
     figure.hidden = false;
-    status.textContent = 'Save the screenshot and attach it to the GitHub draft if you want to include it.';
   }
 
+  choose.addEventListener('click', () => picker.click());
   picker.addEventListener('change', () => {
     const file = picker.files?.[0];
     if (!file) return;
     const extension = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'}[file.type];
     if (!extension || file.size > 10_000_000) {
-      status.textContent = 'Choose a PNG, JPEG or WebP screenshot under 10 MB.';
+      picker.value = '';
+      status.textContent = 'Choose a PNG, JPEG or WebP screenshot under 10 MB.' +
+        (url ? ' Your previous screenshot is still selected.' : '');
       return;
     }
     showScreenshot(file, extension);
@@ -130,7 +145,10 @@
     root.open(github.href, '_blank', 'noopener,noreferrer');
   });
 
-  figure.querySelector('[data-remove]').addEventListener('click', clearScreenshot);
+  remove.addEventListener('click', () => {
+    clearScreenshot();
+    choose.focus();
+  });
   dialog.querySelector('[aria-label="Close report"]').addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => {
     generation++;
