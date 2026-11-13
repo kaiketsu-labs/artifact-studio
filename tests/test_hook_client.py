@@ -3,6 +3,7 @@
 import json
 import re
 import shlex
+from email.message import Message
 from pathlib import Path
 from urllib.error import HTTPError
 
@@ -288,11 +289,15 @@ def test_stop_retries_transient_failures_only(
         nonlocal calls
         calls += 1
         if calls == 1:
-            raise HTTPError(url, status, "Fixture response", None, None)
+            raise HTTPError(url, status, "Fixture response", Message(), None)
         return {"listening": True, "feedback_available": True, "reason": "New feedback"}
 
     monkeypatch.setattr(client, "_post", poll)
-    monkeypatch.setattr(client.time, "sleep", lambda _seconds: None)
+
+    def skip_sleep(_seconds: float) -> None:
+        """Avoid waiting during the retry test."""
+
+    monkeypatch.setattr(client.time, "sleep", skip_sleep)
     result = client.handle_event(
         "claude-code", "Stop", "http://localhost", "artifact-studio", {"session_id": "fixture"}
     )
