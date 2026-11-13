@@ -29,7 +29,7 @@ from .storage import SAFE_ID, ConflictError, digest
 
 Commit = str
 Choice = Literal["studio", "github"]
-Action = Literal["unchanged", "upload", "download", "merge", "conflict"]
+Action = Literal["unchanged", "upload", "download", "merge", "conflict", "blocked"]
 PROJECT_SYNC_INTERVAL = 60
 MAX_ARTIFACTS = 20
 SYNC_SCRATCH = Path("/run/artifact-studio-project-sync")
@@ -737,9 +737,22 @@ class ProjectGitHubSync:
                 try:
                     tree = GitTree(folder, binding)
                     for identifier in [artifact] if artifact else binding.artifacts:
-                        result = self._sync_artifact(
-                            actor, binding, state, tree, identifier, resolution
-                        )
+                        try:
+                            result = self._sync_artifact(
+                                actor, binding, state, tree, identifier, resolution
+                            )
+                        except AccessDenied, OSError, ValueError, ConflictError:
+                            if resolution is not None:
+                                raise
+                            result = SyncReport(
+                                artifact=identifier,
+                                action="blocked",
+                                studio="",
+                                github=None,
+                                commit=tree.tip,
+                                detail="Check that this source is still paired with this project "
+                                "and that both copies contain valid files. Run sync again.",
+                            )
                         state.reports = [
                             item for item in state.reports if item.artifact != identifier
                         ]

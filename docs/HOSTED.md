@@ -135,7 +135,8 @@ Choose **Keep Studio** or **Keep GitHub** and confirm the replacement. The
 previous Studio revision or GitHub commit remains in its respective history.
 If either bundle changes again before confirmation, run **Sync now** to review
 the updated conflict. A GitHub bundle with a missing entrypoint cannot replace
-Studio source.
+Studio source. A missing or invalid paired source is flagged in the dialog. Other
+valid sources in that project still sync.
 
 This setup syncs configured source bundles. A conflict choice applies to the
 whole bundle. Legacy in-place presentations, project metadata, review chat,

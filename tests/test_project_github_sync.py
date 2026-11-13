@@ -299,6 +299,32 @@ def test_sync_merges_independent_file_changes(
         assert api.post(endpoint, headers=OWNER).json()["reports"][0]["action"] == "unchanged"
 
 
+def test_missing_source_does_not_block_other_project_bundles(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+) -> None:
+    """Report a stale mapping while syncing valid bundles from the same project."""
+    editor, sharing, project, artifact, binding, scratch = sync_fixture
+    paired = binding.model_copy(
+        update={
+            "artifacts": {"missing-source": "demo/missing", **binding.artifacts},
+        }
+    )
+    sync = ProjectGitHubSync(sharing, [paired], scratch=scratch)
+    endpoint = f"/api/workspaces/default/projects/{project}/github-sync"
+    with client(sharing, sync) as api:
+        result = api.post(endpoint + "/check", headers=OWNER)
+        assert result.is_success, result.text
+        reports = {report["artifact"]: report for report in result.json()["reports"]}
+        assert reports["missing-source"]["action"] == "blocked"
+        assert reports["missing-source"]["detail"]
+        assert reports[artifact]["action"] == "upload"
+        assert not result.json()["error"]
+        assert api.get(endpoint, headers=OWNER).json()["reports"] == result.json()["reports"]
+        _ = git(editor, "pull", "--ff-only")
+        assert not (editor / "demo/missing").exists()
+        assert (editor / "demo/site/index.html").read_text() == "<h1>Studio original</h1>"
+
+
 def test_binding_file_loads_before_owner_sign_in(
     tmp_path: Path,
     sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],

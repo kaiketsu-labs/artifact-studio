@@ -118,11 +118,12 @@
       merge: 'Combined changes from Studio and GitHub.',
       unchanged: 'Studio and GitHub match.',
       conflict: 'Needs a decision',
+      blocked: 'Sync paused for this source',
     };
     row.append(paragraph(summaries[report.action]));
+    if (report.detail) row.append(paragraph(report.detail));
     if (report.action !== 'conflict') return row;
 
-    row.append(paragraph(report.detail));
     const revisions = doc.createElement('ul');
     const studio = doc.createElement('li');
     studio.textContent = report.studio_revision ? 'Studio revision ' + report.studio_revision : 'Studio source';
