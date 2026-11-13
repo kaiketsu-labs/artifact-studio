@@ -6,11 +6,12 @@
 .voice-input-button:hover:not(:disabled){background:var(--selected,var(--hub-hover,#edf2fa));color:var(--ink,var(--hub-ink,#182638))}
 .voice-input-button:focus-visible{outline:2px solid var(--blue,#648ac3);outline-offset:2px}
 .voice-input-button[aria-pressed=true]{color:var(--red,#aa3830);background:transparent}
-.voice-input-button:disabled{opacity:.4;cursor:default}
+.voice-input-button:is(:disabled,[aria-disabled=true]){opacity:.4;cursor:default}
 .voice-input-status{min-width:0;max-width:100%;font-size:11px;color:var(--subtle,var(--hub-muted,#59677a));white-space:pre-wrap;overflow-wrap:anywhere}
 .voice-input-controls[data-voice-phase=error] .voice-input-status{color:var(--red,#aa3830)}
 .voice-input-status.has-interim{font-style:italic}
 .voice-input-controls[data-voice-phase=unavailable] .voice-input-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.voice-input-controls[data-voice-phase=unavailable]:focus-within .voice-input-status{position:static;width:auto;height:auto;clip-path:none;white-space:normal;order:-1}
 .voice-input-controls[data-voice-phase=idle] .voice-input-status:empty{display:none}
 .voice-input-controls[data-voice-phase=error] .voice-input-button{border-color:var(--red,#aa3830);color:var(--red,#aa3830)}
 .voice-segments[hidden]{display:none}
@@ -40,6 +41,9 @@
 :is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions)>#attach-feedback{margin-right:auto;padding:6px;border:0;background:transparent}
 #hub-feedback-form .hub-compose-actions>[data-action=attach]{margin-right:auto;padding:6px;border:0;background:transparent}
 :is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions)>.voice-input-controls{margin-left:0;flex:0 1 auto}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions):has(>.voice-input-controls[data-voice-phase=error],>.voice-input-controls[data-voice-phase=unavailable]:focus-within){flex-wrap:wrap}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions)>.voice-input-controls:is([data-voice-phase=error],[data-voice-phase=unavailable]:focus-within){display:contents}
+:is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions)>.voice-input-controls:is([data-voice-phase=error],[data-voice-phase=unavailable]:focus-within) .voice-input-status{order:1;flex:1 0 100%;font-size:11px}
 :is(#feedback-form,#hub-feedback-form)>:is(#feedback-text,#hub-feedback-text){min-height:36px;max-height:130px}
 :is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions) .voice-input-button{width:32px;height:32px;min-height:32px;padding:6px;border:0;border-radius:50%;background:transparent;color:var(--ink,#222)}
 :is(#feedback-form,#hub-feedback-form) :is(.compose-actions,.hub-compose-actions) .voice-input-button:hover:not(:disabled){background:var(--selected,#f0f1f3)}
