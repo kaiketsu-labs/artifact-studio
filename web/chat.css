@@ -86,6 +86,11 @@
 @media(min-width:1600px){.discussion{padding:23px 18px 16px}.discussion .comment p,.chat-markdown{font-size:13px}}
 @media(max-width:900px){.discussion{min-height:0;overflow:hidden}.discussion>#feedback-list{min-height:0;flex:1 1 auto;overflow:auto}.discussion .agent-panel{max-height:180px}.discussion .comment{max-width:96%}}
 @media(max-width:600px){.discussion{padding:15px 12px}.chat-file-name{max-width:135px}.discussion .comment{max-width:96%}}
+
+@media (max-width: 1050px) {
+  .discussion > #feedback-list { min-height: 0; padding-block: 0; }
+  .discussion .feedback-compose textarea { font-size: 16px; }
+}
 .mention-menu{position:absolute;bottom:100%;left:0;right:0;z-index:20;max-height:220px;overflow:auto;padding:4px;background:var(--surface,#fff);border:1px solid var(--line,#d9e1ed);border-radius:8px;box-shadow:0 6px 20px #0002}
 .discussion .feedback-compose:has(.mention-menu:not([hidden])){overflow:visible}
 .mention-menu[hidden]{display:none}.mention-menu button{display:block;width:100%;padding:8px;text-align:left;border:0;background:transparent;color:inherit}.mention-menu button[aria-selected="true"],.mention-menu button:hover{background:var(--hover,#e8effb)}
