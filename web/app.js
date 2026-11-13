@@ -501,9 +501,7 @@
     $('target-members').hidden=targets.length<2;
     $('target-members').innerHTML=targets.length>1?targets.map((target,index)=>`<span class="target-member" title="${escape(target.quote||target.label)}"><span>${escape(target.label)}</span><button type="button" data-remove-target="${index}" aria-label="Remove ${escape(target.label)} from selection" title="Remove from selection">${svg('close')}</button></span>`).join(''):'';
     $('select-parent').hidden=!selectedElement?.parentElement||selectedElement.parentElement.matches('body,html,.slide');
-    $('feedback-text').placeholder=collaborationChat
-      ? !commentAllowed() ? 'View access' : conversationChannel==='shared' ? 'Message collaborators…' : 'Message your agent…'
-      : targeted ? 'What should change here? Type @ to reference' : needsBrief() ? 'Audience, takeaway or @reference…' : 'Message your agent… Type @ to reference';
+    if(!collaborationChat)$('feedback-text').placeholder=targeted?'What should change here? Type @ to reference':needsBrief()?'Audience, takeaway or @reference…':'Message your agent… Type @ to reference';
   }
 
   /** Draw individual outlines; only a single complete anchor exposes manipulation controls. */
@@ -734,6 +732,8 @@
     delivery.querySelector('.mode-switch').hidden=!!collaborationChat;
     $('send-legacy-batch').hidden=!legacyPending;
     if(collaborationChat){
+      const composer=$('feedback-text');
+      composer.placeholder=commentAllowed()?(conversationChannel==='private'?'Message your agent…':'Message collaborators…'):'View access';
       $('send-batch').disabled=!commentAllowed();
       $('chat-ask-agent').hidden=conversationChannel!=='shared'||!ownChatAgent();
       renderChatTabs();
