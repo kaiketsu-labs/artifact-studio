@@ -10,6 +10,7 @@ import pytest
 from PIL import ImageFont
 from playwright.sync_api import expect, sync_playwright
 
+from artifact_studio import design_preview
 from artifact_studio.storage import Store
 from tests.design_factory import TEMPLATE_ID, make_design
 from tests.integration.multiplayer_fixture import (
@@ -18,6 +19,17 @@ from tests.integration.multiplayer_fixture import (
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, human
+
+
+def test_oversized_design_preview_is_inert(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip oversized source before parsing it and preserve the preview sandbox."""
+    make_design(tmp_path / TEMPLATE_ID)
+    store = Store(tmp_path, tmp_path / "state/review.sqlite3")
+    monkeypatch.setattr(design_preview, "MAX_PAGE_BYTES", 64)
+    result = design_preview.hosted_design_preview(store, "test-brand", WORKSPACE)
+    assert result.status_code == 200
+    assert b"Preview unavailable" in bytes(result.body)
+    assert "sandbox;" in result.headers["content-security-policy"]
 
 
 @pytest.mark.browser
@@ -58,6 +70,7 @@ def test_hosted_design_cover_keeps_local_assets_and_layout(
             "position:absolute;top:730px;left:100px;font-size:60px;margin:0}"
         )
         _ = (pack / "theme.css").write_text(
+            '@import "https://design-assets.example.test/ignored.css";'
             '@import "assets/preview.css";'
             ".slide{position:relative;width:100%;height:100%;background:rgb(232,240,248)}"
         )
@@ -77,6 +90,7 @@ def test_hosted_design_cover_keeps_local_assets_and_layout(
         assert "sandbox;" in response.headers["content-security-policy"]
         assert "script-src 'none'" in response.headers["content-security-policy"]
         assert "data:font/ttf;base64," in response.text
+        assert "design-assets.example.test" not in response.text
         with human(app, "bob") as other:
             assert other.get(route).status_code == 404
 
