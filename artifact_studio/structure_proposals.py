@@ -10,7 +10,7 @@ from pydantic import Field
 
 from .artifacts import ArtifactStore
 from .models import StrictModel
-from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, checksum
+from .multiplayer_access import LEVEL, AccessDenied, Actor, Scope, Sharing, checksum
 from .sections import sections_hash
 from .storage import ConflictError, Store
 
@@ -209,32 +209,29 @@ class StructureProposals:
         }
 
     def list(self, actor: Actor, scope: Scope) -> dict[str, object]:
-        """Read the current structure and all proposals visible to a shared reviewer."""
-        with self.sharing.guard(actor, scope, "edit") as store:
-            if ArtifactStore(store).get_artifact(scope.resource).legacy_deck_id != scope.resource:
+        """Read one atomic presentation snapshot without taking its structural write lock."""
+        with self.sharing.guard_presentation_snapshot(actor, scope.workspace, scope.resource) as (
+            store,
+            _,
+            level,
+        ):
+            if level < LEVEL["edit"]:
                 raise AccessDenied
-            return self._list_locked(store, scope)
-
-    def _list_locked(self, store: Store, scope: Scope) -> dict[str, object]:
-        """Read a stable structure under the presentation lock."""
-        with store.editing(scope.resource):
             deck = store.read(scope.resource)
-            ids = [s.id for s in deck.slides]
+            ids = [slide.id for slide in deck.slides]
+            titles = {slide.id: slide.title for slide in deck.slides}
             with self.sharing.connect() as db:
                 rows = db.execute(
                     "SELECT * FROM structure_proposals WHERE workspace=? AND artifact=? "
                     "ORDER BY (decision='') DESC, rowid DESC LIMIT 200",
                     (scope.workspace, scope.resource),
                 ).fetchall()
-                return {
-                    "slide_ids": ids,
-                    "sections_hash": sections_hash(deck.sections),
-                    "slides": [{"id": s.id, "title": s.title} for s in deck.slides],
-                    "proposals": [
-                        self._proposal(row, ids, {s.id: s.title for s in deck.slides})
-                        for row in rows
-                    ],
-                }
+            return {
+                "slide_ids": ids,
+                "sections_hash": sections_hash(deck.sections),
+                "slides": [{"id": slide.id, "title": slide.title} for slide in deck.slides],
+                "proposals": [self._proposal(row, ids, titles) for row in rows],
+            }
 
     def decide(
         self, actor: Actor, scope: Scope, proposal_id: str, body: StructureDecision

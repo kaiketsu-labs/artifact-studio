@@ -449,3 +449,23 @@ def test_structural_proposal_stale_and_revoked_agent(tmp_path: Path) -> None:
             body["decision"] = "request_change"
             assert owner.post(endpoint, json=body).status_code == 404
             assert owner.get(base).json()["proposals"][0]["status"] == "pending"
+
+
+def test_structure_list_does_not_wait_for_write_lock_and_requires_edit(tmp_path: Path) -> None:
+    """Read the atomic file snapshot during a write and deny view-only collaborators."""
+    import sqlite3
+
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with sqlite3.connect(root / "state/review.sqlite3") as db:
+            db.execute("BEGIN IMMEDIATE")
+            response = owner.get(endpoint, timeout=3)
+            assert response.status_code == 200
+            assert response.json()["slide_ids"]
+        assert alice.get(endpoint).status_code == 404
