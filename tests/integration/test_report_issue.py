@@ -122,6 +122,9 @@ def test_report_capture_handles_picker_outcomes(
         """
         Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', {value: async () => {
           const surface = __SURFACE__;
+          if (surface === 'browser') {
+            HTMLVideoElement.prototype.requestVideoFrameCallback = () => 1;
+          }
           if (surface === 'denied') throw new DOMException('Canceled', 'NotAllowedError');
           const canvas = document.createElement('canvas');
           canvas.width = 64;

@@ -136,13 +136,10 @@
     try {
       return await Promise.race([
         (async () => {
-          await video.play();
+          // Hide the form before playback consumes the first available frame.
           await nextPaint();
-          if (typeof video.requestVideoFrameCallback === 'function') {
-            await new Promise(resolve => video.requestVideoFrameCallback(resolve));
-          } else {
-            await nextPaint();
-          }
+          await nextPaint();
+          await video.play();
           return screenshotFromImage(video, video.videoWidth, video.videoHeight);
         })(),
         new Promise((_, reject) => {
