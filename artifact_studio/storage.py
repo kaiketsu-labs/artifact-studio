@@ -797,33 +797,34 @@ class Store:
                 patch = patch.model_copy(
                     update={"interactive_html": prepare_interactive(patch.interactive_html)}
                 )
-            _ = db.execute(
-                "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
-                (
-                    deck_id,
-                    slide_id,
-                    self.content_hash(deck_id, slide) if slide.revision == 1 else "",
-                ),
-            )
             changes = patch.model_dump(exclude_none=True)
             revised = Slide.model_validate(slide.model_dump() | changes)
-            if revised.notes != slide.notes:
-                revised.notes_revision = slide.notes_revision + 1
-            SlideMarkup().feed(revised.html)
-            if (
-                revised.html != slide.html
-                or revised.interactive_html != slide.interactive_html
-                or revised.title != slide.title
-                or revised.sources != slide.sources
-            ):
-                revised.revision = slide.revision + 1
-            capture_slide_version(db, deck_id, slide)
-            deck.slides[deck.slides.index(slide)] = revised
-            self.write(deck_id, deck)
-            if revised.revision != slide.revision:
-                capture_slide_version(
-                    db, deck_id, revised, saved_at=datetime.now(UTC).isoformat(), authored=True
+            if revised != slide:
+                if revised.notes != slide.notes:
+                    revised.notes_revision = slide.notes_revision + 1
+                SlideMarkup().feed(revised.html)
+                if (
+                    revised.html != slide.html
+                    or revised.interactive_html != slide.interactive_html
+                    or revised.title != slide.title
+                    or revised.sources != slide.sources
+                ):
+                    revised.revision = slide.revision + 1
+                _ = db.execute(
+                    "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
+                    (
+                        deck_id,
+                        slide_id,
+                        self.content_hash(deck_id, slide) if slide.revision == 1 else "",
+                    ),
                 )
+                capture_slide_version(db, deck_id, slide)
+                deck.slides[deck.slides.index(slide)] = revised
+                self.write(deck_id, deck)
+                if revised.revision != slide.revision:
+                    capture_slide_version(
+                        db, deck_id, revised, saved_at=datetime.now(UTC).isoformat(), authored=True
+                    )
             result = self._write_view(db, deck_id, revised)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",

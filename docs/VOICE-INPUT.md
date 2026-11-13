@@ -6,6 +6,11 @@ Send waits for a clean recognition end. Cancelling during that wait prevents sen
 
 Microphones cover feedback, speaker notes, hosted presenter notes, presentation titles/briefs, design requests, project/artifact forms, search, question answers, and editable workspace rules. Rich rules use the editor's text API; inline slide text editing keeps its existing explicit Send/Cancel flow. Read-only fields do not offer editing controls. Permission, microphone and speech-service errors stop recording and explain how to continue. Dictation uses the browser's language setting.
 
+If the microphone stays on **Starting microphone**, Studio releases the
+composer after 30 seconds. Check the browser's microphone prompt and retry
+using the microphone icon. If the browser's speech service is unavailable,
+keyboard dictation can enter text directly into the same field.
+
 ## Speak while selecting
 
 In slide or artifact feedback, the composer shows a compact recording bar while listening. After stopping, the transcript is editable, with small context labels retaining the original targets. Selecting another object starts a new section. Wait for **Listening** before speaking in the new section: the browser must finish the previous recognition session before starting the next one. Late final results belong to the preceding section. Interim guesses are shown separately and are not sent or silently treated as confirmed text. The browser API does not provide dependable per-word timestamps.

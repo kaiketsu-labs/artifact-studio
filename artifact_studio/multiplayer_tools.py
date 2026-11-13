@@ -27,6 +27,7 @@ from .copilot_tools import (
     public_object,
     remote_tool,
 )
+from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
 from .design_authoring import DesignAuthoring
 from .design_library import DesignLibrary
 from .element_alternatives import ElementAlternatives, ElementInput
@@ -58,8 +59,11 @@ NewDeckID = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*
 
 
 class MultiplayerTools:
-    def __init__(self, sharing: Sharing, chat: Conversations, public_url: str) -> None:
+    def __init__(
+        self, sharing: Sharing, chat: Conversations, public_url: str, presence: DeckPresence
+    ) -> None:
         self.sharing, self.chat, self.public_url = sharing, chat, public_url
+        self.presence = presence
 
     def actor(self, ctx: Ctx) -> Actor:
         request = ctx.request_context.request
@@ -264,6 +268,8 @@ class MultiplayerTools:
                 "Use get_working_context for the selected scope. For presentations, read "
                 "get_presentation_outline (brief, order, hashes), then get_slide only for slides "
                 "you need. revise_slide takes SlidePatch JSON and the expected_hash you read. "
+                "For shareable slide work, set_slide_activity shows an expiring marker; clear "
+                "it when done and omit it for private work. "
                 "add_slide, reorder_slides and set_presentation_sections use the outline's order "
                 "and sections hashes. Use publish_slide_designs for alternate designs and "
                 "publish_element_alternatives for existing elements. Humans choose in the "
@@ -274,7 +280,8 @@ class MultiplayerTools:
                 "get_artifact returns the manifest; read_artifact_files loads selected files. "
                 "revise_artifact takes files_json, expected_revision and request_id. "
                 "create_artifact needs an editable project and inline file bundle. "
-                "capture_slide/capture_artifact return real pixels for visual review. "
+                "capture_slide, capture_contact_sheet and capture_artifact return real pixels "
+                "for visual review. "
                 "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
                 "Read only assigned requests with read_feedback. Claim with claim_feedback "
                 "before acting. Reply with reply_to_feedback using the claim and a stable "
@@ -470,6 +477,22 @@ class MultiplayerTools:
             if not self.sharing.owner(actor, scope.workspace):
                 result.pop("agent", None)
             return result
+
+    def set_slide_activity(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: Annotated[str, Field(min_length=1, max_length=100)],
+        active: bool,
+    ) -> dict[str, int]:
+        """Show anonymous editing activity to deck readers. Refresh during work; clear when done.
+
+        Use only when you may share that work on this slide is in progress. Reading slides and
+        handling private feedback never publish this signal automatically.
+        """
+        actor = self.actor(ctx)
+        self.presence.set_editing(actor, self.scope(actor, deck_id), slide_id, active)
+        return {"expires_in": AGENT_ACTIVITY_TTL if active else 0}
 
     def revise_slide(
         self,
@@ -804,6 +827,21 @@ class MultiplayerTools:
         with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True).capture_slide(deck_id, slide_id, stage, elapsed_ms)
 
+    def capture_contact_sheet(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        offset: int = 0,
+        limit: int = 8,
+        slide_ids: tuple[str, ...] = (),
+    ) -> CallToolResult:
+        """Render a scoped draft overview; use capture_slide for full-size detail."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return ScopedTools(store, "", True).capture_contact_sheet(
+                deck_id, offset, limit, slide_ids
+            )
+
     def capture_artifact(self, ctx: Ctx, artifact_id: str) -> CallToolResult:
         """Render this owned artifact using the existing isolated browser capture."""
         actor = self.actor(ctx)
@@ -942,6 +980,7 @@ class MultiplayerTools:
             self.list_presentation_assets,
             self.prepare_interactive_html,
             self.capture_slide,
+            self.capture_contact_sheet,
             self.capture_artifact,
             self.read_chat,
             self.read_chat_attachment,
@@ -954,6 +993,7 @@ class MultiplayerTools:
             self.create_design_pack,
             self.write_design_file,
             self.revise_slide,
+            self.set_slide_activity,
             self.add_slide,
             self.create_presentation,
             self.reorder_slides,

@@ -29,6 +29,7 @@ from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
+from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
 from .models import FileInput, StrictModel
@@ -150,7 +151,7 @@ def create_app(
             "Use expected hashes and stable request IDs. Replies stay in the original chat."
         ),
     )
-    toolset = MultiplayerTools(hub, chat, config.public_url)
+    toolset = MultiplayerTools(hub, chat, config.public_url, presence)
     toolset.register(mcp)
     mcp_app = mcp.streamable_http_app(
         stateless_http=True,
@@ -481,7 +482,10 @@ def create_app(
                 "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
 
-    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/presence",
+        response_model_exclude_defaults=True,
+    )
     def deck_presence(
         request: Request, workspace: str, artifact: str, body: PresenceInput
     ) -> list[DeckViewer]:
@@ -591,6 +595,7 @@ def create_app(
         artifact: str,
         slide_id: str = "",
         history_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+        thumbnail: bool = False,
     ) -> HTMLResponse:
         if request.headers.get("sec-fetch-dest") not in {"iframe", "frame"}:
             raise HTTPException(403, "Open this preview inside the workspace.")
@@ -604,6 +609,8 @@ def create_app(
             ):
                 raise AccessDenied
             if item.legacy_deck_id:
+                if thumbnail and slide_id:
+                    return hosted_slide_thumbnail(store, artifact, slide_id, config.public_url)
                 deck = store.read(artifact)
                 slide = store.locate(deck, slide_id) if slide_id else deck.slides[0]
                 embedder = ScopedDeckEmbedder(store, artifact)

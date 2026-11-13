@@ -39,6 +39,14 @@ def test_report_does_not_imply_remote_security_or_expose_identity_options(
     assert next(c for c in unrelated.checks if c.id == "preview_credentials").status == "unverified"
 
 
+def test_scoped_sharing_describes_resource_grants() -> None:
+    """Explain collaboration access without changing the hosting checks."""
+    report = security_report(hosted(), scoped_sharing=True)
+    checks = {check.id: check for check in report.checks}
+    assert "grants" in checks["access_boundary"].detail
+    assert checks["mfa"].status == "unverified"
+
+
 def test_configuration_file_permissions_are_actionable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

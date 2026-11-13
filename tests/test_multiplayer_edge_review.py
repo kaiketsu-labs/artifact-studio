@@ -13,6 +13,7 @@ from starlette.datastructures import Headers
 
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.authentication import Principal
+from artifact_studio.deck_presence import DeckPresence
 from artifact_studio.deployment import DeploymentConfig
 from artifact_studio.models import Deck
 from artifact_studio.multiplayer import create_app
@@ -129,7 +130,9 @@ def test_artifact_only_edit_receipt_hides_parent_project(tmp_path: Path) -> None
             ),
         ),
     )
-    tools = MultiplayerTools(hub, Conversations(hub), "https://studio.example.test")
+    tools = MultiplayerTools(
+        hub, Conversations(hub), "https://studio.example.test", DeckPresence(hub)
+    )
     result = tools.revise_artifact(
         ctx,
         item.id,

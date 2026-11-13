@@ -3,20 +3,21 @@
   'use strict';
   const microphone='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
   const stopIcon='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-  const unsupported='Voice input is unavailable in this browser. You can still type, or use a browser with speech recognition.';
+  const unsupported='Browser dictation is unavailable. Try keyboard dictation.';
+  const startupFailed='Dictation couldn’t start. Check the browser’s microphone prompt, then try again.';
   const clone=value=>value===undefined?undefined:typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value));
   const errors={
-    'not-allowed':'Microphone access was denied. Allow microphone access in your browser settings, then try again.',
-    'service-not-allowed':'Your browser does not allow its speech service here. You can still type.',
-    'audio-capture':'No microphone is available. Connect a microphone, then try again.',
-    'network':'The browser speech service is unavailable. Try again, or type your message.',
+    'not-allowed':'Allow microphone access for this site in your browser, then try again.',
+    'service-not-allowed':'The browser blocked its speech service. Try keyboard dictation.',
+    'audio-capture':'The browser couldn’t record audio. Check your microphone and system permissions.',
+    'network':'The browser’s speech service couldn’t connect. Retry or use keyboard dictation.',
     'no-speech':'No speech was heard. Start dictation again when ready.',
     'language-not-supported':'The browser speech service does not support this language. You can still type.',
     'aborted':'Dictation stopped.'
   };
 
   /** Coordinate one microphone across fields, without treating callbacks as current UI context. */
-  function createRecorder({Recognition,language='en-US',onState=()=>{},onIdle=()=>{},drainMs=750,setTimer=setTimeout,clearTimer=clearTimeout}){
+  function createRecorder({Recognition,language='en-US',onState=()=>{},onIdle=()=>{},drainMs=750,startupMs=30000,setTimer=setTimeout,clearTimer=clearTimeout}){
     let current=null,pending=null,destroyed=false;
     const isActive=handle=>!!(current&&(!handle||current.handle===handle)||pending&&(!handle||pending.handle===handle));
     const notify=(handle,phase,message='',interim='')=>onState(handle,{phase,message,interim,active:isActive(handle)});
@@ -59,12 +60,24 @@
       let recognition;
       try{recognition=new Recognition();}
       catch{notify(destination.handle,'error','The browser could not start speech recognition. You can still type.');onIdle(destination.handle);return false;}
-      const segment={...destination,recognition,finals:new Set(),closing:false,interim:'',timer:null,waiters:[]};
+      const segment={...destination,recognition,finals:new Set(),closing:false,started:false,interim:'',timer:null,waiters:[]};
       current=segment;
       recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=1;recognition.lang=language;
-      recognition.onstart=()=>{if(current===segment&&!segment.closing)notify(segment.handle,'listening','Listening…');};
+      function started(){
+        if(segment.started)return;
+        segment.started=true;
+        if(!segment.closing&&segment.timer!==null){
+          clearTimer(segment.timer);
+          segment.timer=null;
+        }
+      }
+      recognition.onstart=()=>{
+        if(current!==segment||segment.closing)return;
+        started();notify(segment.handle,'listening','Listening…');
+      };
       recognition.onresult=event=>{
         if(current!==segment)return;
+        started();
         const interim=[];
         for(let index=0;index<event.results.length;index++){
           const result=event.results[index],text=String(result?.[0]?.transcript||'').trim();
@@ -83,16 +96,22 @@
         notify(segment.handle,segment.closing?'finishing':'listening',segment.closing?'Finishing dictation…':'Listening…',segment.interim);
       };
       recognition.onerror=event=>{if(current===segment)fail(segment,errors[event.error]||'Speech recognition stopped. Try again, or type your message.');};
-      recognition.onend=()=>finish(segment,segment.interim?'Stopped. Unfinished speech was not inserted.':'Dictation stopped.');
+      recognition.onend=()=>{
+        if(current!==segment)return;
+        if(!segment.started&&!segment.closing){fail(segment,startupFailed);return;}
+        finish(segment,segment.interim?'Stopped. Unfinished speech was not inserted.':'Dictation stopped.',!segment.started);
+      };
       notify(segment.handle,'starting','Starting microphone…');
+      segment.timer=setTimer(()=>fail(segment,startupFailed),startupMs);
       try{recognition.start();}
-      catch{fail(segment,'The microphone could not start. Check browser permissions, then try again.');return false;}
+      catch{fail(segment,startupFailed);return false;}
       return true;
     }
     function close(){
       const segment=current;if(!segment||segment.closing)return;
       segment.closing=true;
       notify(segment.handle,'finishing',pending?'Switching dictation context…':'Finishing dictation…',segment.interim);
+      if(segment.timer!==null)clearTimer(segment.timer);
       segment.timer=setTimer(()=>finish(segment,segment.interim?'Stopped. Unfinished speech was not inserted.':'Dictation stopped.',true),drainMs);
       try{segment.recognition.stop();}catch{finish(segment,'Dictation stopped.',true);}
     }
@@ -209,11 +228,11 @@
       handles.set(input,handle);
       if(adapter?.controlsHost)adapter.controlsHost.append(controls);else input.insertAdjacentElement('afterend',controls);
       button.addEventListener('pointerdown',event=>event.preventDefault());
-      button.addEventListener('click',event=>{event.preventDefault();if(recorder.isActive(handle))void handle.stop();else handle.start();});
+      button.addEventListener('click',event=>{event.preventDefault();if(!Recognition)return;if(recorder.isActive(handle))void handle.stop();else handle.start();});
       publish(handle,{phase:handle.phase,active:false,message:Recognition?'':unsupported,interim:''},false);
-      button.disabled=!Recognition||!!input.disabled||!!input.readOnly;
+      button.disabled=!!input.disabled||!!input.readOnly;
       controls.hidden=!eligible(input);
-      if(!Recognition)button.title=unsupported;
+      if(!Recognition)button.setAttribute('aria-disabled','true');
       return handle;
     }
     function refresh(){
@@ -225,7 +244,7 @@
       }
       for(const [input,handle] of handles){
         if(!input.isConnected){if(recorder.isActive(handle))void handle.stop();handle.controls.remove();handles.delete(input);continue;}
-        const active=recorder.isActive(handle),disabled=!Recognition||!active&&(!!input.disabled||!!input.readOnly);
+        const active=recorder.isActive(handle),disabled=!active&&(!!input.disabled||!!input.readOnly);
         if(handle.button.disabled!==disabled)handle.button.disabled=disabled;
         if(!handle.adapter.controlsHost||handle.adapter.visible){
           const visible=handle.adapter.visible?handle.adapter.visible():!handle.rich||input.isContentEditable;
