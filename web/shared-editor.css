@@ -68,13 +68,8 @@
 }
 [data-native-conversation] .delivery-panel #send-batch { grid-column: 1 / -1; }
 [data-native-conversation] .shared-channel select { width: 100%; height: 100%; font-size: 12px; }
-[data-native-conversation] .discussion .comment.user[data-collaborator] {
-  align-self: flex-start;
-  background: var(--surface);
-  border-color: var(--line);
-  border-radius: 10px 10px 10px 3px;
-}
-[data-native-conversation] .discussion .comment.user[data-collaborator] .comment-header { flex-direction: row; }
+.hub-message[data-scoped] { align-self: flex-start; max-width: 94%; }
+.hub-message.is-user[data-scoped] { align-self: flex-end; }
 [data-native-conversation] .discussion .comment-header { gap: 9px; }
 [data-native-conversation] .chat-sender { min-width: 0; }
 [data-native-conversation] .chat-sender-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

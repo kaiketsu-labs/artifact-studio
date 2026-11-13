@@ -160,7 +160,7 @@ function renderMessages() {
   const signature = JSON.stringify(state.messages);
   if (list.dataset.signature !== signature) {
     list.dataset.signature = signature;
-    list.replaceChildren(...state.messages.map(message => {
+    list.replaceChildren(...window.StudioChatTimeline.render(state.messages, message => message.created * 1000, message => {
       const mine = message.author === state.session.person;
       const isAgent = message.author !== message.person;
       const row = node('article', null, `message${mine ? ' mine' : ''}${message.released ? '' : ' draft'}`);
@@ -172,7 +172,7 @@ function renderMessages() {
       row.append(node('div', message.message, 'body'));
       if (message.assigned && !message.completed) row.append(node('span', message.released ? 'Requested' : 'Waiting for Send batch', 'subtle small'));
       return row;
-    }));
+    }, day => node('p', day, 'chat-day')));
     if (!state.messages.length) list.append(node('p', state.channel === 'shared' ? 'Talk with your collaborators here. Choose an agent when you want a change.' : 'A private conversation with your agents. Changes they make are visible to everyone.', 'empty-chat'));
     if (atEnd) list.scrollTop = list.scrollHeight;
   }

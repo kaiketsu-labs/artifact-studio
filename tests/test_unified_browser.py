@@ -2,6 +2,8 @@
 
 import os
 import re
+import sqlite3
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -78,6 +80,61 @@ def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> N
                 ]
                 for route in held:
                     route.abort()
+        finally:
+            browser.close()
+
+
+@pytest.mark.parametrize("presentation", [True, False], ids=["slides", "artifact"])
+def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentation: bool) -> None:
+    """Fictional guests see incoming messages at left and their own replies at right."""
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        resource = app.deck_id if presentation else app.artifact_id
+        accept(alice, grant(owner, "alice", resource, role="comment"))
+        endpoint = f"/api/workspaces/default/artifacts/{resource}/chat"
+        for index in range(2):
+            posted = owner.post(
+                endpoint,
+                json={
+                    "channel": "shared",
+                    "message": f"Fictional owner message {index}",
+                    "request_id": f"fictional-owner-chat-{index}",
+                    "target": {"kind": "slide", "slide_id": "cover"} if presentation else None,
+                },
+            )
+            assert posted.status_code == 200, posted.text
+        with sqlite3.connect(root / "sharing" / "sharing.sqlite3") as db:
+            _ = db.execute("UPDATE conversations SET created=?", (time.time() - 172800,))
+
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 900, "height": 760})
+                page.emulate_media(color_scheme="dark")
+                route = f"?deck={resource}#cover" if presentation else f"?artifact={resource}"
+                page.goto(f"{WORKSPACE}/{route}")
+                if presentation:
+                    page.get_by_role("button", name="Open chat", exact=True).click()
+                thread = page.locator("#feedback-list" if presentation else "#hub-thread")
+                day_markers = thread.locator(".chat-day")
+                incoming = thread.locator("article").filter(has_text="Fictional owner message 0")
+                expect(incoming).to_contain_text("owner@example.test")
+                expect(incoming).to_have_css("align-self", "flex-start")
+                expect(day_markers).to_have_count(1)
+                composer = page.locator("#feedback-text" if presentation else "#hub-feedback-text")
+                composer.fill("Fictional guest reply")
+                composer.press("Enter")
+                outgoing = thread.locator("article").filter(has_text="Fictional guest reply")
+                expect(outgoing).to_have_css("align-self", "flex-end")
+                expect(day_markers).to_have_count(2)
+                assert day_markers.nth(0).text_content() != day_markers.nth(1).text_content()
+                assert page.locator("html").get_attribute("data-theme") == "dark"
         finally:
             browser.close()
 

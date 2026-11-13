@@ -202,7 +202,12 @@ def create_app(
 
     @app.get("/web/{name}")
     def static(name: str) -> FileResponse:
-        if name not in {"multiplayer.js", "multiplayer.css"}:
+        if name not in {
+            "multiplayer.js",
+            "multiplayer.css",
+            "chat-timeline.js",
+            "chat-timeline.css",
+        }:
             raise AccessDenied
         return FileResponse(PROJECT / "web" / name)
 

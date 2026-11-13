@@ -36,7 +36,9 @@ approval of the current slide or artifact version, and edits through a scoped ag
 Update markers clear for each person as they open a revised slide or artifact.
 **Agent connection** in the regular
 menu connects your own agent to the selected artifact or project. Shared and
-My agent conversations appear in the regular sidebar. The owner can switch
+My agent conversations appear in the regular sidebar. Your messages appear on
+the right, incoming messages on the left, and date separators mark each day in
+your browser's time zone. The owner can switch
 between **Collaborate** and **Local review**; older local messages remain private
 to the owner. Open **Menu → Workspace & server → Workspaces** in the
 library or editor to switch workspaces. The
