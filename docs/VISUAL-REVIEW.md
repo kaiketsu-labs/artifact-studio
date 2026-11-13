@@ -56,3 +56,5 @@ Slides with `interactive_html` are captured from their actual isolated custom do
 ## Optional text fidelity review
 
 After a full-size capture, `check_slide_text` compares its pixels with caller-supplied expected visible text using optional local Tesseract OCR. The capture and image hashes anchor the result; stale or modified captures require recapture. Mismatches and confidence need visual interpretation, and even a match does not prove glyph correctness. This catches candidates beyond resource-loading checks, without disabling ligatures or approving slides. Read `get_authoring_guide(topic="text_review")` or [TEXT-REVIEW.md](TEXT-REVIEW.md).
+
+Scoped cloud and hosted agents can also call `capture_contact_sheet`. It returns one draft image for up to eight completed slides per page, with optional `slide_ids` and `next_offset`, through the same audience-only clone as `capture_slide`. Paths and private notes are excluded. Use `capture_slide` to inspect full-size detail and reveal states. Captures share the bounded renderer queue; smaller pages can help when the remote image limit is exceeded.

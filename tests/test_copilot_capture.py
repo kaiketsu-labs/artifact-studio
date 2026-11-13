@@ -119,3 +119,27 @@ def test_capture_cannot_embed_an_unshared_deck_file(store: Store) -> None:
     scoped = ScopedTools(store, "legacy-presentations", False)
     with pytest.raises(ValueError, match="outside"):
         _ = scoped.capture_slide(DECK, slide.id)
+
+
+@RENDER
+def test_contact_sheet_returns_scoped_draft_pixels_and_original_tokens(store: Store) -> None:
+    """The compact overview excludes private data while retaining original revision tokens."""
+    slide = store.read(DECK).slides[0]
+    result = ScopedTools(store, "legacy-presentations", False).capture_contact_sheet(
+        DECK, slide_ids=(slide.id,)
+    )
+    assert any(item.type == "image" and item.mime_type == "image/png" for item in result.content)
+    metadata = json.dumps(result.structured_content)
+    assert "PRIVATE" not in metadata and '"path"' not in metadata
+    assert digest(slide.model_dump_json()) in metadata
+    assert store.content_hash(DECK, slide) in metadata
+    assert '"width": 800' in metadata and '"height": 450' in metadata
+
+
+def test_contact_sheet_bounds_and_scope(store: Store) -> None:
+    """Reject oversize remote pages and decks outside the selected project."""
+    scoped = ScopedTools(store, "legacy-presentations", False)
+    with pytest.raises(ValueError, match="1–8"):
+        _ = scoped.capture_contact_sheet(DECK, limit=9)
+    with pytest.raises(ValueError):
+        _ = ScopedTools(store, "unrelated-project", False).capture_contact_sheet(DECK)

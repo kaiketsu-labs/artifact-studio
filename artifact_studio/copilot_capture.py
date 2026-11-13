@@ -103,3 +103,61 @@ def capture_cloud_slide(
             ],
             structured_content=metadata,
         )
+
+
+def capture_cloud_contact_sheet(
+    store: Store,
+    deck_id: str,
+    offset: int = 0,
+    limit: int = 8,
+    slide_ids: list[str] | None = None,
+) -> CallToolResult:
+    """Render a bounded draft overview with original revision tokens and no host paths."""
+    if not 1 <= limit <= 8:
+        raise ValueError("Remote contact sheets allow 1–8 slides per page.")
+    original = store.read(deck_id)
+    hashes = {slide.id: store.content_hash(deck_id, slide) for slide in original.slides}
+    structure = [(slide.id, slide.hidden) for slide in original.slides]
+    with TemporaryDirectory(prefix="artifact-studio-copilot-capture-") as temporary:
+        folder = Path(temporary)
+        clone = audience_clone(store, deck_id, folder)
+        result = capture(
+            clone,
+            deck_id,
+            folder / "captures",
+            offset=offset,
+            limit=limit,
+            slide_ids=slide_ids,
+            options=CaptureOptions(resolution="draft"),
+        )
+        current = store.read(deck_id)
+        if [(slide.id, slide.hidden) for slide in current.slides] != structure or any(
+            store.content_hash(deck_id, slide) != hashes[slide.id] for slide in current.slides
+        ):
+            raise ValueError("The source changed during capture; read the current deck and retry.")
+        if Path(result.path).stat().st_size > 3 * 1024 * 1024:
+            raise ValueError(
+                "The captured image exceeds the remote 3 MiB limit; use a smaller page."
+            )
+        originals = {slide.id: slide for slide in original.slides}
+        metadata = result.model_dump(exclude={"path"})
+        metadata["frames"] = [
+            frame.model_dump(exclude={"path"})
+            | {
+                "expected_hash": digest(originals[frame.slide_id].model_dump_json()),
+                "content_hash": hashes[frame.slide_id],
+                "runtime_matches_deck": False,
+            }
+            for frame in result.frames
+        ]
+        metadata["scope"] = (
+            "Audience-only clone using trusted runtime and theme.css/assets. "
+            "Private notes, feedback, other local files and physical displays are not captured."
+        )
+        return CallToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(metadata)),
+                MCPImage(path=result.path).to_image_content(),
+            ],
+            structured_content=metadata,
+        )
