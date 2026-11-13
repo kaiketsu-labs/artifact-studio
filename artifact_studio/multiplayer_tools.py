@@ -27,6 +27,7 @@ from .copilot_tools import (
     public_object,
     remote_tool,
 )
+from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
 from .design_authoring import DesignAuthoring
 from .design_library import DesignLibrary
 from .element_alternatives import ElementAlternatives, ElementInput
@@ -58,8 +59,11 @@ NewDeckID = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*
 
 
 class MultiplayerTools:
-    def __init__(self, sharing: Sharing, chat: Conversations, public_url: str) -> None:
+    def __init__(
+        self, sharing: Sharing, chat: Conversations, public_url: str, presence: DeckPresence
+    ) -> None:
         self.sharing, self.chat, self.public_url = sharing, chat, public_url
+        self.presence = presence
 
     def actor(self, ctx: Ctx) -> Actor:
         request = ctx.request_context.request
@@ -264,6 +268,8 @@ class MultiplayerTools:
                 "Use get_working_context for the selected scope. For presentations, read "
                 "get_presentation_outline (brief, order, hashes), then get_slide only for slides "
                 "you need. revise_slide takes SlidePatch JSON and the expected_hash you read. "
+                "For shareable slide work, set_slide_activity shows an expiring marker; clear "
+                "it when done and omit it for private work. "
                 "add_slide, reorder_slides and set_presentation_sections use the outline's order "
                 "and sections hashes. Use publish_slide_designs for alternate designs and "
                 "publish_element_alternatives for existing elements. Humans choose in the "
@@ -470,6 +476,22 @@ class MultiplayerTools:
             if not self.sharing.owner(actor, scope.workspace):
                 result.pop("agent", None)
             return result
+
+    def set_slide_activity(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: Annotated[str, Field(min_length=1, max_length=100)],
+        active: bool,
+    ) -> dict[str, int]:
+        """Show anonymous editing activity to deck readers. Refresh during work; clear when done.
+
+        Use only when you may share that work on this slide is in progress. Reading slides and
+        handling private feedback never publish this signal automatically.
+        """
+        actor = self.actor(ctx)
+        self.presence.set_editing(actor, self.scope(actor, deck_id), slide_id, active)
+        return {"expires_in": AGENT_ACTIVITY_TTL if active else 0}
 
     def revise_slide(
         self,
@@ -954,6 +976,7 @@ class MultiplayerTools:
             self.create_design_pack,
             self.write_design_file,
             self.revise_slide,
+            self.set_slide_activity,
             self.add_slide,
             self.create_presentation,
             self.reorder_slides,
