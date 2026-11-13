@@ -94,8 +94,9 @@ The override mounts that file read-only, retains the base Compose sandbox and lo
 
 ### Hosted project GitHub sync
 
-Configure the service's GitHub CLI identity with read and write access to the
-approved private repositories. Use the container's GitHub CLI config directory
+Use the [unified collaboration deployment](MULTIPLAYER.md#use-the-regular-studio-interface)
+for project sync. Give the service's GitHub CLI identity read and write access
+to the approved private repositories. Use the container's GitHub CLI config directory
 (`/data/config/gh`) or inject `GH_TOKEN` from your deployment secret store.
 Keep credentials out of the binding file. The configured branch must exist and
 accept normal direct-child pushes from this identity.
@@ -118,7 +119,8 @@ specific registered artifact IDs and dedicated repository folders.
 
 ```sh
 export ARTIFACT_STUDIO_PROJECT_GITHUB_SYNC_FILE=/absolute/path/to/project-github-sync.json
-docker compose -f compose.yaml -f compose.hosted.yaml -f compose.project-github-sync.yaml up -d --build --wait
+docker compose -f compose.yaml -f compose.hosted.yaml -f compose.shared.yaml \
+  -f compose.project-github-sync.yaml up -d --build --wait
 ```
 
 Open the configured project's options menu and choose **GitHub sync**. The dialog
