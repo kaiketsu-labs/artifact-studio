@@ -525,9 +525,37 @@ class Conversations:
             assert row is not None
             return self._public(row)
 
+    def _has_pending(self, db: sqlite3.Connection, actor: Actor, scope: Scope) -> bool:
+        """Check for released requests assigned by people who still have edit access."""
+        pending = db.execute(
+            "SELECT DISTINCT person FROM conversations WHERE workspace=? "
+            "AND artifact=? AND assigned=? "
+            "AND released=1 AND completed=0",
+            (scope.workspace, scope.resource, actor.agent),
+        ).fetchall()
+        return any(
+            self.sharing.level(Actor(cast(str, row["person"])), scope) >= 3 for row in pending
+        )
+
     def hook(self, actor: Actor, body: ReviewHookInput) -> dict[str, object]:
+        """Check assigned feedback and track leases for active host listeners."""
         with self.sharing.locked(), self.sharing.connect() as db:
             connection = self.sharing.agent_record(actor)
+            workspace = cast(str, connection["workspace"])
+            if body.passive:
+                scope = Scope(workspace, "artifact", body.artifact_id or body.deck_id or "")
+                self.sharing.require(actor, scope, "edit")
+                available = self._has_pending(db, actor, scope)
+                return {
+                    "listening": False,
+                    "feedback_available": available,
+                    "reason": (
+                        f"Artifact Studio has assigned feedback. Use read_feedback with "
+                        f"artifact_id={scope.resource!r}, then claim each request before acting."
+                        if available
+                        else ""
+                    ),
+                }
             session = checksum(body.harness + ":" + body.session_id)
             existing = db.execute(
                 "SELECT artifact,expires FROM multiplayer_hooks WHERE agent=? AND session=?",
@@ -558,24 +586,15 @@ class Conversations:
                     "feedback_available": False,
                     "reason": "Open an artifact or start_live_review first.",
                 }
-            scope = Scope(cast(str, connection["workspace"]), "artifact", artifact)
+            scope = Scope(workspace, "artifact", artifact)
             self.sharing.require(actor, scope, "edit")
             db.execute(
                 "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
                 (actor.agent, session, scope.workspace, artifact, time.time() + 120),
             )
-            pending = db.execute(
-                "SELECT DISTINCT person FROM conversations WHERE workspace=? "
-                "AND artifact=? AND assigned=? "
-                "AND released=1 AND completed=0",
-                (scope.workspace, artifact, actor.agent),
-            ).fetchall()
-            available = any(
-                self.sharing.level(Actor(cast(str, row["person"])), scope) >= 3 for row in pending
-            )
             return {
                 "listening": True,
-                "feedback_available": available,
+                "feedback_available": self._has_pending(db, actor, scope),
                 "reason": f"Live review for artifact {artifact}. Use read_feedback with "
                 f"artifact_id={artifact!r}; claim assigned requests with claim_feedback "
                 "before acting, then reply_to_feedback in their original channel. "

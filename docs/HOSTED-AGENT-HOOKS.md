@@ -29,6 +29,20 @@ python3 ~/.local/share/artifact-studio-hooks/hook_client.py configure \
 
 Use `--harness claude-code` for Claude Code. Use your actual MCP connection name, and the workspace origin **without `/mcp`**. Inspect the dry run, then repeat without `--dry-run`. Existing unrelated settings/hooks are preserved; repeating setup is idempotent. `--global` explicitly selects user-level configuration instead of `--project`. Remove an older project copy when switching to global hooks so Codex does not run both.
 
+For Claude Code connected to a shared workspace, add `--claude-mode passive` if
+you want feedback checks during active work without waking an idle session.
+This installs a background hook that checks for released requests assigned to
+the agent when it opens an artifact through `get_working_context` or calls
+`start_live_review`. A pending request adds a short pointer to the next Claude
+turn. Use `read_feedback` to pick up requests directly. The agent does not
+appear as **Listening** in passive mode. Both **Live** and **Send batch** still
+release feedback. Choose `--claude-mode live` for automatic continuation.
+
+If you previously installed Claude hooks at both user and project level,
+inspect both in `/hooks`. Each setup command replaces the generated hooks
+in the settings file it targets. An old live hook in another settings file
+can still run.
+
 Reload the agent session and review/trust its generated hooks through the host's `/hooks` interface. Keep native approval prompts enabled. Configure/download alone does not prove that the running host loaded or trusted the hooks. Regenerate settings if you move the client files or Python executable. Update the client files deliberately when upgrading the server.
 
 ## Verify the complete journey
