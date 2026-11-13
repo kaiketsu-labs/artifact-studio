@@ -64,7 +64,7 @@ External checks cover actual cookie scope, sign-in policy, firewall rules, tunne
 logging, backup recovery and operating-system resource limits. Your server
 administrator verifies these outside Studio.
 
-![Server checks separate warnings, unverified hosting settings and configured app protections.](assets/hosted-server-checks.png)
+![Server checks list warnings, external checks and configured app protections.](assets/hosted-server-checks.png)
 
 <details>
 <summary>Server checks on a phone</summary>
