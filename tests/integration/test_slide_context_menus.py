@@ -100,6 +100,24 @@ def test_thumbnail_comment_history_and_selection_target_the_clicked_slide(
     assert live_app.store.comments(DECK_ID) == []
 
 
+def test_thumbnail_menu_survives_scroll_in_the_chat_panel(page: Page, live_app: RunningApp) -> None:
+    """A scroll elsewhere keeps the menu open while its thumbnail stays in place."""
+    open_editor(page, live_app)
+    thumbnail = page.locator('#slides [data-id="cover"]')
+    thumbnail.click(button="right")
+    menu = page.get_by_role("menu", name="Slide options", exact=True)
+    expect(menu).to_be_visible()
+    before = thumbnail.bounding_box()
+    _ = page.locator("#feedback-list").evaluate(
+        "element => element.dispatchEvent(new Event('scroll'))"
+    )
+    assert thumbnail.bounding_box() == before
+    expect(menu).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(menu).to_be_hidden()
+    expect(thumbnail).to_be_focused()
+
+
 @pytest.mark.parametrize("theme", ["light", "dark"])
 def test_thumbnail_copies_the_invoked_slide_as_a_real_png(
     page: Page, live_app: RunningApp, artifacts: Path, theme: Literal["light", "dark"]
