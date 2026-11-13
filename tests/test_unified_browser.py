@@ -442,6 +442,92 @@ def test_shared_mention_suggests_contacts_and_opens_unread(tmp_path: Path) -> No
             browser.close()
 
 
+def test_mention_acknowledgement_does_not_interrupt_the_next_presentation(tmp_path: Path) -> None:
+    """Keep the current presentation's unread count when the previous read finishes late."""
+    next_deck = "2026-11-02-fictional-second"
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        app.store.create(next_deck, "Fictional second deck", "test-brand")
+        for deck, message in ((app.deck_id, "First deck only"), (next_deck, "Second deck only")):
+            accept(alice, grant(owner, "alice", deck, role="comment"))
+            response = alice.post(
+                f"/api/workspaces/default/artifacts/{deck}/chat",
+                json={
+                    "channel": "shared",
+                    "message": f"{message} @owner@example.test",
+                    "request_id": f"mention-{deck}",
+                    "target": {"kind": "slide", "slide_id": "cover"},
+                },
+            )
+            assert response.is_success, response.text
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                held_ack: list[tuple[Route, bytes]] = []
+                held_state: list[tuple[Route, bytes]] = []
+                first_state = f"/api/workspaces/default/artifacts/{app.deck_id}/state"
+                second_state = f"/api/workspaces/default/artifacts/{next_deck}/state"
+
+                def hold_ack(route: Route) -> None:
+                    """Apply the read server-side while its browser response remains pending."""
+                    response = owner.post(route.request.url.removeprefix(WORKSPACE), json={})
+                    assert response.is_success, response.text
+                    held_ack.append((route, response.content))
+
+                def hold_state(route: Route) -> None:
+                    """Delay the current unread state until the previous acknowledgement arrives."""
+                    if held_state:
+                        route.fallback()
+                        return
+                    response = owner.get(second_state)
+                    assert response.is_success, response.text
+                    held_state.append((route, response.content))
+
+                page.route(f"**/artifacts/{app.deck_id}/mentions/*/read", hold_ack)
+                page.route(f"**{second_state}", hold_state)
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                unread = page.get_by_role("button", name="1 unread mention")
+                switcher = page.locator("#deck-switcher")
+                with page.expect_request(lambda request: "/mentions/" in request.url):
+                    unread.click()
+                expect(page.locator("#feedback-list .mentioned")).to_contain_text("First deck only")
+                with page.expect_request(lambda request: request.url.endswith(second_state)):
+                    switcher.click()
+                    page.get_by_role("menuitemradio", name="Fictional second deck").click()
+                expect(unread).to_be_hidden()
+                assert len(held_ack) == len(held_state) == 1
+                stale_reads: list[str] = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        stale_reads.append(request.url)
+                        if request.url.endswith(first_state)
+                        else None
+                    ),
+                )
+                ack, ack_body = held_ack.pop()
+                with page.expect_response(lambda response: "/mentions/" in response.url):
+                    ack.fulfill(status=200, content_type="application/json", body=ack_body)
+                page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+                state, state_body = held_state[0]
+                state.fulfill(status=200, content_type="application/json", body=state_body)
+                expect(unread).to_be_visible()
+                assert stale_reads == []
+                unread.click()
+                expect(page.locator("#feedback-list .mentioned")).to_contain_text(
+                    "Second deck only"
+                )
+                expect(page.locator("#feedback-list")).not_to_contain_text("First deck only")
+                expect(unread).to_be_hidden()
+        finally:
+            browser.close()
+
+
 @pytest.mark.parametrize("presentation", [True, False], ids=["slides", "artifact"])
 def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentation: bool) -> None:
     """Fictional guests see incoming messages at left and their own replies at right."""
