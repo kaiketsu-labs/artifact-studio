@@ -140,7 +140,7 @@
   const sharedEditor=doc.documentElement.hasAttribute('data-shared-editor');
   const canManageWorkspace=()=>!sharedEditor||doc.documentElement.hasAttribute('data-workspace-owner');
   const studioHome=root.ArtifactSession.home();
-  const nativeChat=sharedEditor||new URLSearchParams(root.location.search).get('chat')==='shared';
+  const nativeChat=sharedEditor||doc.documentElement.hasAttribute('data-native-conversation');
   doc.documentElement.toggleAttribute('data-native-conversation',nativeChat);
   const scopedChat=root.StudioNativeConversation.create({api});
   const collaborationChat=nativeChat?scopedChat:null;
@@ -539,8 +539,6 @@
   }
   function library() {
     if(sharedEditor)doc.querySelector('[data-new-presentation]').href=presentationCreationUrl(state.project);
-    const collaboration=doc.querySelector('[data-collaborate]');
-    if(collaboration)delete collaboration.dataset.artifact;
     if(!initialProjectRecorded){initialProjectRecorded=true;if(!sharedEditor&&selectedProject(state.project))void quickAccess.visit({project_id:state.project});}
     void voice.stop();
     properties?.destroy();properties=null;
@@ -811,12 +809,10 @@
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');!id&&!['all','designs'].includes(state.project)?url.searchParams.set('project',state.project):url.searchParams.delete('project');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
     if(!resetEditor())return;coverLoader.clear();closeTreeMenu();workspacePanels.exitView();
-    const collaboration=doc.querySelector('[data-collaborate]');
-    if(collaboration)collaboration.dataset.artifact=id;
     void voice.stop();
     state.designActive=null;
     const item=state.artifacts.find(item=>item.id===id);
-    if(item?.legacy_deck_id){if(!sharedEditor)await quickAccess.visit({project_id:item.project_id});root.location.href=`${studioHome}?deck=${encodeURIComponent(item.legacy_deck_id)}${nativeChat&&!sharedEditor?'&chat=shared':''}${push?'':root.location.hash}`;return;}
+    if(item?.legacy_deck_id){if(!sharedEditor)await quickAccess.visit({project_id:item.project_id});root.location.href=`${studioHome}?deck=${encodeURIComponent(item.legacy_deck_id)}${push?'':root.location.hash}`;return;}
     const token=++state.loading;state.active=id;state.selecting=false;state.sourceView=false;state.newRevision=null;
     content.innerHTML='<main class="hub-loading" role="status">Opening artifact…</main>';
     try {

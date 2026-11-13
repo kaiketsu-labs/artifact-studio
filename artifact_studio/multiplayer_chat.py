@@ -226,6 +226,25 @@ class Conversations:
                 if person != actor.person
             ]
 
+    def incoming_cursors(self, actor: Actor, scope: Scope) -> dict[str, dict[str, int]]:
+        """Return the latest visible incoming message for each conversation and slide."""
+        if actor.agent:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            rows = db.execute(
+                "SELECT c.channel, COALESCE(json_extract(c.target, '$.slide_id'), '') AS slide, "
+                "MAX(d.id) AS cursor FROM conversations c JOIN chat_delivery d ON d.message=c.id "
+                "WHERE c.workspace=? AND c.artifact=? AND c.released=1 AND c.author<>? "
+                "AND (c.channel='shared' OR c.person=?) GROUP BY c.channel, slide",
+                (scope.workspace, scope.resource, actor.person, actor.person),
+            )
+            result: dict[str, dict[str, int]] = {"shared": {}, "private": {}}
+            for row in rows:
+                result[cast(str, row["channel"])][cast(str, row["slide"])] = cast(
+                    int, row["cursor"]
+                )
+            return result
+
     def mentions(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:
         """Return released unread mentions for this person in this artifact."""
         if actor.agent:

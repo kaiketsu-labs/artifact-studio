@@ -103,7 +103,6 @@
     <button id="deck-presence" type="button" popovertarget="deck-viewers" aria-label="People in this deck" hidden></button>
     <ul id="deck-viewers" popover aria-label="People in this deck"></ul>
     <button type="button" data-session-mode aria-label="About workspace" aria-haspopup="dialog" class="hub-session-mode" hidden>Local</button>
-    <button type="button" data-collaborate class="quiet" hidden>Collaborate</button>
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
     <button id="share-artifact" class="quiet" type="button" aria-label="Share presentation" title="Share presentation" disabled></button>
     <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
@@ -185,10 +184,14 @@
   <div id="chat-resizer" class="chat-resizer" role="separator" tabindex="0" aria-label="Resize chat panel" aria-orientation="vertical" aria-controls="chat-panel" title="Drag to resize chat · Arrow keys to resize · Enter or double-click to reset"></div>
   <aside id="chat-panel" class="discussion" aria-label="Agent context and feedback">
     <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="shared-deck-role" hidden></span><span id="feedback-count"></span><button id="chat-question-status" type="button" hidden aria-label="Jump to unanswered question"></button></header>
-    <section class="delivery-panel" aria-label="Feedback delivery mode">
-      <label class="shared-channel" id="shared-channel-control" hidden><span class="sr-only">Conversation</span><select id="shared-channel"><option value="shared">Shared</option><option value="private">My agent</option></select></label>
+    <div class="chat-tabs" id="chat-tabs" role="tablist" aria-label="Conversation" hidden>
+      <button type="button" id="chat-tab-shared" role="tab" data-chat-channel="shared" aria-selected="true" aria-controls="feedback-list">Shared<span class="chat-unread-dot" hidden aria-hidden="true"></span></button>
+      <button type="button" id="chat-tab-private" role="tab" data-chat-channel="private" aria-selected="false" aria-controls="feedback-list" tabindex="-1">Agent<span class="chat-unread-dot" hidden aria-hidden="true"></span></button>
+    </div>
+    <section class="delivery-panel" aria-label="Feedback delivery" hidden>
       <div class="mode-switch"><button id="mode-live" type="button" aria-pressed="true">Live</button><button id="mode-batch" type="button" aria-pressed="false">Batch</button></div>
       <button id="send-batch" type="button" hidden>Send batch</button>
+      <button id="send-legacy-batch" type="button" hidden>Send earlier review comments</button>
     </section>
     <details id="agent-panel" class="agent-panel" hidden>
       <summary>Agent notes</summary><p id="agent-summary"></p><div id="brief-attachments"></div>
@@ -200,6 +203,7 @@
     <form id="feedback-form" class="feedback-compose">
       <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><span id="feedback-design-context" class="feedback-design-context" hidden></span><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <div id="target-members" class="target-members" aria-label="Selected objects" hidden></div>
+      <label id="chat-ask-agent" hidden><input id="chat-ask-agent-input" type="checkbox"> Ask my agent</label>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>
       <div id="voice-feedback-segments" class="voice-segments" aria-label="Dictated feedback" hidden></div>

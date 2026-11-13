@@ -1,9 +1,6 @@
-/* Keep the current artifact selected when moving from the editor to collaboration. */
+/* Share the current workspace, project or artifact and connect scoped agents. */
 ((root) => {
   'use strict';
-  const button = document.querySelector('[data-collaborate]');
-  if (!button) return;
-
   const sessionInfo = root.ArtifactSession.get();
   const workspaceAPI = '/api/workspaces/' + root.ArtifactSession.workspace;
   async function scopedRequest(path, payload) {
@@ -221,8 +218,6 @@
   sessionInfo.then(session => {
 
     if (session.collaboration_url !== '/together') return;
-    root.SlideIcons.button(button, 'chat', 'Collaborate', true);
-    button.hidden = !!session.scoped_editor;
     const showCurrentInvitation = () => {
       const token = new URLSearchParams(root.location.hash.slice(1)).get('invite');
       if (token && token.length <= 200) showJoin(session, token);
@@ -231,26 +226,13 @@
     showCurrentInvitation();
     root.StudioInvitation.available = !session.scoped_editor || session.workspace_owner === true;
     document.documentElement.toggleAttribute('data-workspace-owner', session.workspace_owner === true);
-    const chatURL = new URL(root.location.href);
-    const shared = chatURL.searchParams.get('chat') === 'shared';
-    if (shared && !session.scoped_editor) root.SlideIcons.button(button, 'chat', 'Local review', true);
-    button.addEventListener('click', () => {
-      const current = new URL(root.location.href);
-      const artifact = current.searchParams.get('deck') || button.dataset.artifact;
-      if (!artifact || session.scoped_editor) { root.StudioAbout?.open(button); return; }
-      if (!root.dispatchEvent(new CustomEvent('studio:before-conversation-change', {cancelable: true}))) return;
-      if (shared) current.searchParams.delete('chat');
-      else current.searchParams.set('chat', 'shared');
-      root.location.assign(current);
-    });
-
     document.querySelectorAll('#connect-button, [data-hub-connect]').forEach(entry => {
       entry.addEventListener('click', event => {
         event.preventDefault();
         event.stopImmediatePropagation();
         const params = new URLSearchParams(root.location.search);
         const designs = params.get('view') === 'designs';
-        const artifact = designs ? null : params.get('deck') || button.dataset.artifact;
+        const artifact = designs ? null : params.get('deck') || params.get('artifact');
         const project = designs ? null : params.get('project');
         if (!artifact && (!project || project === 'shared-with-me') && session.scoped_editor && !session.workspace_owner) {
           const dialog = document.createElement('dialog');
@@ -270,5 +252,5 @@
     });
   }).catch(() => {});
 
-  root.addEventListener('artifact-session-expired', () => { button.hidden = true; root.StudioInvitation.available = false; });
+  root.addEventListener('artifact-session-expired', () => { root.StudioInvitation.available = false; });
 })(window);

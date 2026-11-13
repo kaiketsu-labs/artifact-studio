@@ -413,6 +413,7 @@ def create_app(
                 "draft_counts": draft_counts,
                 "contacts": [] if actor.agent else chat.contacts(actor, scope),
                 "mentions": [] if actor.agent else chat.mentions(actor, scope),
+                "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")

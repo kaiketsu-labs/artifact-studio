@@ -209,6 +209,14 @@ In Shared chat, type `@` and choose a collaborator with access to the
 presentation. Studio highlights the message for that person. Their unread
 mention badge opens the referenced slide and message.
 
+Open a presentation and use **Shared** to discuss it with collaborators or
+**Agent** for a private conversation. A dot marks new messages in a tab.
+Switching tabs keeps each unsent draft with its own conversation. If you have a
+connected agent with edit access, select **Ask my agent** in Shared to send a
+request whose reply stays in Shared. Messages in Agent go to the same connection
+and its replies stay private. If you have comments saved by the earlier batch
+workflow, a **Send queued comments** button is shown in that conversation.
+
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
    Access, and complete MFA. The regular library opens at **All artifacts**.
    Select a project in the sidebar to see its work.
