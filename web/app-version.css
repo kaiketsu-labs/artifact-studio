@@ -42,6 +42,49 @@ body:has(dialog[open])>.app-session-expired{display:none}
 
 .app-hosted-hooks{display:inline-flex;align-items:center;min-height:44px}.app-hosted-hooks[hidden]{display:none}
 .hub-session-mode[hidden]{display:none}
+.app-sidebar-footer {
+  flex: none;
+  margin-top: auto;
+  border-top: 1px solid var(--hub-line, var(--line));
+  padding: 4px;
+}
+.app-sidebar-footer[hidden] { display: none; }
+.app-sidebar-footer > button {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--hub-muted, var(--subtle));
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.app-sidebar-footer > button:hover { background: var(--hub-hover, var(--hover)); }
+.hub-sidebar:has(.app-sidebar-footer:not([hidden])) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.hub-sidebar > .app-sidebar-footer { padding-inline: 0; }
+.hub-sidebar > .app-sidebar-footer > button { width: 100%; padding-inline: 8px; }
+@media (max-width: 650px) {
+  .app-sidebar-footer > button { min-height: 44px; }
+  .hub-sidebar[aria-label="Project artifacts"]:has(.app-sidebar-footer:not([hidden])) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 5px;
+  }
+  .hub-sidebar[aria-label="Project artifacts"] > :is(nav, .app-sidebar-footer) {
+    grid-column: 1 / -1;
+  }
+  .hub-sidebar[aria-label="Project artifacts"] > nav { overflow-x: auto; }
+}
 .studio-report form,.studio-report form>label{display:grid;gap:8px}
 .studio-report form{gap:12px}
 .studio-report input:not([type=file]),.studio-report textarea{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:transparent;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:6px;padding:8px}

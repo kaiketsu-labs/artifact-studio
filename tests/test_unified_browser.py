@@ -661,7 +661,10 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                         "href", re.compile(r"^/workspaces/" + workspace + "/decks/")
                     )
                     page.locator("#feedback-text").fill("Unsent draft")
-                    expect(page.locator("[data-server-version]")).to_be_visible()
+                    sidebar = page.locator(".rail, .hub-sidebar")
+                    expect(
+                        sidebar.locator(".app-sidebar-footer:last-child [data-server-version]")
+                    ).to_be_visible()
                     page.locator("#workspace-menu-button").click()
                     page.locator("[data-app-about]").click()
                     expect(page.locator(".app-security-checks")).to_be_hidden()
