@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from artifact_studio import copilot_capture, visuals
 from artifact_studio.copilot_capture import audience_clone
 from artifact_studio.copilot_tools import ScopedTools
 from artifact_studio.models import AgentContext, SlidePatch
@@ -143,3 +144,20 @@ def test_contact_sheet_bounds_and_scope(store: Store) -> None:
         _ = scoped.capture_contact_sheet(DECK, limit=9)
     with pytest.raises(ValueError):
         _ = ScopedTools(store, "unrelated-project", False).capture_contact_sheet(DECK)
+
+
+def test_rejected_contact_sheets_never_clone_assets(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject invalid pagination and a full renderer queue before copying any assets."""
+
+    def unexpected_clone(*_args: object) -> Store:
+        raise AssertionError("Rejected request cloned audience assets")
+
+    monkeypatch.setattr(copilot_capture, "audience_clone", unexpected_clone)
+    monkeypatch.setattr(visuals, "check_renderer_available", lambda: None)
+    monkeypatch.setattr(visuals, "_RENDER_QUEUE", visuals.RenderQueue(capacity=0))
+    with pytest.raises(ValueError, match="offset"):
+        _ = copilot_capture.capture_cloud_contact_sheet(store, DECK, offset=-1)
+    with pytest.raises(ValueError, match="queue is full"):
+        _ = copilot_capture.capture_cloud_contact_sheet(store, DECK)
