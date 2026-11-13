@@ -60,12 +60,13 @@
       const body=checks.querySelector('div');body.replaceChildren();
       const counts=security?.counts;
       const summary=checks.querySelector('summary');
-      summary.textContent=counts?`Server checks · ${security.summary==='review'?'Review needed':'Configuration'} · ${counts.warnings} warning${counts.warnings===1?'':'s'}, ${counts.unverified} unverified`:'Server checks · unavailable';
+      summary.textContent=counts?`Server checks · ${security.summary==='review'?'Review needed':'Configuration'} · ${counts.warnings} warning${counts.warnings===1?'':'s'}, ${counts.unverified} external check${counts.unverified===1?'':'s'}`:'Server checks · unavailable';
       if(!Array.isArray(security?.checks)){body.textContent='Server checks are unavailable. Ask your server administrator to review the deployment configuration.';return;}
+      const explanation=doc.createElement('p');explanation.textContent='External checks cover settings your server administrator verifies outside Studio.';body.append(explanation);
       const order={warning:0,unverified:1,pass:2};
       for(const check of [...security.checks].sort((a,b)=>(order[a.status]??1)-(order[b.status]??1))){
         const item=doc.createElement('details');item.className='app-security-item';
-        const title=doc.createElement('summary');title.textContent=`${check.status==='pass'?'Configured':check.status==='warning'?'Warning':'Unverified'}: ${check.title}`;
+        const title=doc.createElement('summary');title.textContent=`${check.status==='pass'?'Configured':check.status==='warning'?'Warning':'External check'}: ${check.title}`;
         const detail=doc.createElement('p');detail.textContent=check.detail;item.append(title,detail);body.append(item);
       }
       const guide=doc.createElement('a');guide.href='https://github.com/kaiketsu-labs/artifact-studio/blob/main/docs/HOSTED.md';guide.target='_blank';guide.rel='noopener noreferrer';guide.textContent='Hosted setup guide';body.append(guide);

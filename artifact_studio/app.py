@@ -1772,11 +1772,12 @@ def workspace(request: Request, deck: str = "", editor: bool = False) -> Respons
 def session_info(request: Request) -> dict[str, object]:
     """Identify the active workspace without exposing credentials or server paths."""
     hosted = deployment.mode == "hosted"
+    unified = bool(getattr(request.state, "unified_studio", False))
     origin = deployment.public_url if hosted else str(request.base_url).rstrip("/")
     principal = cast(Principal | None, getattr(request.state, "principal", None))
     return {
         "mode": deployment.mode,
-        "collaboration_url": "/together" if getattr(request.state, "unified_studio", False) else "",
+        "collaboration_url": "/together" if unified else "",
         "public_url": origin,
         "mcp_url": origin + "/mcp",
         "auth_provider": deployment.auth_provider if hosted else "none",
@@ -1787,14 +1788,16 @@ def session_info(request: Request) -> dict[str, object]:
             "automatic_feedback": not hosted,
             "hosted_hooks": hosted,
         },
-        "security": security_report(deployment).model_dump(),
+        "security": security_report(deployment, scoped_sharing=unified).model_dump(),
     }
 
 
 @app.get("/api/deployment/security")
-def deployment_security() -> SecurityReport:
+def deployment_security(request: Request) -> SecurityReport:
     """Expose configuration facts and external checks without credentials or member lists."""
-    return security_report(deployment)
+    return security_report(
+        deployment, scoped_sharing=bool(getattr(request.state, "unified_studio", False))
+    )
 
 
 @app.get("/api/copilot/setup/{document}", response_class=FileResponse)
