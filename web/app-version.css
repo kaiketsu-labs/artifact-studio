@@ -44,3 +44,14 @@ dialog.app-about{max-height:calc(100dvh - 32px);overflow:auto}@media(max-width:6
 body:has(dialog[open])>.app-session-expired{display:none}
 
 .app-hosted-hooks{display:inline-flex;align-items:center;min-height:44px}.app-hosted-hooks[hidden]{display:none}
+.studio-report form,.studio-report form>label{display:grid;gap:8px}
+.studio-report form{gap:12px}
+.studio-report input:not([type=file]),.studio-report textarea{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:transparent;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:6px;padding:8px}
+.studio-report textarea{resize:vertical}
+.studio-report form p{margin:0;font-size:13px}
+.studio-report [role=status]:empty{display:none}
+.studio-report-actions,.studio-report figcaption{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.studio-report-actions input{display:block;max-width:100%}
+.studio-report figure{margin:0}
+.studio-report img{display:block;max-width:100%;max-height:200px;object-fit:contain;margin-bottom:8px}
+.studio-report-capturing{opacity:0}.studio-report-capturing::backdrop{background:transparent}
