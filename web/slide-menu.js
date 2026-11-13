@@ -4,7 +4,7 @@
   function create({menu,returnFocus}){
     const doc=menu.ownerDocument,view=doc.defaultView;
     const branches=[...menu.querySelectorAll('[data-slide-submenu]')].map(trigger=>({trigger,panel:doc.getElementById(trigger.getAttribute('aria-controls'))}));
-    let active=null,hoverTimer=null,closeTimer=null;
+    let active=null,hoverTimer=null,closeTimer=null,anchorBounds=null;
     const rows=panel=>[...panel.querySelectorAll('button:not(:disabled)')].filter(button=>button.closest('[role="menu"]')===panel&&button.getClientRects().length);
     const clearTimers=()=>{view.clearTimeout(hoverTimer);view.clearTimeout(closeTimer);};
     function closeBranch(focus=false){
@@ -39,7 +39,7 @@
     }
     function close(focus=false){closeBranch();if(menu.matches(':popover-open'))menu.hidePopover();if(focus)returnFocus()?.focus({preventScroll:true});}
     function open({x,y,anchor}){
-      close();menu.showPopover();clamp(x??anchor.right-15,y??anchor.top+12);rows(menu)[0]?.focus();
+      close();anchorBounds=anchor;menu.showPopover();clamp(x??anchor.right-15,y??anchor.top+12);rows(menu)[0]?.focus({preventScroll:true});
     }
     for(const branch of branches){
       const {trigger,panel}=branch;
@@ -68,7 +68,12 @@
       buttons[next]?.focus();
     });
     view.addEventListener('resize',()=>close());
-    doc.addEventListener('scroll',event=>{if(menu.contains(event.target)){if(event.target===menu&&active&&!active.panel.classList.contains('is-inline'))closeBranch();}else if(menu.matches(':popover-open'))close();},true);
+    doc.addEventListener('scroll',event=>{
+      if(menu.contains(event.target)){if(event.target===menu&&active&&!active.panel.classList.contains('is-inline'))closeBranch();return;}
+      if(!menu.matches(':popover-open'))return;
+      const anchor=returnFocus()?.getBoundingClientRect();
+      if(!anchor||anchor.left!==anchorBounds.left||anchor.top!==anchorBounds.top)close();
+    },true);
     return {open,close};
   }
   root.SlideMenu={create};
