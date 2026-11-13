@@ -23,9 +23,10 @@
     dialog.className = 'studio-share'; dialog.setAttribute('aria-labelledby','studio-share-title');
     doc.body.append(dialog);
     let target = null, format = null, includeHidden = true, prepared = null, busy = false, epoch = 0, trigger = null;
-    let capabilities = null, preparing = null, nativeFile = null, generation = 0, nativeState = 'waiting';
-    async function exchange(path, body) {
-      const response = await view.fetch(view.ArtifactSession?.path?.(path) ?? path, body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    let capabilities = null, preparing = null, nativeFile = null, generation = 0, nativeState = 'waiting', preparationController = null;
+    async function exchange(path, body, signal) {
+      const options=body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
+      const response = await view.fetch(view.ArtifactSession?.path?.(path) ?? path, {...options,signal});
       view.ArtifactSession?.observe?.(response);view.ArtifactSession?.assertActive?.();
       const result = await response.json();
       if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : 'Could not prepare the shared file.');
@@ -69,8 +70,10 @@
     async function prepare() {
       if (!prepared && !preparing) {
         status('Preparing attachment…');
-        const version=generation;
-        preparing=exchange('/api/shares',requestFor(target, format, includeHidden)).then(receipt=>{if(version===generation)prepared=receipt;return receipt;}).finally(()=>{if(version===generation)preparing=null;});
+        const version=generation, controller=new view.AbortController();
+        preparationController=controller;
+        const timeout=view.setTimeout(()=>controller.abort(), 90000);
+        preparing=exchange('/api/shares',requestFor(target, format, includeHidden),controller.signal).catch(error=>{if(controller.signal.aborted && version===generation)throw new Error('Preparing the attachment timed out. Try again or choose HTML.');throw error;}).then(receipt=>{if(version===generation)prepared=receipt;return receipt;}).finally(()=>{view.clearTimeout(timeout);if(version===generation){preparing=null;preparationController=null;}});
       }
       const receipt=prepared || await preparing;
       if(receipt===prepared){
@@ -98,31 +101,34 @@
     async function deliver(destination) {
       if (busy) return;
       if(destination==='system' && nativeState==='failed'){void warmSystem();return;}
-      busy=true; controls();dialog.querySelector('.studio-share-error').hidden=true;
+      const version=generation;busy=true; controls();dialog.querySelector('.studio-share-error').hidden=true;
       try {
         // No asynchronous work before this call: Safari needs the destination click's activation.
-        if(destination==='system') {if(!nativeFile)return;await view.navigator.share({files:[nativeFile],title:target.title});status('Shared with selected app.');return;}
+        if(destination==='system') {if(!nativeFile)return;await view.navigator.share({files:[nativeFile],title:target.title});if(version===generation)status('Shared with selected app.');return;}
         const file=await prepare();
+        if(version!==generation)return;
         if (destination==='outlook') {
           status('Opening Outlook…');
           await exchange(`/api/shares/${encodeURIComponent(file.token)}/outlook`,{});
-          status('Draft opened in Outlook.');
+          if(version===generation)status('Draft opened in Outlook.');
         } else if (destination==='save') {
-          const url=scoped?view.URL.createObjectURL(await attachmentBlob(file)):file.download_url;
+          const blob=scoped?await attachmentBlob(file):null;
+          if(version!==generation)return;
+          const url=blob?view.URL.createObjectURL(blob):file.download_url;
           const link=doc.createElement('a');link.href=url;link.download=file.filename;doc.body.append(link);link.click();link.remove();
           if(scoped)view.setTimeout(()=>view.URL.revokeObjectURL(url),30_000);
           status(file.filename);
         }
-      } catch(error) { status('');if(error.name!=='AbortError')showError(destination==='system'?new Error('Could not open sharing. Try again or save the file.'):error); }
-      finally { busy=false;controls(); }
+      } catch(error) { if(version===generation){status('');if(error.name!=='AbortError')showError(destination==='system'?new Error('Could not open sharing. Try again or save the file.'):error);} }
+      finally { if(version===generation){busy=false;controls();} }
     }
-    dialog.addEventListener('change',event=>{if(['share-format','share-include-hidden'].includes(event.target.name)){generation++;if(event.target.name==='share-format')format=event.target.value;else includeHidden=event.target.checked;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';status('');dialog.querySelector('.studio-share-error').hidden=true;controls();void warmSystem();}});
+    dialog.addEventListener('change',event=>{if(['share-format','share-include-hidden'].includes(event.target.name)){generation++;preparationController?.abort();preparationController=null;if(event.target.name==='share-format')format=event.target.value;else includeHidden=event.target.checked;prepared=null;preparing=null;nativeFile=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';status('');dialog.querySelector('.studio-share-error').hidden=true;controls();void warmSystem();}});
     dialog.addEventListener('click',event=>{
       if(event.target.closest('[data-share-close]')){dialog.close();return;}
       const button=event.target.closest('[data-destination]');
       if(button && !button.onclick)void deliver(button.dataset.destination);
     });
-    dialog.addEventListener('close',()=>{epoch++;generation++;nativeFile=null;if(trigger?.isConnected)trigger.focus({preventScroll:true});});
+    dialog.addEventListener('close',()=>{epoch++;generation++;preparationController?.abort();preparationController=null;busy=false;nativeFile=null;if(trigger?.isConnected)trigger.focus({preventScroll:true});});
     return {async open(value,opener=doc.activeElement) {
       if(dialog.open || busy)return;
       trigger=opener;generation++;target={...value};format=null;includeHidden=true;prepared=null;preparing=null;nativeFile=null;capabilities=null;nativeState=typeof view.navigator.share==='function'?'waiting':'unsupported';busy=false;const version=++epoch;render();dialog.showModal();void warmSystem();
