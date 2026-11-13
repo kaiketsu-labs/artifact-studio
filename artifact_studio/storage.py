@@ -686,6 +686,8 @@ class Store:
             removed = {cast(str, row[0]) for row in db.execute("SELECT deck FROM archived_decks")}
         result: list[dict[str, str]] = []
         for file in sorted(self.root.glob("*/index.html")):
+            if file.parent.name.startswith("."):
+                continue
             if (file.parent.name in removed) != archived:
                 continue
             if 'id="deck-data"' not in file.read_text():
@@ -1154,6 +1156,8 @@ class Store:
         with self.connect() as db:
             archived = {str(row[0]) for row in db.execute("SELECT folder FROM design_archives")}
         for manifest in sorted(self.root.glob("*/design.json")):
+            if manifest.parent.name.startswith("."):
+                continue
             if not include_archived and manifest.parent.name in archived:
                 continue
             folder = self.folder(manifest.parent.name)

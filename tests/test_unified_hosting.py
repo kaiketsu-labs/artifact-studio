@@ -32,6 +32,30 @@ from tests.test_multiplayer_server import accept, agent, grant, human
 from tests.test_multiplayer_simulation import Peer
 
 
+def test_design_transfers_require_workspace_ownership(tmp_path: Path) -> None:
+    """Shared edit access does not expose private design ZIPs or install designs."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.project_id, "edit", "project"))
+        path = "/api/design-library/test-brand/export"
+        response = owner.get(path).raise_for_status()
+        assert response.headers["content-disposition"].endswith('test-brand.design.zip"')
+        assert alice.get(path).status_code == 404
+        headers = {"content-type": "application/zip"}
+        upload = "/api/design-library/import"
+        assert alice.post(upload, content=response.content, headers=headers).status_code == 404
+        assert owner.post(upload, content=response.content, headers=headers).status_code == 409
+        workspace = owner.post("/api/workspaces", json={"title": "Design destination"})
+        prefix = "/workspaces/" + workspace.raise_for_status().json()["id"]
+        imported = owner.post(prefix + upload, content=response.content, headers=headers)
+        assert imported.raise_for_status().json()["id"] == "test-brand"
+        assert "local_path" not in imported.text
+        assert owner.get(prefix + path).status_code == 200
+
+
 def test_scoped_exports_follow_the_reader_and_current_project_access(tmp_path: Path) -> None:
     """Bind prepared downloads to their reader and recheck every archived artifact."""
     with (
