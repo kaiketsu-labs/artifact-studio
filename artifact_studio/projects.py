@@ -798,10 +798,17 @@ def audience_html(
     printing: bool = False,
     include_hidden: bool = True,
     scoped_embedder: AssetEmbedder | None = None,
+    slide_ids: list[str] | None = None,
 ) -> str:
     """Build one offline audience document, excluding private notes and conversations."""
     deck = store.read(deck_id).model_copy(deep=True)
     deck.sections = []
+    if slide_ids is not None:
+        known = {slide.id for slide in deck.slides}
+        if not slide_ids or len(slide_ids) != len(set(slide_ids)) or not set(slide_ids) <= known:
+            raise ValueError("Select existing slides exactly once.")
+        selected = set(slide_ids)
+        deck.slides = [slide for slide in deck.slides if slide.id in selected]
     if printing and not include_hidden:
         deck.slides = [slide for slide in deck.slides if not slide.hidden]
         if not deck.slides:

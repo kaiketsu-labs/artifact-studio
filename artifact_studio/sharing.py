@@ -218,6 +218,7 @@ class SharingService:
         deadline: float | None = None,
         *,
         include_hidden: bool = True,
+        slide_ids: list[str] | None = None,
     ) -> PreparedShare:
         """Capture one selected revision, requiring a format for presentations."""
         if artifact.legacy_deck_id:
@@ -231,6 +232,7 @@ class SharingService:
                     artifact.legacy_deck_id,
                     printing=format == "pdf",
                     include_hidden=include_hidden,
+                    slide_ids=slide_ids,
                 )
             else:
                 document = audience_html(
@@ -239,6 +241,7 @@ class SharingService:
                     printing=format == "pdf",
                     include_hidden=include_hidden,
                     scoped_embedder=ScopedDeckEmbedder(self.store, artifact.legacy_deck_id),
+                    slide_ids=slide_ids,
                 )
             current = self.artifacts.get_artifact(artifact.id)
             if current.content_hash != artifact.content_hash or (
@@ -258,6 +261,8 @@ class SharingService:
                 data,
                 ((artifact.id, artifact.revision),),
             )
+        if slide_ids is not None:
+            raise ValueError("Slide selection requires a presentation.")
         files, excluded = audience_files(
             self.artifacts.snapshot_files(artifact.id, artifact.revision)
         )
@@ -340,6 +345,7 @@ class SharingService:
         format: ShareFormat | None = None,
         *,
         include_hidden: bool = True,
+        slide_ids: list[str] | None = None,
     ) -> PreparedShare:
         """Build a single file or archive from the selected immutable revisions."""
         artifacts = selection.artifacts
@@ -350,7 +356,11 @@ class SharingService:
         ):
             raise ValueError("Share files up to 100 MB. Export a smaller selection.")
         if selection.project_title is None:
-            return self._prepare(artifacts[0], format, deadline, include_hidden=include_hidden)
+            return self._prepare(
+                artifacts[0], format, deadline, include_hidden=include_hidden, slide_ids=slide_ids
+            )
+        if slide_ids is not None:
+            raise ValueError("Slide selection requires one presentation.")
         members = [
             (f"{index:02d}-{_filename(artifact.title)}", artifact)
             for index, artifact in enumerate(artifacts, 1)

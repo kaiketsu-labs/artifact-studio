@@ -739,18 +739,29 @@
     finally{visibilityBusy=false;orderEpoch++;updateComposer();renderVisibility();renderRail();$('toggle-slide-hidden').disabled=false;void refresh();}
   }
   const slideMenu=window.SlideMenu.create({menu:$('slide-menu'),returnFocus:()=>menuSlide?.deckId===deck?.id?$('slides').querySelector(`[data-id="${CSS.escape(menuSlide.id)}"]`):null});
-  for(const control of $('slide-menu').querySelectorAll('[data-slide-submenu]')){const copy=control.dataset.slideSubmenu==='copy';iconButton(control,copy?'copy':'slides',copy?'Copy':'Organize',true);control.insertAdjacentHTML('beforeend','<span class="slide-submenu-arrow" aria-hidden="true">›</span>');}
+  for(const control of $('slide-menu').querySelectorAll('[data-slide-submenu]')){const kind=control.dataset.slideSubmenu;iconButton(control,({copy:'copy',export:'download',organize:'slides'})[kind],({copy:'Copy',export:'Export',organize:'Organize'})[kind],true);control.insertAdjacentHTML('beforeend','<span class="slide-submenu-arrow" aria-hidden="true">›</span>');}
   async function openSlideMenu(id,point){
-    if(!canEditShared())return;
     if(visibilityBusy||slideOrder.isBusy()||slideActions.isBusy())return;
     const menu=$('slide-menu'),button=$('toggle-slide-hidden'),count=slideOrder.selection().length,selection=$('slide-menu-selection');selection.hidden=count<2;selection.innerHTML=svg('slides')+`<span>${count} selected</span>`;selection.setAttribute('aria-label',`${count} slides selected`);menuSlide={deckId:deck.id,id,contentHash:slide().content_hash};const hide=(pendingDeck||deck).slides.some(item=>slideOrder.selection().includes(item.id)&&!item.hidden);iconButton(button,hide?'eye':'eyeOff',`${hide?'Hide':'Unhide'} ${count>1?'selected slides':'slide'}`,true);for(const control of menu.querySelectorAll('[data-slide-action]')){const action=control.dataset.slideAction;iconButton(control,{add:'slideAdd',duplicate:'copy',delete:'trash'}[action],{add:'New slide',duplicate:count>1?'Duplicate slides':'Duplicate slide',delete:count>1?'Delete slides':'Delete slide'}[action],true);control.disabled=action==='delete'?count===(pendingDeck||deck).slides.length:action==='add'?(pendingDeck||deck).slides.length>=100:(pendingDeck||deck).slides.length+count>100;}
-    for(const control of menu.querySelectorAll('[data-slide-extra]')){const action=control.dataset.slideExtra;iconButton(control,({comment:'chat',present:'present',history:'history',copyimage:'image',copylink:'copy',favorite:'star',section:'sectionAdd',selectall:'slides'})[action],({comment:'New comment',present:'Present from here',history:'Version history',copyimage:'Copy as image',copylink:'Copy slide link',favorite:window.FavoriteSlides.actionLabel(window.FavoriteSlides.has('slide',deck.id,id)),section:'Add section',selectall:'Select all slides'})[action],true);control.disabled=(action==='history'||action==='copyimage')&&count>1||action==='copyimage'&&copyingSlideImage;}
+    for(const control of menu.querySelectorAll('[data-slide-action],[data-slide-move],#toggle-slide-hidden,[data-slide-submenu=copy],[data-slide-submenu=organize], [data-slide-extra]:not([data-slide-extra^=export])'))control.hidden=!canEditShared();
+    for(const control of menu.querySelectorAll('[data-slide-extra]')){const action=control.dataset.slideExtra;iconButton(control,({comment:'chat',present:'present',history:'history',copyimage:'image',copylink:'copy',favorite:'star',section:'sectionAdd',selectall:'slides',exporthtml:'code',exportpdf:'pdf'})[action],({comment:'New comment',present:'Present from here',history:'Version history',copyimage:'Copy as image',copylink:'Copy slide link',favorite:window.FavoriteSlides.actionLabel(window.FavoriteSlides.has('slide',deck.id,id)),section:'Add section',selectall:'Select all slides',exporthtml:'HTML',exportpdf:'PDF'})[action],true);control.disabled=(action==='history'||action==='copyimage')&&count>1||action==='copyimage'&&copyingSlideImage;}
     for(const control of menu.querySelectorAll('[data-slide-move]')){const action=control.dataset.slideMove;iconButton(control,action,{up:'Move up',down:'Move down',first:'Move to beginning',last:'Move to end'}[action],true);control.disabled=!slideOrder.canMove(action);}
     const anchor=$('slides').querySelector(`[data-id="${CSS.escape(id)}"]`).getBoundingClientRect();slideMenu.open({...point,anchor});
   }
   $('slide-menu').addEventListener('click',async event=>{
     const control=event.target.closest('[data-slide-extra]');if(!control||control.disabled||menuSlide?.deckId!==deck?.id)return;
     const id=menuSlide.id;slideMenu.close();
+    if(control.dataset.slideExtra==='exporthtml'||control.dataset.slideExtra==='exportpdf'){
+      const format=control.dataset.slideExtra==='exportpdf'?'pdf':'html',deckId=deck.id,ids=slideOrder.selection();
+      toast('Preparing export…');
+      try{
+        const receipt=await api('/api/shares',{scope:'artifact',id:deckId,format,slide_ids:ids});
+        const response=await fetch(receipt.download_url);window.ArtifactSession?.observe(response);window.ArtifactSession?.assertActive();
+        if(!response.ok)throw new Error('The export is unavailable. Your access may have changed.');
+        const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=receipt.filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);toast('Export downloaded.');
+      }catch(error){toast(error.message,true);}
+      return;
+    }
     if(control.dataset.slideExtra==='copyimage'){
       if(copyingSlideImage)return;const context=menuSlide;copyingSlideImage=true;toast('Preparing slide image…');
       try{await window.ImageExport.copy(`/api/decks/${encodeURIComponent(context.deckId)}/slides/${encodeURIComponent(context.id)}/image`,{content_hash:context.contentHash});toast('Slide image copied.');}
