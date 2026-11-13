@@ -48,6 +48,7 @@ def test_hosted_design_cover_keeps_local_assets_and_layout(
             tmp_path / "server.log",
             unified=True,
             personal_workspace_emails=("alice@example.test",),
+            startup_timeout=45,
         ) as app,
         human(app, identity) as owner,
         sync_playwright() as playwright,
