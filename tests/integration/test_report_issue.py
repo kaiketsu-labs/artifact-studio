@@ -57,9 +57,11 @@ def test_report_opens_public_draft_without_transferring_screenshot(
     expect(dialog.get_by_role("textbox", name="Title")).to_be_focused()
     dialog.get_by_role("textbox", name="Title").fill("Fictional PDF delay")
     dialog.get_by_role("textbox", name="What happened?").fill("Preparing attachment stalled.")
-    dialog.get_by_label("Choose screenshot").set_input_files(
-        {"name": "fictional.png", "mimeType": "image/png", "buffer": PNG}
-    )
+    choose = dialog.get_by_role("button", name="Choose screenshot")
+    choose.focus()
+    with page.expect_file_chooser() as selection:
+        page.keyboard.press("Enter")
+    selection.value.set_files({"name": "fictional.png", "mimeType": "image/png", "buffer": PNG})
     expect(dialog.get_by_role("img", name="Screenshot preview")).to_be_visible()
     with page.expect_download() as saved:
         dialog.get_by_role("link", name="Save screenshot").click()
@@ -76,5 +78,6 @@ def test_report_opens_public_draft_without_transferring_screenshot(
     }
     dialog.get_by_role("button", name="Remove screenshot").click()
     expect(dialog.get_by_role("img", name="Screenshot preview")).to_be_hidden()
+    expect(choose).to_be_focused()
     page.keyboard.press("Escape")
     expect(trigger).to_be_focused()

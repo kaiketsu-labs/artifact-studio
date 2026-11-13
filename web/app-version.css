@@ -82,18 +82,6 @@ body:has(dialog[open])>.app-session-expired{display:none}
   }
   .hub-sidebar[aria-label="Project artifacts"] > nav { overflow-x: auto; }
 }
-.studio-report form,.studio-report form>label{display:grid;gap:8px}
-.studio-report form{gap:12px}
-.studio-report input:not([type=file]),.studio-report textarea{width:100%;box-sizing:border-box;font:inherit;color:inherit;background:transparent;border:1px solid var(--hub-line,var(--line,#d8deea));border-radius:6px;padding:8px}
-.studio-report textarea{resize:vertical}
-.studio-report form p{margin:0;font-size:13px}
-.studio-report [role=status]:empty{display:none}
-.studio-report-actions,.studio-report figcaption{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.studio-report-actions input{display:block;max-width:100%}
-.studio-report figure{margin:0}
-.studio-report img{display:block;max-width:100%;max-height:200px;object-fit:contain;margin-bottom:8px}
-.studio-report-capturing{opacity:0}.studio-report-capturing::backdrop{background:transparent}
-
 .studio-report-trigger {
   position: fixed;
   inset: auto max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) auto;
@@ -127,28 +115,127 @@ body:has(>.studio-report-trigger:not([hidden])) :is(.hub-main, .hub-edit-area, .
   .studio-report-trigger { padding-inline: 0; }
   .studio-report-trigger > span { display: none; }
 }
-.studio-report form button {
-  min-height: 40px;
-  padding: 8px 11px;
-  border: 1px solid var(--hub-line, var(--line));
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
+dialog.studio-report {
+  --report-line: var(--hub-line, var(--line, #d8deea));
+  --report-muted: var(--hub-muted, var(--subtle, #526174));
+  --report-tint: var(--hub-selected, var(--selected, #edf3ff));
+  --report-ink: var(--hub-ink, var(--ink, #20242b));
+  width: min(480px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  padding: clamp(16px, 4vw, 24px);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px #10182840;
+}
+.studio-report header { gap: 12px; margin-bottom: 18px; }
+.studio-report-heading { display: flex; align-items: center; gap: 10px; }
+.studio-report-heading > .ui-icon {
+  box-sizing: content-box;
+  width: 18px;
+  height: 18px;
+  padding: 8px;
+  border-radius: 9px;
+  color: var(--hub-blue, var(--blue, #315fce));
+  background: var(--report-tint);
+}
+.studio-report header button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.studio-report header button:hover { background: var(--report-tint); }
+.studio-report form, .studio-report-fields { display: grid; gap: 14px; }
+.studio-report-fields label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.studio-report-fields :is(input, textarea) {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
   font: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--report-line);
+  border-radius: 8px;
 }
-.studio-report form button:hover:not(:disabled) {
-  background: var(--hub-hover, var(--hover, #f1f5fb));
+.studio-report-fields textarea { min-height: 86px; resize: vertical; }
+.studio-report :is(button, a, input, textarea):focus-visible {
+  outline: 2px solid var(--hub-blue, var(--blue, #315fce));
+  outline-offset: 2px;
 }
-.studio-report form > button[type="submit"] {
-  justify-self: start;
+.studio-report-attachment {
+  min-width: 0;
+  margin: 0;
+  padding: 4px 11px 11px;
+  border: 1px solid var(--report-line);
+  border-radius: 10px;
+}
+.studio-report-attachment legend { padding: 0 5px; font-size: 13px; font-weight: 600; }
+.studio-report-attachment legend span { margin-inline-start: 4px; color: var(--report-muted); font-weight: 400; }
+.studio-report-actions, .studio-report figcaption { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.studio-report form :is(button, figcaption a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--report-line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--report-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+}
+.studio-report form :is(button, figcaption a):hover:not(:disabled) {
+  background: var(--report-tint);
+}
+.studio-report form button:disabled { opacity: .55; cursor: wait; }
+.studio-report form .ui-icon { width: 16px; height: 16px; flex: none; }
+.studio-report figure { margin: 10px 0 0; }
+.studio-report figure img {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  margin-bottom: 8px;
+  border: 1px solid var(--report-line);
+  border-radius: 8px;
+  background: var(--report-tint);
+}
+.studio-report figure p, .studio-report form [role=status] {
+  margin: 7px 0 0;
+  color: var(--report-muted);
+  font-size: 12px;
+}
+.studio-report [role=status]:empty { display: none; }
+.studio-report-footer { display: grid; gap: 11px; }
+.studio-report-footer p {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--report-muted);
+}
+.studio-report-footer p > .ui-icon { margin-top: 1px; }
+.studio-report .studio-report-footer button {
+  justify-self: end;
   border-color: transparent;
-  background: var(--hub-blue, var(--blue));
+  background: #2759cf;
   color: #fff;
-  font-weight: 600;
+  font-weight: 650;
 }
-.studio-report form > button[type="submit"]:hover {
-  background: color-mix(in srgb, var(--hub-blue, var(--blue)), #000 12%);
-}
-@media (max-width: 650px) {
-  .studio-report form button { min-height: 44px; }
+.studio-report .studio-report-footer button:hover { background: #204bb2; }
+.studio-report-capturing { opacity: 0; }
+.studio-report-capturing::backdrop { background: transparent; }
+@media (max-width: 420px) {
+  .studio-report .studio-report-footer button { width: 100%; }
 }
