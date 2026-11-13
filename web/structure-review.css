@@ -1,5 +1,5 @@
 .structure-review-trigger{margin:8px 12px;padding:9px;text-align:left;border:1px solid var(--line);border-radius:8px;background:transparent;font:inherit}
-#structure-review-dialog{width:min(760px,calc(100vw - 32px));max-height:calc(100dvh - 32px);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:0}
+#structure-review-dialog{width:min(760px,calc(100vw - 32px));max-height:calc(100dvh - 32px);color:var(--ink,#20242b);background:var(--surface,#fff);border:1px solid var(--line);border-radius:10px;padding:0}
 #structure-review-dialog header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
 #structure-review-dialog header h2{margin:0;font-size:16px}
 #structure-review-dialog header button{font-size:22px}

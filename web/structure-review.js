@@ -35,7 +35,7 @@
       const changes = (items, label) => items.length ? `<p><strong>${label}:</strong> ${items.map(item => escape(item.title)).join(', ')}</p>` : '';
       dialog.innerHTML = `<header><h2 id="structure-review-title">Review slide structure</h2><button type="button" data-close aria-label="Close" title="Close">×</button></header>
         <div class="structure-review-body"><label>Proposal <select data-proposal aria-label="Proposal">${snapshot.proposals.map(item => `<option value="${escape(item.id)}" ${item.id === activeId ? 'selected' : ''}>${escape(item.summary)}${item.status === 'decided' ? ' · Decided' : ''}</option>`).join('')}</select></label>
-        <p>${escape(proposal.summary)}</p><div class="structure-comparison"><section><h3>Current order</h3>${list(snapshot.slide_ids, names)}</section><section><h3>Proposed order</h3>${list(proposal.proposed_slide_ids, names)}</section></div>
+        <p>${escape(proposal.summary)}</p><p>Proposals and decisions are shared with collaborators.</p><div class="structure-comparison"><section><h3>Current order</h3>${list(snapshot.slide_ids, names)}</section><section><h3>Proposed order</h3>${list(proposal.proposed_slide_ids, names)}</section></div>
         ${changes(proposal.missing, 'Only in Studio')}${changes(proposal.extra, 'Only in proposal')}
         ${baseChanged ? '<p class="structure-warning">The presentation has changed since this proposal. Ask the agent for an updated proposal before accepting.</p>' : ''}
         ${stale ? '<p class="structure-warning" role="alert" tabindex="-1">The presentation or proposal changed. Review the latest comparison before sending.</p>' : ''}

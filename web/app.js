@@ -478,7 +478,7 @@
   async function refreshWorkflow(id){
     if(deck?.id!==id||switchingDeck||isLoading||presentationActions.isBusy())return;
     if(refreshQueued){await refresh();return;}
-    if(collaborationChat){await refreshConversation(id);return;}
+    if(collaborationChat){await refreshConversation(id);void structureReview.sync(id,sharedEditor&&deck?.id===id&&deck.access_role==='edit');return;}
     const snapshot=deck,baseline=deck.workflow,state=await api(`/api/decks/${encodeURIComponent(id)}/workflow`);
     if(deck!==snapshot||deck.workflow!==baseline)return;
     deck.workflow=state;if(pendingDeck?.id===id)pendingDeck.workflow=state;
