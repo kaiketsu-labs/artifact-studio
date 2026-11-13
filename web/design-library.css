@@ -24,6 +24,13 @@
 .design-card-meta>span:first-child{margin-right:auto}
 .design-card-delete{width:32px;height:32px;padding:7px!important;border:0!important;color:var(--hub-muted)}
 .design-card-delete:hover,.design-danger{color:#ba403b!important}
+.design-export{display:inline-grid;place-items:center;flex:0 0 32px;width:32px;height:32px;color:var(--hub-muted);border-radius:6px}
+.design-export:hover{background:var(--hub-hover);color:var(--hub-ink)}
+.design-export:focus-visible{outline:2px solid var(--hub-blue);outline-offset:2px}
+.design-library-controls{display:flex;align-items:center;gap:8px;max-width:100%}
+.design-library-controls .hub-search{min-width:0}
+.design-library-controls .design-import{flex:none}
+@media(max-width:650px){.design-library-controls{width:100%}}
 .design-detail-heading{display:flex;align-items:flex-start;gap:20px;justify-content:space-between;margin:24px 0 36px}
 .design-detail-heading h1{font-size:30px;line-height:1.2;margin:8px 0 12px;overflow-wrap:anywhere}
 .design-eyebrow{font-size:11px;color:var(--hub-muted);margin:0}
