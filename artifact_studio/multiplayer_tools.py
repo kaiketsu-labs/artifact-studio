@@ -829,7 +829,10 @@ class MultiplayerTools:
     def read_chat(
         self, ctx: Ctx, artifact_id: str, channel: Channel = "shared", before: int = 0
     ) -> list[dict[str, object]]:
-        """Read shared conversation or your owner's private conversation; never withheld drafts."""
+        """Read assigned Shared threads or private Agent chat.
+
+        Owners can allow full Shared history on a presentation.
+        """
         actor = self.actor(ctx)
         return self.chat.history(actor, self.scope(actor, artifact_id), channel, before)
 

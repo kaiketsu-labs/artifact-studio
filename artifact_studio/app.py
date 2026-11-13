@@ -1744,11 +1744,18 @@ async def local_writes(request: Request, call_next: RequestResponseEndpoint) -> 
 
 
 @app.get("/", response_class=FileResponse)
-def workspace(request: Request, deck: str = "", editor: bool = False) -> FileResponse:
+def workspace(request: Request, deck: str = "", editor: bool = False) -> Response:
     """Open the artifact library while preserving direct presentation editor links."""
     if deck or editor or deployment.mode == "hosted":
         # HostedAuth supplies the navigation policy for all trusted shell routes.
-        return FileResponse(PROJECT / ("web/index.html" if deck or editor else "web/hub.html"))
+        shell = PROJECT / ("web/index.html" if deck or editor else "web/hub.html")
+        if getattr(request.state, "unified_studio", False):
+            return HTMLResponse(
+                shell.read_text().replace(
+                    '<html lang="en">', '<html lang="en" data-native-conversation>', 1
+                )
+            )
+        return FileResponse(shell)
     origin = str(request.base_url).rstrip("/")
     return FileResponse(
         PROJECT / "web/hub.html",
