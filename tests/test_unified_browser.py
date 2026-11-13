@@ -198,6 +198,8 @@ def test_invited_guest_opens_normal_editor_with_only_shared_items(tmp_path: Path
         try:
             with routed_multiplayer_context(browser, app, "alice") as guest:
                 page = guest.new_page()
+                page.goto(WORKSPACE)
+                page.wait_for_function("Boolean(window.StudioInvitation && window.ArtifactSession)")
                 page.goto(f"{WORKSPACE}/#invite={invite}")
                 page.get_by_role("button", name="Join", exact=True).click()
                 expect(page.locator("#slide-title")).to_be_visible()
@@ -262,6 +264,7 @@ def test_owner_creates_link_from_native_context_menu(tmp_path: Path) -> None:
         browser = playwright.chromium.launch()
         try:
             with routed_multiplayer_context(browser, app) as owner:
+                owner.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
                 page = owner.new_page()
                 page.goto(WORKSPACE)
                 page.wait_for_function("window.StudioInvitation?.available === true")
@@ -287,12 +290,19 @@ def test_owner_creates_link_from_native_context_menu(tmp_path: Path) -> None:
                     expect(dialog.get_by_label("Access")).to_have_value("view")
                     if title == "Shared candidate":
                         dialog.get_by_label("Email address").fill("alice@example.test")
+                        dialog.get_by_label("Link expires").select_option("never")
                         dialog.get_by_role("button", name="Create link").click()
                         field = dialog.get_by_label("Invitation link", exact=True)
                         expect(field).to_have_value(
                             re.compile(r"https://studio\.example\.test/#invite=")
                         )
                         expect(dialog.get_by_role("button", name="Copy link")).to_be_focused()
+                        expect(dialog.get_by_role("status")).to_have_text("Link copied.")
+                        copied = page.evaluate("navigator.clipboard.readText()")
+                        assert copied == field.input_value()
+                        dialog.get_by_text("Manage access").click()
+                        pending = dialog.get_by_text("alice@example.test · Can view · No expiry")
+                        expect(pending).to_be_visible()
                         token = field.input_value().split("#invite=")[1]
                         wrong = other.post("/api/invitations/accept", json={"token": token})
                         assert wrong.status_code in {403, 404}

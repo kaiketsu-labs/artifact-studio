@@ -382,7 +382,7 @@ class Sharing:
             ).fetchall()
             invites = db.execute(
                 "SELECT resource,id FROM invitations WHERE workspace=? AND kind='project' "
-                "AND resource IN (?,?) AND accepted=0 AND expires>? ORDER BY id",
+                "AND resource IN (?,?) AND accepted=0 AND (expires=0 OR expires>?) ORDER BY id",
                 (*params, now),
             ).fetchall()
             agents = db.execute(
@@ -417,7 +417,10 @@ class Sharing:
             db.execute("INSERT INTO workspaces VALUES (?,?,?)", (workspace, title, actor.person))
         return workspace
 
-    def invite(self, actor: Actor, scope: Scope, email: str, role: Role) -> dict[str, str]:
+    def invite(
+        self, actor: Actor, scope: Scope, email: str, role: Role, *, no_expiry: bool = False
+    ) -> dict[str, str]:
+        """Issue one email-bound link that can be accepted once or revoked."""
         with self.locked(), self.connect() as db:
             self.manage(actor, scope)
             # A newer invitation supersedes older links for this recipient/scope.
@@ -436,7 +439,7 @@ class Sharing:
                     scope.resource,
                     email_address(email),
                     role,
-                    time.time() + 7 * 86400,
+                    0 if no_expiry else time.time() + 7 * 86400,
                 ),
             )
         return {"id": identifier, "token": token}
@@ -446,7 +449,8 @@ class Sharing:
             if actor.agent:
                 raise AccessDenied
             row = db.execute(
-                "SELECT * FROM invitations WHERE token=? AND expires>? AND accepted=0",
+                "SELECT * FROM invitations WHERE token=? AND accepted=0 "
+                "AND (expires=0 OR expires>?)",
                 (checksum(token), time.time()),
             ).fetchone()
             person = db.execute("SELECT email FROM people WHERE id=?", (actor.person,)).fetchone()
@@ -500,7 +504,7 @@ class Sharing:
                 dict(row)
                 for row in db.execute(
                     "SELECT id,email,role,expires FROM invitations WHERE workspace=? AND kind=? "
-                    "AND resource=? AND accepted=0 AND expires>?",
+                    "AND resource=? AND accepted=0 AND (expires=0 OR expires>?)",
                     (scope.workspace, scope.kind, scope.resource, time.time()),
                 )
             ]

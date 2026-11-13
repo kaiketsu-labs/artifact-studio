@@ -76,7 +76,7 @@ from artifact_studio.storage import Store
 class FixtureProvider:
     async def authenticate(self, headers):
         name = headers.get("x-fixture-auth", "")
-        if name not in {"owner", "alice", "bob"}:
+        if name not in {"owner", "alice", "bob", "carol", "dana"}:
             raise AuthenticationError()
         return Principal(name, name + "@example.test")
 root = Path(sys.argv[1])

@@ -201,8 +201,10 @@ import, export and backup controls are not yet available in this UI.
    workspace-wide access or you share it.
 3. Right-click the project in the sidebar and select **Share link…**. Enter the
    recipient's exact sign-in email and choose **Can view**, **Can comment** or
-   **Can edit**. Copy the link and send it to that person. The link expires in
-   seven days and can be used once by that account. The recipient also needs
+   **Can edit**. Choose whether the link expires in seven days or stays valid
+   until accepted or cancelled. **Create link** copies it where the browser
+   permits it. Use **Copy link** if the browser requires a separate click. Send
+   the link to that person. It can be used once by that account, which also needs
    permission to sign in through Cloudflare Access.
 4. The recipient selects **Join** and opens the project in their regular Studio
    library. A project grant applies to its existing and future artifacts. To

@@ -62,6 +62,7 @@ class ScopeInput(StrictModel):
 class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
+    no_expiry: bool = False
 
 
 class AgentInput(ScopeInput):
@@ -330,7 +331,11 @@ def create_app(
     @app.post("/api/workspaces/{workspace}/invitations")
     def invite(request: Request, workspace: str, body: InviteInput) -> dict[str, str]:
         invitation = hub.invite(
-            actor_of(request), Scope(workspace, body.kind, body.resource), body.email, body.role
+            actor_of(request),
+            Scope(workspace, body.kind, body.resource),
+            body.email,
+            body.role,
+            no_expiry=body.no_expiry,
         )
         path = (
             workspace_editor_path(workspace)
