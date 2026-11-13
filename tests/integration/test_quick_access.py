@@ -170,7 +170,15 @@ def test_touch_recents_can_close_without_dismissing_the_parent(
         expect(menu).to_be_visible()
         trigger.tap()
         expect(recent).to_be_visible()
-        page.touchscreen.tap(5, 550)
+        outside = page.evaluate("""() => {
+            for (const y of [4, 24, innerHeight - 4]) {
+                const hit = document.elementFromPoint(4, y);
+                if (hit && !hit.closest('iframe,button,a,:popover-open')) return y;
+            }
+            return null;
+        }""")
+        assert isinstance(outside, int), "Expected a tap target outside both menus"
+        page.touchscreen.tap(4, outside)
         expect(menu).not_to_be_visible()
         expect(recent).not_to_be_visible()
     finally:

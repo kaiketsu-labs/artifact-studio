@@ -158,3 +158,8 @@ For an HTTPS inspection proxy, pass a combined CA bundle as a temporary BuildKit
 secret: `docker build --secret id=proxy_ca,src=/path/to/combined-ca.pem -t artifact-studio:local .`.
 The certificate is not stored in the image. Runtime network clients need their
 own read-only CA mount and trust configuration if the same proxy is required.
+
+Set `ARTIFACT_STUDIO_BUILD_REVISION="$(git rev-parse HEAD)"` in the build
+environment when deploying a checkout with Compose. The server's version
+button then shows the installed version and short Git revision. Rebuild the
+image for a new revision so the badge identifies the code inside the container.

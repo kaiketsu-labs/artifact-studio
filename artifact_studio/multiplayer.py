@@ -411,6 +411,8 @@ def create_app(
                 "access": hub.access(actor, scope),
                 "agents": chat.agents(actor, scope),
                 "draft_counts": draft_counts,
+                "contacts": [] if actor.agent else chat.contacts(actor, scope),
+                "mentions": [] if actor.agent else chat.mentions(actor, scope),
             }
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
@@ -431,6 +433,24 @@ def create_app(
         return chat.history(
             actor_of(request), Scope(workspace, "artifact", artifact), channel, before
         )
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/contacts")
+    def chat_contacts(request: Request, workspace: str, artifact: str) -> list[dict[str, str]]:
+        """Suggest only current collaborators for mentions."""
+        return chat.contacts(actor_of(request), Scope(workspace, "artifact", artifact))
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/mentions")
+    def chat_mentions(request: Request, workspace: str, artifact: str) -> list[dict[str, object]]:
+        """Report unread mentions in a currently accessible artifact."""
+        return chat.mentions(actor_of(request), Scope(workspace, "artifact", artifact))
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/mentions/{event}/read")
+    def read_chat_mention(
+        request: Request, workspace: str, artifact: str, event: int
+    ) -> dict[str, bool]:
+        """Acknowledge one mention addressed to the signed-in person."""
+        chat.read_mention(actor_of(request), Scope(workspace, "artifact", artifact), event)
+        return {"ok": True}
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def post(request: Request, workspace: str, artifact: str, body: ChatInput) -> dict[str, object]:

@@ -98,7 +98,7 @@
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
       if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      doc.querySelectorAll('[data-hosted-status]').forEach(node=>{node.hidden=!hosted;});
+      if(hosted&&serverVersion?.textContent)serverVersion.hidden=false;
       doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
@@ -129,6 +129,7 @@
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);
     let opener=null,timer=null,reading=false,checking=false,saving=false,sequence=0,lastInfo=null;
     const workspaceButton=doc.querySelector('[data-session-mode]');
+    const serverVersion=doc.querySelector('[data-server-version]');
     function showAbout(trigger){
       opener=trigger;
       dialog.showModal();
@@ -137,6 +138,7 @@
     }
     root.StudioAbout={open:showAbout};
     workspaceButton?.addEventListener('click',()=>showAbout(workspaceButton));
+    serverVersion?.addEventListener('click',()=>showAbout(serverVersion));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){
       const icon=doc.createElement('span');icon.className='app-update-icon';icon.hidden=true;icon.innerHTML=mark;entry.append(icon);
@@ -163,10 +165,17 @@
       lastInfo=info;nightly.checked=info.include_nightly===true;
       const label=`Version ${info.version}`;
       version.textContent=label;
+      const revision=/^[a-f0-9]{7,64}$/.test(info.build_revision||'')?info.build_revision.slice(0,7):'';
+      if(serverVersion){
+        serverVersion.textContent=`v${info.version}${revision?` · ${revision}`:''}`;
+        serverVersion.setAttribute('aria-label',`Server ${label}${revision?`, build ${revision}`:''}`);
+        serverVersion.hidden=root.artifactStudioSession?.mode!=='hosted';
+      }
       for(const node of doc.querySelectorAll('[data-app-version]'))node.textContent=label;
       const nightlyTag=/^nightly-\d{8}\.[1-9]\d{0,11}$/;
       const available=info.update_available===true&&(/^v\d+\.\d+\.\d+$/.test(info.latest_tag||'')||(info.include_nightly===true&&nightlyTag.test(info.latest_tag||'')));
-      build.hidden=!nightlyTag.test(info.installed_tag||'');build.textContent=build.hidden?'':`Installed build: ${info.installed_tag}`;
+      const installedBuild=nightlyTag.test(info.installed_tag||'')?info.installed_tag:revision;
+      build.hidden=!installedBuild;build.textContent=installedBuild?`Installed build: ${installedBuild}`:'';
       for(const icon of doc.querySelectorAll('.app-update-icon')){icon.hidden=!available;icon.title=available?`${info.latest_tag} available`:'';}
       for(const trigger of triggers){trigger.toggleAttribute('data-app-update',available);trigger.title=available?`Menu — ${info.latest_tag} available`:'Menu';}
       for(const entry of entries)entry.title=available?`${label} — ${info.latest_tag} available`:label;

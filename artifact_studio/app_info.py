@@ -1,5 +1,7 @@
 """Installed version and bounded, read-only release discovery for local clients."""
 
+import os
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -8,6 +10,12 @@ from threading import Lock, Thread
 from .models import StrictModel
 from .storage import Store
 from .updater import ReleaseStatus, UpdateError, discover_update, installed_release_tag
+
+
+def build_revision() -> str | None:
+    """Return a build-time Git revision when provided by the server image."""
+    value = os.environ.get("ARTIFACT_STUDIO_BUILD_REVISION", "")
+    return value if re.fullmatch(r"[a-f0-9]{7,64}", value) else None
 
 
 class UpdatePreferences(StrictModel):
@@ -43,6 +51,7 @@ class AppInfo:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.project, self.version = project, version
+        self.build_revision = build_revision()
         self.enabled, self.discover, self.clock = enabled, discover, clock
         self.lock = Lock()
         self.settings_lock = Lock()
@@ -78,6 +87,7 @@ class AppInfo:
             generation, channel = self.generation, self.include_nightly
             result: dict[str, str | bool | None] = {
                 "version": self.version,
+                "build_revision": self.build_revision,
                 "installed_tag": self.latest.installed_tag,
                 "latest_tag": tag,
                 "latest_version": tag.removeprefix("v") if tag else None,

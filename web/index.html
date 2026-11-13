@@ -73,6 +73,7 @@
   <link rel="stylesheet" href="/web/chat-images.css">
   <script src="/web/chat-images.js" defer></script>
   <script src="/web/chat-composer.js" defer></script>
+  <script src="/web/chat-mentions.js" defer></script>
   <link rel="stylesheet" href="/web/favorites.css">
   <script src="/web/favorites.js" defer></script>
   <link rel="stylesheet" href="/web/chat-references.css">
@@ -92,14 +93,16 @@
   <script src="/web/app.js" defer></script>
   <link rel="stylesheet" href="/web/app-version.css">
   <script src="/web/app-version.js" defer></script>
+  <script src="/web/report-issue.js" defer></script>
 </head>
 <body>
 <header class="topbar">
   <a class="identity" href="/" aria-label="Artifact Studio"><span class="studio-icon" aria-hidden="true"><img src="/web/brand/mark.svg" alt="" width="30" height="30"></span><span class="identity-name">Artifact Studio</span></a>
   <div class="top-actions">
+    <button id="unread-mentions" type="button" hidden></button>
     <button id="deck-presence" type="button" popovertarget="deck-viewers" aria-label="People in this deck" hidden></button>
     <ul id="deck-viewers" popover aria-label="People in this deck"></ul>
-    <span data-hosted-status class="hub-hosted-status" title="Hosted workspace" hidden>Hosted</span>
+    <button type="button" data-server-version class="hub-session-mode" aria-haspopup="dialog" hidden></button>
     <button type="button" data-session-mode aria-label="About workspace" aria-haspopup="dialog" class="hub-session-mode" hidden>Local</button>
     <button type="button" data-collaborate class="quiet" hidden>Collaborate</button>
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
@@ -121,6 +124,7 @@
       </div>
       <div role="separator"></div>
       <button id="appearance-button" type="button" role="menuitem" tabindex="-1" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
+      <button type="button" role="menuitem" tabindex="-1" data-report-issue aria-label="Report an issue" aria-haspopup="dialog">Report an issue</button>
       <button type="button" role="menuitem" tabindex="-1" aria-label="About Artifact Studio" aria-haspopup="dialog" data-app-about><span>About Artifact Studio</span><small class="app-version-label" data-app-version>Version…</small></button>
       <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
     </div>
@@ -249,6 +253,13 @@
     <div id="slide-copy-menu" class="slide-menu slide-submenu" popover="manual" role="menu" aria-label="Copy slide" hidden>
       <button data-slide-extra="copyimage" type="button" role="menuitem"></button>
       <button data-slide-extra="copylink" type="button" role="menuitem"></button>
+    </div>
+  </div>
+  <div class="slide-menu-branch">
+    <button type="button" role="menuitem" data-slide-submenu="export" aria-label="Export" aria-haspopup="menu" aria-expanded="false" aria-controls="slide-export-menu">Export</button>
+    <div id="slide-export-menu" class="slide-menu slide-submenu" popover="manual" role="menu" aria-label="Export slides" hidden>
+      <button data-slide-extra="exporthtml" type="button" role="menuitem"></button>
+      <button data-slide-extra="exportpdf" type="button" role="menuitem"></button>
     </div>
   </div>
   <div class="slide-menu-branch">

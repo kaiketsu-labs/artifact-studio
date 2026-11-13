@@ -1,6 +1,7 @@
 """Hosted opaque preview behavior in a real browser."""
 
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -86,8 +87,14 @@ def test_hosted_authentication_and_browser_write(
 
 @pytest.mark.parametrize("width,height", [(1440, 900), (390, 844), (320, 700)])
 def test_hosted_connection_is_discoverable_without_local_admin_requests(
-    browser: Browser, tmp_path: Path, artifacts: Path, width: int, height: int
+    browser: Browser,
+    tmp_path: Path,
+    artifacts: Path,
+    width: int,
+    height: int,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("ARTIFACT_STUDIO_BUILD_REVISION", "abc123456789")
     with (
         running_hosted_app(tmp_path / "hosted", artifacts / "server.log") as app,
         routed_hosted_context(browser, app) as context,
@@ -100,9 +107,9 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
             lambda response: failures.append(response.url) if response.status >= 400 else None,
         )
         page.goto(WORKSPACE)
-        hosted = page.locator("[data-hosted-status]")
+        hosted = page.locator("[data-server-version]")
         expect(hosted).to_be_visible()
-        expect(hosted).to_have_text("Hosted")
+        expect(hosted).to_have_text(re.compile(r"^v\d+\.\d+\.\d+ · abc1234$"))
         expect(page.locator("[data-session-mode]")).to_be_hidden()
         expect(page.get_by_role("button", name="Hosted", exact=True)).to_have_count(0)
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -115,13 +122,13 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
         assert dialog.evaluate("e => e.scrollWidth <= e.clientWidth")
         page.keyboard.press("Escape")
         expect(page.locator("#hub-tools-button")).to_be_focused()
-        page.locator("#hub-tools-button").click()
-        page.get_by_role("menuitem", name="Workspace & server").click()
+        hosted.click()
         about = page.get_by_role("dialog", name="Workspace & server")
         expect(about).to_contain_text("reviewer@example.test")
+        expect(about).to_contain_text("Installed build: abc1234")
         expect(about.get_by_text("Server checks", exact=False).first).to_be_visible()
         page.keyboard.press("Escape")
-        expect(page.locator("#hub-tools-button")).to_be_focused()
+        expect(hosted).to_be_focused()
         assert not failures
 
 
@@ -137,7 +144,7 @@ def test_expiry_clears_open_connection_and_preserves_review_page(
         context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
         page = context.new_page()
         page.goto(WORKSPACE)
-        expect(page.locator("[data-hosted-status]")).to_be_visible()
+        expect(page.locator("[data-server-version]")).to_be_visible()
         page.locator("#hub-tools-button").click()
         page.locator("[data-hub-connect]").click()
         dialog = page.get_by_role("dialog", name="Agent connection")
