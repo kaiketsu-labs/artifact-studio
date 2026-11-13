@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import cast
 
 import httpx
+import pytest
 from fastapi import FastAPI
 from starlette.datastructures import Headers
 
@@ -138,8 +139,10 @@ def test_artifact_only_edit_receipt_hides_parent_project(tmp_path: Path) -> None
     assert service.get_artifact(item.id).revision == item.revision + 1
 
 
-def test_native_editor_assets_have_separate_capacity(tmp_path: Path) -> None:
-    """A cold editor can still load its assets when shared data slots are in use."""
+def test_native_editor_assets_have_separate_capacity(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Keep editor assets available and diagnose overload without request data."""
 
     async def journey() -> None:
         store = Store(tmp_path / "collection", tmp_path / "state/review.sqlite3")
@@ -151,7 +154,7 @@ def test_native_editor_assets_have_separate_capacity(tmp_path: Path) -> None:
         release, occupied = asyncio.Event(), asyncio.Event()
         waiting = 0
 
-        @app.get("/api/hub")
+        @app.get("/api/workspaces/fictional-workspace/hub")
         async def library() -> dict[str, bool]:
             nonlocal waiting
             waiting += 1
@@ -168,14 +171,36 @@ def test_native_editor_assets_have_separate_capacity(tmp_path: Path) -> None:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=boundary), base_url=config.public_url
         ) as client:
-            requests = [asyncio.create_task(client.get("/api/hub")) for _ in range(8)]
+            route = "/api/workspaces/fictional-workspace/hub"
+            requests = [
+                asyncio.create_task(client.get(route, headers={"x-fixture-auth": f"user-{index}"}))
+                for index in range(8)
+            ]
             try:
                 await asyncio.wait_for(occupied.wait(), timeout=5)
                 result = await client.get("/web/session.js")
                 assert result.status_code == 200
                 assert result.headers["cache-control"] == "no-store"
+                extra = await asyncio.gather(
+                    client.get(route, headers={"x-fixture-auth": "alice"}),
+                    client.get(route, headers={"x-fixture-auth": "bob"}),
+                )
+                for response in extra:
+                    assert response.status_code == 429
+                    assert response.headers["retry-after"] == "2"
+                    assert response.headers["cache-control"] == "no-store"
+                warnings = [
+                    record.getMessage()
+                    for record in caplog.records
+                    if record.name == "artifact_studio.multiplayer_http"
+                ]
+                assert len(warnings) == 1
+                assert "surface=shared_editor pool=data reason=wait_timeout" in warnings[0]
+                assert "fictional-workspace" not in warnings[0]
+                assert "alice" not in warnings[0] and "bob" not in warnings[0]
             finally:
                 release.set()
                 await asyncio.gather(*requests)
+            assert (await client.get(route)).status_code == 200
 
     asyncio.run(journey())

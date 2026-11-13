@@ -319,6 +319,12 @@ identity and path policies is not equivalent. Keep the tunnel and computer runni
 When offline, collaborators cannot connect; their unsent text drafts remain in their
 own browser.
 
+If users report **Server busy**, check the Studio server logs for
+`Multiplayer admission busy`. The entry names the request pool and rejection reason,
+with at most one warning per pool and reason every 30 seconds. Rejected requests
+include a `Retry-After` header. The warnings omit identities and request URLs so
+application access logs can stay disabled and preview capability URLs stay private.
+
 ## Agent setup and delivery
 
 Set the token using your environment or secret manager. Never put its value in chat,
