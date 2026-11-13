@@ -28,6 +28,49 @@ pytestmark = [
 ]
 
 
+def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
+    """Keep several active collaborators visible on mobile through a brief network failure."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/presence"
+        for index, name in enumerate(("alice", "bob", "carol", "dana")):
+            with human(app, name) as person:
+                if name != "dana":
+                    accept(person, grant(owner, name, app.deck_id, role="view"))
+                reply = person.post(endpoint, json={"tab": str(index) * 32, "slide_id": "cover"})
+                assert reply.status_code == (404 if name == "dana" else 200)
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 390, "height": 844})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                button = page.get_by_role("button", name="People in this deck (3)")
+                expect(button.get_by_text("+2", exact=True)).to_be_visible()
+                expect(page.locator("#slides .slide-presence-markers")).to_contain_text("+2")
+                button.click()
+                people = page.locator("#deck-viewers")
+                expect(people).to_contain_text("Alice")
+                expect(people).to_contain_text("Bob")
+                expect(people).to_contain_text("Carol")
+                page.route("**" + endpoint, lambda route: route.fulfill(status=503))
+                with page.expect_response(lambda response: response.status == 503) as failed:
+                    _ = page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                assert failed.value.url.endswith(endpoint)
+                expect(button).to_be_visible()
+                expect(people).to_be_visible()
+                page.keyboard.press("Escape")
+                expect(people).to_be_hidden()
+                expect(button).to_be_focused()
+                with human(app, "dana") as outsider:
+                    assert outsider.get(f"/api/decks/{app.deck_id}").status_code == 404
+        finally:
+            browser.close()
+
+
 def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> None:
     """A saved message shows and unlocks the composer while refresh requests are pending."""
     with (
