@@ -77,6 +77,7 @@
 .hub-search{position:relative}
 .hub-search .voice-input-controls{flex:0 0 auto;margin:0}
 .hub-search .voice-input-status{position:absolute;top:calc(100% + 5px);right:0;z-index:30;width:260px;padding:7px;background:var(--hub-panel,#fff);border:1px solid var(--line,#dce1e9);border-radius:6px;box-shadow:0 3px 10px #0001}
+.hub-search .voice-input-controls[data-voice-phase=unavailable]:focus-within .voice-input-status{position:absolute;width:min(260px,100%);height:auto}
 .hub-search .voice-input-controls[data-voice-phase=idle] .voice-input-status{display:none}
 .ql-toolbar .voice-input-controls{display:inline-flex;vertical-align:middle;margin:0 0 0 8px}
 .ql-toolbar .voice-input-button{float:none;width:29px;height:29px;padding:6px}
