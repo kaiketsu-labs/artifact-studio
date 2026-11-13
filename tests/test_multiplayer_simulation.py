@@ -3,6 +3,7 @@
 import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from typing import cast
 
@@ -62,6 +63,100 @@ class Peer:
             return result.structured_content
         text = next(item.text for item in result.content if isinstance(item, TextContent))
         return cast(dict[str, object], json.loads(text))
+
+
+def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path: Path) -> None:
+    """Check live permission changes and isolation of private and unreleased messages."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        agents = "/api/workspaces/default/agents"
+        body = {"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"}
+        connection = owner.post(agents, json=body)
+        connection.raise_for_status()
+        connection_id, token = connection.json()["id"], connection.json()["token"]
+        guest_connection = alice.post(agents, json=body)
+        guest_connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}"
+        setting = f"{base}/agents/{connection_id}/shared-history"
+        assert owner.get(setting).json() == {"enabled": False}
+        assert alice.post(setting, json={"enabled": True}).status_code == 404
+        foreign = f"{base}/agents/{guest_connection.json()['id']}/shared-history"
+        assert owner.post(foreign, json={"enabled": True}).status_code == 404
+        state = owner.get(base + "/state").json()
+        shared = alice.post(
+            base + "/chat",
+            json={
+                "message": "Fictional shared context",
+                "request_id": "shared-context",
+                "content_hash": state["content_hash"],
+                "files": [{"name": "context.txt", "data_base64": "ZmljdGlvbg=="}],
+            },
+        )
+        shared.raise_for_status()
+        for channel in ("shared", "private"):
+            owner.post(
+                base + "/chat",
+                json={
+                    "message": f"Fictional {channel} request",
+                    "channel": channel,
+                    "request_id": f"assigned-{channel}",
+                    "assigned": connection_id,
+                    "content_hash": state["content_hash"],
+                },
+            ).raise_for_status()
+        for channel, released in (("shared", False), ("private", True)):
+            alice.post(
+                base + "/chat",
+                json={
+                    "message": f"Hidden {channel}",
+                    "channel": channel,
+                    "request_id": f"hidden-{channel}",
+                    "released": released,
+                    "content_hash": state["content_hash"],
+                },
+            ).raise_for_status()
+        with closing((peer := Peer(app, token)).client):
+            args = {"artifact_id": app.deck_id}
+            attachment = {**args, "event_id": shared.json()["id"], "file_index": 0}
+
+            def history(channel: str) -> list[str]:
+                result = peer.call("read_chat", **args, channel=channel)
+                assert not result.is_error
+                return [
+                    cast(str, json.loads(block.text)["message"])
+                    for block in result.content
+                    if isinstance(block, TextContent)
+                ]
+
+            assert history("shared") == ["Fictional shared request"]
+            assert peer.call("read_chat_attachment", **attachment).is_error
+            assert owner.post(setting, json={"enabled": True}).json() == {"enabled": True}
+            assert history("shared") == ["Fictional shared context", "Fictional shared request"]
+            assert history("private") == ["Fictional private request"]
+            assert peer.value("read_chat_attachment", **attachment)["text"] == "fiction"
+            events = cast(list[dict[str, object]], peer.value("read_feedback", **args)["events"])
+            assert {event["channel"] for event in events} == {"shared", "private"}
+            for event in events:
+                event_id = event["id"]
+                claim = peer.value(
+                    "claim_feedback", **args, event_id=event_id, session_id="fictional-peer"
+                )
+                reply = peer.value(
+                    "reply_to_feedback",
+                    **args,
+                    event_id=event_id,
+                    claim=claim["claim"],
+                    message="Fictional response",
+                    request_id=f"response-{event_id}",
+                )
+                assert reply["channel"] == event["channel"]
+            assert owner.post(setting, json={"enabled": False}).json() == {"enabled": False}
+            assert history("shared") == ["Fictional shared request", "Fictional response"]
+            assert peer.call("read_chat_attachment", **attachment).is_error
 
 
 def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: Path) -> None:

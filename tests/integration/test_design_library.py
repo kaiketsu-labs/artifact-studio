@@ -4,6 +4,7 @@ import base64
 import io
 import os
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 from PIL import Image
@@ -21,6 +22,47 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+def test_design_transfer_controls_export_and_import_a_reference_collection(
+    browser: Browser, live_app: RunningApp, tmp_path: Path
+) -> None:
+    """A keyboard user can export a file and import a new design through the native library."""
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    try:
+        _design_transfer_journey(context.new_page(), live_app, tmp_path)
+    finally:
+        context.close()
+
+
+def _design_transfer_journey(page: Page, live_app: RunningApp, tmp_path: Path) -> None:
+    """Verify a rejected duplicate and successful retry through the same dialog."""
+    library = DesignLibrary(live_app.store)
+    item = library.create(DesignCreate(name="Studio Blue"))
+    page.goto(live_app.url + "/?view=designs")
+    export = page.get_by_role("link", name="Export Studio Blue design", exact=True)
+    export.focus()
+    with page.expect_download() as transfer:
+        export.press("Enter")
+    download = tmp_path / transfer.value.suggested_filename
+    transfer.value.save_as(download)
+    new = tmp_path / "transferred.design.zip"
+    with ZipFile(new, "w") as archive:
+        archive.writestr("design-context.json", '{"id":"transferred","name":"Transferred"}')
+        archive.writestr("reference/palette.csv", "color\nblue")
+    with ZipFile(download) as original:
+        assert "Studio Blue" in original.read("design-context.json").decode()
+    upload = page.get_by_role("button", name="Import design", exact=True)
+    upload.focus()
+    upload.press("Enter")
+    dialog = page.get_by_role("dialog", name="Import design")
+    dialog.get_by_label("Design ZIP").set_input_files(download)
+    dialog.get_by_role("button", name="Import design", exact=True).click()
+    expect(dialog.get_by_role("alert")).to_have_text("This design is already in this workspace.")
+    dialog.get_by_label("Design ZIP").set_input_files(new)
+    dialog.get_by_role("button", name="Import design", exact=True).click()
+    expect(page.get_by_role("heading", name="Transferred", exact=True)).to_be_visible()
+    assert library.get(item.id).name == "Studio Blue"
 
 
 def test_default_design_failure_keeps_keyboard_focus_and_can_retry(

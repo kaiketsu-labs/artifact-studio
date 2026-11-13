@@ -13,6 +13,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
+from .design_transfer import MAX_DESIGN_ZIP
 
 
 class HostedAuth:
@@ -258,6 +259,7 @@ class HostedAuth:
                 "/api/decks",
                 "/api/design-requests",
                 "/api/design-library",
+                "/api/design-library/import",
                 "/api/chat-references",
                 "/api/projects/open",
             } or path.endswith(
@@ -270,7 +272,11 @@ class HostedAuth:
                     "/selection-image",
                 )
             )
-            limit = (100 if path == "/api/projects/open" else 256 if large else 16) * 1024 * 1024
+            limit = (
+                MAX_DESIGN_ZIP
+                if path == "/api/design-library/import"
+                else (100 if path == "/api/projects/open" else 256 if large else 16) * 1024 * 1024
+            )
             slots = self._upload_slots if large else self._write_slots
             if slots.locked():
                 await reply(429, "Request capacity is busy. Retry shortly.")

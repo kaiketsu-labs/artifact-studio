@@ -19,6 +19,19 @@ PowerPoint covers keep their existing previews.
 
 The design's trash icon removes it from the library while preserving source files and existing presentations. Use **Deleted designs** in the toolbar to restore it. Registered slide packs also expose **Open example slides** as a separate action. Reference collections are not automatically available as presentation templates or workspace defaults.
 
+The design library and new-presentation picker show the first example slide as a
+scaled 16:9 cover. Hosted previews embed the pack's local theme, images and
+fonts. Keep cover dependencies in `assets/` so the preview can load them
+without fetching external resources.
+
+Use the **Export design ZIP** icon on a design card or detail page to save its
+examples, theme, assets, and references. In the destination workspace, open
+**Designs** and use the **Import design ZIP** icon beside search. Studio keeps
+the design ID, preserves the existing default, and refuses duplicates,
+including designs in **Deleted designs**. Slide packs use the installed Studio
+viewer while retaining their editable examples and assets. Workspace owners
+can transfer ZIPs up to 90 MB compressed, 300 MB expanded, and 5,000 files.
+
 To turn supplied material into a reusable slide pack, ask the connected agent to inspect it, build and visually check the example slides, and register a pack with its own ID. Say which pack you want as the default. You can also supply references in the agent's own chat or through the existing presentation editor. You do not need to edit a manifest or choose from fixed layouts.
 
 In **Context files**, click a text file's name or icon to open it in the preview dialog. Markdown opens formatted, with a **Source** toggle; CSS, JavaScript, HTML, JSON, CSV and other text open as readable source. Choose **Edit**, then **Save** (⌘S / Ctrl+S) or **Cancel**. Saves update the real local file, preserve its encoding and line endings, and follow enabled workspace backup settings. A newer agent/filesystem edit blocks an outdated save; your draft remains available to copy before opening the latest file. Existing presentations are not restyled automatically. HTML and scripts are never executed in this dialog. **Download original** keeps the full file available. Files above 1 MB show a truncated, read-only preview; UTF-8 and UTF-16 with a byte-order mark are supported. Image and PowerPoint-cover previews remain available from their thumbnails.

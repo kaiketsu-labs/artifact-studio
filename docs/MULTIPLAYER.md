@@ -197,6 +197,9 @@ import, export and backup controls are not yet available in this UI.
 
 ## Share and collaborate
 
+The version at the bottom of the left sidebar opens **Workspace & server**.
+It shows the running release and the build revision when configured.
+
 The presentation rail marks the slides other people are viewing. The people
 button lists their names and slide numbers. A background tab remains visible
 for up to 45 seconds after its last heartbeat. Closing a tab or leaving the
@@ -205,6 +208,14 @@ presentation clears its presence when the server receives the departure.
 In Shared chat, type `@` and choose a collaborator with access to the
 presentation. Studio highlights the message for that person. Their unread
 mention badge opens the referenced slide and message.
+
+Open a presentation and use **Shared** to discuss it with collaborators or
+**Agent** for a private conversation. A dot marks new messages in a tab.
+Switching tabs keeps each unsent draft with its own conversation. If you have a
+connected agent with edit access, select **Ask my agent** in Shared to send a
+request whose reply stays in Shared. Messages in Agent go to the same connection
+and its replies stay private. If you have comments saved by the earlier batch
+workflow, a **Send queued comments** button is shown in that conversation.
 
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
    Access, and complete MFA. The regular library opens at **All artifacts**.
@@ -341,6 +352,11 @@ Each scoped presentation asset request checks the recipient's current grants and
 validates the presentation in the same read before serving the passive file.
 
 ## Agent setup and delivery
+
+On a presentation, open **Agent connection** to let a connected agent read
+**Full Shared history**. The permission applies to the selected connection and
+presentation. Turn it off in the same dialog to revoke future history reads.
+Assigned requests from either chat remain available through the agent's work queue.
 
 Set the token using your environment or secret manager. Never put its value in chat,
 source files, screenshots or shared configuration.

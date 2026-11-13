@@ -4,6 +4,10 @@
 .design-card-art{position:relative;display:flex;align-items:center;justify-content:center;aspect-ratio:16/10;width:100%;overflow:hidden;background:var(--hub-soft);border-bottom:1px solid var(--hub-line);pointer-events:none}
 .design-card-art>iframe,.design-card-art>img{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff;object-fit:contain;color-scheme:light}
 .design-card-art>iframe{aspect-ratio:16/9;height:auto;top:50%;transform:translateY(-50%)}
+@supports (transform:scale(tan(atan2(1px,1px)))) {
+  [data-hosted-workspace] .design-card-art{container-type:inline-size}
+  [data-hosted-workspace] .design-card-art>iframe{width:1600px;height:900px;transform-origin:left center;transform:translateY(-50%) scale(tan(atan2(100cqw,1600px)))}
+}
 .design-card-art:has(>iframe)>.design-cover-sheet,.design-card-art:has(>iframe)>.design-cover-formats{visibility:hidden}
 .design-cover-sheet{display:flex;flex-direction:column;gap:9px;background:var(--hub-panel);padding:22px;width:65%;height:80%;transform:rotate(-5deg) translateY(16px);border:1px solid var(--hub-line);border-radius:5px;box-shadow:0 8px 22px #16294412;color:var(--hub-ink);overflow:hidden}
 .design-cover-sheet>b{font-size:9px;letter-spacing:.15em;color:var(--hub-blue)}
@@ -20,6 +24,13 @@
 .design-card-meta>span:first-child{margin-right:auto}
 .design-card-delete{width:32px;height:32px;padding:7px!important;border:0!important;color:var(--hub-muted)}
 .design-card-delete:hover,.design-danger{color:#ba403b!important}
+.design-export{display:inline-grid;place-items:center;flex:0 0 32px;width:32px;height:32px;color:var(--hub-muted);border-radius:6px}
+.design-export:hover{background:var(--hub-hover);color:var(--hub-ink)}
+.design-export:focus-visible{outline:2px solid var(--hub-blue);outline-offset:2px}
+.design-library-controls{display:flex;align-items:center;gap:8px;max-width:100%}
+.design-library-controls .hub-search{min-width:0}
+.design-library-controls .design-import{flex:none}
+@media(max-width:650px){.design-library-controls{width:100%}}
 .design-detail-heading{display:flex;align-items:flex-start;gap:20px;justify-content:space-between;margin:24px 0 36px}
 .design-detail-heading h1{font-size:30px;line-height:1.2;margin:8px 0 12px;overflow-wrap:anywhere}
 .design-eyebrow{font-size:11px;color:var(--hub-muted);margin:0}

@@ -35,6 +35,7 @@ from .deck_edit_api import deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_library import DesignLibrary
 from .design_library_api import design_library_routes
+from .design_preview import hosted_design_preview
 from .element_alternative_api import element_alternative_routes
 from .element_alternatives import element_badges
 from .favorites import Favorites, favorite_routes
@@ -53,7 +54,6 @@ from .slide_design_api import design_routes
 from .slide_designs import design_badges
 from .storage import ConflictError, Store, digest
 from .version_authors import revision_author
-from .visuals import ScopedDeckEmbedder
 
 PROJECT = Path(__file__).resolve().parents[1]
 SHARED_PROJECT = "shared-with-me"
@@ -462,24 +462,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def design_preview(request: Request, design_id: str) -> HTMLResponse:
         """Show only the cover of an owned design in an inert picker frame."""
         with owned_workspace(request) as store:
-            folder = store.design(design_id, include_archived=False).folder_id
-            slide = store.read(folder).slides[0]
-            embedder = ScopedDeckEmbedder(store, folder)
-            theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
-            markup = embedder.markup(slide.html)
-        return HTMLResponse(
-            '<!doctype html><html><head><meta charset="utf-8"><style>'
-            + theme
-            + "\nhtml,body{width:100%;height:100%;overflow:hidden}</style>"
-            + f"</head><body>{markup}</body></html>",
-            headers={
-                "Content-Security-Policy": (
-                    "default-src 'none'; sandbox; style-src 'unsafe-inline'; img-src data:; "
-                    "font-src data:; media-src data:; base-uri 'none'; form-action 'none'; "
-                    f"frame-ancestors {config.public_url}"
-                )
-            },
-        )
+            return hosted_design_preview(store, design_id, config.public_url)
 
     @contextmanager
     def deck_access(request: Request, deck_id: str, role: Role) -> Generator[Store]:
