@@ -74,8 +74,7 @@ def recover_pending(store: Store, db: sqlite3.Connection, deck_id: str) -> None:
 def pending_deletions(db: sqlite3.Connection, deck_id: str) -> list[SlideActionResult]:
     """Read completed deletions still eligible for explicit recovery."""
     rows = db.execute(
-        "SELECT result_json FROM slide_actions "
-        "WHERE deck=? AND completed=1 ORDER BY rowid DESC",
+        "SELECT result_json FROM slide_actions WHERE deck=? AND completed=1 ORDER BY rowid DESC",
         (deck_id,),
     ).fetchall()
     results = [SlideActionResult.model_validate_json(cast(str, row[0])) for row in rows]
