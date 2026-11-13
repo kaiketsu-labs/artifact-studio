@@ -357,7 +357,8 @@
     return true;
   }
   async function refreshConversation(id){
-    if(!collaborationChat&&!window.StudioInvitation?.available)return;
+    // An acknowledgement from the previous deck must not supersede the current read.
+    if(deck?.id!==id||(!collaborationChat&&!window.StudioInvitation?.available))return;
     const request=++conversationRead,channel=conversationChannel;
     const result=await scopedChat.read(id,{channel});
     if(request!==conversationRead||channel!==conversationChannel||deck?.id!==id)return;
