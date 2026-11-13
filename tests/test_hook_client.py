@@ -1,6 +1,7 @@
 """Tests for project hooks and review event handling."""
 
 import json
+import re
 import shlex
 from pathlib import Path
 
@@ -139,7 +140,10 @@ def test_configure_passive_claude_mode(tmp_path: Path) -> None:
     assert set(configured["hooks"]) == {"PostToolUse", "Stop"}
     assert configured["hooks"]["Stop"] == [{"hooks": [unrelated]}]
     group = configured["hooks"]["PostToolUse"][0]
-    assert group["matcher"] == "^mcp__artifact[-_]studio__(get_working_context|start_live_review)$"
+    matcher = re.compile(group["matcher"])
+    for tool in ("get_working_context", "revise_slide", "publish_element_alternatives"):
+        assert matcher.fullmatch(f"mcp__artifact_studio__{tool}")
+    assert not matcher.fullmatch("mcp__artifact_studio__read_feedback")
     assert len(group["hooks"]) == 1
     handler = group["hooks"][0]
     assert handler["async"] is True

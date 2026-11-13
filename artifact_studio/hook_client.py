@@ -48,7 +48,15 @@ AUTO_REVIEW_TOOLS = {
     "read_artifact_feedback",
     "reply_to_artifact_feedback",
 }
-PASSIVE_CHECK_TOOLS = ("get_working_context", "start_live_review")
+PASSIVE_CHECK_TOOLS = (
+    "get_working_context",
+    "start_live_review",
+    "revise_slide",
+    "add_slide",
+    "revise_artifact",
+    "publish_slide_designs",
+    "publish_element_alternatives",
+)
 
 
 def _object(value: object) -> dict[str, object]:
