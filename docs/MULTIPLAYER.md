@@ -342,6 +342,11 @@ validates the presentation in the same read before serving the passive file.
 
 ## Agent setup and delivery
 
+On a presentation, open **Agent connection** to let a connected agent read
+**Full Shared history**. The permission applies to the selected connection and
+presentation. Turn it off in the same dialog to revoke future history reads.
+Assigned requests from either chat remain available through the agent's work queue.
+
 Set the token using your environment or secret manager. Never put its value in chat,
 source files, screenshots or shared configuration.
 

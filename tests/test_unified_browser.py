@@ -28,6 +28,45 @@ pytestmark = [
 ]
 
 
+def test_owner_can_toggle_full_shared_history_for_one_agent(tmp_path: Path) -> None:
+    """Exercise the presentation permission through the owner's agent dialog."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        response = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "workspace", "name": "Fictional workspace agent"},
+        )
+        response.raise_for_status()
+        agent_id = response.json()["id"]
+        setting = (
+            f"/api/workspaces/default/artifacts/{app.deck_id}/agents/{agent_id}/shared-history"
+        )
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "owner") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 390, "height": 844})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.locator("#workspace-menu-button").click()
+                page.locator("#connect-button").click()
+                dialog = page.get_by_role("dialog", name="Agent connection")
+                permission = dialog.get_by_role(
+                    "checkbox", name=re.compile("Full Shared history", re.I)
+                )
+                expect(permission).not_to_be_checked()
+                with page.expect_response(lambda result: result.url.endswith(setting)):
+                    permission.check()
+                assert owner.get(setting).json() == {"enabled": True}
+                with page.expect_response(lambda result: result.url.endswith(setting)):
+                    permission.uncheck()
+                assert owner.get(setting).json() == {"enabled": False}
+        finally:
+            browser.close()
+
+
 def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
     """Keep several active collaborators visible on mobile through a brief network failure."""
     with (
