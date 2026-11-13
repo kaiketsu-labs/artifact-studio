@@ -197,6 +197,9 @@ import, export and backup controls are not yet available in this UI.
 
 ## Share and collaborate
 
+The version at the bottom of the left sidebar opens **Workspace & server**.
+It shows the running release and the build revision when configured.
+
 The presentation rail marks the slides other people are viewing. The people
 button lists their names and slide numbers. A background tab remains visible
 for up to 45 seconds after its last heartbeat. Closing a tab or leaving the

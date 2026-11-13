@@ -99,7 +99,6 @@
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
       if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      if(hosted&&serverVersion?.textContent)serverVersion.hidden=false;
       doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
@@ -120,6 +119,7 @@
         }
       }
       root.artifactStudioSession=session;
+      mountServerVersion();
     }).catch(error=>{
       if(sessionExpired)return;
       identity.textContent=error.expired?'Your session has expired. Sign in again to continue.':'Workspace connection information unavailable.';
@@ -130,16 +130,25 @@
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);
     let opener=null,timer=null,reading=false,checking=false,saving=false,sequence=0,lastInfo=null;
     const workspaceButton=doc.querySelector('[data-session-mode]');
-    const serverVersion=doc.querySelector('[data-server-version]');
+    const serverVersion=doc.createElement('button');
+    serverVersion.type='button';
+    serverVersion.dataset.serverVersion='';
+    serverVersion.setAttribute('aria-haspopup','dialog');
+    function mountServerVersion(){
+      const slot=doc.querySelector('[data-server-version-slot]');
+      if(!slot||root.artifactStudioSession?.mode!=='hosted'||!lastInfo)return;
+      if(serverVersion.parentElement!==slot)slot.append(serverVersion);
+      slot.hidden=false;
+    }
     function showAbout(trigger){
       opener=trigger;
       dialog.showModal();
       void refresh();
       void workspaceList().catch(()=>{workspaces.hidden=true;});
     }
-    root.StudioAbout={open:showAbout};
+    root.StudioAbout={open:showAbout,mountServerVersion};
     workspaceButton?.addEventListener('click',()=>showAbout(workspaceButton));
-    serverVersion?.addEventListener('click',()=>showAbout(serverVersion));
+    serverVersion.addEventListener('click',()=>showAbout(serverVersion));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){
       const icon=doc.createElement('span');icon.className='app-update-icon';icon.hidden=true;icon.innerHTML=mark;entry.append(icon);
@@ -167,11 +176,9 @@
       const label=`Version ${info.version}`;
       version.textContent=label;
       const revision=/^[a-f0-9]{7,64}$/.test(info.build_revision||'')?info.build_revision.slice(0,7):'';
-      if(serverVersion){
-        serverVersion.textContent=`v${info.version}${revision?` · ${revision}`:''}`;
-        serverVersion.setAttribute('aria-label',`Server ${label}${revision?`, build ${revision}`:''}`);
-        serverVersion.hidden=root.artifactStudioSession?.mode!=='hosted';
-      }
+      serverVersion.textContent=`v${info.version}${revision?` · ${revision}`:''}`;
+      serverVersion.setAttribute('aria-label',`Server ${label}${revision?`, build ${revision}`:''}`);
+      mountServerVersion();
       for(const node of doc.querySelectorAll('[data-app-version]'))node.textContent=label;
       const nightlyTag=/^nightly-\d{8}\.[1-9]\d{0,11}$/;
       const available=info.update_available===true&&(/^v\d+\.\d+\.\d+$/.test(info.latest_tag||'')||(info.include_nightly===true&&nightlyTag.test(info.latest_tag||'')));

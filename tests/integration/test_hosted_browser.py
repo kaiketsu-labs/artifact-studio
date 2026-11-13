@@ -107,8 +107,9 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
             lambda response: failures.append(response.url) if response.status >= 400 else None,
         )
         page.goto(WORKSPACE)
-        hosted = page.locator("[data-server-version]")
+        hosted = page.locator(".hub-sidebar > .app-sidebar-footer:last-child [data-server-version]")
         expect(hosted).to_be_visible()
+        expect(page.locator(".hub-top [data-server-version]")).to_have_count(0)
         expect(hosted).to_have_text(re.compile(r"^v\d+\.\d+\.\d+ · abc1234$"))
         expect(page.locator("[data-session-mode]")).to_be_hidden()
         expect(page.get_by_role("button", name="Hosted", exact=True)).to_have_count(0)
