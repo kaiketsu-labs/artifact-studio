@@ -691,6 +691,9 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 expect(guest.locator("#feedback-list .is-agent-request")).to_contain_text(
                     "Request in Shared"
                 )
+                expect(page.locator("#feedback-list .is-agent-request")).to_have_css(
+                    "border-top-color", "rgb(142, 120, 203)"
+                )
                 expect(toggle).to_have_attribute("aria-pressed", "false")
                 expect(guest.locator("#feedback-list")).not_to_contain_text("Request in Agent")
                 expect(guest.get_by_role("button", name="Ask your agent")).to_be_hidden()
