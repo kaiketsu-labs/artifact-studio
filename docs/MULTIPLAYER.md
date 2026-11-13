@@ -214,9 +214,12 @@ mention badge opens the referenced slide and message.
 Open a presentation and use **Shared** to discuss it with collaborators or
 **Agent** for a private conversation. A dot marks new messages in a tab.
 Switching tabs keeps each unsent draft with its own conversation. If you have a
-connected agent with edit access, select **Ask my agent** in Shared to send a
-request whose reply stays in Shared. Messages in Agent go to the same connection
-and its replies stay private. If you have comments saved by the earlier batch
+connected agent with edit access, start a Shared message with `@@` or `@agent`,
+or click the robot icon by Send. A purple border and robot mark the request,
+and its reply stays in Shared. The request can include up to four earlier released
+human messages from the same slide or artifact as context. Drag the chat divider
+left to widen the panel on desktop. Messages in Agent and their replies stay
+private. If you have comments saved by the earlier batch
 workflow, a **Send queued comments** button is shown in that conversation.
 
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare

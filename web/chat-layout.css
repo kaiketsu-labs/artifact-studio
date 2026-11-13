@@ -3,7 +3,8 @@
 .workspace:not(.is-sorter){grid-template-columns:var(--chat-rail-width) minmax(var(--chat-canvas-min),1fr) var(--chat-divider-width) var(--chat-width,var(--chat-default-width))}
 .discussion{min-width:0;border-left:0}
 .chat-resizer{position:relative;cursor:col-resize;touch-action:none;outline-offset:-2px}
-.chat-resizer::after{content:'';position:absolute;left:50%;top:50%;width:3px;height:40px;border-radius:3px;background:var(--line);transform:translate(-50%,-50%)}
+.chat-resizer::before{content:'';position:absolute;inset:0 -3px}
+.chat-resizer::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:36px;border-radius:4px;background:var(--line);transform:translate(-50%,-50%)}
 .chat-resizer:hover::after,.chat-resizer:focus-visible::after,.is-resizing-chat .chat-resizer::after{background:var(--blue)}
 .workspace.is-resizing-chat,.workspace.is-resizing-chat *{cursor:col-resize!important;user-select:none!important}
 .workspace.is-resizing-chat iframe{pointer-events:none}

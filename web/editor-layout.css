@@ -13,7 +13,7 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
 .topbar .workspace-panel-toggle.panel-right{margin-left:10px}
 .topbar .workspace-panel-toggle.panel-right::before{content:'';position:absolute;left:-9px;top:8px;bottom:8px;width:1px;background:var(--line);pointer-events:none}
 .workspace{--chat-rail-width:176px;--chat-canvas-min:400px;--chat-default-width:320px;height:calc(100dvh - 96px)}
-.workspace:not(.is-sorter){grid-template-columns:min(var(--chat-rail-width),26vw) minmax(0,1fr) 8px var(--chat-width,var(--chat-default-width))}
+.workspace:not(.is-sorter){grid-template-columns:min(var(--chat-rail-width),26vw) minmax(0,1fr) var(--chat-divider-width) var(--chat-width,var(--chat-default-width))}
 .workspace.panels-right-closed:not(.is-sorter){grid-template-columns:min(var(--chat-rail-width),26vw) minmax(0,1fr) 0 0}
 .workspace:not(.is-sorter)>.rail{position:relative;grid-row:1;height:auto;min-height:0;background:var(--surface,#fafbfc)}
 .rail-heading{padding:10px 12px 12px}

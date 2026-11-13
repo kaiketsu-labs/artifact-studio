@@ -142,7 +142,8 @@
   const studioHome=root.ArtifactSession.home();
   const nativeChat=sharedEditor||doc.documentElement.hasAttribute('data-native-conversation');
   doc.documentElement.toggleAttribute('data-native-conversation',nativeChat);
-  const scopedChat=root.StudioNativeConversation.create({api});
+  const nativeConversation=root.StudioNativeConversation;
+  const scopedChat=nativeConversation.create({api});
   const collaborationChat=nativeChat?scopedChat:null;
   const conversationModes=new Map(),conversationChannels=new Map();
   const canComment=item=>!nativeChat||['edit','comment'].includes(item?.collaboration?.access?.role);
@@ -466,7 +467,7 @@
     const scoped=info.messages.map(message=>({
       id:-message.id,author:message.author===message.person?'user':'agent',
       name:message.author===message.person?(message.person===info.person?'You':message.author_name):(info.agents.find(agent=>agent.id===message.author)?.name||'Agent'),
-      collaborator:message.author===message.person&&message.person!==info.person,
+      collaborator:message.author===message.person&&message.person!==info.person,agentRequest:nativeConversation.agentRequest(message),
       message:message.message,created_at:new Date(message.created*1000).toISOString(),
       content_hash:message.content_hash,target:message.target,released:Boolean(message.released),files:message.files||[],scoped:true
     }));
@@ -478,9 +479,9 @@
   async function postArtifactFeedback(item,body) {
     if(!collaborationChat)return api(artifactPath(item.id,'/feedback'),body);
     if(!canComment(item))throw new Error('You have view access.');
-    const channel=channelOf(item.id),assigned=body.edit_intent||channel==='private'?ownChatAgent(item)?.id||'':'';
-    if((body.edit_intent||channel==='private')&&!assigned)throw new Error('Connect your agent before requesting an edit.');
-    return collaborationChat.send(item.id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:body.content_hash,target:body.target,editIntent:body.edit_intent,channel,assigned,released:body.expected_mode!=='batch'});
+    const channel=channelOf(item.id),forAgent=body.edit_intent||body.ask_agent||channel==='private';
+    const assigned=forAgent?ownChatAgent(item)?.id||'':'';
+    return collaborationChat.send(item.id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:body.content_hash,target:body.target,editIntent:body.edit_intent,channel,assigned,forAgent,includeSharedContext:body.ask_agent,released:body.expected_mode!=='batch'});
   }
   function toast(message, error=false) {
     const node=doc.getElementById('hub-toast');node.textContent=message;node.classList.toggle('is-error',error);node.hidden=false;
@@ -644,7 +645,7 @@
       const url=root.ChatImages.downloadURL(file.download_url);
       return url?`<a class="hub-attachment" href="${escape(url)}" download>${icon('attach')}<span>${escape(file.name || file.path)}</span></a>`:`<span class="hub-attachment">${icon('attach')}<span>${escape(file.name || file.path)}</span></span>`;
     }).join('');
-    return `<article class="hub-message ${user&&!message.collaborator?'is-user':''}"${message.scoped?' data-scoped':''}><div class="hub-message-head">${icon(user?'user':'robot')}<span>${escape(message.name||(user?'You':'Agent'))}</span>${message.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}${root.ElementProperties.summary(message.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Private batch · not released</div>':''}</article>`;
+    return `<article class="hub-message  ${user&&!message.collaborator?'is-user':''}${message.agentRequest?' is-agent-request':''}"${message.scoped?' data-scoped':''}><div class="hub-message-head">${icon(user?'user':'robot')}<span>${escape(message.name||(user?'You':'Agent'))}</span>${message.agentRequest?nativeConversation.agentBadge():''}${message.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}${root.ElementProperties.summary(message.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Private batch · not released</div>':''}</article>`;
   }
   function threadMarkup(item) {
     return root.StudioChatTimeline.render(item.feedback||[],message=>message.created_at,
@@ -659,7 +660,7 @@
   }
   function chatMarkup(item) {
     const value=draft(item),mode=item.mode || 'batch';
-    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation${button('end-review','','stop',`id="hub-end-review" class="hub-end-review" aria-label="End review" title="End review" ${item.delivery?.live_available?'':'hidden'}`)}</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)}${sharedEditor?' · '+escape({view:'Can view',comment:'Can comment',edit:'Can edit'}[item.access_role]||''):' · version '+escape(item.revision||1)}</p></header>${collaborationChat?`<label class="shared-channel"><span class="sr-only">Conversation</span><select id="hub-shared-channel"><option value="shared">Shared</option><option value="private" ${channelOf(item.id)==='private'?'selected':''}>My agent</option></select></label>`:''}${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${threadMarkup(item)}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length || attachments.get(item.id)?.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="${collaborationChat?(canComment(item)?channelOf(item.id)==='private'?'Message your agent…':'Message collaborators…':'View access'):'Message your agent… Type @ to reference'}" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}${button('reference-slides','','favoriteSlides','aria-label="Reference favorite slides" title="Reference favorite slides"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
+    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation${button('end-review','','stop',`id="hub-end-review" class="hub-end-review" aria-label="End review" title="End review" ${item.delivery?.live_available?'':'hidden'}`)}</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)}${sharedEditor?' · '+escape({view:'Can view',comment:'Can comment',edit:'Can edit'}[item.access_role]||''):' · version '+escape(item.revision||1)}</p></header>${collaborationChat?`<label class="shared-channel"><span class="sr-only">Conversation</span><select id="hub-shared-channel"><option value="shared">Shared</option><option value="private" ${channelOf(item.id)==='private'?'selected':''}>My agent</option></select></label>`:''}${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${threadMarkup(item)}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length || attachments.get(item.id)?.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="${collaborationChat?(canComment(item)?channelOf(item.id)==='private'?'Message your agent…':'Message collaborators…':'View access'):'Message your agent… Type @ to reference'}" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}${collaborationChat?button('ask-agent','','robot','id="hub-ask-agent" class="chat-agent-toggle" aria-label="Ask your agent" aria-pressed="false" hidden'):''}${button('reference-slides','','favoriteSlides','aria-label="Reference favorite slides" title="Reference favorite slides"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
   }
   function attachmentMarkup(id) {
     chatImages.retain([...attachments.values()].flat());
@@ -749,7 +750,29 @@
     for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input'))if(!control.closest('.voice-input-controls'))control.disabled=sending.has(state.active)||!canComment(state.detail);
     const submit=doc.getElementById('hub-send'),active=voice.isActive();
     if(submit){submit.setAttribute('aria-label',state.detail?.mode==='batch'?'Add feedback to batch':'Send feedback');submit.disabled=sending.has(state.active)||active||!canComment(state.detail);submit.title=active?'Stop dictation before sending feedback':`${state.detail?.mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter`;}
+    syncAgentToggle();
     syncVoiceChrome();
+  }
+  function syncAgentToggle() {
+    const toggle=doc.getElementById('hub-ask-agent'),item=state.detail;
+    if(!toggle||!item)return;
+    const pressed=!!draft(item).ask_agent,agent=ownChatAgent(item);
+    toggle.hidden=channelOf(item.id)!=='shared'||(!agent&&!pressed);
+    nativeConversation.setAgentToggle(toggle,pressed,agent);
+    if(canComment(item))doc.getElementById('hub-feedback-text').placeholder=channelOf(item.id)==='private'||pressed?'Message your agent…':'Message collaborators…';
+  }
+  function updateFeedbackDraft(input, {composing=false,submitting=false}={}) {
+    const item=state.detail,value=draft(item);
+    if(!composing&&collaborationChat&&channelOf(item.id)==='shared'&&nativeConversation.takeAgentShortcut(input,submitting)){
+      value.ask_agent=true;
+      value.request_id=null;
+    }
+    if(value.message!==input.value){
+      value.message=input.value;
+      value.request_id=null;
+    }
+    syncAgentToggle();
+    persist();
   }
   /** Display pinned drafts without replacing text fields that may be receiving dictation. */
   function renderVoiceSegments(id=state.active) {
@@ -998,9 +1021,11 @@
     });
   }
   async function sendFeedback(form) {
-    const item=state.detail;if(!canComment(item))return;const value=draft(item),files=attachments.get(item.id) || [],expectedMode=item.mode || 'batch';
+    const item=state.detail;if(!canComment(item)||sending.has(item.id))return;
+    updateFeedbackDraft(form.querySelector('#hub-feedback-text'),{submitting:true});
+    const value=draft(item),files=attachments.get(item.id) || [],expectedMode=item.mode || 'batch';
     if(voice.isActive()){toast('Stop dictation before sending feedback.');return;}
-    if(sending.has(item.id) || !artifactEditor.finish() || !value.message.trim() && !files.length && !value.voice_segments?.some(segment=>segment.message.trim()))return;
+    if(!artifactEditor.finish() || !value.message.trim() && !files.length && !value.voice_segments?.some(segment=>segment.message.trim()))return;
     sending.add(item.id);
     const controls=[...form.querySelectorAll('button,textarea,input')],error=form.querySelector('[role=alert]');for(const control of controls)control.disabled=true;error.textContent='';
     lockComposer();persist();
@@ -1008,12 +1033,12 @@
       // Acknowledge each completed prefix locally; failed or lost responses retain their retry IDs.
       for(const segment of [...(value.voice_segments || [])]){
         if(!segment.message.trim())continue;
-        await postArtifactFeedback(item,{message:segment.message,target:segment.target,content_hash:segment.content_hash,request_id:segment.request_id,expected_mode:expectedMode});
+        await postArtifactFeedback(item,{message:segment.message,target:segment.target,content_hash:segment.content_hash,request_id:segment.request_id,ask_agent:value.ask_agent,expected_mode:expectedMode});
         value.voice_segments=value.voice_segments.filter(current=>current.request_id!==segment.request_id);persist();renderVoiceSegments(item.id);
       }
       if(value.message.trim() || files.length){
         value.request_id ||= root.crypto.randomUUID();persist();
-        await postArtifactFeedback(item,{message:value.message.trim(),target:feedbackTarget(groupTargets(value.targets)),files:await encodeFiles(files),content_hash:value.content_hash,request_id:value.request_id,expected_mode:expectedMode});
+        await postArtifactFeedback(item,{message:value.message.trim(),target:feedbackTarget(groupTargets(value.targets)),files:await encodeFiles(files),content_hash:value.content_hash,request_id:value.request_id,ask_agent:value.ask_agent,expected_mode:expectedMode});
         value.message='';value.request_id=null;attachments.delete(item.id);persist();
       }
       drafts.delete(item.id);attachments.delete(item.id);persist();
@@ -1060,6 +1085,15 @@
     if(name==='choose-folder')return doc.getElementById('hub-import-folder').click();
     if(name==='move')return moveDialog();
     if(name==='attach')return doc.getElementById('hub-feedback-files').click();
+    if(name==='ask-agent'){
+      const value=draft();
+      value.ask_agent=!value.ask_agent;
+      value.request_id=null;
+      doc.getElementById('hub-feedback-error').textContent='';
+      syncAgentToggle();persist();
+      doc.getElementById('hub-feedback-text').focus();
+      return;
+    }
     if(name==='clear-targets'){if(!resetEditor())return;draft().targets=[];draft().request_id=null;syncSelection();voiceBoundary();return;}
     if(name==='reload')return openArtifact(state.active,false);
     if(name==='select'){if(!resetEditor())return;state.selecting=!state.selecting;node.setAttribute('aria-pressed',String(state.selecting));node.innerHTML=icon('cursor')+`<span>${state.selecting?'Selecting':'Select'}</span>`;syncSelection();return;}
@@ -1145,9 +1179,10 @@
   content.addEventListener('keydown',event=>{if(root.ElementCommands.shortcut(event)==='menu' && libraryContextMenu(event)){event.preventDefault();event.stopPropagation();}});
   doc.addEventListener('input',event=>{
     if(event.target.id==='hub-search'){state.search=event.target.value;refreshCards();}
-    if(event.target.id==='hub-feedback-text'){draft().message=event.target.value;draft().request_id=null;persist();}
+    if(event.target.id==='hub-feedback-text')updateFeedbackDraft(event.target,{composing:event.isComposing});
     if(event.target.dataset.hubVoiceSegment){const segment=draft().voice_segments?.find(segment=>(segment.id || segment.request_id)===event.target.dataset.hubVoiceSegment);if(segment){segment.id ||= segment.request_id;segment.message=event.target.value;segment.request_id=root.crypto.randomUUID();persist();}}
   });
+  doc.addEventListener('compositionend',event=>{if(event.target.id==='hub-feedback-text')updateFeedbackDraft(event.target);});
   doc.addEventListener('change',event=>{
     const node=event.target;
     if(node.id==='hub-sort')updateSort({by:node.value,direction:['starred','updated','created'].includes(node.value)?'desc':'asc'});
@@ -1156,7 +1191,7 @@
     if(['hub-import-files','hub-import-folder'].includes(node.id))setImportFiles([...node.files]);
     if(node.id==='hub-feedback-files'){addAttachments([...node.files]);node.value='';}
   });
-  doc.addEventListener('keydown',event=>{if(event.target.id==='hub-feedback-text' && event.key==='Enter' && !event.shiftKey && !event.isComposing){event.preventDefault();if(!doc.getElementById('hub-send').disabled)doc.getElementById('hub-feedback-form').requestSubmit();}});
+  doc.addEventListener('keydown',event=>{if(event.target.id==='hub-feedback-text' && event.key==='Enter' && !event.shiftKey && !event.altKey && !event.isComposing && event.keyCode!==229){event.preventDefault();if(!event.repeat&&!doc.getElementById('hub-send').disabled)doc.getElementById('hub-feedback-form').requestSubmit();}});
   doc.addEventListener('submit',event=>{
     const form=event.target;if(!['hub-feedback-form','hub-project-form','hub-import-form','hub-move-form','hub-folder-form','hub-tree-move-form'].includes(form.id))return;event.preventDefault();
     if(form.id==='hub-feedback-form'){sendFeedback(form);return;}
@@ -1311,7 +1346,7 @@
       event.target.value=before;toast('Send or clear this draft before switching conversations.',true);return;
     }
     conversationChannels.set(item.id,event.target.value);
-    try{const detail=await artifactDetail(item.id);if(state.detail===item){state.detail=detail;renderChat();}}
+    try{const detail=await artifactDetail(item.id);if(state.detail===item){value.ask_agent=false;state.detail=detail;renderChat();}}
     catch(error){conversationChannels.set(item.id,before);event.target.value=before;toast(error.message,true);}
   });
   const libraryControls=root.SlideLibraries.init({api,toast,escape,currentDeck:()=>null});

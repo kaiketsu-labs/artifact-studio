@@ -136,6 +136,19 @@ def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path
             },
         )
         shared.raise_for_status()
+        for identifier, slide_id, released in (
+            ("other-slide", "next", True),
+            ("withheld", None, False),
+        ):
+            alice.post(
+                base + "/chat",
+                json={
+                    "message": identifier,
+                    "request_id": f"fictional-context-{identifier}",
+                    "released": released,
+                    "target": {"kind": "slide", "slide_id": slide_id} if slide_id else None,
+                },
+            ).raise_for_status()
         for channel in ("shared", "private"):
             owner.post(
                 base + "/chat",
@@ -144,6 +157,7 @@ def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path
                     "channel": channel,
                     "request_id": f"assigned-{channel}",
                     "assigned": connection_id,
+                    "include_shared_context": channel == "shared",
                     "content_hash": state["content_hash"],
                 },
             ).raise_for_status()
@@ -182,12 +196,24 @@ def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path
 
             assert history("shared") == ["Fictional shared request"]
             assert peer.call("read_chat_attachment", **attachment).is_error
+            events = cast(list[dict[str, object]], peer.value("read_feedback", **args)["events"])
+            expected_context = [{"id": shared.json()["id"], "message": "Fictional shared context"}]
+            assert {event["channel"] for event in events} == {"shared", "private"}
+            assert (
+                next(event for event in events if event["channel"] == "shared")["shared_context"]
+                == expected_context
+            )
+            assert "shared_context" not in next(
+                event for event in events if event["channel"] == "private"
+            )
             assert owner.post(setting, json={"enabled": True}).json() == {"enabled": True}
-            assert history("shared") == ["Fictional shared context", "Fictional shared request"]
+            assert history("shared") == [
+                "Fictional shared context",
+                "other-slide",
+                "Fictional shared request",
+            ]
             assert history("private") == ["Fictional private request"]
             assert peer.value("read_chat_attachment", **attachment)["text"] == "fiction"
-            events = cast(list[dict[str, object]], peer.value("read_feedback", **args)["events"])
-            assert {event["channel"] for event in events} == {"shared", "private"}
             for event in events:
                 event_id = event["id"]
                 claim = peer.value(

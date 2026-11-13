@@ -91,6 +91,7 @@ class ChatInput(StrictModel):
     request_id: str = Field(min_length=8, max_length=100)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
+    include_shared_context: bool = False
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
     slide_content_hash: str = Field(default="", max_length=64)
@@ -522,6 +523,7 @@ def create_app(
             body.files,
             slide_content_hash=body.slide_content_hash,
             proposal=body.proposal,
+            include_shared_context=body.include_shared_context,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")
