@@ -92,6 +92,7 @@
     void root.ArtifactSession.get().then(session=>{
       if(sessionExpired)return;
       const hosted=session.mode==='hosted';
+      if(hosted)doc.documentElement.setAttribute('data-hosted-workspace','');
       checks.hidden=!hosted||(session.scoped_editor&&!session.security);
       if(!checks.hidden)renderSecurity(session.security);
       identity.replaceChildren();

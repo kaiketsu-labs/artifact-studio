@@ -52,6 +52,7 @@ from .deck_edit_api import DeckID, SlideID, deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
+from .design_preview import hosted_design_preview
 from .design_references import DesignReferences
 from .element_alternative_api import element_alternative_routes
 from .element_alternatives import (
@@ -2196,6 +2197,8 @@ def design_attachment(event_id: int, file_index: int) -> FileResponse:
 @app.get("/api/designs/{design_id}/preview", response_class=HTMLResponse)
 def design_preview(design_id: str) -> HTMLResponse:
     """Show the first design example inside the script-free brand picker."""
+    if deployment.mode == "hosted":
+        return hosted_design_preview(store, design_id, deployment.public_url)
     design = store.design(design_id)
     slide = store.read(design.folder_id).slides[0]
     return preview(design.folder_id, slide.id)
