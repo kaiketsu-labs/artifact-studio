@@ -144,9 +144,14 @@
       const summary = doc.createElement('summary');
       summary.textContent = report.changed_count + (report.changed_count === 1 ? ' differing file' : ' differing files');
       const files = doc.createElement('ul');
+      const changesByPath = new Map((report.changes || []).map(change => [change.path, change]));
       for (const path of report.changed_files) {
         const item = doc.createElement('li');
-        item.textContent = path;
+        const change = changesByPath.get(path);
+        const status = change?.studio === 'missing' ? 'Missing in Studio'
+          : change?.github === 'missing' ? 'Missing on GitHub'
+          : change?.conflict ? 'Both copies differ' : 'One copy changed';
+        item.textContent = change ? path + ' · ' + status : path;
         files.append(item);
       }
       if (report.changed_count > report.changed_files.length) {

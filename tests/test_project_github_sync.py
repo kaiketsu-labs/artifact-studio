@@ -270,6 +270,9 @@ def test_hosted_sync_guards_conflicts_and_preserves_history(
         _ = remote(editor, delete="index.html")
         missing = browser.post(endpoint + "/check", headers=OWNER).json()["reports"][0]
         assert missing["action"] == "conflict" and missing["github"] is None
+        assert missing["changes"] == [
+            {"path": "index.html", "studio": "present", "github": "missing", "conflict": False}
+        ]
         assert service.snapshot_files(artifact)["index.html"] == b"<h1>GitHub newer</h1>"
 
         assert not browser.put(endpoint, headers=OWNER, json={"enabled": False}).json()["enabled"]
@@ -461,7 +464,9 @@ def test_owner_can_sync_and_resolve_from_the_project_menu(
                     dialog.get_by_role("button", name="Sync now").click()
                     expect(dialog).to_contain_text("Needs a decision")
                     dialog.get_by_text("1 differing file").click()
-                    expect(dialog.get_by_text("source.md", exact=True)).to_be_visible()
+                    expect(
+                        dialog.get_by_text("source.md · Both copies differ", exact=True)
+                    ).to_be_visible()
                     dialog.get_by_role("button", name="Keep GitHub").click()
                     dialog.get_by_role("button", name="Replace Studio source").click()
                     expect(dialog).to_contain_text("Updated in Studio from GitHub.")

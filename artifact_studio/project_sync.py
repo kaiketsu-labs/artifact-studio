@@ -123,6 +123,15 @@ class ProjectSyncResolution(StrictModel):
     choice: Choice
 
 
+class SyncFileChange(StrictModel):
+    """Describe how the two copies differ without exposing their contents."""
+
+    path: str
+    studio: Literal["present", "missing"]
+    github: Literal["present", "missing"]
+    conflict: bool
+
+
 class SyncReport(StrictModel):
     """Report both sides of one bundle comparison without returning source contents."""
 
@@ -138,6 +147,7 @@ class SyncReport(StrictModel):
     studio_revision: int = 0
     baseline_commit: str = ""
     changed_files: list[str] = Field(default_factory=list)
+    changes: list[SyncFileChange] = Field(default_factory=list)
     changed_count: int = 0
 
 
@@ -623,6 +633,20 @@ class ProjectGitHubSync:
                 name for name in local.keys() | remote.keys() if local.get(name) != remote.get(name)
             )
             report.changed_files = changed[:50]
+            base = baseline.files if baseline else None
+            report.changes = [
+                SyncFileChange(
+                    path=name,
+                    studio="present" if name in local else "missing",
+                    github="present" if name in remote else "missing",
+                    conflict=base is None
+                    or (
+                        local_files.get(name) != base.get(name)
+                        and remote_files.get(name) != base.get(name)
+                    ),
+                )
+                for name in report.changed_files
+            ]
             report.changed_count = len(changed)
             report.baseline_commit = baseline.commit if baseline else ""
             report.conflict = digest(
