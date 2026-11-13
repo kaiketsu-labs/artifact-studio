@@ -158,6 +158,7 @@ jobs:
               tests/test_scoped_owner_import.py
               tests/test_scoped_presentation_creation.py
               tests/test_scoped_design_library.py
+              tests/test_project_github_sync.py
               tests/integration/test_renderer_deadlines.py tests/test_capture_deadlines.py
               tests/test_presentation_authoring.py tests/test_element_rotation_dom.py tests/test_copilot_capture.py
               tests/test_element_alternative_tools.py tests/test_hub_cover_rendering.py tests/test_sharing_renderer.py

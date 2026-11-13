@@ -266,6 +266,16 @@ class Sharing:
             self._stores[workspace] = Store(path / "collection", path / "state/review.sqlite3")
         return self._stores[workspace]
 
+    def contains_collection_path(self, path: Path) -> bool:
+        """Identify private config paths accidentally placed in a workspace collection."""
+        if path.is_relative_to(self._stores["default"].root.resolve()):
+            return True
+        workspaces = self.root / "workspaces"
+        if not path.is_relative_to(workspaces):
+            return False
+        relative = path.relative_to(workspaces)
+        return len(relative.parts) >= 2 and relative.parts[1] == "collection"
+
     def _artifact_ancestry(
         self, store: Store, resource: str
     ) -> tuple[ArtifactView, list[tuple[str, str]]]:

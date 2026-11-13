@@ -44,6 +44,12 @@ from .multiplayer_access import (
 from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
+from .project_sync import (
+    ProjectGitHubSync,
+    ProjectSyncResolution,
+    ProjectSyncSettings,
+    ProjectSyncView,
+)
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
 from .visuals import ScopedDeckEmbedder
@@ -98,6 +104,7 @@ def create_app(
     config: DeploymentConfig | None = None,
     provider: AuthProvider | None = None,
     sharing: Sharing | None = None,
+    project_sync: ProjectGitHubSync | None = None,
 ) -> FastAPI:
     """Build with explicit dependencies so real HTTP tests never touch a user's collection."""
     config = config or DeploymentConfig.from_env()
@@ -125,6 +132,7 @@ def create_app(
             personal_workspace_emails=config.personal_workspace_emails,
         )
     hub = sharing
+    github_sync = project_sync or ProjectGitHubSync.from_env(hub)
     chat = Conversations(hub)
     presence = DeckPresence(hub)
     mcp = MCPServer[None](
@@ -151,7 +159,7 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-        async with mcp.session_manager.run():
+        async with mcp.session_manager.run(), github_sync.worker():
             yield
 
     app = FastAPI(
@@ -320,6 +328,39 @@ def create_app(
                     for item in items
                 ],
             }
+
+    @app.get("/api/workspaces/{workspace}/github-sync-projects")
+    def project_sync_projects(request: Request, workspace: str) -> list[str]:
+        """Advertise configured sync only to the workspace owner."""
+        return github_sync.projects(actor_of(request), workspace)
+
+    @app.get("/api/workspaces/{workspace}/projects/{project}/github-sync")
+    def project_sync_status(request: Request, workspace: str, project: str) -> ProjectSyncView:
+        """Show the owning human the current project sync checkpoint."""
+        return github_sync.status(actor_of(request), Scope(workspace, "project", project))
+
+    @app.put("/api/workspaces/{workspace}/projects/{project}/github-sync")
+    def configure_project_sync(
+        request: Request, workspace: str, project: str, body: ProjectSyncSettings
+    ) -> ProjectSyncView:
+        """Enable or pause the operator-approved project destination."""
+        return github_sync.configure(
+            actor_of(request), Scope(workspace, "project", project), body.enabled
+        )
+
+    @app.post("/api/workspaces/{workspace}/projects/{project}/github-sync/check")
+    def run_project_sync(request: Request, workspace: str, project: str) -> ProjectSyncView:
+        """Check and synchronize an explicitly configured project on demand."""
+        return github_sync.run(actor_of(request), Scope(workspace, "project", project))
+
+    @app.post("/api/workspaces/{workspace}/projects/{project}/github-sync/{artifact}/resolve")
+    def resolve_project_sync(
+        request: Request, workspace: str, project: str, artifact: str, body: ProjectSyncResolution
+    ) -> ProjectSyncView:
+        """Apply a conflict choice only if the current comparison still matches it."""
+        return github_sync.run(
+            actor_of(request), Scope(workspace, "project", project), artifact, body
+        )
 
     @app.post("/api/workspaces/{workspace}/projects")
     def create_project(request: Request, workspace: str, body: TitleInput) -> dict[str, str]:

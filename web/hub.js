@@ -367,6 +367,10 @@
       if(!sharedEditor)commands.push(menuCommand('Project brief','notes',()=>contextDialog({projectId:id})));
       if(root.StudioInvitation?.available)commands.push(menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'project',id,title:project.title,anchor})));
       if(canShareProject(project))commands.push(menuCommand(shareFileLabel('Share project'),'share',()=>shareProject(id,opener)));
+      if(root.ProjectGitHubSync.available(id)){
+        const names=new Map(state.artifacts.filter(item=>item.project_id===id).map(item=>[item.id,item.title]));
+        commands.push(menuCommand('GitHub sync…','refresh',()=>root.ProjectGitHubSync.open(id,project.title,opener,names)));
+      }
     }
     commands.push({separator:true},...creationCommands(key,folder?id:node.parent_id).filter(command=>command.label!=='Import artifact'||folder||!project?.legacy),{separator:true},menuCommand('Move to…','folder',()=>treeAction('move',id)),menuCommand('Move up','up',()=>treeAction('up',id),{keys:'Alt+↑',disabled:index===0}),menuCommand('Move down','down',()=>treeAction('down',id),{keys:'Alt+↓',disabled:index===siblings.length-1}));
     if(node.parent_id)commands.push(menuCommand('Move out','left',()=>treeAction('out',id),{keys:'Alt+←'}));
