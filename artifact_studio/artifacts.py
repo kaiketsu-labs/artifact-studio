@@ -48,6 +48,14 @@ def write_legacy_project(db: sqlite3.Connection, deck_id: str, project_id: str) 
     )
 
 
+def legacy_project(db: sqlite3.Connection, deck_id: str) -> str:
+    """Read the project containing a legacy presentation."""
+    row = db.execute(
+        "SELECT project_id FROM artifact_legacy_projects WHERE artifact_id=?", (deck_id,)
+    ).fetchone()
+    return cast(str, row[0]) if row else LEGACY_PROJECT
+
+
 def relative_path(value: str) -> str:
     """Validate portable relative paths before any filesystem access."""
     path = PurePosixPath(value)
@@ -743,11 +751,7 @@ class ArtifactStore:
         context = context_file.read_text() if context_file.exists() else ""
         files, files_complete, updated = legacy_inventory(folder)
         with self.store.connect() as db:
-            row = db.execute(
-                "SELECT project_id FROM artifact_legacy_projects WHERE artifact_id=?",
-                (artifact_id,),
-            ).fetchone()
-            project_id = cast(str, row[0]) if row else LEGACY_PROJECT
+            project_id = legacy_project(db, artifact_id)
             project = self._project(db, project_id)
             history = db.execute(
                 "SELECT MIN(created_at) FROM slide_version_metadata WHERE deck=?",
@@ -806,6 +810,18 @@ class ArtifactStore:
             has_unseen_changes=unseen,
             status="approved" if approved else "updated" if unseen else "draft",
         )
+
+    def presentation_project(self, deck_id: str) -> str:
+        """Find a legacy presentation's project without reading slide bodies or assets."""
+        folder = self.store.folder(deck_id)
+        if (folder / "design.json").exists() or not (folder / "index.html").is_file():
+            raise FileNotFoundError("Presentation not found.")
+        with self.store.connect() as db:
+            if self._row(db, deck_id) is not None:
+                raise FileNotFoundError("Presentation not found.")
+            project_id = legacy_project(db, deck_id)
+            self._project(db, project_id)
+            return project_id
 
     def get_artifact(self, artifact_id: str) -> ArtifactView:
         """Return current metadata after reconciling external edits into a new snapshot."""

@@ -34,6 +34,9 @@ Guests see only granted projects and artifacts. View, Comment and Edit grants
 control the same editor. Edit grants support speaker notes, slide organization,
 approval of the current slide or artifact version, and edits through a scoped agent.
 Update markers clear for each person as they open a revised slide or artifact.
+When a shared presentation stays unchanged, the editor checks the current grant
+and revisions without downloading the slide contents again. Chat and agent
+availability continue refreshing.
 **Agent connection** in the regular
 menu connects your own agent to the selected artifact or project. Shared and
 My agent conversations appear in the regular sidebar. Your messages appear on

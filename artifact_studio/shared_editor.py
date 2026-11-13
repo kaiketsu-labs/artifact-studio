@@ -1,7 +1,9 @@
 """Expose the usual Studio UI with an explicit, grant-checked guest API."""
 
 import errno
+import json
 import mimetypes
+import secrets
 from collections.abc import Generator
 from contextlib import contextmanager
 from functools import cache
@@ -49,7 +51,7 @@ from .sections import sections_hash
 from .share_api import ShareInput, ShareWorkspace, sharing_routes
 from .slide_design_api import design_routes
 from .slide_designs import design_badges
-from .storage import ConflictError, Store
+from .storage import ConflictError, Store, digest
 from .version_authors import revision_author
 from .visuals import ScopedDeckEmbedder
 
@@ -129,11 +131,12 @@ def artifact_payload(
     return data
 
 
-def shared_deck(store: Store, deck_id: str, opened: dict[str, str]) -> DeckView:
+def shared_deck(
+    store: Store, deck_id: str, opened: dict[str, str], approved: dict[str, str]
+) -> DeckView:
     """Project the current deck and notes without legacy feedback or workspace rules."""
     deck = store.read(deck_id)
     design_hash = store.visual_hash(deck_id)
-    approved, _ = store.review_hashes(deck_id)
     slides: list[SlideView] = []
     for slide in deck.slides:
         view = store.view_slide(
@@ -162,9 +165,35 @@ def shared_deck(store: Store, deck_id: str, opened: dict[str, str]) -> DeckView:
     )
 
 
+def deck_source_version(store: Store, deck_id: str, *, owner: bool) -> str:
+    """Identify a scoped deck's source and visual assets without reading slide bodies."""
+    folder = store.folder(deck_id)
+    paths = [folder / "index.html", folder / "theme.css"]
+    paths.extend(sorted(path for path in (folder / "assets").rglob("*") if path.is_file()))
+    if owner:
+        paths.append(folder / "brief-files.json")
+    version: list[tuple[str, int, int, int, int]] = []
+    for path in paths:
+        try:
+            details = path.stat()
+        except FileNotFoundError:
+            continue
+        version.append(
+            (
+                path.relative_to(folder).as_posix(),
+                details.st_ino,
+                details.st_size,
+                details.st_mtime_ns,
+                details.st_ctime_ns,
+            )
+        )
+    return digest(json.dumps(version))
+
+
 def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: Sharing) -> FastAPI:
     """Build the guest surface without mounting any whole-workspace API."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
+    snapshot_epoch = secrets.token_hex(16)
     app.add_middleware(
         MultiplayerAuth, config=config, provider=provider, sharing=hub, shared_shell=True
     )
@@ -465,20 +494,52 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 yield store
 
     @app.get("/api/decks/{deck_id}")
-    def deck(request: Request, deck_id: str) -> dict[str, object]:
+    def deck(request: Request, deck_id: str) -> Response:
+        """Return unchanged snapshots without serializing slide bodies."""
         actor, scope = actor_of(request), artifact_scope(request, deck_id)
-        with deck_access(request, deck_id, "view") as store:
+        with hub.guard_presentation_snapshot(actor, scope.workspace, deck_id) as (
+            store,
+            project,
+            level,
+        ):
+            owner = hub.owner(actor, scope.workspace)
             opened = hub.opened_revisions(actor, scope.workspace, deck_id).get(deck_id, {})
+            approved, _ = store.review_hashes(deck_id)
+            source = deck_source_version(store, deck_id, owner=owner)
+            revision = digest(
+                json.dumps(
+                    [
+                        snapshot_epoch,
+                        scope.workspace,
+                        deck_id,
+                        actor.person,
+                        source,
+                        opened,
+                        approved,
+                        level,
+                        project,
+                    ],
+                    sort_keys=True,
+                )
+            )
+            # Explicit validators stay in memory in the editor. The middleware disallows caches.
+            etag = f'"{revision}"'
+            if request.headers.get("if-none-match") == etag:
+                return Response(status_code=304, headers={"ETag": etag})
             result: dict[str, object] = {
-                **shared_deck(store, deck_id, opened).model_dump(),
-                "access_role": LEVEL_ROLE[hub.level(actor, scope)],
+                **shared_deck(store, deck_id, opened, approved).model_dump(),
+                "access_role": LEVEL_ROLE[level],
             }
-            if hub.owner(actor, scope.workspace):
-                result["project_id"] = ArtifactStore(store).get_artifact(deck_id).project_id
+            if owner:
+                result["project_id"] = project
                 result["brief_files"] = [
                     {"name": file.name, "size": file.size} for file in store.brief_files(deck_id)
                 ]
-            return result
+            # External edits can bypass the collaboration lock. A racing read must not be reused.
+            headers = (
+                {"ETag": etag} if source == deck_source_version(store, deck_id, owner=owner) else {}
+            )
+            return JSONResponse(result, headers=headers)
 
     @app.post("/api/decks/{deck_id}/slides/{slide_id}/seen")
     def slide_seen(
