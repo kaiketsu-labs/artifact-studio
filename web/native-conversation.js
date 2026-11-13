@@ -62,8 +62,14 @@
         const [state, messages, actor] = await Promise.all([
           request(`${endpoint}/state`), request(inChannel(`${endpoint}/chat`, channel)), person(),
         ]);
-        return {access: state.access, agents: state.agents, messages, person: actor,
+        return {access: state.access, agents: state.agents, messages, person: actor, contacts: state.contacts || [], mentions: state.mentions || [],
           contentHash: state.content_hash, draftCount: state.draft_counts?.[channel] ?? 0};
+      },
+      history(artifactId, {channel = 'shared', before = 0} = {}) {
+        return request(`${base(artifactId)}/chat?${new URLSearchParams({channel, before})}`);
+      },
+      readMention(artifactId, id) {
+        return request(`${base(artifactId)}/mentions/${id}/read`, {});
       },
       async send(artifactId, {message, requestId, contentHash, slideId, slideContentHash, target,
         editIntent, files, proposal, channel = 'shared', released = true, assigned = ''}) {

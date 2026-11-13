@@ -1,6 +1,7 @@
 """Per-person conversations and explicit, retryable delivery to one connected agent."""
 
 import json
+import re
 import secrets
 import shutil
 import sqlite3
@@ -93,6 +94,11 @@ class Conversations:
                   PRIMARY KEY(message,file_index));
                 CREATE TABLE IF NOT EXISTS chat_attachment_usage (
                   workspace TEXT PRIMARY KEY, bytes INTEGER NOT NULL);
+                CREATE TABLE IF NOT EXISTS chat_mentions (
+                  message INTEGER NOT NULL, person TEXT NOT NULL, seen INTEGER NOT NULL DEFAULT 0,
+                  PRIMARY KEY(message,person));
+                CREATE INDEX IF NOT EXISTS chat_mentions_unread
+                  ON chat_mentions(person,message) WHERE seen=0;
                 CREATE INDEX IF NOT EXISTS conversation_scope
                   ON conversations(workspace,artifact,id);
                 CREATE TABLE IF NOT EXISTS chat_delivery (
@@ -184,12 +190,15 @@ class Conversations:
     ) -> list[dict[str, object]]:
         with self.sharing.guard(actor, scope), self.sharing.connect() as db:
             rows = db.execute(
-                "SELECT c.*,p.email AS author_name,d.id AS cursor FROM conversations c "
+                "SELECT c.*,p.email AS author_name,d.id AS cursor, "
+                "EXISTS(SELECT 1 FROM chat_mentions m WHERE m.message=c.id AND m.person=?) "
+                "AS mentioned FROM conversations c "
                 "JOIN people p ON p.id=c.person JOIN chat_delivery d ON d.message=c.id "
                 "WHERE workspace=? AND artifact=? AND channel=? "
                 "AND (?=0 OR d.id<?) AND (channel='shared' OR person=?) "
                 "AND (released=1 OR (person=? AND ?=0)) ORDER BY d.id DESC LIMIT 100",
                 (
+                    actor.person,
                     scope.workspace,
                     scope.resource,
                     channel,
@@ -201,8 +210,46 @@ class Conversations:
                 ),
             ).fetchall()
             return [
-                self._public(row) | {"author_name": row["author_name"]} for row in reversed(rows)
+                self._public(row)
+                | {"author_name": row["author_name"], "mentioned": bool(row["mentioned"])}
+                for row in reversed(rows)
             ]
+
+    def contacts(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
+        """List only verified people who currently have access to this artifact."""
+        if actor.agent:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope):
+            return [
+                {"id": person, "email": email}
+                for person, email in sorted(self.sharing.human_contacts(scope).items())
+                if person != actor.person
+            ]
+
+    def mentions(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:
+        """Return released unread mentions for this person in this artifact."""
+        if actor.agent:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            rows = db.execute(
+                "SELECT c.id,c.target FROM chat_mentions m JOIN conversations c ON c.id=m.message "
+                "WHERE m.person=? AND m.seen=0 AND c.workspace=? AND c.artifact=? "
+                "AND c.channel='shared' AND c.released=1 ORDER BY c.id",
+                (actor.person, scope.workspace, scope.resource),
+            ).fetchall()
+            return [{"id": row["id"], "target": json.loads(row["target"])} for row in rows]
+
+    def read_mention(self, actor: Actor, scope: Scope, event: int) -> None:
+        """Acknowledge only a visible mention addressed to this person."""
+        if actor.agent:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            _ = db.execute(
+                "UPDATE chat_mentions SET seen=1 WHERE person=? AND message IN "
+                "(SELECT id FROM conversations WHERE id=? AND workspace=? AND artifact=? "
+                "AND channel='shared' AND released=1)",
+                (actor.person, event, scope.workspace, scope.resource),
+            )
 
     def _reserve_attachments(self, db: sqlite3.Connection, workspace: str, total: int) -> None:
         """Reserve bounded storage in the same transaction as the message."""
@@ -341,6 +388,20 @@ class Conversations:
                         slide_content_hash,
                     ),
                 )
+                if channel == "shared":
+                    contacts = self.sharing.human_contacts(scope)
+                    recipients = [
+                        person
+                        for person, email in contacts.items()
+                        if person != actor.person
+                        and re.search(
+                            rf"(?<![\w@])@{re.escape(email)}(?![\w@-]|\.[\w])", message, re.I
+                        )
+                    ]
+                    _ = db.executemany(
+                        "INSERT INTO chat_mentions(message,person) VALUES (?,?)",
+                        [(cursor.lastrowid, person) for person in recipients],
+                    )
                 _ = db.executemany(
                     "INSERT INTO chat_attachments VALUES (?,?,?)",
                     [

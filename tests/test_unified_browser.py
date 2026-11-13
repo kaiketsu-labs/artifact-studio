@@ -160,13 +160,62 @@ def test_shared_anchor_retains_its_slide_revision(tmp_path: Path) -> None:
         try:
             with routed_multiplayer_context(browser, app, "alice") as context:
                 page = context.new_page()
-                page.set_viewport_size({"width": 900, "height": 760})
+                page.set_viewport_size({"width": 390, "height": 844})
                 page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
                 page.get_by_role("button", name="Open chat", exact=True).click()
                 comment = page.locator("article").filter(has_text="Fictional anchored feedback")
                 expect(comment).to_contain_text("Earlier version")
                 comment.get_by_role("button", name="Heading").click()
                 expect(page.locator("#toast")).to_contain_text("earlier version")
+        finally:
+            browser.close()
+
+
+def test_shared_mention_suggests_contacts_and_opens_unread(tmp_path: Path) -> None:
+    """A collaborator can mention a verified reader and the reader opens the message."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="comment"))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "owner") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 900, "height": 760})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}&chat=shared#cover")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                composer = page.locator("#feedback-text")
+                composer.fill("Hello @ali")
+                composer.press("ArrowDown")
+                composer.press("Enter")
+                composer.press("Enter")
+                expect(page.locator("#feedback-list")).to_contain_text("@alice@example.test")
+            for index in range(101):
+                response = owner.post(
+                    f"/api/workspaces/default/artifacts/{app.deck_id}/chat",
+                    json={
+                        "channel": "shared",
+                        "message": f"Later message {index}",
+                        "request_id": f"later-message-{index}",
+                        "target": {"kind": "slide", "slide_id": "cover"},
+                    },
+                )
+                assert response.status_code == 200, response.text
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 900, "height": 760})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                unread = page.get_by_role("button", name="1 unread mention")
+                expect(unread).to_be_visible()
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                page.locator("#shared-channel").select_option("private")
+                unread.click()
+                expect(page.locator("#shared-channel")).to_have_value("shared")
+                expect(page.locator("#feedback-list .mentioned")).to_contain_text("Hello")
+                expect(unread).to_be_hidden()
         finally:
             browser.close()
 
