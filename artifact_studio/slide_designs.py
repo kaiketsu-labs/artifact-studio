@@ -187,7 +187,9 @@ def design_badges(store: Store, deck: Deck) -> dict[str, dict[str, object]]:
         rows = db.execute(
             "SELECT s.id,s.slide,s.pending,s.decision_id,COUNT(o.id) AS count "
             "FROM slide_design_sets s JOIN slide_design_options o ON o.set_id=s.id "
-            "WHERE s.deck=? AND s.sequence=(SELECT MAX(latest.sequence) "
+            "WHERE s.deck=? AND NOT EXISTS (SELECT 1 FROM slide_design_decisions d "
+            "WHERE d.id=s.decision_id AND d.action='keep' AND d.completed=1) "
+            "AND s.sequence=(SELECT MAX(latest.sequence) "
             "FROM slide_design_sets latest WHERE latest.deck=s.deck AND latest.slide=s.slide) "
             "GROUP BY s.id",
             (deck.id,),
