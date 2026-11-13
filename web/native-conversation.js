@@ -62,7 +62,7 @@
         const [state, messages, actor] = await Promise.all([
           request(`${endpoint}/state`), request(inChannel(`${endpoint}/chat`, channel)), person(),
         ]);
-        return {access: state.access, agents: state.agents, messages, person: actor, contacts: state.contacts || [], mentions: state.mentions || [],
+        return {access: state.access, agents: state.agents, messages, person: actor, contacts: state.contacts || [], mentions: state.mentions || [], incomingCursors: state.incoming_cursors || {},
           contentHash: state.content_hash, draftCount: state.draft_counts?.[channel] ?? 0};
       },
       history(artifactId, {channel = 'shared', before = 0} = {}) {

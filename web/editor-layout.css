@@ -90,7 +90,6 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
   .topbar .workspace-panel-toggle.panel-right{margin-left:6px}
   .topbar .top-actions{gap:2px}
   .topbar .top-actions>.quiet{width:32px;padding:6px}
-  .topbar [data-collaborate] span:not(.ui-icon){display:none}
   .workspace:not(.is-sorter),.workspace.panels-right-closed:not(.is-sorter){grid-template-columns:0 minmax(0,1fr)}
   .workspace:not(.is-sorter)>.rail{position:fixed;z-index:49;inset:58px auto 38px 0;width:min(224px,80vw);height:auto;box-shadow:12px 0 32px #13243c20}
   .workspace:not(.is-sorter).panels-left-closed>.rail{display:none}

@@ -69,6 +69,12 @@ class AgentInput(ScopeInput):
     name: str = Field(min_length=1, max_length=80)
 
 
+class SharedHistoryInput(StrictModel):
+    """Set the history permission for a single agent."""
+
+    enabled: bool
+
+
 class TitleInput(StrictModel):
     title: str = Field(min_length=1, max_length=160)
 
@@ -376,6 +382,24 @@ def create_app(
     def own_agents(request: Request, workspace: str) -> list[dict[str, object]]:
         return hub.own_agents(actor_of(request), workspace)
 
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/shared-history")
+    def agent_shared_history(
+        request: Request, workspace: str, artifact: str, agent: str
+    ) -> dict[str, bool]:
+        """Read the owner's current presentation history permission for one agent."""
+        scope = Scope(workspace, "artifact", artifact)
+        return {"enabled": chat.shared_history_access(actor_of(request), scope, agent)}
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/shared-history")
+    def set_agent_shared_history(
+        request: Request, workspace: str, artifact: str, agent: str, body: SharedHistoryInput
+    ) -> dict[str, bool]:
+        """Allow or revoke full Shared history for one connection and presentation."""
+        scope = Scope(workspace, "artifact", artifact)
+        return {
+            "enabled": chat.shared_history_access(actor_of(request), scope, agent, body.enabled)
+        }
+
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/state")
     def artifact_state(request: Request, workspace: str, artifact: str) -> dict[str, object]:
         actor, scope = actor_of(request), Scope(workspace, "artifact", artifact)
@@ -413,6 +437,7 @@ def create_app(
                 "draft_counts": draft_counts,
                 "contacts": [] if actor.agent else chat.contacts(actor, scope),
                 "mentions": [] if actor.agent else chat.mentions(actor, scope),
+                "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
