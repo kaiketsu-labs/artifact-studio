@@ -17,9 +17,10 @@ from .artifacts import MAX_BUNDLE_SIZE, MAX_FILE_SIZE, MAX_FILES, relative_path
 from .design_authoring import write_viewer
 from .design_library import ContextManifest, DesignDetail, DesignLibrary
 from .libraries import allowed, inventory
-from .models import Deck, DesignManifest
+from .models import DesignManifest
 from .presentation_files import ordinary_file
-from .storage import DATA, DESIGN_FILES, SAFE_ID, ConflictError, SlideMarkup, Store
+from .projects import root_tag
+from .storage import DESIGN_FILES, SAFE_ID, ConflictError, SlideMarkup, Store
 
 MAX_DESIGN_ZIP = 90_000_000
 DESIGN_ZIP_LIMIT = "Choose a design ZIP no larger than 90 MB."
@@ -145,20 +146,15 @@ def _prepare(folder: Path, folder_id: str) -> tuple[str, bool]:
     if not (folder / "assets").is_dir():
         raise ValueError("The design assets must be in a folder.")
     source = (folder / "index.html").read_text()
-    matches = list(DATA.finditer(source))
-    if len(matches) != 1:
-        raise ValueError("The ZIP must include one editable example deck.")
-    deck = Deck.model_validate_json(matches[0][2])
-    if deck.design_id != manifest.id or len({slide.id for slide in deck.slides}) != len(
-        deck.slides
-    ):
-        raise ValueError("The example deck must match the design and use unique slide IDs.")
+    deck = Store.parse_deck(source)
+    if deck.design_id != manifest.id:
+        raise ValueError("The example deck must match the design.")
     for slide in deck.slides:
         parser = SlideMarkup()
         parser.feed(slide.html)
         parser.close()
     deck.id = folder_id
-    write_viewer(folder, deck)
+    write_viewer(folder, deck, root_tag=root_tag(source))
     return manifest.id, True
 
 

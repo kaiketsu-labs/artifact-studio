@@ -45,13 +45,14 @@ MANAGED = {
 }
 
 
-def write_viewer(folder: Path, deck: Deck) -> None:
+def write_viewer(folder: Path, deck: Deck, *, root_tag: str = '<html lang="en">') -> None:
     """Write the trusted viewer and embed the editable deck as inert JSON."""
     for filename in ("presentation.js", "icons.js", "slideshow.css"):
         _ = shutil.copy2(PROJECT / "runtime" / filename, folder / filename)
     _ = (folder / "index.html").write_text(
         (PROJECT / "runtime/viewer.html")
         .read_text()
+        .replace('<html lang="en">', root_tag, 1)
         .replace("{{DECK_JSON}}", deck.model_dump_json().replace("<", r"\u003c"))
     )
 

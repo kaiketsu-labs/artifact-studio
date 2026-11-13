@@ -38,6 +38,10 @@ def test_design_zip_preserves_examples_and_references_with_trusted_viewer(
     make_design(source)
     _ = (source / ".env").write_text("must stay private")
     _ = (source / "review.sqlite3-wal").write_text("must also stay private")
+    example = source / "index.html"
+    _ = example.write_text(
+        example.read_text().replace("<html", '<html class="brand" onload="untrusted()"', 1)
+    )
     _ = (source / "presentation.js").write_text("window.untrustedArchiveViewer = true;")
     archive = tmp_path / "pack.zip"
     export_design(library.store, "test-brand", archive)
@@ -53,6 +57,8 @@ def test_design_zip_preserves_examples_and_references_with_trusted_viewer(
     assert target.default_design_id() == "current-design"
     assert target.read(imported.folder_id).id == imported.folder_id
     assert target.read(imported.folder_id).slides == library.store.read(TEMPLATE_ID).slides
+    installed_html = (target.folder(imported.folder_id) / "index.html").read_text()
+    assert 'class="brand"' in installed_html and "untrusted()" not in installed_html
     assert (
         b"untrustedArchiveViewer"
         not in (target.folder(imported.folder_id) / "presentation.js").read_bytes()
