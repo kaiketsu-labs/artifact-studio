@@ -75,9 +75,11 @@ Studio asks for confirmation when either project has current grants, pending
 invitations or active agent connections.
 
 Use the star on an artifact or slide to bookmark it. **Favorite slides** in
-the sidebar opens your own gallery, including any descriptions you add. Stars
-and descriptions are private to your account and workspace. When your access to
-a shared artifact ends, Studio stops showing its bookmarks and previews.
+the sidebar opens your own gallery, including any descriptions you add. The
+gallery uses the slide's static preview with bundled styles, fonts, and images.
+Open the slide to play interactive content. Stars and descriptions are private
+to your account and workspace. When your access to a shared artifact ends,
+Studio stops showing its bookmarks and previews.
 
 Owners can open **Version history** on an artifact to inspect retained files and
 restore them as a new version. The timeline and its old previews are private to

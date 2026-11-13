@@ -9,10 +9,12 @@ from typing import cast
 from urllib.parse import urlsplit
 
 import pytest
+from PIL import ImageFont
 from playwright.sync_api import Route, expect, sync_playwright
 
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.models import SlidePatch
+from artifact_studio.storage import Store
 from tests.integration.multiplayer_fixture import (
     WORKSPACE,
     routed_multiplayer_context,
@@ -1047,8 +1049,48 @@ def test_personal_project_folder_and_artifact_moves(tmp_path: Path) -> None:
             browser.close()
 
 
-def test_personal_favorite_slides_open_in_the_same_workspace(tmp_path: Path) -> None:
-    """Use the regular star and gallery in a hosted workspace with overlapping deck IDs."""
+def style_favorite_slide(store: Store, deck_id: str) -> None:
+    """Give the static thumbnail a full-size layout, a local font and a local image."""
+    folder = store.folder(deck_id)
+    font = ImageFont.load_default()
+    assert isinstance(font, ImageFont.FreeTypeFont)
+    _ = (folder / "assets/thumbnail.ttf").write_bytes(font.font_bytes)
+    _ = (folder / "assets/thumbnail.css").write_text(
+        "@font-face{font-family:Thumbnail;src:url(thumbnail.ttf)}"
+        ".thumbnail-test h1{font-family:Thumbnail,serif;color:rgb(20,60,120);"
+        "position:absolute;left:1360px;top:760px;font-size:42px;margin:0}"
+    )
+    _ = (folder / "theme.css").write_text(
+        '@import "https://blocked.example.test/external.css";'
+        '@import "assets/thumbnail.css";'
+        ".slide{background:rgb(232,240,248)}"
+    )
+    _ = (folder / "assets/thumbnail.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">'
+        '<rect width="80" height="80" fill="orange"/></svg>'
+    )
+    deck = store.read(deck_id)
+    deck.slides[0].html = (
+        '<article class="slide"><h1>Static title</h1>'
+        '<img src="assets/thumbnail.svg" alt="Thumbnail logo"></article>'
+    )
+    deck.slides[
+        0
+    ].interactive_html = (
+        '<p>Interactive slide only</p><script>document.body.dataset.ran = "yes";</script>'
+    )
+    store.write(deck_id, deck)
+    index = folder / "index.html"
+    _ = index.write_text(
+        index.read_text().replace('<html lang="en">', '<html class="thumbnail-test" lang="en">')
+    )
+
+
+@pytest.mark.parametrize(("identity", "width"), [("owner", 1400), ("alice", 390), ("bob", 1100)])
+def test_hosted_favorite_slides_show_styled_thumbnails_in_the_same_workspace(
+    tmp_path: Path, identity: str, width: int
+) -> None:
+    """Use real favorite thumbnails as the default owner, personal owner and shared viewer."""
     root = tmp_path / "app"
     with (
         running_multiplayer_app(
@@ -1057,16 +1099,30 @@ def test_personal_favorite_slides_open_in_the_same_workspace(tmp_path: Path) -> 
             unified=True,
             personal_workspace_emails=("alice@example.test",),
         ) as app,
-        human(app, "alice") as personal,
+        human(app, "owner") as owner,
+        human(app, identity) as reader,
         sync_playwright() as playwright,
     ):
-        home = personal.get("/").headers["location"]
-        seed_isolated_presentation(root, app, home.split("/")[2])
+        home = reader.get("/").headers.get("location", "/")
+        store = app.store
+        if identity == "alice":
+            workspace = home.split("/")[2]
+            seed_isolated_presentation(root, app, workspace)
+            area = root / "sharing/workspaces" / workspace
+            store = Store(area / "collection", area / "state/review.sqlite3")
+        elif identity == "bob":
+            accept(reader, grant(owner, identity, app.deck_id, "view"))
+        style_favorite_slide(store, app.deck_id)
+        deck_title = store.read(app.deck_id).title
         browser = playwright.chromium.launch()
         try:
-            with routed_multiplayer_context(browser, app, "alice") as context:
+            with routed_multiplayer_context(browser, app, identity) as context:
                 page = context.new_page()
+                page.set_viewport_size({"width": width, "height": 900})
                 page.goto(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
+                sidebar = page.get_by_role("button", name="Open sidebar", exact=True)
+                if width < 600:
+                    sidebar.click()
                 star = page.locator('[data-star-kind="slide"][data-star-slide="cover"]')
                 star.focus()
                 star.press("Enter")
@@ -1074,10 +1130,26 @@ def test_personal_favorite_slides_open_in_the_same_workspace(tmp_path: Path) -> 
                 page.goto(WORKSPACE + home)
                 page.get_by_role("button", name="Favorite slides", exact=True).click()
                 gallery = page.get_by_role("dialog", name="Favorite slides")
-                expect(gallery.get_by_text("Isolated presentation · 01")).to_be_visible()
-                expect(
-                    gallery.frame_locator(".favorite-cover iframe").locator(".slide")
-                ).to_be_visible()
+                expect(gallery.get_by_text(f"{deck_title} · 01")).to_be_visible()
+                frame = gallery.locator(".favorite-cover iframe")
+                thumbnail = frame.content_frame
+                expect(frame).to_have_attribute("sandbox", "")
+                expect(thumbnail.get_by_text("Interactive slide only")).to_have_count(0)
+                heading = thumbnail.get_by_role("heading", name="Static title")
+                expect(heading).to_have_css("color", "rgb(20, 60, 120)")
+                assert heading.evaluate(
+                    "async () => { await document.fonts.ready; "
+                    "return [...document.fonts].some(f => f.family === 'Thumbnail' "
+                    "&& f.status === 'loaded'); }"
+                )
+                assert thumbnail.get_by_alt_text("Thumbnail logo").evaluate(
+                    "async image => {await image.decode();return image.naturalWidth === 80}"
+                )
+                bounds = frame.bounding_box()
+                text = heading.bounding_box()
+                assert bounds and text
+                assert text["x"] + text["width"] < bounds["x"] + bounds["width"]
+                assert text["y"] + text["height"] < bounds["y"] + bounds["height"]
                 gallery.get_by_role("button", name=re.compile("^Add description for")).click()
                 description = page.get_by_role("dialog", name="Slide description")
                 description.get_by_role("textbox").fill("A useful opener")
@@ -1085,6 +1157,8 @@ def test_personal_favorite_slides_open_in_the_same_workspace(tmp_path: Path) -> 
                 expect(gallery.get_by_text("A useful opener")).to_be_visible()
                 gallery.locator(".favorite-pick").click()
                 expect(page).to_have_url(f"{WORKSPACE}{home}?deck={app.deck_id}#cover")
+                if width < 600:
+                    sidebar.click()
                 expect(star).to_have_attribute("aria-pressed", "true")
         finally:
             browser.close()

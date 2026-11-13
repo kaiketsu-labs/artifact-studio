@@ -52,7 +52,7 @@ from .deck_edit_api import DeckID, SlideID, deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
-from .design_preview import hosted_design_preview
+from .design_preview import hosted_design_preview, hosted_slide_thumbnail
 from .design_references import DesignReferences
 from .element_alternative_api import element_alternative_routes
 from .element_alternatives import (
@@ -2264,6 +2264,8 @@ def presentation_feedback(deck_id: DeckID, body: PresentationCommentInput) -> di
 @app.get("/api/decks/{deck_id}/slides/{slide_id}/preview", response_class=HTMLResponse)
 def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
     """Render a sandboxed exact slide using its local theme and assets."""
+    if deployment.mode == "hosted":
+        return hosted_slide_thumbnail(store, deck_id, slide_id, deployment.public_url)
     slide = store.locate(store.read(deck_id), slide_id)
     page = (
         '<!doctype html><html><head><meta charset="utf-8">'

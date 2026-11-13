@@ -784,9 +784,13 @@ def test_hosted_favorites_follow_reader_and_grant(tmp_path: Path) -> None:
         assert bob.post(index, json=star).is_success
         assert bob.get(index + "/slides").json()[0]["description"] == ""
 
-        preview = f"/api/workspaces/default/artifacts/{app.deck_id}/preview?slide_id=cover"
+        preview = (
+            f"/api/workspaces/default/artifacts/{app.deck_id}/preview?slide_id=cover&thumbnail=true"
+        )
         frame = {"sec-fetch-dest": "iframe"}
-        assert alice.get(preview, headers=frame).is_success
+        document = alice.get(preview, headers=frame).raise_for_status()
+        assert "sandbox; script-src 'none'" in document.headers["content-security-policy"]
+        assert document.headers["cache-control"] == "no-store"
         access = "/api/workspaces/default/access"
         scope = {"kind": "artifact", "resource": app.deck_id}
         grants = owner.get(access, params=scope).json()["grants"]
