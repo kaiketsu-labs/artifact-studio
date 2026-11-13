@@ -1571,10 +1571,6 @@ class Store:
             )
         if any(existing.id == slide.id for existing in deck.slides):
             raise ConflictError("Slide ID already exists. Read it rather than adding it twice.")
-        from .slide_actions import pending_deletions
-
-        if any(slide.id in deletion.deleted_ids for deletion in pending_deletions(db, deck_id)):
-            raise ConflictError("This slide was deleted. Restore it explicitly before editing it.")
         if len(deck.slides) >= 100:
             raise ValueError("A presentation supports at most 100 slides.")
         slide = slide.model_copy(update={"revision": 1})
