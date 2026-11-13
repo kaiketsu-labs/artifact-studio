@@ -261,9 +261,11 @@ For container updates, follow the Docker guide. [Update with Docker](DOCKER.md#u
 ## Troubleshooting
 
 Use **Report an issue** in the bottom-right corner to draft a public GitHub
-issue. You can preview an optional screenshot from a file or, in supported browsers, capture a tab
-after approving the browser picker. Save the screenshot if you want to attach
-it on GitHub. Review the draft and image for private information before posting.
+issue. Capture the Studio tab or browser window through your browser’s picker,
+choose an image file, or paste a screenshot into Studio. Review the image in
+Studio before opening the draft. Studio copies it when your browser permits
+clipboard access. Paste it into the GitHub issue body, or use **Save screenshot**
+and attach the file in GitHub.
 
 | Symptom | Check |
 | --- | --- |
