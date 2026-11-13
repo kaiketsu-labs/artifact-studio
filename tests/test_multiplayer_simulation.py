@@ -391,14 +391,15 @@ def test_structural_proposal_decision_is_scoped_and_single_winner(tmp_path: Path
             }
             endpoint = f"{base}/{proposal['id']}/decision"
             with ThreadPoolExecutor(max_workers=2) as pool:
-                replies = list(
-                    pool.map(
-                        lambda pair: pair[0].post(endpoint, json=body | {"request_id": pair[1]}),
-                        [(owner, "owner-decision"), (alice, "alice-decision")],
-                    )
-                )
+                pending = [
+                    pool.submit(client.post, endpoint, json=body | {"request_id": request_id})
+                    for client, request_id in [(owner, "owner-decision"), (alice, "alice-decision")]
+                ]
+                replies = [response.result() for response in pending]
             assert sorted(response.status_code for response in replies) == [200, 409]
-            events = peer.value("read_feedback", artifact_id=app.deck_id)["events"]
+            events = cast(
+                list[dict[str, str]], peer.value("read_feedback", artifact_id=app.deck_id)["events"]
+            )
             assert len(events) == 1
             assert events[0]["channel"] == "shared"
             assert "Please proceed" in events[0]["message"]

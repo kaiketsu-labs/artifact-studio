@@ -65,7 +65,9 @@ def test_structure_review_preserves_a_concurrent_edit_and_reaches_origin_agent(
                 page.get_by_role("button", name="Open chat", exact=True).click()
                 page.locator("#structure-review-trigger").click()
                 dialog = page.get_by_role("dialog", name="Review slide structure")
-                expect(dialog.locator("li").filter(has_text="Fictional additional slide")).to_be_visible()
+                expect(
+                    dialog.locator("li").filter(has_text="Fictional additional slide")
+                ).to_be_visible()
                 dialog.get_by_role("radio", name="Accept proposal").check()
                 message = dialog.get_by_role("textbox", name="Message to the proposing agent")
                 message.fill("Keep the recent edit and review the extra slide.")
