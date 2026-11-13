@@ -3,7 +3,7 @@
   'use strict';
   function create({api, escape, button, dialog, identity = () => ''}) {
     let deckId = '', snapshot = null, activeId = '', loading = false, sequence = 0, viewEpoch = 0, requestId = '', stale = false;
-    let currentIdentity = '';
+    let currentIdentity = '', pendingSnapshot = null, inFlight = null;
     let saved = {};
     try { saved = JSON.parse(root.sessionStorage.getItem('structure-review-drafts-v2') || '{}'); } catch {}
     const drafts = new Map(Object.entries(saved));
@@ -12,7 +12,7 @@
     const active = () => snapshot?.proposals.find(item => item.id === activeId);
     const draftKey = () => JSON.stringify([root.ArtifactSession.workspace || 'default', currentIdentity, deckId, activeId]);
     function saveDraft() {
-      if (!activeId || !dialog.open) return;
+      if (!activeId || !dialog.open || !dialog.querySelector('form')) return;
       drafts.set(draftKey(), {decision: dialog.querySelector('input[name="structure-decision"]:checked')?.value || '', message: dialog.querySelector('textarea')?.value || ''}); persist();
     }
     function renderButton() {
@@ -22,6 +22,19 @@
     }
     function list(ids, names) {
       return `<ol>${ids.map(id => `<li>${escape(names.get(id) || id)}</li>`).join('')}</ol>`;
+    }
+    function showLiveStatus() {
+      const target = dialog.querySelector('[data-live-status]');
+      if (!target) return;
+      target.innerHTML = pendingSnapshot ? '<div class="structure-warning" role="status">The presentation changed while you were reviewing. <button type="button" data-reload>Review latest</button></div>' : '';
+      target.querySelector('[data-reload]')?.addEventListener('click', async () => {
+        saveDraft(); const current = deckId, proposal = activeId, epoch = viewEpoch;
+        try {
+          if (!await reload() || !dialog.open || deckId !== current || activeId !== proposal || viewEpoch !== epoch) return;
+          pendingSnapshot = null; stale = true; ++viewEpoch; render();
+          dialog.querySelector('.structure-warning[role=alert]')?.focus();
+        } catch (error) { target.textContent = error.message; }
+      });
     }
     function render() {
       const proposal = active();
@@ -38,10 +51,12 @@
         <p>${escape(proposal.summary)}</p><p>Proposals and decisions are shared with collaborators.</p><div class="structure-comparison"><section><h3>Current order</h3>${list(snapshot.slide_ids, names)}</section><section><h3>Proposed order</h3>${list(proposal.proposed_slide_ids, names)}</section></div>
         ${changes(proposal.missing, 'Only in Studio')}${changes(proposal.extra, 'Only in proposal')}
         ${baseChanged ? '<p class="structure-warning">The presentation has changed since this proposal. Ask the agent for an updated proposal before accepting.</p>' : ''}
+        <div data-live-status></div>
         ${stale ? '<p class="structure-warning" role="alert" tabindex="-1">The presentation or proposal changed. Review the latest comparison before sending.</p>' : ''}
-        ${proposal.status === 'decided' ? `<p>Decision: ${escape(({keep:'Keep current order', request_change:'Request changes', accept:'Accept proposal'})[proposal.decision] || proposal.decision)}${proposal.reply ? ` — ${escape(proposal.reply)}` : ''}</p>${value.message ? `<label>Unsent message<textarea readonly rows="3">${escape(value.message)}</textarea></label>` : ''}` : `<form><p>Your decision is sent to the proposing agent. It does not change the slides.</p><fieldset><legend>Your decision</legend>${[['keep','Keep current order'],['request_change','Request changes'],['accept','Accept proposal']].map(([id,label]) => `<label><input type="radio" name="structure-decision" value="${id}" ${value.decision === id && !(id === 'accept' && baseChanged) ? 'checked' : ''} ${id === 'accept' && baseChanged ? 'disabled' : ''}> ${label}</label>`).join('')}</fieldset><label>Message to the proposing agent <textarea maxlength="10000" rows="3">${escape(value.message)}</textarea></label><p class="structure-error" role="alert"></p><button type="submit" class="primary">Send decision</button></form>`}</div>`;
+        ${proposal.status === 'decided' ? `<p>Decision: ${escape(({keep:'Keep current order', request_change:'Request changes', accept:'Accept proposal'})[proposal.decision] || proposal.decision)}${proposal.reply ? ` — ${escape(proposal.reply)}` : ''}</p>${value.decision ? `<p>Unsent decision: ${escape(({keep:'Keep current order', request_change:'Request changes', accept:'Accept proposal'})[value.decision])}</p>` : ''}${value.message ? `<label>Unsent message<textarea readonly rows="3">${escape(value.message)}</textarea></label>` : ''}` : `<form><p>Your decision is sent to the proposing agent. It does not change the slides.</p><fieldset><legend>Your decision</legend>${[['keep','Keep current order'],['request_change','Request changes'],['accept','Accept proposal']].map(([id,label]) => `<label><input type="radio" name="structure-decision" value="${id}" ${value.decision === id && !(id === 'accept' && baseChanged) ? 'checked' : ''} ${id === 'accept' && baseChanged ? 'disabled' : ''}> ${label}</label>`).join('')}</fieldset><label>Message to the proposing agent <textarea maxlength="10000" rows="3">${escape(value.message)}</textarea></label><p class="structure-error" role="alert"></p><button type="submit" class="primary">Send decision</button></form>`}</div>`;
+      showLiveStatus();
       dialog.querySelector('[data-close]').addEventListener('click', () => { saveDraft(); dialog.close(); });
-      dialog.querySelector('[data-proposal]').addEventListener('change', event => { saveDraft(); activeId = event.target.value; ++viewEpoch; stale = false; requestId = ''; render(); });
+      dialog.querySelector('[data-proposal]').addEventListener('change', event => { saveDraft(); activeId = event.target.value; ++viewEpoch; pendingSnapshot = null; stale = false; requestId = ''; render(); });
       const form = dialog.querySelector('form');
       if (form) {
         form.addEventListener('input', () => { saveDraft(); requestId = ''; });
@@ -63,10 +78,20 @@
         });
       }
     }
+    async function read(current) {
+      if (inFlight) {
+        if (inFlight.id === current) return inFlight.promise;
+        try { await inFlight.promise; } catch {}
+        if (current !== deckId) return null;
+        return read(current);
+      }
+      const pending = {id: current, promise: api(path(current))}; inFlight = pending;
+      try { return await pending.promise; } finally { if (inFlight === pending) inFlight = null; }
+    }
     async function reload() {
       const current = deckId, serial = ++sequence;
-      const result = await api(path(current));
-      if (current !== deckId || serial !== sequence) return false;
+      const result = await read(current);
+      if (!result || current !== deckId || serial !== sequence) return false;
       snapshot = result; renderButton(); return true;
     }
     button.addEventListener('click', async () => {
@@ -80,9 +105,27 @@
     dialog.addEventListener('close', () => { ++viewEpoch; if (!button.hidden) button.focus(); });
     return {
       async sync(id, editable) {
-        if (!editable || !id) { if (dialog.open) { saveDraft(); dialog.close(); } ++viewEpoch; deckId = ''; currentIdentity = ''; requestId = ''; snapshot = null; ++sequence; button.hidden = true; return; }
-        if (deckId !== id || currentIdentity !== identity()) { if (dialog.open) { saveDraft(); dialog.close(); } ++viewEpoch; deckId = id; currentIdentity = identity(); requestId = ''; snapshot = null; activeId = ''; button.hidden = true; }
-        if (!dialog.open) try { await reload(); } catch { /* A missing or unavailable endpoint must not interrupt editing. */ }
+        if (!editable || !id) { if (dialog.open) { saveDraft(); dialog.close(); } ++viewEpoch; deckId = ''; currentIdentity = ''; requestId = ''; pendingSnapshot = null; snapshot = null; ++sequence; button.hidden = true; return; }
+        if (deckId !== id || currentIdentity !== identity()) { if (dialog.open) { saveDraft(); dialog.close(); } ++viewEpoch; deckId = id; currentIdentity = identity(); requestId = ''; pendingSnapshot = null; snapshot = null; activeId = ''; button.hidden = true; }
+        const current = deckId, epoch = viewEpoch;
+        try {
+          if (!dialog.open) { await reload(); return; }
+          const result = await read(current);
+          if (!result || current !== deckId || epoch !== viewEpoch || !dialog.open) return;
+          const latest = result.proposals.find(item => item.id === activeId);
+          if (latest?.status === 'decided' && active()?.status !== 'decided') {
+            saveDraft(); snapshot = result; pendingSnapshot = null; ++viewEpoch; renderButton(); render();
+          } else if (JSON.stringify(result.slide_ids) !== JSON.stringify(snapshot.slide_ids) ||
+                     result.sections_hash !== snapshot.sections_hash ||
+                     JSON.stringify(latest) !== JSON.stringify(active())) {
+            pendingSnapshot = result; showLiveStatus();
+          } else if (pendingSnapshot) { pendingSnapshot = null; showLiveStatus(); }
+        } catch (error) {
+          if (current === deckId && (error.status === 403 || error.status === 404)) {
+            if (dialog.open) { saveDraft(); dialog.close(); }
+            ++viewEpoch; ++sequence; deckId = ''; snapshot = null; pendingSnapshot = null; button.hidden = true;
+          }
+        }
       },
     };
   }

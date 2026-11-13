@@ -90,3 +90,54 @@ def test_deck_switch_during_submission() -> None:
         expect(page.locator('.structure-review-body > p').filter(has_text='Second')).to_be_visible()
         expect(page.get_by_role('dialog')).to_be_visible()
         browser.close()
+
+
+def test_live_review_preserves_draft_and_coalesces_reads() -> None:
+    """Polling exposes decisions while retaining the reviewed version and unsent text."""
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content('<button id="trigger" hidden></button><dialog id="review"></dialog>')
+        page.add_script_tag(path=str(Path(__file__).parents[1] / 'web/structure-review.js'))
+        page.evaluate("""() => {
+          window.ArtifactSession = {workspace:'fiction'};
+          window.snapshot = {slide_ids:['a','b'], sections_hash:'one',
+            slides:[{id:'a',title:'Alpha'},{id:'b',title:'Beta'}],
+            proposals:[{id:'p', summary:'Sequence', base_slide_ids:['a','b'],
+              base_sections_hash:'one', proposed_slide_ids:['b','a'],
+              missing:[], extra:[], status:'pending'}]};
+          window.reads = 0;
+          window.review = StructureReview.create({button:document.querySelector('#trigger'),
+            dialog:document.querySelector('#review'), escape:value => String(value),
+            api:async () => { window.reads++; if (window.slow) {
+              await new Promise(resolve => { window.finishRead = resolve; });
+            } return structuredClone(window.snapshot); }});
+        }""")
+        page.evaluate("() => window.review.sync('deck', true)")
+        page.get_by_role('button', name='Review slide structure (1)').click()
+        page.get_by_label('Request changes').check()
+        page.get_by_label('Message to the proposing agent').fill('Keep this draft')
+        page.evaluate("""() => {
+          window.snapshot.slide_ids = ['b','a']; window.snapshot.sections_hash = 'two';
+          window.slow = true; window.before = window.reads;
+          window.first = window.review.sync('deck', true);
+          window.second = window.review.sync('deck', true);
+        }""")
+        page.wait_for_function('window.finishRead !== undefined')
+        assert page.evaluate('window.reads - window.before') == 1
+        page.evaluate('() => { window.slow = false; window.finishRead(); }')
+        page.evaluate('() => Promise.all([window.first, window.second])')
+        expect(page.get_by_text('The presentation changed while you were reviewing.', exact=False))\
+            .to_be_visible()
+        assert page.locator('.structure-comparison section').first.get_by_role('listitem').first\
+            .inner_text() == 'Alpha'
+        page.evaluate("""() => {
+          window.snapshot.proposals[0].status = 'decided';
+          window.snapshot.proposals[0].decision = 'keep';
+          window.snapshot.proposals[0].reply = 'Agreed';
+          return window.review.sync('deck', true);
+        }""")
+        expect(page.get_by_text('Decision: Keep current order — Agreed')).to_be_visible()
+        assert page.get_by_label('Unsent message').input_value() == 'Keep this draft'
+        assert page.get_by_label('Unsent message').get_attribute('readonly') is not None
+        browser.close()
