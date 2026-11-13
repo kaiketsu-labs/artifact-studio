@@ -403,6 +403,10 @@ Multiple agents can listen to one artifact. Only the assigned agent receives a t
 It calls `claim_feedback` with a unique stable session ID, then uses hash/revision
 guards for edits. Claims last ten minutes and can be renewed. `reply_to_feedback`
 with the claim replies in the original channel and acknowledges the request.
+Use `include_message=false` on `claim_feedback` after reading the request.
+Live review renews its lease silently while tools run and wakes on assigned
+feedback through the Stop hook. Load `get_authoring_guide(topic="slide_designs")`
+for whole-slide proposals, headline alternatives and their decision history.
 Lost responses can be retried with the same request ID; unacknowledged work remains
 pending. This is retryable delivery, not exactly-once network delivery. Ending one
 native session does not stop another. A stopped session requires explicit resume.

@@ -160,6 +160,15 @@ def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path
             ).raise_for_status()
         with closing((peer := Peer(app, token)).client):
             args = {"artifact_id": app.deck_id}
+            guide = peer.value("get_authoring_guide", topic="slide_designs")
+            assert "unique HTML id" in cast(str, guide["guide"])
+            retained_guide = peer.value(
+                "get_authoring_guide", topic="slide_designs", known_hash=guide["guide_hash"]
+            )
+            assert retained_guide["guide_included"] is False
+            assert retained_guide["guide"] == ""
+            context = peer.value("get_working_context", **args)
+            assert "rules_hash" not in context
             attachment = {**args, "event_id": shared.json()["id"], "file_index": 0}
 
             def history(channel: str) -> list[str]:
@@ -323,6 +332,15 @@ def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: P
                 event_id=message["id"],
                 session_id="alice-session",
             )
+            compact = second.value(
+                "claim_feedback",
+                artifact_id=app.deck_id,
+                event_id=message["id"],
+                session_id="alice-session",
+                include_message=False,
+            )
+            assert compact["claim"] == claimed["claim"]
+            assert "message" in claimed and "message" not in compact
             reply = second.value(
                 "reply_to_feedback",
                 artifact_id=app.deck_id,

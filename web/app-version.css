@@ -103,7 +103,7 @@ body:has(dialog[open])>.app-session-expired{display:none}
 }
 .studio-report-trigger[hidden],
 body.is-presenting > .studio-report-trigger { display: none; }
-.studio-report-trigger:hover { background: var(--hub-hover, var(--hover, #f1f5fb)); }
+.studio-report-trigger:is(:hover, [aria-expanded=true]) { background: var(--hub-hover, var(--hover, #f1f5fb)); }
 .studio-report-trigger > .ui-icon { width: 17px; height: 17px; }
 body:has(>.workspace) > .studio-report-trigger {
   bottom: calc(50px + env(safe-area-inset-bottom));
@@ -120,11 +120,26 @@ dialog.studio-report {
   --report-muted: var(--hub-muted, var(--subtle, #526174));
   --report-tint: var(--hub-selected, var(--selected, #edf3ff));
   --report-ink: var(--hub-ink, var(--ink, #20242b));
-  width: min(480px, calc(100vw - 24px));
-  max-width: calc(100vw - 24px);
-  padding: clamp(16px, 4vw, 24px);
-  border-radius: 16px;
-  box-shadow: 0 24px 70px #10182840;
+  --report-bottom: calc(max(16px, env(safe-area-inset-bottom)) + 52px);
+  position: fixed;
+  inset: auto max(16px, env(safe-area-inset-right)) var(--report-bottom) auto;
+  z-index: 56;
+  margin: 0;
+  width: min(440px, calc(100vw - max(28px, env(safe-area-inset-right) + 12px)));
+  max-height: calc(100dvh - var(--report-bottom) - max(12px, env(safe-area-inset-top)));
+  padding: clamp(16px, 4vw, 22px);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px #10182833;
+}
+body:has(>.workspace) > .studio-report {
+  --report-bottom: calc(102px + env(safe-area-inset-bottom));
+}
+body.is-presenting > .studio-report { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  dialog.studio-report[open] { animation: studio-report-expand 150ms ease-out; }
+  @keyframes studio-report-expand {
+    from { opacity: 0; transform: translateY(8px); }
+  }
 }
 .studio-report header { gap: 12px; margin-bottom: 18px; }
 .studio-report-heading { display: flex; align-items: center; gap: 10px; }
@@ -226,16 +241,15 @@ dialog.studio-report {
   color: var(--report-muted);
 }
 .studio-report-footer p > .ui-icon { margin-top: 1px; }
-.studio-report .studio-report-footer button {
+dialog.studio-report .studio-report-footer button[type=submit] {
   justify-self: end;
   border-color: transparent;
   background: #2759cf;
   color: #fff;
   font-weight: 650;
 }
-.studio-report .studio-report-footer button:hover { background: #204bb2; }
-.studio-report-capturing { opacity: 0; }
-.studio-report-capturing::backdrop { background: transparent; }
+dialog.studio-report .studio-report-footer button[type=submit]:hover { background: #204bb2; }
+.studio-report-capturing { opacity: 0; pointer-events: none; }
 @media (max-width: 420px) {
-  .studio-report .studio-report-footer button { width: 100%; }
+  dialog.studio-report .studio-report-footer button[type=submit] { width: 100%; }
 }

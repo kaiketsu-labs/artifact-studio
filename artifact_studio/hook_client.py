@@ -13,7 +13,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import cast
-from urllib.error import URLError
+from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener
 
@@ -393,11 +393,23 @@ def handle_event(
             return {}
         message["passive"] = True
     deadline = time.monotonic() + 540
+    failures = 0
     while True:
         try:
             result = _post(url, message, 30 if event == "Stop" else 2)
-        except (OSError, URLError, ValueError, json.JSONDecodeError):
+        except OSError as error:
+            transient = not isinstance(error, HTTPError) or error.code in {429, 502, 503, 504}
+            if event != "Stop" or not transient or failures >= 2:
+                return {}
+            failures += 1
+            delay = min(0.5 * failures, max(0.0, deadline - time.monotonic()))
+            if not delay:
+                return {}
+            time.sleep(delay)
+            continue
+        except ValueError:
             return {}
+        failures = 0
         reason = result.get("reason")
         if event == "PostToolUse" and isinstance(reason, str) and reason:
             if passive and result.get("feedback_available") is not True:

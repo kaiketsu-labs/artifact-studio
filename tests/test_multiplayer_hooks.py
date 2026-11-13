@@ -66,10 +66,19 @@ def test_native_client_uses_running_hook_service(
         started = hook_client.handle_event(
             "codex", "PostToolUse", app.url, "artifact-studio", payload
         )
-        assert "hookSpecificOutput" in started
+        assert started == {}
+        payload["tool_name"] = "mcp__artifact_studio__read_feedback"
+        payload["tool_response"] = {"events": [], "next_cursor": 1}
+        assert (
+            hook_client.handle_event("codex", "PostToolUse", app.url, "artifact-studio", payload)
+            == {}
+        )
         stopped = hook_client.handle_event("codex", "Stop", app.url, "artifact-studio", payload)
         assert stopped["decision"] == "block"
-        assert "read_feedback" in str(stopped["reason"])
+        assert (
+            stopped["reason"]
+            == f"Studio feedback: call read_feedback(artifact_id={app.artifact_id!r})."
+        )
         assert (
             hook_client.handle_event("codex", "SessionEnd", app.url, "artifact-studio", payload)
             == {}
