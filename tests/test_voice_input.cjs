@@ -3,11 +3,11 @@ const assert=require('node:assert/strict');
 const {createRecorder,insertText}=require('../web/voice-input.js');
 
 const result=(text,final=true)=>Object.assign([{transcript:text}],{isFinal:final});
-function fixture(){
+function fixture({silent=false}={}){
   const instances=[],states=[],timers=new Map();let nextTimer=0,idle=0;
   class Recognition{
     constructor(){instances.push(this);this.starts=0;this.stops=0;this.aborts=0;}
-    start(){this.starts++;this.onstart?.();}
+    start(){this.starts++;if(!silent)this.onstart?.();}
     stop(){this.stops++;}
     abort(){this.aborts++;}
     emit(...results){this.onresult?.({resultIndex:0,results});}
@@ -132,6 +132,24 @@ test('natural recognition end requires another explicit start instead of a resta
   const check=fixture(),target=field();check.recorder.start(target.handle);check.instances[0].end();
   assert.equal(check.recorder.isActive(),false);assert.equal(check.instances.length,1);
   check.recorder.start(target.handle);assert.equal(check.instances.length,2);
+});
+
+test('a browser that never starts recognition releases the composer and allows an explicit retry',()=>{
+  const check=fixture({silent:true}),target=field();
+  check.recorder.start(target.handle);
+  const first=check.instances[0],late=first.onresult;
+  assert.equal(check.states.at(-1).phase,'starting');
+  check.drain();
+  assert.equal(check.recorder.isActive(),false);
+  assert.equal(check.states.at(-1).phase,'error');
+  assert.equal(first.aborts,1);
+  late({results:[result('Late words.')]});
+  assert.deepEqual(target.received,[]);
+  check.recorder.start(target.handle);
+  check.instances[1].emit(result('Fresh words.'));
+  check.drain();
+  assert.equal(check.recorder.isActive(),true);
+  assert.deepEqual(target.received.map(item=>item.text),['Fresh words.']);
 });
 
 test('switching fields drains the old field before starting the new field',()=>{
