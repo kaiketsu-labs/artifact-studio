@@ -127,6 +127,73 @@ def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> N
             browser.close()
 
 
+def test_unchanged_shared_deck_still_refreshes_discussion(tmp_path: Path) -> None:
+    """Use an empty snapshot response without dropping a guest draft or incoming chat."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="comment"))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 900, "height": 760})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                composer = page.locator("#feedback-text")
+                composer.fill("Fictional unsent draft")
+                owner.post(
+                    f"/api/workspaces/default/artifacts/{app.deck_id}/chat",
+                    json={
+                        "channel": "shared",
+                        "message": "Fictional incoming comment",
+                        "request_id": "conditional-guest-chat",
+                        "target": {"kind": "slide", "slide_id": "cover"},
+                    },
+                ).raise_for_status()
+                with page.expect_response(
+                    lambda response: (
+                        response.url.endswith(f"/api/decks/{app.deck_id}")
+                        and response.status == 304
+                    ),
+                    timeout=10_000,
+                ):
+                    _ = page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                expect(page.locator("#feedback-list")).to_contain_text("Fictional incoming comment")
+                expect(composer).to_have_value("Fictional unsent draft")
+
+                page.get_by_role("button", name="Close chat", exact=True).click()
+                auto_update = page.locator("#auto-update-preview")
+                expect(auto_update).to_have_attribute("aria-pressed", "true")
+                auto_update.click()
+                original = app.store.view(app.deck_id).slides[0]
+                _ = app.store.revise_view(
+                    app.deck_id,
+                    original.id,
+                    original.expected_hash,
+                    "conditional-guest-revision",
+                    SlidePatch(title="Fictional revised cover"),
+                )
+                expect(page.get_by_role("button", name="Show update")).to_be_visible()
+                expect(page.locator("#slide-title")).not_to_have_text("Fictional revised cover")
+                with page.expect_response(
+                    lambda response: (
+                        response.url.endswith(f"/api/decks/{app.deck_id}")
+                        and response.status == 304
+                    ),
+                    timeout=10_000,
+                ):
+                    auto_update.click()
+                expect(page.locator("#slide-title")).to_have_text("Fictional revised cover")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                expect(composer).to_have_value("Fictional unsent draft")
+        finally:
+            browser.close()
+
+
 def test_shared_anchor_retains_its_slide_revision(tmp_path: Path) -> None:
     """An old element comment cannot target the current slide after it changes."""
     with (
