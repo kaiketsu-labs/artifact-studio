@@ -98,7 +98,6 @@
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
       if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
       if(hosted){
@@ -128,7 +127,6 @@
     const nightly=dialog.querySelector('input'),build=dialog.querySelector('.app-installed-build');
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);
     let opener=null,timer=null,reading=false,checking=false,saving=false,sequence=0,lastInfo=null;
-    const workspaceButton=doc.querySelector('[data-session-mode]');
     const serverVersion=doc.createElement('button');
     serverVersion.type='button';
     serverVersion.dataset.serverVersion='';
@@ -146,7 +144,6 @@
       void workspaceList().catch(()=>{workspaces.hidden=true;});
     }
     root.StudioAbout={open:showAbout,mountServerVersion};
-    workspaceButton?.addEventListener('click',()=>showAbout(workspaceButton));
     serverVersion.addEventListener('click',()=>showAbout(serverVersion));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){

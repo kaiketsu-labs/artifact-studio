@@ -85,7 +85,6 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
 @media(max-width:600px){
   .topbar{padding-inline:10px;gap:3px}
   .topbar .identity{margin-right:0;flex:none}
-  .topbar .hub-session-mode{padding-inline:7px;flex:none}
   .topbar .identity-name{display:none}
   .topbar .workspace-panel-toggle{width:44px;height:44px;padding:11px}
   .topbar .workspace-panel-toggle.panel-right{margin-left:6px}
@@ -112,7 +111,6 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
 }
 @media(max-width:420px){
   .topbar{padding-inline:6px;gap:2px}
-  .topbar [data-session-mode]{display:none}
   .topbar #present-link{width:44px;height:44px;justify-content:center;padding:0}
   .topbar #present-link span:not(.ui-icon){position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
   .topbar .top-actions{gap:1px}
