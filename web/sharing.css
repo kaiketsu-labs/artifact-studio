@@ -29,3 +29,9 @@
 .studio-access-list > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--share-line); }
 .studio-access-list span { overflow-wrap: anywhere; }
 .studio-access-list button { flex: none; }
+.studio-agent-history {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}

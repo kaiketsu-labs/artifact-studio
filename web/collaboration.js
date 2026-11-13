@@ -15,7 +15,7 @@
   }
 
   /** Connect an agent to the selected scope using the standard editor menu. */
-  function connectAgent({kind, id, title, anchor, mcpUrl}) {
+  function connectAgent({kind, id, title, anchor, mcpUrl, manageHistory}) {
     if (document.querySelector('.studio-agent[open]')) return;
     const dialog = document.createElement('dialog');
     dialog.className = 'studio-share studio-agent';
@@ -41,7 +41,16 @@
     async function loadAgents() {
       const agents = await scopedRequest(agentsPath);
       const list = dialog.querySelector('.studio-access-list');
-      list.replaceChildren(...agents.filter(agent => agent.kind === kind && agent.resource === id).map(agent => {
+      const artifactPath = workspaceAPI + '/artifacts/' + encodeURIComponent(id);
+      const available = manageHistory ? new Set((await scopedRequest(artifactPath + '/state'))
+        .agents.filter(agent => agent.mine).map(agent => agent.id)) : new Set();
+      const exactScope = agent => agent.kind === kind && agent.resource === id;
+      const scopedAgents = agents.filter(agent => exactScope(agent) || available.has(agent.id));
+      const historyPath = artifactPath + '/agents/';
+      const historySettings = manageHistory ? await Promise.all(scopedAgents.map(agent =>
+        scopedRequest(historyPath + encodeURIComponent(agent.id) + '/shared-history')
+      )) : [];
+      list.replaceChildren(...scopedAgents.map((agent, index) => {
         const row = document.createElement('div'), label = document.createElement('span'), button = document.createElement('button');
         label.textContent = agent.name; button.textContent = 'Revoke'; button.type = 'button';
         button.addEventListener('click', async () => {
@@ -49,7 +58,34 @@
           try { await scopedRequest('/api/agents/' + encodeURIComponent(agent.id) + '/revoke', {}); await loadAgents(); }
           catch (reason) { failed(reason); button.disabled = false; }
         });
-        row.append(label, button);
+        row.append(label);
+        if (manageHistory) {
+          const permission = document.createElement('label');
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = historySettings[index].enabled;
+          checkbox.setAttribute('aria-label', 'Allow ' + agent.name + ' to read full Shared history');
+          permission.className = 'studio-agent-history';
+          permission.append(checkbox, 'Full Shared history');
+          checkbox.addEventListener('change', async () => {
+            const enabled = checkbox.checked;
+            checkbox.disabled = true;
+            error.hidden = true;
+            try {
+              const result = await scopedRequest(
+                historyPath + encodeURIComponent(agent.id) + '/shared-history', {enabled}
+              );
+              checkbox.checked = result.enabled;
+            } catch (reason) {
+              checkbox.checked = !enabled;
+              failed(reason);
+            } finally {
+              checkbox.disabled = false;
+            }
+          });
+          row.append(permission);
+        }
+        if (exactScope(agent)) row.append(button);
         return row;
       }));
     }
@@ -246,7 +282,10 @@
         const kind = artifact ? 'artifact' : project ? 'project' : 'workspace';
         const title = (document.querySelector('.hub-edit-heading h1, #sorter-presentation-title, .hub-heading h1')?.textContent || '').trim()
           || (kind === 'workspace' ? 'Current workspace' : kind === 'project' ? 'Current project' : 'Current artifact');
-        connectAgent({kind,id:artifact||project||'',title,anchor:entry,mcpUrl:root.location.origin+'/mcp'});
+        connectAgent({
+          kind, id: artifact || project || '', title, anchor: entry, mcpUrl: root.location.origin + '/mcp',
+          manageHistory: !!params.get('deck') && (!session.scoped_editor || session.workspace_owner === true),
+        });
 
       }, {capture: true});
     });
