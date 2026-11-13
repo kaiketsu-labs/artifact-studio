@@ -45,7 +45,7 @@
 
 [data-shared-editor]:not([data-shared-role="edit"]) :is(
   #add-slide, #add-section, #deleted-slides, #hide-slide, #approve-button, [data-visibility-id], [data-action="select"],
-  #slide-menu, #slide-list-menu, #slide-sorter-menu, #section-menu, .hub-approve
+  #slide-list-menu, #slide-sorter-menu, #section-menu, .hub-approve
 ) {
   display: none !important;
 }

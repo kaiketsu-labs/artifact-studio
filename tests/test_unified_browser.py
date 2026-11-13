@@ -966,3 +966,53 @@ def test_named_workspace_design_review_for_collaborator_and_reader(tmp_path: Pat
                 browser.close()
         finally:
             peer.client.close()
+
+
+def test_selected_slide_exports_respect_shared_access(tmp_path: Path) -> None:
+    """Export only selected slides for each authorized human in the native menu."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as viewer,
+        human(app, "bob") as editor,
+        human(app, "charlie") as stranger,
+        sync_playwright() as playwright,
+    ):
+        accept(viewer, grant(owner, "alice", app.deck_id, "view"))
+        accept(editor, grant(owner, "bob", app.deck_id, "edit"))
+        body = {"scope": "artifact", "id": app.deck_id, "format": "html", "slide_ids": ["next"]}
+        assert stranger.post("/api/shares", json=body).status_code in {401, 404}
+        for client in (owner, viewer, editor):
+            receipt = client.post("/api/shares", json=body).raise_for_status().json()
+            html = client.get(receipt["download_url"]).raise_for_status().text
+            assert '"id":"next"' in html and '"id":"cover"' not in html
+        assert owner.post("/api/shares", json={**body, "slide_ids": ["absent"]}).status_code == 400
+        browser = playwright.chromium.launch()
+        try:
+            for person in ("owner", "alice", "bob"):
+                with routed_multiplayer_context(browser, app, person) as context:
+                    page = context.new_page()
+                    page.goto(f"{WORKSPACE}/?deck={app.deck_id}")
+                    page.locator('#slides [data-id="next"]').click(button="right")
+                    menu = page.get_by_role("menu", name="Slide options")
+                    menu.get_by_role("menuitem", name="Export", exact=True).click()
+                    with page.expect_download() as captured:
+                        menu.get_by_role("menuitem", name="HTML", exact=True).click()
+                    html = captured.value.path().read_text()
+                    assert '"id":"next"' in html and '"id":"cover"' not in html
+                    if person == "owner":
+                        page.locator('#slides [data-id="cover"]').click()
+                        page.locator('#slides [data-id="next"]').click(modifiers=["Shift"])
+                        page.locator('#slides [data-id="next"]').click(button="right")
+                        expect(menu.get_by_label("2 slides selected")).to_be_visible()
+                        menu.get_by_role("menuitem", name="Export", exact=True).click()
+                        with page.expect_download(timeout=60000) as pdf:
+                            menu.get_by_role("menuitem", name="PDF", exact=True).click()
+                        data = pdf.value.path().read_bytes()
+                        assert data.startswith(b"%PDF-")
+                        assert len(re.findall(rb"/Type\s*/Page\b", data)) == 2
+                    if person == "alice":
+                        page.locator('#slides [data-id="next"]').click(button="right")
+                        expect(menu.get_by_role("menuitem", name="Delete slide")).to_be_hidden()
+        finally:
+            browser.close()
