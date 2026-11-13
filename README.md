@@ -32,7 +32,7 @@ The **Library** is the home screen. Browse all your work, filter by project or f
 
 ![Artifact Studio library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
 
-Sort **All artifacts** or a project overview by **Name**, **Last changed**, **Created**, or **File type**. File type shows separate format groups; the arrow reverses the order. One choice is remembered in this browser across overviews. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
+Switch **All artifacts** or a project overview between **Grid view** and a compact **List view** with name, kind, project and last modified date. Both views use the same filters and sort settings. Studio remembers your view and sort order in this browser. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
 
 Library covers are saved locally and reused across reloads and app restarts. Changed content queues a background update while the earlier preview stays visible. Cards near the viewport load first; you can search, sort and open artifacts while previews update. Temporary renderer and network failures retry automatically after a cooldown, up to six times; manual retry remains available. Hover over the retry icon for renderer setup details. [Preview behavior and measurements](docs/performance/library-preview-results.md).
 
