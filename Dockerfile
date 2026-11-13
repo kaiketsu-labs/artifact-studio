@@ -47,7 +47,10 @@ COPY docs/ docs/
 RUN chmod -R a+rX artifact_studio web runtime agent docs \
     && chmod a+r pyproject.toml uv.lock
 
-ENV ARTIFACT_STUDIO_COLLECTION=/data/collection \
+ARG ARTIFACT_STUDIO_BUILD_REVISION=
+LABEL org.opencontainers.image.revision=$ARTIFACT_STUDIO_BUILD_REVISION
+ENV ARTIFACT_STUDIO_BUILD_REVISION=$ARTIFACT_STUDIO_BUILD_REVISION \
+    ARTIFACT_STUDIO_COLLECTION=/data/collection \
     ARTIFACT_STUDIO_DATABASE=/data/state/review.sqlite3 \
     ARTIFACT_STUDIO_UPDATE_CHECKS=0 \
     GH_CONFIG_DIR=/data/config/gh
