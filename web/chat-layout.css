@@ -1,14 +1,14 @@
 /* Reserve a stable canvas while the conversation is widened. */
-.workspace{--chat-rail-width:195px;--chat-canvas-min:380px;--chat-default-width:330px;--chat-divider-width:8px}
+.workspace{--chat-rail-width:195px;--chat-canvas-min:380px;--chat-default-width:360px;--chat-divider-width:14px}
 .workspace:not(.is-sorter){grid-template-columns:var(--chat-rail-width) minmax(var(--chat-canvas-min),1fr) var(--chat-divider-width) var(--chat-width,var(--chat-default-width))}
 .discussion{min-width:0;border-left:0}
 .chat-resizer{position:relative;cursor:col-resize;touch-action:none;outline-offset:-2px}
-.chat-resizer::after{content:'';position:absolute;left:50%;top:50%;width:3px;height:40px;border-radius:3px;background:var(--line);transform:translate(-50%,-50%)}
+.chat-resizer::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:36px;border-radius:4px;background:var(--line);transform:translate(-50%,-50%)}
 .chat-resizer:hover::after,.chat-resizer:focus-visible::after,.is-resizing-chat .chat-resizer::after{background:var(--blue)}
 .workspace.is-resizing-chat,.workspace.is-resizing-chat *{cursor:col-resize!important;user-select:none!important}
 .workspace.is-resizing-chat iframe{pointer-events:none}
 .workspace.is-empty>.chat-resizer,.workspace.is-sorter>.chat-resizer{display:none}
-@media(min-width:1600px){.workspace{--chat-rail-width:225px;--chat-canvas-min:500px;--chat-default-width:355px}}
+@media(min-width:1600px){.workspace{--chat-rail-width:225px;--chat-canvas-min:500px;--chat-default-width:385px}}
 @media(max-width:1150px){.workspace{--chat-rail-width:155px;--chat-canvas-min:340px;--chat-default-width:285px}}
 @media(max-width:900px){.workspace:not(.is-sorter){grid-template-columns:115px minmax(0,1fr)}.chat-resizer{display:none}}
 @media(max-width:600px){.workspace:not(.is-sorter){grid-template-columns:86px minmax(0,1fr)}}

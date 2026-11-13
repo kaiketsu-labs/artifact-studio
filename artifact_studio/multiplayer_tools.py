@@ -960,7 +960,11 @@ class MultiplayerTools:
     def read_feedback(
         self, ctx: Ctx, artifact_id: str = "", deck_id: str = "", after: int = 0
     ) -> dict[str, object]:
-        """Read pending requests assigned to you; after is not an acknowledgement."""
+        """Read pending requests with optional excerpts of prior Shared discussion.
+
+        Repeated excerpt IDs reference text included earlier in the response.
+        If shared_context_on_claim is true, claim with include_message=true for excerpts.
+        """
         actor = self.actor(ctx)
         if not (artifact_id or deck_id) or (artifact_id and deck_id) or after < 0:
             raise ValueError(

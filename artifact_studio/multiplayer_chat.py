@@ -87,6 +87,7 @@ class Conversations:
                   released INTEGER NOT NULL, reply_to INTEGER,
                   request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL,
                   created REAL NOT NULL, completed INTEGER NOT NULL DEFAULT 0,
+                  include_shared_context INTEGER NOT NULL DEFAULT 0,
                   claim TEXT NOT NULL DEFAULT '', claimant TEXT NOT NULL DEFAULT '',
                   claim_expires REAL NOT NULL DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS chat_attachments (
@@ -141,6 +142,14 @@ class Conversations:
                 _ = db.execute(
                     "ALTER TABLE conversations ADD COLUMN slide_content_hash "
                     "TEXT NOT NULL DEFAULT ''"
+                )
+            if not any(
+                row["name"] == "include_shared_context"
+                for row in db.execute("PRAGMA table_info(conversations)")
+            ):
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN include_shared_context "
+                    "INTEGER NOT NULL DEFAULT 0"
                 )
 
     @staticmethod
@@ -359,9 +368,12 @@ class Conversations:
         *,
         slide_content_hash: str = "",
         proposal: ChatProposal | None = None,
+        include_shared_context: bool = False,
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
+        if include_shared_context and (channel != "shared" or not assigned):
+            raise ValueError("Shared context requires an assigned Shared request.")
         with self.sharing.guard(actor, scope, "edit" if assigned else "comment") as store:
             if actor.agent:
                 raise AccessDenied
@@ -390,6 +402,7 @@ class Conversations:
                         content_hash,
                         *([metadata] if metadata else []),
                         *([proposal.model_dump(), slide_content_hash] if proposal else []),
+                        *(["include_shared_context"] if include_shared_context else []),
                     ],
                     sort_keys=True,
                 )
@@ -437,8 +450,8 @@ class Conversations:
                 cursor = db.execute(
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
                     "target,content_hash,assigned,released,request_id,payload,created,"
-                    "files,proposal,slide_content_hash) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "files,proposal,slide_content_hash,include_shared_context) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -456,6 +469,7 @@ class Conversations:
                         json.dumps(metadata),
                         json.dumps(anchor),
                         slide_content_hash,
+                        include_shared_context,
                     ),
                 )
                 if channel == "shared":
@@ -546,6 +560,29 @@ class Conversations:
                 (scope.workspace, scope.resource, channel, actor.person),
             )
 
+    @staticmethod
+    def _shared_context(db: sqlite3.Connection, row: sqlite3.Row) -> list[dict[str, object]]:
+        """Include nearby released human discussion from the same slide or artifact."""
+        if not row["include_shared_context"]:
+            return []
+        rows = db.execute(
+            "SELECT c.id, substr(c.message,1,401) AS excerpt FROM conversations c "
+            "JOIN chat_delivery d ON d.message=c.id "
+            "WHERE c.workspace=? AND c.artifact=? AND c.id<? AND d.id<? "
+            "AND c.channel='shared' AND c.released=1 AND c.assigned='' AND c.author=c.person "
+            "AND json_extract(c.target,'$.slide_id') IS json_extract(?,'$.slide_id') "
+            "AND length(trim(c.message))>0 ORDER BY d.id DESC LIMIT 4",
+            (row["workspace"], row["artifact"], row["id"], row["cursor"], row["target"]),
+        ).fetchall()
+        return [
+            {
+                "id": cast(int, context["id"]),
+                "message": excerpt[:400] + ("…" if len(excerpt) > 400 else ""),
+            }
+            for context in reversed(rows)
+            if (excerpt := cast(str, context["excerpt"]).strip())
+        ]
+
     def tasks(self, actor: Actor, scope: Scope) -> dict[str, object]:
         with self.sharing.guard(actor, scope), self.sharing.connect() as db:
             if not actor.agent:
@@ -568,8 +605,25 @@ class Conversations:
                         break
             # A cursor is informational, never acknowledgement: lost responses and
             # late-released drafts remain pending until a successful claimed reply.
+            events: list[dict[str, object]] = []
+            seen_context: set[int] = set()
+            for row in rows:
+                event = self._public(row)
+                if row["include_shared_context"]:
+                    if len(seen_context) >= 12:
+                        event["shared_context_on_claim"] = True
+                    elif context := self._shared_context(db, row):
+                        excerpts: list[dict[str, object]] = []
+                        for excerpt in context:
+                            identifier = cast(int, excerpt["id"])
+                            excerpts.append(
+                                {"id": identifier} if identifier in seen_context else excerpt
+                            )
+                            seen_context.add(identifier)
+                        event["shared_context"] = excerpts
+                events.append(event)
             return {
-                "events": [self._public(row) for row in rows],
+                "events": events,
                 "next_cursor": max((cast(int, row["id"]) for row in rows), default=0),
                 "delivery": "Claim each event before acting; reply acknowledges it.",
             }
@@ -597,12 +651,17 @@ class Conversations:
                 "UPDATE conversations SET claim=?,claimant=?,claim_expires=? WHERE id=?",
                 (claim, session_id, expires, event_id),
             )
-            return {
+            result: dict[str, object] = {
                 "event_id": event_id,
                 "claim": claim,
                 "expires": expires,
-                **({"message": self._public(row)} if include_message else {}),
             }
+            if include_message:
+                message = self._public(row)
+                if context := self._shared_context(db, row):
+                    message["shared_context"] = context
+                result["message"] = message
+            return result
 
     def _assigned(
         self, db: sqlite3.Connection, actor: Actor, scope: Scope, event_id: int
