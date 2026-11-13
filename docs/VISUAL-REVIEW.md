@@ -37,6 +37,8 @@ For a separately permitted normal-browser audience review, use `audience_url` fr
 
 A completed capture reveals every build and preserves authored final counter text. Reveal captures use the same shared build implementation as the slideshow, with a deterministic clock. Use `reduced_motion=true` to inspect the reduced-motion variant. CSS animations belonging to earlier builds are completed, the current build is sampled at the requested time, and slide-wide animations use the accumulated slide time; infinite animations use their initial frame in completed captures. Video/audio are paused and reported as media requiring separate playback checks.
 
+Mark known unfinished content with `data-placeholder`; visible marked elements appear in `placeholders` (up to 25). `possible_clipping` reports visible containers whose scroll dimensions exceed an axis with `overflow: hidden` or `clip` (up to 25). This can include intentional clipping and does not detect every clipped glyph or SVG. These advisory observations never block publication. Interactive documents cannot expose these DOM checks.
+
 `possible_overflow` is a geometry hint, not proof of a layout defect: intentional bleed and decorative artwork can extend past the canvas. It does not detect element-to-element overlap or all internal clipping. `failed_images` or `failed_fonts` needs investigation before calling the capture complete. Check charts against their source data as well as the rendered pixels. Review findings with multiple fresh-context agents, verify them, fix confirmed issues and recapture affected slides.
 
 ## Scope and storage

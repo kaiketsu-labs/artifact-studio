@@ -203,6 +203,8 @@ class Diagnostics(StrictModel):
     failed_images: list[str]
     failed_fonts: list[str]
     possible_overflow: list[str]
+    possible_clipping: list[str] = []
+    placeholders: list[str] = []
     media_count: int
     interactive: bool = False
     diagnostics_scope: str = "Static slide DOM"
