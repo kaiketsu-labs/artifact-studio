@@ -274,7 +274,8 @@ class MultiplayerTools:
                 "get_artifact returns the manifest; read_artifact_files loads selected files. "
                 "revise_artifact takes files_json, expected_revision and request_id. "
                 "create_artifact needs an editable project and inline file bundle. "
-                "capture_slide/capture_artifact return real pixels for visual review. "
+                "capture_slide, capture_contact_sheet and capture_artifact return real pixels "
+                "for visual review. "
                 "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
                 "Read only assigned requests with read_feedback. Claim with claim_feedback "
                 "before acting. Reply with reply_to_feedback using the claim and a stable "
@@ -804,6 +805,21 @@ class MultiplayerTools:
         with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True).capture_slide(deck_id, slide_id, stage, elapsed_ms)
 
+    def capture_contact_sheet(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        offset: int = 0,
+        limit: int = 8,
+        slide_ids: tuple[str, ...] = (),
+    ) -> CallToolResult:
+        """Render a scoped draft overview; use capture_slide for full-size detail."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return ScopedTools(store, "", True).capture_contact_sheet(
+                deck_id, offset, limit, slide_ids
+            )
+
     def capture_artifact(self, ctx: Ctx, artifact_id: str) -> CallToolResult:
         """Render this owned artifact using the existing isolated browser capture."""
         actor = self.actor(ctx)
@@ -942,6 +958,7 @@ class MultiplayerTools:
             self.list_presentation_assets,
             self.prepare_interactive_html,
             self.capture_slide,
+            self.capture_contact_sheet,
             self.capture_artifact,
             self.read_chat,
             self.read_chat_attachment,

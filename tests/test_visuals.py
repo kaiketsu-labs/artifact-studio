@@ -440,3 +440,28 @@ def test_real_draft_capture_preserves_layout_and_version(store: Store, tmp_path:
         assert image.size == (800, 450)
     for x, y in ((900, 350), (300, 650), (1400, 800)):
         assert pixel(draft.path, x // 2, y // 2) == pixel(full.path, x, y)
+
+
+@RENDER
+def test_capture_reports_explicit_placeholders_and_clipped_containers(
+    store: Store, tmp_path: Path
+) -> None:
+    """Report visible author markers and constrained overflow without changing the slide."""
+    slide = store.read(DECK).slides[0]
+    markup = """<article class="slide">
+      <p data-placeholder data-element-id="unfinished">[date]</p>
+      <div data-element-id="clipped" style="width:100px;height:30px;overflow:hidden">
+        <div style="width:250px;height:60px">Content</div>
+      </div>
+      <p data-placeholder style="display:none">Hidden</p>
+      <p>[ordinary brackets]</p>
+    </article>"""
+    store.revise(
+        DECK, slide.id, digest(slide.model_dump_json()), "audit-fixture", SlidePatch(html=markup)
+    )
+    result = capture(store, DECK, tmp_path / "captures", slide_id=slide.id)
+    diagnostics = result.frames[0].diagnostics
+    assert diagnostics is not None
+    assert diagnostics.placeholders == ["unfinished"]
+    assert "clipped" in diagnostics.possible_clipping
+    assert "Hidden" not in diagnostics.placeholders
