@@ -32,8 +32,8 @@ Use `--harness claude-code` for Claude Code. Use your actual MCP connection name
 For Claude Code connected to a shared workspace, add `--claude-mode passive` if
 you want feedback checks during active work without waking an idle session.
 This installs a background hook that checks for released requests assigned to
-the agent when it opens an artifact through `get_working_context` or calls
-`start_live_review`. A pending request adds a short pointer to the next Claude
+the agent when it opens an artifact, starts review, or successfully saves edits
+or design alternatives. A pending request adds a short pointer to the next Claude
 turn. Use `read_feedback` to pick up requests directly. The agent does not
 appear as **Listening** in passive mode. Both **Live** and **Send batch** still
 release feedback. Choose `--claude-mode live` for automatic continuation.

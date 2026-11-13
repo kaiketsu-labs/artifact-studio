@@ -143,7 +143,12 @@ def test_passive_claude_only_checks_its_released_requests(
                 },
             }
             assert check() == expected
+            payload["tool_name"] = "mcp__artifact_studio__revise_slide"
+            payload["tool_input"] = {"deck_id": app.artifact_id, "slide_id": "cover"}
+            payload["tool_response"] = {"id": "cover", "revision": 2}
             assert check() == expected
+            payload["tool_name"] = "mcp__artifact_studio__read_feedback"
+            assert check() == {}
             assert check("Stop") == {}
             agents_response = owner.get(scope + "/state")
             agents_response.raise_for_status()
