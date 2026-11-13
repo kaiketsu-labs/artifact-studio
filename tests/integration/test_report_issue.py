@@ -68,6 +68,15 @@ def test_report_copies_screenshot_and_opens_public_draft(
     page.keyboard.press("Enter")
     dialog = page.get_by_role("dialog", name="Report an issue")
     expect(dialog.get_by_role("textbox", name="Title")).to_be_focused()
+    expect(trigger).to_have_attribute("aria-expanded", "true")
+    assert not dialog.evaluate("node => node.matches(':modal')")
+    _ = dialog.evaluate(
+        "node => Promise.all(node.getAnimations().map(animation => animation.finished))"
+    )
+    panel = dialog.bounding_box()
+    assert panel and panel["x"] >= 12
+    assert abs(panel["x"] + panel["width"] - bounds["x"] - bounds["width"]) <= 1
+    assert abs(panel["y"] + panel["height"] + 8 - bounds["y"]) <= 1
     dialog.get_by_role("textbox", name="Title").fill("Fictional PDF delay")
     dialog.get_by_role("textbox", name="What happened?").fill("Preparing attachment stalled.")
     choose = dialog.get_by_role("button", name="Choose screenshot")
@@ -97,6 +106,11 @@ def test_report_copies_screenshot_and_opens_public_draft(
     expect(choose).to_be_focused()
     page.keyboard.press("Escape")
     expect(trigger).to_be_focused()
+    expect(trigger).to_have_attribute("aria-expanded", "false")
+    trigger.click()
+    expect(dialog).to_be_visible()
+    trigger.click()
+    expect(dialog).to_be_hidden()
 
 
 @pytest.mark.parametrize("surface", ["browser", "window", "unknown", "monitor", "denied"])
@@ -172,7 +186,10 @@ def test_report_keeps_a_draft_link_and_image_when_clipboard_or_popup_is_blocked(
       Object.defineProperty(navigator, 'clipboard', {value: {
         write: () => Promise.reject(new DOMException('Denied', 'NotAllowedError'))
       }});
-      window.open = () => null;
+      const click = HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click = function () {
+        if (!this.matches('[data-draft-link]')) click.call(this);
+      };
     })()""")
     page.goto(live_app.url)
     page.get_by_role("button", name="Report an issue", exact=True).click()

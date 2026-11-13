@@ -7,7 +7,10 @@
   const icon = root.SlideIcons.svg;
 
   const dialog = doc.createElement('dialog');
+  dialog.id = 'studio-report';
   dialog.className = 'app-about studio-report';
+  trigger.setAttribute('aria-controls', dialog.id);
+  trigger.setAttribute('aria-expanded', 'false');
   dialog.setAttribute('aria-labelledby', 'studio-report-title');
   dialog.setAttribute('data-voice-exclude', '');
   dialog.innerHTML = `
@@ -58,14 +61,12 @@
   const save = figure.querySelector('a');
   const status = dialog.querySelector('[role=status]');
   let url, screenshot, generation = 0, activeStream;
-  let draftPopup, handoff = 0;
+  let handoff = 0;
 
   function clearDraft() {
     handoff++;
     draftLink.hidden = true;
     draftLink.removeAttribute('href');
-    draftPopup?.close();
-    draftPopup = undefined;
     submit.disabled = false;
   }
 
@@ -259,27 +260,16 @@
       return;
     }
     submit.disabled = true;
-    const copied = copyScreenshot(selected);
-    // Open while the submit gesture is active, before the clipboard promise settles.
-    const draft = root.open('about:blank', '_blank');
-    draftPopup = draft;
-    if (draft) draft.opener = null;
-    void copied.then(success => {
+    // Clipboard writes need the Studio page to retain focus until the write completes.
+    void copyScreenshot(selected).then(success => {
       if (handoff !== attempt || !dialog.open) return;
-      draftPopup = undefined;
       submit.disabled = false;
       status.textContent = success
         ? 'Screenshot copied. Paste it into the GitHub issue body.'
         : 'Save the screenshot to attach it in GitHub.';
       draftLink.href = github.href;
       draftLink.hidden = false;
-      if (draft && !draft.closed) {
-        const link = draft.document.createElement('a');
-        link.href = github.href;
-        link.rel = 'noreferrer';
-        draft.document.body.append(link);
-        link.click();
-      }
+      draftLink.click();
     });
   });
 
@@ -288,7 +278,14 @@
     choose.focus();
   });
   dialog.querySelector('[aria-label="Close report"]').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    dialog.close();
+  });
   dialog.addEventListener('close', () => {
+    trigger.setAttribute('aria-expanded', 'false');
     generation++;
     activeStream?.getTracks().forEach(track => track.stop());
     activeStream = undefined;
@@ -299,6 +296,14 @@
     trigger.focus();
   });
   root.SlideIcons.button(trigger, 'flag', 'Report an issue', true);
-  trigger.addEventListener('click', () => dialog.showModal());
+  trigger.addEventListener('click', () => {
+    if (dialog.open) {
+      dialog.close();
+      return;
+    }
+    dialog.show();
+    trigger.setAttribute('aria-expanded', 'true');
+    dialog.querySelector('[autofocus]').focus();
+  });
   trigger.hidden = false;
 })(window);
