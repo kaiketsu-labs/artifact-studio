@@ -575,8 +575,15 @@ class Conversations:
             }
 
     def claim(
-        self, actor: Actor, scope: Scope, event_id: int, session_id: str
+        self,
+        actor: Actor,
+        scope: Scope,
+        event_id: int,
+        session_id: str,
+        *,
+        include_message: bool = True,
     ) -> dict[str, object]:
+        """Claim a request, optionally omitting a message the agent already read."""
         with self.sharing.guard(actor, scope, "edit"), self.sharing.connect() as db:
             row = self._assigned(db, actor, scope, event_id)
             if row["completed"]:
@@ -594,7 +601,7 @@ class Conversations:
                 "event_id": event_id,
                 "claim": claim,
                 "expires": expires,
-                "message": self._public(row),
+                **({"message": self._public(row)} if include_message else {}),
             }
 
     def _assigned(
@@ -737,13 +744,16 @@ class Conversations:
                 "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
                 (actor.agent, session, scope.workspace, artifact, time.time() + 120),
             )
+            available = body.event == "Stop" and self._has_pending(db, actor, scope)
+            reason = ""
+            if available:
+                reason = f"Studio feedback: call read_feedback(artifact_id={artifact!r})."
+            elif body.event == "Stop":
+                reason = "Studio is idle. End this turn to keep listening."
             return {
                 "listening": True,
-                "feedback_available": self._has_pending(db, actor, scope),
-                "reason": f"Live review for artifact {artifact}. Use read_feedback with "
-                f"artifact_id={artifact!r}; claim assigned requests with claim_feedback "
-                "before acting, then reply_to_feedback in their original channel. "
-                "If no requests are pending, finish this turn to keep listening.",
+                "feedback_available": available,
+                "reason": reason,
             }
 
     def agents(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:
