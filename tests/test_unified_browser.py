@@ -779,6 +779,9 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 addressed = thread.locator(".is-agent-request")
                 expect(addressed).to_contain_text("Can you simplify it?")
                 expect(addressed.get_by_role("img", name="Agent request")).to_be_visible()
+                expect(addressed.locator(".hub-message-body")).to_have_css(
+                    "box-shadow", "rgb(148, 124, 202) 0px 0px 0px 1px inset"
+                )
                 expect(toggle).to_have_attribute("aria-pressed", "false")
                 events = cast(
                     list[dict[str, object]],
