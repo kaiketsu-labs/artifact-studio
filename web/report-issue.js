@@ -25,12 +25,12 @@
           <button type="button" data-choose>${icon('upload')}<span>Choose screenshot</span></button>
           <input type="file" aria-label="Choose screenshot" accept="image/png,image/jpeg,image/webp" hidden>
         </div>
+        <p role="status"></p>
         <figure hidden><img alt="Screenshot preview">
           <figcaption><a download="artifact-studio-issue.png">${icon('download')}<span>Save screenshot</span></a>
             <button type="button" data-remove aria-label="Remove screenshot" title="Remove screenshot">${icon('trash')}</button></figcaption>
           <p>Save the image to attach it manually in GitHub.</p>
         </figure>
-        <p role="status"></p>
       </fieldset>
       <footer class="studio-report-footer">
         <p>${icon('info')}<span>GitHub issues are public. Check your report for private information.</span></p>
