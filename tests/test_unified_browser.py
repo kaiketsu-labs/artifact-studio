@@ -193,7 +193,7 @@ def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
                 page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
                 button = page.get_by_role("button", name="People in this deck (3)")
                 expect(button.get_by_text("+2", exact=True)).to_be_visible()
-                expect(page.locator("#slides .slide-presence-markers")).to_contain_text("+2")
+                expect(page.locator(".thumb-preview .slide-presence-markers")).to_contain_text("+1")
                 button.click()
                 people = page.locator("#deck-viewers")
                 expect(people).to_contain_text("Alice")
@@ -206,6 +206,10 @@ def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
                 expect(button).to_be_visible()
                 expect(people).to_be_visible()
                 page.keyboard.press("Escape")
+                expect(people).to_be_hidden()
+                expect(button).to_be_focused()
+                button.click()
+                people.get_by_role("button", name="Alice Slide 1").click()
                 expect(people).to_be_hidden()
                 expect(button).to_be_focused()
                 with human(app, "dana") as outsider:
@@ -229,6 +233,7 @@ def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> N
                 page = context.new_page()
                 page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
                 composer = page.locator("#feedback-text")
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
                 composer.fill("Fictional guest discussion")
                 held: list[Route] = []
 
