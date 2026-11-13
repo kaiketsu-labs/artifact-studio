@@ -90,6 +90,7 @@ def test_keep_preserves_notes_source_revision_and_approval(designs: SlideDesigns
     assert (designs.store.folder(TEMPLATE_ID) / "index.html").read_bytes() == before
     assert designs.store.view(TEMPLATE_ID).slides[0].approved
     assert not designs.list(TEMPLATE_ID, "cover").sets[0].pending
+    assert "cover" not in designs.store.view(TEMPLATE_ID).slide_designs
     undo = designs.undo(
         TEMPLATE_ID,
         "cover",
@@ -100,6 +101,7 @@ def test_keep_preserves_notes_source_revision_and_approval(designs: SlideDesigns
         ),
     )
     assert undo.pending and designs.store.view(TEMPLATE_ID).slides[0].approved
+    assert designs.store.view(TEMPLATE_ID).slide_designs["cover"]["pending"] is True
 
 
 def test_choose_and_undo_preserve_current_private_and_structural_state(designs: SlideDesigns):

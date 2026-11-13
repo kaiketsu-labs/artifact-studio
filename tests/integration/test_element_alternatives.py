@@ -707,3 +707,17 @@ def test_delayed_whole_design_open_does_not_displace_element_preview(
     expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
     expect(page.locator("#slide-design-tray")).to_be_hidden()
     assert not errors
+
+
+def test_dismiss_suggestions_preserves_element_and_undo(live_app: RunningApp, page: Page) -> None:
+    """Dismiss a pinned preview without adopting it, then restore its pending badge."""
+    group = seed_elements(live_app, groups=("headline",))["headline"]
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    open_group(page, group)
+    option(page, group, 1).click()
+    page.locator("#element-alternative-panel [data-ea-keep]").click()
+    expect(page.get_by_role("button", name=re.compile(r"Review alternatives for"))).to_be_hidden()
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
+    page.locator("#toast").get_by_role("button", name="Undo", exact=True).click()
+    expect(page.get_by_role("button", name=re.compile(r"Review alternatives for"))).to_be_visible()
