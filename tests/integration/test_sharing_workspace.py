@@ -78,3 +78,26 @@ def test_html_and_slide_focus_restore_without_reloading(
     page.frame_locator("#preview").get_by_role("heading").press("Escape")
     expect(page.locator(".topbar")).to_be_visible()
     expect(view).to_be_focused()
+
+
+def test_pending_attachment_can_be_closed_and_reopened(live_app: RunningApp, page: Page) -> None:
+    """A stalled attachment request does not trap the share dialog."""
+    page.add_init_script("""() => {
+      const original = window.fetch;
+      window.fetch = (url, options) => String(url).endsWith('/api/shares')
+        ? new Promise((resolve, reject) => options.signal.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')), {once: true}))
+        : original(url, options);
+    }""")
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    share = page.get_by_role("button", name="Share presentation", exact=True)
+    share.click()
+    dialog = page.locator(".studio-share")
+    dialog.get_by_role("radio", name="PDF Still pages", exact=True).check()
+    dialog.get_by_role("button", name="Save file", exact=True).click()
+    expect(dialog.get_by_role("status")).to_have_text("Preparing attachment…")
+    page.keyboard.press("Escape")
+    expect(share).to_be_focused()
+    share.click()
+    expect(dialog).to_be_visible()
+    expect(dialog.get_by_role("button", name="Save file", exact=True)).to_be_disabled()
