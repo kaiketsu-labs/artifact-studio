@@ -161,8 +161,13 @@
   const chatImages=root.ChatImages.create({document:doc,escape,svg:icon});
   const coverLoader=root.HubCovers.create({onChanged:()=>void refresh()});
   const state={designActive:null,projects:[],projectTree:{nodes:[],content_hash:''},artifacts:[],designs:[],project:'all',kind:'all',search:'',active:null,detail:null,source:'',sourceView:false,selecting:false,zoom:1,viewport:'fluid',newRevision:null,loading:0};
+  const libraryViewKey='artifact-studio:library-view';
+  const modifiedDate=new Intl.DateTimeFormat(undefined,{dateStyle:'medium'});
+  const modifiedTimestamp=new Intl.DateTimeFormat(undefined,{dateStyle:'full',timeStyle:'short'});
   let sort=validSort(null);
   try{sort=validSort(JSON.parse(root.localStorage.getItem('artifact-studio:library-sort')));}catch{}
+  let libraryView='grid';
+  try{if(root.localStorage.getItem(libraryViewKey)==='list')libraryView='list';}catch{}
   const collapsedFolders=new Set();
   try{for(const id of JSON.parse(root.localStorage.getItem('artifact-studio:collapsed-folders') || '[]'))if(typeof id==='string')collapsedFolders.add(id);}catch{}
   let treeBusy=false;
@@ -403,7 +408,7 @@
     }
     if(root.StudioInvitation?.available)commands.push({separator:true},menuCommand('Share link…','share',()=>root.StudioInvitation.open({kind:'artifact',id,title:item.title,anchor})));
     if(canManageWorkspace())commands.push({separator:true},menuCommand('Move to project','folder',()=>moveDialog(id)));
-    const opener=anchor.matches('button')?anchor:anchor.querySelector('.hub-card-open');
+    const opener=anchor.matches('button')?anchor:anchor.querySelector('.hub-card-open,.hub-list-open');
     commands.push(menuCommand(shareFileLabel('Share'),'share',()=>shareArtifact(id,opener)));
     commands.push(menuCommand('Copy link','copy',()=>copyArtifactLink(item)));
     if(!sharedEditor)commands.push({separator:true},menuCommand('Agent context','code',()=>contextDialog({artifactId:id})));
@@ -508,8 +513,26 @@
   function sortControl() {
     return `<div class="hub-sort">${icon('sort')}<select id="hub-sort" aria-label="Sort artifacts" title="Sort artifacts">${Object.entries(sortLabels).map(([key,label])=>`<option value="${key}" ${sort.by===key?'selected':''}>${label}</option>`).join('')}</select>${button('sort-direction','',sort.direction==='asc'?'up':'down',`aria-label="${reverseSortLabel()}" title="${reverseSortLabel()}" ${sort.by==='starred'?'hidden':''}`)}</div>`;
   }
+  function viewControl() {
+    return `<div class="hub-view-control" role="group" aria-label="Artifact view">
+      ${button('library-view','', 'grid', `data-view="grid" aria-label="Grid view" title="Grid view" aria-pressed="${libraryView==='grid'}"`)}
+      ${button('library-view','', 'list', `data-view="list" aria-label="List view" title="List view" aria-pressed="${libraryView==='list'}"`)}
+    </div>`;
+  }
+  function libraryResultsClass() {
+    if(state.project==='designs')return 'hub-grid';
+    if(libraryView==='list')return 'hub-list';
+    return sort.by==='type'?'hub-grid is-grouped':'hub-grid';
+  }
+  function updateLibraryView(view) {
+    if(view===libraryView)return;
+    libraryView=view;
+    try{root.localStorage.setItem(libraryViewKey,view);}catch{}
+    for(const toggle of content.querySelectorAll('[data-action="library-view"]'))toggle.setAttribute('aria-pressed',String(toggle.dataset.view===view));
+    refreshCards();
+  }
   function refreshCards() {
-    const grid=doc.getElementById('hub-grid');grid.classList.toggle('is-grouped',state.project!=='designs' && sort.by==='type');grid.innerHTML=cards();
+    const grid=doc.getElementById('hub-grid');grid.className=libraryResultsClass();grid.innerHTML=cards();
     doc.getElementById('hub-result-count').textContent=resultCount();mountSharing(true);coverLoader.mount(grid);
   }
   function updateSort(value) {
@@ -525,15 +548,47 @@
   function refreshLibraryAfterMenu() {
     if(hubMenu.isOpen()){deferredLibraryRefresh=true;return;}
     const focused=doc.activeElement,artifact=focused?.dataset.artifact,tree=focused?.closest('[data-tree-node]')?.dataset.treeNode,main=focused?.matches('.hub-main');
+    const view=focused?.closest('.hub-view-control')?focused.dataset.view:null;
     library();
-    const target=artifact?doc.querySelector(`[data-artifact="${CSS.escape(artifact)}"]`):tree?doc.querySelector(`[data-tree-node="${CSS.escape(tree)}"] .project-tree-open`):main?doc.querySelector('.hub-main'):null;
+    const target=artifact?doc.querySelector(`[data-artifact="${CSS.escape(artifact)}"]`):tree?doc.querySelector(`[data-tree-node="${CSS.escape(tree)}"] .project-tree-open`):view?doc.querySelector(`[data-action="library-view"][data-view="${CSS.escape(view)}"]`):main?doc.querySelector('.hub-main'):null;
     target?.focus({preventScroll:true});
   }
   hubMenu.panel.addEventListener('toggle',()=>{if(!hubMenu.isOpen()&&deferredLibraryRefresh&&!state.active&&!state.designActive)refreshLibraryAfterMenu();});
+  /** Render compact rows using the same artifact identifiers and actions as cards. */
+  function artifactList(items) {
+    const rows=items.map(item=>{
+      const id=escape(item.id),title=escape(item.title),statusId=`artifact-status-${id}`;
+      const kind=kinds[kindOf(item)],type=artifactType(item),project=escape(item.project_title || projectTitle(item.project_id));
+      const kindLabel=escape(['presentation','html','md','image','file'].includes(type.key)?kind.singular:type.label);
+      const timestamp=Date.parse(item.updated_at);
+      const date=Number.isFinite(timestamp)?`<time datetime="${escape(item.updated_at)}" title="${escape(modifiedTimestamp.format(timestamp))}">${escape(modifiedDate.format(timestamp))}</time>`:'<span aria-label="Unknown">—</span>';
+      return `<tr draggable="${canManageWorkspace()}" data-drag-artifact="${id}">
+        <td class="hub-list-name">
+          <button type="button" class="hub-list-open" data-artifact="${id}" aria-describedby="${statusId}" aria-label="Open ${title}" title="${title}">
+            ${icon(kind.icon)}<span class="hub-list-title">${title}</span>
+          </button>
+          <span class="hub-list-mobile-details"><span>${kindLabel}</span><span>${project}</span>${date}</span>
+          <span class="sr-only">${status(item,statusId)}</span>
+        </td>
+        <td class="hub-list-kind" title="${kindLabel}">${kindLabel}</td>
+        <td class="hub-list-project" title="${project}">${project}</td>
+        <td class="hub-list-date">${date}</td>
+        <td class="hub-list-actions"><div>
+          ${root.FavoriteSlides.button('artifact',item.id,item.title)}
+          <button type="button" data-action="list-artifact-menu" data-item="${id}" aria-haspopup="menu" aria-label="Actions for ${title}" title="Artifact actions">${icon('more')}</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+    return `<table class="hub-artifact-table" aria-label="Artifacts">
+      <thead><tr><th scope="col" class="hub-list-name">Name</th><th scope="col" class="hub-list-kind">Kind</th><th scope="col" class="hub-list-project">Project</th><th scope="col" class="hub-list-date">Last modified</th><th scope="col" class="hub-list-actions"><span class="sr-only">Actions</span></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
   function cards() {
     if(state.project==='designs')return designCards();
     const items=filteredArtifacts();
     if(!items.length)return `<div class="hub-empty">${icon(state.search?'eye':'folder')}<h2>${state.search || state.kind!=='all'?'No matching artifacts':state.project==='all'?'A place for your work':'This project is ready'}</h2><p>${state.search || state.kind!=='all'?'Try another search or format.':'Import a page, document, image, presentation or a bundle of files.'}</p>${state.search || state.kind!=='all'?'':`<div class="hub-empty-actions">${button('import','Import files','upload','class="hub-primary"')}</div>`}</div>`;
+    if(libraryView==='list')return artifactList(items);
     const card=item=>{
       const statusId='artifact-status-'+item.id;
       const kind=kinds[kindOf(item)],preview=kindOf(item)==='file'?'':studioPath(item.preview_url || `/api/hub/previews/${encodeURIComponent(item.id)}?v=${encodeURIComponent(item.content_hash || '')}`);
@@ -556,7 +611,7 @@
     const designs=state.project==='designs';
     for(const node of doc.querySelectorAll('.hub-top-actions [data-design-action]'))node.hidden=!designs;
     for(const node of doc.querySelectorAll('.hub-top-actions [data-action="new-project"],.hub-top-actions [data-action="import"],.hub-top-actions [data-action="context"]'))node.hidden=designs;
-    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div>${designs?'<div class="design-library-controls">':''}<label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label>${designs?designLibrary.importControl()+'</div>':''}</header><div class="hub-library-toolbar" ${designs?'hidden':''}><nav class="hub-chips" aria-label="Artifact formats">${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav>${sortControl()}</div><div id="hub-grid" class="hub-grid ${!designs && sort.by==='type'?'is-grouped':''}">${cards()}</div></main></div>`;
+    content.innerHTML=`<div class="hub-layout">${sidebar()}<main class="hub-main" tabindex="0" aria-label="Artifact library"><header class="hub-heading"><div><h1>${escape(projectTitle(state.project))}</h1><p id="hub-result-count" class="hub-heading-count">${resultCount()}</p></div>${designs?'<div class="design-library-controls">':''}<label class="hub-search">${icon('search')}<input type="search" id="hub-search" placeholder="Search ${designs?'designs':'artifacts'}…" aria-label="Search ${designs?'designs':'artifacts'}" value="${escape(state.search)}"></label>${designs?designLibrary.importControl()+'</div>':''}</header><div class="hub-library-toolbar" ${designs?'hidden':''}><nav class="hub-chips" aria-label="Artifact formats">${[['all',{label:'All',icon:'grid'}],...Object.entries(kinds)].map(([key,kind])=>`<button type="button" data-kind="${key}" aria-pressed="${state.kind===key}">${key==='all'?'':icon(kind.icon)}${kind.label}</button>`).join('')}</nav><div class="hub-library-controls">${viewControl()}${sortControl()}</div></div><div id="hub-grid" class="${libraryResultsClass()}">${cards()}</div></main></div>`;
     doc.title=`${projectTitle(state.project)} · Artifact Studio`;workspacePanels.refresh();mountSharing();root.StudioAbout?.mountServerVersion();quickAccess.decorateProjects();coverLoader.mount(doc.getElementById('hub-grid'));
   }
   function fileList(item) {
@@ -1013,6 +1068,8 @@
     if(name==='favorite-slides')return root.FavoriteSlides.open();
     if(name==='reference-slides'){const id=state.active;return root.FavoriteSlides.open({attach:files=>id===state.active&&addAttachments(files)});}
     if(name==='retry-cover'){coverLoader.retry(node.dataset.coverRetry);return;}
+    if(name==='library-view')return updateLibraryView(node.dataset.view);
+    if(name==='list-artifact-menu')return artifactMenu(node,node.dataset.item);
     if(name==='sort-direction'){updateSort({...sort,direction:sort.direction==='asc'?'desc':'asc'});return;}
     if(name==='history')return openArtifactHistory(state.detail);
     if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
