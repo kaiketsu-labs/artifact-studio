@@ -29,6 +29,11 @@ python3 ~/.local/share/artifact-studio-hooks/hook_client.py configure \
 
 Use `--harness claude-code` for Claude Code. Use your actual MCP connection name, and the workspace origin **without `/mcp`**. Inspect the dry run, then repeat without `--dry-run`. Existing unrelated settings/hooks are preserved; repeating setup is idempotent. `--global` explicitly selects user-level configuration instead of `--project`. Remove an older project copy when switching to global hooks so Codex does not run both.
 
+If setup reports obsolete Slide Studio hooks, run the same command with
+`--remove-obsolete-slide-studio-hooks --dry-run`. This previews removal of
+generated Claude hooks pointing to a missing local `slide-studio` installation.
+Repeat without `--dry-run` to apply the change, then reload Claude Code.
+
 For Claude Code connected to a shared workspace, add `--claude-mode passive` if
 you want feedback checks during active work without waking an idle session.
 This installs a background hook that checks for released requests assigned to
