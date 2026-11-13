@@ -53,9 +53,10 @@ def test_design_zip_preserves_examples_and_references_with_trusted_viewer(
     assert target.default_design_id() == "current-design"
     assert target.read(imported.folder_id).id == imported.folder_id
     assert target.read(imported.folder_id).slides == library.store.read(TEMPLATE_ID).slides
-    assert b"untrustedArchiveViewer" not in (
-        target.folder(imported.folder_id) / "presentation.js"
-    ).read_bytes()
+    assert (
+        b"untrustedArchiveViewer"
+        not in (target.folder(imported.folder_id) / "presentation.js").read_bytes()
+    )
     with archive.open("rb") as incoming, pytest.raises(ConflictError, match="already"):
         _ = import_design(target, incoming)
     imported_library = DesignLibrary(target)

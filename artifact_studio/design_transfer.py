@@ -71,9 +71,12 @@ def export_design(store: Store, design_id: str, destination: Path) -> None:
                     _ = outgoing.write(chunk)
                     remaining -= len(chunk)
                 after = path.stat()
-                if remaining or incoming.read(1) or (
-                    after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns
-                ) != (before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns):
+                if (
+                    remaining
+                    or incoming.read(1)
+                    or (after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+                    != (before.st_ino, before.st_size, before.st_mtime_ns, before.st_ctime_ns)
+                ):
                     raise ConflictError("The design changed during export. Try again.")
     if destination.stat().st_size > MAX_DESIGN_ZIP:
         raise ValueError(DESIGN_ZIP_LIMIT)
@@ -146,9 +149,8 @@ def _prepare(folder: Path, folder_id: str) -> tuple[str, bool]:
     if len(matches) != 1:
         raise ValueError("The ZIP must include one editable example deck.")
     deck = Deck.model_validate_json(matches[0][2])
-    if (
-        deck.design_id != manifest.id
-        or len({slide.id for slide in deck.slides}) != len(deck.slides)
+    if deck.design_id != manifest.id or len({slide.id for slide in deck.slides}) != len(
+        deck.slides
     ):
         raise ValueError("The example deck must match the design and use unique slide IDs.")
     for slide in deck.slides:
