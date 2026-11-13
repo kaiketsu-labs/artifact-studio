@@ -68,7 +68,7 @@
       toggle.hidden=!group.pending&&!visible&&!newer;toggle.innerHTML=icon('slides')+`<span>${newer&&!visible?'New designs':'Designs'}</span> <span class="sd-counter">${newer&&!visible?page.sets[0].options.length:choices().length}</span>`;toggle.setAttribute('aria-expanded',String(visible));toggle.setAttribute('aria-label',`${newer&&!visible?'New designs':'Designs'} ${choices().length}`);toggle.disabled=busy;
       tray.hidden=!visible;$('[data-sd-latest]').hidden=!newer;$('header h2 .sd-count').textContent=String(choices().length);
       $('.sd-current-label').innerHTML=`<span class="sd-preview-state ${current?'in-slide':''}" ${current?'role="img" aria-label="Chosen design"':''}>${current?icon('check'):'Preview'}</span><strong>${escape(item.name)}</strong>`;
-      $('[data-sd-use]').hidden=current;$('[data-sd-keep]').textContent=group.pending?'Keep current':'Back to current';
+      $('[data-sd-use]').hidden=current;$('[data-sd-keep]').textContent=group.pending?'Dismiss suggestions':'Back to current';
       $('.sd-decision').hidden=!canDecide()||!group.pending&&current;
       $('.sd-conflict').hidden=!group.stale||reviewed;$('.sd-conflict').textContent='The slide changed since these designs. Compare with the current slide before replacing it.';
       renderOptions();renderOverlay();mountCards();
