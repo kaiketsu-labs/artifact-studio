@@ -97,7 +97,7 @@
       identity.replaceChildren();
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
-      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
+      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Share individual presentations and projects with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
       doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
