@@ -632,6 +632,8 @@ class AssetEmbedder:
             raise ValueError("CSS expansion exceeds the portable document size limit.")
 
         def import_css(url: str) -> str:
+            if self.omit_css_import(url):
+                return ""
             path = self.local_path(url, directory)
             if path in self.visiting:
                 raise ValueError("CSS imports contain a circular dependency.")
@@ -644,6 +646,10 @@ class AssetEmbedder:
                 self.visiting.remove(path)
 
         return embed_css(text, lambda url: self.asset(url, directory), import_css)
+
+    def omit_css_import(self, url: str) -> bool:
+        """Keep all imports unless a specific output surface omits external resources."""
+        return False
 
     def markup(self, text: str, directory: Path | None = None) -> str:
         """Inline HTML/SVG dependencies while preserving ordinary hyperlinks and markup."""
