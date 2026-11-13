@@ -93,9 +93,7 @@ def test_five_identities_share_only_granted_deck_access(tmp_path: Path) -> None:
         human(app, "owner") as owner,
     ):
         roles = {"alice": "edit", "bob": "comment", "carol": "view"}
-        tokens = {
-            name: grant(owner, name, app.deck_id, role=role) for name, role in roles.items()
-        }
+        tokens = {name: grant(owner, name, app.deck_id, role=role) for name, role in roles.items()}
         deck = f"/api/decks/{app.deck_id}"
         chat = f"/api/workspaces/default/artifacts/{app.deck_id}/chat"
 
@@ -122,7 +120,9 @@ def test_five_identities_share_only_granted_deck_access(tmp_path: Path) -> None:
             "dana": (404, 404, 404),
         }
         assert {message["message"] for message in owner.get(chat).json()} == {
-            "owner", "alice", "bob",
+            "owner",
+            "alice",
+            "bob",
         }
 
 
