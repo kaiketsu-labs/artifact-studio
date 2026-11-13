@@ -15,6 +15,7 @@ from artifact_studio.updater import ReleaseStatus, UpdateError
 def test_app_info_endpoint_is_local_metadata_only(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    monkeypatch.delenv("ARTIFACT_STUDIO_BUILD_REVISION", raising=False)
     info = AppInfo(tmp_path, "2.3.4", enabled=False)
     monkeypatch.setattr(service, "app_info", info)
 
@@ -27,6 +28,7 @@ def test_app_info_endpoint_is_local_metadata_only(
     assert response.status_code == 200
     assert response.json() == {
         "version": "2.3.4",
+        "build_revision": None,
         "latest_version": None,
         "latest_tag": None,
         "installed_tag": None,
