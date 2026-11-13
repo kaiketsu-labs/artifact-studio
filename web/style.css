@@ -31,7 +31,7 @@ a{color:inherit}
 .workspace-menu [role=separator]{height:1px;background:var(--line);margin:6px 5px}
 .workspace-menu button[role=menuitem]{display:flex;justify-content:flex-start;gap:11px;width:100%;min-height:39px;padding:9px 11px;border:0;border-radius:7px;background:transparent;color:inherit;font-size:13px;text-align:left}
 .workspace-menu button[hidden]{display:none}
-.workspace-menu button[role=menuitem]>span{flex:1}
+.workspace-menu button[role=menuitem]>span:not(.app-update-icon){flex:1}
 .workspace-menu button[role=menuitem]>.ui-icon{width:18px;height:18px;color:var(--subtle)}
 .workspace-menu button[role=menuitem]:hover:not(:disabled),.workspace-menu button[role=menuitem]:focus-visible{background:var(--hover,#f1f5fb)}
 .workspace-menu button[role=menuitem]:focus-visible{outline:0;box-shadow:inset 0 0 0 2px var(--blue)}

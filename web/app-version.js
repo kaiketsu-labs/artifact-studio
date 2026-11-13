@@ -134,7 +134,7 @@
     serverVersion.setAttribute('aria-haspopup','dialog');
     function mountServerVersion(){
       const slot=doc.querySelector('[data-server-version-slot]');
-      if(!slot||root.artifactStudioSession?.mode!=='hosted'||!lastInfo)return;
+      if(!slot||!lastInfo)return;
       if(serverVersion.parentElement!==slot)slot.append(serverVersion);
       slot.hidden=false;
     }
@@ -148,6 +148,7 @@
     serverVersion.addEventListener('click',()=>showAbout(serverVersion));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){
+      if(!entry.querySelector('.ui-icon'))entry.insertAdjacentHTML('afterbegin',root.SlideIcons.svg('info'));
       const icon=doc.createElement('span');icon.className='app-update-icon';icon.hidden=true;icon.innerHTML=mark;entry.append(icon);
       entry.addEventListener('click',event=>{
         event.preventDefault();
@@ -174,16 +175,15 @@
       version.textContent=label;
       const revision=/^[a-f0-9]{7,64}$/.test(info.build_revision||'')?info.build_revision.slice(0,7):'';
       serverVersion.textContent=`v${info.version}${revision?` · ${revision}`:''}`;
-      serverVersion.setAttribute('aria-label',`Server ${label}${revision?`, build ${revision}`:''}`);
+      serverVersion.setAttribute('aria-label',`${label}${revision?`, build ${revision}`:''}`);
       mountServerVersion();
-      for(const node of doc.querySelectorAll('[data-app-version]'))node.textContent=label;
       const nightlyTag=/^nightly-\d{8}\.[1-9]\d{0,11}$/;
       const available=info.update_available===true&&(/^v\d+\.\d+\.\d+$/.test(info.latest_tag||'')||(info.include_nightly===true&&nightlyTag.test(info.latest_tag||'')));
       const installedBuild=nightlyTag.test(info.installed_tag||'')?info.installed_tag:revision;
       build.hidden=!installedBuild;build.textContent=installedBuild?`Installed build: ${installedBuild}`:'';
       for(const icon of doc.querySelectorAll('.app-update-icon')){icon.hidden=!available;icon.title=available?`${info.latest_tag} available`:'';}
       for(const trigger of triggers){trigger.toggleAttribute('data-app-update',available);trigger.title=available?`Menu — ${info.latest_tag} available`:'Menu';}
-      for(const entry of entries)entry.title=available?`${label} — ${info.latest_tag} available`:label;
+      for(const entry of entries)entry.title=available?`${info.latest_tag} available`:'';
       checking=info.update_check==='checking';
       status.textContent=available?`Update available: ${info.latest_tag}`:checking?'Checking for updates…':info.update_check==='unavailable'?'Update information is unavailable.':info.update_check==='disabled'?'Automatic update checks are off.':info.latest_tag?'You’re up to date.':`No ${info.include_nightly?'eligible':'stable'} release is available yet.`;
       help.hidden=!available;release.hidden=!available;
@@ -191,7 +191,7 @@
       for(const trigger of triggers){trigger.setAttribute('aria-describedby','app-update-description');}
       let description=doc.getElementById('app-update-description');
       if(!description){description=doc.createElement('span');description.id='app-update-description';description.className='app-version-sr';(doc.querySelector('header')||dialog).append(description);}
-      description.textContent=available?`${info.latest_tag} update available`:label;
+      description.textContent=available?`${info.latest_tag} update available`:'';
     }
     function schedule(){clearTimeout(timer);if(!doc.hidden&&!sessionExpired)timer=setTimeout(()=>void refresh(),checking?1500:60000);}
     async function refresh(){
