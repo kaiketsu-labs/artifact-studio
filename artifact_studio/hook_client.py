@@ -104,10 +104,11 @@ def _generated_handler(value: object, harness: str, event: str, server_name: str
 
 
 def _replace_generated(
-    entries: list[object], harness: str, event: str, server_name: str
-) -> list[object]:
+    entries: list[object], harness: str, event: str, server_name: str, *, remove_obsolete: bool
+) -> tuple[list[object], int]:
     """Migrate generated handlers while retaining other handlers and settings."""
     migrated: list[object] = []
+    obsolete = 0
     for value in entries:
         group = _object(value)
         handlers = group.get("hooks")
@@ -115,14 +116,63 @@ def _replace_generated(
             migrated.append(value)
             continue
         original = cast("list[object]", handlers)
-        kept = [
-            item for item in original if not _generated_handler(item, harness, event, server_name)
-        ]
+        kept: list[object] = []
+        for item in original:
+            if _generated_handler(item, harness, event, server_name):
+                continue
+            if harness == "claude-code" and _obsolete_slide_studio_handler(item, event):
+                obsolete += 1
+                if remove_obsolete:
+                    continue
+            kept.append(item)
         if len(kept) == len(original):
             migrated.append(value)
         elif kept:
             migrated.append({**group, "hooks": kept})
-    return migrated
+    return migrated, obsolete
+
+
+def _obsolete_slide_studio_handler(value: object, event: str) -> bool:
+    """Recognize the old generated launcher when its local installation is missing."""
+    handler = _object(value)
+    command = handler.get("command")
+    if handler.get("type") != "command" or not isinstance(command, str):
+        return False
+    try:
+        arguments = shlex.split(command)
+    except ValueError:
+        return False
+    if arguments[1:2] == ["--no-cache"]:
+        _ = arguments.pop(1)
+    if (
+        len(arguments) != 17
+        or Path(arguments[0]).name != "uv"
+        or arguments[1] != "--directory"
+        or arguments[3:14]
+        != [
+            "run",
+            "--no-sync",
+            "python",
+            "-m",
+            "studio.hook_client",
+            "event",
+            "--harness",
+            "claude-code",
+            "--event",
+            event,
+            "--url",
+        ]
+        or arguments[15:] != ["--server-name", "slide-studio"]
+    ):
+        return False
+    installation = Path(arguments[2])
+    if not installation.is_absolute() or installation.name != "slide-studio":
+        return False
+    try:
+        _validate_url(arguments[14])
+    except ValueError:
+        return False
+    return urlsplit(arguments[14]).scheme == "http" and not installation.exists()
 
 
 def configure(
@@ -133,11 +183,14 @@ def configure(
     dry_run: bool,
     *,
     passive: bool = False,
+    remove_obsolete: bool = False,
 ) -> Path:
     """Merge project hooks, or user-level hooks when project is None, keeping other settings."""
     _validate_url(url)
     if passive and harness != "claude-code":
         raise ValueError("Passive mode is available only for Claude Code")
+    if remove_obsolete and harness != "claude-code":
+        raise ValueError("Obsolete Slide Studio hook cleanup is available only for Claude Code")
     if project is not None and (not project.is_absolute() or not project.is_dir()):
         raise ValueError("project must be an existing absolute directory")
     standalone = not __package__ or urlsplit(url).scheme == "https"
@@ -162,12 +215,17 @@ def configure(
     events = {"PostToolUse": 10, "Stop": 600, "SessionEnd": 3}
     if harness == "codex":
         events["Interrupt"] = 3
+    obsolete_count = 0
     for event, timeout in events.items():
         existing = hooks.setdefault(event, [])
         if not isinstance(existing, list):
             raise ValueError(f"{event} hooks must be a list")
         entries = cast("list[object]", existing)
-        entries[:] = _replace_generated(entries, harness, event, server_name)
+        kept, obsolete = _replace_generated(
+            entries, harness, event, server_name, remove_obsolete=remove_obsolete
+        )
+        entries[:] = kept
+        obsolete_count += obsolete
         if passive and event != "PostToolUse":
             if not entries:
                 del hooks[event]
@@ -243,6 +301,17 @@ def configure(
         finally:
             if temporary is not None and os.path.exists(temporary):
                 os.unlink(temporary)
+    if obsolete_count:
+        noun = "hook" if obsolete_count == 1 else "hooks"
+        if remove_obsolete:
+            action = "Would remove" if dry_run else "Removed"
+            print(f"{action} {obsolete_count} obsolete Slide Studio {noun}.", file=sys.stderr)
+        else:
+            print(
+                f"Found {obsolete_count} obsolete Slide Studio {noun}. "
+                "Review cleanup with --remove-obsolete-slide-studio-hooks --dry-run.",
+                file=sys.stderr,
+            )
     return target
 
 
@@ -500,6 +569,11 @@ def main() -> int:
     scope.add_argument("--project", type=Path)
     scope.add_argument("--global", dest="project", action="store_const", const=None)
     config.add_argument("--dry-run", action="store_true")
+    config.add_argument(
+        "--remove-obsolete-slide-studio-hooks",
+        action="store_true",
+        help="remove generated Claude hooks for a missing Slide Studio installation",
+    )
     event_parser = subparsers.add_parser("event")
     event_parser.add_argument(
         "--event",
@@ -522,6 +596,7 @@ def main() -> int:
                 args.server_name,
                 args.dry_run,
                 passive=passive,
+                remove_obsolete=args.remove_obsolete_slide_studio_hooks,
             )
             if not args.dry_run:
                 print(f"Saved {target}. Reload the agent session and review hooks in /hooks.")

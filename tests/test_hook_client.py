@@ -196,6 +196,93 @@ def test_migrate_cache_dependent_hooks(
     assert target.read_text() == before
 
 
+def test_warn_and_remove_only_obsolete_slide_studio_hooks(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Preview targeted cleanup while preserving current, working and unrelated handlers."""
+    url = "https://studio.example.test"
+    target = client.configure("claude-code", tmp_path, url, "artifact_studio", False)
+
+    def legacy(installation: Path, module: str = "studio.hook_client") -> dict[str, object]:
+        """Build the original generated command with shell-safe paths."""
+        command = shlex.join(
+            [
+                "/old/bin/uv",
+                "--no-cache",
+                "--directory",
+                str(installation),
+                "run",
+                "--no-sync",
+                "python",
+                "-m",
+                module,
+                "event",
+                "--harness",
+                "claude-code",
+                "--event",
+                "Stop",
+                "--url",
+                "http://127.0.0.1:8790",
+                "--server-name",
+                "slide-studio",
+            ]
+        )
+        return {"type": "command", "command": command, "timeout": 600}
+
+    working = tmp_path / "active" / "slide-studio"
+    working.mkdir(parents=True)
+    obsolete = legacy(tmp_path / "old location" / "slide-studio")
+    other_path = legacy(tmp_path / "old location" / "other-app")
+    other_module = legacy(tmp_path / "old location" / "slide-studio", "other.hook_client")
+    unrelated = {"type": "command", "command": "echo keep-this"}
+    retained = [legacy(working), other_path, other_module, unrelated]
+    current = json.loads(target.read_text())
+    current["hooks"]["Stop"][0]["hooks"].extend([obsolete, *retained])
+    current["other"] = {"keep": True}
+    target.write_text(json.dumps(current))
+    before = target.read_text()
+
+    arguments = [
+        "hook_client.py",
+        "configure",
+        "--harness",
+        "claude-code",
+        "--project",
+        str(tmp_path),
+        "--url",
+        url,
+        "--server-name",
+        "artifact_studio",
+    ]
+    monkeypatch.setattr(client.sys, "argv", [*arguments, "--dry-run"])
+    assert client.main() == 0
+    assert "Found 1 obsolete Slide Studio hook" in capsys.readouterr().err
+    assert target.read_text() == before
+
+    cleanup = [*arguments, "--remove-obsolete-slide-studio-hooks"]
+    monkeypatch.setattr(client.sys, "argv", [*cleanup, "--dry-run"])
+    assert client.main() == 0
+    preview = capsys.readouterr()
+    assert "Would remove 1 obsolete Slide Studio hook" in preview.err
+    assert (
+        "old location/slide-studio' run --no-sync python -m studio.hook_client" not in preview.out
+    )
+    assert target.read_text() == before
+
+    monkeypatch.setattr(client.sys, "argv", cleanup)
+    assert client.main() == 0
+    assert "Removed 1 obsolete Slide Studio hook" in capsys.readouterr().err
+    data = json.loads(target.read_text())
+    assert data["other"] == {"keep": True}
+    assert data["hooks"]["Stop"][0]["hooks"] == retained
+    assert data["hooks"]["Stop"][1]["hooks"] == current["hooks"]["Stop"][0]["hooks"][:1]
+    assert data["hooks"]["PostToolUse"] == current["hooks"]["PostToolUse"]
+    before = target.read_text()
+    assert client.main() == 0
+    assert capsys.readouterr().err == ""
+    assert target.read_text() == before
+
+
 def test_normalize_cursors_and_failures() -> None:
     """Bind only successful matching tools and retain observed cursors."""
     payload: dict[str, object] = {
