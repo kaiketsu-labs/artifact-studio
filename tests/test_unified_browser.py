@@ -84,6 +84,50 @@ def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> N
             browser.close()
 
 
+def test_shared_anchor_retains_its_slide_revision(tmp_path: Path) -> None:
+    """An old element comment cannot target the current slide after it changes."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="comment"))
+        initial = app.store.view(app.deck_id).slides[0]
+        response = owner.post(
+            f"/api/workspaces/default/artifacts/{app.deck_id}/chat",
+            json={
+                "channel": "shared",
+                "message": "Fictional anchored feedback",
+                "request_id": "fictional-anchor-1",
+                "target": {"kind": "element", "slide_id": "cover", "label": "Heading"},
+                "slide_content_hash": initial.content_hash,
+            },
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["slide_content_hash"] == initial.content_hash
+        _ = app.store.revise_view(
+            app.deck_id,
+            initial.id,
+            initial.expected_hash,
+            "fictional-anchor-revision",
+            SlidePatch(title="Revised cover"),
+        )
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 900, "height": 760})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                comment = page.locator("article").filter(has_text="Fictional anchored feedback")
+                expect(comment).to_contain_text("Earlier version")
+                comment.get_by_role("button", name="Heading").click()
+                expect(page.locator("#toast")).to_contain_text("earlier version")
+        finally:
+            browser.close()
+
+
 @pytest.mark.parametrize("presentation", [True, False], ids=["slides", "artifact"])
 def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentation: bool) -> None:
     """Fictional guests see incoming messages at left and their own replies at right."""

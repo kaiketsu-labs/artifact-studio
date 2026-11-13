@@ -125,6 +125,14 @@ class Conversations:
                 _ = db.execute(
                     "ALTER TABLE conversations ADD COLUMN proposal TEXT NOT NULL DEFAULT 'null'"
                 )
+            if not any(
+                row["name"] == "slide_content_hash"
+                for row in db.execute("PRAGMA table_info(conversations)")
+            ):
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN slide_content_hash "
+                    "TEXT NOT NULL DEFAULT ''"
+                )
 
     @staticmethod
     def _public(row: sqlite3.Row) -> dict[str, object]:
@@ -140,6 +148,7 @@ class Conversations:
                 "author",
                 "message",
                 "content_hash",
+                "slide_content_hash",
                 "assigned",
                 "released",
                 "reply_to",
@@ -311,8 +320,8 @@ class Conversations:
                 cursor = db.execute(
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
                     "target,content_hash,assigned,released,request_id,payload,created,"
-                    "files,proposal) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "files,proposal,slide_content_hash) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -329,6 +338,7 @@ class Conversations:
                         time.time(),
                         json.dumps(metadata),
                         json.dumps(anchor),
+                        slide_content_hash,
                     ),
                 )
                 _ = db.executemany(
