@@ -1,8 +1,17 @@
 """Exercise the structure review with fictional collaborators."""
 
+import os
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import Page, expect, sync_playwright
+
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
 
 
 def test_conflict_preserves_decision_and_requires_review() -> None:
