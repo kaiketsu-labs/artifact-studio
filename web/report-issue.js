@@ -2,8 +2,8 @@
 ((root) => {
   'use strict';
   const doc = root.document;
-  const entries = doc.querySelectorAll('[data-report-issue]');
-  if (!entries.length) return;
+  const trigger = doc.querySelector('[data-report-issue]');
+  if (!trigger) return;
 
   const dialog = doc.createElement('dialog');
   dialog.className = 'app-about studio-report';
@@ -34,7 +34,7 @@
   const preview = figure.querySelector('img');
   const save = figure.querySelector('a');
   const status = dialog.querySelector('[role=status]');
-  let opener, url, generation = 0, activeStream;
+  let url, generation = 0, activeStream;
 
   function clearScreenshot() {
     if (url) root.URL.revokeObjectURL(url);
@@ -140,13 +140,9 @@
     capture.disabled = false;
     clearScreenshot();
     form.reset();
-    opener?.focus();
+    trigger.focus();
   });
-  entries.forEach(entry => entry.addEventListener('click', event => {
-    event.preventDefault();
-    opener = doc.getElementById('workspace-menu-button')
-      || doc.getElementById('hub-tools-button') || entry;
-    entry.closest('[popover]')?.hidePopover();
-    dialog.showModal();
-  }));
+  root.SlideIcons.button(trigger, 'flag', 'Report an issue', true);
+  trigger.addEventListener('click', () => dialog.showModal());
+  trigger.hidden = false;
 })(window);

@@ -126,7 +126,11 @@ def test_hosted_connection_is_discoverable_without_local_admin_requests(
         about = page.get_by_role("dialog", name="Workspace & server")
         expect(about).to_contain_text("reviewer@example.test")
         expect(about).to_contain_text("Installed build: abc1234")
-        expect(about.get_by_text("Server checks", exact=False).first).to_be_visible()
+        checks = about.locator(".app-security-checks")
+        checks.locator("summary").first.click()
+        expect(checks).to_contain_text("external checks")
+        expect(checks).to_contain_text("your server administrator verifies outside Studio")
+        expect(checks).to_contain_text("Review the sign-in and MFA policy")
         page.keyboard.press("Escape")
         expect(hosted).to_be_focused()
         assert not failures

@@ -38,13 +38,13 @@ Closing a browser tab does not stop the server. Stopping or restarting the serve
 The Mac menu keeps the installed app's **Version** visible, including while the
 server is stopped. **Update…**, its download icon and the available tag appear
 only when a newer eligible release is found. The version row is otherwise plain,
-noninteractive information. In the web library or slide editor, choose
-**Menu → About Artifact Studio** for the running app version and release notes;
-a small blue dot on Menu indicates an available update. The menu-bar controller
-reads its installed bundle version; the web app reads the running server version.
-They normally match after updating the server and controller together.
+noninteractive information. In the web library or slide editor, select the
+version at the bottom of the left sidebar to open **About Artifact Studio** and
+see release notes. A blue dot on Menu indicates an available update. The menu-bar
+controller reads its installed bundle version. The web app reads the running server
+version. They normally match after updating the server and controller together.
 
-![Web menu with installed version and update indicator](screenshots/app-version-menu.png)
+![Library with the installed version in the sidebar and an update indicator on Menu](screenshots/app-version-menu.png)
 
 The [narrow About dialog](screenshots/app-version-mobile.png) also fits the editor.
 These captures use a fictional newer release to demonstrate the available-update state.

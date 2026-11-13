@@ -123,8 +123,7 @@
       </div>
       <div role="separator"></div>
       <button id="appearance-button" type="button" role="menuitem" tabindex="-1" aria-label="Appearance" aria-haspopup="menu" aria-expanded="false" aria-controls="appearance-menu"></button>
-      <button type="button" role="menuitem" tabindex="-1" data-report-issue aria-label="Report an issue" aria-haspopup="dialog">Report an issue</button>
-      <button type="button" role="menuitem" tabindex="-1" aria-label="About Artifact Studio" aria-haspopup="dialog" data-app-about><span>About Artifact Studio</span><small class="app-version-label" data-app-version>Version…</small></button>
+      <button type="button" role="menuitem" tabindex="-1" aria-label="About Artifact Studio" aria-haspopup="dialog" data-app-about><span>About Artifact Studio</span></button>
       <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
     </div>
     <a id="present-link" class="primary button" target="_blank" rel="noopener">Present</a>
@@ -406,5 +405,6 @@
   <p id="library-error" class="inline-error" role="alert"></p>
   <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. Restore workspace rebuilds the current content and folder structure. For chats, approvals and history, save a local workspace archive.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
 </dialog>
+<button type="button" class="studio-report-trigger" data-report-issue aria-haspopup="dialog" hidden>Report an issue</button>
 </body>
 </html>

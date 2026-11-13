@@ -4,7 +4,7 @@
   /** Keep authored previews live only around the visible part of the picker. */
   function createPreviews({view=root,document=view.document,concurrency=2}={}){
     const records=new Map();let container=null,intersection=null,resize=null,paused=false;
-    const scale=record=>{if(record.frame)record.frame.style.transform=`scale(${record.cover.getBoundingClientRect().width/1280})`;};
+    const scale=record=>{if(record.frame)record.frame.style.transform=`scale(${record.cover.getBoundingClientRect().width/1600})`;};
     function dispose(record){
       view.clearTimeout(record.timer);record.timer=null;record.loading=false;
       if(record.frame){record.frame.onload=null;record.frame.onerror=null;record.frame.remove();record.frame=null;}
@@ -201,7 +201,7 @@
       const key=item.deck_id+'/'+item.slide_id,deck=encodeURIComponent(item.deck_id),slide=encodeURIComponent(item.slide_id);
       const url=`${root.ArtifactSession?.home() ?? '/'}?deck=${deck}#${slide}`;
       const preview=shared
-        ?`/api/workspaces/${encodeURIComponent(root.ArtifactSession.workspace)}/artifacts/${deck}/preview?slide_id=${slide}`
+        ?`/api/workspaces/${encodeURIComponent(root.ArtifactSession.workspace)}/artifacts/${deck}/preview?slide_id=${slide}&thumbnail=true`
         :`/api/decks/${deck}/slides/${slide}/preview`;
       const signature=JSON.stringify([item,!!attach]),previous=existing.get(key);let card=previous;
       if(!card||card.dataset.signature!==signature){
