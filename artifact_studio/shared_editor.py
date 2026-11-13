@@ -36,7 +36,7 @@ from .element_alternative_api import element_alternative_routes
 from .element_alternatives import element_badges
 from .favorites import Favorites, favorite_routes
 from .history_api import history_routes
-from .hosted_policy import deck_asset_response
+from .hosted_policy import passive_deck_asset_response
 from .hosted_presenter import hosted_presenter_router
 from .hub_previews import cover_metadata, request_current_cover
 from .models import CreateInput, DeckView, FeedbackWorkflow, SlideSeenInput, SlideView
@@ -572,8 +572,8 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     @app.get("/decks/{deck_id}/{path:path}")
     def deck_asset(request: Request, deck_id: str, path: str) -> FileResponse:
-        with deck_access(request, deck_id, "view") as store:
-            return deck_asset_response(store, deck_id, path)
+        with hub.guard_deck_asset(actor_of(request), workspace_of(request), deck_id) as folder:
+            return passive_deck_asset_response(folder, path)
 
     @app.get("/api/artifacts/{artifact_id}")
     def artifact(request: Request, artifact_id: str) -> dict[str, object]:

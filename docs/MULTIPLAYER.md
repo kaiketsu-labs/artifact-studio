@@ -325,6 +325,9 @@ with at most one warning per pool and reason every 30 seconds. Rejected requests
 include a `Retry-After` header. The warnings omit identities and request URLs so
 application access logs can stay disabled and preview capability URLs stay private.
 
+Each scoped presentation asset request checks the recipient's current grants and
+validates the presentation in the same read before serving the passive file.
+
 ## Agent setup and delivery
 
 Set the token using your environment or secret manager. Never put its value in chat,

@@ -168,7 +168,16 @@ def deck_asset_response(store: Store, deck_id: str, asset_path: str) -> FileResp
         if (store.root / deck_id).is_symlink():
             raise ValueError("Symlinks are not served")
         store.read(deck_id)
-        target = deck_asset_path(store.folder(deck_id), asset_path)
+        folder = store.folder(deck_id)
+    except ValueError, OSError:
+        raise HTTPException(status_code=404) from None
+    return passive_deck_asset_response(folder, asset_path)
+
+
+def passive_deck_asset_response(folder: Path, asset_path: str) -> FileResponse:
+    """Serve only allowlisted passive files within an already validated deck folder."""
+    try:
+        target = deck_asset_path(folder, asset_path)
     except ValueError, OSError:
         raise HTTPException(status_code=404) from None
     return FileResponse(

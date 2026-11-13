@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
+from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
 from .authentication import Principal
 from .storage import Store
@@ -265,6 +266,18 @@ class Sharing:
             self._stores[workspace] = Store(path / "collection", path / "state/review.sqlite3")
         return self._stores[workspace]
 
+    def _artifact_ancestry(
+        self, store: Store, resource: str
+    ) -> tuple[ArtifactView, list[tuple[str, str]]]:
+        """Resolve the artifact and the grants that can cover it from one read."""
+        try:
+            if (store.folder(resource) / "design.json").exists():
+                raise AccessDenied
+            item = ArtifactStore(store).get_artifact(resource)
+        except ValueError, FileNotFoundError:
+            raise AccessDenied from None
+        return item, [("workspace", ""), ("project", item.project_id), ("artifact", item.id)]
+
     def ancestors(self, scope: Scope) -> list[tuple[str, str]]:
         store = self.store(scope.workspace)
         ancestors: list[tuple[str, str]] = [("workspace", "")]
@@ -276,13 +289,7 @@ class Sharing:
                 raise AccessDenied
             ancestors.append(("project", scope.resource))
         elif scope.kind == "artifact":
-            try:
-                if (store.folder(scope.resource) / "design.json").exists():
-                    raise AccessDenied
-                item = ArtifactStore(store).get_artifact(scope.resource)
-            except ValueError, FileNotFoundError:
-                raise AccessDenied from None
-            ancestors.extend([("project", item.project_id), ("artifact", item.id)])
+            _, ancestors = self._artifact_ancestry(store, scope.resource)
         else:
             raise AccessDenied
         return ancestors
@@ -307,7 +314,12 @@ class Sharing:
             )
 
     def sources(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
-        ancestors = self.ancestors(scope)
+        return self._sources(actor, scope, self.ancestors(scope))
+
+    def _sources(
+        self, actor: Actor, scope: Scope, ancestors: list[tuple[str, str]]
+    ) -> list[dict[str, str]]:
+        """Resolve current grants for an already validated ancestor list."""
         if actor.agent:
             connection = self.agent_record(actor)
             if (
@@ -360,6 +372,26 @@ class Sharing:
         with self.locked():
             self.require(actor, scope, role)
             yield self.store(scope.workspace)
+
+    @contextmanager
+    def guard_deck_asset(self, actor: Actor, workspace: str, deck_id: str) -> Generator[Path]:
+        """Authorize and validate a legacy presentation once before resolving a passive asset."""
+        scope = Scope(workspace, "artifact", deck_id)
+        with self.locked():
+            store = self.store(workspace)
+            try:
+                folder = store.folder(deck_id)
+                if (store.root / deck_id).is_symlink():
+                    raise AccessDenied
+                item, ancestors = self._artifact_ancestry(store, deck_id)
+            except ValueError, OSError:
+                raise AccessDenied from None
+            if item.legacy_deck_id != deck_id or not any(
+                LEVEL[source["role"]] >= LEVEL["view"]
+                for source in self._sources(actor, scope, ancestors)
+            ):
+                raise AccessDenied
+            yield folder
 
     def manage(self, actor: Actor, scope: Scope) -> None:
         if not self.owner(actor, scope.workspace):

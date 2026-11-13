@@ -14,12 +14,15 @@ from starlette.datastructures import Headers
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.authentication import Principal
 from artifact_studio.deployment import DeploymentConfig
+from artifact_studio.models import Deck
 from artifact_studio.multiplayer import create_app
 from artifact_studio.multiplayer_access import Scope, Sharing
 from artifact_studio.multiplayer_chat import Conversations
 from artifact_studio.multiplayer_http import MultiplayerAuth
 from artifact_studio.multiplayer_tools import Ctx, MultiplayerTools
+from artifact_studio.shared_editor import create_shared_editor
 from artifact_studio.storage import Store
+from tests.design_factory import TEMPLATE_ID, make_design
 
 
 class FixtureProvider:
@@ -202,5 +205,69 @@ def test_native_editor_assets_have_separate_capacity(
                 release.set()
                 await asyncio.gather(*requests)
             assert (await client.get(route)).status_code == 200
+
+    asyncio.run(journey())
+
+
+def test_shared_deck_assets_reuse_the_grant_checked_deck_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Load preview assets once per request and enforce inherited, revocable grants."""
+
+    async def journey() -> None:
+        collection = tmp_path / "collection"
+        make_design(collection / TEMPLATE_ID)
+        store = Store(collection, tmp_path / "state/review.sqlite3")
+        hub = Sharing(tmp_path / "sharing", store, "owner@example.test")
+        owner = hub.human(Principal("owner", "owner@example.test"))
+        reader = hub.human(Principal("alice", "alice@example.test"))
+        service = ArtifactStore(store)
+        project = service.create_project("Fictional project")
+        deck_id = "2026-11-13-fictional-assets"
+        store.create(deck_id, "Fictional deck", "test-brand")
+        _ = service.set_artifact_project(deck_id, project.id)
+        folder = store.folder(deck_id)
+        assets = folder / "assets"
+        assets.mkdir(exist_ok=True)
+        _ = (assets / "figure.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>")
+        (assets / "link.svg").symlink_to(assets / "figure.svg")
+        scope = Scope("default", "project", project.id)
+        invite = hub.invite(owner, scope, "alice@example.test", "view")
+        _ = hub.accept(reader, invite["token"])
+        grants = cast(list[dict[str, str]], hub.access(owner, scope)["grants"])
+        grant_id = grants[0]["id"]
+        config = DeploymentConfig(
+            "hosted", "https://studio.example.test", "https://preview.example.test"
+        )
+        original_read = Store.read
+        read_count = 0
+
+        def count_read(current: Store, identifier: str) -> Deck:
+            """Count reads of this fixture deck without modifying the store."""
+            nonlocal read_count
+            if identifier == deck_id:
+                read_count += 1
+            return original_read(current, identifier)
+
+        monkeypatch.setattr(Store, "read", count_read)
+        app = create_shared_editor(config, FixtureProvider(), hub)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url=config.public_url
+        ) as client:
+            asset = f"/decks/{deck_id}/assets/figure.svg"
+            alice = {"x-fixture-auth": "alice"}
+            response = await client.get(asset, headers=alice)
+            assert response.status_code == 200
+            assert response.text == (assets / "figure.svg").read_text()
+            assert "sandbox" in response.headers["content-security-policy"]
+            assert read_count == 1
+            for path in ("index.html", "assets/link.svg", "assets/missing.svg"):
+                assert (
+                    await client.get(f"/decks/{deck_id}/{path}", headers=alice)
+                ).status_code == 404
+            assert (await client.get(asset, headers={"x-fixture-auth": "bob"})).status_code == 404
+            assert (await client.get(f"/decks/{TEMPLATE_ID}/theme.css")).status_code == 404
+            hub.revoke(owner, scope, grant_id)
+            assert (await client.get(asset, headers=alice)).status_code == 404
 
     asyncio.run(journey())
