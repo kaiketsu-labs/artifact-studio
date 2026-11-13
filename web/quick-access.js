@@ -94,7 +94,17 @@
     if(keyboard){
       menu.setAttribute('role','menu');
       for(const row of rows())row.setAttribute('role','menuitem');
-      button.addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();menu.showPopover();(event.key==='ArrowUp'?rows().at(-1):rows()[0])?.focus();}});
+      button.addEventListener('keydown',event=>{
+        if(!['ArrowDown','ArrowUp'].includes(event.key))return;
+        event.preventDefault();
+        const index=event.key==='ArrowUp'?-1:0;
+        menu.showPopover();
+        const initial=rows().at(index);
+        initial?.focus();
+        void refresh().then(()=>{
+          if(menu.matches(':popover-open')&&doc.activeElement===initial)rows().at(index)?.focus();
+        });
+      });
       menu.addEventListener('toggle',()=>button.setAttribute('aria-expanded',String(menu.matches(':popover-open'))));
     }
     root.addEventListener('focus',()=>void refresh());

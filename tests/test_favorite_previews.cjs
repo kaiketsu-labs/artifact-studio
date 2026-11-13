@@ -28,7 +28,7 @@ test('favorite documents load two at a time and only around the visible picker',
   assert.equal(f.intersections[0].options.root,f.container);assert.equal(f.intersections[0].options.rootMargin,'80px 0px');
   f.frames[0].onload();assert.equal(f.frames[2].title,'third');f.frames[1].onload();assert.equal(f.frames[3].title,'near');
   assert.equal(far.frames.length,0);assert.equal(first.dataset.previewState,'ready');
-  assert.equal(first.frames[0].attributes.sandbox,'');assert.equal(first.frames[0].style.transform,'scale(0.265625)');
+  assert.equal(first.frames[0].attributes.sandbox,'');assert.equal(first.frames[0].style.transform,'scale(0.2125)');
   f.controller.destroy();
 });
 

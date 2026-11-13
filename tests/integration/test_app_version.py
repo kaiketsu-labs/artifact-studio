@@ -63,7 +63,14 @@ def test_installed_version_and_update_menu(
     expect(menu).to_have_attribute("data-app-update", "")
     menu.click()
     entry = page.locator("[data-app-about]")
-    expect(entry).to_contain_text("Version " + __version__)
+    expect(entry).not_to_contain_text("Version " + __version__)
+    sidebar_version = page.locator(".app-sidebar-footer:last-child [data-server-version]")
+    expect(sidebar_version).to_have_text("v" + __version__)
+    visible_rows = page.locator("#hub-tools-menu, #workspace-menu").locator(
+        '[role="menuitem"]:visible'
+    )
+    sizes = visible_rows.evaluate_all("(rows) => rows.map(row => getComputedStyle(row).fontSize)")
+    assert sizes and set(sizes) == {"13px"}
     expect(entry.locator(".app-update-icon")).to_be_visible()
     entry.click()
     dialog = page.get_by_role("dialog", name="About Artifact Studio")

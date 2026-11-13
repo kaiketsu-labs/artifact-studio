@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from playwright.sync_api import Page, Route, expect
 
-from tests.integration.support import RunningApp
+from tests.integration.support import DECK_ID, RunningApp
 
 pytestmark = [
     pytest.mark.browser,
@@ -23,8 +23,9 @@ PNG = (
 )
 
 
+@pytest.mark.parametrize(("path", "width"), [("/", 390), (f"/?deck={DECK_ID}", 1280)])
 def test_report_opens_public_draft_without_transferring_screenshot(
-    live_app: RunningApp, page: Page
+    live_app: RunningApp, page: Page, path: str, width: int
 ) -> None:
     """Review an optional image locally and open only a prefilled issue draft."""
 
@@ -35,11 +36,23 @@ def test_report_opens_public_draft_without_transferring_screenshot(
         )
 
     page.context.route("https://github.com/**", draft)
-    page.set_viewport_size({"width": 390, "height": 700})
-    page.goto(live_app.url)
-    menu = page.get_by_role("button", name="Menu", exact=True)
-    menu.click()
-    page.get_by_role("menuitem", name="Report an issue", exact=True).click()
+    page.set_viewport_size({"width": width, "height": 700})
+    page.goto(live_app.url + path)
+    trigger = page.get_by_role("button", name="Report an issue", exact=True)
+    expect(trigger).to_be_in_viewport()
+    expect(trigger).to_have_css("position", "fixed")
+    bounds = trigger.bounding_box()
+    assert bounds and bounds["width"] >= 44 and bounds["height"] >= 44
+    assert width - bounds["x"] - bounds["width"] <= 24
+    assert 0 <= 700 - bounds["y"] - bounds["height"] <= 60
+    if width <= 650:
+        expect(trigger.locator("span")).to_be_hidden()
+    else:
+        expect(trigger.locator("span")).to_be_visible()
+        composer = page.locator("#feedback-form").bounding_box()
+        assert composer and composer["y"] + composer["height"] < bounds["y"]
+    trigger.focus()
+    page.keyboard.press("Enter")
     dialog = page.get_by_role("dialog", name="Report an issue")
     expect(dialog.get_by_role("textbox", name="Title")).to_be_focused()
     dialog.get_by_role("textbox", name="Title").fill("Fictional PDF delay")
@@ -64,4 +77,4 @@ def test_report_opens_public_draft_without_transferring_screenshot(
     dialog.get_by_role("button", name="Remove screenshot").click()
     expect(dialog.get_by_role("img", name="Screenshot preview")).to_be_hidden()
     page.keyboard.press("Escape")
-    expect(menu).to_be_focused()
+    expect(trigger).to_be_focused()

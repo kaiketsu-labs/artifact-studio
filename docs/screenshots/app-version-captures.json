@@ -1,77 +1,42 @@
 {
   "app-version-menu.png": {
-    "sha256": "492c896cfc53ce1ab01d7f04de29b0239b7cc39295ea35a271884e1569bcfc7a",
+    "sha256": "6188725e148e7fa8f1f2219c7176650ce62bf6e45c40611580d90aa9a9fb4baf",
     "viewport": {
       "width": 1280,
       "height": 800
     },
-    "captured_at": "2026-11-06T12:30:24.079270+00:00",
-    "axe_ran": true,
-    "axe_violations": [
-      {
-        "id": "region",
-        "impact": "moderate",
-        "tags": [
-          "cat.keyboard",
-          "best-practice"
-        ],
-        "description": "Ensure all page content is contained by landmarks",
-        "help": "All page content should be contained by landmarks",
-        "helpUrl": "https://dequeuniversity.com/rules/axe/4.10/region?application=axeAPI",
-        "nodes": [
-          {
-            "any": [
-              {
-                "id": "region",
-                "data": {
-                  "isIframe": false
-                },
-                "relatedNodes": [],
-                "impact": "moderate",
-                "message": "Some page content is not contained by landmarks"
-              }
-            ],
-            "all": [],
-            "none": [],
-            "impact": "moderate",
-            "html": "<div class=\"workspace-panel-resize panel-left\" role=\"separator\" aria-orientation=\"vertical\" aria-label=\"Resize sidebar\" tabindex=\"0\" aria-valuemin=\"120\" aria-valuemax=\"650\" aria-valuenow=\"205\" aria-valuetext=\"Sidebar width 205 pixels\" style=\"left: 201px; top: 65px; height: 735px;\"></div>",
-            "target": [
-              "div[aria-label=\"Resize sidebar\"]"
-            ],
-            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
-          }
-        ]
-      }
-    ]
+    "captured_at": "2026-11-13T15:20:06.432069+00:00",
+    "axe_ran": false,
+    "axe_violations": null
   },
   "app-version-current.png": {
-    "sha256": "d51111e24913386c21d728dd3d81dd4195281af086fc170b8ffc78cc3e5e0486",
+    "sha256": "ea7901c67070616504a90e8ff44ede78e7b49bc492964bf6a7274286a9962914",
     "viewport": {
       "width": 1280,
       "height": 800
     },
-    "captured_at": "2026-11-06T12:30:24.487505+00:00",
-    "axe_ran": true,
-    "axe_violations": []
+    "captured_at": "2026-11-13T15:20:06.526281+00:00",
+    "axe_ran": false,
+    "axe_violations": null
   },
   "app-version-nightly.png": {
-    "sha256": "c7c7c2c78fcbda2e9c34a2d976782d46094a06abdefb77527f98446c1225b117",
+    "sha256": "d509ae4ab42a5297065b830699545a8680e2e194582cc608778a7b56a13b7b89",
     "viewport": {
       "width": 1280,
       "height": 800
     },
-    "captured_at": "2026-11-06T12:30:24.799072+00:00",
-    "axe_ran": true,
-    "axe_violations": []
+    "captured_at": "2026-11-13T15:20:06.622208+00:00",
+    "axe_ran": false,
+    "axe_violations": null
   },
   "app-version-mobile.png": {
-    "sha256": "bcf1df9d2a1434ff1db666d9146e4a01ded59279e3d59a2413bd0b9a272dad0f",
+    "sha256": "32b4ed360adf8aa8d1a49677b4b079b4e9f17a29af85f767ce4be2ae0d39772d",
     "viewport": {
       "width": 390,
       "height": 844
     },
-    "captured_at": "2026-11-06T12:30:25.445419+00:00",
-    "axe_ran": true,
-    "axe_violations": []
+    "captured_at": "2026-11-13T15:20:06.901662+00:00",
+    "axe_ran": false,
+    "axe_violations": null
   }
 }
