@@ -241,15 +241,15 @@ body.is-presenting > .studio-report { display: none; }
   color: var(--report-muted);
 }
 .studio-report-footer p > .ui-icon { margin-top: 1px; }
-.studio-report .studio-report-footer button {
+dialog.studio-report .studio-report-footer button[type=submit] {
   justify-self: end;
   border-color: transparent;
   background: #2759cf;
   color: #fff;
   font-weight: 650;
 }
-.studio-report .studio-report-footer button:hover { background: #204bb2; }
+dialog.studio-report .studio-report-footer button[type=submit]:hover { background: #204bb2; }
 .studio-report-capturing { opacity: 0; pointer-events: none; }
 @media (max-width: 420px) {
-  .studio-report .studio-report-footer button { width: 100%; }
+  dialog.studio-report .studio-report-footer button[type=submit] { width: 100%; }
 }
