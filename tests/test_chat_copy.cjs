@@ -2,8 +2,8 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {format,copy}=require('../web/chat-copy.js');
 test('copy formats visible text and attachment titles without preview links',()=>{
-  const text=format([{name:'Alice',message:'Review **this** https://preview.example.test/a?token=secret',files:[{name:'Reference.pdf',url:'https://preview.example.test/private'}]},{author:'agent',message:'Ready'}]);
-  assert.match(text,/Alice:\nReview \*\*this\*\*/);assert.match(text,/Attachment: Reference.pdf/);assert.match(text,/Agent:\nReady/);assert.doesNotMatch(text,/secret|private/);
+  const text=format([{name:'Alice',message:'Review **this** https://preview.example.test/a?token=secret',files:[{name:'Reference.pdf',url:'https://preview.example.test/private'},{name:'Fictional slide - slide reference.html'}]},{author:'agent',message:'Ready'}]);
+  assert.match(text,/Alice:\nReview \*\*this\*\*/);assert.match(text,/Attachment: Reference.pdf/);assert.match(text,/Reference: Fictional slide/);assert.match(text,/Agent:\nReady/);assert.doesNotMatch(text,/secret|private/);
 });
 test('clipboard failure is actionable and never retries after context changes',async()=>{
   let active=true,calls=0;const notices=[];
