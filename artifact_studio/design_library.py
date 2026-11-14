@@ -123,7 +123,12 @@ class DesignLibrary:
         with self.store.connect() as db:
             return {str(row[0]) for row in db.execute("SELECT folder FROM design_archives")}
 
-    def _item(self, design_id: str, *, archived: bool = False) -> DesignItem:
+    def has_id(self, design_id: str) -> bool:
+        """Reserve IDs even when their design has been archived."""
+        return any(item.id == design_id for item in self._records())
+
+    def item(self, design_id: str, *, archived: bool = False) -> DesignItem:
+        """Resolve a design without opening or hashing its files."""
         hidden = self._archived()
         for item in self._records():
             if item.id == design_id and (archived or item.folder_id not in hidden):
@@ -181,7 +186,7 @@ class DesignLibrary:
         return [item for item in self._records() if item.folder_id in hidden]
 
     def get(self, design_id: str) -> DesignDetail:
-        item = self._item(design_id)
+        item = self.item(design_id)
         references = (
             {file.path: file for file in DesignReferences(self.store).list(design_id)}
             if item.kind == "slide_pack"
@@ -229,7 +234,7 @@ class DesignLibrary:
         )
 
     def file(self, design_id: str, name: str) -> Path:
-        item = self._item(design_id)
+        item = self.item(design_id)
         if name not in {file.path for file in self._inventory(item)}:
             raise FileNotFoundError("Choose a file from this design's context.")
         return safe_file(self.store.folder(item.folder_id), name)
@@ -321,18 +326,18 @@ class DesignLibrary:
         return self.get(identifier)
 
     def attach(self, design_id: str, body: ReferenceInput) -> DesignDetail:
-        item = self._item(design_id)
+        item = self.item(design_id)
         if item.kind == "slide_pack":
             _ = DesignReferences(self.store).attach(design_id, body)
         else:
             with self.store.connect() as db:
                 _ = db.execute("BEGIN IMMEDIATE")
-                item = self._item(design_id)
+                item = self.item(design_id)
                 self._attach(self.store.folder(item.folder_id), body.files)
         return self.get(design_id)
 
     def remove_file(self, design_id: str, body: RemoveReferenceInput) -> DesignDetail:
-        item = self._item(design_id)
+        item = self.item(design_id)
         if item.kind == "slide_pack":
             _ = DesignReferences(self.store).remove(design_id, body)
         else:
@@ -355,7 +360,7 @@ class DesignLibrary:
             _ = db.execute("INSERT OR IGNORE INTO design_archives VALUES (?)", (item.folder_id,))
 
     def restore(self, design_id: str) -> DesignDetail:
-        item = self._item(design_id, archived=True)
+        item = self.item(design_id, archived=True)
         with self.store.connect() as db:
             _ = db.execute("DELETE FROM design_archives WHERE folder=?", (item.folder_id,))
         return self.get(design_id)

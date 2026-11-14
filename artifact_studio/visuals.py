@@ -151,13 +151,14 @@ class ReviewEmbedder(AssetEmbedder):
 class ScopedDeckEmbedder(ReviewEmbedder):
     """Inline only current assets that the scoped deck file API can serve."""
 
-    def __init__(self, store: Store, deck_id: str) -> None:
+    def __init__(self, store: Store, deck_id: str, *, embedded: bool = False) -> None:
         """Reject linked source and theme files before preparing a shared preview."""
         folder = store.folder(deck_id)
         source = folder / "index.html"
         if (store.root / deck_id).is_symlink() or source.is_symlink() or not source.is_file():
             raise ValueError("Shared presentations require an unlinked source file.")
         super().__init__(folder)
+        self.embedded = embedded
         _ = self.local_path("theme.css")
 
     def local_path(self, url: str, directory: Path | None = None) -> Path:
@@ -166,7 +167,9 @@ class ScopedDeckEmbedder(ReviewEmbedder):
         path = (directory or self.folder) / unquote(parsed.path)
         if parsed.scheme or parsed.netloc or not path.is_relative_to(self.folder):
             raise ValueError("Use a shared deck asset.")
-        _ = deck_asset_path(self.folder, path.relative_to(self.folder).as_posix())
+        _ = deck_asset_path(
+            self.folder, path.relative_to(self.folder).as_posix(), embedded=self.embedded
+        )
         return super().local_path(url, directory)
 
 
@@ -200,6 +203,8 @@ class Diagnostics(StrictModel):
     failed_images: list[str]
     failed_fonts: list[str]
     possible_overflow: list[str]
+    possible_clipping: list[str] = []
+    placeholders: list[str] = []
     media_count: int
     interactive: bool = False
     diagnostics_scope: str = "Static slide DOM"
@@ -265,6 +270,7 @@ def snapshot(
     viewport: tuple[int, int] | None = None,
     preview_html: str = "",
     scoped_embedder: ScopedDeckEmbedder | None = None,
+    prepared_interactive: bool = False,
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
     if slide.interactive_html and options.stage not in {None, 0}:
@@ -278,7 +284,11 @@ def snapshot(
     embedder = scoped_embedder if scoped_embedder is not None else ReviewEmbedder(folder)
     theme = embedder.css(embedder.local_path("theme.css").read_text()).replace("<", r"\3c ")
     markup = embedder.markup(preview_html or slide.html)
-    interactive = "" if preview_html or scoped_embedder is not None else slide.interactive_html
+    interactive = (
+        ""
+        if preview_html or (scoped_embedder is not None and not prepared_interactive)
+        else slide.interactive_html
+    )
     runtime = (PROJECT / "runtime/presentation.js").read_text()
     runtime_styles = (PROJECT / "runtime/slideshow.css").read_text()
     adapter = (PROJECT / "runtime/capture.js").read_text()
@@ -486,77 +496,99 @@ def capture(
     ):
         raise ValueError("Provide 1–500 distinct slide_ids for a contact sheet.")
     with render_slot() as waited_ms:
-        options = options or CaptureOptions(resolution="draft" if slide_id is None else "full")
-        deck = store.read(deck_id)
-        requested = set(slide_ids) if slide_ids is not None else None
-        if requested is not None and requested - {slide.id for slide in deck.slides}:
-            raise ValueError("One or more slide_ids were not found in this presentation.")
-        selected = [
-            (number, slide)
-            for number, slide in enumerate(deck.slides, 1)
-            if (slide_id is None or slide.id == slide_id)
-            and (requested is None or slide.id in requested)
-        ]
-        if slide_id is not None and not selected:
-            raise ValueError("Slide not found.")
-        page = selected if slide_id is not None else selected[offset : offset + limit]
-        if not page:
-            raise ValueError("No slides in this contact-sheet page.")
-        prepared: list[Snapshot] = []
-        prepared_bytes = 0
-        for number, slide in page:
-            item = snapshot(store, deck_id, slide, number, options)
-            prepared_bytes += len(item.document.encode())
-            if prepared_bytes > MAX_PAGE_BYTES:
-                raise ValueError(
-                    "Review page exceeds 96 MiB. Retry with a smaller contact-sheet limit."
-                )
-            prepared.append(item)
-        images = _render_images(prepared, options, _screenshot)
-        capture_id = uuid.uuid4().hex
-        folder = output / capture_id
-        folder.mkdir(parents=True)
-        current = store.read(deck_id)
-        structure_changed = [(s.id, s.hidden) for s in current.slides] != [
-            (s.id, s.hidden) for s in deck.slides
-        ]
-        for item, image in zip(prepared, images, strict=True):
-            path = folder / f"{item.frame.slide_number:03d}-{item.frame.slide_id}.png"
-            _ = path.write_bytes(image)
-            item.frame.path = str(path)
-            item.frame.image_sha256 = hashlib.sha256(image).hexdigest()
-            latest = next(
-                (slide for slide in current.slides if slide.id == item.frame.slide_id), None
-            )
-            item.frame.stale = (
-                structure_changed
-                or latest is None
-                or store.content_hash(deck_id, latest) != item.frame.content_hash
-                or snapshot(
-                    store, deck_id, latest, item.frame.slide_number, options
-                ).frame.render_hash
-                != item.frame.render_hash
-            )
-        frames = [item.frame for item in prepared]
-        result_path = Path(frames[0].path) if slide_id else folder / "contact-sheet.png"
-        if slide_id is None:
-            _ = result_path.write_bytes(
-                contact_sheet(images, frames, draft=options.resolution == "draft")
-            )
-        result = VisualResult(
-            capture_id=capture_id,
-            deck_id=deck_id,
-            captured_at=datetime.now(UTC).isoformat(),
-            kind="slide" if slide_id else "contact_sheet",
-            path=str(result_path),
-            frames=frames,
-            total_slides=len(deck.slides),
-            selected_slides=len(selected),
-            resolution=options.resolution,
-            queue_wait_ms=waited_ms,
-            next_offset=offset + len(page)
-            if slide_id is None and offset + len(page) < len(selected)
-            else None,
+        return capture_admitted(
+            store,
+            deck_id,
+            output,
+            waited_ms,
+            slide_id=slide_id,
+            slide_ids=slide_ids,
+            options=options,
+            offset=offset,
+            limit=limit,
         )
-        _ = (folder / "manifest.json").write_text(result.model_dump_json(indent=2))
-        return result
+
+
+def capture_admitted(
+    store: Store,
+    deck_id: str,
+    output: Path,
+    waited_ms: int,
+    *,
+    slide_id: str | None = None,
+    slide_ids: list[str] | None = None,
+    options: CaptureOptions | None = None,
+    offset: int = 0,
+    limit: int = MAX_CONTACT_SLIDES,
+) -> VisualResult:
+    """Render a validated request while the caller holds the renderer slot."""
+    options = options or CaptureOptions(resolution="draft" if slide_id is None else "full")
+    deck = store.read(deck_id)
+    requested = set(slide_ids) if slide_ids is not None else None
+    if requested is not None and requested - {slide.id for slide in deck.slides}:
+        raise ValueError("One or more slide_ids were not found in this presentation.")
+    selected = [
+        (number, slide)
+        for number, slide in enumerate(deck.slides, 1)
+        if (slide_id is None or slide.id == slide_id)
+        and (requested is None or slide.id in requested)
+    ]
+    if slide_id is not None and not selected:
+        raise ValueError("Slide not found.")
+    page = selected if slide_id is not None else selected[offset : offset + limit]
+    if not page:
+        raise ValueError("No slides in this contact-sheet page.")
+    prepared: list[Snapshot] = []
+    prepared_bytes = 0
+    for number, slide in page:
+        item = snapshot(store, deck_id, slide, number, options)
+        prepared_bytes += len(item.document.encode())
+        if prepared_bytes > MAX_PAGE_BYTES:
+            raise ValueError(
+                "Review page exceeds 96 MiB. Retry with a smaller contact-sheet limit."
+            )
+        prepared.append(item)
+    images = _render_images(prepared, options, _screenshot)
+    capture_id = uuid.uuid4().hex
+    folder = output / capture_id
+    folder.mkdir(parents=True)
+    current = store.read(deck_id)
+    structure_changed = [(s.id, s.hidden) for s in current.slides] != [
+        (s.id, s.hidden) for s in deck.slides
+    ]
+    for item, image in zip(prepared, images, strict=True):
+        path = folder / f"{item.frame.slide_number:03d}-{item.frame.slide_id}.png"
+        _ = path.write_bytes(image)
+        item.frame.path = str(path)
+        item.frame.image_sha256 = hashlib.sha256(image).hexdigest()
+        latest = next((slide for slide in current.slides if slide.id == item.frame.slide_id), None)
+        item.frame.stale = (
+            structure_changed
+            or latest is None
+            or store.content_hash(deck_id, latest) != item.frame.content_hash
+            or snapshot(store, deck_id, latest, item.frame.slide_number, options).frame.render_hash
+            != item.frame.render_hash
+        )
+    frames = [item.frame for item in prepared]
+    result_path = Path(frames[0].path) if slide_id else folder / "contact-sheet.png"
+    if slide_id is None:
+        _ = result_path.write_bytes(
+            contact_sheet(images, frames, draft=options.resolution == "draft")
+        )
+    result = VisualResult(
+        capture_id=capture_id,
+        deck_id=deck_id,
+        captured_at=datetime.now(UTC).isoformat(),
+        kind="slide" if slide_id else "contact_sheet",
+        path=str(result_path),
+        frames=frames,
+        total_slides=len(deck.slides),
+        selected_slides=len(selected),
+        resolution=options.resolution,
+        queue_wait_ms=waited_ms,
+        next_offset=offset + len(page)
+        if slide_id is None and offset + len(page) < len(selected)
+        else None,
+    )
+    _ = (folder / "manifest.json").write_text(result.model_dump_json(indent=2))
+    return result

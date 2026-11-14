@@ -2,7 +2,7 @@
 ((root)=>{
   'use strict';
   const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-  function create({api,getContext,activate,beforePreview=async()=>true,beforeDecide=async()=>true,afterDecision=async()=>{},onPreview=()=>{},onBusy=()=>{},notify=()=>{}}){
+  function create({api,getContext,activate,beforePreview=async()=>true,canDecide=()=>true,beforeDecide=async()=>true,afterDecision=async()=>{},onPreview=()=>{},onBusy=()=>{},notify=()=>{}}){
     const doc=root.document,icon=name=>root.SlideIcons.svg(name),canvas=doc.querySelector('.canvas-area'),wrap=doc.getElementById('preview-wrap');
     const toggle=doc.createElement('button');toggle.type='button';toggle.id='slide-design-toggle';toggle.className='sd-toggle';toggle.hidden=true;toggle.setAttribute('aria-controls','slide-design-tray');
     doc.querySelector('.preview-controls').prepend(toggle);
@@ -31,7 +31,7 @@
         const controller=new root.AbortController();
         const pending=root.fetch(root.ArtifactSession?.path?.(url) ?? url,{signal:controller.signal}).then(async response=>{if(!response.ok)throw Error('The current slide changed. Refresh the comparison.');const html=await response.text();if(!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.documentUrl=url;iframe.srcdoc=html;}).catch(error=>{if(controller.signal.aborted||!iframe.isConnected||slot.dataset.designUrl!==url)return;iframe.dataset.failed='true';notify(error.message,true);});
         pendingPreviews.set(iframe,{controller,promise:pending});void pending.finally(()=>pendingPreviews.delete(iframe));
-      }else{iframe.dataset.documentUrl=url;iframe.src=url;}
+      }else{iframe.dataset.documentUrl=url;iframe.src=root.ArtifactSession?.path?.(url) ?? url;}
       slot.append(iframe);frames.add(iframe);resize.observe(slot);
       const factor=slot.clientWidth/1600;iframe.style.cssText=`width:1600px;height:900px;transform:scale(${factor});`;
     }
@@ -68,8 +68,8 @@
       toggle.hidden=!group.pending&&!visible&&!newer;toggle.innerHTML=icon('slides')+`<span>${newer&&!visible?'New designs':'Designs'}</span> <span class="sd-counter">${newer&&!visible?page.sets[0].options.length:choices().length}</span>`;toggle.setAttribute('aria-expanded',String(visible));toggle.setAttribute('aria-label',`${newer&&!visible?'New designs':'Designs'} ${choices().length}`);toggle.disabled=busy;
       tray.hidden=!visible;$('[data-sd-latest]').hidden=!newer;$('header h2 .sd-count').textContent=String(choices().length);
       $('.sd-current-label').innerHTML=`<span class="sd-preview-state ${current?'in-slide':''}" ${current?'role="img" aria-label="Chosen design"':''}>${current?icon('check'):'Preview'}</span><strong>${escape(item.name)}</strong>`;
-      $('[data-sd-use]').hidden=current;$('[data-sd-keep]').textContent=group.pending?'Keep current':'Back to current';
-      $('.sd-decision').hidden=!group.pending&&current;
+      $('[data-sd-use]').hidden=current;$('[data-sd-keep]').textContent=group.pending?'Dismiss suggestions':'Back to current';
+      $('.sd-decision').hidden=!canDecide()||!group.pending&&current;
       $('.sd-conflict').hidden=!group.stale||reviewed;$('.sd-conflict').textContent='The slide changed since these designs. Compare with the current slide before replacing it.';
       renderOptions();renderOverlay();mountCards();
       for(const button of tray.querySelectorAll('button'))button.disabled=busy;
@@ -144,7 +144,7 @@
       cmp('.sd-reference-state').innerHTML=choice(reference).isCurrent?`<span role="img" aria-label="Chosen design">${icon('check')}</span>`:'Reference';cmp('.sd-candidate-state').innerHTML=choice(selected).isCurrent?`<span role="img" aria-label="Chosen design">${icon('check')}</span>`:'Preview';cmp('.sd-compare-left').classList.toggle('sd-chosen-frame',choice(reference).isCurrent);cmp('.sd-compare-right').classList.toggle('sd-chosen-frame',choice(selected).isCurrent);
       frame(cmp('.sd-compare-left'),choice(reference));frame(cmp('.sd-compare-right'),choice(selected));
       cmp('[data-sd-use-reference]').textContent=`${reference==='current'?'Keep':'Use'} ${choice(reference).name}`;cmp('[data-sd-use-candidate]').textContent=`${selected==='current'?'Keep':'Use'} ${choice(selected).name}`;
-      cmp('[data-sd-keep]').hidden=reference==='current'||selected==='current';
+      cmp('footer').hidden=!canDecide();cmp('[data-sd-keep]').hidden=reference==='current'||selected==='current';
       for(const button of comparison.querySelectorAll('button'))button.disabled=busy;
     }
     async function openComparison(){
@@ -162,7 +162,7 @@
       if(currentFrame?.dataset.ready==='true')mark();else currentFrame?.addEventListener('load',mark,{once:true});
     }
     async function decide(key){
-      if(busy||!group)return;
+      if(busy||!group||!canDecide())return;
       const target={...context},at=scope,was=group.id,option=choice(key),baseline=expectedHash,decision=expectedDecision,acknowledged=reviewed;
       busy=true;onBusy(true);$('.sd-error').textContent='';cmp('.sd-compare-error').textContent='';render();
       try{

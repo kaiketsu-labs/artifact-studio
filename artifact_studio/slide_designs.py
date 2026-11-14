@@ -14,7 +14,7 @@ from .interactive import prepare_document
 from .models import AgentContext, Deck, Slide, Source, StrictModel
 from .storage import ConflictError, SlideMarkup, Store, digest
 from .version_history import capture_slide_version
-from .visuals import CaptureOptions, Snapshot, VisualResult, snapshot
+from .visuals import CaptureOptions, ScopedDeckEmbedder, Snapshot, VisualResult, snapshot
 
 MAX_SAVED_BYTES = 64 * 1024 * 1024
 SOURCE_FIELDS = {"title", "html", "interactive_html", "sources"}
@@ -187,7 +187,9 @@ def design_badges(store: Store, deck: Deck) -> dict[str, dict[str, object]]:
         rows = db.execute(
             "SELECT s.id,s.slide,s.pending,s.decision_id,COUNT(o.id) AS count "
             "FROM slide_design_sets s JOIN slide_design_options o ON o.set_id=s.id "
-            "WHERE s.deck=? AND s.sequence=(SELECT MAX(latest.sequence) "
+            "WHERE s.deck=? AND NOT EXISTS (SELECT 1 FROM slide_design_decisions d "
+            "WHERE d.id=s.decision_id AND d.action='keep' AND d.completed=1) "
+            "AND s.sequence=(SELECT MAX(latest.sequence) "
             "FROM slide_design_sets latest WHERE latest.deck=s.deck AND latest.slide=s.slide) "
             "GROUP BY s.id",
             (deck.id,),
@@ -273,8 +275,10 @@ def recover_design_decisions(store: Store, db: sqlite3.Connection, deck_id: str)
 class SlideDesigns:
     """Publish parallel directions; only human HTTP actions can choose or keep one."""
 
-    def __init__(self, store: Store) -> None:
+    def __init__(self, store: Store, *, scoped: bool = False) -> None:
+        """Use the deck asset boundary when serving a hosted collaborator."""
         self.store = store
+        self.scoped = scoped
 
     @staticmethod
     def _option(row: sqlite3.Row, deck_id: str, slide_id: str) -> DesignOption:
@@ -427,7 +431,7 @@ class SlideDesigns:
                         candidate.model_dump()
                         | {
                             "interactive_html": prepare_document(
-                                self.store, deck_id, candidate.interactive_html
+                                self.store, deck_id, candidate.interactive_html, scoped=self.scoped
                             )
                         }
                     )
@@ -441,7 +445,7 @@ class SlideDesigns:
                     displayed = candidate.model_copy(
                         update={
                             "interactive_html": prepare_document(
-                                self.store, deck_id, candidate.interactive_html
+                                self.store, deck_id, candidate.interactive_html, scoped=self.scoped
                             )
                         }
                     )
@@ -451,6 +455,10 @@ class SlideDesigns:
                     displayed,
                     deck.slides.index(current) + 1,
                     CaptureOptions(reduced_motion=True),
+                    scoped_embedder=ScopedDeckEmbedder(self.store, deck_id, embedded=True)
+                    if self.scoped
+                    else None,
+                    prepared_interactive=self.scoped,
                 )
                 total += len(frozen.model_dump_json().encode())
                 if total > MAX_SAVED_BYTES:

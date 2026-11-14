@@ -632,6 +632,8 @@ class AssetEmbedder:
             raise ValueError("CSS expansion exceeds the portable document size limit.")
 
         def import_css(url: str) -> str:
+            if self.omit_css_import(url):
+                return ""
             path = self.local_path(url, directory)
             if path in self.visiting:
                 raise ValueError("CSS imports contain a circular dependency.")
@@ -644,6 +646,10 @@ class AssetEmbedder:
                 self.visiting.remove(path)
 
         return embed_css(text, lambda url: self.asset(url, directory), import_css)
+
+    def omit_css_import(self, url: str) -> bool:
+        """Keep all imports unless a specific output surface omits external resources."""
+        return False
 
     def markup(self, text: str, directory: Path | None = None) -> str:
         """Inline HTML/SVG dependencies while preserving ordinary hyperlinks and markup."""
@@ -798,10 +804,17 @@ def audience_html(
     printing: bool = False,
     include_hidden: bool = True,
     scoped_embedder: AssetEmbedder | None = None,
+    slide_ids: list[str] | None = None,
 ) -> str:
     """Build one offline audience document, excluding private notes and conversations."""
     deck = store.read(deck_id).model_copy(deep=True)
     deck.sections = []
+    if slide_ids is not None:
+        known = {slide.id for slide in deck.slides}
+        if not slide_ids or len(slide_ids) != len(set(slide_ids)) or not set(slide_ids) <= known:
+            raise ValueError("Select existing slides exactly once.")
+        selected = set(slide_ids)
+        deck.slides = [slide for slide in deck.slides if slide.id in selected]
     if printing and not include_hidden:
         deck.slides = [slide for slide in deck.slides if not slide.hidden]
         if not deck.slides:

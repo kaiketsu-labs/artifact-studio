@@ -22,11 +22,14 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
+from . import __version__
 from .artifact_models import ArtifactTarget
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
+from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
+from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
 from .models import FileInput, StrictModel
@@ -39,11 +42,12 @@ from .multiplayer_access import (
     checksum,
     workspace_editor_path,
 )
-from .multiplayer_chat import Channel, Conversations
+from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
+from .structure_proposals import StructureDecision, StructureProposals
 from .visuals import ScopedDeckEmbedder
 
 # The separator is outside the ordinary ticket alphabet.
@@ -60,10 +64,17 @@ class ScopeInput(StrictModel):
 class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
+    no_expiry: bool = False
 
 
 class AgentInput(ScopeInput):
     name: str = Field(min_length=1, max_length=80)
+
+
+class SharedHistoryInput(StrictModel):
+    """Set the history permission for a single agent."""
+
+    enabled: bool
 
 
 class TitleInput(StrictModel):
@@ -80,8 +91,11 @@ class ChatInput(StrictModel):
     request_id: str = Field(min_length=8, max_length=100)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
+    include_shared_context: bool = False
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
+    slide_content_hash: str = Field(default="", max_length=64)
+    proposal: ChatProposal | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 
@@ -121,15 +135,18 @@ def create_app(
         )
     hub = sharing
     chat = Conversations(hub)
+    presence = DeckPresence(hub)
+    structure = StructureProposals(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
+        version=__version__,
         instructions=(
             "Start with get_working_context. Your token selects one workspace and access scope. "
             "Only assigned released requests appear in read_feedback. Claim before acting. "
             "Use expected hashes and stable request IDs. Replies stay in the original chat."
         ),
     )
-    toolset = MultiplayerTools(hub, chat, config.public_url)
+    toolset = MultiplayerTools(hub, chat, config.public_url, presence)
     toolset.register(mcp)
     mcp_app = mcp.streamable_http_app(
         stateless_http=True,
@@ -195,7 +212,12 @@ def create_app(
 
     @app.get("/web/{name}")
     def static(name: str) -> FileResponse:
-        if name not in {"multiplayer.js", "multiplayer.css"}:
+        if name not in {
+            "multiplayer.js",
+            "multiplayer.css",
+            "chat-timeline.js",
+            "chat-timeline.css",
+        }:
             raise AccessDenied
         return FileResponse(PROJECT / "web" / name)
 
@@ -324,7 +346,11 @@ def create_app(
     @app.post("/api/workspaces/{workspace}/invitations")
     def invite(request: Request, workspace: str, body: InviteInput) -> dict[str, str]:
         invitation = hub.invite(
-            actor_of(request), Scope(workspace, body.kind, body.resource), body.email, body.role
+            actor_of(request),
+            Scope(workspace, body.kind, body.resource),
+            body.email,
+            body.role,
+            no_expiry=body.no_expiry,
         )
         path = (
             workspace_editor_path(workspace)
@@ -360,6 +386,24 @@ def create_app(
     def own_agents(request: Request, workspace: str) -> list[dict[str, object]]:
         return hub.own_agents(actor_of(request), workspace)
 
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/shared-history")
+    def agent_shared_history(
+        request: Request, workspace: str, artifact: str, agent: str
+    ) -> dict[str, bool]:
+        """Read the owner's current presentation history permission for one agent."""
+        scope = Scope(workspace, "artifact", artifact)
+        return {"enabled": chat.shared_history_access(actor_of(request), scope, agent)}
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/shared-history")
+    def set_agent_shared_history(
+        request: Request, workspace: str, artifact: str, agent: str, body: SharedHistoryInput
+    ) -> dict[str, bool]:
+        """Allow or revoke full Shared history for one connection and presentation."""
+        scope = Scope(workspace, "artifact", artifact)
+        return {
+            "enabled": chat.shared_history_access(actor_of(request), scope, agent, body.enabled)
+        }
+
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/state")
     def artifact_state(request: Request, workspace: str, artifact: str) -> dict[str, object]:
         actor, scope = actor_of(request), Scope(workspace, "artifact", artifact)
@@ -371,9 +415,10 @@ def create_app(
                     {
                         "id": slide.id,
                         "title": slide.title,
-                        "content_hash": store.content_hash(artifact, slide),
+                        "content_hash": item.presentation_versions[slide.id][0],
                     }
                     for slide in store.read(artifact).slides
+                    if slide.id in item.presentation_versions
                 ]
             with hub.connect() as db:
                 draft_counts = {
@@ -394,7 +439,44 @@ def create_app(
                 "access": hub.access(actor, scope),
                 "agents": chat.agents(actor, scope),
                 "draft_counts": draft_counts,
+                "contacts": [] if actor.agent else chat.contacts(actor, scope),
+                "mentions": [] if actor.agent else chat.mentions(actor, scope),
+                "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals")
+    def structure_list(request: Request, workspace: str, artifact: str) -> Response:
+        """Return presentation structure and its agent proposals."""
+        result, validator = structure.snapshot(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            request.headers.get("If-None-Match", ""),
+        )
+        headers = {"ETag": validator} if validator else {}
+        if result is None:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(result, headers=headers)
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals/{proposal_id}/decision"
+    )
+    def structure_decision(
+        request: Request, workspace: str, artifact: str, proposal_id: str, body: StructureDecision
+    ) -> dict[str, object]:
+        """Deliver a reviewed decision to the proposal's originating agent."""
+        return structure.decide(
+            actor_of(request), Scope(workspace, "artifact", artifact), proposal_id, body
+        )
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/presence",
+        response_model_exclude_defaults=True,
+    )
+    def deck_presence(
+        request: Request, workspace: str, artifact: str, body: PresenceInput
+    ) -> list[DeckViewer]:
+        """Refresh one human's slide position and return current viewers of this deck."""
+        return presence.update(actor_of(request), Scope(workspace, "artifact", artifact), body)
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def history(
@@ -407,6 +489,24 @@ def create_app(
         return chat.history(
             actor_of(request), Scope(workspace, "artifact", artifact), channel, before
         )
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/contacts")
+    def chat_contacts(request: Request, workspace: str, artifact: str) -> list[dict[str, str]]:
+        """Suggest only current collaborators for mentions."""
+        return chat.contacts(actor_of(request), Scope(workspace, "artifact", artifact))
+
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/mentions")
+    def chat_mentions(request: Request, workspace: str, artifact: str) -> list[dict[str, object]]:
+        """Report unread mentions in a currently accessible artifact."""
+        return chat.mentions(actor_of(request), Scope(workspace, "artifact", artifact))
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/mentions/{event}/read")
+    def read_chat_mention(
+        request: Request, workspace: str, artifact: str, event: int
+    ) -> dict[str, bool]:
+        """Acknowledge one mention addressed to the signed-in person."""
+        chat.read_mention(actor_of(request), Scope(workspace, "artifact", artifact), event)
+        return {"ok": True}
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def post(request: Request, workspace: str, artifact: str, body: ChatInput) -> dict[str, object]:
@@ -421,6 +521,9 @@ def create_app(
             body.target,
             body.content_hash,
             body.files,
+            slide_content_hash=body.slide_content_hash,
+            proposal=body.proposal,
+            include_shared_context=body.include_shared_context,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")
@@ -479,6 +582,7 @@ def create_app(
         artifact: str,
         slide_id: str = "",
         history_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+        thumbnail: bool = False,
     ) -> HTMLResponse:
         if request.headers.get("sec-fetch-dest") not in {"iframe", "frame"}:
             raise HTTPException(403, "Open this preview inside the workspace.")
@@ -492,6 +596,8 @@ def create_app(
             ):
                 raise AccessDenied
             if item.legacy_deck_id:
+                if thumbnail and slide_id:
+                    return hosted_slide_thumbnail(store, artifact, slide_id, config.public_url)
                 deck = store.read(artifact)
                 slide = store.locate(deck, slide_id) if slide_id else deck.slides[0]
                 embedder = ScopedDeckEmbedder(store, artifact)

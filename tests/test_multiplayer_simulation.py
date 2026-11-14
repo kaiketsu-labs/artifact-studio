@@ -3,6 +3,7 @@
 import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from typing import cast
 
@@ -62,6 +63,174 @@ class Peer:
             return result.structured_content
         text = next(item.text for item in result.content if isinstance(item, TextContent))
         return cast(dict[str, object], json.loads(text))
+
+
+def test_slide_activity_is_explicit_scoped_and_revocable(tmp_path: Path) -> None:
+    """Publish anonymous activity only for current readers of the slide's deck."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        connections = "/api/workspaces/default/agents"
+        request = {"kind": "artifact", "resource": app.deck_id, "name": "Private agent label"}
+        editor = owner.post(connections, json=request).json()
+        reader = alice.post(connections, json=request).json()
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/presence"
+        slide = {"tab": "b" * 32, "slide_id": "cover"}
+        marker = {"name": "Agent working", "slide_id": "cover", "agent": True}
+        peer = Peer(app, editor["token"])
+        reader_peer = Peer(app, reader["token"])
+        with closing(peer.client), closing(reader_peer.client):
+            args = {"deck_id": app.deck_id, "slide_id": "cover"}
+            assert not peer.call("get_slide", **args).is_error
+            assert alice.post(endpoint, json=slide).json() == []
+            assert reader_peer.call("set_slide_activity", **args, active=True).is_error
+            assert peer.call(
+                "set_slide_activity", **{**args, "slide_id": "absent"}, active=True
+            ).is_error
+            assert peer.call(
+                "set_slide_activity", **{**args, "deck_id": app.sibling_id}, active=True
+            ).is_error
+            assert peer.value("set_slide_activity", **args, active=True) == {"expires_in": 90}
+            assert alice.post(endpoint, json=slide).json() == [marker]
+            assert bob.post(endpoint, json=slide).status_code == 404
+            assert peer.value("set_slide_activity", **args, active=False) == {"expires_in": 0}
+            assert alice.post(endpoint, json=slide).json() == []
+            peer.value("set_slide_activity", **args, active=True)
+            assert owner.post(f"/api/agents/{editor['id']}/revoke").is_success
+            assert alice.post(endpoint, json=slide).json() == []
+
+
+def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path: Path) -> None:
+    """Check live permission changes and isolation of private and unreleased messages."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        agents = "/api/workspaces/default/agents"
+        body = {"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"}
+        connection = owner.post(agents, json=body)
+        connection.raise_for_status()
+        connection_id, token = connection.json()["id"], connection.json()["token"]
+        guest_connection = alice.post(agents, json=body)
+        guest_connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}"
+        setting = f"{base}/agents/{connection_id}/shared-history"
+        assert owner.get(setting).json() == {"enabled": False}
+        assert alice.post(setting, json={"enabled": True}).status_code == 404
+        foreign = f"{base}/agents/{guest_connection.json()['id']}/shared-history"
+        assert owner.post(foreign, json={"enabled": True}).status_code == 404
+        state = owner.get(base + "/state").json()
+        shared = alice.post(
+            base + "/chat",
+            json={
+                "message": "Fictional shared context",
+                "request_id": "shared-context",
+                "content_hash": state["content_hash"],
+                "files": [{"name": "context.txt", "data_base64": "ZmljdGlvbg=="}],
+            },
+        )
+        shared.raise_for_status()
+        for identifier, slide_id, released in (
+            ("other-slide", "next", True),
+            ("withheld", None, False),
+        ):
+            alice.post(
+                base + "/chat",
+                json={
+                    "message": identifier,
+                    "request_id": f"fictional-context-{identifier}",
+                    "released": released,
+                    "target": {"kind": "slide", "slide_id": slide_id} if slide_id else None,
+                },
+            ).raise_for_status()
+        for channel in ("shared", "private"):
+            owner.post(
+                base + "/chat",
+                json={
+                    "message": f"Fictional {channel} request",
+                    "channel": channel,
+                    "request_id": f"assigned-{channel}",
+                    "assigned": connection_id,
+                    "include_shared_context": channel == "shared",
+                    "content_hash": state["content_hash"],
+                },
+            ).raise_for_status()
+        for channel, released in (("shared", False), ("private", True)):
+            alice.post(
+                base + "/chat",
+                json={
+                    "message": f"Hidden {channel}",
+                    "channel": channel,
+                    "request_id": f"hidden-{channel}",
+                    "released": released,
+                    "content_hash": state["content_hash"],
+                },
+            ).raise_for_status()
+        with closing((peer := Peer(app, token)).client):
+            args = {"artifact_id": app.deck_id}
+            guide = peer.value("get_authoring_guide", topic="slide_designs")
+            assert "unique HTML id" in cast(str, guide["guide"])
+            retained_guide = peer.value(
+                "get_authoring_guide", topic="slide_designs", known_hash=guide["guide_hash"]
+            )
+            assert retained_guide["guide_included"] is False
+            assert retained_guide["guide"] == ""
+            context = peer.value("get_working_context", **args)
+            assert "rules_hash" not in context
+            attachment = {**args, "event_id": shared.json()["id"], "file_index": 0}
+
+            def history(channel: str) -> list[str]:
+                result = peer.call("read_chat", **args, channel=channel)
+                assert not result.is_error
+                return [
+                    cast(str, json.loads(block.text)["message"])
+                    for block in result.content
+                    if isinstance(block, TextContent)
+                ]
+
+            assert history("shared") == ["Fictional shared request"]
+            assert peer.call("read_chat_attachment", **attachment).is_error
+            events = cast(list[dict[str, object]], peer.value("read_feedback", **args)["events"])
+            expected_context = [{"id": shared.json()["id"], "message": "Fictional shared context"}]
+            assert {event["channel"] for event in events} == {"shared", "private"}
+            assert (
+                next(event for event in events if event["channel"] == "shared")["shared_context"]
+                == expected_context
+            )
+            assert "shared_context" not in next(
+                event for event in events if event["channel"] == "private"
+            )
+            assert owner.post(setting, json={"enabled": True}).json() == {"enabled": True}
+            assert history("shared") == [
+                "Fictional shared context",
+                "other-slide",
+                "Fictional shared request",
+            ]
+            assert history("private") == ["Fictional private request"]
+            assert peer.value("read_chat_attachment", **attachment)["text"] == "fiction"
+            for event in events:
+                event_id = event["id"]
+                claim = peer.value(
+                    "claim_feedback", **args, event_id=event_id, session_id="fictional-peer"
+                )
+                reply = peer.value(
+                    "reply_to_feedback",
+                    **args,
+                    event_id=event_id,
+                    claim=claim["claim"],
+                    message="Fictional response",
+                    request_id=f"response-{event_id}",
+                )
+                assert reply["channel"] == event["channel"]
+            assert owner.post(setting, json={"enabled": False}).json() == {"enabled": False}
+            assert history("shared") == ["Fictional shared request", "Fictional response"]
+            assert peer.call("read_chat_attachment", **attachment).is_error
 
 
 def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: Path) -> None:
@@ -189,6 +358,15 @@ def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: P
                 event_id=message["id"],
                 session_id="alice-session",
             )
+            compact = second.value(
+                "claim_feedback",
+                artifact_id=app.deck_id,
+                event_id=message["id"],
+                session_id="alice-session",
+                include_message=False,
+            )
+            assert compact["claim"] == claimed["claim"]
+            assert "message" in claimed and "message" not in compact
             reply = second.value(
                 "reply_to_feedback",
                 artifact_id=app.deck_id,
@@ -260,3 +438,168 @@ def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: P
         finally:
             for peer in peers:
                 peer.client.close()
+
+
+def test_structural_proposal_decision_is_scoped_and_single_winner(tmp_path: Path) -> None:
+    """Concurrent reviewers deliver only one decision to the original agent."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        )
+        connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with closing((peer := Peer(app, connection.json()["token"])).client):
+            before = owner.get(base).json()
+            ids = before["slide_ids"]
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review order",
+                base_slide_ids=ids,
+                base_sections_hash=before["sections_hash"],
+                proposed_slide_ids=list(reversed(ids)),
+                request_id="proposal-unique",
+            )
+            body = {
+                "decision": "accept",
+                "message": "Please proceed",
+                "expected_slide_ids": ids,
+                "expected_sections_hash": before["sections_hash"],
+            }
+            endpoint = f"{base}/{proposal['id']}/decision"
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pending = [
+                    pool.submit(client.post, endpoint, json=body | {"request_id": request_id})
+                    for client, request_id in [(owner, "owner-decision"), (alice, "alice-decision")]
+                ]
+                replies = [response.result() for response in pending]
+            assert sorted(response.status_code for response in replies) == [200, 409]
+            events = cast(
+                list[dict[str, str]], peer.value("read_feedback", artifact_id=app.deck_id)["events"]
+            )
+            assert len(events) == 1
+            assert events[0]["channel"] == "shared"
+            assert "Please proceed" in events[0]["message"]
+            assert owner.get(base).json()["slide_ids"] == ids
+
+
+def test_structural_proposal_validator_rechecks_access_and_detects_decisions(
+    tmp_path: Path,
+) -> None:
+    """An unchanged comparison has no body, while a decision invalidates its validator."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        )
+        connection.raise_for_status()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        initial = owner.get(base)
+        initial.raise_for_status()
+        headers = {"If-None-Match": initial.headers["ETag"]}
+        assert owner.get(base, headers=headers).status_code == 304
+        assert alice.get(base, headers=headers).status_code == 404
+        body = initial.json()
+        with closing((peer := Peer(app, connection.json()["token"])).client):
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review outline",
+                base_slide_ids=body["slide_ids"],
+                base_sections_hash=body["sections_hash"],
+                proposed_slide_ids=list(reversed(body["slide_ids"])),
+                request_id="conditional-proposal",
+            )
+            pending = owner.get(base, headers=headers)
+            pending.raise_for_status()
+            assert pending.headers["ETag"] != initial.headers["ETag"]
+            reply = owner.post(
+                f"{base}/{proposal['id']}/decision",
+                json={
+                    "decision": "keep",
+                    "expected_slide_ids": body["slide_ids"],
+                    "expected_sections_hash": body["sections_hash"],
+                    "request_id": "conditional-decision",
+                },
+            )
+            reply.raise_for_status()
+            decided = owner.get(base, headers={"If-None-Match": pending.headers["ETag"]})
+            decided.raise_for_status()
+            assert decided.json()["proposals"][0]["status"] == "decided"
+            assert decided.headers["ETag"] != pending.headers["ETag"]
+
+
+def test_structural_proposal_stale_and_revoked_agent(tmp_path: Path) -> None:
+    """A stale comparison cannot be accepted and revoked agents receive no decisions."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+    ):
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        ).json()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with closing((peer := Peer(app, connection["token"])).client):
+            before = owner.get(base).json()
+            ids = before["slide_ids"]
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review order",
+                base_slide_ids=ids,
+                base_sections_hash=before["sections_hash"],
+                proposed_slide_ids=list(reversed(ids)),
+                request_id="proposal-stale",
+            )
+            peer.value(
+                "reorder_slides",
+                deck_id=app.deck_id,
+                slide_ids=list(reversed(ids)),
+                expected_slide_ids=ids,
+            )
+            current = owner.get(base).json()
+            body = {
+                "decision": "accept",
+                "message": "",
+                "expected_slide_ids": current["slide_ids"],
+                "expected_sections_hash": current["sections_hash"],
+                "request_id": "decision-stale",
+            }
+            endpoint = f"{base}/{proposal['id']}/decision"
+            assert owner.post(endpoint, json=body).status_code == 409
+            assert owner.post(f"/api/agents/{connection['id']}/revoke").is_success
+            body["decision"] = "request_change"
+            assert owner.post(endpoint, json=body).status_code == 404
+            assert owner.get(base).json()["proposals"][0]["status"] == "pending"
+
+
+def test_structure_list_does_not_wait_for_write_lock_and_requires_edit(tmp_path: Path) -> None:
+    """Read the atomic file snapshot during a write and deny view-only collaborators."""
+    import sqlite3
+
+    root = tmp_path / "app"
+    with (
+        running_multiplayer_app(root, tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        with sqlite3.connect(root / "state/review.sqlite3") as db:
+            db.execute("BEGIN IMMEDIATE")
+            response = owner.get(endpoint, timeout=3)
+            assert response.status_code == 200
+            assert response.json()["slide_ids"]
+        assert alice.get(endpoint).status_code == 404

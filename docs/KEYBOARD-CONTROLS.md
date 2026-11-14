@@ -47,7 +47,7 @@ Focus a slide thumbnail first. The sorter is the grid reached through its icon o
 
 With the editor canvas focused and no object edit active, ←/→ switches slides. ⌘/Ctrl + mouse wheel changes zoom. Undo for adding/duplicating slides is not available; restoring a deletion does not create a redo entry.
 
-In a slide context menu, **Copy** contains image/link copying and **Organize** contains movement, sections and selection. **→** opens a submenu; **←** returns to its parent. **↑/↓** and **Home/End** stay within the current level. **Escape** closes a submenu first, then the main menu and restores thumbnail focus. Submenus expand inline when there is not enough room for a flyout.
+In a slide context menu, **Copy** contains image/link copying, **Export** downloads the selected saved slides as HTML or PDF, and **Organize** contains movement, sections and selection. **→** opens a submenu; **←** returns to its parent. **↑/↓** and **Home/End** stay within the current level. **Escape** closes a submenu first, then the main menu and restores thumbnail focus. Submenus expand inline when there is not enough room for a flyout.
 
 Focus a **section header** for ←/→ to collapse/expand it, **F2** to rename it, or **Shift+F10 / Menu** for section actions.
 
@@ -92,6 +92,7 @@ Slides nudge by 0.1% of the canvas (1% with Shift), independent of preview zoom.
 | --- | --- |
 | Enter, ⌘Enter or Ctrl+Enter | Send a slide/artifact/design chat message; answer an agent's text question |
 | Shift+Enter | Add a line break in chat |
+| `@@` or `@agent` then Space | Address the next Shared chat message to your agent. The robot icon toggles the same setting. |
 | Escape while recording | Stop dictation |
 | ⌘/Ctrl+Z; ⌘/Ctrl+Shift+Z | Native undo/redo while typing, separate from object or slide history |
 | ⌘/Ctrl+B / I | Bold/italic in the rich-text rules editor |

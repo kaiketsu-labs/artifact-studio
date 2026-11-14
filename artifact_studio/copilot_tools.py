@@ -26,7 +26,7 @@ from .agent_io import deck_receipt, rule_fields, slide_receipt
 from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView, ProjectView
 from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
-from .copilot_capture import capture_cloud_slide
+from .copilot_capture import capture_cloud_contact_sheet, capture_cloud_slide
 from .element_alternatives import ElementAlternatives, ElementInput
 from .hook_bundle import client_files
 from .models import DesignFile, Slide, SlidePatch
@@ -416,7 +416,9 @@ class ScopedTools:
             ),
             "visual_review": (
                 "capture_artifact returns actual image pixels for owned bundles. "
-                "capture_slide renders a sanitized audience-only clone with theme.css/assets. "
+                "capture_slide and capture_contact_sheet render a sanitized audience-only clone "
+                "with theme.css/assets; use the sheet for a compact overview and the "
+                "full-size slide for detail. "
                 "Physical display and presenter controls require a local visual review."
             ),
         }
@@ -804,10 +806,12 @@ class ScopedTools:
         slide_id: Identifier,
         element_option_id: Identifier,
         context_hash: str = "",
+        *,
+        scoped: bool = False,
     ) -> CallToolResult:
         """Capture full-slide pixels for an element proposal, optionally in a retained context."""
         _ = self.deck(deck_id)
-        alternatives = ElementAlternatives(self.store)
+        alternatives = ElementAlternatives(self.store, scoped=scoped)
         source = alternatives.read(
             deck_id, slide_id, element_option_id, context_hash=context_hash or None
         )
@@ -961,6 +965,21 @@ class ScopedTools:
         _ = self.deck(deck_id)
         return result
 
+    def capture_contact_sheet(
+        self,
+        deck_id: Identifier,
+        offset: int = 0,
+        limit: int = 8,
+        slide_ids: tuple[str, ...] = (),
+    ) -> CallToolResult:
+        """Inspect up to eight completed slides in one draft image; use capture_slide for detail."""
+        _ = self.deck(deck_id)
+        result = capture_cloud_contact_sheet(
+            self.store, deck_id, offset, limit, list(slide_ids) or None
+        )
+        _ = self.deck(deck_id)
+        return result
+
 
 def register_tools(
     server: MCPServer[None],
@@ -993,6 +1012,7 @@ def register_tools(
         scoped.read_feedback,
         scoped.capture_artifact,
         scoped.capture_slide,
+        scoped.capture_contact_sheet,
     )
     writes: tuple[Callable[..., object], ...] = (
         scoped.create_artifact,

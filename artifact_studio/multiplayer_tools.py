@@ -3,32 +3,69 @@
 import base64
 import codecs
 import time
+import uuid
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal, cast
+from shutil import disk_usage
+from typing import Annotated, Literal, cast
+from urllib.parse import urlencode
 
 from fastapi import Request
 from mcp.server.mcpserver import Context, MCPServer
-from mcp.types import CallToolResult
+from mcp.types import CallToolResult, ToolAnnotations
+from pydantic import Field
 
-from .artifacts import ArtifactStore
-from .copilot_tools import MAX_READ_BYTES, READ, WRITE, ScopedTools, attachment_page, remote_tool
+from .agent_io import deck_receipt, guide_fields, rule_fields
+from .artifacts import LEGACY_PROJECT, ArtifactStore
+from .copilot_tools import (
+    MAX_READ_BYTES,
+    READ,
+    WRITE,
+    RequestID,
+    ScopedTools,
+    attachment_page,
+    public_object,
+    remote_tool,
+)
+from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
 from .design_authoring import DesignAuthoring
 from .design_library import DesignLibrary
+from .element_alternatives import ElementAlternatives, ElementInput
+from .hosted_policy import public_deck_asset
+from .interactive import prepare_document
 from .libraries import file_hash
-from .models import DesignFile
-from .multiplayer_access import AccessDenied, Actor, Kind, Role, Scope, Sharing
+from .models import DeckSection, DesignFile, FileInput
+from .multiplayer_access import (
+    AccessDenied,
+    Actor,
+    Kind,
+    Role,
+    Scope,
+    Sharing,
+    workspace_editor_path,
+)
 from .multiplayer_chat import Channel, Conversations
+from .multiplayer_http import IMPORT_DISK_RESERVE
+from .presentation_files import PresentationFiles
+from .sections import Sections, section_layout
+from .slide_actions import SlideActions
+from .slide_designs import DesignInput, SlideDesigns
 from .storage import Store
+from .structure_proposals import StructureProposals
 from .version_authors import revision_author
 
 Ctx = Context[None, Request]
+DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True)
+NewDeckID = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$", max_length=100)]
 
 
 class MultiplayerTools:
-    def __init__(self, sharing: Sharing, chat: Conversations, public_url: str) -> None:
+    def __init__(
+        self, sharing: Sharing, chat: Conversations, public_url: str, presence: DeckPresence
+    ) -> None:
         self.sharing, self.chat, self.public_url = sharing, chat, public_url
+        self.presence = presence
 
     def actor(self, ctx: Ctx) -> Actor:
         request = ctx.request_context.request
@@ -89,8 +126,10 @@ class MultiplayerTools:
                 ],
             }
 
-    def get_working_context(self, ctx: Ctx, artifact_id: str = "") -> dict[str, object]:
-        """Read first: exact workspace/scope, selected artifact, and collaboration workflow."""
+    def get_working_context(
+        self, ctx: Ctx, artifact_id: str = "", known_rules_hash: str = ""
+    ) -> dict[str, object]:
+        """Read the selected scope and workflow. Pass known_rules_hash only for retained rules."""
         actor = self.actor(ctx)
         scope = self.scope(actor, artifact_id)
         with self.sharing.guard(actor, scope) as store:
@@ -105,7 +144,7 @@ class MultiplayerTools:
                 "acting; reply_to_feedback with that claim acknowledges it. Renew claims for "
                 "work beyond 10 minutes. Private replies stay private; artifact edits are shared. "
                 "After a conflict, re-read and reconcile. Retry writes with the same request_id. "
-                "Get_authoring_guide loads details on demand.",
+                "Use get_authoring_guide for details and slide_designs for proposals.",
             }
             if scope.kind == "artifact":
                 scoped = ScopedTools(store, "", True, hosted_hooks=True)
@@ -130,7 +169,13 @@ class MultiplayerTools:
                     )
                     result["project_context"] = project.context
             if self.sharing.level(actor, Scope(scope.workspace)):
-                result["authoring_instructions"] = store.authoring_instructions()
+                result.update(
+                    rule_fields(
+                        store.authoring_instructions(),
+                        store.learned_preferences(),
+                        known_rules_hash,
+                    )
+                )
             return result
 
     def list_artifacts(self, ctx: Ctx) -> dict[str, object]:
@@ -210,11 +255,30 @@ class MultiplayerTools:
             return DesignAuthoring(store).write_file(design_id, path, text, expected_hash)
 
     def get_authoring_guide(
-        self, ctx: Ctx, topic: Literal["workflow", "live_review"] = "workflow"
+        self,
+        ctx: Ctx,
+        topic: Literal["workflow", "live_review", "slide_designs"] = "workflow",
+        known_hash: str = "",
     ) -> dict[str, object]:
         """Load detailed authoring or host-hook guidance only when needed."""
         actor = self.actor(ctx)
         with self.sharing.guard(actor, self.scope(actor)) as store:
+            if topic == "slide_designs":
+                return guide_fields(
+                    "Use publish_slide_designs for whole slides, or publish_element_alternatives "
+                    "for a static headline, text or graphic. Read get_slide first and publish "
+                    "against its content_hash. For element options, target a unique HTML id "
+                    "and keep that id in each complete replacement element. For a slide with "
+                    "custom interactions, use a whole-slide design. Offer two or three distinct "
+                    "options, capture the proposals, and leave adoption to the human. Use "
+                    "get_slide_designs or get_element_alternatives for decisions. Assigned option "
+                    "feedback is in read_feedback. Follow its proposal ID and context_hash to "
+                    "read or capture the reviewed option. Publish a new set against current "
+                    "source when refining. A reusable design library requires a workspace-wide "
+                    "owner connection. Existing slide source and theme are available through "
+                    "the presentation tools within the current scope.",
+                    known_hash,
+                )
             if topic == "live_review":
                 return {
                     "guide": (
@@ -233,11 +297,19 @@ class MultiplayerTools:
                 "Use get_working_context for the selected scope. For presentations, read "
                 "get_presentation_outline (brief, order, hashes), then get_slide only for slides "
                 "you need. revise_slide takes SlidePatch JSON and the expected_hash you read. "
-                "add_slide uses fresh outline order and sections hashes. For owned artifacts, "
+                "For shareable slide work, set_slide_activity shows an expiring marker; clear "
+                "it when done and omit it for private work. "
+                "add_slide, reorder_slides and set_presentation_sections use the outline's order "
+                "and sections hashes. Load the slide_designs topic for design and element "
+                "alternatives. Remove only slides the human asked to delete, using remove_slide "
+                "and the current expected_hash; list and recover with get_deleted_slides and "
+                "restore_slides. create_presentation creates a native deck in an owned "
+                "workspace with a workspace or appropriate project connection. For artifacts, "
                 "get_artifact returns the manifest; read_artifact_files loads selected files. "
                 "revise_artifact takes files_json, expected_revision and request_id. "
                 "create_artifact needs an editable project and inline file bundle. "
-                "capture_slide/capture_artifact return real pixels for visual review. "
+                "capture_slide, capture_contact_sheet and capture_artifact return real pixels "
+                "for visual review. "
                 "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
                 "Read only assigned requests with read_feedback. Claim with claim_feedback "
                 "before acting. Reply with reply_to_feedback using the claim and a stable "
@@ -275,7 +347,17 @@ class MultiplayerTools:
             return ScopedTools(store, "", True).read_artifact_files(artifact_id, paths, revision)
 
     def revise_artifact(
-        self, ctx: Ctx, artifact_id: str, files_json: str, expected_revision: int, request_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        files_json: Annotated[
+            str,
+            Field(
+                description="JSON array of file changes with path and text, data_base64, or delete."
+            ),
+        ],
+        expected_revision: Annotated[int, Field(ge=1)],
+        request_id: RequestID,
     ) -> dict[str, object]:
         """Publish changed inline files with optimistic concurrency and an idempotent request ID."""
         actor = self.actor(ctx)
@@ -314,6 +396,68 @@ class MultiplayerTools:
                 self.sharing.request_id(actor, request_id),
                 context,
             )
+
+    def create_presentation(
+        self,
+        ctx: Ctx,
+        deck_id: NewDeckID,
+        title: str,
+        design_id: str = "",
+        brief: str = "",
+        files: Annotated[list[FileInput] | None, Field(max_length=5)] = None,
+        include_content: bool = False,
+        request_id: str = "",
+        project_id: str = "",
+    ) -> dict[str, object]:
+        """Create a native deck with an initial cover and brief in your owned workspace.
+
+        A workspace connection can choose the project; a project connection defaults to its
+        project. Use a stable request_id to safely retry and include_content to read the cover.
+        """
+        actor = self.actor(ctx)
+        connection = self.scope(actor)
+        if not self.sharing.owner(Actor(actor.person), connection.workspace):
+            raise AccessDenied
+        project = (
+            ("" if project_id == LEGACY_PROJECT else project_id)
+            if project_id
+            else connection.resource
+            if connection.kind == "project"
+            else ""
+        )
+        scope = (
+            Scope(connection.workspace, "project", project)
+            if project
+            else Scope(connection.workspace)
+        )
+        with self.sharing.guard(actor, scope, "edit") as store:
+            if store.folder(deck_id).exists():
+                self.sharing.require(actor, self.scope(actor, deck_id), "edit")
+            reserve = IMPORT_DISK_RESERVE + 3 * sum(len(file.data_base64) for file in files or [])
+            if disk_usage(store.root).free < reserve:
+                raise ValueError("Not enough workspace storage for this presentation.")
+            name = str(self.sharing.agent_record(actor)["name"])
+            with revision_author(name + " · agent"):
+                created = store.create(
+                    deck_id,
+                    title,
+                    design_id,
+                    brief,
+                    files,
+                    self.sharing.request_id(actor, request_id) if request_id else "",
+                    brief_author="agent",
+                    project_id=project,
+                    scoped=True,
+                    disk_reserve_bytes=reserve,
+                )
+        if include_content:
+            return public_object(created.model_dump(mode="json"))
+        root = self.public_url + workspace_editor_path(scope.workspace)
+        return {
+            **deck_receipt(created).model_dump(),
+            "workspace_url": root + "?" + urlencode({"deck": deck_id}),
+            "audience_url": root + f"decks/{deck_id}/presenter?audience=1",
+        }
 
     def presentation_outline(self, store: Store, actor: Actor, scope: Scope) -> dict[str, object]:
         """Include attachment names only for the workspace owner's scoped agent."""
@@ -372,6 +516,22 @@ class MultiplayerTools:
                 result.pop("agent", None)
             return result
 
+    def set_slide_activity(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: Annotated[str, Field(min_length=1, max_length=100)],
+        active: bool,
+    ) -> dict[str, int]:
+        """Show anonymous editing activity to deck readers. Refresh during work; clear when done.
+
+        Use only when you may share that work on this slide is in progress. Reading slides and
+        handling private feedback never publish this signal automatically.
+        """
+        actor = self.actor(ctx)
+        self.presence.set_editing(actor, self.scope(actor, deck_id), slide_id, active)
+        return {"expires_in": AGENT_ACTIVITY_TTL if active else 0}
+
     def revise_slide(
         self,
         ctx: Ctx,
@@ -416,6 +576,311 @@ class MultiplayerTools:
                 section_id,
             )
 
+    def publish_structure_proposal(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        summary: str,
+        base_slide_ids: list[str],
+        base_sections_hash: str,
+        proposed_slide_ids: list[str],
+        request_id: str,
+        proposed_titles: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        """Request a human decision on a proposed presentation structure without editing it."""
+        actor = self.actor(ctx)
+        return StructureProposals(self.sharing).publish(
+            actor,
+            self.scope(actor, deck_id),
+            summary,
+            base_slide_ids,
+            base_sections_hash,
+            proposed_slide_ids,
+            request_id,
+            proposed_titles,
+        )
+
+    def reorder_slides(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_ids: list[str],
+        expected_slide_ids: list[str],
+        include_content: bool = False,
+        sections: list[DeckSection] | None = None,
+        expected_sections_hash: str = "",
+    ) -> dict[str, object]:
+        """Move slides using the previous order; include sections for cross-group moves."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            deck = (
+                Sections(store).replace(
+                    deck_id, slide_ids, sections, expected_slide_ids, expected_sections_hash
+                )
+                if sections is not None
+                else store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
+            )
+            if include_content:
+                return public_object(
+                    deck.model_dump(mode="json", exclude={"slides": {"__all__": {"agent"}}})
+                )
+            return deck_receipt(deck).model_dump()
+
+    def set_presentation_sections(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        sections: list[DeckSection],
+        expected_slide_ids: list[str],
+        expected_sections_hash: str,
+    ) -> dict[str, object]:
+        """Set named slide groups using the outline's slide order and sections hash."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            return section_layout(
+                Sections(store).replace(
+                    deck_id,
+                    [slide_id for section in sections for slide_id in section.slide_ids]
+                    if sections
+                    else expected_slide_ids,
+                    sections,
+                    expected_slide_ids,
+                    expected_sections_hash,
+                )
+            )
+
+    def remove_slide(
+        self, ctx: Ctx, deck_id: str, slide_id: str, expected_hash: str, request_id: str = ""
+    ) -> dict[str, object]:
+        """Remove a slide the human asked to delete, preserving it for recovery.
+
+        Use expected_hash from get_slide. Reuse request_id to safely retry the same removal.
+        """
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            operation = self.sharing.request_id(actor, request_id or uuid.uuid4().hex)
+            return (
+                SlideActions(store).remove(deck_id, slide_id, expected_hash, operation).model_dump()
+            )
+
+    def get_deleted_slides(self, ctx: Ctx, deck_id: str) -> list[dict[str, object]]:
+        """List slide IDs and titles for recoverable deletions in an editable presentation."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            return SlideActions(store).deletion_summaries(deck_id)
+
+    def restore_slides(
+        self, ctx: Ctx, deck_id: str, deletion_id: str, request_id: str
+    ) -> dict[str, object]:
+        """Restore a recoverable deletion using its operation_id and a stable request_id."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            operation = self.sharing.request_id(actor, request_id)
+            return SlideActions(store).restore(deck_id, deletion_id, operation).model_dump()
+
+    def publish_slide_designs(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: str,
+        expected_content_hash: str,
+        request_id: str,
+        options: Annotated[list[DesignInput], Field(min_length=1, max_length=5)],
+    ) -> dict[str, object]:
+        """Publish named whole-slide designs against get_slide's content_hash for human review."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            result = SlideDesigns(store, scoped=True).publish(
+                deck_id,
+                slide_id,
+                expected_content_hash,
+                self.sharing.request_id(actor, request_id),
+                options,
+            )
+            return result.model_dump(mode="json")
+
+    def get_slide_designs(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: str,
+        cursor: int | None = None,
+        decision_cursor: int | None = None,
+        set_id: str | None = None,
+    ) -> dict[str, object]:
+        """Read published design sets and human decisions for this slide."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return (
+                SlideDesigns(store, scoped=True)
+                .list(
+                    deck_id, slide_id, cursor=cursor, decision_cursor=decision_cursor, set_id=set_id
+                )
+                .model_dump(mode="json")
+            )
+
+    def get_slide_design(
+        self, ctx: Ctx, deck_id: str, slide_id: str, design_id: str
+    ) -> dict[str, object]:
+        """Read one frozen design's editable audience source."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return public_object(
+                SlideDesigns(store, scoped=True)
+                .read(deck_id, slide_id, design_id)
+                .model_dump(mode="json")
+            )
+
+    def capture_slide_design(
+        self, ctx: Ctx, deck_id: str, slide_id: str, design_id: str
+    ) -> CallToolResult:
+        """Render a frozen slide design without changing the current slide."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return ScopedTools(store, "", True).capture_slide_design(deck_id, slide_id, design_id)
+
+    def publish_element_alternatives(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: str,
+        target_id: Annotated[str, Field(min_length=1, max_length=200)],
+        kind: Literal["headline", "text", "graphic"],
+        label: Annotated[str, Field(min_length=1, max_length=80)],
+        expected_content_hash: str,
+        request_id: str,
+        options: Annotated[list[ElementInput], Field(min_length=1, max_length=5)],
+    ) -> dict[str, object]:
+        """Publish alternatives for an existing static element, retaining its unique HTML ID."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            result = ElementAlternatives(store, scoped=True).publish(
+                deck_id,
+                slide_id,
+                target_id,
+                kind,
+                label,
+                expected_content_hash,
+                self.sharing.request_id(actor, request_id),
+                options,
+            )
+            return result.model_dump(mode="json")
+
+    def get_element_alternatives(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: str,
+        cursor: int | None = None,
+        decision_cursor: int | None = None,
+        set_id: str | None = None,
+    ) -> dict[str, object]:
+        """Read element option groups and human decisions for this slide."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return (
+                ElementAlternatives(store, scoped=True)
+                .list(
+                    deck_id, slide_id, cursor=cursor, decision_cursor=decision_cursor, set_id=set_id
+                )
+                .model_dump(mode="json")
+            )
+
+    def get_element_alternative(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: str,
+        element_option_id: str,
+        context_hash: str | None = None,
+    ) -> dict[str, object]:
+        """Read an immutable element fragment in its retained full-slide context."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return (
+                ElementAlternatives(store, scoped=True)
+                .read(deck_id, slide_id, element_option_id, context_hash)
+                .model_dump(mode="json")
+            )
+
+    def capture_element_alternative(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        slide_id: str,
+        element_option_id: str,
+        context_hash: str | None = None,
+    ) -> CallToolResult:
+        """Render a frozen element proposal in its full-slide context."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return ScopedTools(store, "", True).capture_element_alternative(
+                deck_id, slide_id, element_option_id, context_hash or "", scoped=True
+            )
+
+    def update_presentation_context(
+        self, ctx: Ctx, deck_id: str, markdown: str, expected_hash: str
+    ) -> str:
+        """Replace the deck brief using context_hash from get_presentation_outline."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            return store.update_context(deck_id, markdown, expected_hash)
+
+    def append_presentation_context(
+        self, ctx: Ctx, deck_id: str, markdown: str, expected_hash: str
+    ) -> str:
+        """Append a continuation note using context_hash from get_presentation_outline."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            return store.append_context(deck_id, markdown, expected_hash)
+
+    def get_presentation_theme(self, ctx: Ctx, deck_id: str) -> dict[str, object]:
+        """Read the presentation's author CSS and its current expected_hash."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return PresentationFiles(store).theme(deck_id)
+
+    def update_presentation_theme(
+        self, ctx: Ctx, deck_id: str, css: str, expected_hash: str
+    ) -> dict[str, object]:
+        """Replace this presentation's author CSS using its current expected_hash."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            return PresentationFiles(store).update_theme(deck_id, css, expected_hash)
+
+    def list_presentation_assets(
+        self, ctx: Ctx, deck_id: str, prefix: str = "assets/", offset: int = 0, limit: int = 50
+    ) -> dict[str, object]:
+        """List this deck's asset paths, sizes and current replacement hashes."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return PresentationFiles(store).assets(deck_id, prefix, offset, limit, scoped=True)
+
+    def upload_presentation_asset(
+        self, ctx: Ctx, deck_id: str, asset_path: str, data_base64: str, expected_sha256: str = ""
+    ) -> dict[str, object]:
+        """Upload an inline deck asset; use its current sha256 when replacing existing bytes."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            if not asset_path.startswith("assets/") or not public_deck_asset(
+                asset_path, embedded=True
+            ):
+                raise ValueError("Use a supported deck asset path.")
+            data = base64.b64decode(data_base64, validate=True)
+            if not data or len(data) > 1024 * 1024:
+                raise ValueError("Upload a non-empty deck asset no larger than 1 MiB.")
+            if disk_usage(store.root).free < IMPORT_DISK_RESERVE + len(data):
+                raise ValueError("Not enough workspace storage for this asset.")
+            return PresentationFiles(store).write_asset(deck_id, asset_path, data, expected_sha256)
+
+    def prepare_interactive_html(
+        self, ctx: Ctx, deck_id: str, html: str, include_theme: bool = True
+    ) -> str:
+        """Inline this deck's assets into interactive HTML without executing the supplied code."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return prepare_document(store, deck_id, html, include_theme=include_theme, scoped=True)
+
     def capture_slide(
         self, ctx: Ctx, deck_id: str, slide_id: str, stage: int = -1, elapsed_ms: int = 0
     ) -> CallToolResult:
@@ -423,6 +888,21 @@ class MultiplayerTools:
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True).capture_slide(deck_id, slide_id, stage, elapsed_ms)
+
+    def capture_contact_sheet(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        offset: int = 0,
+        limit: int = 8,
+        slide_ids: tuple[str, ...] = (),
+    ) -> CallToolResult:
+        """Render a scoped draft overview; use capture_slide for full-size detail."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id) as store:
+            return ScopedTools(store, "", True).capture_contact_sheet(
+                deck_id, offset, limit, slide_ids
+            )
 
     def capture_artifact(self, ctx: Ctx, artifact_id: str) -> CallToolResult:
         """Render this owned artifact using the existing isolated browser capture."""
@@ -433,7 +913,10 @@ class MultiplayerTools:
     def read_chat(
         self, ctx: Ctx, artifact_id: str, channel: Channel = "shared", before: int = 0
     ) -> list[dict[str, object]]:
-        """Read shared conversation or your owner's private conversation; never withheld drafts."""
+        """Read assigned Shared threads or private Agent chat.
+
+        Owners can allow full Shared history on a presentation.
+        """
         actor = self.actor(ctx)
         return self.chat.history(actor, self.scope(actor, artifact_id), channel, before)
 
@@ -477,7 +960,11 @@ class MultiplayerTools:
     def read_feedback(
         self, ctx: Ctx, artifact_id: str = "", deck_id: str = "", after: int = 0
     ) -> dict[str, object]:
-        """Read pending requests assigned to you; after is not an acknowledgement."""
+        """Read pending requests with optional excerpts of prior Shared discussion.
+
+        Repeated excerpt IDs reference text included earlier in the response.
+        If shared_context_on_claim is true, claim with include_message=true for excerpts.
+        """
         actor = self.actor(ctx)
         if not (artifact_id or deck_id) or (artifact_id and deck_id) or after < 0:
             raise ValueError(
@@ -486,16 +973,36 @@ class MultiplayerTools:
         return self.chat.tasks(actor, self.scope(actor, artifact_id or deck_id))
 
     def claim_feedback(
-        self, ctx: Ctx, artifact_id: str, event_id: int, session_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        event_id: int,
+        session_id: str,
+        include_message: bool = True,
     ) -> dict[str, object]:
-        """Atomically claim/renew a task for 10 minutes; use a unique stable native session ID."""
+        """Claim or renew for 10 minutes with a stable session ID.
+
+        Set include_message=false after reading the task.
+        """
         if not 8 <= len(session_id) <= 200:
             raise ValueError("Use a session_id of 8–200 characters.")
         actor = self.actor(ctx)
-        return self.chat.claim(actor, self.scope(actor, artifact_id), event_id, session_id)
+        return self.chat.claim(
+            actor,
+            self.scope(actor, artifact_id),
+            event_id,
+            session_id,
+            include_message=include_message,
+        )
 
     def reply_to_feedback(
-        self, ctx: Ctx, artifact_id: str, event_id: int, claim: str, message: str, request_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        event_id: int,
+        claim: str,
+        message: str,
+        request_id: RequestID,
     ) -> dict[str, object]:
         """Reply in the request's original channel and acknowledge the claimed task atomically."""
         if not message.strip() or len(message) > 10000:
@@ -548,7 +1055,18 @@ class MultiplayerTools:
             self.get_presentation_outline,
             self.read_presentation_brief_file,
             self.get_slide,
+            self.get_slide_designs,
+            self.get_slide_design,
+            self.capture_slide_design,
+            self.get_element_alternatives,
+            self.get_element_alternative,
+            self.capture_element_alternative,
+            self.get_deleted_slides,
+            self.get_presentation_theme,
+            self.list_presentation_assets,
+            self.prepare_interactive_html,
             self.capture_slide,
+            self.capture_contact_sheet,
             self.capture_artifact,
             self.read_chat,
             self.read_chat_attachment,
@@ -561,7 +1079,19 @@ class MultiplayerTools:
             self.create_design_pack,
             self.write_design_file,
             self.revise_slide,
+            self.set_slide_activity,
             self.add_slide,
+            self.create_presentation,
+            self.reorder_slides,
+            self.publish_structure_proposal,
+            self.set_presentation_sections,
+            self.restore_slides,
+            self.publish_slide_designs,
+            self.publish_element_alternatives,
+            self.update_presentation_context,
+            self.append_presentation_context,
+            self.update_presentation_theme,
+            self.upload_presentation_asset,
             self.claim_feedback,
             self.reply_to_feedback,
             self.start_live_review,
@@ -571,3 +1101,4 @@ class MultiplayerTools:
                 server.add_tool(
                     remote_tool(cast(Callable[..., object], function)), annotations=annotations
                 )
+        server.add_tool(remote_tool(self.remove_slide), annotations=DESTRUCTIVE)

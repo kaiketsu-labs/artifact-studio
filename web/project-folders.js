@@ -24,7 +24,7 @@
     };
     const handlers = {
       dragstart(event) {
-        const card = event.target?.closest?.('.hub-card[data-drag-artifact]');
+        const card = event.target?.closest?.('[data-drag-artifact][draggable=true]');
         const id = card?.dataset.dragArtifact, artifact = getArtifacts().find(item => item.id === id);
         reset();
         if (busy || !safeId(id) || !artifact || !event.dataTransfer) return;
@@ -55,7 +55,7 @@
         finally { busy = false; }
       },
       dragend() {
-        content.querySelectorAll('.hub-card.is-dragging').forEach(card => card.classList.remove('is-dragging'));
+        content.querySelectorAll('[data-drag-artifact].is-dragging').forEach(card => card.classList.remove('is-dragging'));
         reset();
       },
     };

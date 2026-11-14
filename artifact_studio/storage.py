@@ -402,6 +402,11 @@ class Store:
     def read(self, deck_id: str) -> Deck:
         """Read the authoritative embedded document from index.html."""
         source = (self.folder(deck_id) / "index.html").read_text()
+        return self.parse_deck(source)
+
+    @staticmethod
+    def parse_deck(source: str) -> Deck:
+        """Decode the embedded deck from an already loaded HTML source."""
         match = DATA.search(source)
         if match is None:
             raise ValueError("This presentation has no Artifact Studio document yet.")
@@ -681,6 +686,8 @@ class Store:
             removed = {cast(str, row[0]) for row in db.execute("SELECT deck FROM archived_decks")}
         result: list[dict[str, str]] = []
         for file in sorted(self.root.glob("*/index.html")):
+            if file.parent.name.startswith("."):
+                continue
             if (file.parent.name in removed) != archived:
                 continue
             if 'id="deck-data"' not in file.read_text():
@@ -790,33 +797,34 @@ class Store:
                 patch = patch.model_copy(
                     update={"interactive_html": prepare_interactive(patch.interactive_html)}
                 )
-            _ = db.execute(
-                "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
-                (
-                    deck_id,
-                    slide_id,
-                    self.content_hash(deck_id, slide) if slide.revision == 1 else "",
-                ),
-            )
             changes = patch.model_dump(exclude_none=True)
             revised = Slide.model_validate(slide.model_dump() | changes)
-            if revised.notes != slide.notes:
-                revised.notes_revision = slide.notes_revision + 1
-            SlideMarkup().feed(revised.html)
-            if (
-                revised.html != slide.html
-                or revised.interactive_html != slide.interactive_html
-                or revised.title != slide.title
-                or revised.sources != slide.sources
-            ):
-                revised.revision = slide.revision + 1
-            capture_slide_version(db, deck_id, slide)
-            deck.slides[deck.slides.index(slide)] = revised
-            self.write(deck_id, deck)
-            if revised.revision != slide.revision:
-                capture_slide_version(
-                    db, deck_id, revised, saved_at=datetime.now(UTC).isoformat(), authored=True
+            if revised != slide:
+                if revised.notes != slide.notes:
+                    revised.notes_revision = slide.notes_revision + 1
+                SlideMarkup().feed(revised.html)
+                if (
+                    revised.html != slide.html
+                    or revised.interactive_html != slide.interactive_html
+                    or revised.title != slide.title
+                    or revised.sources != slide.sources
+                ):
+                    revised.revision = slide.revision + 1
+                _ = db.execute(
+                    "INSERT OR IGNORE INTO slide_views VALUES (?,?,?)",
+                    (
+                        deck_id,
+                        slide_id,
+                        self.content_hash(deck_id, slide) if slide.revision == 1 else "",
+                    ),
                 )
+                capture_slide_version(db, deck_id, slide)
+                deck.slides[deck.slides.index(slide)] = revised
+                self.write(deck_id, deck)
+                if revised.revision != slide.revision:
+                    capture_slide_version(
+                        db, deck_id, revised, saved_at=datetime.now(UTC).isoformat(), authored=True
+                    )
             result = self._write_view(db, deck_id, revised)
             _ = db.execute(
                 "INSERT INTO operations VALUES (?,?,?,?)",
@@ -1141,23 +1149,30 @@ class Store:
             self.write(deck_id, deck)
             return slide.notes_revision
 
-    def designs(self, *, include_archived: bool = False) -> list[DesignView]:
-        """Discover reusable designs and validate the files needed for deck creation."""
+    def designs(
+        self, *, include_archived: bool = False, validate_sources: bool = True
+    ) -> list[DesignView]:
+        """Discover reusable designs, optionally deferring validation of their source files."""
         result: list[DesignView] = []
         with self.connect() as db:
             archived = {str(row[0]) for row in db.execute("SELECT folder FROM design_archives")}
         for manifest in sorted(self.root.glob("*/design.json")):
+            if manifest.parent.name.startswith("."):
+                continue
             if not include_archived and manifest.parent.name in archived:
                 continue
             folder = self.folder(manifest.parent.name)
             design = DesignManifest.model_validate_json(manifest.read_text())
             if any(existing.id == design.id for existing in result):
                 raise ValueError(f"Duplicate design ID: {design.id}. Use a unique design ID.")
-            for name in DESIGN_FILES:
-                if not (folder / name).exists():
-                    raise ValueError(f"Design {design.name} is missing {name}.")
-            if self.read(folder.name).design_id != design.id:
-                raise ValueError(f"Design ID in {folder.name}/index.html must match design.json.")
+            if validate_sources:
+                for name in DESIGN_FILES:
+                    if not (folder / name).exists():
+                        raise ValueError(f"Design {design.name} is missing {name}.")
+                if self.read(folder.name).design_id != design.id:
+                    raise ValueError(
+                        f"Design ID in {folder.name}/index.html must match design.json."
+                    )
             result.append(DesignView(**design.model_dump(), folder_id=folder.name))
         return result
 
@@ -1187,9 +1202,13 @@ class Store:
             )
         return design_id
 
-    def design(self, design_id: str, *, include_archived: bool = True) -> DesignView:
+    def design(
+        self, design_id: str, *, include_archived: bool = True, validate_sources: bool = True
+    ) -> DesignView:
         """Resolve an explicitly selected design without hidden session state."""
-        for design in self.designs(include_archived=include_archived):
+        for design in self.designs(
+            include_archived=include_archived, validate_sources=validate_sources
+        ):
             if design.id == design_id:
                 return design
         raise ValueError(f"Unknown design '{design_id}'. Call list_designs to choose a design.")

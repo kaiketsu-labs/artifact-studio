@@ -2,7 +2,9 @@
 
 import re
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
+from .hosted_policy import deck_asset_path
 from .projects import AssetEmbedder, EmbeddedMarkup
 from .storage import Store
 
@@ -82,10 +84,11 @@ class InteractiveMarkup(EmbeddedMarkup):
 class InteractiveAssets(AssetEmbedder):
     """Bound local resource size before producing an MCP-returnable document."""
 
-    def __init__(self, folder: Path) -> None:
+    def __init__(self, folder: Path, *, scoped: bool = False) -> None:
         """Track repeated data-URL expansion as well as distinct local files."""
         super().__init__(folder)
         self.expanded = 0
+        self.scoped = scoped
         self.css_limit = MAX_DOCUMENT
 
     def asset(self, url: str, directory: Path | None = None) -> str:
@@ -98,17 +101,29 @@ class InteractiveAssets(AssetEmbedder):
 
     def local_path(self, url: str, directory: Path | None = None) -> Path:
         """Keep reads inside the deck and avoid unexpectedly large resource allocations."""
+        if self.scoped:
+            parsed = urlsplit(url)
+            relative = (directory or self.folder) / unquote(parsed.path)
+            if parsed.scheme or parsed.netloc or not relative.is_relative_to(self.folder):
+                raise ValueError("Use a shared deck asset.")
+            _ = deck_asset_path(
+                self.folder, relative.relative_to(self.folder).as_posix(), embedded=True
+            )
         path = super().local_path(url, directory)
         if path.stat().st_size > MAX_DOCUMENT:
             raise ValueError("Resize interactive dependencies to fit the 2 MB document limit.")
         return path
 
 
-def prepare_document(store: Store, deck_id: str, html: str, *, include_theme: bool = True) -> str:
+def prepare_document(
+    store: Store, deck_id: str, html: str, *, include_theme: bool = True, scoped: bool = False
+) -> str:
     """Inline deck-local dependencies into a custom document without executing its code."""
     if len(html) > MAX_DOCUMENT:
         raise ValueError("Interactive documents must fit the 2 MB source limit.")
-    embedder = InteractiveAssets(store.folder(deck_id))
+    if scoped and (store.root / deck_id).is_symlink():
+        raise ValueError("Shared presentations require an unlinked source file.")
+    embedder = InteractiveAssets(store.folder(deck_id), scoped=scoped)
     parser = InteractiveMarkup(embedder)
     parser.feed(html)
     parser.close()

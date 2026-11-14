@@ -60,12 +60,13 @@
       const body=checks.querySelector('div');body.replaceChildren();
       const counts=security?.counts;
       const summary=checks.querySelector('summary');
-      summary.textContent=counts?`Server checks · ${security.summary==='review'?'Review needed':'Configuration'} · ${counts.warnings} warning${counts.warnings===1?'':'s'}, ${counts.unverified} unverified`:'Server checks · unavailable';
+      summary.textContent=counts?`Server checks · ${security.summary==='review'?'Review needed':'Configuration'} · ${counts.warnings} warning${counts.warnings===1?'':'s'}, ${counts.unverified} external check${counts.unverified===1?'':'s'}`:'Server checks · unavailable';
       if(!Array.isArray(security?.checks)){body.textContent='Server checks are unavailable. Ask your server administrator to review the deployment configuration.';return;}
+      const explanation=doc.createElement('p');explanation.textContent='External checks cover settings your server administrator verifies outside Studio.';body.append(explanation);
       const order={warning:0,unverified:1,pass:2};
       for(const check of [...security.checks].sort((a,b)=>(order[a.status]??1)-(order[b.status]??1))){
         const item=doc.createElement('details');item.className='app-security-item';
-        const title=doc.createElement('summary');title.textContent=`${check.status==='pass'?'Configured':check.status==='warning'?'Warning':'Unverified'}: ${check.title}`;
+        const title=doc.createElement('summary');title.textContent=`${check.status==='pass'?'Configured':check.status==='warning'?'Warning':'External check'}: ${check.title}`;
         const detail=doc.createElement('p');detail.textContent=check.detail;item.append(title,detail);body.append(item);
       }
       const guide=doc.createElement('a');guide.href='https://github.com/kaiketsu-labs/artifact-studio/blob/main/docs/HOSTED.md';guide.target='_blank';guide.rel='noopener noreferrer';guide.textContent='Hosted setup guide';body.append(guide);
@@ -92,14 +93,13 @@
     void root.ArtifactSession.get().then(session=>{
       if(sessionExpired)return;
       const hosted=session.mode==='hosted';
+      if(hosted)doc.documentElement.setAttribute('data-hosted-workspace','');
       checks.hidden=!hosted||(session.scoped_editor&&!session.security);
       if(!checks.hidden)renderSecurity(session.security);
       identity.replaceChildren();
       const heading=doc.createElement('strong');heading.textContent=hosted?'Hosted workspace':'Local workspace';identity.append(heading);
       const url=doc.createElement('span');url.className='app-session-url';url.textContent=session.public_url;identity.append(url);
-      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Use Collaborate to share specific work with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
-      doc.querySelectorAll('[data-hosted-status]').forEach(node=>{node.hidden=!hosted;});
-      doc.querySelectorAll('[data-session-mode]').forEach(node=>{node.hidden=hosted;});
+      if(hosted){const metadata=doc.createElement('span');metadata.textContent=[session.auth_provider,session.email].filter(Boolean).join(' · ');identity.append(metadata);const shared=doc.createElement('small');shared.textContent=session.collaboration_url?'Share individual presentations and projects with people and agents. Files are stored on the server.':'All members share this workspace. Files are stored on the server.';identity.append(shared);}
       doc.querySelectorAll('[data-session-identity]').forEach(node=>{node.textContent=hosted?`Hosted workspace · ${session.public_url}`:`Local workspace · ${session.public_url}`;});
       doc.querySelectorAll('[data-hosted-agent-help]').forEach(node=>{node.hidden=!hosted||session.auth_provider!=='cloudflare';});
       if(hosted){
@@ -119,6 +119,7 @@
         }
       }
       root.artifactStudioSession=session;
+      mountServerVersion();
     }).catch(error=>{
       if(sessionExpired)return;
       identity.textContent=error.expired?'Your session has expired. Sign in again to continue.':'Workspace connection information unavailable.';
@@ -128,17 +129,27 @@
     const nightly=dialog.querySelector('input'),build=dialog.querySelector('.app-installed-build');
     const triggers=[doc.getElementById('workspace-menu-button'),doc.getElementById('hub-tools-button')].filter(Boolean);
     let opener=null,timer=null,reading=false,checking=false,saving=false,sequence=0,lastInfo=null;
-    const workspaceButton=doc.querySelector('[data-session-mode]');
+    const serverVersion=doc.createElement('button');
+    serverVersion.type='button';
+    serverVersion.dataset.serverVersion='';
+    serverVersion.setAttribute('aria-haspopup','dialog');
+    function mountServerVersion(){
+      const slot=doc.querySelector('[data-server-version-slot]');
+      if(!slot||!lastInfo)return;
+      if(serverVersion.parentElement!==slot)slot.append(serverVersion);
+      slot.hidden=false;
+    }
     function showAbout(trigger){
       opener=trigger;
       dialog.showModal();
       void refresh();
       void workspaceList().catch(()=>{workspaces.hidden=true;});
     }
-    root.StudioAbout={open:showAbout};
-    workspaceButton?.addEventListener('click',()=>showAbout(workspaceButton));
+    root.StudioAbout={open:showAbout,mountServerVersion};
+    serverVersion.addEventListener('click',()=>showAbout(serverVersion));
     const mark='<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="10" cy="10" r="8"/><path d="M10 5v9m-3-3 3 3 3-3"/></svg>';
     for(const entry of entries){
+      if(!entry.querySelector('.ui-icon'))entry.insertAdjacentHTML('afterbegin',root.SlideIcons.svg('info'));
       const icon=doc.createElement('span');icon.className='app-update-icon';icon.hidden=true;icon.innerHTML=mark;entry.append(icon);
       entry.addEventListener('click',event=>{
         event.preventDefault();
@@ -163,13 +174,17 @@
       lastInfo=info;nightly.checked=info.include_nightly===true;
       const label=`Version ${info.version}`;
       version.textContent=label;
-      for(const node of doc.querySelectorAll('[data-app-version]'))node.textContent=label;
+      const revision=/^[a-f0-9]{7,64}$/.test(info.build_revision||'')?info.build_revision.slice(0,7):'';
+      serverVersion.textContent=`v${info.version}${revision?` · ${revision}`:''}`;
+      serverVersion.setAttribute('aria-label',`${label}${revision?`, build ${revision}`:''}`);
+      mountServerVersion();
       const nightlyTag=/^nightly-\d{8}\.[1-9]\d{0,11}$/;
       const available=info.update_available===true&&(/^v\d+\.\d+\.\d+$/.test(info.latest_tag||'')||(info.include_nightly===true&&nightlyTag.test(info.latest_tag||'')));
-      build.hidden=!nightlyTag.test(info.installed_tag||'');build.textContent=build.hidden?'':`Installed build: ${info.installed_tag}`;
+      const installedBuild=nightlyTag.test(info.installed_tag||'')?info.installed_tag:revision;
+      build.hidden=!installedBuild;build.textContent=installedBuild?`Installed build: ${installedBuild}`:'';
       for(const icon of doc.querySelectorAll('.app-update-icon')){icon.hidden=!available;icon.title=available?`${info.latest_tag} available`:'';}
       for(const trigger of triggers){trigger.toggleAttribute('data-app-update',available);trigger.title=available?`Menu — ${info.latest_tag} available`:'Menu';}
-      for(const entry of entries)entry.title=available?`${label} — ${info.latest_tag} available`:label;
+      for(const entry of entries)entry.title=available?`${info.latest_tag} available`:'';
       checking=info.update_check==='checking';
       status.textContent=available?`Update available: ${info.latest_tag}`:checking?'Checking for updates…':info.update_check==='unavailable'?'Update information is unavailable.':info.update_check==='disabled'?'Automatic update checks are off.':info.latest_tag?'You’re up to date.':`No ${info.include_nightly?'eligible':'stable'} release is available yet.`;
       help.hidden=!available;release.hidden=!available;
@@ -177,7 +192,7 @@
       for(const trigger of triggers){trigger.setAttribute('aria-describedby','app-update-description');}
       let description=doc.getElementById('app-update-description');
       if(!description){description=doc.createElement('span');description.id='app-update-description';description.className='app-version-sr';(doc.querySelector('header')||dialog).append(description);}
-      description.textContent=available?`${info.latest_tag} update available`:label;
+      description.textContent=available?`${info.latest_tag} update available`:'';
     }
     function schedule(){clearTimeout(timer);if(!doc.hidden&&!sessionExpired)timer=setTimeout(()=>void refresh(),checking?1500:60000);}
     async function refresh(){

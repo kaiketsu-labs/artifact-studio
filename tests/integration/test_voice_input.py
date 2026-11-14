@@ -488,6 +488,9 @@ def test_unsupported_browser_explains_dictation_and_keeps_typing_available(
     expect(mic).to_have_attribute(
         "title", re.compile("unavailable|unsupported|not supported", re.I)
     )
+    mic.focus()
+    expect(mic).to_be_focused()
+    expect(mic.locator("..").get_by_role("status")).to_contain_text("keyboard dictation")
     field = page.get_by_label("Your feedback", exact=True)
     field.fill("Typed feedback still works.")
     field.press("Enter")

@@ -9,7 +9,7 @@ from mcp.types import CallToolResult, ImageContent
 from playwright.sync_api import Page, Route, expect
 
 from artifact_studio.models import SlidePatch
-from artifact_studio.slide_designs import DesignCapture, DesignSet
+from artifact_studio.slide_designs import DesignCapture, DesignSet, SlideDesigns
 from artifact_studio.storage import digest
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp, markup
 
@@ -225,3 +225,17 @@ def test_frozen_design_capture_through_registered_mcp(live_app: RunningApp) -> N
     assert manifest.design_id == design_id and manifest.source_hash == group.options[1].source_hash
     assert Path(manifest.path).read_bytes() == base64.b64decode(image.data)
     assert live_app.store.read(DECK_ID) == before
+
+
+def test_dismiss_suggestions_preserves_history_and_undo(live_app: RunningApp, page: Page) -> None:
+    """Dismissal retains the source and allows the pending set to be restored."""
+    before = live_app.store.locate(live_app.store.read(DECK_ID), "cover")
+    group = publish(live_app)
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    page.get_by_role("button", name="Dismiss suggestions", exact=True).click()
+    expect(page.locator("[data-sd-badge]")).to_have_count(0)
+    assert live_app.store.locate(live_app.store.read(DECK_ID), "cover") == before
+    assert SlideDesigns(live_app.store).list(DECK_ID, "cover").sets[0].id == group["id"]
+    page.locator("#toast").get_by_role("button", name="Undo", exact=True).click()
+    expect(page.locator("[data-sd-badge]")).to_have_count(1)

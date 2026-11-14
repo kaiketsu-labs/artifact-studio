@@ -78,10 +78,17 @@ def test_shared_recents_and_connected_work_are_direct_and_keyboard_accessible(
     recent.get_by_role("menuitem", name="Product strategy", exact=True).click()
     expect(page.get_by_role("heading", name="Product strategy", exact=True)).to_be_visible()
     expect(menu).not_to_be_visible()
+    page.add_init_script("""() => {
+      const fetch = window.fetch;
+      window.fetch = (input, init) => String(input) === '/api/navigation'
+        ? new Promise(resolve => setTimeout(resolve, 350)).then(() => fetch(input, init))
+        : fetch(input, init);
+    }""")
     page.reload()
     button.focus()
     page.keyboard.press("ArrowDown")
-    expect(menu.get_by_role("menuitem").first).to_be_focused()
+    first = menu.get_by_role("menuitem", name="CI workflow, Team launch, Codex connected")
+    expect(first).to_be_focused()
     page.keyboard.press("Escape")
     expect(button).to_be_focused()
     page.locator("#appearance-button").click()
@@ -170,7 +177,15 @@ def test_touch_recents_can_close_without_dismissing_the_parent(
         expect(menu).to_be_visible()
         trigger.tap()
         expect(recent).to_be_visible()
-        page.touchscreen.tap(5, 550)
+        outside = page.evaluate("""() => {
+            for (const y of [4, 24, innerHeight - 4]) {
+                const hit = document.elementFromPoint(4, y);
+                if (hit && !hit.closest('iframe,button,a,:popover-open')) return y;
+            }
+            return null;
+        }""")
+        assert isinstance(outside, int), "Expected a tap target outside both menus"
+        page.touchscreen.tap(4, outside)
         expect(menu).not_to_be_visible()
         expect(recent).not_to_be_visible()
     finally:

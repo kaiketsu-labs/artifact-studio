@@ -9,10 +9,10 @@
 .discussion .agent-panel{flex-shrink:0;max-height:24vh;overflow:auto;margin-bottom:8px;padding:8px 2px;border:0;border-bottom:1px solid var(--line,#e4e9f1);border-radius:0;background:transparent;font-size:12px}
 .discussion>#feedback-list{min-height:60px;max-height:none;flex:1 1 180px;overflow:auto;overscroll-behavior:contain;padding:10px 2px;scroll-padding:10px;display:flex;flex-direction:column;gap:12px}
 .discussion .comment{flex-shrink:0;align-self:flex-start;max-width:94%;padding:9px 11px;margin:0;border:1px solid var(--line,#e5eaf2);background:var(--surface,#fff);border-radius:10px 10px 10px 3px;box-shadow:none}
-.discussion .comment.user{align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:10px 10px 3px 10px}
+.discussion .comment.user:not([data-collaborator]){align-self:flex-end;background:#eaf1fc;border-color:#dfe9f8;border-radius:10px 10px 3px 10px}
 .discussion .comment.agent{padding-left:12px;border-left:1px solid #e5eaf2}
 .discussion .comment-header{gap:18px;margin-bottom:6px;font-size:11px;color:var(--subtle,#7a899e)}
-.discussion .comment.user .comment-header{flex-direction:row-reverse}
+.discussion .comment.user:not([data-collaborator]) .comment-header{flex-direction:row-reverse}
 .chat-sender{display:inline-flex;align-items:center;gap:6px}
 .chat-reply{display:inline-flex;color:var(--subtle,#718096)}
 .chat-reply .ui-icon{width:14px;height:14px}
@@ -86,3 +86,8 @@
 @media(min-width:1600px){.discussion{padding:23px 18px 16px}.discussion .comment p,.chat-markdown{font-size:13px}}
 @media(max-width:900px){.discussion{min-height:0;overflow:hidden}.discussion>#feedback-list{min-height:0;flex:1 1 auto;overflow:auto}.discussion .agent-panel{max-height:180px}.discussion .comment{max-width:96%}}
 @media(max-width:600px){.discussion{padding:15px 12px}.chat-file-name{max-width:135px}.discussion .comment{max-width:96%}}
+.mention-menu{position:absolute;bottom:100%;left:0;right:0;z-index:20;max-height:220px;overflow:auto;padding:4px;background:var(--surface,#fff);border:1px solid var(--line,#d9e1ed);border-radius:8px;box-shadow:0 6px 20px #0002}
+.discussion .feedback-compose:has(.mention-menu:not([hidden])){overflow:visible}
+.mention-menu[hidden]{display:none}.mention-menu button{display:block;width:100%;padding:8px;text-align:left;border:0;background:transparent;color:inherit}.mention-menu button[aria-selected="true"],.mention-menu button:hover{background:var(--hover,#e8effb)}
+.comment.mentioned{outline:2px solid var(--blue,#426ca8);outline-offset:2px}
+#unread-mentions{font-size:12px;border-radius:999px}

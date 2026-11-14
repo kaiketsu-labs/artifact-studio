@@ -53,6 +53,37 @@ def test_compact_writes_and_retries_do_not_load_discussion(
     assert service.add_slide(TEMPLATE_ID, slide, request_id="compact-add") == added
 
 
+def test_equivalent_scoped_html_returns_receipt_without_writing_deck(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Recognize equivalent generated CSS scopes before writing source or review history."""
+    source = '<article class="slide"><style>h1{color:blue}</style><h1>Plan</h1></article>'
+    slide = store.add_slide(TEMPLATE_ID, Slide(id="styled", title="Styled", html=source))
+    before = service.get_slide(TEMPLATE_ID, slide.id)
+    store.approve(TEMPLATE_ID, slide.id, before.content_hash, True)
+
+    def forbidden_write(_deck_id: str, _deck: Deck) -> None:
+        raise AssertionError("Equivalent slide source must not rewrite the deck")
+
+    monkeypatch.setattr(store, "write", forbidden_write)
+    for request_id in ("equivalent-style", "equivalent-style"):
+        receipt = service.revise_slide(
+            TEMPLATE_ID, slide.id, before.expected_hash, request_id, SlidePatch(html=source)
+        )
+        assert receipt.approved and receipt.revision == before.revision
+        assert receipt.expected_hash == before.expected_hash
+        assert receipt.content_hash == before.content_hash
+
+
+def test_local_agent_can_list_deleted_slide_ids(store: Store) -> None:
+    """Expose the same recoverable deletion records to local agents and browser editors."""
+    before = service.get_slide(TEMPLATE_ID, "cover")
+    _ = service.remove_slide(TEMPLATE_ID, "cover", before.expected_hash)
+    deletions = service.get_deleted_slides(TEMPLATE_ID)
+    assert len(deletions) == 1
+    assert deletions[0]["slides"] == [{"id": "cover", "title": before.title}]
+
+
 @pytest.mark.parametrize("drift", ["theme", "asset"])
 def test_revision_replay_retains_visual_baseline_and_original_status(
     store: Store, drift: str
@@ -200,14 +231,12 @@ def test_unrecorded_noop_interruption_can_only_start_a_fresh_visual_baseline(
     """Unchanged source cannot distinguish a never-received call from an unrecorded no-op."""
     before = service.get_slide(TEMPLATE_ID, "cover")
     patch = SlidePatch(title=before.title)
-    original_write = store.write
     with monkeypatch.context() as scoped:
 
-        def interrupted_write(deck_id: str, deck: Deck) -> None:
-            original_write(deck_id, deck)
+        def interrupted_receipt(*_args: object) -> SlideView:
             raise OSError("Interrupted before receipt commit")
 
-        scoped.setattr(store, "write", interrupted_write)
+        scoped.setattr(store, "_write_view", interrupted_receipt)
         with pytest.raises(OSError, match="Interrupted"):
             _ = service.revise_slide(
                 TEMPLATE_ID, "cover", before.expected_hash, "interrupted-noop", patch

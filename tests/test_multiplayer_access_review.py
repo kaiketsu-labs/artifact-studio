@@ -91,6 +91,26 @@ def test_revoke_removes_agent_scope(setup: Fixture) -> None:
         sharing.require(agent, scope)
 
 
+def test_invitation_without_expiry_stays_email_bound_and_revocable(setup: Fixture) -> None:
+    """Permanent links remain one-use and are invalid after cancellation."""
+    sharing, owner, alice, bob, _, one, sibling = setup
+    scope = Scope("default", "artifact", one)
+    link = sharing.invite(owner, scope, "alice@example.test", "edit", no_expiry=True)
+    assert sharing.access(owner, scope)["invitations"] == [
+        {"id": link["id"], "email": "alice@example.test", "role": "edit", "expires": 0}
+    ]
+    with pytest.raises(AccessDenied):
+        sharing.accept(bob, link["token"])
+    sharing.revoke(owner, scope, link["id"])
+    with pytest.raises(AccessDenied):
+        sharing.accept(alice, link["token"])
+    new_link = sharing.invite(owner, scope, "alice@example.test", "edit", no_expiry=True)
+    assert sharing.accept(alice, new_link["token"]) == scope
+    assert sharing.level(alice, Scope("default", "artifact", sibling)) == 0
+    with pytest.raises(AccessDenied):
+        sharing.accept(alice, new_link["token"])
+
+
 def test_same_ids_isolated(setup: Fixture) -> None:
     sharing, owner, alice, _, project, one, _ = setup
     other = sharing.create_workspace(owner, "Fictional second")

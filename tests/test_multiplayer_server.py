@@ -2,6 +2,7 @@
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 from urllib.parse import urlsplit
@@ -50,6 +51,79 @@ def agent(client: httpx.Client, artifact: str) -> str:
     )
     assert response.status_code == 200, response.text
     return cast(str, response.json()["token"])
+
+
+def test_deck_presence_checks_current_access_and_tab(tmp_path: Path) -> None:
+    """Presence follows the current slide and vanishes when a grant is revoked."""
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/presence"
+        owner_tab = {"tab": "a" * 32, "slide_id": "cover"}
+        first_tab = {"tab": "b" * 32, "slide_id": "cover"}
+        second_tab = {"tab": "c" * 32, "slide_id": "next"}
+        assert owner.post(endpoint, json=owner_tab).json() == []
+        assert bob.post(endpoint, json=first_tab).status_code == 404
+        assert alice.post(endpoint, json=first_tab).json() == [
+            {"name": "Owner", "slide_id": "cover"}
+        ]
+        assert alice.post(endpoint, json=second_tab).status_code == 200
+        assert alice.post(endpoint, json={**first_tab, "slide_id": None}).status_code == 200
+        assert owner.post(endpoint, json=owner_tab).json() == [
+            {"name": "Alice", "slide_id": "next"}
+        ]
+        scope = {"kind": "artifact", "resource": app.deck_id}
+        grants = owner.get("/api/workspaces/default/access", params=scope).json()["grants"]
+        grant_id = grants[0]["id"]
+        assert owner.post(
+            f"/api/workspaces/default/access/{grant_id}/revoke", json=scope
+        ).is_success
+        assert owner.post(endpoint, json=owner_tab).json() == []
+        assert alice.post(endpoint, json=second_tab).status_code == 404
+
+
+def test_five_identities_share_only_granted_deck_access(tmp_path: Path) -> None:
+    """Concurrent invitees retain their own deck and discussion permissions."""
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+    ):
+        roles = {"alice": "edit", "bob": "comment", "carol": "view"}
+        tokens = {name: grant(owner, name, app.deck_id, role=role) for name, role in roles.items()}
+        deck = f"/api/decks/{app.deck_id}"
+        chat = f"/api/workspaces/default/artifacts/{app.deck_id}/chat"
+
+        def visit(name: str) -> tuple[int, int, int]:
+            """Try the same read and discussion endpoints with one identity."""
+            with human(app, name) as client:
+                if name in tokens:
+                    accept(client, tokens[name])
+                response = client.post(chat, json={"message": name, "request_id": "test-" + name})
+                return (
+                    client.get(deck).status_code,
+                    response.status_code,
+                    client.get(f"/api/artifacts/{app.sibling_id}").status_code,
+                )
+
+        people = ("owner", "alice", "bob", "carol", "dana")
+        with ThreadPoolExecutor(max_workers=len(people)) as pool:
+            results = dict(zip(people, pool.map(visit, people), strict=True))
+        assert results == {
+            "owner": (200, 200, 200),
+            "alice": (200, 200, 404),
+            "bob": (200, 200, 404),
+            "carol": (200, 404, 404),
+            "dana": (404, 404, 404),
+        }
+        assert {message["message"] for message in owner.get(chat).json()} == {
+            "owner",
+            "alice",
+            "bob",
+        }
 
 
 def test_opened_revisions_are_private_and_ignore_stale_hashes(tmp_path: Path) -> None:

@@ -1,8 +1,11 @@
 """Tests for project hooks and review event handling."""
 
 import json
+import re
 import shlex
+from email.message import Message
 from pathlib import Path
+from urllib.error import HTTPError
 
 import pytest
 
@@ -125,6 +128,40 @@ def test_configure_global(
     assert set(json.loads(target.read_text())["hooks"]) >= {"PostToolUse", "Stop", "SessionEnd"}
 
 
+def test_configure_passive_claude_mode(tmp_path: Path) -> None:
+    """Replace live Claude hooks with a background check and preserve unrelated hooks."""
+    url = "https://studio.example.test"
+    target = client.configure("claude-code", tmp_path, url, "artifact-studio", False)
+    original = json.loads(target.read_text())
+    unrelated = {"type": "command", "command": "echo keep-this", "timeout": 1}
+    original["hooks"]["Stop"][0]["hooks"].append(unrelated)
+    target.write_text(json.dumps(original))
+
+    _ = client.configure("claude-code", tmp_path, url, "artifact-studio", False, passive=True)
+    configured = json.loads(target.read_text())
+    assert set(configured["hooks"]) == {"PostToolUse", "Stop"}
+    assert configured["hooks"]["Stop"] == [{"hooks": [unrelated]}]
+    group = configured["hooks"]["PostToolUse"][0]
+    matcher = re.compile(group["matcher"])
+    for tool in ("get_working_context", "revise_slide", "publish_element_alternatives"):
+        assert matcher.fullmatch(f"mcp__artifact_studio__{tool}")
+    assert not matcher.fullmatch("mcp__artifact_studio__read_feedback")
+    assert len(group["hooks"]) == 1
+    handler = group["hooks"][0]
+    assert handler["async"] is True
+    assert "asyncRewake" not in handler
+    assert shlex.split(handler["command"])[-2:] == ["--claude-mode", "passive"]
+
+    before = target.read_text()
+    _ = client.configure("claude-code", tmp_path, url, "artifact-studio", False, passive=True)
+    assert target.read_text() == before
+    _ = client.configure("claude-code", tmp_path, url, "artifact-studio", False)
+    restored = json.loads(target.read_text())
+    assert restored["hooks"]["PostToolUse"] == original["hooks"]["PostToolUse"]
+    assert restored["hooks"]["Stop"][0] == {"hooks": [unrelated]}
+    assert len(restored["hooks"]["Stop"]) == 2
+
+
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
 def test_migrate_cache_dependent_hooks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harness: str
@@ -239,6 +276,33 @@ def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: st
         harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     )
     assert result == {"decision": "block", "reason": reason}
+
+
+@pytest.mark.parametrize(("status", "retries"), [(429, True), (503, True), (401, False)])
+def test_stop_retries_transient_failures_only(
+    monkeypatch: pytest.MonkeyPatch, status: int, retries: bool
+) -> None:
+    """Keep waiting through transient failures without retrying rejected credentials."""
+    calls = 0
+
+    def poll(url: str, _message: dict[str, object], _timeout: int) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise HTTPError(url, status, "Fixture response", Message(), None)
+        return {"listening": True, "feedback_available": True, "reason": "New feedback"}
+
+    monkeypatch.setattr(client, "_post", poll)
+
+    def skip_sleep(_seconds: float) -> None:
+        """Avoid waiting during the retry test."""
+
+    monkeypatch.setattr(client.time, "sleep", skip_sleep)
+    result = client.handle_event(
+        "claude-code", "Stop", "http://localhost", "artifact-studio", {"session_id": "fixture"}
+    )
+    assert calls == (2 if retries else 1)
+    assert result == ({"decision": "block", "reason": "New feedback"} if retries else {})
 
 
 def test_conflicting_reviewer_is_reported(monkeypatch: pytest.MonkeyPatch) -> None:

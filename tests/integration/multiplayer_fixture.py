@@ -47,6 +47,7 @@ def running_multiplayer_app(
     *,
     unified: bool = False,
     personal_workspace_emails: tuple[str, ...] = (),
+    startup_timeout: float = 10,
 ) -> Generator[MultiplayerApp]:
     root.mkdir(parents=True, exist_ok=True)
     collection, database = root / "collection", root / "state/review.sqlite3"
@@ -76,7 +77,7 @@ from artifact_studio.storage import Store
 class FixtureProvider:
     async def authenticate(self, headers):
         name = headers.get("x-fixture-auth", "")
-        if name not in {"owner", "alice", "bob"}:
+        if name not in {"owner", "alice", "bob", "carol", "dana"}:
             raise AuthenticationError()
         return Principal(name, name + "@example.test")
 root = Path(sys.argv[1])
@@ -130,7 +131,8 @@ uvicorn.run(app, host="127.0.0.1",
             stderr=subprocess.STDOUT,
         )
         try:
-            for _ in range(100):
+            deadline = time.monotonic() + startup_timeout
+            while time.monotonic() < deadline:
                 if process.poll() is not None:
                     raise RuntimeError(f"Multiplayer server exited: {logs.read_text()}")
                 url = bound_server_url(logs)

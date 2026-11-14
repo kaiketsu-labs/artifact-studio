@@ -24,7 +24,7 @@ from .slide_designs import (
 )
 from .storage import ConflictError, SlideMarkup, Store, digest
 from .version_history import capture_slide_version
-from .visuals import CaptureOptions, Snapshot, VisualResult, snapshot
+from .visuals import CaptureOptions, ScopedDeckEmbedder, Snapshot, VisualResult, snapshot
 
 ElementKind = Literal["headline", "text", "graphic"]
 VOID = {
@@ -412,8 +412,10 @@ def recover_element_decisions(store: Store, db: sqlite3.Connection, deck_id: str
 class ElementAlternatives:
     """Publish scoped proposals; only the human API can choose, keep or undo them."""
 
-    def __init__(self, store: Store) -> None:
+    def __init__(self, store: Store, *, scoped: bool = False) -> None:
+        """Use the deck asset boundary when serving a hosted collaborator."""
         self.store = store
+        self.scoped = scoped
 
     @staticmethod
     def _option(row: sqlite3.Row, deck_id: str, slide_id: str, context_hash: str) -> ElementOption:
@@ -462,6 +464,9 @@ class ElementAlternatives:
                 candidate,
                 next(i + 1 for i, slide in enumerate(deck.slides) if slide.id == slide_id),
                 CaptureOptions(reduced_motion=True),
+                scoped_embedder=ScopedDeckEmbedder(self.store, deck_id, embedded=True)
+                if self.scoped
+                else None,
             )
             encoded = frozen.model_dump_json()
             total += len(encoded.encode())

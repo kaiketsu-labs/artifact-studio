@@ -84,7 +84,9 @@ Right-click a library card or related-artifact row for its open/view, conversati
 
 The sidebar’s **Designs** opens registered design packs and their examples, with the workspace default marked. They are excluded from **All artifacts** and project counts. Presentations created from a design remain normal artifacts. Classification uses each pack’s `design.json`; files and existing links stay in place.
 
-In **All artifacts**, project and folder overviews, use the sort control beside the format filters: **Name** (natural A–Z), **Last changed** (newest content first), **Created** (newest first), or **File type** (format groups with names A–Z inside each group). The arrow reverses the order. Search and format filters keep the selected order; one setting is shared across these overviews and remembered in this browser. Sorting does not move files or reorder projects. Legacy presentation dates use available history and filesystem timestamps.
+In **All artifacts**, project and folder overviews, the buttons next to Sort switch between **Grid view** and **List view**. List view shows compact rows with the name, kind, project and last modified date. Open an artifact by its name, star it with the star button, or use its **…** menu. Studio remembers your view in this browser.
+
+Sort by **Name** (natural A–Z), **Last changed** (newest content first), **Created** (newest first), or **File type**. File type groups cards in Grid view and sorts rows by kind in List view, with names A–Z within each format. The arrow reverses the order. Search and format filters keep the selected order, and Studio remembers it across overviews. Legacy presentation dates use available history and filesystem timestamps.
 
 ### Adaptive viewers
 
@@ -115,7 +117,7 @@ For multiple selected slide objects, the menu offers **Delete selection**, align
 
 Drag from empty space on a slide, or in an HTML artifact with **Select** enabled, to enclose multiple objects. Hold **Shift, Cmd or Ctrl** to add objects; **Escape** cancels the drag. Right-click selected objects for **Save as image…** to download a transparent PNG. Right-click an image for its original file as well. Export uses the displayed version and local edit preview without submitting feedback or saving edits. Local images and canvas pixels are supported; unavailable external resources and nested frames are excluded. PNG export requires the local Chromium renderer used for visual review.
 
-Right-click one slide in the sidebar or slide sorter and choose **Copy → Copy as image** to copy its saved artwork as a full-resolution PNG. **Copy slide link** is in the same submenu. **Organize** groups movement, sections and selection; review, presentation and visibility commands remain directly accessible, with Delete separated at the bottom. Paste copied artwork into another app, including PowerPoint. Notes, feedback and editor controls are excluded, and unsent drafts remain intact. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost; if the slide changed, refresh before copying again.
+Right-click one slide in the sidebar or slide sorter and choose **Copy → Copy as image** to copy its saved artwork as a full-resolution PNG. **Copy slide link** is in the same submenu. Select one or more thumbnails and choose **Export → HTML** or **Export → PDF** to download only those saved slides, including selected hidden slides, in presentation order. Notes and review chat are excluded. **Organize** groups movement, sections and selection; review, presentation and visibility commands remain directly accessible, with Delete separated at the bottom. Paste copied artwork into another app, including PowerPoint. Notes, feedback and editor controls are excluded, and unsent drafts remain intact. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost; if the slide changed, refresh before copying again.
 
 ![Copy a slide as an image from its sidebar menu](assets/slide-copy-image.png)
 
@@ -259,6 +261,13 @@ web About dialog opts into preview releases.
 For container updates, follow the Docker guide. [Update with Docker](DOCKER.md#update-and-build-checks)
 
 ## Troubleshooting
+
+Select **Report an issue** to expand the report form in the bottom-right corner
+and draft a public GitHub issue. Capture the Studio tab or browser window through your browser’s picker,
+choose an image file, or paste a screenshot into Studio. Review the image in
+Studio before opening the draft. Studio copies it when your browser permits
+clipboard access. Paste it into the GitHub issue body, or use **Save screenshot**
+and attach the file in GitHub.
 
 | Symptom | Check |
 | --- | --- |

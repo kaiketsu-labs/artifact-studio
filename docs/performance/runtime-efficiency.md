@@ -31,6 +31,13 @@ A separate [17-phase browser/server session](runtime-session-results.md) exercis
 
 The New presentation dialog also skips hidden-page polling, prevents overlapping refreshes and removes design previews on close. An epoch guard prevents a late response from recreating closed previews. Draft text, attachments and design-reference flows remain intact. Visibility guards were exercised by a browser test override; physical backgrounding and native macOS energy usage were not measured.
 
+In a separate local HTTP run, two guests polled a fictional 50-slide deck ten
+times each. Conditional requests reduced idle deck response bodies from
+12,301,700 bytes to zero, with median request time falling from 72.5 ms to 27.0 ms.
+The origin still checks each grant, file metadata, approvals and opened
+revisions. A source edit returned the full 615,088-byte deck. These figures
+exclude headers and separate chat traffic.
+
 ## Coverage and behavior checks
 
 The review covered library and design discovery, editor/rail/sorter, favorites, chat and feedback polling, notes, history, alternatives and selection editors, attachments and voice, agent contexts and selective file reads, capture/render/OCR, PDF and archive sharing, imports, sync/backup/recovery, updater and Mac-controller lifetimes.

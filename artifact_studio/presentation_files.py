@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from .artifacts import MAX_BUNDLE_SIZE, MAX_FILE_SIZE, MAX_FILES, relative_path
+from .hosted_policy import public_deck_asset
 from .libraries import Libraries
 from .storage import ConflictError, Store, digest, replace_text
 
@@ -140,7 +141,13 @@ class PresentationFiles:
         )
 
     def assets(
-        self, deck_id: str, prefix: str = "assets/", offset: int = 0, limit: int = 50
+        self,
+        deck_id: str,
+        prefix: str = "assets/",
+        offset: int = 0,
+        limit: int = 50,
+        *,
+        scoped: bool = False,
     ) -> dict[str, object]:
         """Page actual deck assets and hashes without loading binaries into model context."""
         _ = self.store.read(deck_id)
@@ -155,18 +162,27 @@ class PresentationFiles:
         paths = sorted(
             path
             for path in assets.rglob("*")
-            if path.is_file() and path.relative_to(folder).as_posix().startswith(prefix)
+            if path.is_file()
+            and path.relative_to(folder).as_posix().startswith(prefix)
+            and (
+                not scoped
+                or not path.is_symlink()
+                and public_deck_asset(path.relative_to(folder).as_posix(), embedded=True)
+            )
         )
         page = paths[offset : offset + limit]
-        staging = folder / ".authoring-assets"
-        if any(part.is_symlink() for part in (staging, *staging.parents)):
-            raise ValueError("The asset import directory cannot contain symlinks.")
-        if staging.exists() and not staging.is_dir():
-            raise ValueError("The asset import path must be a directory, not a file.")
-        staging.mkdir(exist_ok=True)
+        staging_info: dict[str, str] = {}
+        if not scoped:
+            staging = folder / ".authoring-assets"
+            if any(part.is_symlink() for part in (staging, *staging.parents)):
+                raise ValueError("The asset import directory cannot contain symlinks.")
+            if staging.exists() and not staging.is_dir():
+                raise ValueError("The asset import path must be a directory, not a file.")
+            staging.mkdir(exist_ok=True)
+            staging_info["import_directory"] = str(staging)
         return {
             "deck_id": deck_id,
-            "import_directory": str(staging),
+            **staging_info,
             "assets": [
                 {
                     "path": path.relative_to(folder).as_posix(),
@@ -183,7 +199,14 @@ class PresentationFiles:
     ) -> dict[str, object]:
         """Copy an explicit local source; only a matching hash permits replacing an asset."""
         source = self.source_path(deck_id, source_path)
-        data = bounded_read(source)
+        return self.write_asset(deck_id, asset_path, bounded_read(source), expected_sha256)
+
+    def write_asset(
+        self, deck_id: str, asset_path: str, data: bytes, expected_sha256: str = ""
+    ) -> dict[str, object]:
+        """Save explicit bytes under assets with the same replacement and storage guards."""
+        if len(data) > MAX_FILE_SIZE:
+            raise ValueError("Keep presentation assets at or below 50 MB each.")
         sha = hashlib.sha256(data).hexdigest()
         with self.store.editing(deck_id):
             _ = self.store.read(deck_id)

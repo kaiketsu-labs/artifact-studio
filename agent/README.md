@@ -2,7 +2,7 @@
 
 This directory maps the implemented agent interface to its canonical files. It is not an additional prompt and contains no personal workspace data. The Artifact Studio supports projects, freely authored file bundles, adaptive viewers and versioned review alongside the existing presentation tools.
 
-Hosted agents connect through service-credential headers and receive a constrained tool surface. Optional [lightweight client hooks](../docs/HOSTED-AGENT-HOOKS.md) support open-session continuation without installing the server on the agent computer.
+Agents in a [shared hosted workspace](../docs/MULTIPLAYER.md#author-presentations-with-a-hosted-agent) connect with a Studio token scoped to their workspace, project or artifact. Use `get_working_context` and `get_authoring_guide` for that connection's workflow and use its registered MCP schemas as the parameter reference. The standalone hosted entry point uses service-credential headers. Optional [lightweight client hooks](../docs/HOSTED-AGENT-HOOKS.md) support continuation in open agent sessions.
 
 ## Canonical contract
 
@@ -12,7 +12,8 @@ Hosted agents connect through service-credential headers and receive a constrain
 | Microsoft Copilot gateway bootstrap | [copilot.md](copilot.md), loaded separately by [artifact_studio/copilot.py](../artifact_studio/copilot.py); scoped tools live in [artifact_studio/copilot_tools.py](../artifact_studio/copilot_tools.py) |
 | General artifact authoring guide | [guides/artifacts.md](guides/artifacts.md) |
 | Generic artifact MCP handlers | [artifact_studio/artifact_tools.py](../artifact_studio/artifact_tools.py) |
-| Presentation and shared MCP handlers | [artifact_studio/app.py](../artifact_studio/app.py) |
+| Local presentation MCP handlers | [artifact_studio/app.py](../artifact_studio/app.py) |
+| Shared hosted MCP handlers | [artifact_studio/multiplayer_tools.py](../artifact_studio/multiplayer_tools.py) |
 | Parameter and result models | [artifact_studio/artifact_models.py](../artifact_studio/artifact_models.py) and [artifact_studio/models.py](../artifact_studio/models.py) |
 | Generated tool catalogue | [tools.json](tools.json), generated from registered runtime tools; never hand-maintained |
 | Guidance receipts | [artifact_studio/artifact_context.py](../artifact_studio/artifact_context.py) and [artifact_studio/agent_io.py](../artifact_studio/agent_io.py) |

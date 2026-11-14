@@ -57,15 +57,14 @@ provider loading is blocked; exit code 0 means the local configuration was
 accepted, **not** that the deployment passed a security audit. Provider error
 details and authentication options are not printed.
 
-In the browser, open **Menu → Workspace & server → Server checks**. It distinguishes configured
-protections, warnings with an action to take, and unverified account settings.
-Hosts sharing a domain suffix prompt a cookie-isolation warning. Studio cannot
-inspect actual cookie scope, MFA enforcement, firewall rules, tunnel logging,
-backup recovery or operating-system resource limits. These remain visibly unverified rather than becoming a green
-“secure” badge. There is no checkbox that bypasses validation or claims an
-external setting was verified.
+Select the version at the bottom of the left sidebar and open **Server checks**.
+Studio lists configured protections, warnings and checks for your server
+administrator. Hosts sharing a domain suffix prompt a cookie-isolation warning.
+External checks cover actual cookie scope, sign-in policy, firewall rules, tunnel
+logging, backup recovery and operating-system resource limits. Your server
+administrator verifies these outside Studio.
 
-![Server checks separate warnings, unverified hosting settings and configured app protections.](assets/hosted-server-checks.png)
+![Server checks list warnings, external checks and configured app protections.](assets/hosted-server-checks.png)
 
 <details>
 <summary>Server checks on a phone</summary>
@@ -156,6 +155,10 @@ Compose files do not choose these limits for you. An unusually expensive documen
 can exhaust a small VM before a script deadline expires.
 
 ## What runs where
+
+The table describes the original shared-account hosted entry point. For
+per-project access and scoped agent tokens, see [hosted presentation authoring
+in shared projects](MULTIPLAYER.md#author-presentations-with-a-hosted-agent).
 
 | Workflow | Local | Hosted |
 | --- | --- | --- |
