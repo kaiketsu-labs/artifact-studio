@@ -110,8 +110,8 @@
   box-shadow: none;
   color: var(--muted,var(--hub-muted));
 }
-.compose-actions .chat-agent-toggle:is(:hover,[aria-pressed="true"]),
-.hub-compose-actions .chat-agent-toggle:is(:hover,[aria-pressed="true"]) {
+.compose-actions .chat-agent-toggle[aria-pressed="true"],
+.hub-compose-actions .chat-agent-toggle[aria-pressed="true"] {
   background: transparent;
   border: 0;
   color: var(--agent-request-ink);
