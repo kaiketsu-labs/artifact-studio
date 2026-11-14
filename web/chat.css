@@ -99,5 +99,7 @@
 .copy-conversation { margin-left:auto; padding:5px; border:0; background:transparent; color:inherit; box-shadow:none; }
 .copy-conversation .ui-icon, .copy-conversation .icon { width:16px; height:16px; }
 
-.discussion-top { flex-wrap:wrap; row-gap:3px; }
-.discussion-top .chat-agent-status { order:1; flex-basis:100%; font-size:11px; color:var(--muted,#64748b); }
+.chat-agent-status { position:relative; display:inline-flex; align-items:center; flex:none; color:var(--muted,#64748b); }
+.chat-agent-status .ui-icon { width:16px; height:16px; }
+.chat-agent-dot { position:absolute; right:-2px; bottom:-1px; width:6px; height:6px; border:1px solid currentColor; border-radius:50%; background:var(--surface,#fff); }
+.chat-agent-dot.is-connected { background:var(--green,#16834a); border-color:var(--green,#16834a); }
