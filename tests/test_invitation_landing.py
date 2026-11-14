@@ -4,15 +4,16 @@ import json
 import os
 import time
 from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from tempfile import TemporaryDirectory
+from threading import Thread
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from playwright.sync_api import Page, Route, expect, sync_playwright
+from playwright.sync_api import Page, expect, sync_playwright
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import Receive, Send
@@ -25,6 +26,7 @@ from artifact_studio.multiplayer import create_app
 from artifact_studio.multiplayer_access import Scope
 from artifact_studio.shared_editor import create_shared_editor
 from artifact_studio.unified import UnifiedStudio
+from tests.invitation_https_fixture import FictionalEdge
 from tests.test_invitation_provisioning import Fixture
 from tests.test_invitation_provisioning import setup as setup
 
@@ -62,89 +64,37 @@ class Journey:
     page: Page
     requests: list[str]
     tokens: list[str]
+    redirects: list[tuple[str, str]]
 
 
 @contextmanager
 def browser_journey(
     app: FastAPI, *, identity: str = "alice", width: int = 1100, dark: bool = False
 ) -> Generator[Journey]:
-    with TestClient(app, base_url=ORIGIN) as client, sync_playwright() as playwright:
+    with (
+        TestClient(app, base_url=ORIGIN) as client,
+        TemporaryDirectory(prefix="invitation-https-") as directory,
+        sync_playwright() as playwright,
+        FictionalEdge(client, identity, Path(directory)) as edge,
+        ExitStack() as cleanup,
+    ):
+        server = Thread(target=edge.serve_forever, daemon=True)
+        server.start()
+        cleanup.callback(server.join, timeout=5)
+        cleanup.callback(edge.shutdown)
         browser = playwright.chromium.launch(
-            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"),
+            args=["--host-resolver-rules=" + edge.resolver_rules, "--no-proxy-server"],
         )
+        cleanup.callback(browser.close)
         context = browser.new_context(
-            viewport={"width": width, "height": 780}, color_scheme="dark" if dark else "light"
+            viewport={"width": width, "height": 780},
+            color_scheme="dark" if dark else "light",
+            ignore_https_errors=True,  # Only the ephemeral loopback fixture uses this certificate.
         )
-        logged_in = False
-        requests: list[str] = []
-        tokens: list[str] = []
-
-        def route(request: Route) -> None:
-            nonlocal logged_in
-            url = urlsplit(request.request.url)
-            requests.append(request.request.url)
-            if url.netloc == "login.example.test":
-                if url.path == "/complete":
-                    logged_in = True
-                    request.fulfill(status=302, headers={"Location": ORIGIN + "/invitation"})
-                else:
-                    request.fulfill(
-                        content_type="text/html",
-                        body=(
-                            "<!doctype html><title>Fictional identity provider</title>"
-                            '<h1>Fictional sign-in</h1><a href="/complete">Sign in</a>'
-                        ),
-                    )
-                return
-            assert url.netloc in {"studio.example.test", "preview.example.test"}
-            # Mimic the separately configured edge: only the exact public stub bypasses login.
-            if not logged_in and url.path == "/invitation":
-                request.fulfill(status=302, headers={"Location": LOGIN + "/sign-in"})
-                return
-            headers = {"X-Fixture-Auth": identity} if logged_in else {}
-            browser_headers = request.request.all_headers()
-            for name in ("sec-fetch-dest", "sec-fetch-site", "sec-fetch-mode"):
-                if value := browser_headers.get(name):
-                    headers[name] = value
-            # Chromium's route interception can precede generated fetch metadata.
-            # Mirror the browser request type when bridging into the ASGI client.
-            destination = {
-                "document": "iframe" if request.request.frame.parent_frame else "document",
-                "stylesheet": "style",
-                "script": "script",
-                "image": "image",
-                "font": "font",
-            }.get(request.request.resource_type, "empty")
-            headers.setdefault("sec-fetch-dest", destination)
-            if origin := request.request.headers.get("origin"):
-                headers["Origin"] = origin
-            if request.request.method == "POST":
-                headers["Content-Type"] = "application/json"
-                if url.path == "/api/invitations/accept":
-                    tokens.append(json.loads(request.request.post_data or "{}")["token"])
-            response = client.request(
-                request.request.method,
-                request.request.url,
-                headers=headers,
-                content=request.request.post_data_buffer,
-            )
-            request.fulfill(
-                status=response.status_code,
-                body=response.content,
-                headers={
-                    key: value
-                    for key, value in response.headers.items()
-                    if key not in {"content-length", "content-encoding"}
-                },
-            )
-
-        context.route("**/*", route)
+        cleanup.callback(context.close)
         page = context.new_page()
-        try:
-            yield Journey(page, requests, tokens)
-        finally:
-            context.close()
-            browser.close()
+        yield Journey(page, edge.requests, edge.tokens, edge.redirects)
 
 
 def test_exact_public_stub_and_all_other_auth_boundaries(
@@ -234,6 +184,10 @@ def test_fragment_survives_fictional_login_and_opens_accepted_destination(
         assert page.evaluate("key=>sessionStorage.getItem(key)", KEY) is None
         assert all(token not in url for url in journey.requests)
         assert journey.tokens == [token]
+        assert journey.redirects == [
+            (ORIGIN + "/invitation", LOGIN + "/sign-in"),
+            (LOGIN + "/complete", ORIGIN + "/invitation"),
+        ]
         expect(
             page.frame_locator("#preview").get_by_text("Fictional source", exact=True)
         ).to_be_visible()
