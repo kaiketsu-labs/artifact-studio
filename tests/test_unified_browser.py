@@ -569,13 +569,33 @@ def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentat
                 incoming = thread.locator("article").filter(has_text="Fictional owner message 0")
                 expect(incoming).to_be_visible()
                 expect(incoming).to_contain_text("owner@example.test")
-                expect(incoming).to_have_css("align-self", "flex-start")
                 expect(day_markers).to_have_count(1)
                 composer = page.locator("#feedback-text" if presentation else "#hub-feedback-text")
                 composer.fill("Fictional guest reply")
                 composer.press("Enter")
                 outgoing = thread.locator("article").filter(has_text="Fictional guest reply")
-                expect(outgoing).to_have_css("align-self", "flex-end")
+                expect(outgoing).to_be_visible()
+                # Check the rendered positions in the thread, independent of how the
+                # browser serializes flex alignment keywords.
+                positions = thread.evaluate(
+                    """thread => {
+                      const incoming = [...thread.querySelectorAll('article')].find(
+                        row => row.textContent.includes('Fictional owner message 0'));
+                      const outgoing = [...thread.querySelectorAll('article')].find(
+                        row => row.textContent.includes('Fictional guest reply'));
+                      const bounds = element => {
+                        const r = element.getBoundingClientRect();
+                        return {left:r.left, right:r.right, top:r.top, bottom:r.bottom};
+                      };
+                      return {thread:bounds(thread), incoming:bounds(incoming),
+                              outgoing:bounds(outgoing)};
+                    }"""
+                )
+                assert 0 <= positions["incoming"]["left"] - positions["thread"]["left"] <= 6
+                assert 0 <= positions["thread"]["right"] - positions["outgoing"]["right"] <= 6
+                assert positions["incoming"]["right"] < positions["thread"]["right"] - 20
+                assert positions["outgoing"]["left"] > positions["thread"]["left"] + 20
+                assert positions["incoming"]["bottom"] <= positions["outgoing"]["top"]
                 expect(day_markers).to_have_count(2)
                 assert day_markers.nth(0).text_content() != day_markers.nth(1).text_content()
                 assert page.locator("html").get_attribute("data-theme") == "dark"

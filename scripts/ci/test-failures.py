@@ -22,7 +22,7 @@ def report(paths: list[str]) -> None:
             continue
         try:
             root = ElementTree.parse(path).getroot()
-        except (OSError, ElementTree.ParseError):
+        except OSError, ElementTree.ParseError:
             continue
         for case in root.iter("testcase"):
             failed = case.find("failure")
@@ -40,7 +40,23 @@ def report(paths: list[str]) -> None:
             # Report source coordinates, not assertion values or captured diagnostics.
             frames = re.findall(r"(?m)^(tests/[A-Za-z0-9_/.-]+\.py):(\d+):", failed.text or "")
             location = f" at {frames[-1][0]}:{frames[-1][1]}" if frames else ""
-            print(f"::error title=Failed test::{escaped(identifier)} ({escaped(kind)}){location}")
+            diagnostic = ""
+            presenter_test = (
+                "tests.integration.test_presentation_displays::"
+                "test_presenter_click_opens_synchronized_audience_without_display_access"
+            )
+            if identifier.startswith(presenter_test):
+                token = r"(?:r|rs|rn|rx|e|es|en|ex|c0|c1|q0|q1|k|h0|h1|a0|a1)"
+                match = re.search(
+                    rf"FULLSCREEN_TRACE=((?:{token},){{0,31}}{token})(?=\s|$)",
+                    failed.text or "",
+                )
+                if match:
+                    diagnostic = f" fullscreen events: {match.group(1)}"
+            print(
+                f"::error title=Failed test::{escaped(identifier)} "
+                f"({escaped(kind)}){location}{diagnostic}"
+            )
             remaining -= 1
 
 
