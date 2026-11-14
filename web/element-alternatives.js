@@ -14,7 +14,8 @@
     };
   }
   function create({api,getContext,activate=async()=>true,beforePreview=async()=>true,canDecide=()=>true,beforeDecide=async()=>true,afterDecision=async()=>{},onPreview=()=>{},stopPlayback=()=>{},isPlaying=()=>false,onBusy=()=>{},notify=()=>{},openSlideDesigns=()=>{},onRequestRefresh=()=>{}}){
-    const doc=root.document,icon=name=>root.SlideIcons.svg(name),wrap=doc.getElementById('preview-wrap'),preview=doc.getElementById('preview'),canvas=doc.querySelector('.canvas-area');
+    const doc=root.document,icon=name=>root.SlideIcons.svg(name),wrap=doc.getElementById('preview-wrap'),canvas=doc.querySelector('.canvas-area');
+    let preview=doc.getElementById('preview');
     const toggle=doc.createElement('button');toggle.id='element-alternative-toggle';toggle.className='ea-toggle';toggle.type='button';toggle.hidden=true;toggle.setAttribute('aria-expanded','false');toggle.innerHTML=icon('copy')+'<span>Review alternatives</span><i class="ea-pending-count" aria-hidden="true"></i>';doc.querySelector('.preview-controls').prepend(toggle);
     const menu=doc.createElement('div');menu.className='ea-scope-menu';menu.id='element-alternative-menu';menu.setAttribute('popover','manual');menu.setAttribute('role','menu');menu.setAttribute('aria-label','Slide and element options');doc.body.append(menu);
     const panel=doc.createElement('section');panel.className='ea-panel';panel.id='element-alternative-panel';panel.setAttribute('popover','manual');panel.setAttribute('aria-label','Element options');doc.body.append(panel);toggle.setAttribute('aria-controls',panel.id);
@@ -271,7 +272,7 @@
     for(const side of ['left','right'])comparison.querySelector(`[data-ea-${side}]`).addEventListener('change',event=>{if(side==='left')left=event.target.value;else right=event.target.value;renderComparison();});
     comparison.addEventListener('cancel',event=>{if(busy)event.preventDefault();});comparison.addEventListener('close',()=>{for(const holder of comparison.querySelectorAll('.ea-frame'))clearFrame(holder);if(compareOpener?.isConnected)compareOpener.focus({preventScroll:true});});
     root.addEventListener('resize',()=>{anchor=null;position();mountBadges();if(opened)reveal();});doc.addEventListener('scroll',event=>{if(event.target.closest?.('.ea-panel,.ea-tray,.ea-scope-menu,.ea-comparison,.ea-history'))return;anchor=null;position();mountBadges();},true);
-    return {sync,bindPreview,selection,history,mountCards,open,dismiss,finish,close:dismiss,isOpen:()=>opened||comparison.open,isPreviewing:()=>!!feedbackContext(),isBusy:()=>busy,feedbackContext,
+    return {sync,bindPreview,selection,history,mountCards,open,dismiss,finish,setFrame(next){resize.unobserve(preview);preview=next;resize.observe(preview);},close:dismiss,isOpen:()=>opened||comparison.open,isPreviewing:()=>!!feedbackContext(),isBusy:()=>busy,feedbackContext,
       reset(){dismiss();scope='';context=null;page=null;group=null;loadKey='';loadGeneration++;render();},
       card(comment){return comment.element_set_id?`<button type="button" class="ea-chat-card" data-element-set="${escape(comment.element_set_id)}">Element options ${icon('right')}</button>`:'';}};
   }

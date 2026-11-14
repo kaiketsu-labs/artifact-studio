@@ -103,6 +103,8 @@ Choose **Select**, then click an element or text block, select document text, or
 
 Write feedback in the artifact's conversation. **Enter** sends and **Shift+Enter** adds a line. Use the paperclip, drop files or paste an image; a file-only message is supported. Limits are five files, 25 MB each and 50 MB combined. Remove an unsent file with its ×; sent files can be downloaded from the message. Text and target drafts persist in browser storage; unsent file selections remain in browser memory.
 
+On narrow screens, **Open chat** brings the composer and its actions into view. Use **Close chat** to return to the preview. Your draft stays available when you reopen the conversation.
+
 Images show small thumbnails in the composer and message history, in both presentation and artifact chats. Click a thumbnail for a larger preview, press **Esc** to return, or choose **Download original**. Preview generation leaves the original file unchanged.
 
 **Live** releases a message immediately. **Batch** keeps messages and attachments private until **Send batch**. Loaded Codex/Claude Code lifecycle hooks continue the connected agent for every artifact type. The Live dot's tooltip identifies the connection; **End review** stops listening. Agents read released requests through `read_artifact_feedback`. An ordinary MCP connection cannot start a closed chat. See [hook setup](LIVE-REVIEW.md).
@@ -186,6 +188,8 @@ File and presentation bindings follow [PowerPoint's editing](https://support.mic
 | Zoom | Ctrl/Cmd + scroll zooms toward the cursor. The slider and +/− zoom around the visible centre, from 10–400%. Scroll across enlarged slides. Fit slide returns to 100%; 50% or below opens the slide overview. Project save/open keeps the zoom level. |
 | Appearance | Use **Menu → Appearance** to choose Light, Dark or System. Your choice is saved in this browser; slide designs keep their authored colours. |
 | Hidden slides during a show | Normal navigation, progress dots and the next-slide preview skip hidden slides. **See all slides** in the bottom toolbar, a slide right-click, or the private presenter filmstrip lets you select one manually. Starting on a hidden slide skips to a visible slide; an entirely hidden deck starts empty. |
+
+On narrow screens, use the chat icon to open the presentation conversation. The history scrolls inside the panel. If a short viewport or a long draft needs more room, scroll the panel to reach attachments and Send.
 
 For automatic feedback in **Codex or Claude Code**, open **Menu → Agent connection → Automatic feedback → Copy setup prompt** and paste it into that agent. It follows the [project-local hook setup](LIVE-REVIEW.md), including the harness's native trust/reload step. Optional user-level hooks are covered in the same guide. After setup, the agent automatically connects when it selects or works on your presentation; no separate start request is needed. Keep its review session open. The Live selector shows **Codex**, **Claude Code** or **Unavailable**; its tooltip identifies the connected review session. **Menu → Agent connection → End review** stops listening and preserves comments. The pixel Mac menu-bar icon reports server health; green dots beside Connected entries identify active review connections. A closed agent still needs to be resumed. Other MCP clients can use all slide tools; automatic continuation requires a lifecycle adapter for that harness.
 
