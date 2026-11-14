@@ -575,3 +575,36 @@ def test_staging_slot_is_shared_and_cleaned(
     assert not folder.exists()
     with second_slot() as next_folder:
         assert next_folder.is_dir()
+
+
+def test_concurrent_remote_editor_cannot_be_overwritten(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A competing commit after fetch rejects the stale push and survives a retry."""
+    editor, sharing, project, artifact, binding, scratch = sync_fixture
+    sync = ProjectGitHubSync(sharing, [binding], scratch=scratch)
+    scope = Scope("default", "project", project)
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    _ = sync.run(owner, scope)
+    service = ArtifactStore(sharing.store("default"))
+    revise(service, artifact, "Studio concurrent edit")
+    publish = project_sync.GitTree.publish
+
+    def competing_publish(
+        tree: project_sync.GitTree,
+        prefix: str,
+        previous: dict[str, bytes],
+        source: dict[str, bytes],
+    ) -> str:
+        _ = remote(editor, title="GitHub concurrent edit")
+        return publish(tree, prefix, previous, source)
+
+    with monkeypatch.context() as fixture:
+        fixture.setattr(project_sync.GitTree, "publish", competing_publish)
+        assert sync.run(owner, scope).reports[0].action == "blocked"
+    assert (editor / "demo/site/index.html").read_text() == "GitHub concurrent edit"
+    assert service.snapshot_files(artifact)["index.html"] == b"Studio concurrent edit"
+    report = sync.run(owner, scope).reports[0]
+    assert report.action == "conflict"
+    assert report.conflict
