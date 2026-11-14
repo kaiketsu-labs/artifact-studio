@@ -743,7 +743,10 @@
     }
     if(deliveryChanged || feedbackChanged){
       const end=doc.getElementById('hub-end-review');if(end)end.hidden=item.delivery?.live_available!==true;
-      const status=doc.getElementById('hub-agent-status');if(status)status.outerHTML=agentStatusMarkup(item);
+      const status=doc.getElementById('hub-agent-status');if(status){
+        const holder=doc.createElement('div');holder.innerHTML=agentStatusMarkup(item);const next=holder.firstElementChild;
+        status.title=next.title;status.setAttribute('aria-label',next.getAttribute('aria-label'));status.innerHTML=next.innerHTML;
+      }
       const node=doc.querySelector('.hub-delivery'),focused=doc.activeElement,action=focused?.dataset.action;
       if(node){
         const ownedFocus=node.contains(focused);node.outerHTML=deliveryMarkup(item);
