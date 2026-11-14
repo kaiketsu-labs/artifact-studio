@@ -655,14 +655,15 @@
     if(elementAlternatives&&!await elementAlternatives.finish())return null;
     const hash=slide()?.content_hash;
     if(deck?.id!==deckId||selectedId!==slideId||!hash)return null;
-    const ready=()=>frame.dataset.loadToken?.endsWith('-ready')&&frame.contentDocument?.body?.dataset.previewKey===hash;
+    const ready=()=>$('preview').dataset.loadToken?.endsWith('-ready')&&$('preview').contentDocument?.body?.dataset.previewKey===hash;
+    const previewWrap=$('preview-wrap');
     if(!ready())await new Promise(resolve=>{
-      let timer;const done=()=>{clearTimeout(timer);frame.removeEventListener('selection-preview-ready',done);resolve();};
-      frame.addEventListener('selection-preview-ready',done,{once:true});timer=setTimeout(done,11000);
+      let timer;const done=()=>{clearTimeout(timer);previewWrap.removeEventListener('selection-preview-ready',done);resolve();};
+      previewWrap.addEventListener('selection-preview-ready',done,{once:true});timer=setTimeout(done,11000);
       if(ready())done();
     });
     if(deck?.id!==deckId||selectedId!==slideId||slide()?.content_hash!==hash||!ready())return null;
-    const doc=frame.contentDocument;
+    const doc=$('preview').contentDocument;
     try{const mapped=selectors.map(selector=>doc.querySelector(selector));return mapped.every(Boolean)?mapped:null;}catch{return null;}
   }
   async function selectElements(elements,additive=false){
@@ -774,7 +775,7 @@
     },
     onFailure:frame=>{
       frame.parentElement.dataset.previewStatus='Design unavailable';
-      if(frame.id==='preview'){clearTimeout(previewStatusTimer);$('preview-status').hidden=false;$('preview-message').textContent='Slide couldn’t load.';$('retry-preview').hidden=false;frame.dispatchEvent(new Event('selection-preview-ready'));}
+      if(frame.id==='preview'){clearTimeout(previewStatusTimer);$('preview-status').hidden=false;$('preview-message').textContent='Slide couldn’t load.';$('retry-preview').hidden=false;$('preview-wrap').dispatchEvent(new Event('selection-preview-ready'));}
     }
   });
   /** Keep the current document and loaded fonts when only slide content changes. */
@@ -799,11 +800,11 @@
     const loader=window.SlidePreviewLoader.create({documentFor:previewDocument,
       onReady:(candidate,doc)=>{
         if(pendingMainPreview!==candidate)return;
-        frame.dispatchEvent(new Event('selection-preview-ready'));frame.removeAttribute('id');candidate.id='preview';candidate.style.cssText='';candidate.inert=false;candidate.removeAttribute('aria-hidden');delete candidate.dataset.pendingVersion;pendingMainPreview=null;frame.remove();
+        frame.removeAttribute('id');candidate.id='preview';candidate.style.cssText='';candidate.inert=false;candidate.removeAttribute('aria-hidden');delete candidate.dataset.pendingVersion;pendingMainPreview=null;frame.remove();
         animationPreview.setFrame(candidate);objectPicker.setFrame(candidate);elementAlternatives?.setFrame(candidate);
-        clearTimeout(previewStatusTimer);$('preview-status').hidden=true;window.SlideAnimationPreview.freeze(doc);bindPreview();objectPicker.refresh();objectPicker.sync(selectedElements);animationPreview.bind();$('approve-button').disabled=false;candidate.dispatchEvent(new Event('selection-preview-ready'));
+        clearTimeout(previewStatusTimer);$('preview-status').hidden=true;window.SlideAnimationPreview.freeze(doc);bindPreview();objectPicker.refresh();objectPicker.sync(selectedElements);animationPreview.bind();$('approve-button').disabled=false;$('preview-wrap').dispatchEvent(new Event('selection-preview-ready'));
       },
-      onFailure:candidate=>{if(pendingMainPreview!==candidate)return;pendingMainPreview=null;candidate.remove();clearTimeout(previewStatusTimer);$('preview-status').hidden=false;$('preview-message').textContent=frame.dataset.loadToken?.endsWith('-ready')?'Slide couldn’t load. Showing the earlier preview.':'Slide couldn’t load.';$('retry-preview').hidden=false;frame.dispatchEvent(new Event('selection-preview-ready'));}
+      onFailure:candidate=>{if(pendingMainPreview!==candidate)return;pendingMainPreview=null;candidate.remove();clearTimeout(previewStatusTimer);$('preview-status').hidden=false;$('preview-message').textContent=frame.dataset.loadToken?.endsWith('-ready')?'Slide couldn’t load. Showing the earlier preview.':'Slide couldn’t load.';$('retry-preview').hidden=false;$('preview-wrap').dispatchEvent(new Event('selection-preview-ready'));}
     });
     // Keep the loader with its candidate so cancellation also stops its retries.
     staging.cancelPreview=()=>loader.cancel(staging);loader.load(staging,item,deckId,designHash||item.content_hash);

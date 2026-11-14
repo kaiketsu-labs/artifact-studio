@@ -228,11 +228,14 @@ def test_modified_click_away_saves_choice(
     group = seed_elements(live_app, groups=("headline",))["headline"]
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
     open_group(page, group)
+    original_frame = page.locator("#preview").element_handle()
+    assert original_frame is not None
     option(page, group, 1).click()
     page.frame_locator("#preview").locator("#supporting-copy").click(modifiers=[modifier])
     expect(page.locator("#element-alternative-panel")).to_be_hidden()
     expect(page.frame_locator("#preview").locator("#headline")).to_have_text(HEADLINES[1])
     expect(page.locator("#selection-box")).to_be_visible()
+    assert original_frame.evaluate("frame => frame !== document.getElementById('preview')")
     expect(page.locator("#target-label")).to_contain_text("Bring your ideas")
     page.frame_locator("#preview").locator("footer").click(modifiers=[modifier])
     expect(page.locator("#target-label")).to_have_text("2 objects")
