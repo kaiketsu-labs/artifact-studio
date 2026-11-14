@@ -97,6 +97,46 @@ def test_drag_chat_persists_and_clamps_without_losing_the_canvas(
     expect(divider).to_have_attribute("aria-valuenow", str(resized))
 
 
+def test_narrow_presentation_composer_keeps_actions_visible(
+    page: Page, live_app: RunningApp
+) -> None:
+    """Keep Send and Attach inside the drawer when the keyboard reduces available height."""
+    slide = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    for index in range(4):
+        _ = live_app.post(
+            f"/api/decks/{DECK_ID}/slides/cover/feedback",
+            {
+                "message": f"Fictional review {index + 1}. " + "Long discussion. " * 40,
+                "content_hash": slide["content_hash"],
+                "request_id": f"narrow-chat-message-{index}",
+            },
+        )
+    page.emulate_media(color_scheme="dark")
+    page.set_viewport_size({"width": 390, "height": 844})
+    open_editor(page, live_app)
+    page.get_by_role("button", name="Open chat", exact=True).press("Enter")
+    page.locator("#feedback-text").fill("Fictional follow-up")
+    page.locator("#feedback-file-input").set_input_files(
+        {"name": "review.txt", "mimeType": "text/plain", "buffer": b"Fictional attachment"}
+    )
+    expect(page.locator("#feedback-files")).to_contain_text("review.txt")
+    page.set_viewport_size({"width": 390, "height": 500})
+    attach = page.get_by_role("button", name="Attach files", exact=True)
+    send = page.locator("#send-feedback")
+    expect(attach).to_be_in_viewport(ratio=1)
+    expect(send).to_be_in_viewport(ratio=1)
+    expect(page.get_by_role("button", name="Report an issue")).to_be_in_viewport(ratio=1)
+    assert send.evaluate(
+        "button => button.getBoundingClientRect().bottom <= "
+        "document.querySelector('.studio-report-trigger').getBoundingClientRect().top"
+    )
+    send.click()
+    expect(page.locator("#feedback-list")).to_contain_text("Fictional follow-up")
+    expect(page.locator("#feedback-list")).to_contain_text("review.txt")
+    page.get_by_role("button", name="Close chat", exact=True).focus()
+    assert page.locator("#feedback-list").evaluate("thread => thread.clientHeight >= 96")
+
+
 def test_chat_keyboard_reset_and_cancelled_drag(page: Page, live_app: RunningApp) -> None:
     """Give the separator keyboard parity and recover cleanly from an interrupted drag."""
     open_editor(page, live_app)

@@ -45,6 +45,10 @@ def bounded_evaluate(page: Page, expression: str, argument: object = None) -> ob
         handle.dispose()
 
 
+class RendererBusy(ValueError):
+    """The bounded renderer queue cannot admit this request right now."""
+
+
 class RendererUnavailable(ValueError):
     """A recent infrastructure failure, safe to defer before loading any source assets."""
 

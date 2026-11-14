@@ -122,6 +122,7 @@ from .presentation_files import PresentationFiles
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
 from .recovery_api import recovery_routes
+from .renderer_health import RendererBusy
 from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .sections import Sections, section_layout
 from .security_check import SecurityReport, security_report
@@ -1659,6 +1660,15 @@ else:
     app.state.hosted_previews = hosted_previews
     app.include_router(hosted_preview_router(hosted_previews))
 app.state.deployment = deployment
+
+
+@app.exception_handler(RendererBusy)
+async def renderer_busy(_: Request, __: RendererBusy) -> JSONResponse:
+    return JSONResponse(
+        {"detail": "The renderer is busy. Try again shortly.", "code": "renderer_saturated"},
+        status_code=503,
+        headers={"Retry-After": "2", "X-Artifact-Error": "renderer_saturated"},
+    )
 
 
 @app.exception_handler(ValueError)

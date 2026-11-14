@@ -30,3 +30,5 @@ Browser tests simulate `SpeechRecognition` events against the real server: inter
 Hosted presenter dictation uses the updated shared runtime. Existing design/deck copies keep their copied runtime; update that runtime to use presenter dictation there. Offline and audience exports do not load voice assets.
 
 Voice adds no MCP tools, transcription endpoints or audio/base64 fields to agent feedback. Each submitted section is an ordinary text comment with its original context. No model-token or billing saving is inferred from this feature.
+
+The stalled-provider recovery from PR #143 was incorporated in #148. The simulated provider tests do not replace a real microphone check; the latter remains open for supported browsers and devices.
