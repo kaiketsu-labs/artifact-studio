@@ -129,6 +129,9 @@ explicit **Join** action. It sends the token only in the authenticated
 acceptance POST body, consumes the handoff after acceptance or terminal denial,
 and navigates to the server-derived local destination. Interrupted connectivity
 can be retried; reopening the original link restarts an expired local handoff.
+Reloading the public landing retains a valid handoff without extending its
+original lifetime. A project invitation selects an artifact within that project;
+an empty project remains selected instead of opening unrelated existing work.
 Disabled session storage fails closed. No token is put in a query string, login
 redirect, referrer, landing HTML or application log. The owner still receives the
 invitation link from the existing authenticated invitation-creation endpoint.

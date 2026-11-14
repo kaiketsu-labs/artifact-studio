@@ -6,6 +6,7 @@ import time
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
@@ -17,9 +18,11 @@ from starlette.responses import JSONResponse
 from starlette.types import Receive, Send
 from starlette.types import Scope as ASGIScope
 
+from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.authentication import AuthenticationError, Principal
 from artifact_studio.invitation_provisioning import InvitationProvisioning
 from artifact_studio.multiplayer import create_app
+from artifact_studio.multiplayer_access import Scope
 from artifact_studio.shared_editor import create_shared_editor
 from artifact_studio.unified import UnifiedStudio
 from tests.test_invitation_provisioning import Fixture
@@ -86,12 +89,26 @@ def browser_journey(
                         ),
                     )
                 return
-            assert url.netloc == "studio.example.test"
+            assert url.netloc in {"studio.example.test", "preview.example.test"}
             # Mimic the separately configured edge: only the exact public stub bypasses login.
             if not logged_in and url.path == "/invitation":
                 request.fulfill(status=302, headers={"Location": LOGIN + "/sign-in"})
                 return
             headers = {"X-Fixture-Auth": identity} if logged_in else {}
+            browser_headers = request.request.all_headers()
+            for name in ("sec-fetch-dest", "sec-fetch-site", "sec-fetch-mode"):
+                if value := browser_headers.get(name):
+                    headers[name] = value
+            # Chromium's route interception can precede generated fetch metadata.
+            # Mirror the browser request type when bridging into the ASGI client.
+            destination = {
+                "document": "iframe" if request.request.frame.parent_frame else "document",
+                "stylesheet": "style",
+                "script": "script",
+                "image": "image",
+                "font": "font",
+            }.get(request.request.resource_type, "empty")
+            headers.setdefault("sec-fetch-dest", destination)
             if origin := request.request.headers.get("origin"):
                 headers["Origin"] = origin
             if request.request.method == "POST":
@@ -100,7 +117,7 @@ def browser_journey(
                     tokens.append(json.loads(request.request.post_data or "{}")["token"])
             response = client.request(
                 request.request.method,
-                url.path + ("?" + url.query if url.query else ""),
+                request.request.url,
                 headers=headers,
                 content=request.request.post_data_buffer,
             )
@@ -194,6 +211,10 @@ def test_fragment_survives_fictional_login_and_opens_accepted_destination(
         expect(page.get_by_role("button", name="Continue to sign in")).to_be_visible()
         assert page.evaluate("document.documentElement.scrollWidth<=innerWidth")
         assert json.loads(page.evaluate("key=>sessionStorage.getItem(key)", KEY))["token"] == token
+        handoff = page.evaluate("key=>sessionStorage.getItem(key)", KEY)
+        page.reload()
+        expect(page.get_by_role("button", name="Continue to sign in")).to_be_visible()
+        assert page.evaluate("key=>sessionStorage.getItem(key)", KEY) == handoff
         page.keyboard.press("Tab")
         expect(page.get_by_role("button", name="Continue to sign in")).to_be_focused()
         page.keyboard.press("Enter")
@@ -206,6 +227,9 @@ def test_fragment_survives_fictional_login_and_opens_accepted_destination(
         assert page.evaluate("key=>sessionStorage.getItem(key)", KEY) is None
         assert all(token not in url for url in journey.requests)
         assert journey.tokens == [token]
+        expect(
+            page.frame_locator("#preview").get_by_text("Fictional source", exact=True)
+        ).to_be_visible()
     assert sharing.level(alice, target) == 3
     if kind == "artifact":
         assert sharing.level(alice, project) == 0
@@ -346,3 +370,68 @@ def test_missing_or_old_handoff_never_sends_an_acceptance(
         page.goto(ORIGIN + "/_invitation#invite=bad&redirect=https://evil.example.test")
         expect(page.locator("#status")).to_contain_text("incomplete")
         assert page.evaluate("key=>sessionStorage.getItem(key)", KEY) is None
+
+
+@pytest.mark.parametrize("created", [0, 9999999999999])
+def test_public_reload_does_not_revive_invalid_handoff(
+    setup: Fixture, monkeypatch: pytest.MonkeyPatch, created: int
+) -> None:
+    sharing, owner, _, project, _, _, _ = setup
+    app = application(setup, monkeypatch)
+    invitation = sharing.invite(owner, project, "alice@example.test", "view")
+    with browser_journey(app) as journey:
+        page = journey.page
+        page.goto(ORIGIN + "/_invitation#invite=" + invitation["token"])
+        page.evaluate(
+            "([key,created])=>{const value=JSON.parse(sessionStorage.getItem(key));"
+            "value.created=created;sessionStorage.setItem(key,JSON.stringify(value));}",
+            [KEY, created],
+        )
+        page.reload()
+        expect(page.locator("#status")).to_contain_text("original invitation link")
+        expect(page.get_by_role("button", name="Continue to sign in")).to_be_hidden()
+        assert page.evaluate("key=>sessionStorage.getItem(key)", KEY) is None
+        assert journey.tokens == []
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_project_invitation_opens_that_project_with_existing_other_access(
+    setup: Fixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, empty: bool
+) -> None:
+    sharing, owner, alice, _, original, _, _ = setup
+    service = ArtifactStore(sharing.store("default"))
+    project = service.create_project("Another fictional project")
+    source = tmp_path / "another.md"
+    source.write_text("Another fictional source")
+    another = service.register_artifact(
+        project.id, "Another fictional artifact", source, source.name
+    )
+    first, target = sorted(
+        [service.get_artifact(original.resource), another], key=lambda item: item.id
+    )
+    app = application(setup, monkeypatch)
+    prior = sharing.invite(
+        owner, Scope("default", "project", first.project_id), "alice@example.test", "view"
+    )
+    sharing.accept(alice, prior["token"])
+    target_project = (
+        service.create_project("Empty fictional project").id if empty else target.project_id
+    )
+    invitation = sharing.invite(
+        owner, Scope("default", "project", target_project), "alice@example.test", "view"
+    )
+    with browser_journey(app) as journey:
+        page = journey.page
+        page.goto(ORIGIN + "/_invitation#invite=" + invitation["token"])
+        page.get_by_role("button", name="Continue to sign in").click()
+        page.get_by_role("link", name="Sign in", exact=True).click()
+        page.get_by_role("button", name="Join", exact=True).click()
+        if empty:
+            expect(page).to_have_url(ORIGIN + "/?workspace=default&project=" + target_project)
+            expect(page.locator("#editor")).to_be_hidden()
+            page.reload()
+            expect(page.locator("#catalog")).to_contain_text("Empty fictional project")
+            expect(page.locator("#editor")).to_be_hidden()
+            expect(page).to_have_url(ORIGIN + "/?workspace=default&project=" + target_project)
+        else:
+            expect(page.locator("#artifact-title")).to_have_text(target.title)

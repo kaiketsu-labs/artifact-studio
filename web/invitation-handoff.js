@@ -24,11 +24,16 @@
   }
   $('cancel').addEventListener('click',()=>{try{clear();}catch{}});
   function prepareLanding(){
-    const values=new URLSearchParams(location.hash.slice(1)),token=values.get('invite');
+    const fragment=location.hash,values=new URLSearchParams(fragment.slice(1)),token=values.get('invite');
     history.replaceState(null,'','/_invitation');
-    clear();$('continue').hidden=true;$('continue').onclick=null;
-    if(values.size!==1||!validToken(token)){message('This invitation link is incomplete. Ask the owner for a new link.');return;}
-    sessionStorage.setItem(KEY,JSON.stringify({token,created:Date.now()}));
+    $('continue').hidden=true;$('continue').onclick=null;
+    if(fragment){
+      clear();
+      if(values.size!==1||!validToken(token)){message('This invitation link is incomplete. Ask the owner for a new link.');return;}
+      sessionStorage.setItem(KEY,JSON.stringify({token,created:Date.now()}));
+    }else if(!pending()){
+      message('Open your original invitation link to continue.');return;
+    }
     message('Sign in with the email that received this invitation.');$('continue').hidden=false;
     $('continue').onclick=()=>{
       try{if(!pending())throw Error();location.replace('/invitation');}
