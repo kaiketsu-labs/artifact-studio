@@ -99,7 +99,7 @@
     finally{deliveryController=null;syncing=false;$('reconnect').disabled=false;renderQueue();if(record)slide();}
   }
   $('reconnect').addEventListener('click',deliver);
-  $('use-current').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection;try{await store.update(record.snapshot.id,conflict.id,null,{html:conflict.current,expected_hash:conflict.expected,content_hash:conflict.content});if(own!==selection)return;record=await store.read(record.snapshot.id);resetConflict();void deliver();}catch(error){message(error.message);}});
+  $('use-current').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection;try{await store.update(record.snapshot.id,conflict.id,null,{html:conflict.current,expected_hash:conflict.expected,content_hash:conflict.content});if(own!==selection)return;record=await store.read(record.snapshot.id);resetConflict();slide();void deliver();}catch(error){message(error.message);}});
   $('use-draft').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection;try{await store.update(record.snapshot.id,conflict.id,conflict.expected);if(own!==selection)return;resetConflict();void deliver();}catch(error){message(error.message);}});
   $('source').addEventListener('input',preview);
   window.addEventListener('resize',()=>{

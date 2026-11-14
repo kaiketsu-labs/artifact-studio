@@ -3,7 +3,15 @@
 import os
 from pathlib import Path
 
+import pytest
 from playwright.sync_api import sync_playwright
+
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
 
 
 def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
@@ -14,15 +22,21 @@ def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
         )
         context = browser.new_context()
         page = context.new_page()
-        page.route("https://offline.example.test/", lambda route: route.fulfill(
-            status=200, content_type="text/html", body="<!doctype html><title>Fictional</title>"
-        ))
+        page.route(
+            "https://offline.example.test/",
+            lambda route: route.fulfill(
+                status=200, content_type="text/html", body="<!doctype html><title>Fictional</title>"
+            ),
+        )
         page.goto("https://offline.example.test/")
         page.add_script_tag(path=script)
         other_page = context.new_page()
-        other_page.route("https://offline.example.test/", lambda route: route.fulfill(
-            status=200, content_type="text/html", body="<!doctype html><title>Fictional</title>"
-        ))
+        other_page.route(
+            "https://offline.example.test/",
+            lambda route: route.fulfill(
+                status=200, content_type="text/html", body="<!doctype html><title>Fictional</title>"
+            ),
+        )
         other_page.goto("https://offline.example.test/")
         other_page.add_script_tag(path=script)
         other_page.evaluate("window.saved=OfflineStore.create({enabled:true,scope:'b'.repeat(64)})")

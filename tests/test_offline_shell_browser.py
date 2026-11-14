@@ -7,7 +7,15 @@ import threading
 from pathlib import Path
 from typing import cast
 
+import pytest
 from playwright.sync_api import Route, sync_playwright
+
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
 
 
 def test_saved_shell_opens_and_queues_while_offline() -> None:
@@ -342,6 +350,107 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 active:localStorage.getItem('artifact-studio-offline-active-v1')};
             }""")
             assert result == {"blocked": True, "index": None, "active": "b" * 64}
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+def test_keep_online_version_continues_delivering_other_drafts() -> None:
+    root = Path(__file__).resolve().parents[1]
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+            )
+            page = browser.new_page()
+            origin = f"http://127.0.0.1:{server.server_port}"
+            page.route(
+                "**/api/session",
+                lambda route: route.fulfill(status=200, json={"cache_scope": "a" * 64}),
+            )
+            page.route(
+                "**/api/decks/deck",
+                lambda route: route.fulfill(
+                    status=200,
+                    json={
+                        "id": "deck",
+                        "title": "Fictional",
+                        "slides": [
+                            {
+                                "id": "cover",
+                                "title": "Cover",
+                                "html": "<h1>Online</h1>",
+                                "content_hash": "online-content",
+                                "expected_hash": "online-source",
+                            }
+                        ],
+                    },
+                ),
+            )
+            page.route(
+                "**/offline-snapshot",
+                lambda route: route.fulfill(
+                    status=200,
+                    json={
+                        "cache_scope": "a" * 64,
+                        "receipts": {"cover": "receipt"},
+                    },
+                ),
+            )
+            page.route(
+                "**/offline-edits",
+                lambda route: route.fulfill(
+                    status=200,
+                    json={
+                        "status": "conflict",
+                        "base": "Original",
+                        "current": "<h1>Online</h1>",
+                        "draft": "<h1>Offline</h1>",
+                        "current_expected_hash": "a" * 64,
+                        "current_content_hash": "b" * 64,
+                    },
+                ),
+            )
+            comments: list[str] = []
+
+            def deliver_comment(route: Route) -> None:
+                comments.append(
+                    cast(str, cast(dict[str, object], route.request.post_data_json)["message"])
+                )
+                route.fulfill(status=200, json={})
+
+            page.route("**/offline-comments", deliver_comment)
+            page.goto(origin + "/web/offline.html")
+            page.evaluate("""async () => {
+              const scope='a'.repeat(64);await OfflineClient.bind(scope);
+              const store=OfflineStore.create({enabled:true,scope});
+              await store.save('deck',{id:'deck',title:'Fictional',workspace:'default',slides:[
+                {id:'cover',title:'Cover',html:'<h1>Original</h1>',content_hash:'old',
+                  expected_hash:'old-source',receipt:'receipt'}]});
+              await store.queue('deck',{id:'edit-001',slide_id:'cover',anchor:'old',
+                receipt:'receipt',kind:'edit',body:'<h1>Offline</h1>'});
+              await store.queue('deck',{id:'comment-001',slide_id:'cover',anchor:'old',
+                receipt:'receipt',kind:'comment',body:'Keep this comment'});store.close();
+              localStorage.setItem('artifact-studio-offline-index-v1',
+                JSON.stringify([{scope,deck:'deck',title:'Fictional',session:'/api/session'}]));
+            }""")
+            page.reload()
+            page.wait_for_function("document.querySelector('#source').value.includes('Offline')")
+            page.locator("#reconnect").click()
+            page.wait_for_function("!document.querySelector('#conflict').hidden")
+            page.locator("#use-current").click()
+            page.wait_for_function(
+                "document.querySelector('#status').textContent.includes('delivered')"
+            )
+            assert comments == ["Keep this comment"]
+            assert page.locator("#outbox li").count() == 0
+            assert "Online" in page.locator("#source").input_value()
             browser.close()
     finally:
         server.shutdown()
