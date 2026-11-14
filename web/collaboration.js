@@ -163,7 +163,7 @@
         confirm.addEventListener('change', () => { button.disabled = !confirm.checked; });
         button.addEventListener('click', async () => {
           button.disabled = true;
-          try { await scopedRequest(workspaceAPI + '/grant-recovery', {preview_hash:preview.preview_hash,restore_human_grants:true}); recovery.hidden = true; notice.textContent = 'Human access restored.'; if (manage.open) await loadAccess(); }
+          try { await scopedRequest(workspaceAPI + '/grant-recovery', {preview_hash:preview.preview_hash,restore_human_grants:true}); recovery.hidden = true; const menuEntry = document.querySelector('[data-restore-access]'); if (menuEntry) menuEntry.hidden = true; notice.textContent = 'Human access restored.'; if (manage.open) await loadAccess(); }
           catch (reason) { error.textContent = reason.message; error.hidden = false; button.disabled = !confirm.checked; }
         });
       }).catch(reason => { if (dialog.open) { error.textContent = reason.message; error.hidden = false; } });

@@ -48,6 +48,7 @@ def running_multiplayer_app(
     unified: bool = False,
     personal_workspace_emails: tuple[str, ...] = (),
     startup_timeout: float = 10,
+    grant_recovery_fixture: bool = False,
 ) -> Generator[MultiplayerApp]:
     root.mkdir(parents=True, exist_ok=True)
     collection, database = root / "collection", root / "state/review.sqlite3"
@@ -74,6 +75,11 @@ from artifact_studio.deployment import DeploymentConfig
 from artifact_studio.multiplayer import create_app
 from artifact_studio.multiplayer_access import Sharing
 from artifact_studio.storage import Store
+if os.environ.get("ARTIFACT_STUDIO_FIXTURE_GRANT_RECOVERY") == "1":
+    from artifact_studio import grant_recovery
+    grant_recovery.identity_context = lambda config: (
+        "https://fictional.cloudflareaccess.com", "fixture-audience"
+    )
 class FixtureProvider:
     async def authenticate(self, headers):
         name = headers.get("x-fixture-auth", "")
@@ -97,6 +103,8 @@ uvicorn.run(app, host="127.0.0.1",
         encoding="utf-8",
     )
     env = {**os.environ, "PYTHONPATH": str(PROJECT)}
+    if grant_recovery_fixture:
+        env["ARTIFACT_STUDIO_FIXTURE_GRANT_RECOVERY"] = "1"
     if unified:
         config_path = root / "hosted.json"
         config_path.write_text(
