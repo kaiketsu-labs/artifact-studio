@@ -167,7 +167,11 @@ def test_agent_status_icon_and_keyboard_tooltip_contrast(
     status.focus()
     assert status.evaluate("element => element.matches(':focus-visible')")
     assert status.evaluate("element => getComputedStyle(element, '::after').content") != "none"
-    readable(status, kind="outline", minimum=3)
+    assert status.evaluate(
+        "element => getComputedStyle(element).boxShadow.includes('inset') && "
+        "getComputedStyle(element).boxShadow.includes('-2px')"
+    )
+    readable(status, minimum=3)
     readable(status, kind="tooltip")
 
     live_app.store.mark_agent_check(DECK_ID, wait_seconds=120)
