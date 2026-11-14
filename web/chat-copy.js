@@ -1,7 +1,7 @@
 /* Copy only the messages already visible in the selected conversation. */
 ((root) => {
   'use strict';
-  const safeText = value => String(value || '').replace(/https?:\/\/[^\s<>)]*(?:preview|token|bearer)[^\s<>)]*/gi, '[link omitted]');
+  const safeText = value => String(value || '').replace(/(?:https?:\/\/[^\s<>()]+)?\/_preview\/[^\s<>()]+/gi, '[preview link omitted]');
   function format(messages) {
     return messages.map(message => {
       const name = safeText(message.name || (message.author === 'user' ? 'You' : 'Agent'));
@@ -14,6 +14,7 @@
     }).join('\n\n');
   }
   async function copy({messages, clipboard, current, notify}) {
+    if (!current()) return;
     const text = format(messages);
     if (!text) { if (current()) notify('No messages to copy.'); return; }
     try {

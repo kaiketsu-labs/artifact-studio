@@ -2,9 +2,11 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {format,copy}=require('../web/chat-copy.js');
 test('copy formats visible text and attachment titles without preview links',()=>{
-  const text=format([{name:'Alice',message:'Review **this** https://preview.example.test/a?token=secret',files:[{name:'Reference.pdf',url:'https://preview.example.test/private'},{name:'Fictional slide - slide reference.html'}]},{author:'agent',message:'Ready'}]);
+  const text=format([{name:'Alice',message:'Review **this** https://preview.example.test/_preview/secret/file.png',files:[{name:'Reference.pdf',url:'https://preview.example.test/private'},{name:'Fictional slide - slide reference.html'}]},{author:'agent',message:'Ready'}]);
   assert.match(text,/Alice:\nReview \*\*this\*\*/);assert.match(text,/Attachment: Reference.pdf/);assert.match(text,/Reference: Fictional slide/);assert.match(text,/Agent:\nReady/);assert.doesNotMatch(text,/secret|private/);
 });
+test('ordinary authored URLs are preserved',()=>{assert.match(format([{message:'https://example.test/token-economics https://example.test/preview'}]),/https:\/\/example.test\/token-economics https:\/\/example.test\/preview/);});
+test('stale context makes no clipboard write',async()=>{let calls=0;await copy({messages:[{message:'text'}],clipboard:{writeText:async()=>calls++},current:()=>false,notify:()=>{throw Error('stale notification');}});assert.equal(calls,0);});
 test('clipboard failure is actionable and never retries after context changes',async()=>{
   let active=true,calls=0;const notices=[];
   await copy({messages:[{message:'text'}],clipboard:{writeText:async()=>{calls++;active=false;throw Error();}},current:()=>active,notify:(...args)=>notices.push(args)});

@@ -193,7 +193,7 @@
     return chatComposer.hasFiles(slideKey)||(nativeChat&&chatComposer.hasFiles(slideKey+'/private'));
   });
 
-  const slideQuestions=window.SlideQuestions.create({api,escape,svg,avatar:chatAvatar,deliveryMode:()=>deck?.workflow?.mode||'live',onRefresh:async(answer,deckId,slideId)=>{if(answer&&deck?.id===deckId){const target=deck.slides.find(item=>item.id===slideId);if(target&&!target.feedback.some(item=>item.event_id===answer.event_id))target.feedback.push(answer);renderRail();renderComments(slide());}await refresh();}});
+  const slideQuestions=window.SlideQuestions.create({api:async(path,body)=>{const id=deck?.id;if(!id)throw new Error('Presentation unavailable.');await ensureLive(id);return api(path,body);},escape,svg,avatar:chatAvatar,deliveryMode:()=>'live',onRefresh:async(answer,deckId,slideId)=>{if(answer&&deck?.id===deckId){const target=deck.slides.find(item=>item.id===slideId);if(target&&!target.feedback.some(item=>item.event_id===answer.event_id))target.feedback.push(answer);renderRail();renderComments(slide());}await refresh();}});
   $('chat-question-status').addEventListener('click',()=>slideQuestions.jump($('feedback-list')));
 
   voiceFeedback=window.SlideVoiceFeedback.create({
@@ -398,6 +398,14 @@
     }));
     return [...legacy,...scoped];
   }
+  /** Change future delivery only for an explicit send; previously saved messages stay private. */
+  async function ensureLive(id){
+    if(!id||deck?.id!==id)throw new Error('The presentation changed. Review your draft before sending.');
+    if((collaborationChat?legacyWorkflow:deck.workflow)?.mode==='live')return;
+    const workflow=await api('/api/decks/'+encodeURIComponent(id)+'/feedback-mode',{mode:'live'});
+    if(deck?.id!==id)throw new Error('The presentation changed. Review your draft before sending.');
+    if(collaborationChat)legacyWorkflow=workflow;else deck.workflow=workflow;renderWorkflow();
+  }
   /** Guard the delivery mode shown for a feedback action without discarding an uncertain retry. */
   async function postFeedback(url,body,expectedMode=deck?.workflow?.mode){
     const id=deck?.id;
@@ -421,11 +429,7 @@
       return {event_id:-sent.id};
     }
     const {ask_agent:_askAgent,...feedback}=body;
-    if(deck?.workflow?.mode!=='live'){
-      const workflow=await api('/api/decks/'+encodeURIComponent(id)+'/feedback-mode',{mode:'live'});
-      if(deck?.id!==id)throw new Error('The presentation changed. Review your draft before sending.');
-      deck.workflow=workflow;expectedMode='live';renderWorkflow();
-    }
+    await ensureLive(id);
     try{return await api(url,{...feedback,expected_mode:'live'});}
     catch(error){if(error.status===409 && id)try{await refreshWorkflow(id);}catch{}throw error;}
   }
