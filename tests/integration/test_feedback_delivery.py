@@ -128,3 +128,25 @@ def test_artifact_send_and_copy_keep_saved_feedback_private(
         "Earlier saved request",
     ]
     assert registry.workflow(artifact.id).pending == 0
+
+
+def test_cross_tab_release_moves_presentation_focus_to_copy(
+    page: Page, live_app: RunningApp
+) -> None:
+    """A disappearing saved-message action does not leave keyboard focus on the page body."""
+    slide = live_app.store.view(DECK_ID).slides[0]
+    _ = live_app.store.set_mode(DECK_ID, "batch")
+    _ = live_app.store.add_feedback(
+        DECK_ID, slide.id, "Fictional saved feedback", slide.content_hash, "fixture-focus-release"
+    )
+    open_editor(page, live_app)
+    release = page.locator("#send-batch")
+    expect(release).to_be_visible()
+    release.focus()
+    expect(release).to_be_focused()
+    _ = live_app.post(f"/api/decks/{DECK_ID}/send-batch", {})
+    expect(release).to_be_hidden(timeout=15000)
+    expect(page.get_by_role("button", name="Copy conversation", exact=True)).to_be_focused()
+    assert [event.message for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        "Fictional saved feedback"
+    ]

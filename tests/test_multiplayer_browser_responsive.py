@@ -170,3 +170,39 @@ def test_old_batch_is_delivered_to_collaborator(tmp_path: Path) -> None:
                     expect(alice_page.get_by_text("Old batch draft")).to_be_attached()
                     expect(alice_page.get_by_text("Later item 104")).to_be_attached()
                 browser.close()
+
+
+def test_cross_tab_release_moves_standalone_focus_to_copy(tmp_path: Path) -> None:
+    """The standalone chat preserves keyboard focus when another tab releases the queue."""
+    with running_multiplayer_app(tmp_path / "server", tmp_path / "server.log") as app:
+        headers = {"host": "studio.example.test", "x-fixture-auth": "owner", "origin": WORKSPACE}
+        with httpx.Client(base_url=app.url, headers=headers, timeout=15) as owner:
+            root = f"/api/workspaces/default/artifacts/{app.artifact_id}"
+            saved = owner.post(
+                root + "/chat",
+                json={
+                    "message": "Fictional saved feedback",
+                    "request_id": "fixture-focus-release",
+                    "released": False,
+                },
+            )
+            assert saved.status_code == 200, saved.text
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch()
+                try:
+                    with routed_multiplayer_context(browser, app) as context:
+                        page = context.new_page()
+                        page.goto(WORKSPACE)
+                        page.locator(f'[data-artifact="{app.artifact_id}"]').click()
+                        release = page.locator("#release")
+                        expect(release).to_be_visible()
+                        release.focus()
+                        expect(release).to_be_focused()
+                        response = owner.post(root + "/release?channel=shared", json={})
+                        assert response.status_code == 200, response.text
+                        expect(release).to_be_hidden(timeout=15000)
+                        expect(page.locator("#copy-conversation")).to_be_focused()
+                        messages = owner.get(root + "/chat", params={"channel": "shared"}).json()
+                        assert len(messages) == 1 and messages[0]["released"]
+                finally:
+                    browser.close()
