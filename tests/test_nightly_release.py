@@ -23,6 +23,7 @@ class GitHub:
         self.conflict = False
         self.move_main = False
         self.main_reads = 0
+        self.scheduled_sha = ""
 
     def run(self, *args: str) -> str:
         if args == ("git", "rev-parse", "HEAD"):
@@ -31,6 +32,8 @@ class GitHub:
             self.main_reads += 1
             return "b" * 40 if self.move_main and self.main_reads > 1 else self.main
         if args[:3] == ("gh", "run", "list"):
+            if args[args.index("--event") + 1] == "schedule":
+                return json.dumps([{"headSha": self.scheduled_sha}] if self.scheduled_sha else [])
             return json.dumps([{"conclusion": self.ci, "headSha": self.ci_sha}])
         if args[:3] == ("git", "tag", "--points-at"):
             return "\n".join(self.tags)
@@ -45,8 +48,15 @@ class GitHub:
             return "https://example.invalid/nightly"
         raise AssertionError(args)
 
-    def publish(self) -> str:
-        return publish("example/studio", SHA, "123", date="20261106", run=self.run)
+    def publish(self, *, recover_scheduled: bool = False) -> str:
+        return publish(
+            "example/studio",
+            SHA,
+            "123",
+            date="20261106",
+            recover_scheduled=recover_scheduled,
+            run=self.run,
+        )
 
 
 def test_nightly_publication_is_immutable_and_never_latest_stable() -> None:
@@ -56,6 +66,23 @@ def test_nightly_publication_is_immutable_and_never_latest_stable() -> None:
     assert args[3] == "nightly-20261106.123"
     assert args[args.index("--target") + 1] == SHA
     assert "--prerelease" in args and "--latest=false" in args
+
+
+@pytest.mark.parametrize("scheduled", ["", "b" * 40, SHA])
+def test_ci_recovers_only_the_scheduled_commit(scheduled: str) -> None:
+    """CI completing between scheduled runs must not create an extra nightly."""
+    github = GitHub()
+    github.scheduled_sha = scheduled
+    if scheduled == SHA:
+        github.ci = "failure"
+        assert github.publish(recover_scheduled=True).startswith("Skipped: CI")
+        assert not github.created
+        github.ci = "success"
+        assert github.publish(recover_scheduled=True).startswith("Published nightly")
+        assert len(github.created) == 1
+    else:
+        assert github.publish(recover_scheduled=True).startswith("Skipped: no scheduled nightly")
+        assert not github.created
 
 
 @pytest.mark.parametrize("ci", ["failure", "cancelled", "", "in_progress"])

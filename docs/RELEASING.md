@@ -50,10 +50,12 @@ older commits that did not use Conventional Commits.
 
 ## Nightly prereleases
 
-The separate **Nightly release** workflow runs daily at 02:17 UTC (03:17 in Berlin
-in winter, 04:17 in summer), and can be run manually on `main`. It publishes only
+The separate **Nightly release** workflow is scheduled daily at 02:17 UTC (03:17
+in Berlin in winter, 04:17 in summer), and can be run manually on `main`. It publishes only
 when CI has succeeded for that exact main commit and the source has changed since
-its last nightly. A changed main during publication is deferred to the next run.
+its last nightly. If CI passes after a scheduled run checked the same commit, the
+workflow retries automatically while that commit is still current on `main`.
+A changed main during publication is deferred to the next run.
 Rerunning an unchanged commit skips publication; an interrupted publication can
 reuse its existing tag without moving it.
 

@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '17 2 * * *'
   workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -14,7 +18,11 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name != 'workflow_run' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.id == github.event.repository.id)
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
@@ -23,8 +31,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
         with:
           version: '0.12.23'
@@ -33,9 +42,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NIGHTLY_REPOSITORY: ${{ github.repository }}
-          NIGHTLY_COMMIT: ${{ github.sha }}
+          NIGHTLY_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
           NIGHTLY_RUN_NUMBER: ${{ github.run_number }}
-        run: >-
-          uv run --no-project --python 3.14 -m scripts.publish_nightly
-          --repository "$NIGHTLY_REPOSITORY" --commit "$NIGHTLY_COMMIT"
-          --run-number "$NIGHTLY_RUN_NUMBER"
+          NIGHTLY_EVENT: ${{ github.event_name }}
+        run: |
+          args=(--repository "$NIGHTLY_REPOSITORY" --commit "$NIGHTLY_COMMIT" --run-number "$NIGHTLY_RUN_NUMBER")
+          if [[ "$NIGHTLY_EVENT" == workflow_run ]]; then args+=(--recover-scheduled); fi
+          uv run --no-project --python 3.14 -m scripts.publish_nightly "${args[@]}"

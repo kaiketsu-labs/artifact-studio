@@ -22,6 +22,7 @@ def publish(
     run_number: str,
     *,
     date: str,
+    recover_scheduled: bool = False,
     run: Callable[..., str] = command,
 ) -> str:
     """Require exact-commit CI and skip unchanged builds, including manual reruns."""
@@ -37,6 +38,30 @@ def publish(
     main = run("gh", "api", f"repos/{repository}/commits/main", "--jq", ".sha")
     if main != commit:
         return "Skipped: main changed. The next run will check the new commit."
+    if recover_scheduled:
+        scheduled = json.loads(
+            run(
+                "gh",
+                "run",
+                "list",
+                "--repo",
+                repository,
+                "--workflow",
+                "nightly.yml",
+                "--commit",
+                commit,
+                "--branch",
+                "main",
+                "--event",
+                "schedule",
+                "--limit",
+                "1",
+                "--json",
+                "headSha",
+            )
+        )
+        if not scheduled or scheduled[0].get("headSha") != commit:
+            return "Skipped: no scheduled nightly requested this commit."
     checks = json.loads(
         run(
             "gh",
@@ -111,10 +136,15 @@ def main() -> None:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--run-number", required=True)
+    parser.add_argument("--recover-scheduled", action="store_true")
     args = parser.parse_args()
     print(
         publish(
-            args.repository, args.commit, args.run_number, date=datetime.now(UTC).strftime("%Y%m%d")
+            args.repository,
+            args.commit,
+            args.run_number,
+            date=datetime.now(UTC).strftime("%Y%m%d"),
+            recover_scheduled=args.recover_scheduled,
         )
     )
 
