@@ -495,3 +495,85 @@ def test_keep_online_version_continues_delivering_other_drafts() -> None:
         server.shutdown()
         server.server_close()
         thread.join()
+
+
+@pytest.mark.parametrize("action", ["remove", "delivery"])
+def test_late_queue_read_cannot_restore_content_after_clear(action: str) -> None:
+    root = Path(__file__).resolve().parents[1]
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(root))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+            )
+            context = browser.new_context()
+            page = context.new_page()
+            origin = f"http://127.0.0.1:{server.server_port}"
+            page.route(
+                "**/api/session",
+                lambda route: route.fulfill(status=200, json={"cache_scope": "a" * 64}),
+            )
+            page.route("**/api/decks/deck", lambda route: route.fulfill(status=200, json={}))
+            delivered: list[str] = []
+
+            def deliver_comment(route: Route) -> None:
+                delivered.append(
+                    cast(str, cast(dict[str, object], route.request.post_data_json)["message"])
+                )
+                route.fulfill(status=200, json={})
+
+            page.route("**/offline-comments", deliver_comment)
+            page.goto(origin + "/web/offline.html")
+            page.evaluate("""async () => {
+              const scope='a'.repeat(64);await OfflineClient.bind(scope);
+              const store=OfflineStore.create({enabled:true,scope});
+              await store.save('deck',{id:'deck',title:'Private title',workspace:'default',slides:[
+                {id:'cover',title:'Private slide',html:'<h1>Private source</h1>',
+                  content_hash:'hash',expected_hash:'expected',receipt:'receipt'}]});
+              await store.queue('deck',{id:'comment-001',slide_id:'cover',anchor:'hash',
+                receipt:'receipt',kind:'comment',body:'First private comment'});
+              await store.queue('deck',{id:'comment-002',slide_id:'cover',anchor:'hash',
+                receipt:'receipt',kind:'comment',body:'Second private comment'});store.close();
+              localStorage.setItem('artifact-studio-offline-index-v1',
+                JSON.stringify([{scope,deck:'deck',title:'Private title',session:'/api/session'}]));
+            }""")
+            page.reload()
+            page.wait_for_function("document.querySelectorAll('#outbox li').length===2")
+            page.evaluate("""() => {
+              const create=OfflineStore.create;
+              OfflineStore.create=options=>{
+                const store=create(options),read=store.read,update=store.update;
+                store.update=async (...args)=>{const result=await update(...args);
+                  if(window.delayAfterUpdate)window.delayNextRead=true;return result;};
+                store.read=async deck=>{const result=await read(deck);if(window.delayNextRead){
+                  window.delayedReadStarted=true;
+                  await new Promise(resolve=>window.releaseRead=resolve);
+                }return result;};return store;};
+            }""")
+            page.locator("#decks").select_option("0")
+            page.wait_for_function("document.querySelectorAll('#outbox li').length===2")
+            if action == "remove":
+                page.evaluate("window.delayNextRead=true")
+                page.locator("#outbox button").first.click()
+            else:
+                page.evaluate("window.delayAfterUpdate=true")
+                page.locator("#reconnect").click()
+            page.wait_for_function("window.delayedReadStarted===true")
+            other = context.new_page()
+            other.goto(origin + "/web/offline.html")
+            other.evaluate("OfflineClient.clear()")
+            page.wait_for_function(
+                "localStorage.getItem('artifact-studio-offline-index-v1')===null"
+            )
+            page.evaluate("window.releaseRead()")
+            assert page.locator("#outbox").text_content() == ""
+            assert page.locator("#source").input_value() == ""
+            assert len(delivered) == (1 if action == "delivery" else 0)
+            browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
