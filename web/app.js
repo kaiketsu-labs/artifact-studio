@@ -740,6 +740,8 @@
     $('chat-tabs').hidden=!collaborationChat;
     const legacyPending=collaborationChat&&conversationChannel==='private'?(legacyWorkflow?.pending||0):0;
     const delivery=$('send-batch').closest('.delivery-panel');
+    if((document.activeElement===$('send-batch')&&(!state.pending||!commentAllowed()))||
+       (document.activeElement===$('send-legacy-batch')&&!legacyPending))$('copy-conversation').focus({preventScroll:true});
     delivery.hidden=!state.pending&&!legacyPending;
     $('send-batch').hidden=!state.pending;
     $('send-batch').disabled=!commentAllowed();
