@@ -22,6 +22,7 @@ pytestmark = [
 def visible_preview(page: Page, text: str) -> Frame:
     """Reacquire the sandbox frame while its srcdoc navigation replaces the old document."""
     deadline = time.monotonic() + 15
+    frame: Frame | None = None
     while time.monotonic() < deadline:
         element = page.locator("#preview").element_handle()
         frame = element.content_frame() if element else None
