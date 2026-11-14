@@ -5,7 +5,7 @@ crash recoverable. Each slide is separate so independent edits can be compared.
 """
 
 import json
-from typing import Self
+from typing import Annotated, Self
 
 from pydantic import Field, model_validator
 
@@ -23,7 +23,7 @@ class PortableSlide(StrictModel):
     title: str = Field(min_length=1, max_length=160)
     html: str = Field(min_length=1, max_length=150_000)
     interactive_html: str = Field(default="", max_length=2_000_000)
-    hidden: bool = False
+    hidden: bool = Field(default=False, strict=True)
 
     @classmethod
     def from_slide(cls, slide: Slide) -> PortableSlide:
@@ -41,7 +41,9 @@ class PortableDeck(StrictModel):
 
     format: int = Field(default=1, strict=True, ge=1, le=1)
     title: str = Field(min_length=1, max_length=160)
-    slides: list[str] = Field(min_length=1, max_length=100)
+    slides: list[Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")]] = Field(
+        min_length=1, max_length=100
+    )
     sections: list[DeckSection] = Field(default_factory=list, max_length=100)
 
     @model_validator(mode="after")
