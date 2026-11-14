@@ -133,7 +133,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             )
             assert page.locator("#outbox li").count() == 2
             assert "Offline edit" in (page.locator("#preview").get_attribute("srcdoc") or "")
-            page.wait_for_timeout(500)
+            page.locator("#preview").scroll_into_view_if_needed()
             page.frame_locator("#preview").get_by_text("Offline edit").wait_for()
             old_tab = page
             context.set_offline(False)
