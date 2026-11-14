@@ -1642,3 +1642,67 @@ def test_selected_slide_exports_respect_shared_access(tmp_path: Path) -> None:
                         expect(menu.get_by_role("menuitem", name="Delete slide")).to_be_hidden()
         finally:
             browser.close()
+
+
+@pytest.mark.parametrize("kind", ["markdown", "html"])
+def test_narrow_artifact_composer_stays_visible_when_long_thread_arrives(
+    tmp_path: Path, kind: str
+) -> None:
+    """Keep a focused draft reachable as new shared messages expand the thread."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        if kind == "markdown":
+            artifact_id = app.artifact_id
+        else:
+            artifacts = ArtifactStore(app.store)
+            project = artifacts.create_project("Fictional HTML project")
+            source = tmp_path / "page.html"
+            source.write_text("<h1>Fictional page</h1>")
+            artifact_id = artifacts.register_artifact(
+                project.id, "Fictional page", source, "page.html"
+            ).id
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 390, "height": 500})
+                page.emulate_media(color_scheme="dark")
+                page.goto(f"{WORKSPACE}/?artifact={artifact_id}")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                composer = page.locator("#hub-feedback-text")
+                composer.fill("First fictional message")
+                composer.press("Enter")
+                expect(page.locator("#hub-thread")).to_contain_text("First fictional message")
+                composer.fill("Keep this draft")
+                page.locator("#hub-feedback-files").set_input_files(
+                    {"name": "review.txt", "mimeType": "text/plain", "buffer": b"fictional"}
+                )
+                for index in range(12):
+                    response = owner.post(
+                        f"/api/workspaces/default/artifacts/{artifact_id}/chat",
+                        json={
+                            "message": f"Long discussion {index} " + "example " * 20,
+                            "request_id": f"long-thread-{index}",
+                        },
+                    )
+                    assert response.is_success, response.text
+                expect(page.locator("#hub-thread")).to_contain_text(
+                    "Long discussion 11", timeout=15000
+                )
+                expect(composer).to_have_value("Keep this draft")
+                expect(page.locator("#hub-feedback-attachments")).to_contain_text("review.txt")
+                expect(page.locator("#hub-shared-channel")).to_have_value("shared")
+                send = page.locator("#hub-send")
+                expect(send).to_be_in_viewport(ratio=1)
+                assert send.evaluate(
+                    "button => button.getBoundingClientRect().bottom <= "
+                    "document.querySelector('.studio-report-trigger').getBoundingClientRect().top"
+                )
+                send.click()
+                expect(page.locator("#hub-thread")).to_contain_text("Keep this draft")
+                expect(page.locator("#hub-thread")).to_contain_text("review.txt")
+        finally:
+            browser.close()

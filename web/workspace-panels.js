@@ -185,8 +185,9 @@
       right = workspace?.querySelector(kind === 'hub' ? '.hub-chat' : '.discussion');
       if (composerObserver) {
         composerObserver.disconnect();
-        const form = right?.querySelector('.hub-compose');
-        if (form) composerObserver.observe(form);
+        // The chat can replace its composer after sending and grow when messages arrive.
+        // Observe the persistent panel so both changes keep the focused actions in view.
+        if (right) composerObserver.observe(right);
       }
       // Keep keyboard resize controls inside the existing workspace landmark.
       if (workspace) for (const handle of Object.values(handles)) if (handle.parentElement !== workspace) workspace.append(handle);
