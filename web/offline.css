@@ -6,4 +6,12 @@
 .preview-panel .section-heading{align-items:center}
 .preview-panel .section-heading label{max-width:70%;font-size:11px;color:var(--muted)}
 .preview-panel select{display:block}
+#offline-properties{--surface:var(--panel);--selected:var(--soft)}
+.offline-object-tools{display:grid;gap:8px;min-width:180px}
+.offline-object-tools [role=group]{display:flex;gap:4px}
+.offline-object-tools input{width:64px;margin:0 4px}
+#offline-properties .offline-object-tools [data-remove]{width:auto;justify-self:start}
+.offline-object-only .ep-formatting > :not([data-panel=objects]),
+.offline-object-removed .ep-formatting,.offline-object-removed .ep-panel{display:none}
+.element-properties.offline-object-removed{min-width:76px;min-height:41px}
 @media(pointer:coarse){#offline-properties button,#offline-properties .ep-color{min-width:36px;min-height:36px}}

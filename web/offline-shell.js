@@ -5,7 +5,7 @@
   let entries=[],store=null,record=null,selection=0,conflict=null,syncing=false,deliveryController=null;
   let activeDeck='',activeSlide='';
   const visual=OfflineVisualEdit.create({picker:$('edit-object'),container:$('offline-properties'),
-    source:$('source'),onSource:preview,onSave:()=>queue('edit')});
+    source:$('source'),onSource:preview,onSave:()=>queue('edit'),onStatus:message});
   try{const active=localStorage.getItem(ACTIVE);entries=JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===active&&/^[a-f0-9]{64}$/.test(item.scope)&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session));}catch{}
   function message(text){$('status').textContent=text;}
   function clearFrame(id){const old=$(id);if(!old)return;if(id==='preview')visual.reset();const next=old.cloneNode(false);next.removeAttribute('srcdoc');old.replaceWith(next);}
