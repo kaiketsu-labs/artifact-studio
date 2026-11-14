@@ -97,28 +97,31 @@ def test_five_identities_share_only_granted_deck_access(tmp_path: Path) -> None:
         deck = f"/api/decks/{app.deck_id}"
         chat = f"/api/workspaces/default/artifacts/{app.deck_id}/chat"
 
-        def visit(name: str) -> tuple[int, int, int]:
+        def visit(name: str) -> tuple[int, int, int, str]:
             """Try the same read and discussion endpoints with one identity."""
             with human(app, name) as client:
                 if name in tokens:
                     accept(client, tokens[name])
                 response = client.post(chat, json={"message": name, "request_id": "test-" + name})
+                read = client.get(deck)
                 return (
-                    client.get(deck).status_code,
+                    read.status_code,
                     response.status_code,
                     client.get(f"/api/artifacts/{app.sibling_id}").status_code,
+                    read.headers["x-request-id"],
                 )
 
         people = ("owner", "alice", "bob", "carol", "dana")
         with ThreadPoolExecutor(max_workers=len(people)) as pool:
             results = dict(zip(people, pool.map(visit, people), strict=True))
-        assert results == {
+        assert {name: result[:3] for name, result in results.items()} == {
             "owner": (200, 200, 200),
             "alice": (200, 200, 404),
             "bob": (200, 200, 404),
             "carol": (200, 404, 404),
             "dana": (404, 404, 404),
         }
+        assert len({result[3] for result in results.values()}) == 5
         assert {message["message"] for message in owner.get(chat).json()} == {
             "owner",
             "alice",
