@@ -33,7 +33,7 @@ from .project_tree import TreeDocument
 from .storage import DATA, SAFE_ID, ConflictError, Store, digest, replace_text
 
 PORTABLE_METADATA = "workspace-recovery.json"
-STAGED_GRANTS = "human-grants-recovery.json"
+STAGED_GRANTS = ".human-grants-recovery.json"
 ARCHIVE_MANIFEST = "workspace.json"
 MAX_FILES = 100_000
 MAX_FILE_BYTES = 2_000_000_000
@@ -1091,6 +1091,7 @@ class WorkspaceRecovery:
                         "artifact-previews",
                         "artifact-captures",
                         "copilot-captures",
+                        STAGED_GRANTS,
                         *HOST_LOCK_FILES,
                         self.store.database.name,
                         *(
@@ -1122,6 +1123,7 @@ class WorkspaceRecovery:
                             continue
                         if state_relative.parts[0] in {
                             *STATE_DIRECTORIES,
+                            STAGED_GRANTS,
                             *HOST_LOCK_FILES,
                             self.store.database.name,
                             *(

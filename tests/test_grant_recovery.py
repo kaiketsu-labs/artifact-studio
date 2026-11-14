@@ -348,3 +348,23 @@ def test_operator_activates_restored_nondefault_workspace(
     assert new_hub.owner(new_owner, untouched)
     with pytest.raises(ValueError, match="already"):
         grant_recovery_cli.main()
+
+
+def test_staged_grants_never_leak_into_later_exports(tmp_path: Path) -> None:
+    """Private recovery metadata stays private even if collection and state share a root."""
+    from zipfile import ZipFile
+
+    from artifact_studio.libraries import inventory
+    from artifact_studio.workspace_recovery import ARCHIVE_MANIFEST, STAGED_GRANTS, WorkspaceArchive
+
+    root = tmp_path / "collection"
+    store = Store(root, root / "review.sqlite3")
+    staged = root / STAGED_GRANTS
+    staged.write_text("fictional private grant data")
+    archive = tmp_path / "export.zip"
+    WorkspaceRecovery(store).export_archive(archive)
+    with ZipFile(archive) as source:
+        manifest = WorkspaceArchive.model_validate_json(source.read(ARCHIVE_MANIFEST))
+        assert all(STAGED_GRANTS not in item.path for item in manifest.files)
+        assert manifest.human_grants is None
+    assert all(STAGED_GRANTS not in item.path for item in inventory(root, snapshot=True))
