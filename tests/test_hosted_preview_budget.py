@@ -126,3 +126,26 @@ async def test_correlation_is_unique_and_safe_for_concurrent_preview_failures(
         assert identifier.decode() in caplog.text
     assert caplog.text.count("outcome=authorization_failure") == 5
     assert "fictional/resource" not in caplog.text
+
+
+@pytest.mark.anyio
+async def test_disconnect_is_logged_without_request_contents(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An observed disconnect is distinct from a server task cancellation."""
+    import logging
+
+    async def app(_scope: Scope, receive_message: Receive, _send: Send) -> None:
+        assert (await receive_message())["type"] == "http.disconnect"
+
+    async def disconnected() -> Message:
+        return {"type": "http.disconnect"}
+
+    async def send(_message: Message) -> None:
+        raise AssertionError("Disconnected requests cannot receive a response")
+
+    scope = preview_scope()
+    caplog.set_level(logging.WARNING, logger="artifact_studio.hosted.requests")
+    await boundary(app)(scope, disconnected, send)
+    assert "outcome=client_disconnect" in caplog.text
+    assert "fictional/resource" not in caplog.text

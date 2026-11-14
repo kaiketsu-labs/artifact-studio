@@ -411,3 +411,47 @@ def test_project_inheritance_and_comment_role(tmp_path: Path) -> None:
             )
             assert response.status_code == 200
             assert response.json()["result"].get("isError")
+
+
+def test_five_identities_and_saturated_live_renderer_have_correlated_responses(
+    tmp_path: Path,
+) -> None:
+    """Readers remain independent while a real Chromium capture fills the renderer queue."""
+    import os
+
+    if os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1":
+        pytest.skip("Opt-in real Chromium renderer journey")
+    logs = tmp_path / "server.log"
+    with (
+        running_multiplayer_app(
+            tmp_path / "server", logs, unified=True, saturate_renderer=True, startup_timeout=30
+        ) as app,
+        human(app, "owner") as owner,
+    ):
+        for name in ("alice", "bob", "carol", "dana"):
+            with human(app, name) as client:
+                accept(client, grant(owner, name, app.deck_id, role="view"))
+        slide = owner.get(f"/api/decks/{app.deck_id}").json()["slides"][0]
+
+        def visit(name: str) -> tuple[int, str, str]:
+            with human(app, name) as client:
+                if name == "owner":
+                    response = client.post(
+                        f"/api/decks/{app.deck_id}/slides/{slide['id']}/image",
+                        json={"content_hash": slide["content_hash"]},
+                    )
+                    return (
+                        response.status_code,
+                        response.headers["x-request-id"],
+                        response.json()["code"],
+                    )
+                response = client.get(f"/api/decks/{app.deck_id}")
+                return response.status_code, response.headers["x-request-id"], ""
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            results = list(pool.map(visit, ("owner", "alice", "bob", "carol", "dana")))
+        assert results[0][0] == 503 and results[0][2] == "renderer_saturated"
+        assert all(result[0] == 200 for result in results[1:])
+        assert len({result[1] for result in results}) == 5
+        log = logs.read_text()
+        assert f"id={results[0][1]} outcome=renderer_saturation" in log

@@ -4,11 +4,13 @@ import asyncio
 import logging
 import time
 import uuid
+from contextvars import ContextVar
 
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = logging.getLogger("artifact_studio.hosted.requests")
+request_id_context: ContextVar[str | None] = ContextVar("hosted_request_id", default=None)
 
 
 class RequestDiagnostics:
@@ -24,9 +26,11 @@ class RequestDiagnostics:
             return
         scope.setdefault("state", {})["request_diagnostics_active"] = True
         request_id = uuid.uuid4().hex
+        context_token = request_id_context.set(request_id)
         start = time.monotonic()
         status: list[int] = [0]
         disconnected = False
+        renderer_saturated = False
         cancelled = False
         failed = False
         preview = Headers(scope=scope).get("host", "").lower() == self.preview_host
@@ -38,8 +42,13 @@ class RequestDiagnostics:
             return message
 
         async def observed_send(message: Message) -> None:
+            nonlocal renderer_saturated
             if message["type"] == "http.response.start":
                 status[0] = message["status"]
+                renderer_saturated = any(
+                    k.lower() == b"x-artifact-error" and v == b"renderer_saturated"
+                    for k, v in message.get("headers", [])
+                )
                 headers = [
                     (k, v) for k, v in message.get("headers", []) if k.lower() != b"x-request-id"
                 ]
@@ -56,6 +65,7 @@ class RequestDiagnostics:
             failed = True
             raise
         finally:
+            request_id_context.reset(context_token)
             elapsed_ms = round((time.monotonic() - start) * 1000)
             outcome = (
                 "client_disconnect"
@@ -64,6 +74,8 @@ class RequestDiagnostics:
                 if cancelled
                 else "exception"
                 if failed
+                else "renderer_saturation"
+                if renderer_saturated
                 else "authorization_failure"
                 if status[0] in (401, 403)
                 else "preview_capacity"
