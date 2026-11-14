@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
@@ -32,6 +32,7 @@ from .deployment import DeploymentConfig
 from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
+from .invitation_provisioning import InvitationProvisioning, invitation_destination
 from .models import FileInput, StrictModel
 from .multiplayer_access import (
     AccessDenied,
@@ -65,6 +66,10 @@ class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
     no_expiry: bool = False
+
+
+class ProvisioningRetry(StrictModel):
+    email: str = Field(max_length=254)
 
 
 class AgentInput(ScopeInput):
@@ -107,6 +112,7 @@ def create_app(
     config: DeploymentConfig | None = None,
     provider: AuthProvider | None = None,
     sharing: Sharing | None = None,
+    invitation_provisioning: InvitationProvisioning | None = None,
 ) -> FastAPI:
     """Build with explicit dependencies so real HTTP tests never touch a user's collection."""
     config = config or DeploymentConfig.from_env()
@@ -134,6 +140,9 @@ def create_app(
             personal_workspace_emails=config.personal_workspace_emails,
         )
     hub = sharing
+    admission = invitation_provisioning or InvitationProvisioning.from_env(hub, config)
+    if admission is not None and admission.sharing is not hub:
+        raise ValueError("Invitation provisioner must use this sharing registry.")
     chat = Conversations(hub)
     presence = DeckPresence(hub)
     structure = StructureProposals(hub)
@@ -161,7 +170,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-        async with mcp.session_manager.run():
+        async with mcp.session_manager.run(), AsyncExitStack() as stack:
+            if admission is not None:
+                await stack.enter_async_context(admission.worker())
             yield
 
     app = FastAPI(
@@ -265,7 +276,25 @@ def create_app(
     @app.post("/api/invitations/accept")
     def accept(request: Request, body: AcceptInput) -> dict[str, str]:
         scope = hub.accept(actor_of(request), body.token)
-        return {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
+        result = {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
+        if admission is not None:
+            result["destination"] = invitation_destination(scope)
+        return result
+
+    @app.get("/api/workspaces/{workspace}/invitation-provisioning")
+    def provisioning_status(request: Request, workspace: str) -> list[dict[str, object]]:
+        if admission is None:
+            raise AccessDenied
+        return admission.status(actor_of(request), workspace)
+
+    @app.post("/api/workspaces/{workspace}/invitation-provisioning/retry")
+    def retry_provisioning(
+        request: Request, workspace: str, body: ProvisioningRetry
+    ) -> dict[str, bool]:
+        if admission is None:
+            raise AccessDenied
+        admission.retry(actor_of(request), workspace, body.email)
+        return {"ok": True}
 
     @app.get("/api/workspaces/{workspace}/catalog")
     def catalog(request: Request, workspace: str) -> dict[str, object]:

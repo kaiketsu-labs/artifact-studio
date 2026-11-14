@@ -12,12 +12,15 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
 from .authentication import Principal
 from .storage import Store
+
+if TYPE_CHECKING:
+    from .invitation_provisioning import InvitationProvisioning
 
 Role = Literal["view", "comment", "edit"]
 Kind = Literal["workspace", "project", "artifact"]
@@ -98,6 +101,7 @@ class Sharing:
         self._lock = threading.RLock()
         self._depth = threading.local()
         self._stores: dict[str, Store] = {"default": default}
+        self.invitation_provisioning: InvitationProvisioning | None = None
         with self.connect() as db:
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS people (
@@ -186,6 +190,8 @@ class Sharing:
         if principal.service or not principal.subject or not principal.email:
             raise AccessDenied
         email = email_address(principal.email)
+        if self.invitation_provisioning:
+            self.invitation_provisioning.require_human(email)
         person = checksum(principal.subject)
         personal = email in self._personal_emails
         with self.connect() as db:
@@ -493,6 +499,8 @@ class Sharing:
                     0 if no_expiry else time.time() + 7 * 86400,
                 ),
             )
+            if self.invitation_provisioning:
+                self.invitation_provisioning.changed(db, email_address(email))
         return {"id": identifier, "token": token}
 
     def accept(self, actor: Actor, token: str) -> Scope:
@@ -525,6 +533,8 @@ class Sharing:
                 ),
             )
             db.execute("UPDATE invitations SET accepted=1 WHERE id=?", (row["id"],))
+            if self.invitation_provisioning:
+                self.invitation_provisioning.changed(db, cast(str, row["email"]))
         return scope
 
     def access(self, actor: Actor, scope: Scope) -> dict[str, object]:
@@ -569,6 +579,11 @@ class Sharing:
                 "WHERE g.id=? AND g.workspace=? AND g.kind=? AND g.resource=?",
                 (identifier, scope.workspace, scope.kind, scope.resource),
             ).fetchone()
+            invitation = db.execute(
+                "SELECT email FROM invitations WHERE id=? AND workspace=? "
+                "AND kind=? AND resource=?",
+                (identifier, scope.workspace, scope.kind, scope.resource),
+            ).fetchone()
             if grant:
                 db.execute(
                     "DELETE FROM invitations WHERE workspace=? AND kind=? "
@@ -580,6 +595,10 @@ class Sharing:
                     f"DELETE FROM {table} WHERE id=? AND workspace=? AND kind=? AND resource=?",
                     (identifier, scope.workspace, scope.kind, scope.resource),
                 )
+            if self.invitation_provisioning:
+                for row in (grant, invitation):
+                    if row:
+                        self.invitation_provisioning.changed(db, cast(str, row["email"]))
 
     def connect_agent(self, actor: Actor, scope: Scope, name: str) -> dict[str, str]:
         name = name.strip()
