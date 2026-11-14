@@ -52,3 +52,27 @@ def test_portable_rejects_extra_private_files_and_mismatched_identity(tmp_path: 
             files
             | {"slides/cover.json": files["slides/cover.json"].replace(b'"cover"', b'"other"', 1)}
         )
+
+
+def test_prepare_preserves_private_slide_state_and_revision(tmp_path: Path) -> None:
+    from artifact_studio.presentation_sync import prepare_portable_deck
+
+    store = Store(tmp_path / "collection", tmp_path / "review.sqlite")
+    folder = store.root / "fictional-deck"
+    folder.mkdir()
+    deck = blank_presentation(folder, "fictional-deck", "Fictional deck")
+    deck.slides[0].notes = "Keep private notes"
+    deck.slides[0].notes_revision = 4
+    deck.slides[0].revision = 9
+    store.write(deck.id, deck)
+    with store.editing(deck.id):
+        files = portable_snapshot(store, deck.id)
+    files["slides/cover.json"] = files["slides/cover.json"].replace(
+        b"Fictional deck", b"Remote title"
+    )
+    updated = prepare_portable_deck(deck, files)
+    assert updated.slides[0].title == "Remote title"
+    assert updated.slides[0].notes == "Keep private notes"
+    assert updated.slides[0].notes_revision == 4
+    assert updated.slides[0].revision == 10
+    assert deck.slides[0].revision == 9

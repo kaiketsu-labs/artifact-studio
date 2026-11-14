@@ -126,3 +126,41 @@ def parse_portable(files: dict[str, bytes]) -> tuple[PortableDeck, list[Portable
         ],
     )
     return manifest, slides
+
+
+def prepare_portable_deck(current: Deck, files: dict[str, bytes]) -> Deck:
+    """Build a new deck while retaining local-only fields and revision anchors."""
+    manifest, incoming = parse_portable(files)
+    existing = {slide.id: slide for slide in current.slides}
+    result: list[Slide] = []
+    for item in incoming:
+        old = existing.get(item.id)
+        if old is None:
+            slide = Slide(
+                id=item.id,
+                title=item.title,
+                html=item.html,
+                interactive_html=item.interactive_html,
+                hidden=item.hidden,
+            )
+        else:
+            changed = (
+                item.title != old.title
+                or item.html != old.html
+                or item.interactive_html != old.interactive_html
+            )
+            slide = old.model_copy(
+                update={
+                    "title": item.title,
+                    "html": item.html,
+                    "interactive_html": item.interactive_html,
+                    "hidden": item.hidden,
+                    "revision": old.revision + int(changed),
+                },
+                deep=True,
+            )
+        result.append(slide)
+    return Deck.model_validate(
+        current.model_dump()
+        | {"title": manifest.title, "sections": manifest.sections, "slides": result}
+    )
