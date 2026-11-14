@@ -221,9 +221,9 @@ def test_hover_and_escape_do_not_save(live_app: RunningApp, page: Page) -> None:
     assert live_app.store.locate(live_app.store.read(DECK_ID), "cover").html == element_markup()
 
 
-@pytest.mark.parametrize("modifier", ["Shift", "Control"])
+@pytest.mark.parametrize("modifier", ["Shift", "ControlOrMeta"])
 def test_modified_click_away_saves_choice(
-    live_app: RunningApp, page: Page, modifier: Literal["Shift", "Control"]
+    live_app: RunningApp, page: Page, modifier: Literal["Shift", "ControlOrMeta"]
 ) -> None:
     group = seed_elements(live_app, groups=("headline",))["headline"]
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
