@@ -145,7 +145,7 @@
   const nativeConversation=root.StudioNativeConversation;
   const scopedChat=nativeConversation.create({api});
   const collaborationChat=nativeChat?scopedChat:null;
-  const conversationModes=new Map(),conversationChannels=new Map();
+  const conversationModes=new Map(),conversationChannels=new Map(),channelSwitches=new Map(),channelVersions=new Map();
   const canComment=item=>!nativeChat||['edit','comment'].includes(item?.collaboration?.access?.role);
   const channelOf=id=>conversationChannels.get(id)||'shared';
   root.addEventListener('studio:before-conversation-change',event=>{
@@ -465,9 +465,11 @@
     return result;
   }
   async function artifactDetail(id) {
+    const channel=channelOf(id),version=channelVersions.get(id)||0;
     const detail=await api(artifactPath(id));
     if((!collaborationChat&&!root.StudioInvitation?.available)||detail.legacy_deck_id)return detail;
-    const info=await scopedChat.read(id,{channel:channelOf(id)});
+    const info=await scopedChat.read(id,{channel});
+    if(channelOf(id)!==channel||(channelVersions.get(id)||0)!==version)throw new Error('Conversation changed.');
     const scoped=info.messages.map(message=>({
       id:-message.id,author:message.author===message.person?'user':'agent',
       name:message.author===message.person?(message.person===info.person?'You':message.author_name):(info.agents.find(agent=>agent.id===message.author)?.name||'Agent'),
@@ -475,9 +477,9 @@
       message:message.message,created_at:new Date(message.created*1000).toISOString(),
       content_hash:message.content_hash,target:message.target,released:Boolean(message.released),files:message.files||[],scoped:true
     }));
-    const feedback=sharedEditor||(collaborationChat&&channelOf(id)==='shared')?scoped:[...(detail.feedback||[]),...scoped];
+    const feedback=sharedEditor||(collaborationChat&&channel==='shared')?scoped:[...(detail.feedback||[]),...scoped];
     if(!collaborationChat)return {...detail,feedback};
-    return {...detail,collaboration:info,feedback,mode:conversationModes.get(id)||'live',
+    return {...detail,conversationChannel:channel,conversationVersion:version,collaboration:info,feedback,mode:conversationModes.get(id)||'live',
       delivery:{live_available:info.agents.some(agent=>agent.mine&&agent.status==='listening')}};
   }
   async function postArtifactFeedback(item,body) {
@@ -490,6 +492,7 @@
       return api(artifactPath(item.id,'/feedback'),{...body,expected_mode:'live'});
     }
     if(!canComment(item))throw new Error('You have view access.');
+    if(channelSwitches.has(item.id)||item.conversationChannel!==channelOf(item.id)||item.conversationVersion!==(channelVersions.get(item.id)||0))throw new Error('Wait for the conversation to finish switching.');
     const channel=channelOf(item.id),forAgent=body.edit_intent||body.ask_agent||channel==='private';
     const assigned=forAgent?ownChatAgent(item)?.id||'':'';
     return collaborationChat.send(item.id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:body.content_hash,target:body.target,editIntent:body.edit_intent,channel,assigned,forAgent,includeSharedContext:body.ask_agent,released:true});
@@ -721,7 +724,8 @@
   }
   /** Refresh review controls without replacing the preview, composer or dictated drafts. */
   function syncArtifactReview(detail) {
-    const item=state.detail;if(!item || item.id!==detail.id)return;
+    const item=state.detail;if(!item || item.id!==detail.id || channelSwitches.has(item.id) ||
+      (collaborationChat&&(detail.conversationChannel!==channelOf(item.id)||item.conversationChannel!==channelOf(item.id)||detail.conversationVersion!==(channelVersions.get(item.id)||0)||item.conversationVersion!==(channelVersions.get(item.id)||0))))return;
     const deliveryChanged=canComment(item)!==canComment(detail)||pendingCount(item)!==pendingCount(detail)||JSON.stringify([item.mode,item.workflow,item.delivery])!==JSON.stringify([detail.mode,detail.workflow,detail.delivery]);
     const feedbackChanged=JSON.stringify(item.feedback)!==JSON.stringify(detail.feedback);
     for(const field of ['mode','workflow','delivery','collaboration','access_role'])item[field]=detail[field];
@@ -1029,7 +1033,8 @@
     });
   }
   async function sendFeedback(form) {
-    const item=state.detail;if(!canComment(item)||sending.has(item.id))return;
+    const item=state.detail;if(!canComment(item)||sending.has(item.id)||channelSwitches.has(item.id)||
+      (collaborationChat&&(item.conversationChannel!==channelOf(item.id)||item.conversationVersion!==(channelVersions.get(item.id)||0))))return;
     updateFeedbackDraft(form.querySelector('#hub-feedback-text'),{submitting:true});
     const value=draft(item),files=attachments.get(item.id) || [],expectedMode=item.mode || 'batch';
     if(voice.isActive()){toast('Stop dictation before sending feedback.');return;}
@@ -1129,10 +1134,10 @@
     }
     if(name==='end-review'){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/review/disconnect'),{});const detail=await artifactDetail(id);if(state.active===id)syncArtifactReview(detail);toast('Review ended.');}finally{node.disabled=false;}return;}
     if(name==='copy-conversation'){
-      const item=state.detail,id=item?.id,channel=id&&channelOf(id);if(!item)return;
+      const item=state.detail,id=item?.id,channel=id&&channelOf(id);if(!item||channelSwitches.has(id)||(collaborationChat&&(item.conversationChannel!==channel||item.conversationVersion!==(channelVersions.get(id)||0))))return;
       const messages=(item.feedback||[]).map(message=>{const target=message.target,targets=target?.kind==='group'?target.elements:[target].filter(Boolean);return {...message,copyTarget:targets.map(targetLabel).join(' · ')};});
       void root.StudioChatCopy.copy({messages,title:item.title,clipboard:root.navigator.clipboard,current:()=>{
-        try{root.ArtifactSession?.assertActive();return state.active===id&&channelOf(id)===channel;}catch{return false;}
+        try{root.ArtifactSession?.assertActive();return state.active===id&&!channelSwitches.has(id)&&channelOf(id)===channel&&(!collaborationChat||state.detail?.conversationChannel===channel&&state.detail?.conversationVersion===(channelVersions.get(id)||0));}catch{return false;}
       },notify:toast});
     }
     if(name==='release-legacy'){
@@ -1365,9 +1370,19 @@
     if(sending.has(item.id)||value.message.trim()||attachments.get(item.id)?.length||value.voice_segments?.length){
       event.target.value=before;toast('Send or clear this draft before switching conversations.',true);return;
     }
-    conversationChannels.set(item.id,event.target.value);
-    try{const detail=await artifactDetail(item.id);if(state.detail===item){value.ask_agent=false;state.detail=detail;renderChat();}}
-    catch(error){conversationChannels.set(item.id,before);event.target.value=before;toast(error.message,true);}
+    const requested=event.target.value,token={};
+    channelSwitches.set(item.id,token);channelVersions.set(item.id,(channelVersions.get(item.id)||0)+1);conversationChannels.set(item.id,requested);
+    event.target.disabled=true;
+    doc.getElementById('hub-thread')?.replaceChildren();
+    for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input,[data-action="copy-conversation"],.hub-delivery button'))control.disabled=true;
+    try{
+      const detail=await artifactDetail(item.id);
+      if(state.detail!==item||channelSwitches.get(item.id)!==token||channelOf(item.id)!==requested)return;
+      value.ask_agent=false;state.detail=detail;channelSwitches.delete(item.id);renderChat();
+    }catch(error){
+      if(state.detail!==item||channelSwitches.get(item.id)!==token)return;
+      channelSwitches.delete(item.id);conversationChannels.set(item.id,before);item.conversationVersion=channelVersions.get(item.id)||0;renderChat();toast(error.message,true);
+    }finally{if(channelSwitches.get(item.id)===token)channelSwitches.delete(item.id);}
   });
   const libraryControls=root.SlideLibraries.init({api,toast,escape,currentDeck:()=>null});
   if(new URL(root.location.href).searchParams.get('settings')==='backup')void libraryControls.open();
