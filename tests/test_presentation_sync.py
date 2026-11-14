@@ -83,3 +83,31 @@ def test_prepare_preserves_private_slide_state_and_revision(tmp_path: Path) -> N
     assert updated.slides[0].sources[0].label == "Local source"
     assert updated.slides[0].revision == 10
     assert deck.slides[0].revision == 9
+
+
+def test_preparation_reorders_and_removes_without_mutating_local_deck(tmp_path: Path) -> None:
+    import json
+
+    from artifact_studio.presentation_sync import prepare_portable_deck
+
+    store = Store(tmp_path / "collection", tmp_path / "review.sqlite")
+    folder = store.root / "fictional-deck"
+    folder.mkdir()
+    original = blank_presentation(folder, "fictional-deck", "Fictional deck")
+    original.slides += [
+        Slide(id="second", title="Second", html="<article>Second</article>"),
+        Slide(id="third", title="Third", html="<article>Third</article>"),
+    ]
+    original.slides[1].notes = "Keep this note"
+    store.write(original.id, original)
+    with store.editing(original.id):
+        files = portable_snapshot(store, original.id)
+    manifest = json.loads(files["presentation.json"])
+    manifest["slides"] = ["third", "second"]
+    files["presentation.json"] = json.dumps(manifest).encode()
+    del files["slides/cover.json"]
+    prepared = prepare_portable_deck(original, files)
+    assert [slide.id for slide in prepared.slides] == ["third", "second"]
+    assert prepared.slides[1].notes == "Keep this note"
+    assert prepared.slides[1].revision == 1
+    assert [slide.id for slide in store.read(original.id).slides] == ["cover", "second", "third"]
