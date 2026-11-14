@@ -1,5 +1,7 @@
 # Documentation screenshots
 
+The current [single-send chat in light](chat-single-send-light.png) and [dark](chat-single-send-dark.png) uses compact agent icons, connection dots and Copy conversation. The rendered fictional fixture seeds a review lease through the API; no agent CLI or provider is connected. [Capture provenance](chat-single-send-captures.json) records browser, source and image hashes. Older screenshots may show the retired Live/Batch controls.
+
 The [default-design controls](default-design.png) were reviewed in actual Chromium at 1440 × 844 with two fictional slide design packs and a reference-only collection. The filled star and Default badge identify the saved workspace preference.
 
 The [version menu](app-version-menu.png), [current version](app-version-current.png),

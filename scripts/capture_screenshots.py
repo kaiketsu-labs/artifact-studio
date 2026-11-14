@@ -148,7 +148,6 @@ class Capture:
         self.appearance("Light")
         self.page.locator("#chat-resizer").focus()
         self.page.keyboard.press("Enter")
-        self.page.locator("#mode-batch").click()
         self.page.frame_locator("#preview").locator("#review-step").click(
             position={"x": 15, "y": 15}
         )
@@ -157,7 +156,6 @@ class Capture:
         self.save("docs/assets/element-review.png")
         self.page.locator("#feedback-text").fill("")
         self.page.locator("#clear-target").click()
-        self.page.locator("#mode-live").click()
 
     def selection_export(self) -> None:
         """Show the object image action through the actual multi-selection menu."""

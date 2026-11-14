@@ -1,0 +1,27 @@
+{
+  "recorded_at": "2026-11-14T08:13:36.107920+00:00",
+  "screenshots": [
+    {
+      "path": "docs/screenshots/chat-single-send-light.png",
+      "sha256": "16b0ae53e2b2d613a003112901749d7fbfa9f4eef180f8bfc9475dced9aefa07",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "source_commit": "6a992ef",
+      "browser": "system Chromium 155.0.8059.79, Playwright 1.65.0",
+      "fixture": "Fictional local review; Codex lease seeded through Reviews API, no agent CLI or provider connected."
+    },
+    {
+      "path": "docs/screenshots/chat-single-send-dark.png",
+      "sha256": "31533958ea0bbe477f22d0b7512cc11ac29b1f8ea07bde16405725bccb9fd44e",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "source_commit": "6a992ef",
+      "browser": "system Chromium 155.0.8059.79, Playwright 1.65.0",
+      "fixture": "Fictional local review; Codex lease seeded through Reviews API, no agent CLI or provider connected."
+    }
+  ]
+}
