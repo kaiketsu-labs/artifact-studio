@@ -100,7 +100,7 @@ def test_library_previews_search_empty_state_and_mobile_keyboard(
     expect(dialog.get_by_text("Keep your best slides handy")).to_be_visible()
 
 
-def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
+def test_cross_deck_reference_drafts_delivery_and_frozen_source(
     page: Page, prepared: RunningApp
 ) -> None:
     page.goto(f"{prepared.url}/?deck={DECK_ID}#workflow")
@@ -157,13 +157,8 @@ def test_cross_deck_reference_drafts_batch_delivery_and_frozen_source(
     _ = Favorites(prepared.store).set(
         StarInput(kind="slide", artifact_id=other, slide_id="story", starred=False)
     )
-    page.locator("#mode-batch").click()
     page.locator("#feedback-text").fill("Borrow the first layout and the second visual hierarchy.")
     page.locator("#send-feedback").click()
-    expect(page.locator("#feedback-list .comment-pending")).to_be_visible()
-    withheld = prepared.call("read_feedback", deck_id=DECK_ID)
-    assert "Borrow the first layout" not in str(withheld)
-    page.locator("#send-batch").click()
     expect(page.locator("#feedback-list .comment-pending")).to_have_count(0)
     delivered = prepared.call("read_feedback", deck_id=DECK_ID)
     assert "Borrow the first layout" in str(delivered)

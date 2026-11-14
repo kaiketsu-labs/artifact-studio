@@ -3,7 +3,7 @@
 import os
 
 import pytest
-from playwright.sync_api import Browser, Page, expect
+from playwright.sync_api import Browser, Page, Route, expect
 
 from artifact_studio.artifacts import ArtifactStore
 from tests.integration.support import DECK_ID, RunningApp
@@ -44,7 +44,7 @@ def capture_review_poll(page: Page) -> None:
 def test_element_voice_send_requires_resubmit_after_mode_changes(
     browser: Browser, live_app: RunningApp, kind: str
 ) -> None:
-    """A clean voice end cannot publish an edit after the displayed Batch choice changed."""
+    """A cross-tab mode change during voice finalization cannot publish an edit silently."""
     context = browser.new_context(viewport={"width": 1440, "height": 1000})
     page = context.new_page()
     capture_review_poll(page)
@@ -53,27 +53,35 @@ def test_element_voice_send_requires_resubmit_after_mode_changes(
         artifact_id = open_voice_property(page, live_app)
         mode_path = f"/api/artifacts/{artifact_id}/mode"
         panel = page.locator("#hub-element-properties")
-        mode = page.locator('[data-mode="live"]')
         toast = page.locator("#hub-toast")
     else:
-        _ = live_app.post(f"/api/decks/{DECK_ID}/feedback-mode", {"mode": "batch"})
         install_voice(page)
         open_editor(page, live_app)
         page.frame_locator("#preview").get_by_role("heading", level=1).click()
         panel = page.locator("#element-properties")
         panel.get_by_role("button", name="Edit text", exact=True).click()
         mode_path = f"/api/decks/{DECK_ID}/feedback-mode"
-        mode = page.locator("#mode-live")
         toast = page.locator("#toast")
     try:
         text = panel.get_by_label("Text", exact=True)
         text.fill("Keep this edit private")
         panel.locator(".voice-input-button").click()
         voice_result(page, "with a final phrase")
+        requests: list[str] = []
+        feedback_path = (
+            f"/api/artifacts/{artifact_id}/feedback"
+            if kind == "artifact"
+            else f"/api/decks/{DECK_ID}/slides/cover/feedback"
+        )
+
+        def conflict_once(route: Route) -> None:
+            requests.append(route.request.url)
+            if len(requests) == 1:
+                _ = live_app.post(mode_path, {"mode": "batch"})
+            route.continue_()
+
+        page.route("**" + feedback_path, conflict_once)
         panel.get_by_role("button", name="Send edit", exact=True).click()
-        _ = live_app.post(mode_path, {"mode": "live"})
-        page.evaluate("window.__reviewPolls.forEach(poll=>poll())")
-        expect(mode).to_have_attribute("aria-pressed", "true")
         voice_end(page)
         expect(toast).to_contain_text("Feedback mode changed")
         expect(text).to_have_value("Keep this edit private with a final phrase")
@@ -98,7 +106,7 @@ def test_element_voice_send_requires_resubmit_after_mode_changes(
 def test_element_send_keeps_clicked_mode_while_preview_acknowledgement_is_pending(
     browser: Browser, live_app: RunningApp
 ) -> None:
-    """A real sandbox edit acknowledgement cannot replace the click's delivery intent."""
+    """A mode conflict after the sandbox acknowledgement keeps the edit for retry."""
     context = browser.new_context(viewport={"width": 1440, "height": 1000})
     page = context.new_page()
     capture_review_poll(page)
@@ -109,10 +117,16 @@ def test_element_send_keeps_clicked_mode_while_preview_acknowledgement_is_pendin
         page.evaluate("window.__holdInspector=true")
         panel.get_by_label("Text", exact=True).fill("A pending private edit")
         page.wait_for_function("window.__heldInspector.length > 0")
+        requests: list[str] = []
+
+        def conflict_once(route: Route) -> None:
+            requests.append(route.request.url)
+            if len(requests) == 1:
+                _ = live_app.post(f"/api/artifacts/{artifact_id}/mode", {"mode": "batch"})
+            route.continue_()
+
+        page.route(f"**/api/artifacts/{artifact_id}/feedback", conflict_once)
         panel.get_by_role("button", name="Send edit", exact=True).click()
-        _ = live_app.post(f"/api/artifacts/{artifact_id}/mode", {"mode": "live"})
-        page.evaluate("window.__reviewPolls.forEach(poll=>poll())")
-        expect(page.locator('[data-mode="live"]')).to_have_attribute("aria-pressed", "true")
         page.evaluate(
             """() => {
               window.__holdInspector=false;

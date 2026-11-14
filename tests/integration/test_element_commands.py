@@ -77,11 +77,8 @@ def test_slide_menu_and_native_text_undo(page: Page, live_app: RunningApp, artif
     assert len(live_app.store.read(DECK_ID).slides) == 2
 
 
-def test_slide_delete_menu_send_preserves_batch_and_original_target(
-    page: Page, live_app: RunningApp
-) -> None:
+def test_slide_delete_menu_send_preserves_original_target(page: Page, live_app: RunningApp) -> None:
     open_editor(page, live_app)
-    page.get_by_role("button", name="Batch", exact=True).click()
     heading = page.frame_locator("#preview").get_by_role("heading", level=1)
     heading.click()
     heading.press("Delete")
@@ -94,15 +91,18 @@ def test_slide_delete_menu_send_preserves_batch_and_original_target(
     assert comments[0].edit_intent.action == "delete"
     target = comments[0].target
     assert isinstance(target, ElementTarget) and "visibility" not in target.html
-    assert not comments[0].released
-    assert live_app.store.feedback_feed(DECK_ID).events == []
+    assert comments[0].released
+    assert [event.event_id for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        comments[0].event_id
+    ]
 
 
 @pytest.mark.parametrize("delay", ["before", "after"])
-def test_slide_delete_waits_for_pending_batch_mode(
+def test_slide_delete_waits_for_normal_delivery_mode(
     page: Page, live_app: RunningApp, delay: str
 ) -> None:
-    """A delayed mode change must finish before a delete edit is delivered."""
+    """A delayed legacy mode change must finish before a delete edit is delivered."""
+    _ = live_app.store.set_mode(DECK_ID, "batch")
     page.add_init_script(
         """(() => {
           const original = window.fetch;
@@ -126,7 +126,6 @@ def test_slide_delete_waits_for_pending_batch_mode(
             else None
         ),
     )
-    page.get_by_role("button", name="Batch", exact=True).click()
     heading = page.frame_locator("#preview").get_by_role("heading", level=1)
     heading.click()
     heading.press("Delete")
@@ -142,8 +141,10 @@ def test_slide_delete_waits_for_pending_batch_mode(
     assert comments[0].edit_intent.action == "delete"
     target = comments[0].target
     assert isinstance(target, ElementTarget) and "visibility" not in target.html
-    assert not comments[0].released
-    assert live_app.store.feedback_feed(DECK_ID).events == []
+    assert comments[0].released
+    assert [event.event_id for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        comments[0].event_id
+    ]
 
 
 def open_artifact(
@@ -187,9 +188,11 @@ def test_artifact_delete_undo_redo_and_explicit_send(
     expect(page.locator("#hub-thread")).to_contain_text("Delete this element.")
     feedback = store.feedback(artifact_id, include_pending=True)
     assert len(feedback) == 1 and feedback[0].edit_intent is not None
-    assert feedback[0].edit_intent.action == "delete" and not feedback[0].released
+    assert feedback[0].edit_intent.action == "delete" and feedback[0].released
     assert source.read_text() == original
-    assert store.feedback_feed(artifact_id).events == []
+    assert [event.event_id for event in store.feedback_feed(artifact_id).events] == [
+        feedback[0].event_id
+    ]
 
 
 def test_artifact_nudge_history_and_forged_send_are_local(

@@ -180,12 +180,20 @@ def test_batch_answer_has_a_visible_queued_state_until_release(
     page: Page, live_app: RunningApp
 ) -> None:
     """A submitted local answer is not presented as delivered while Batch holds it."""
-    open_editor(page, live_app)
     event_id = ask(live_app)
-    page.locator("#mode-batch").click()
+    slide = live_app.store.view(DECK_ID).slides[0]
+    _ = live_app.store.set_mode(DECK_ID, "batch")
+    _ = live_app.store.add_feedback(
+        DECK_ID,
+        slide.id,
+        "PRIVATE_BATCH_BROWSER_ANSWER",
+        slide.content_hash,
+        "fixture-saved-answer",
+        reply_to=event_id,
+        author="user",
+    )
+    open_editor(page, live_app)
     card = page.locator(f'[data-question-id="{event_id}"]')
-    card.get_by_role("textbox", name="Write your own answer").fill("PRIVATE_BATCH_BROWSER_ANSWER")
-    card.get_by_role("button", name="Add answer to batch", exact=True).click()
     expect(card).to_have_attribute("data-question-state", "queued")
     expect(card.get_by_role("img", name="Answer queued — not sent to the agent")).to_be_visible()
     expect(page.locator(".comment.user .comment-pending")).to_have_text("Not sent")
@@ -193,7 +201,9 @@ def test_batch_answer_has_a_visible_queued_state_until_release(
     assert "PRIVATE_BATCH_BROWSER_ANSWER" not in str(
         live_app.call("get_presentation", deck_id=DECK_ID)
     )
-    page.locator("#send-batch").click()
+    page.get_by_role(
+        "button", name="Send saved messages for this presentation (1)", exact=True
+    ).click()
     expect(card).to_have_attribute("data-question-state", "answered")
     assert "PRIVATE_BATCH_BROWSER_ANSWER" in str(
         live_app.call("read_feedback", deck_id=DECK_ID)["events"]
@@ -244,3 +254,29 @@ def test_free_only_markdown_question_stays_inert(page: Page, live_app: RunningAp
     card.get_by_role("textbox", name="Write your own answer").fill("Use a chart.")
     card.get_by_role("button", name="Send answer", exact=True).click()
     expect(card).to_have_attribute("data-question-state", "answered")
+
+
+def test_new_answer_does_not_release_earlier_saved_feedback(
+    page: Page, live_app: RunningApp
+) -> None:
+    """A normal answer reaches the agent without releasing an older saved message."""
+    event_id = ask(live_app)
+    slide = live_app.store.view(DECK_ID).slides[0]
+    _ = live_app.store.set_mode(DECK_ID, "batch")
+    _ = live_app.store.add_feedback(
+        DECK_ID, slide.id, "Earlier saved feedback", slide.content_hash, "fixture-saved-question"
+    )
+    open_editor(page, live_app)
+    card = page.locator(f'[data-question-id="{event_id}"]')
+    card.get_by_role("textbox", name="Write your own answer").fill("A new answer")
+    card.get_by_role("button", name="Send answer", exact=True).click()
+    expect(card).to_have_attribute("data-question-state", "answered")
+    events = live_app.store.feedback_feed(DECK_ID).events
+    assert [event.message for event in events] == ["A new answer"]
+    assert events[0].reply_to == event_id
+    assert live_app.store.workflow(DECK_ID).pending == 1
+    page.get_by_role("button", name="Send saved messages for this presentation (1)").click()
+    assert [event.message for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        "A new answer",
+        "Earlier saved feedback",
+    ]

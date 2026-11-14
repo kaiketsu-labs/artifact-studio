@@ -130,7 +130,7 @@ def test_compact_chat_skips_covered_canvas_and_restores_on_close_and_resize(
     composer = page.get_by_label("Your feedback", exact=True)
     composer.fill("Retain the draft while changing drawers.")
     expect(canvas).to_have_js_property("inert", True)
-    page.locator("#mode-live").focus()
+    page.locator("#copy-conversation").focus()
     for _ in range(10):
         page.keyboard.press("Shift+Tab")
         assert page.evaluate("!document.activeElement.closest('.canvas-area')")

@@ -55,7 +55,17 @@ def test_artifact_live_connection_preserves_draft_when_review_ends(
     theme: Literal["light", "dark"],
 ) -> None:
     """Show real lease availability and end listening without discarding a typed comment."""
-    _, item, _, _, _ = register(live_app, tmp_path)
+    registry, item, _, _, _ = register(live_app, tmp_path)
+    _ = registry.set_mode(item.id, "batch")
+    _ = live_app.post(
+        f"/api/artifacts/{item.id}/feedback",
+        {
+            "message": "A saved request",
+            "content_hash": item.content_hash,
+            "request_id": "fixture-saved-request",
+            "expected_mode": "batch",
+        },
+    )
     reviews = Reviews(live_app.store)
     body = ReviewHookInput(
         harness="codex",
@@ -68,15 +78,18 @@ def test_artifact_live_connection_preserves_draft_when_review_ends(
     page.set_viewport_size({"width": width, "height": 900})
     page.emulate_media(color_scheme=theme)
     page.goto(f"{live_app.url}/?artifact={item.id}")
-    live = page.locator('[data-mode="live"]')
-    expect(live).to_have_attribute("title", "Codex connected · browser-review")
+    status = page.locator("#hub-agent-status")
+    expect(status).to_have_text("Agent connected")
     expect(page.get_by_role("button", name="End review", exact=True)).to_be_visible()
     feedback = page.get_by_role("textbox", name="Feedback for Fictional page")
-    page.locator('[data-mode="batch"]').click()
-    expect(page.locator('[data-mode="batch"]')).to_have_attribute("aria-pressed", "true")
-    feedback.fill("A private batch request")
+    feedback.fill("A new request")
     feedback.press("Enter")
-    release = page.get_by_role("button", name="Send batch", exact=False)
+    expect(feedback).to_have_value("")
+    assert [event.message for event in registry.feedback_feed(item.id).events] == ["A new request"]
+    assert registry.workflow(item.id).pending == 1
+    release = page.get_by_role(
+        "button", name="Send saved messages for this artifact · 1", exact=True
+    )
     expect(release).to_be_enabled()
     assert page.locator("html").evaluate("element => element.scrollWidth <= innerWidth")
     bounds = release.bounding_box()
@@ -84,13 +97,13 @@ def test_artifact_live_connection_preserves_draft_when_review_ends(
     _ = page.screenshot(path=str(artifacts / "artifact-live-connected.png"), full_page=True)
     feedback.fill("Keep my unsent draft")
     page.get_by_role("button", name="End review", exact=True).click()
-    expect(live).to_have_attribute("title", "Automatic continuation unavailable")
+    expect(status).to_have_text("Agent unavailable")
     expect(feedback).to_have_value("Keep my unsent draft")
     assert not reviews.pending(body).listening
     assert not reviews.bind(body).listening
     assert reviews.bind(body.model_copy(update={"start_review": True})).listening
     page.reload()
-    expect(live).to_have_attribute("title", "Codex connected · browser-review")
+    expect(status).to_have_text("Agent connected")
 
 
 @pytest.mark.parametrize("markdown", [False, True], ids=["html", "markdown"])

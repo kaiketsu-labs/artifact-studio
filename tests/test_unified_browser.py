@@ -717,8 +717,8 @@ def test_full_editor_round_trip_and_scoped_agent_entry(tmp_path: Path) -> None:
                 )
                 expect(page.get_by_role("button", name="Collaborate")).to_have_count(0)
                 expect(page.get_by_role("button", name="Local review")).to_have_count(0)
-                expect(page.locator("#mode-live")).to_be_hidden()
-                expect(page.locator("#mode-batch")).to_be_hidden()
+                expect(page.locator("#mode-live")).to_have_count(0)
+                expect(page.locator("#mode-batch")).to_have_count(0)
                 expect(page).to_have_url(re.compile(r"[?&]deck=" + app.deck_id + "#next"))
                 expect(page.locator("#slide-title")).to_have_text("Next")
                 page.get_by_role("button", name="Menu", exact=True).click()
@@ -781,9 +781,13 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                     if panel_toggle.get_attribute("aria-expanded") == "false":
                         panel_toggle.click()
                     expect(editor.get_by_role("tab", name="Shared", exact=True)).to_be_visible()
-                expect(page.get_by_role("button", name="Send queued comments (1)")).to_be_visible()
+                expect(
+                    page.get_by_role("button", name="Send saved messages for this presentation (1)")
+                ).to_be_visible()
                 expect(guest.locator("#feedback-list")).not_to_contain_text("Previously queued")
-                page.get_by_role("button", name="Send queued comments (1)").click()
+                page.get_by_role(
+                    "button", name="Send saved messages for this presentation (1)"
+                ).click()
                 expect(guest.locator("#feedback-list")).to_contain_text("Previously queued")
 
                 composer = page.locator("#feedback-text")
@@ -801,9 +805,13 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 expect(guest.locator("#feedback-list")).not_to_contain_text(
                     "Earlier private review"
                 )
-                page.get_by_role("button", name="Send earlier review comments (1)").click()
+                page.get_by_role(
+                    "button", name="Send earlier saved messages for this presentation (1)"
+                ).click()
                 expect(
-                    page.get_by_role("button", name="Send earlier review comments (1)")
+                    page.get_by_role(
+                        "button", name="Send earlier saved messages for this presentation (1)"
+                    )
                 ).to_have_count(0)
                 composer.fill("Request in Agent")
                 composer.press("Enter")

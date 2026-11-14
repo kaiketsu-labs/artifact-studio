@@ -1,7 +1,6 @@
-"""Make Batch delivery understandable before sending the first comment."""
+"""Normal sends leave previously saved feedback private until explicitly released."""
 
 import os
-import re
 from pathlib import Path
 from typing import Literal
 
@@ -21,15 +20,22 @@ pytestmark = [
 
 
 @pytest.mark.parametrize("width,theme", [(1280, "light"), (950, "dark")])
-def test_initial_batch_explains_queueing_and_releases_only_on_send(
+def test_new_send_preserves_saved_feedback_until_explicit_release(
     page: Page,
     live_app: RunningApp,
     artifacts: Path,
     width: int,
     theme: Literal["light", "dark"],
 ) -> None:
-    """Queue from the keyboard, retain files, release explicitly, then return to Live."""
-    _ = live_app.post(f"/api/decks/{DECK_ID}/feedback-mode", {"mode": "batch"})
+    """Keep legacy feedback private while sending new text and its attachment immediately."""
+    slide = live_app.store.view(DECK_ID).slides[0]
+    _ = live_app.store.set_mode(DECK_ID, "batch")
+    _ = live_app.store.add_feedback(
+        DECK_ID, slide.id, "Previously saved feedback", slide.content_hash, "fixture-saved-feedback"
+    )
+    page.add_init_script("""Object.defineProperty(navigator, 'clipboard', {value: {
+      writeText: async text => { window.fixtureCopiedConversation = text; }
+    }});""")
     page.set_viewport_size({"width": width, "height": 800})
     page.emulate_media(color_scheme=theme)
     open_editor(page, live_app)
@@ -39,69 +45,86 @@ def test_initial_batch_explains_queueing_and_releases_only_on_send(
     else:
         page.get_by_role("separator", name="Resize chat panel").press("Home")
     expect(page.locator("html")).to_have_attribute("data-theme", theme)
-    expect(page.locator("#mode-batch")).to_have_attribute("aria-pressed", "true")
-
-    add = page.get_by_role("button", name="Add to batch", exact=True)
-    helper = page.locator("#batch-delivery-help")
+    expect(page.get_by_role("button", name="Batch", exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Live", exact=True)).to_have_count(0)
     feedback = page.get_by_label("Your feedback", exact=True)
-    expect(add).to_be_in_viewport()
-    expect(add).to_have_attribute("title", re.compile("^Add to batch"))
-    expect(add.locator("svg")).to_be_visible()
-    expect(helper).to_have_text("Comments stay private until you choose Send batch.")
-    expect(helper).to_be_in_viewport()
-    expect(feedback).to_have_attribute("aria-describedby", "batch-delivery-help")
-    expect(page.locator("#send-batch")).to_be_hidden()
-    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    assert page.locator(".discussion").evaluate(
-        "element => element.scrollWidth <= element.clientWidth"
-    )
-    _ = page.screenshot(path=str(artifacts / "initial-batch.png"), full_page=True)
-
     feedback.fill("Clarify the title.")
     feedback.press("Shift+Enter")
     page.keyboard.insert_text("Keep the source.")
     message = "Clarify the title.\nKeep the source."
-    expect(feedback).to_have_value(message)
-    expect(page.locator("#feedback-list .comment.user")).to_have_count(0)
     page.locator("#feedback-file-input").set_input_files(
-        {"name": "batch-context.txt", "mimeType": "text/plain", "buffer": b"Title context"}
+        {"name": "context.txt", "mimeType": "text/plain", "buffer": b"Title context"}
     )
-    expect(page.locator("#feedback-files")).to_contain_text("batch-context.txt")
     feedback.press("Enter")
-    expect(page.locator("#feedback-list .comment.user .chat-markdown")).to_have_text(
-        message, use_inner_text=True
-    )
-    expect(page.locator(".comment-pending")).to_have_text("Not sent")
-    expect(page.locator("#feedback-list").get_by_role("link")).to_contain_text("batch-context.txt")
     expect(feedback).to_have_value("")
     expect(page.locator("#feedback-files")).to_be_empty()
-    expect(page.get_by_role("button", name="Send batch (1)", exact=True)).to_be_in_viewport()
-    assert not live_app.call("read_feedback", deck_id=DECK_ID)["events"]
-    _ = page.screenshot(path=str(artifacts / "queued-batch.png"), full_page=True)
-
-    page.get_by_role("button", name="Send batch (1)", exact=True).click()
-    expect(page.locator(".comment-pending")).to_have_count(0)
-    expect(page.locator("#send-batch")).to_be_hidden()
+    expect(page.locator("#feedback-list")).to_contain_text("Clarify the title.")
+    expect(page.locator("#feedback-list")).to_contain_text("Keep the source.")
+    expect(page.locator("#feedback-list")).to_contain_text("Previously saved feedback")
     feed = FeedbackFeed.model_validate(live_app.call("read_feedback", deck_id=DECK_ID))
-    assert len(feed.events) == 1 and feed.events[0].message == message
-    assert feed.events[0].released and feed.events[0].batch_id
-    assert [file.name for file in feed.events[0].files] == ["batch-context.txt"]
-
-    page.locator("#mode-live").click()
-    expect(page.locator("#mode-live")).to_have_attribute("aria-pressed", "true")
-    expect(helper).to_be_hidden()
-    send = page.get_by_role("button", name="Send feedback", exact=True)
-    expect(send).to_be_in_viewport()
-    expect(send.locator("span")).to_have_count(0)
-    expect(send).to_have_attribute("aria-keyshortcuts", "Enter Meta+Enter Control+Enter")
-    feedback.fill("Send immediately in Live.")
-    send.click()
-    expect(feedback).to_have_value("")
-    expect(page.locator(".comment-pending")).to_have_count(0)
-    feed = FeedbackFeed.model_validate(live_app.call("read_feedback", deck_id=DECK_ID))
-    assert [event.message for event in feed.events] == [message, "Send immediately in Live."]
+    assert [event.message for event in feed.events] == [message]
+    assert [file.name for file in feed.events[0].files] == ["context.txt"]
+    assert live_app.store.workflow(DECK_ID).pending == 1
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert page.locator(".discussion").evaluate(
         "element => element.scrollWidth <= element.clientWidth"
     )
-    _ = page.screenshot(path=str(artifacts / "live-feedback.png"), full_page=True)
+    page.get_by_role("button", name="Copy conversation", exact=True).click()
+    copied = page.evaluate("window.fixtureCopiedConversation")
+    assert message in copied and "Previously saved feedback" in copied
+    assert live_app.store.workflow(DECK_ID).pending == 1
+    assert [event.message for event in live_app.store.feedback_feed(DECK_ID).events] == [message]
+    _ = page.screenshot(path=str(artifacts / "saved-feedback.png"), full_page=True)
+    page.get_by_role(
+        "button", name="Send saved messages for this presentation (1)", exact=True
+    ).click()
+    expect(page.locator("#send-batch")).to_be_hidden()
+    feed = live_app.store.feedback_feed(DECK_ID)
+    assert [event.message for event in feed.events] == [message, "Previously saved feedback"]
+    assert live_app.store.workflow(DECK_ID).pending == 0
+
+
+def test_artifact_send_and_copy_keep_saved_feedback_private(
+    page: Page, live_app: RunningApp, tmp_path: Path
+) -> None:
+    """An artifact's copied conversation and new send do not release an older draft."""
+    from artifact_studio.artifacts import ArtifactStore
+
+    registry = ArtifactStore(live_app.store)
+    project = registry.create_project("Fictional review")
+    source = tmp_path / "fictional.md"
+    source.write_text("# Fictional artifact")
+    artifact = registry.register_artifact(project.id, "Fictional artifact", source, "fictional.md")
+    _ = registry.set_mode(artifact.id, "batch")
+    _ = live_app.post(
+        f"/api/artifacts/{artifact.id}/feedback",
+        {
+            "message": "Earlier saved request",
+            "content_hash": artifact.content_hash,
+            "request_id": "fixture-saved-artifact",
+            "expected_mode": "batch",
+        },
+    )
+    page.add_init_script("""Object.defineProperty(navigator, 'clipboard', {value: {
+      writeText: async text => { window.fixtureCopiedConversation = text; }
+    }});""")
+    page.goto(f"{live_app.url}/?artifact={artifact.id}")
+    field = page.locator("#hub-feedback-text")
+    field.fill("New artifact request")
+    page.locator("#hub-send").click()
+    expect(field).to_have_value("")
+    expect(page.locator("#hub-thread")).to_contain_text("New artifact request")
+    assert [event.message for event in registry.feedback_feed(artifact.id).events] == [
+        "New artifact request"
+    ]
+    assert registry.workflow(artifact.id).pending == 1
+    page.get_by_role("button", name="Copy conversation", exact=True).click()
+    copied = page.evaluate("window.fixtureCopiedConversation")
+    assert "Earlier saved request" in copied and "New artifact request" in copied
+    assert registry.workflow(artifact.id).pending == 1
+    page.get_by_role("button", name="Send saved messages for this artifact · 1", exact=True).click()
+    assert [event.message for event in registry.feedback_feed(artifact.id).events] == [
+        "New artifact request",
+        "Earlier saved request",
+    ]
+    assert registry.workflow(artifact.id).pending == 0

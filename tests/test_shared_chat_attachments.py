@@ -163,6 +163,21 @@ def test_normal_editor_sends_and_previews_shared_images(tmp_path: Path) -> None:
     ):
         accept(collaborator, grant(owner, "alice", app.deck_id, "comment"))
         accept(collaborator, grant(owner, "alice", app.artifact_id, "comment"))
+        saved = collaborator.post(
+            f"/api/workspaces/default/artifacts/{app.artifact_id}/chat",
+            json={
+                "message": "Earlier private image",
+                "request_id": "fictional-saved-image",
+                "released": False,
+                "files": [
+                    {
+                        "name": "earlier.png",
+                        "data_base64": base64.b64encode(raster_fixture()).decode(),
+                    }
+                ],
+            },
+        )
+        assert saved.status_code == 200, saved.text
         browser = playwright.chromium.launch()
         try:
             with (
@@ -190,15 +205,17 @@ def test_normal_editor_sends_and_previews_shared_images(tmp_path: Path) -> None:
                     expect(draft_thumbnail).to_be_focused()
                     thumbnail = receiving.get_by_role("button", name="Preview fixture.png")
                     if url.startswith("/?artifact="):
-                        page.get_by_role("button", name="Batch", exact=True).click()
-                        page.get_by_role("button", name="Add feedback to batch").click()
-                        expect(page.get_by_text("Private batch · not released")).to_be_visible()
-                        expect(thumbnail).to_have_count(0)
-                        page.get_by_role("button", name="Send batch · 1").click()
-                        expect(page.get_by_text("Private batch · not released")).to_have_count(0)
-                    else:
-                        page.get_by_role("button", name="Send feedback", exact=True).click()
+                        expect(receiving.get_by_text("Earlier private image")).to_have_count(0)
+                    page.get_by_role("button", name="Send feedback", exact=True).click()
                     expect(thumbnail).to_be_visible(timeout=16000)
+                    if url.startswith("/?artifact="):
+                        expect(receiving.get_by_text("Earlier private image")).to_have_count(0)
+                        page.get_by_role(
+                            "button", name="Send saved messages for this artifact · 1", exact=True
+                        ).click()
+                        expect(receiving.get_by_text("Earlier private image")).to_be_visible(
+                            timeout=16000
+                        )
                     thumbnail.click()
                     expect(
                         receiving.get_by_role("dialog", name="Image preview: fixture.png")

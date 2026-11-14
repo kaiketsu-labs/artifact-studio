@@ -32,11 +32,10 @@ def group_menu(page: Page) -> None:
     expect(page.get_by_role("menu", name="Selected objects")).to_be_visible()
 
 
-def test_group_delete_undo_cancel_and_batch_send(page: Page, live_app: RunningApp) -> None:
-    """Only an explicit send persists one batch request with the original targets."""
+def test_group_delete_undo_cancel_and_send(page: Page, live_app: RunningApp) -> None:
+    """Only an explicit send delivers one request with the original targets."""
     original_hash = live_app.store.content_hash(DECK_ID, live_app.store.read(DECK_ID).slides[0])
     open_editor(page, live_app)
-    page.get_by_role("button", name="Batch", exact=True).click()
     select_objects(page)
     frame = page.frame_locator("#preview")
     heading = frame.get_by_role("heading", level=1)
@@ -77,8 +76,10 @@ def test_group_delete_undo_cancel_and_batch_send(page: Page, live_app: RunningAp
     assert len(comment.target.elements) == 2
     assert all("visibility" not in element.html for element in comment.target.elements)
     assert comment.content_hash == original_hash
-    assert comment.edit_intent is None and not comment.released
-    assert live_app.store.feedback_feed(DECK_ID).events == []
+    assert comment.edit_intent is None and comment.released
+    assert [event.event_id for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        comment.event_id
+    ]
     toolbar.get_by_role("button", name="Dismiss").click()
     expect(heading).to_be_visible()
     expect(paragraph).to_be_visible()

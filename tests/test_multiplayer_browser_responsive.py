@@ -123,11 +123,16 @@ def test_old_batch_is_delivered_to_collaborator(tmp_path: Path) -> None:
                     page.goto(WORKSPACE)
                     page.locator(f'[data-artifact="{app.artifact_id}"]').click()
                     expect(page.get_by_role("heading", name="Shared candidate")).to_be_visible()
-                    page.get_by_label("Batch").check()
-                    page.get_by_label("Message", exact=True).fill("Old batch draft")
-                    page.get_by_role("button", name="Send message").click()
-                    expect(page.get_by_text("Old batch draft")).to_be_visible()
                     chat_url = f"/api/workspaces/default/artifacts/{app.artifact_id}/chat"
+                    saved = owner.post(
+                        chat_url,
+                        json={
+                            "message": "Old batch draft",
+                            "request_id": "saved-fixture-001",
+                            "released": False,
+                        },
+                    )
+                    assert saved.status_code == 200, saved.text
                     original = owner.get(chat_url, params={"channel": "shared"}).json()[0]
                     assert not original["released"]
                     for index in range(105):
@@ -143,7 +148,9 @@ def test_old_batch_is_delivered_to_collaborator(tmp_path: Path) -> None:
                     page.reload()
                     expect(page.get_by_text("Later item 104")).to_be_attached()
                     expect(page.get_by_text("Old batch draft")).to_have_count(0)
-                    send_batch = page.get_by_role("button", name="Send batch")
+                    send_batch = page.get_by_role(
+                        "button", name="Send saved messages for this artifact"
+                    )
                     expect(send_batch).to_be_visible()
                     send_batch.click()
                     expect(page.get_by_text("Old batch draft")).to_be_attached()
