@@ -502,13 +502,17 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     @app.post("/api/decks/{deck_id}/offline-snapshot")
     def offline_snapshot(
         request: Request, deck_id: str, body: OfflineSnapshotInput
-    ) -> dict[str, str]:
-        return offline_delivery.issue_snapshot(
-            actor_of(request),
-            artifact_scope(request, deck_id),
-            offline_namespace(request),
-            body.slides,
-        )
+    ) -> dict[str, object]:
+        namespace = offline_namespace(request)
+        return {
+            "cache_scope": namespace,
+            **offline_delivery.issue_snapshot(
+                actor_of(request),
+                artifact_scope(request, deck_id),
+                namespace,
+                body.slides,
+            ),
+        }
 
     @app.post("/api/decks/{deck_id}/offline-receipts")
     def offline_receipt(

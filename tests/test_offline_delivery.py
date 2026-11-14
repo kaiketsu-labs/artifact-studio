@@ -37,6 +37,9 @@ def test_receipts_guard_conflicts_retries_and_revocation(tmp_path: Path) -> None
         "private-notes-001",
         SlidePatch(notes="Private note"),
     )
+    assets = store.folder(deck_id) / "assets"
+    assets.mkdir(exist_ok=True)
+    _ = (assets / "fictional.svg").write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
     first = store.view(deck_id).slides[0]
     request = OfflineReceiptInput(
         slide_id=first.id, content_hash=first.content_hash, expected_hash=first.expected_hash
@@ -46,7 +49,14 @@ def test_receipts_guard_conflicts_retries_and_revocation(tmp_path: Path) -> None
     with sharing.connect() as db:
         assert db.execute("SELECT COUNT(*) FROM offline_receipts").fetchone()[0] == 0
     receipts = delivery.issue_snapshot(owner, scope, "issuer-owner", [request])
-    assert set(receipts) == {first.id}
+    assert set(cast(dict[str, str], receipts["receipts"])) == {first.id}
+    assert isinstance(receipts["theme"], str)
+    saved_assets = cast(dict[str, str], receipts["assets"])
+    assert saved_assets["assets/fictional.svg"].startswith("data:image/svg+xml;base64,")
+    (assets / "linked.svg").symlink_to(assets / "fictional.svg")
+    with pytest.raises(ValueError, match="symbolic links"):
+        _ = delivery.issue_snapshot(owner, scope, "issuer-owner", [request])
+    (assets / "linked.svg").unlink()
     owner_receipt = delivery.issue(
         owner, scope, "issuer-owner", first.id, first.content_hash, first.expected_hash, "shared"
     )
@@ -70,6 +80,14 @@ def test_receipts_guard_conflicts_retries_and_revocation(tmp_path: Path) -> None
         owner, scope, "issuer-owner", owner_receipt, "offline-edit-001", "<h1>Owner change</h1>"
     )
     assert result["status"] == "applied"
+    with store.connect() as db:
+        assert (
+            db.execute(
+                "SELECT author FROM slide_version_metadata WHERE deck=? ORDER BY id DESC LIMIT 1",
+                (deck_id,),
+            ).fetchone()[0]
+            == "owner@example.test"
+        )
     assert store.view(deck_id).slides[0].title == "Online title"
     assert store.view(deck_id).slides[0].notes == "Private note"
     assert (
@@ -238,4 +256,11 @@ def test_retry_recovers_after_source_write_before_database_commit(
     with store.connect() as db:
         assert (
             db.execute("SELECT COUNT(*) FROM revisions WHERE deck=?", (deck_id,)).fetchone()[0] >= 2
+        )
+        assert (
+            db.execute(
+                "SELECT author FROM slide_version_metadata WHERE deck=? ORDER BY id DESC LIMIT 1",
+                (deck_id,),
+            ).fetchone()[0]
+            == "owner@example.test"
         )

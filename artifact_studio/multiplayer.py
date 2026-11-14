@@ -529,13 +529,17 @@ def create_app(
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-snapshot")
     def offline_snapshot(
         request: Request, workspace: str, artifact: str, body: OfflineSnapshotInput
-    ) -> dict[str, str]:
-        return offline_delivery.issue_snapshot(
-            actor_of(request),
-            Scope(workspace, "artifact", artifact),
-            offline_namespace(request, workspace),
-            body.slides,
-        )
+    ) -> dict[str, object]:
+        namespace = offline_namespace(request, workspace)
+        return {
+            "cache_scope": namespace,
+            **offline_delivery.issue_snapshot(
+                actor_of(request),
+                Scope(workspace, "artifact", artifact),
+                namespace,
+                body.slides,
+            ),
+        }
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-receipts")
     def offline_receipt(

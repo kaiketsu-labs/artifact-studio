@@ -29,7 +29,16 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 lambda route: route.fulfill(
                     status=200,
                     content_type="application/json",
-                    body='{"cover":"fictional-receipt"}',
+                    json={
+                        "cache_scope": "a" * 64,
+                        "receipts": {"cover": "fictional-receipt"},
+                        "theme": "h1 { color: rgb(12, 34, 56); }",
+                        "assets": {
+                            "assets/test.svg": "data:image/svg+xml;base64,"
+                            "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmci"
+                            "IHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+"
+                        },
+                    },
                 ),
             )
             page.goto(origin + "/web/offline.html")
@@ -38,7 +47,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
               await OfflineClient.bind(scope);
               await OfflineClient.save(Promise.resolve({cache_scope:scope}),
                 {id:'deck',title:'Fictional',slides:[
-                  {id:'cover',title:'Cover',html:'<h1>Original</h1>',
+                  {id:'cover',title:'Cover',html:'<h1>Original</h1><img src="assets/test.svg">',
                    content_hash:'hash-original',expected_hash:'source-original'}
                 ]},'/api/session','default');
             }""")
@@ -80,6 +89,13 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             page.wait_for_function(
                 "document.querySelector('#status').textContent === 'Available on this device.'"
             )
+            original_frame = page.frame_locator("#preview")
+            original_frame.get_by_text("Original").wait_for()
+            assert original_frame.locator("h1").evaluate("e => getComputedStyle(e).color") == (
+                "rgb(12, 34, 56)"
+            )
+            original_frame.locator("img").wait_for()
+            assert original_frame.locator("img").evaluate("e => e.complete && e.naturalWidth > 0")
             page.locator("#source").fill("<h1>Offline edit</h1>")
             page.locator("#save-edit").scroll_into_view_if_needed()
             page.locator("#save-edit").click()
@@ -103,8 +119,25 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             assert all(row["expected_hash"] == "source-original" for row in result)
             assert all(row["receipt"] == "fictional-receipt" for row in result)
             assert [row["body"] for row in result] == ["<h1>Offline edit</h1>", "Fictional comment"]
+            page.reload()
+            page.wait_for_function(
+                "document.querySelector('#source').value.includes('Offline edit')"
+            )
+            assert page.locator("#outbox li").count() == 2
+            assert "Offline edit" in (page.locator("#preview").get_attribute("srcdoc") or "")
+            page.frame_locator("#preview").get_by_text("Offline edit").wait_for()
             old_tab = page
             context.set_offline(False)
+            page.route(
+                "**/offline-snapshot",
+                lambda route: route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"cache_scope":"'
+                    + "a" * 64
+                    + '","receipts":{"cover":"fictional-receipt"}}',
+                ),
+            )
             page.route(
                 "**/api/session",
                 lambda route: route.fulfill(
@@ -116,6 +149,25 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             page.route(
                 "**/api/decks/deck",
                 lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
+            )
+            page.route(
+                "**/api/decks/deck",
+                lambda route: route.fulfill(
+                    status=200,
+                    json={
+                        "id": "deck",
+                        "title": "Fictional",
+                        "slides": [
+                            {
+                                "id": "cover",
+                                "title": "Cover",
+                                "html": "<h1>Offline edit</h1>",
+                                "content_hash": "new-content",
+                                "expected_hash": "new-source",
+                            }
+                        ],
+                    },
+                ),
             )
             calls = {"edit": 0, "comment": 0}
 
@@ -130,6 +182,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                             "current": "Online",
                             "draft": "Offline",
                             "current_expected_hash": "a" * 64,
+                            "current_content_hash": "b" * 64,
                         },
                     )
                 else:
@@ -137,7 +190,14 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                         cast(dict[str, object], route.request.post_data_json)["overwrite_expected"]
                         == "a" * 64
                     )
-                    route.fulfill(status=200, json={"status": "applied"})
+                    route.fulfill(
+                        status=200,
+                        json={
+                            "status": "applied",
+                            "content_hash": "new-content",
+                            "expected_hash": "new-source",
+                        },
+                    )
 
             def comment_response(route: Route) -> None:
                 calls["comment"] += 1
@@ -148,7 +208,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             page.locator("#reconnect").scroll_into_view_if_needed()
             page.locator("#reconnect").click()
             page.wait_for_function("!document.querySelector('#conflict').hidden")
-            assert page.locator("#conflict-current").inner_text() == "Online"
+            assert page.locator("#conflict-current").text_content() == "Online"
             page.locator("#use-draft").scroll_into_view_if_needed()
             page.locator("#use-draft").click()
             page.wait_for_function(
@@ -194,7 +254,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 )
                 verified.goto(origin + "/web/offline.html")
                 verified.wait_for_function(
-                    "document.querySelector('#source').value.includes('Original')"
+                    "document.querySelector('#source').value.includes('Offline edit')"
                 )
 
             context.set_offline(False)
@@ -212,7 +272,9 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
             )
             page.goto(origin + "/web/offline.html")
-            page.wait_for_function("document.querySelector('#source').value.includes('Original')")
+            page.wait_for_function(
+                "document.querySelector('#source').value.includes('Offline edit')"
+            )
             page.route("**/api/session", lambda route: route.fulfill(status=401))
             page.evaluate("document.querySelector('#decks').dispatchEvent(new Event('change'))")
             page.wait_for_function(

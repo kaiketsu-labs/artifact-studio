@@ -54,11 +54,23 @@
       if(validId(operation.receipt))entry.receipt=operation.receipt;
       await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{const record=get.result;if(!record){tx.abort();return;}const prior=record.outbox.find(item=>item.id===entry.id);if(prior&&JSON.stringify(prior)!==JSON.stringify(entry)){tx.abort();return;}if(!prior)record.outbox.push(entry);store.put(record);};return get;});
     }
-    async function update(deck,id,choice){
+    async function refresh(deck,snapshot){
+      await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{
+        const record=get.result;if(!record||record.outbox.length){tx.abort();return;}
+        record.snapshot=structuredClone(snapshot);store.put(record);
+      };return get;});
+    }
+    async function update(deck,id,choice,confirmed=null){
       await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{
         const record=get.result,item=record?.outbox.find(value=>value.id===id);
         if(!item){tx.abort();return;}
-        if(choice===null)record.outbox=record.outbox.filter(value=>value.id!==id);
+        if(choice===null){
+          if(confirmed&&item.kind==='edit'){
+            const slide=record.snapshot.slides.find(value=>value.id===item.slide_id);
+            if(slide){slide.html=typeof confirmed.html==='string'?confirmed.html:item.body;slide.expected_hash=confirmed.expected_hash;slide.content_hash=confirmed.content_hash;slide.receipt=null;record.snapshot.needs_refresh=true;}
+          }
+          record.outbox=record.outbox.filter(value=>value.id!==id);
+        }
         else if(validId(choice))item.overwrite_expected=choice;else{tx.abort();return;}
         store.put(record);
       };return get;});
@@ -70,7 +82,7 @@
       finally{db.close();closed=true;channel?.close();}
     }
     function close(){fence();closed=true;channel?.close();}
-    return {save,read,queue,update,purge,close};
+    return {save,read,queue,update,refresh,purge,close};
   }
   if(typeof module!=='undefined')module.exports={create};else root.OfflineStore={create};
 })(typeof window==='undefined'?globalThis:window);

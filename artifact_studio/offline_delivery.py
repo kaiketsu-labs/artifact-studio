@@ -1,7 +1,9 @@
 """Experimental identity-bound receipts for conflict-aware offline slide edits."""
 
+import base64
 import hashlib
 import json
+import mimetypes
 import secrets
 from datetime import UTC, datetime
 from typing import Literal, cast
@@ -13,8 +15,39 @@ from .artifacts import ArtifactStore
 from .models import Slide, SlidePatch, StrictModel
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing
 from .multiplayer_chat import Conversations
-from .storage import ConflictError, digest
+from .storage import ConflictError, Store, digest
+from .version_authors import revision_author
 from .version_history import capture_slide_version
+
+
+def _preview_assets(store: Store, deck_id: str) -> tuple[str, dict[str, str]]:
+    """Capture bounded passive bundle bytes, refusing links and oversized collections."""
+    folder = store.folder(deck_id)
+    theme_file = folder / "theme.css"
+    if theme_file.is_symlink() or not theme_file.is_file() or theme_file.stat().st_size > 1_000_000:
+        raise ValueError("The presentation theme cannot be saved offline.")
+    theme = theme_file.read_text(encoding="utf-8")
+    total = len(theme.encode())
+    assets: dict[str, str] = {}
+    root = folder / "assets"
+    if root.is_symlink():
+        raise ValueError("Offline assets cannot include symbolic links.")
+    if root.exists():
+        for path in sorted(root.rglob("*")):
+            if path.is_symlink():
+                raise ValueError("Offline assets cannot include symbolic links.")
+            if not path.is_file():
+                continue
+            if len(assets) >= 500 or path.stat().st_size > 5_000_000:
+                raise ValueError("The presentation has too many or oversized offline assets.")
+            data = path.read_bytes()
+            total += len(data)
+            if total > 10_000_000:
+                raise ValueError("The presentation's offline assets exceed 10 MB.")
+            name = path.relative_to(folder).as_posix()
+            mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+            assets[name] = "data:" + mime + ";base64," + base64.b64encode(data).decode("ascii")
+    return theme, assets
 
 
 class OfflineReceiptInput(StrictModel):
@@ -117,7 +150,7 @@ class OfflineDelivery:
 
     def issue_snapshot(
         self, actor: Actor, scope: Scope, namespace: str, slides: list[OfflineReceiptInput]
-    ) -> dict[str, str]:
+    ) -> dict[str, object]:
         """Capture every requested slide atomically so failed saves leave no partial receipts."""
         if actor.agent or not namespace or len({item.slide_id for item in slides}) != len(slides):
             raise AccessDenied
@@ -126,6 +159,7 @@ class OfflineDelivery:
             if artifact.legacy_deck_id != scope.resource:
                 raise AccessDenied
             deck = store.read(scope.resource)
+            theme, assets = _preview_assets(store, scope.resource)
             entries: list[tuple[OfflineReceiptInput, str, str, str]] = []
             for item in slides:
                 slide = store.locate(deck, item.slide_id)
@@ -173,7 +207,11 @@ class OfflineDelivery:
                         for item, source, _, token_hash in entries
                     ],
                 )
-            return {item.slide_id: token for item, _, token, _ in entries}
+            return {
+                "receipts": {item.slide_id: token for item, _, token, _ in entries},
+                "theme": theme,
+                "assets": assets,
+            }
 
     def edit(
         self,
@@ -208,6 +246,12 @@ class OfflineDelivery:
                 ).fetchone()
                 if row is None:
                     raise AccessDenied
+                person = db.execute(
+                    "SELECT email FROM people WHERE id=?", (actor.person,)
+                ).fetchone()
+                if person is None:
+                    raise AccessDenied
+                author = cast(str, person["email"])
                 prior = db.execute(
                     "SELECT * FROM offline_edits WHERE operation=?", (operation,)
                 ).fetchone()
@@ -228,6 +272,7 @@ class OfflineDelivery:
                     return {
                         "status": "conflict",
                         "current_expected_hash": current.expected_hash,
+                        "current_content_hash": current.content_hash,
                         "base": original["html"],
                         "current": current.html,
                         "draft": html,
@@ -249,55 +294,60 @@ class OfflineDelivery:
                     )
                 else:
                     before_source = cast(str, prior["before_source"])
-            before = Slide.model_validate_json(before_source)
-            predicted = before.model_copy(update={"html": html})
-            if predicted.html != before.html:
-                predicted.revision = before.revision + 1
-            store_request = "offline-" + operation
-            if prior and slide.model_dump_json() == predicted.model_dump_json():
-                with store.editing(scope.resource) as db:
-                    existing = db.execute(
-                        "SELECT 1 FROM operations WHERE deck=? AND request_id=?",
-                        (scope.resource, store_request),
-                    ).fetchone()
-                    latest = store.locate(store.read(scope.resource), slide_id)
-                    if not existing and latest.model_dump_json() == predicted.model_dump_json():
-                        capture_slide_version(db, scope.resource, before)
-                        capture_slide_version(
-                            db, scope.resource, latest, saved_at=datetime.now(UTC).isoformat()
-                        )
-                        approved = db.execute(
-                            "SELECT content_hash FROM approvals WHERE deck=? AND slide=?",
-                            (scope.resource, slide_id),
+            with revision_author(author):
+                before = Slide.model_validate_json(before_source)
+                predicted = before.model_copy(update={"html": html})
+                if predicted.html != before.html:
+                    predicted.revision = before.revision + 1
+                store_request = "offline-" + operation
+                if prior and slide.model_dump_json() == predicted.model_dump_json():
+                    with store.editing(scope.resource) as db:
+                        existing = db.execute(
+                            "SELECT 1 FROM operations WHERE deck=? AND request_id=?",
+                            (scope.resource, store_request),
                         ).fetchone()
-                        seen = db.execute(
-                            "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?",
-                            (scope.resource, slide_id),
-                        ).fetchone()
-                        recovered = store.view_slide(
-                            scope.resource,
-                            latest,
-                            feedback=[],
-                            review_hashes=(
-                                {slide_id: cast(str, approved[0])} if approved else {},
-                                {slide_id: cast(str, seen[0])} if seen else {},
-                            ),
-                        )
-                        operation_payload = digest(
-                            slide_id + expected + SlidePatch(html=html).model_dump_json()
-                        )
-                        _ = db.execute(
-                            "INSERT INTO operations VALUES (?,?,?,?)",
-                            (
+                        latest = store.locate(store.read(scope.resource), slide_id)
+                        if not existing and latest.model_dump_json() == predicted.model_dump_json():
+                            capture_slide_version(db, scope.resource, before)
+                            capture_slide_version(
+                                db,
                                 scope.resource,
-                                store_request,
-                                operation_payload,
-                                recovered.model_dump_json(),
-                            ),
-                        )
-            saved = store.revise_view(
-                scope.resource, slide_id, expected, store_request, SlidePatch(html=html)
-            )
+                                latest,
+                                saved_at=datetime.now(UTC).isoformat(),
+                                authored=True,
+                            )
+                            approved = db.execute(
+                                "SELECT content_hash FROM approvals WHERE deck=? AND slide=?",
+                                (scope.resource, slide_id),
+                            ).fetchone()
+                            seen = db.execute(
+                                "SELECT content_hash FROM slide_views WHERE deck=? AND slide=?",
+                                (scope.resource, slide_id),
+                            ).fetchone()
+                            recovered = store.view_slide(
+                                scope.resource,
+                                latest,
+                                feedback=[],
+                                review_hashes=(
+                                    {slide_id: cast(str, approved[0])} if approved else {},
+                                    {slide_id: cast(str, seen[0])} if seen else {},
+                                ),
+                            )
+                            operation_payload = digest(
+                                slide_id + expected + SlidePatch(html=html).model_dump_json()
+                            )
+                            _ = db.execute(
+                                "INSERT INTO operations VALUES (?,?,?,?)",
+                                (
+                                    scope.resource,
+                                    store_request,
+                                    operation_payload,
+                                    recovered.model_dump_json(),
+                                ),
+                            )
+                saved = store.revise_view(
+                    scope.resource, slide_id, expected, store_request, SlidePatch(html=html)
+                )
             result: dict[str, object] = {
                 "status": "applied",
                 "slide_id": slide_id,
