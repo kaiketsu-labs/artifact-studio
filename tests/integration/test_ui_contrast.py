@@ -7,7 +7,7 @@ from typing import Literal
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
-from tests.integration.support import RunningApp
+from tests.integration.support import DECK_ID, RunningApp
 from tests.integration.test_browser import open_editor
 from tests.integration.test_questions import ask
 
@@ -42,16 +42,18 @@ CONTRAST = """async (element, kind) => {
       .map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
       .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
   }
-  const style = getComputedStyle(element, kind === 'placeholder' ? '::placeholder' : null);
+  const pseudo = kind === 'placeholder' ? '::placeholder' : kind === 'tooltip' ? '::after' : null;
+  const style = getComputedStyle(element, pseudo);
   const backgrounds = [];
-  const boundary = kind === 'border' || kind === 'outline';
+  const boundary = ['border', 'outline', 'fill', 'tooltip'].includes(kind);
   for (let node = boundary ? element.parentElement : element; node; node = node.parentElement) {
     backgrounds.push(rgba(getComputedStyle(node).backgroundColor));
   }
   let background = [255, 255, 255, 1];
   for (const color of backgrounds.reverse()) background = composite(color, background);
+  if (kind === 'tooltip') background = composite(rgba(style.backgroundColor), background);
   const color = kind === 'border' ? style.borderTopColor :
-    kind === 'outline' ? style.outlineColor : style.color;
+    kind === 'outline' ? style.outlineColor : kind === 'fill' ? style.backgroundColor : style.color;
   const foreground = composite(rgba(color), background);
   const a = luminance(foreground), b = luminance(background);
   return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
@@ -95,7 +97,6 @@ def test_editor_secondary_text_placeholders_and_control_states(
     expect(page.locator("html")).to_have_attribute("data-theme", theme)
     for selector in (
         '.slide-thumb[data-id="next"] .thumb-number',
-        ".live-availability",
         "#source-count",
     ):
         readable(page.locator(selector))
@@ -148,6 +149,37 @@ def test_editor_secondary_text_placeholders_and_control_states(
     page.get_by_role("button", name="Open chat", exact=True).click()
     readable(page.locator("#feedback-count"))
     readable(page.locator("#feedback-text"), kind="placeholder")
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_agent_status_icon_and_keyboard_tooltip_contrast(
+    page: Page, live_app: RunningApp, theme: Literal["light", "dark"]
+) -> None:
+    """Measure the current icon, both connection states, and focused tooltip text."""
+    page.emulate_media(color_scheme=theme)
+    open_editor(page, live_app)
+    status = page.locator("#chat-agent-status")
+    dot = status.locator(".chat-agent-dot")
+    expect(status).to_have_attribute("title", "Agent unavailable")
+    readable(status, minimum=3)
+    readable(dot, kind="border", minimum=3)
+    page.keyboard.press("Tab")
+    status.focus()
+    assert status.evaluate("element => element.matches(':focus-visible')")
+    assert status.evaluate("element => getComputedStyle(element, '::after').content") != "none"
+    readable(status, kind="outline", minimum=3)
+    readable(status, kind="tooltip")
+
+    live_app.store.mark_agent_check(DECK_ID, wait_seconds=120)
+    _ = page.reload(wait_until="networkidle")
+    expect(status).to_have_attribute("title", "Agent connected")
+    readable(status, minimum=3)
+    readable(dot, kind="fill", minimum=3)
+    page.keyboard.press("Tab")
+    status.focus()
+    assert status.evaluate("element => element.matches(':focus-visible')")
+    assert status.evaluate("element => getComputedStyle(element, '::after').content") != "none"
+    readable(status, kind="tooltip")
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
