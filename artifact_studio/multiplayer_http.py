@@ -214,6 +214,7 @@ class MultiplayerAuth:
                         else await self.provider.authenticate(headers)
                     )
                     actor = await run_in_threadpool(self.sharing.human, principal)
+                    scope.setdefault("state", {})["authenticated_principal"] = principal
                     if self.shared_shell:
                         scope.setdefault("state", {})["verified_guest"] = principal
                 scope.setdefault("state", {})["actor"] = actor

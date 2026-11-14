@@ -283,6 +283,7 @@
   async function apiResponse(url,body,options={}){
     const response=await fetch(studioPath(url),body===undefined?options:{...options,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     window.ArtifactSession?.observe(response);
+    if(response.status===403||response.status===404&&body===undefined){const match=url.match(/^\/api\/decks\/([^/?]+)(?:\/|$)/);if(match)try{OfflineClient.blockDeck(decodeURIComponent(match[1]));}catch{}}
     window.ArtifactSession?.assertActive();
     return response;
   }
@@ -1372,5 +1373,20 @@
   });
   workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor.state().dirty||groupEditor.state().busy||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   if(!sharedEditor)api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
+  const offlineButton=$('offline-save'),offlineSignout=$('offline-signout');
+  window.ArtifactSession.get().then(async session=>{
+    await OfflineClient.bind(session.cache_scope);
+    if(session.cache_scope&&'serviceWorker' in navigator){offlineButton.hidden=false;offlineSignout.hidden=false;$('offline-open').hidden=false;}
+  }).catch(()=>{});
+  offlineButton.addEventListener('click',async()=>{
+    if(!deck)return;offlineButton.disabled=true;
+    try{await OfflineClient.save(window.ArtifactSession.get({refresh:true}),deck,studioPath('/api/session'),window.ArtifactSession.workspace);toast('Saved on this device. Open /web/offline.html to use it offline.');}
+    catch(error){toast(error.message,true);}finally{offlineButton.disabled=false;}
+  });
+  offlineSignout.addEventListener('click',async()=>{
+    offlineSignout.disabled=true;
+    try{await OfflineClient.clear();location.assign('/cdn-cgi/access/logout');}
+    catch(error){offlineSignout.disabled=false;toast(error.message,true);}
+  });
   start().then(()=>{if(createOnOpen)$('new-button').click();if(new URLSearchParams(location.search).get('settings')==='backup')void libraryControls.open();}).catch(error=>{toast(error.message,true);$('slide-title').textContent='Could not open the presentation.';});if(!sharedEditor)presentationActions.refresh().catch(error=>toast(error.message,true));
 })();

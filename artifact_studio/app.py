@@ -118,6 +118,7 @@ from .models import (
     SlideView,
     WorkspaceInstructionsInput,
 )
+from .offline_identity import cache_scope
 from .presentation_files import PresentationFiles
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
@@ -1791,6 +1792,7 @@ def session_info(request: Request) -> dict[str, object]:
         "public_url": origin,
         "mcp_url": origin + "/mcp",
         "auth_provider": deployment.auth_provider if hosted else "none",
+        "cache_scope": cache_scope(deployment, principal, "default"),
         "email": principal.email if principal is not None else None,
         "shared_workspace": hosted,
         "capabilities": {
