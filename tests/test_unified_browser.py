@@ -32,6 +32,81 @@ pytestmark = [
 ]
 
 
+@pytest.mark.parametrize("presentation", [True, False], ids=["presentation", "artifact"])
+def test_editor_requests_show_readable_changes_and_keep_exact_agent_payload(
+    tmp_path: Path, presentation: bool
+) -> None:
+    """Show useful text and copy it while the agent receives its original edit envelope."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        if presentation:
+            resource = app.deck_id
+            url = f"{WORKSPACE}/?deck={resource}#cover"
+        else:
+            registry = ArtifactStore(app.store)
+            project = registry.get_artifact(app.artifact_id).project_id
+            source = tmp_path / "page.html"
+            source.write_text('<h1 id="title">Fictional editable heading</h1>')
+            item = registry.register_artifact(project, "Fictional edit", source, "page.html")
+            resource = item.id
+            url = f"{WORKSPACE}/?artifact={resource}"
+            owner.get("/api/hub").raise_for_status()
+        state_url = f"/api/workspaces/default/artifacts/{resource}/state"
+        state = owner.get(state_url)
+        state.raise_for_status()
+        original = str(state.json()["content_hash"])
+        peer = Peer(app, agent(owner, resource))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+                page = context.new_page()
+                page.goto(url)
+                frame_id = "#preview" if presentation else "#hub-html-preview"
+                panel_id = "#element-properties" if presentation else "#hub-element-properties"
+                thread = page.locator("#feedback-list" if presentation else "#hub-thread")
+                if not presentation:
+                    page.get_by_role("button", name="Select", exact=True).click()
+                page.frame_locator(frame_id).get_by_role("heading", level=1).click()
+                panel = page.locator(panel_id)
+                panel.get_by_role("button", name="Edit text", exact=True).click()
+                replacement = "A clearer story <script>window.editPayloadExecuted=true</script>"
+                panel.get_by_role("textbox", name="Text", exact=True).fill(replacement)
+                panel.get_by_role("button", name="Send edit", exact=True).click()
+                expect(thread).to_contain_text("Text: " + replacement)
+                assert "Edit details:" not in thread.inner_text()
+                assert "replace_text" not in thread.inner_text()
+                assert page.evaluate("window.editPayloadExecuted") is None
+                events = cast(
+                    list[dict[str, object]],
+                    peer.value("read_feedback", artifact_id=resource)["events"],
+                )
+                assert len(events) == 1
+                wire = str(events[0]["message"])
+                assert '\n\nEdit details:\n{"action":"replace_text","values":' in wire
+                assert replacement in wire
+                assert str(events[0]["content_hash"]) == original
+                thread.get_by_text("Exact request", exact=True).click()
+                expect(thread.locator("pre")).to_have_text(wire)
+                assert page.evaluate("window.editPayloadExecuted") is None
+                thread.get_by_text("Exact request", exact=True).click()
+                page.get_by_role("button", name="Copy conversation", exact=True).click()
+                copied = str(page.evaluate("navigator.clipboard.readText()"))
+                assert replacement in copied
+                assert "Edit details:" not in copied and '"values"' not in copied
+                page.reload()
+                expect(thread).to_contain_text("Text: " + replacement)
+                assert "Edit details:" not in thread.inner_text()
+                current = str(owner.get(state_url).json()["content_hash"])
+                assert current == original
+        finally:
+            browser.close()
+            peer.client.close()
+
+
 def test_structure_review_preserves_a_concurrent_edit_and_reaches_origin_agent(
     tmp_path: Path,
 ) -> None:

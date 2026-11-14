@@ -277,6 +277,7 @@ def create_app(
             "chat-timeline.js",
             "chat-timeline.css",
             "chat-copy.js",
+            "native-conversation.js",
         }:
             raise AccessDenied
         return FileResponse(PROJECT / "web" / name)

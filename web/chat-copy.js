@@ -8,7 +8,8 @@
       const text = safeText(message.message || message.text || '');
       const files = (message.files || []).map(file => safeText(file.name || file.filename || '')).filter(Boolean);
       const target = safeText(message.copyTarget || '');
-      return [name + ':', target ? 'Target: ' + target : '', text, ...files.map(file => {
+      const summary = (message.copySummary || []).map(safeText);
+      return [name + ':', target ? 'Target: ' + target : '', text, ...summary, ...files.map(file => {
         const reference = /^(.+) - (?:project|artifact|presentation|slide) reference\.(?:json|html)$/.exec(file);
         return reference ? 'Reference: ' + reference[1] : 'Attachment: ' + file;
       })].filter(Boolean).join('\n');
