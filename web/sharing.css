@@ -35,3 +35,8 @@
   gap: 6px;
   margin-inline-start: auto;
 }
+.studio-grant-recovery { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--share-line); font-size: 13px; }
+.studio-grant-recovery h3 { margin: 0; font-size: 14px; }
+.studio-grant-recovery p { overflow-wrap: anywhere; line-height: 1.5; }
+.studio-grant-identities { max-height: 180px; overflow: auto; }
+.studio-grant-recovery label { display: flex; align-items: center; gap: 8px; margin: 12px 0; }

@@ -75,6 +75,8 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
   .workspace:not(.is-sorter)>.rail{height:auto;grid-row:1}
   .workspace>.chat-resizer{display:none}
   .workspace:not(.is-sorter)>.discussion{position:fixed;inset:58px 0 38px auto;z-index:50;width:min(360px,calc(100vw - 12px));height:auto;min-height:0;grid-column:auto;border:0;border-left:1px solid var(--line);box-shadow:-14px 0 40px #13243c20;overflow:hidden}
+  .workspace:not(.is-sorter)>.discussion { overflow-y: auto; }
+  .workspace > .discussion .feedback-compose { flex-shrink: 0; max-height: none; overflow: visible; }
   .workspace:not(.is-sorter).panels-right-closed>.discussion{display:none}
   .canvas-area{padding:16px 20px 24px;overflow:auto}
   .thumb-title{display:block}
@@ -107,6 +109,13 @@ body:has(>.workspace){height:100dvh;overflow:hidden;background:#f4f5f8}
   .view-controls{gap:1px;flex:none}
   .view-controls button.icon-only{width:26px}
   #zoom-value{min-width:34px;font-size:11px}
+}
+@media (max-width: 1050px) and (max-height: 600px) {
+  .workspace > .discussion .agent-panel { max-height: 52px; }
+  .workspace > .discussion .feedback-compose textarea { min-height: 42px; max-height: 80px; }
+  .workspace > .discussion .compose-context { margin-bottom: 3px; }
+  .workspace > .discussion .compose-actions { margin-top: 4px; }
+  .workspace > .discussion:has(.feedback-compose textarea:placeholder-shown):not(:has(.feedback-compose:focus-within)) > #feedback-list { min-height: 96px; }
 }
 @media(max-width:420px){
   .topbar{padding-inline:6px;gap:2px}

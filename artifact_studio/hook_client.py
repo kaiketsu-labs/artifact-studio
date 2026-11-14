@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
+import stat
 import sys
 import tempfile
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import cast
 from urllib.error import HTTPError
@@ -25,6 +29,8 @@ else:
     from local_http import validate_hook_url as _validate_url
 
 APP_DIR = Path(__file__).resolve().parent.parent
+CLAUDE_STOP_LIFETIME = 6 * 60 * 60
+CLAUDE_STOP_TIMEOUT = CLAUDE_STOP_LIFETIME + 60
 INBOX_TOOLS = {
     "get_working_context",
     "read_design_requests",
@@ -98,10 +104,11 @@ def _generated_handler(value: object, harness: str, event: str, server_name: str
 
 
 def _replace_generated(
-    entries: list[object], harness: str, event: str, server_name: str
-) -> list[object]:
+    entries: list[object], harness: str, event: str, server_name: str, *, remove_obsolete: bool
+) -> tuple[list[object], int]:
     """Migrate generated handlers while retaining other handlers and settings."""
     migrated: list[object] = []
+    obsolete = 0
     for value in entries:
         group = _object(value)
         handlers = group.get("hooks")
@@ -109,14 +116,63 @@ def _replace_generated(
             migrated.append(value)
             continue
         original = cast("list[object]", handlers)
-        kept = [
-            item for item in original if not _generated_handler(item, harness, event, server_name)
-        ]
+        kept: list[object] = []
+        for item in original:
+            if _generated_handler(item, harness, event, server_name):
+                continue
+            if harness == "claude-code" and _obsolete_slide_studio_handler(item, event):
+                obsolete += 1
+                if remove_obsolete:
+                    continue
+            kept.append(item)
         if len(kept) == len(original):
             migrated.append(value)
         elif kept:
             migrated.append({**group, "hooks": kept})
-    return migrated
+    return migrated, obsolete
+
+
+def _obsolete_slide_studio_handler(value: object, event: str) -> bool:
+    """Recognize the old generated launcher when its local installation is missing."""
+    handler = _object(value)
+    command = handler.get("command")
+    if handler.get("type") != "command" or not isinstance(command, str):
+        return False
+    try:
+        arguments = shlex.split(command)
+    except ValueError:
+        return False
+    if arguments[1:2] == ["--no-cache"]:
+        _ = arguments.pop(1)
+    if (
+        len(arguments) != 17
+        or Path(arguments[0]).name != "uv"
+        or arguments[1] != "--directory"
+        or arguments[3:14]
+        != [
+            "run",
+            "--no-sync",
+            "python",
+            "-m",
+            "studio.hook_client",
+            "event",
+            "--harness",
+            "claude-code",
+            "--event",
+            event,
+            "--url",
+        ]
+        or arguments[15:] != ["--server-name", "slide-studio"]
+    ):
+        return False
+    installation = Path(arguments[2])
+    if not installation.is_absolute() or installation.name != "slide-studio":
+        return False
+    try:
+        _validate_url(arguments[14])
+    except ValueError:
+        return False
+    return urlsplit(arguments[14]).scheme == "http" and not installation.exists()
 
 
 def configure(
@@ -127,11 +183,14 @@ def configure(
     dry_run: bool,
     *,
     passive: bool = False,
+    remove_obsolete: bool = False,
 ) -> Path:
     """Merge project hooks, or user-level hooks when project is None, keeping other settings."""
     _validate_url(url)
     if passive and harness != "claude-code":
         raise ValueError("Passive mode is available only for Claude Code")
+    if remove_obsolete and harness != "claude-code":
+        raise ValueError("Obsolete Slide Studio hook cleanup is available only for Claude Code")
     if project is not None and (not project.is_absolute() or not project.is_dir()):
         raise ValueError("project must be an existing absolute directory")
     standalone = not __package__ or urlsplit(url).scheme == "https"
@@ -156,12 +215,17 @@ def configure(
     events = {"PostToolUse": 10, "Stop": 600, "SessionEnd": 3}
     if harness == "codex":
         events["Interrupt"] = 3
+    obsolete_count = 0
     for event, timeout in events.items():
         existing = hooks.setdefault(event, [])
         if not isinstance(existing, list):
             raise ValueError(f"{event} hooks must be a list")
         entries = cast("list[object]", existing)
-        entries[:] = _replace_generated(entries, harness, event, server_name)
+        kept, obsolete = _replace_generated(
+            entries, harness, event, server_name, remove_obsolete=remove_obsolete
+        )
+        entries[:] = kept
+        obsolete_count += obsolete
         if passive and event != "PostToolUse":
             if not entries:
                 del hooks[event]
@@ -205,6 +269,9 @@ def configure(
                 ]
             )
         handler: dict[str, object] = {"type": "command", "command": command, "timeout": timeout}
+        if harness == "claude-code" and event == "Stop" and not passive and os.name != "nt":
+            handler["asyncRewake"] = True
+            handler["timeout"] = CLAUDE_STOP_TIMEOUT
         if passive:
             handler["command"] = command + " --claude-mode passive"
             handler["async"] = True
@@ -234,6 +301,17 @@ def configure(
         finally:
             if temporary is not None and os.path.exists(temporary):
                 os.unlink(temporary)
+    if obsolete_count:
+        noun = "hook" if obsolete_count == 1 else "hooks"
+        if remove_obsolete:
+            action = "Would remove" if dry_run else "Removed"
+            print(f"{action} {obsolete_count} obsolete Slide Studio {noun}.", file=sys.stderr)
+        else:
+            print(
+                f"Found {obsolete_count} obsolete Slide Studio {noun}. "
+                "Review cleanup with --remove-obsolete-slide-studio-hooks --dry-run.",
+                file=sys.stderr,
+            )
     return target
 
 
@@ -392,7 +470,8 @@ def handle_event(
         ):
             return {}
         message["passive"] = True
-    deadline = time.monotonic() + 540
+    async_stop = harness == "claude-code" and event == "Stop" and os.name != "nt"
+    deadline = time.monotonic() + (CLAUDE_STOP_LIFETIME if async_stop else 540)
     failures = 0
     while True:
         try:
@@ -421,11 +500,64 @@ def handle_event(
             return {}
         if not isinstance(reason, str) or not reason:
             return {}
-        if result.get("feedback_available") is True or time.monotonic() >= deadline:
+        if result.get("feedback_available") is True:
             return {"decision": "block", "reason": reason}
+        if time.monotonic() >= deadline:
+            return {} if async_stop else {"decision": "block", "reason": reason}
         if result.get("feedback_available") is not False:
             return {}
-        time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
+        time.sleep(min(2.0 if async_stop else 0.25, max(0.0, deadline - time.monotonic())))
+
+
+@contextmanager
+def _claude_stop_lock(url: str, server_name: str, session: str) -> Generator[bool]:
+    """Keep one listener per server and host session; the OS releases it on exit."""
+    digest = hashlib.sha256(
+        json.dumps([url.rstrip("/"), server_name, session]).encode()
+    ).hexdigest()
+    # POSIX directory descriptors prevent replacement of the directory while opening the file.
+    # Windows needs a separate ACL-aware implementation before it can safely use this lock.
+    if os.name == "nt":
+        yield False
+        return
+    import fcntl
+
+    directory = Path(tempfile.gettempdir()) / f"artifact-studio-hooks-{os.getuid()}"
+    try:
+        directory.mkdir(mode=0o700, exist_ok=True)
+        directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            directory_info = os.fstat(directory_fd)
+            if (
+                not stat.S_ISDIR(directory_info.st_mode)
+                or directory_info.st_uid != os.getuid()
+                or stat.S_IMODE(directory_info.st_mode) != 0o700
+            ):
+                raise OSError("Unsafe hook lock directory")
+            fd = os.open(digest, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)
+        finally:
+            os.close(directory_fd)
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_nlink != 1
+            ):
+                raise OSError("Unsafe hook lock file")
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BaseException:
+            os.close(fd)
+            raise
+    except OSError:
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def main() -> int:
@@ -437,6 +569,11 @@ def main() -> int:
     scope.add_argument("--project", type=Path)
     scope.add_argument("--global", dest="project", action="store_const", const=None)
     config.add_argument("--dry-run", action="store_true")
+    config.add_argument(
+        "--remove-obsolete-slide-studio-hooks",
+        action="store_true",
+        help="remove generated Claude hooks for a missing Slide Studio installation",
+    )
     event_parser = subparsers.add_parser("event")
     event_parser.add_argument(
         "--event",
@@ -459,6 +596,7 @@ def main() -> int:
                 args.server_name,
                 args.dry_run,
                 passive=passive,
+                remove_obsolete=args.remove_obsolete_slide_studio_hooks,
             )
             if not args.dry_run:
                 print(f"Saved {target}. Reload the agent session and review hooks in /hooks.")
@@ -471,12 +609,40 @@ def main() -> int:
             if len(raw) > 2 * 1024 * 1024:
                 raise ValueError("Hook input exceeds the client budget")
             payload = _object(json.loads(raw))
-            result = handle_event(
-                args.harness, args.event, args.url, args.server_name, payload, passive=passive
-            )
+            session = payload.get("session_id")
+            if (
+                args.harness == "claude-code"
+                and args.event == "Stop"
+                and os.name != "nt"
+                and isinstance(session, str)
+                and session
+            ):
+                with _claude_stop_lock(args.url, args.server_name, session) as acquired:
+                    result = (
+                        handle_event(
+                            args.harness,
+                            args.event,
+                            args.url,
+                            args.server_name,
+                            payload,
+                            passive=passive,
+                        )
+                        if acquired
+                        else {}
+                    )
+            else:
+                result = handle_event(
+                    args.harness, args.event, args.url, args.server_name, payload, passive=passive
+                )
         except (OSError, ValueError, RecursionError):
             result = {}
-        print(json.dumps(result))
+        if args.harness == "claude-code" and args.event == "Stop" and os.name != "nt":
+            reason = result.get("reason")
+            if result.get("decision") == "block" and isinstance(reason, str):
+                print(reason, file=sys.stderr)
+                return 2
+        else:
+            print(json.dumps(result))
     return 0
 
 

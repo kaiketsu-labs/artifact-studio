@@ -20,6 +20,7 @@ from .deployment import DeploymentConfig
 from .design_transfer import MAX_DESIGN_ZIP
 from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
 from .multiplayer_access import Scope as GrantScope
+from .request_diagnostics import RequestDiagnostics
 
 _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
 _CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
@@ -136,6 +137,9 @@ class MultiplayerAuth:
             await self.app(scope, replay, send)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await RequestDiagnostics(self._handle, self.preview)(scope, receive, send)
+
+    async def _handle(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in {"http", "websocket"}:
             await self.app(scope, receive, send)
             return

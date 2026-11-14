@@ -442,6 +442,92 @@ def test_shared_mention_suggests_contacts_and_opens_unread(tmp_path: Path) -> No
             browser.close()
 
 
+def test_mention_acknowledgement_does_not_interrupt_the_next_presentation(tmp_path: Path) -> None:
+    """Keep the current presentation's unread count when the previous read finishes late."""
+    next_deck = "2026-11-02-fictional-second"
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        app.store.create(next_deck, "Fictional second deck", "test-brand")
+        for deck, message in ((app.deck_id, "First deck only"), (next_deck, "Second deck only")):
+            accept(alice, grant(owner, "alice", deck, role="comment"))
+            response = alice.post(
+                f"/api/workspaces/default/artifacts/{deck}/chat",
+                json={
+                    "channel": "shared",
+                    "message": f"{message} @owner@example.test",
+                    "request_id": f"mention-{deck}",
+                    "target": {"kind": "slide", "slide_id": "cover"},
+                },
+            )
+            assert response.is_success, response.text
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                held_ack: list[tuple[Route, bytes]] = []
+                held_state: list[tuple[Route, bytes]] = []
+                first_state = f"/api/workspaces/default/artifacts/{app.deck_id}/state"
+                second_state = f"/api/workspaces/default/artifacts/{next_deck}/state"
+
+                def hold_ack(route: Route) -> None:
+                    """Apply the read server-side while its browser response remains pending."""
+                    response = owner.post(route.request.url.removeprefix(WORKSPACE), json={})
+                    assert response.is_success, response.text
+                    held_ack.append((route, response.content))
+
+                def hold_state(route: Route) -> None:
+                    """Delay the current unread state until the previous acknowledgement arrives."""
+                    if held_state:
+                        route.fallback()
+                        return
+                    response = owner.get(second_state)
+                    assert response.is_success, response.text
+                    held_state.append((route, response.content))
+
+                page.route(f"**/artifacts/{app.deck_id}/mentions/*/read", hold_ack)
+                page.route(f"**{second_state}", hold_state)
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                unread = page.get_by_role("button", name="1 unread mention")
+                switcher = page.locator("#deck-switcher")
+                with page.expect_request(lambda request: "/mentions/" in request.url):
+                    unread.click()
+                expect(page.locator("#feedback-list .mentioned")).to_contain_text("First deck only")
+                with page.expect_request(lambda request: request.url.endswith(second_state)):
+                    switcher.click()
+                    page.get_by_role("menuitemradio", name="Fictional second deck").click()
+                expect(unread).to_be_hidden()
+                assert len(held_ack) == len(held_state) == 1
+                stale_reads: list[str] = []
+                page.on(
+                    "request",
+                    lambda request: (
+                        stale_reads.append(request.url)
+                        if request.url.endswith(first_state)
+                        else None
+                    ),
+                )
+                ack, ack_body = held_ack.pop()
+                with page.expect_response(lambda response: "/mentions/" in response.url):
+                    ack.fulfill(status=200, content_type="application/json", body=ack_body)
+                page.evaluate("() => new Promise(resolve => requestAnimationFrame(resolve))")
+                state, state_body = held_state[0]
+                state.fulfill(status=200, content_type="application/json", body=state_body)
+                expect(unread).to_be_visible()
+                assert stale_reads == []
+                unread.click()
+                expect(page.locator("#feedback-list .mentioned")).to_contain_text(
+                    "Second deck only"
+                )
+                expect(page.locator("#feedback-list")).not_to_contain_text("First deck only")
+                expect(unread).to_be_hidden()
+        finally:
+            browser.close()
+
+
 @pytest.mark.parametrize("presentation", [True, False], ids=["slides", "artifact"])
 def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentation: bool) -> None:
     """Fictional guests see incoming messages at left and their own replies at right."""
@@ -477,11 +563,11 @@ def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentat
                 page.emulate_media(color_scheme="dark")
                 route = f"?deck={resource}#cover" if presentation else f"?artifact={resource}"
                 page.goto(f"{WORKSPACE}/{route}")
-                if presentation:
-                    page.get_by_role("button", name="Open chat", exact=True).click()
+                page.get_by_role("button", name="Open chat", exact=True).click()
                 thread = page.locator("#feedback-list" if presentation else "#hub-thread")
                 day_markers = thread.locator(".chat-day")
                 incoming = thread.locator("article").filter(has_text="Fictional owner message 0")
+                expect(incoming).to_be_visible()
                 expect(incoming).to_contain_text("owner@example.test")
                 expect(incoming).to_have_css("align-self", "flex-start")
                 expect(day_markers).to_have_count(1)
@@ -1554,5 +1640,174 @@ def test_selected_slide_exports_respect_shared_access(tmp_path: Path) -> None:
                     if person == "alice":
                         page.locator('#slides [data-id="next"]').click(button="right")
                         expect(menu.get_by_role("menuitem", name="Delete slide")).to_be_hidden()
+        finally:
+            browser.close()
+
+
+@pytest.mark.parametrize("kind", ["markdown", "html"])
+def test_narrow_artifact_composer_stays_visible_when_long_thread_arrives(
+    tmp_path: Path, kind: str
+) -> None:
+    """Keep a focused draft reachable as new shared messages expand the thread."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        if kind == "markdown":
+            artifact_id = app.artifact_id
+        else:
+            artifacts = ArtifactStore(app.store)
+            project = artifacts.create_project("Fictional HTML project")
+            source = tmp_path / "page.html"
+            source.write_text("<h1>Fictional page</h1>")
+            artifact_id = artifacts.register_artifact(
+                project.id, "Fictional page", source, "page.html"
+            ).id
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 390, "height": 500})
+                page.emulate_media(color_scheme="dark")
+                page.goto(f"{WORKSPACE}/?artifact={artifact_id}")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                composer = page.locator("#hub-feedback-text")
+                composer.fill("First fictional message")
+                composer.press("Enter")
+                expect(page.locator("#hub-thread")).to_contain_text("First fictional message")
+                composer.fill("Keep this draft")
+                page.locator("#hub-feedback-files").set_input_files(
+                    {"name": "review.txt", "mimeType": "text/plain", "buffer": b"fictional"}
+                )
+                for index in range(12):
+                    response = owner.post(
+                        f"/api/workspaces/default/artifacts/{artifact_id}/chat",
+                        json={
+                            "message": f"Long discussion {index} " + "example " * 20,
+                            "request_id": f"long-thread-{index}",
+                        },
+                    )
+                    assert response.is_success, response.text
+                expect(page.locator("#hub-thread")).to_contain_text(
+                    "Long discussion 11", timeout=15000
+                )
+                expect(composer).to_have_value("Keep this draft")
+                expect(page.locator("#hub-feedback-attachments")).to_contain_text("review.txt")
+                expect(page.locator("#hub-shared-channel")).to_have_value("shared")
+                send = page.locator("#hub-send")
+                expect(send).to_be_in_viewport(ratio=1)
+                assert send.evaluate(
+                    "button => button.getBoundingClientRect().bottom <= "
+                    "document.querySelector('.studio-report-trigger').getBoundingClientRect().top"
+                )
+                send.click()
+                expect(page.locator("#hub-thread")).to_contain_text("Keep this draft")
+                expect(page.locator("#hub-thread")).to_contain_text("review.txt")
+        finally:
+            browser.close()
+
+
+def test_preview_retry_keeps_earlier_preview_and_draft_after_disconnect(tmp_path: Path) -> None:
+    """A failed stylesheet load does not erase the last usable slide or the new draft."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        sync_playwright() as playwright,
+    ):
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "owner") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                expect(page.locator("#preview")).to_have_attribute(
+                    "data-load-token", re.compile("-ready$")
+                )
+                old_key = page.locator("#preview").evaluate(
+                    "f => f.contentDocument.body.dataset.previewKey"
+                )
+                page.route("**/theme.css**", lambda route: route.abort("internetdisconnected"))
+                page.locator('#slides [data-id="next"]').click()
+                page.locator("#feedback-text").fill("Fictional unsent draft")
+                expect(page.locator("#preview-message")).to_contain_text("earlier preview")
+                expect(page.locator("#retry-preview")).to_be_visible(timeout=15000)
+                assert (
+                    page.locator("#preview").evaluate(
+                        "f => f.contentDocument.body.dataset.previewKey"
+                    )
+                    == old_key
+                )
+                expect(page.locator("#feedback-text")).to_have_value("Fictional unsent draft")
+                expect(page.locator("#slide-title")).to_contain_text("Next")
+                page.unroute("**/theme.css**")
+                page.locator("#retry-preview").click()
+                expect(page.locator("#preview")).to_have_attribute(
+                    "data-load-token", re.compile("/next/.*-ready$"), timeout=15000
+                )
+                expect(page.locator("#feedback-text")).to_have_value("Fictional unsent draft")
+                expect(page.locator("#slide-title")).to_contain_text("Next")
+        finally:
+            browser.close()
+
+
+def test_restored_grants_remove_menu_action_after_success(tmp_path: Path) -> None:
+    """Review and apply once, then ensure reopening the menu offers no stale action."""
+    from artifact_studio.grant_recovery_models import GrantSnapshot, HumanGrant, StagedGrants
+    from artifact_studio.multiplayer_access import checksum
+    from artifact_studio.workspace_recovery import STAGED_GRANTS
+
+    with (
+        running_multiplayer_app(
+            tmp_path / "app",
+            tmp_path / "server.log",
+            unified=True,
+            grant_recovery_fixture=True,
+            startup_timeout=30,
+        ) as app,
+        sync_playwright() as playwright,
+    ):
+        staged = app.store.database.parent / STAGED_GRANTS
+        snapshot = GrantSnapshot(
+            issuer="https://fictional.cloudflareaccess.com",
+            audience="fixture-audience",
+            workspace="default",
+            owner=checksum("owner"),
+            owner_email="owner@example.test",
+            grants=[
+                HumanGrant(
+                    person=checksum("alice"),
+                    email="alice@example.test",
+                    kind="workspace",
+                    resource="",
+                    role="view",
+                )
+            ],
+        )
+        staged.write_text(
+            StagedGrants(archive_sha256="a" * 64, snapshot=snapshot).model_dump_json()
+        )
+        staged.chmod(0o600)
+        browser = playwright.chromium.launch(
+            executable_path=os.environ.get("ARTIFACT_STUDIO_CHROMIUM_EXECUTABLE")
+        )
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.goto(WORKSPACE + "/")
+                page.locator("#hub-tools-button").click()
+                entry = page.get_by_text("Restore human access", exact=True)
+                expect(entry).to_be_visible()
+                entry.click()
+                dialog = page.get_by_role("dialog", name="Share link")
+                expect(dialog.get_by_text(re.compile("alice@example.test"))).to_be_visible()
+                restore = dialog.get_by_role("button", name="Restore human access")
+                expect(restore).to_be_disabled()
+                dialog.get_by_label("I reviewed these people and permissions").check()
+                restore.click()
+                expect(dialog.get_by_role("status")).to_have_text("Human access restored.")
+                dialog.get_by_role("button", name="Close share link").click()
+                page.locator("#hub-tools-button").click()
+                expect(page.locator("[data-restore-access]")).to_be_hidden()
+                with human(app, "alice") as alice:
+                    assert alice.get("/api/workspaces/default/catalog").status_code == 200
         finally:
             browser.close()

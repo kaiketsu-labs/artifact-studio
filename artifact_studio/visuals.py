@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import logging
 import math
 import threading
 import time
@@ -25,11 +26,13 @@ from .hosted_policy import deck_asset_path
 from .models import Slide, StrictModel
 from .projects import AssetEmbedder, root_tag
 from .renderer_health import (
+    RendererBusy,
     bounded_evaluate,
     check_renderer_available,
     renderer_status,
     sandboxed_browser,
 )
+from .request_diagnostics import request_id_context
 from .selection_image import SelectionImage, SelectionImageInput, render_selection
 from .storage import SlideMarkup, Store, digest
 
@@ -61,6 +64,17 @@ class RenderQueue:
                 "wait_timeout_seconds": self.timeout,
             }
 
+    @staticmethod
+    def _log_saturation(reason: str, started: float) -> None:
+        request_id = request_id_context.get()
+        if request_id is not None:
+            logging.getLogger("artifact_studio.hosted.requests").warning(
+                "hosted_renderer id=%s outcome=renderer_saturation reason=%s wait_ms=%d",
+                request_id,
+                reason,
+                round((time.monotonic() - started) * 1000),
+            )
+
     @contextmanager
     def slot(self) -> Generator[int]:
         """Wait in arrival order, removing timed-out requests and releasing on failure."""
@@ -70,7 +84,8 @@ class RenderQueue:
             if self.owner == threading.get_ident():
                 raise ValueError("A capture cannot request another renderer while it is running.")
             if len(self.waiters) >= self.capacity:
-                raise ValueError(
+                self._log_saturation("queue_full", started)
+                raise RendererBusy(
                     "The visual capture queue is full. Retry after a capture finishes."
                 )
             self.waiters.append(ticket)
@@ -79,7 +94,8 @@ class RenderQueue:
                 while self.owner is not None or self.waiters[0] is not ticket:
                     remaining = self.timeout - (time.monotonic() - started)
                     if remaining <= 0:
-                        raise ValueError(
+                        self._log_saturation("wait_timeout", started)
+                        raise RendererBusy(
                             "Visual capture timed out while queued. Check get_capture_status "
                             "and retry; this request did not start rendering."
                         )

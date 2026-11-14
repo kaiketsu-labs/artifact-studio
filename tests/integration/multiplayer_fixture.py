@@ -48,6 +48,8 @@ def running_multiplayer_app(
     unified: bool = False,
     personal_workspace_emails: tuple[str, ...] = (),
     startup_timeout: float = 10,
+    saturate_renderer: bool = False,
+    grant_recovery_fixture: bool = False,
 ) -> Generator[MultiplayerApp]:
     root.mkdir(parents=True, exist_ok=True)
     collection, database = root / "collection", root / "state/review.sqlite3"
@@ -74,6 +76,11 @@ from artifact_studio.deployment import DeploymentConfig
 from artifact_studio.multiplayer import create_app
 from artifact_studio.multiplayer_access import Sharing
 from artifact_studio.storage import Store
+if os.environ.get("ARTIFACT_STUDIO_FIXTURE_GRANT_RECOVERY") == "1":
+    from artifact_studio import grant_recovery
+    grant_recovery.identity_context = lambda config: (
+        "https://fictional.cloudflareaccess.com", "fixture-audience"
+    )
 class FixtureProvider:
     async def authenticate(self, headers):
         name = headers.get("x-fixture-auth", "")
@@ -91,12 +98,41 @@ if os.environ.get("ARTIFACT_STUDIO_FIXTURE_UNIFIED") == "1":
     app = create_unified()
 else:
     app = create_app(config, FixtureProvider(), sharing)
+if os.environ.get("ARTIFACT_STUDIO_FIXTURE_SATURATE_RENDERER") == "1":
+    import threading
+    from playwright.sync_api import sync_playwright
+    from artifact_studio import visuals
+    visuals._RENDER_QUEUE = visuals.RenderQueue(capacity=1, timeout=120)
+    started = threading.Event()
+    def hold_renderer():
+        with visuals.render_slot(), sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            page = browser.new_page()
+            page.set_content("<h1>Fictional capture</h1>")
+            page.screenshot()
+            started.set()
+            threading.Event().wait(120)
+    def wait_for_renderer():
+        with visuals.render_slot():
+            pass
+    threading.Thread(target=hold_renderer, daemon=True).start()
+    if not started.wait(15):
+        raise RuntimeError("Fictional renderer did not start")
+    threading.Thread(target=wait_for_renderer, daemon=True).start()
+    with visuals._RENDER_QUEUE.condition:
+        ready = lambda: len(visuals._RENDER_QUEUE.waiters) == 1
+        if not visuals._RENDER_QUEUE.condition.wait_for(ready, timeout=5):
+            raise RuntimeError("Fictional renderer queue did not fill")
 uvicorn.run(app, host="127.0.0.1",
     port=int(sys.argv[2]), proxy_headers=False, access_log=False)
 """,
         encoding="utf-8",
     )
     env = {**os.environ, "PYTHONPATH": str(PROJECT)}
+    if saturate_renderer:
+        env["ARTIFACT_STUDIO_FIXTURE_SATURATE_RENDERER"] = "1"
+    if grant_recovery_fixture:
+        env["ARTIFACT_STUDIO_FIXTURE_GRANT_RECOVERY"] = "1"
     if unified:
         config_path = root / "hosted.json"
         config_path.write_text(
