@@ -574,6 +574,17 @@ def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentat
                 composer.fill("Fictional guest reply")
                 composer.press("Enter")
                 outgoing = thread.locator("article").filter(has_text="Fictional guest reply")
+                # Reserve scrollbar space even on systems with overlay scrollbars.
+                page.add_style_tag(
+                    content="""
+                    #feedback-list, #hub-thread {
+                        overflow-y: scroll !important; scrollbar-gutter: stable !important;
+                    }
+                    #feedback-list::-webkit-scrollbar, #hub-thread::-webkit-scrollbar {
+                        width: 12px;
+                    }
+                """
+                )
                 expect(outgoing).to_be_visible()
                 # Check the rendered positions in the thread, independent of how the
                 # browser serializes flex alignment keywords.
@@ -587,7 +598,14 @@ def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentat
                         const r = element.getBoundingClientRect();
                         return {left:r.left, right:r.right, top:r.top, bottom:r.bottom};
                       };
-                      return {thread:bounds(thread), incoming:bounds(incoming),
+                      const box = thread.getBoundingClientRect();
+                      const style = getComputedStyle(thread);
+                      const left = box.left + thread.clientLeft;
+                      const content = {
+                        left:left + parseFloat(style.paddingLeft),
+                        right:left + thread.clientWidth - parseFloat(style.paddingRight)
+                      };
+                      return {thread:content, incoming:bounds(incoming),
                               outgoing:bounds(outgoing)};
                     }"""
                 )
