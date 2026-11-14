@@ -2,8 +2,9 @@
 
 The invitation provisioning backend is disabled by default. Its Cloudflare adapter
 can reconcile email membership of an existing dedicated Access group. It never
-changes an Access policy, sends invitations, or exposes a public sign-in landing
-page. Staging validation is required before enabling it for real identities.
+changes an Access policy or sends invitations. A separate, disabled-by-default
+landing flag enables the minimal pre-login handoff. Staging validation is required
+before enabling either feature for real identities.
 
 An existing Access group is simpler to operate, but still requires a separate
 group-admission step unless membership is automated. Invitation-driven admission
@@ -111,12 +112,48 @@ never from a caller's redirect URL. Existing invitation tokens remain in URL
 fragments, outside HTTP access logs. The authenticated acceptance endpoint does
 not expose invitation details to an unverified recipient.
 
-A pre-login landing page is deliberately not exposed yet. The staging design is
-a minimal same-origin static route that retains the fragment token in session
-storage before entering Access, then resumes acceptance after verified login and
-uses the server-derived destination. Test the actual Access redirect before adding
-that route or any narrowly scoped public-path policy. Do not move tokens into query
-strings, broaden `/api/*` bypass, or accept arbitrary redirect destinations.
+The landing page is separately gated by `ARTIFACT_STUDIO_INVITATION_LANDING=1`,
+which requires an enabled admission provisioner. With that flag, newly created
+links use `https://studio.example.test/_invitation#invite=...`. Only an exact
+GET/HEAD of `/_invitation`, without a query string, is public at the origin. It
+serves self-contained static HTML with hash-based script/style CSP, no external
+assets, no identity or invitation metadata, and no-store/no-referrer headers.
+Preview hosts, encoded aliases, descendants, other methods and all API routes
+retain their existing protections.
+
+The page immediately removes the fragment from browser history and retains the
+token only in this tab's session storage for up to 30 minutes. **Continue to sign
+in** navigates to the fixed, protected `/invitation` path. After Access login, the
+continuation verifies the current session, shows its email, and requires an
+explicit **Join** action. It sends the token only in the authenticated
+acceptance POST body, consumes the handoff after acceptance or terminal denial,
+and navigates to the server-derived local destination. Interrupted connectivity
+can be retried; reopening the original link restarts an expired local handoff.
+Disabled session storage fails closed. No token is put in a query string, login
+redirect, referrer, landing HTML or application log. The owner still receives the
+invitation link from the existing authenticated invitation-creation endpoint.
+
+The operator must separately configure and verify the edge in a staging Access
+application. The only new public-path policy is for the workspace hostname's
+`/_invitation` landing path. Keep `/invitation` and all browser APIs under the
+original authenticated, MFA-protected application and audience. These paths are
+deliberately separate so a provider's prefix-based landing match cannot encompass
+the continuation. Do not broaden the bypass to `/`, `/api/*` or wildcard paths.
+The origin still rejects public-path descendants even if the edge matches them.
+No code here creates or changes a Cloudflare bypass policy.
+
+Test anonymous GET/HEAD of the exact landing, denial of alternate hosts/paths and
+API writes, the actual provider redirect back to `/invitation`, verified-recipient
+acceptance, expiry/revocation/replay and destination arrival before enabling the
+flag outside staging. Mock edge tests demonstrate the browser storage contract;
+they do not establish Cloudflare's deployed matching, cookie or MFA behavior.
+
+The following screenshots use fictional identities. The first step retains the
+invitation in the current tab; the second shows the verified account before joining.
+
+![Invitation sign-in handoff](assets/invitation-sign-in.png)
+
+![Verified account invitation acceptance](assets/invitation-join.png)
 
 ## Required staging acceptance
 

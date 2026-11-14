@@ -33,6 +33,7 @@ from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
+from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
 from .invitation_provisioning import InvitationProvisioning, invitation_destination
 from .models import FileInput, StrictModel
 from .multiplayer_access import (
@@ -152,6 +153,9 @@ def create_app(
     admission = invitation_provisioning or InvitationProvisioning.from_env(hub, config)
     if admission is not None and admission.sharing is not hub:
         raise ValueError("Invitation provisioner must use this sharing registry.")
+    landing_enabled = os.environ.get("ARTIFACT_STUDIO_INVITATION_LANDING") == "1"
+    if landing_enabled and admission is None:
+        raise ValueError("Invitation landing requires the configured admission provisioner.")
     chat = Conversations(hub)
     presence = DeckPresence(hub)
     structure = StructureProposals(hub)
@@ -193,8 +197,18 @@ def create_app(
     )
     app.state.sharing, app.state.chat = hub, chat
     app.add_middleware(
-        MultiplayerAuth, config=config, provider=provider or load_auth_provider(config), sharing=hub
+        MultiplayerAuth,
+        config=config,
+        provider=provider or load_auth_provider(config),
+        sharing=hub,
+        invitation_landing=landing_enabled,
     )
+
+    @app.get(CONTINUE_PATH)
+    def continue_invitation(request: Request) -> HTMLResponse:
+        if not landing_enabled or request.url.query:
+            raise AccessDenied
+        return handoff_response("continue")
 
     @app.exception_handler(AccessDenied)
     async def denied(_: Request, __: AccessDenied) -> JSONResponse:
@@ -295,7 +309,9 @@ def create_app(
         scope = hub.accept(actor_of(request), body.token)
         result = {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
         if admission is not None:
-            result["destination"] = invitation_destination(scope)
+            result["destination"] = invitation_destination(
+                scope, unified=bool(getattr(request.state, "unified_studio", False))
+            )
         return result
 
     @app.get("/api/workspaces/{workspace}/invitation-provisioning")
@@ -420,9 +436,13 @@ def create_app(
             no_expiry=body.no_expiry,
         )
         path = (
-            workspace_editor_path(workspace)
-            if getattr(request.state, "unified_studio", False)
-            else "/"
+            LANDING_PATH
+            if landing_enabled
+            else (
+                workspace_editor_path(workspace)
+                if getattr(request.state, "unified_studio", False)
+                else "/"
+            )
         )
         # Fragment keeps the secret out of HTTP access logs and Referer headers.
         return {

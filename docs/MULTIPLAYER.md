@@ -343,8 +343,9 @@ Cloudflare policy. Human login alone grants no artifact access.
 
 The disabled-by-default [invitation admission backend](INVITATION-PROVISIONING.md)
 can reconcile a dedicated Cloudflare admission group with invitations and grants.
-It requires explicit operator configuration and staging validation; a public
-pre-login landing page is not exposed.
+It requires explicit operator configuration and staging validation. A separate
+landing flag enables only the exact `/_invitation` static handoff; its protected
+`/invitation` continuation and all API routes retain verified authentication.
 
 Route both hostnames through a named Cloudflare Tunnel to `http://127.0.0.1:8790`,
 with a final `http_status:404` ingress rule. A temporary public URL without these

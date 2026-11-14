@@ -63,9 +63,14 @@ class AdmissionAdapter(Protocol):
     ) -> None: ...
 
 
-def invitation_destination(scope: Scope) -> str:
+def invitation_destination(scope: Scope, *, unified: bool = True) -> str:
     """Derive a local destination solely from the accepted invitation's scope."""
     root = workspace_editor_path(scope.workspace)
+    if not unified and scope.workspace != "default":
+        query = {"workspace": scope.workspace}
+        if scope.kind != "workspace":
+            query[scope.kind] = scope.resource
+        return "/?" + urlencode(query)
     return (
         root if scope.kind == "workspace" else root + "?" + urlencode({scope.kind: scope.resource})
     )

@@ -9,6 +9,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .deployment import DeploymentConfig
+from .invitation_landing import CONTINUE_PATH, LANDING_PATH
 from .multiplayer import create_app as create_collaboration
 from .multiplayer_access import AccessDenied, Sharing, workspace_editor_path
 from .shared_editor import create_shared_editor
@@ -108,6 +109,8 @@ class UnifiedStudio:
                 await RedirectResponse("/")(scope, receive, send)
                 return
         if path in {
+            LANDING_PATH,
+            CONTINUE_PATH,
             "/api/together/session",
             "/api/workspaces",
             "/api/invitations/accept",
