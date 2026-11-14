@@ -2,6 +2,8 @@
 
 Artifact Studio's GitHub backups do not keep two independent working collections in sync. Current-source uploads now compare remote files with a baseline stored in this computer's private database. An upload that would replace newer remote content stops for review; a project never acknowledged by this computer is not treated as a local deletion.
 
+This guide covers the backup workflow. A hosted deployment can separately configure [project GitHub sync](HOSTED.md#hosted-project-github-sync) for selected sources, with explicit owner opt-in and file conflict resolution. That feature does not transfer private notes, chats or full workspace state; enabling backups does not enable it.
+
 **Update every computer that uploads.** Older versions can still replace newer Studio-managed files and remove projects from the latest backup commit. That defect was reproduced against `1494bf9` on 2026-11-05 and guarded against on 2026-11-06. It affects alternating computers as well as simultaneous sessions. Earlier commits and the first computer's local files remain available for recovery.
 
 ## What refreshes automatically

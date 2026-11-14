@@ -4,120 +4,40 @@
 
 <h1 align="center">Artifact Studio</h1>
 
-Work with other people and their agents from the regular Studio editor using
-[shared projects](docs/MULTIPLAYER.md). Invite collaborators to selected work and
-give each agent its own scoped connection.
-
 <p align="center">
-  An artifact workspace for you and your agent — locally or on your own server.<br>
-  Keep presentations, pages, documents and images together. Review the work where it lives.
+  A workspace for you, your collaborators and your agents.<br>
+  Create presentations, pages, documents and images. Review the work where it lives.
 </p>
 
 <p align="center">
-  <a href="#how-it-works">How it works</a> ·
-  <a href="#install-on-mac">Install on Mac</a> ·
+  <a href="#quick-start">Quick start</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
-  <a href="#chat-with-your-agent">Chat with your agent</a> ·
-  <a href="docs/GETTING-STARTED.md">Full guide</a> ·
-  <a href="docs/KEYBOARD-CONTROLS.md">Keyboard shortcuts</a>
+  <a href="#create-review-and-present">Review workflow</a> ·
+  <a href="#documentation">Guides</a> ·
+  <a href="#token-usage-and-workflow-benchmark">Token usage</a>
 </p>
 
-![Working with agents: you steer, the agent builds, and every change stays reviewable.](docs/assets/agents-cover.png)
+![Pixel illustration: you steer, the agent builds, and every change stays reviewable.](docs/assets/agents-cover.png)
 
-**Local files · Free composition · Stateless MCP · Human approval**
+**Local files · Free composition · Stateless MCP · Versioned human review**
 
-[Voice input](docs/VOICE-INPUT.md) lets you dictate into text fields with your browser. Spoken feedback retains the object or group selected for each section; review it before sending.
+Run Studio on your computer or [your own server](docs/HOSTED.md). The Library groups related artifacts into projects with shared briefs; folders, favorites, search, grid/list views and context menus keep work accessible. [Shared projects](docs/MULTIPLAYER.md) let collaborators review selected work and give each agent a scoped connection.
 
-The **Library** is the home screen. Browse all your work, filter by project or format, and open an artifact with its own conversation. Projects hold a shared brief and related artifacts. Existing presentations open in the slide editor, with their files, links, notes and review history preserved.
+Agents author ordinary files with their preferred tools. Studio supplies previews, targeted feedback, retained versions and approvals. A design reference can guide the work, but a component catalogue or design pack is not required. HTML bundles can include their own CSS, JavaScript, SVG, fonts and data; opening a preview does not run install or build scripts.
 
-![Artifact Studio library with fictional projects, cached previews and format filters.](docs/assets/artifact-hub.png)
-
-Switch **All artifacts** or a project overview between **Grid view** and a compact **List view** with name, kind, project and last modified date. Both views use the same filters and sort settings. Studio remembers your view and sort order in this browser. [Library controls](docs/GETTING-STARTED.md#designs-and-work).
-
-Library covers are saved locally and reused across reloads and app restarts. Changed content queues a background update while the earlier preview stays visible. Cards near the viewport load first; you can search, sort and open artifacts while previews update. Temporary renderer and network failures retry automatically after a cooldown, up to six times; manual retry remains available. Hover over the retry icon for renderer setup details. [Preview behavior and measurements](docs/performance/library-preview-results.md).
-
-The editor and Favorites load nearby slide previews and release offscreen or closed previews. Feedback polling, scoped agent reads and paused backups also avoid unnecessary work while retaining source verification and history. [Resource review, measurements and remaining opportunities](docs/performance/runtime-efficiency.md).
-
-For SageMaker Studio Code Editor, use the [single-worker setup and read-only resource diagnostic](docs/SAGEMAKER.md) to check the app against the space's actual container limits.
-
-| Artifact | Review it in its own format |
+| Artifact | Workspace support |
 | --- | --- |
-| Presentations | Slide thumbnails, element feedback, sections, notes, animations and a private presenter view. |
-| HTML pages and browser bundles | Responsive page preview with authored JavaScript, isolated from private workspace APIs. |
-| Markdown | Rendered document or original source, with text selections. |
-| Images and SVG | Original proportions, zoom and region selections. |
-| Other files | Original files and downloads, with artifact-level discussion. A native editor is not supplied for every format. |
-
-Agents choose their tools, code and layouts. Import a file or folder, or have the agent register an authored bundle. A type selects the viewer; it does not prescribe components or require a design pack. General HTML bundles can contain their own CSS, JavaScript, SVG, fonts and data. External services are not enabled automatically, and opening a preview never runs installation or build scripts.
-
-Presentation composition is free within a fixed 16:9 canvas. Slides support local CSS/backgrounds and isolated custom documents with scripts, styles, iframe content and media. Agents can update a deck's theme and import staged fonts/images/assets through MCP. [Authoring capabilities and examples](docs/INTERACTIVE-HTML.md).
-
-## How it works
-
-![You provide the brief; the agent drafts and visually checks it; you review, request revisions and approve.](docs/assets/agents-loop.png)
-
-Give your agent a brief and files. Ask it to draft the artifact and check the rendered result. Point to what should change, iterate together, then approve the version you reviewed. Approval records that version; later revisions need review again.
-
-<details>
-<summary>Architecture: local files and stateless MCP</summary>
-
-```mermaid
-flowchart LR
-    subgraph clients["Clients"]
-        agent["AI agent<br/>Codex / Claude Code"]
-        browser["Browser UI<br/>Brief · preview · review"]
-    end
-
-    subgraph server["Local FastAPI service"]
-        mcp["MCP /mcp<br/>Stateless tools"]
-        api["HTTP /api/...<br/>UI + preview assets"]
-        core["Artifact services<br/>Scoped context<br/>Version guards<br/>Feedback"]
-        mcp <--> core
-        api <--> core
-    end
-
-    subgraph data["Local persistence"]
-        files[("Files<br/>Sources · assets · revisions")]
-        db[("SQLite<br/>Metadata · feedback · approvals")]
-    end
-
-    agent <-->|"Context + operations"| mcp
-    browser <-->|"Edit + review"| api
-    core <--> files
-    core <--> db
-
-    classDef client fill:#f8fafc,stroke:#64748b,color:#0f172a
-    classDef service fill:#eff6ff,stroke:#2563eb,color:#0f172a
-    classDef storage fill:#f8fafc,stroke:#475569,color:#0f172a
-    class agent,browser client
-    class mcp,api,core service
-    class files,db storage
-```
-
-Feedback retains the selected artifact, targets and content hash. Agents read released feedback through MCP; automatic continuation requires loaded lifecycle hooks. Approval records the exact version reviewed.
-
-</details>
-
-## Choose a workspace
-
-Hosted setup includes a [configuration check and visible server warnings](docs/HOSTED.md#check-safety-before-starting).
-Unsafe configuration stops startup; MFA and network settings remain marked unverified
-and must be checked in your hosting account.
-
-**Local (default):** run Studio on your computer, use its loopback URL and the Mac controller, and keep files on that computer. The quick start below uses this mode.
-
-**Self-hosted:** run Studio on your server and open its HTTPS URL in a browser.
-Share individual projects and artifacts with [scoped invitations](docs/MULTIPLAYER.md#share-and-collaborate).
-See the [remote hosting architecture](docs/MULTIPLAYER.md#remote-hosting-architecture)
-and [authentication providers](docs/AUTH-PROVIDERS.md). The Mac controller manages
-the local installation. To move an existing workspace, follow the
-[backup and cutover procedure](docs/MULTIPLAYER.md#remote-hosting-architecture).
+| Presentations | Fixed 16:9 slide canvas, free HTML/CSS/SVG composition, interactive slides, sections, notes, animations, design alternatives and presenter view. |
+| HTML pages and browser bundles | Responsive previews with authored JavaScript, isolated from private workspace APIs. |
+| Markdown | Rendered document and source, with text-selection feedback. |
+| Images and SVG | Original proportions, zoom and region feedback. |
+| Other files | Source downloads and artifact-level discussion; a native editor is not supplied for every format. |
 
 ## Quick start
 
 ### Install on Mac
 
-Use macOS 13 or later with Git, uv and Apple's Command Line Tools. Run `xcode-select --install` if the tools are missing. [Install Git](https://git-scm.com/) · [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+Use macOS 13 or later, Git, [uv](https://docs.astral.sh/uv/getting-started/installation/) and Apple's Command Line Tools (`xcode-select --install` if missing).
 
 ```sh
 git clone https://github.com/kaiketsu-labs/artifact-studio.git
@@ -125,31 +45,29 @@ cd artifact-studio
 uv python install 3.14
 uv sync --locked --python 3.14
 uv run playwright install chromium --only-shell
-```
-
-Install the menu-bar app from the checkout.
-
-```sh
 uv run --no-sync python scripts/install_macos.py --launch-at-login
 ```
 
-Open `~/Applications/Artifact Studio.app`, then choose **Open Artifact Studio** from the menu bar. Keep the checkout and `.venv` in place. The menu also controls startup, updates and backup settings. [Mac menu-bar guide](docs/MACOS.md)
+Open `~/Applications/Artifact Studio.app`, then choose **Open Artifact Studio** from its menu bar. Keep the checkout and `.venv` in place. The controller manages the local server, startup, updates and backups. See the [Mac guide](docs/MACOS.md) for update and troubleshooting steps.
 
-For guided setup, open the checkout in your agent and run **`/setup` in Claude Code** or **`$setup` in Codex**. It checks existing settings and connects the agent. [Guided setup](docs/GETTING-STARTED.md#guided-setup)
+For guided setup, open the checkout in your agent and run **`/setup` in Claude Code** or **`$setup` in Codex**. It checks the existing installation and agent connection. [Guided setup](docs/GETTING-STARTED.md#guided-setup).
 
-For a container installation, follow the Docker guide. [Run with Docker](docs/DOCKER.md)
+### Other environments
 
-Versions and changelogs are prepared with Release Please, starting at **0.1.0**.
-Merging a release PR publishes its GitHub release after the required CI passes.
-See [Versions and releases](docs/RELEASING.md).
+| Environment | Guide |
+| --- | --- |
+| Run from a terminal | [Native server and configuration](docs/GETTING-STARTED.md#run-from-terminal) |
+| Docker | [Persistent storage, rendering, hooks and updates](docs/DOCKER.md) |
+| Self-hosted / shared workspace | [Hosted setup and configuration checks](docs/HOSTED.md), [collaboration and scoped access](docs/MULTIPLAYER.md), [authentication](docs/AUTH-PROVIDERS.md) |
+| SageMaker Studio Code Editor | [Single-worker setup and resource diagnostic](docs/SAGEMAKER.md) |
+
+The Mac controller manages the local installation. Hosted deployments need their own HTTPS, authentication and network configuration. [Moving an existing workspace](docs/MULTIPLAYER.md#remote-hosting-architecture) requires backing up its files and private state together.
 
 ## Connect your agent
 
-![Workspace rules, an optional design reference, your brief and files, and secondary learned preferences give the agent context for its draft.](docs/assets/agents-context.png)
+![Pixel diagram: workspace rules, an optional design, your brief and files, and preferences inform the draft.](docs/assets/agents-context.png)
 
-Your brief and workspace rules guide the work. Add a design when you want a particular visual language; learned preferences stay secondary to explicit rules.
-
-Both clients use **Streamable HTTP** at `http://127.0.0.1:8790/mcp`.
+Keep Studio running. Codex and Claude Code use **Streamable HTTP** at `http://127.0.0.1:8790/mcp` for the default local installation.
 
 **Codex**
 
@@ -157,172 +75,95 @@ Both clients use **Streamable HTTP** at `http://127.0.0.1:8790/mcp`.
 codex mcp add artifact-studio --url http://127.0.0.1:8790/mcp
 ```
 
-**Claude Code** — run from the agent's working project.
+**Claude Code** — run from the agent's working project:
 
 ```sh
 claude mcp add --transport http artifact-studio http://127.0.0.1:8790/mcp
 ```
 
-Reload the agent session if the connection is not visible, then start with:
+Open a new agent session if the connection is not visible, then try:
 
-> List the projects and artifacts in Artifact Studio. Read the working context for the selected project, then help me make a page and a matching handout from my brief.
+> List my projects and artifacts. Read the working context for the selected project, then help me make a presentation and a matching handout from my brief. Check the rendered results before asking me to review them.
 
-Use `get_working_context(artifact_id=...)` for selected work or `project_id=...` before creating related work. Existing decks also accept `deck_id=...` and retain their design guidance. The [agent contract map](agent/README.md) explains the canonical bootstrap, guides, tools and context receipts.
+Agents start with `get_working_context` for the selected project, artifact or deck, then read the relevant source files and on-demand guides. The [agent contract map](agent/README.md) explains source authority, tool schemas, context receipts and revision guards. Workspace rules remain primary; [learned preferences](docs/PREFERENCE-LEARNING.md) are secondary. The app ships without corporate designs or assets.
 
-**Microsoft 365 Copilot:** use a Copilot Studio agent with the optional [authenticated gateway](docs/MICROSOFT-COPILOT.md). Select one project or explicitly allow the workspace. The gateway needs an approved HTTPS endpoint; the local editor stays private. Start from **Agent connection → Microsoft 365 Copilot**, or the hub menu. Microsoft sign-in, connector policies and an actual Copilot tool call must be verified separately. Automatic Copilot wake-up is not included.
+For a shared hosted workspace, use its [scoped agent connection](docs/MULTIPLAYER.md#author-presentations-with-a-hosted-agent). Optional [lightweight client hooks](docs/HOSTED-AGENT-HOOKS.md) support continuation in open sessions.
 
-Open **Designs → Add design**, enter a name, then drop in reference files or choose them from your computer. Master slides, guidelines, PDFs, logos, images, fonts and other file types are supported. The description is collapsed and optional; files can also be added later. **Add design** saves the collection and opens its context files. A design does not need example slides.
+**Microsoft 365 Copilot** uses a separate optional [authenticated gateway](docs/MICROSOFT-COPILOT.md) and an approved HTTPS endpoint. Select one project or explicitly allow the workspace; verify Microsoft sign-in, tenant policies and an actual tool call separately. Automatic Copilot wake-up is not included.
 
-![Adding a design with named reference files and an optional description.](docs/assets/add-design.png)
+![Pixel illustration of a fictional shared conversation and an explicit agent request scoped to the selected chart and version.](docs/assets/agents-collaboration.png)
 
-Click a design card to see the context files, add more, download a source or remove an attachment. **Use with agent** prepares a message you can copy into your connected agent's chat to use the design for your next task. If clipboard access is blocked, the message remains selected for manual copying. Registered slide design packs also offer **Open example slides**; the workspace default is marked. Normal presentations using a design remain in the artifact library.
+Shared conversations let people discuss the work; **Ask agent** marks a message as an explicit agent request. A private thread keeps personal agent discussion separate. See [collaboration controls](docs/MULTIPLAYER.md).
 
-Click a text file to preview it, then **Edit** for a VS Code-style source editor with highlighting, line numbers, find/replace and undo/redo. **Save** updates the local file and any enabled backups; **Cancel** leaves it unchanged. Markdown keeps its formatted preview. Concurrent edits are protected, and truncated previews stay read-only.
+### Automatic feedback
 
-![Editing a Markdown design reference with line numbers, syntax highlighting and Save/Cancel.](docs/assets/design-text-editor.png)
+With loaded Codex/Claude Code lifecycle hooks, selecting or working on an artifact attaches its review session. **Send** delivers a new message and attachments; the agent can continue in the open chat for presentations, HTML, Markdown, images and other files. Older saved messages require **Send saved messages**. **Copy conversation** copies displayed text without delivering it.
 
-![Design library with slide design packs and reference file collections.](docs/assets/design-library.png)
+Follow the [hook setup and native trust/reload steps](docs/LIVE-REVIEW.md). The editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt** prepares the instructions. The connection status shows availability; **End review** stops listening. Keep the server and agent chat open: an MCP connection cannot start a closed chat.
 
-The trash icon removes a design from the library; **Deleted designs** restores it. Existing presentations and source files are preserved. Agents discover designs with `list_design_contexts` and inspect their file inventory with `get_design_context`. For project work, pass `design_id` to `get_working_context` alongside the project or artifact ID. File pointers show what is available; the agent must open the actual files. Attaching references does not automatically apply their styling.
+## Create, review and present
 
-Cards preview a pack's example slide or an attached image/SVG. File collections without a visual source show a compact document cover. Previews are read-only; clicking still opens the context file inventory.
+![Pixel workflow: brief, draft, rendered check, human review and approval, with revisions returning to the draft.](docs/assets/agents-loop.png)
 
-![A design's context files, with add, download and remove controls.](docs/assets/design-context.png)
+1. **Start with a brief.** Create a project, import files or a folder, or have the agent register an authored bundle. Studio keeps an owned copy and preserves the originals. Add optional design references through **Designs → Add design**; agents must open the reference files to use them.
+2. **Point to the change.** Select slide objects, HTML elements, document text or image regions. Hold Cmd, Ctrl or Shift to combine targets. Write feedback, attach files, dictate with [voice input](docs/VOICE-INPUT.md), or type `@` to attach a saved [project, artifact or slide reference](docs/CHAT-REFERENCES.md).
+3. **Review the revision.** Feedback retains its original version and targets. Direct edit controls preview changes locally; **Send edit** asks the agent to apply them. **Auto-update** shows incoming revisions while retaining drafts; it can be turned off. Agents capture rendered output and inspect interactions before handing work back.
+4. **Choose and approve.** Compare whole-slide designs or element alternatives, keep the direction you want, and approve the exact reviewed version. Later revisions need review again. History retains earlier saves and design decisions; restore creates a new save.
 
-### Your first project
+The [getting-started guide](docs/GETTING-STARTED.md) covers imports, organization, editing and troubleshooting. [Keyboard controls](docs/KEYBOARD-CONTROLS.md) document multiselection, context menus, undo/redo and selected-object image exports. [Design references](docs/DESIGN-PACKS.md), [interactive authoring](docs/INTERACTIVE-HTML.md) and [slide alternatives](docs/SLIDE-DESIGNS.md) cover deeper composition workflows.
 
-Choose **New project** and save its name and optional shared brief. **Import** accepts files or a folder; choose the entrypoint the viewer should open first. Alternatively, ask the agent to author local files and call `register_artifact` with the project ID. The hub keeps an owned copy and leaves the originals intact.
+### Presentations
 
-Use a card's folder action to **Move to project**. This groups related work while preserving stable source paths. Changes to one artifact do not implicitly authorize changes to its neighbours.
+Use sections, the slide sorter, hidden slides, multi-slide moves and per-slide discussion to shape a deck. Speaker notes save automatically; failed saves keep a browser draft and conflicting edits offer review. **Present** opens the audience slide. **Presenter view** keeps current/next slides, notes, clock and timer private in a separate control window. External display placement and fullscreen depend on browser support.
 
-The sidebar **+ → New folder** creates groups such as Allianz; folder menus can add nested folders. Folder icons identify groups, briefcase icons identify projects. Drag a project or folder onto a folder to move it inside, or between rows to reorder. **… → Move to…** provides the same organization without dragging. **Option/Alt + ↑/↓** reorders a focused item; **Option/Alt + ←** moves it out. Selecting a folder shows artifacts from every project inside it. Removing a folder keeps its contents. Navigation is saved in the collection's readable `project-tree.json`; project briefs, artifact paths and agent context stay unchanged.
+Right-click a slide thumbnail and choose **Copy → Copy as image** to copy the rendered slide as PNG. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost.
 
-Right-click an artifact card or related-artifact row for open/view, comment, history, move, share, link and context actions. Presentations offer **Open** and **Present**. Project/folder menus organize work and create or import artifacts; blank library space offers creation actions. **Shift+F10** or the keyboard Menu key opens the focused item's menu. Text fields, links and authored controls retain their native menus outside element selection.
+Ask the agent for slide directions or headline, text and graphic options. Preview and compare them in context; the human chooses. Saved options remain in history. [Presentation workflow](docs/GETTING-STARTED.md#review-and-present) · [Visual review](docs/VISUAL-REVIEW.md) · [Alternatives](docs/SLIDE-DESIGNS.md).
 
-![Artifact-card context menu with open, view, comment, history, move, share, link and agent context actions.](docs/assets/context-menu.png)
+The [collaboration study](docs/performance/presentation-workflow-study.md) records owner and reviewer feedback, layout repair, conflict recovery and export verification. Its initial fictional fixture was created before the original product deck was located in the authorized backup; the fixture is separate from the subsequent update to that deck.
 
-For a presentation, open the hub's **… → New presentation**. Bring a PPTX, POTX, website or image as a design reference and let the agent create the design. PowerPoint files are reference inputs; PPTX export is not currently available. The existing editor exports HTML/PDF and saves editable presentation projects. [First presentation](docs/GETTING-STARTED.md#make-your-first-presentation).
+### Share and export
 
-## Point to the change
+**Share** exports an artifact or a project ZIP. Presentations support **HTML** and **PDF**; PPTX/POTX files are design references and PPTX export is not available. Self-contained HTML preserves local assets and animations. Multi-file HTML artifacts retain their bundle in a ZIP. Audience exports omit private review chats and speaker notes. PDF includes hidden slides by default; uncheck **Include hidden slides** in Share or the PDF print preview to export only visible slides.
 
-![Artifact review with fictional content, selected elements and a conversation beside the preview.](docs/assets/artifact-review.png)
+Use **Save file**, the device's native share sheet when supported, or the supported Mac Outlook handoff. Nothing is sent automatically. **Save a copy… / Import presentation** is a separate portable editing archive that includes private review state. A shared project ZIP is not a restorable workspace. [Sharing and export details](docs/PROJECTS.md#share-an-artifact-or-project).
 
-In the slide editor, click an object directly. In other viewers, choose **Select**, then point to an element, document text or image region. Hold **⌘, Ctrl or Shift** to add or remove targets. Each selected object has an outline and a removable context chip. The slide's **Objects** picker also reaches overlapping elements. One message can refer to all selected elements, with their original version and coordinates or text anchors retained. Text editing, dragging and arrow-key positioning apply to one object at a time. Right-click a slide object for edit, format, arrange, alignment and feedback actions; HTML selection menus retain their edit/comment controls. [Keyboard controls](docs/KEYBOARD-CONTROLS.md) include Ctrl/⌘+Z, redo, Delete and F2 for text editing.
+## Storage and recovery
 
-For multiple slide objects, **Delete selection** and supported layer changes preview locally with Undo/Redo. Other arrangements and **Ask agent to align…** record labeled requests without previewing the final layout. **Send edit** submits one JSON group-feedback request with the original targets and content hash; it does not change source files directly. Cancel restores the local preview and cannot retract a sent request. HTML artifacts support single-object direct edits and group comments.
-
-The conversation belongs to the artifact. **Enter** sends; **Shift+Enter** adds a line. Attach files through the paperclip, drag-and-drop or paste, including file-only messages. Limits are five files, 25 MB each and 50 MB together. Unsent file selections stay in browser memory; sent attachments are stored locally. Draft text and targets stay with their artifact.
-
-Images appear as compact thumbnails before and after sending. Click one to enlarge it; **Esc** closes the preview, and **Download original** keeps the original file.
-
-**Auto-update** is on by default: incoming revisions appear while preserving feedback drafts and their original targets. Direct element edits, moves and animation previews finish before the slide changes. Turn it off to load new versions manually; the choice is remembered in this browser. General artifact viewers check for changes periodically, so updates can take a few seconds.
-
-**Updated** is an orange revision marker until you open that version. **Approve** records the exact version you reviewed. Source files, the content hash and context are available in **Sources & files**. The **Agent context** inspector shows scope, canonical paths, hashes and recorded delivery; an available pointer is never labelled as proof that an agent read it.
-
-`capture_artifact` returns an actual rendered image with revision and viewport metadata. It can sample elapsed animation time in a fresh offline runtime. Use a browser for user-driven interaction states; use the existing slide capture tools for presentations. Preview cards use cached images, not a running iframe per artifact.
-
-## Explore slide designs
-
-![A whole-slide design preview alongside the original and three authored alternatives. The chosen design has a gold border and check.](docs/assets/slide-designs.png)
-
-Ask your agent for several directions for a slide. Hover the slide's stacked-card count for clickable previews, or open **Designs**. Previewing leaves the chosen slide unchanged. **Compare** shows any two designs; **Keep current** or **Use this design** records your decision and puts the options away. The chosen design has a stronger gold border and a check icon.
-
-Alternatives stay in **Version history → Design decisions & saved alternatives**, and the decision has Undo. Feedback written while previewing stays attached to that proposal. Speaker notes remain intact. [Workflow, agent tools and limits](docs/SLIDE-DESIGNS.md).
-
-You can also ask for headline, supporting-text or graphic options. **Review alternatives** above the slide shows how many elements await a choice and opens the first set directly. Canvas badges also open options beside their element. Click or tap through options to preview them, then click outside or close the chooser to keep the last clicked option. Hover alone stays temporary; **Escape** cancels the preview, and **Undo** restores a saved choice. **Keep current** retains the existing element. Gold marks the chosen option, blue marks a preview, and saved options remain in History. Element alternatives require a static slide and a uniquely identified target; agents can freely compose its HTML/CSS/SVG.
-
-![Full wording options previewed live in the real slide editor.](docs/assets/element-alternatives.png)
-
-[Text options](docs/screenshots/element-alternatives-text.png) · [Graphic options](docs/screenshots/element-alternatives-graphic.png) · [Comparison](docs/screenshots/element-alternatives-compare.png) · [Dark appearance](docs/screenshots/element-alternatives-dark.png) · [Touch layout](docs/screenshots/element-alternatives-mobile.png)
-
-## Chat with your agent
-
-**Send** delivers your new message and attachments while retaining the original artifact version and selected targets. **Copy conversation** copies the current conversation's visible text, title, target labels and attachment names for use in another chat; it does not send anything. Earlier saved messages stay private until you explicitly choose **Send saved messages**.
-
-Loaded **Codex/Claude Code hooks** automatically continue the connected agent for every artifact type, including presentations, HTML, Markdown and images. The agent status and tooltip show the connection; **End review** stops listening. Keep the agent chat and local server open. Plain MCP cannot start a closed chat.
-
-For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), and have the agent select or work on the presentation. Copying a prompt alone does not configure or activate the host.
-
-For other artifacts, the same hooks attach when the agent reads `get_working_context(artifact_id=...)` or works on that artifact. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` to resume after End review.
-
-Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
-
-![Selected objects with their image-export action in the real editor.](docs/assets/selection-export.png)
-
-## Present with context
-
-![Private presenter view showing current and next slides, notes, timer, clock and filmstrip.](docs/assets/presenter.png)
-
-Existing decks keep the full slide workflow: sections, sorter, hidden slides, multi-slide moves, recovered deletions, notes and per-slide discussion. **Present** starts the full-size audience slide directly. **Presenter view** opens a separate audience window while keeping current/next slides, notes and the timer private. Move that window to your other monitor and click **Fullscreen**; supported browsers can also place it automatically with screen access. [Editor controls and browser differences](docs/GETTING-STARTED.md#review-and-present).
-
-The self-contained HTML export scales the complete slide canvas in audience/presenter views and **All slides**, keeping fixed-size text, SVG and spacing proportional. Re-export an older file to include runtime fixes. [All keyboard shortcuts](docs/KEYBOARD-CONTROLS.md).
-
-Right-click slide thumbnails for new, duplicate, hide/unhide, delete and movement actions; section menus manage their groups. These structural controls are separate from the selected object's unsent edit history.
-
-**Speaker notes save automatically**, including when switching slides. Failed saves retain a browser draft; conflicting edits offer **Review changes**. Present and project export wait for pending saves.
-
-The editor keeps tools in one row. Top-bar icons toggle the slide list and conversation; in narrower windows, chat opens as a drawer instead of moving below the slide. Notes start collapsed and remember your choice. Slide navigation sits beside the position count at the bottom.
-
-The hub's **… → Presentation editor** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
-
-Star artifacts to keep them first in the library. Star individual slide thumbnails to save them in **Favorite slides**, across presentations. Add an optional description to explain why a slide is useful; search finds descriptions and titles. In either chat, **type @** to search projects, artifacts, presentations and slides by path. **Tab** or **Enter** attaches the highlighted result as a compact title pill; **→** browses into a project or presentation. Hover over a suggestion for a preview beside the cursor; hover a title pill to unfold its saved thumbnail. The **slide and star button beside the paperclip** also opens the favorite-slide picker. References preserve the selected source and description for the agent. [Chat references](docs/CHAT-REFERENCES.md).
-
-## Your files stay local
-
-| What | Default location |
+| Data | Default location |
 | --- | --- |
 | Presentations, designs, project briefs and owned artifact bundles | `~/Documents/Artifacts/` |
-| New artifact sources and immutable revisions | `projects/<project-id>/artifacts/<artifact-id>/` inside the collection |
-| Review database and workspace settings | `.state/` inside this checkout |
+| Artifact working files and retained revisions | `projects/<project-id>/artifacts/<artifact-id>/` within the collection |
+| Review database and settings | `.state/` within the checkout |
 | Unsent text and target drafts | Browser-local storage |
 
-Back up **both the collection and the state folder**. Set `ARTIFACT_STUDIO_COLLECTION` and `ARTIFACT_STUDIO_DATABASE` to choose other locations. New artifact revisions publish a complete snapshot through an atomic database pointer; a readable `artifact.json` sits beside the working sources. Out-of-band source edits are reconciled into a new revision before review.
+Set `ARTIFACT_STUDIO_COLLECTION` and `ARTIFACT_STUDIO_DATABASE` to choose other locations. Back up **both the collection and private state**. Files stay on the machine running Studio unless you explicitly configure sharing or backup.
 
-HTML, Markdown, images and presentations have a **View** action that removes Studio’s surrounding controls without requiring fullscreen. Move to the top-right corner to reveal the return button, or press **Esc**; interactive pages retain their state. Collapse either side panel with its edge arrow or by dragging its divider outward, then use the arrow to reopen it. Drag library cards onto project folders to organize related work; the keyboard-accessible Move action remains available.
+**Storage and backup → Save workspace** creates a full archive including saved conversations, approvals and retained versions. **Restore workspace** previews recovery into a new folder; opening it requires configuring the recovered collection and database. Repository connections default to reference only. Optional one-way **GitHub current-source backup** excludes private review state and retained revisions; optional **full workspace backups** retain them. Backups are off by default.
 
-Select a slide or HTML element to open a compact floating toolbar without moving the content. The pencil opens text editing; **…** holds slide positioning, rotation and removal. Familiar size numbers and Smaller/Larger buttons handle CSS units internally. Changes preview locally; **Send edit** records a structured request against the original version for the agent to apply, while Cancel restores the preview. Authored HTML/SVG/JavaScript remains unrestricted. Preview downloads support generated HTML, JSON and CSV.
+Hosted deployments can separately enable [project GitHub sync](docs/HOSTED.md#hosted-project-github-sync) for operator-approved repositories and source bindings. Owners opt into two-way checks; independent per-file changes merge automatically, while differing edits to the same file require an explicit conflict choice. This source synchronization is distinct from one-way backup and excludes private review state.
 
-In **Designs**, use the star on a slide design card or its detail page to make it the default for new presentations. A filled star and **Default** badge identify the current choice. Existing presentations keep their design. [View the controls](docs/screenshots/default-design.png).
-
-**Share** exports one artifact or a project ZIP. Choose **HTML** or **PDF** for presentations, then **Share…** opens your device’s native share sheet. Choose Teams, Mail or another compatible installed app there. **Save file** remains available when the browser cannot share the file; Outlook drafts are also available on supported Macs. HTML presentation files embed local assets and keep animations; PDF includes all slides. Multi-file HTML artifacts retain their bundle in a ZIP. Private review chats and speaker notes are omitted. Outlook handoff is available on macOS with Outlook installed; nothing is sent automatically. [Sharing and exports](docs/PROJECTS.md#share-an-artifact-or-project).
-
-**Save a copy… / Import presentation** transfers a portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Repository connections default to reference only. Creating a project does not enable uploads. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
-
-The app's **Menu** and [Mac menu-bar app](docs/MACOS.md) put active agent reviews first, marked with green dots. **Recent projects →** opens a submenu of your last five projects, shared across both interfaces. Hover, click or use arrow keys to switch projects.
-
-The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way current-source backup to a selected private repository; it excludes review chats, approvals and retained revisions. The Mac menu’s **GitHub Backup** submenu exposes that setting, last delivery, Sync Now/Retry and backup settings.
-
-In **Storage and backup**, **Save workspace** always downloads a full archive with projects, folders, sources, saved review chats, approvals and retained versions. Expand **Full workspace backups** beside a private repository, choose **Enable full backups** and **Save settings** to enable scheduled checks. **Check now** runs one on demand. Only changed workspaces create a new archive; an unchanged check preserves **Last backup** and advances **Next check**. Backups are off by default and run while Studio is open. **Restore workspace** previews a local archive, a full GitHub backup or a current-source snapshot, then restores into a new sibling folder. Configure the recovered collection and database to open it later; reconnect agents and repositories separately. [Backup settings](docs/REPOSITORY-SYNC.md), [recovery guide](docs/WORKSPACE-RECOVERY.md).
-
-Hosted Cloudflare deployments can opt into an experimental offline source editor for explicitly saved presentations. Its preview and editing scope have important limits; see [offline presentations](docs/OFFLINE.md).
-
-The **history icon** above a slide or artifact opens a timeline with small previews of saved content. Click a thumbnail for the larger preview; use ↑/↓ to browse. Thumbnails load as you scroll and use a bounded local cache. **Content changes** filters consecutive identical content by default; **All saves** includes internal-title/source-only saves and repeated restores. Filtering deletes no saved versions. Rapid-save groups initially show only their latest version; expand an earlier-versions row to browse the rest. Source and animation changes may look identical in a still preview. **Restore version** creates a new save while preserving current speaker notes and slide placement. Artifact revisions retain their local dependencies; historical slides reuse current shared theme/assets, so their appearance may differ from the original. Current-only GitHub backups cannot recover missing earlier revisions.
-
-Workspace rules remain primary; learned preferences are secondary. Project and artifact context refine the work within that scope. The app ships without corporate designs or assets. [Preference learning](docs/PREFERENCE-LEARNING.md).
+Artifact revisions retain local dependencies; historical slide previews reuse current shared theme/assets and can differ from the original appearance. [Recovery and fidelity](docs/WORKSPACE-RECOVERY.md) · [Repository and backup scope](docs/REPOSITORY-SYNC.md).
 
 ## Documentation
 
 | Guide | Covers |
 | --- | --- |
-| [Getting started](docs/GETTING-STARTED.md) | Installation, projects, imports, review, presentations and troubleshooting. |
-| [What agents receive](agent/README.md) | Canonical bootstrap, tool catalogue, guides, skills and context receipts. |
-| [Artifact architecture and remaining scope](docs/ARCHITECTURE.md) | Implemented foundation and subsequent work. |
-| [Artifact authoring](agent/guides/artifacts.md) | Free file composition, versioned edits and scoped feedback. |
-| [Mac menu-bar app](docs/MACOS.md) | Server controls, startup and updates. |
-| [Docker server](docs/DOCKER.md) | Container setup, persistent storage, imports, agent hooks and updates. |
-| [Automatic presentation feedback](docs/LIVE-REVIEW.md) | Host hooks, activation and limitations. |
-| [Agent token efficiency](docs/TOKEN-EFFICIENCY.md) | Compact context and targeted reads. |
-| [Presentation authoring](docs/AGENT-GUIDE.md) | Slide edits, notes and visual review. |
-| [Presentation visual review](docs/VISUAL-REVIEW.md) | Captures, contact sheets and reveal timing. |
-| [Design packs](docs/DESIGN-PACKS.md) | Import a design from a supplied reference. |
-| [Keyboard and pointer controls](docs/KEYBOARD-CONTROLS.md) | Shortcuts, selection, context menus and image export. |
-| [Development checks](docs/CI.md) | Automated coverage, local commands and application/display limits. |
-| [Dependency updates](docs/DEPENDENCY-UPDATES.md) | Dependabot, transitive security fixes, generated bundles and protected automatic merging. |
+| [Getting started](docs/GETTING-STARTED.md) | Installation, projects, imports, review and troubleshooting. |
+| [Agent contract](agent/README.md) | Bootstrap, tools, guides, context delivery and authoring lifecycle. |
+| [Presentation authoring](docs/AGENT-GUIDE.md) | Slides, notes, assets and review workflow. |
+| [Artifact authoring](agent/guides/artifacts.md) | Free file composition, scoped feedback and revision guards. |
+| [Collaboration](docs/MULTIPLAYER.md) | Invitations, access roles and hosted agents. |
+| [Architecture](docs/ARCHITECTURE.md) | Implementation and remaining scope. |
+| [Preview performance](docs/performance/library-preview-results.md) | Cached library covers, retry behavior and measurements. |
+| [Runtime efficiency](docs/performance/runtime-efficiency.md) | Preview lifecycle, polling, scoped reads and remaining opportunities. |
+| [Offline presentations](docs/OFFLINE.md) | Experimental hosted offline source editing and limits. |
+| [Versions and releases](docs/RELEASING.md) | Release Please, CI-gated releases and nightly builds. |
+| [Dependency updates](docs/DEPENDENCY-UPDATES.md) | Audits, generated bundles and protected automatic merging. |
 
-<details>
-<summary><strong>Development checks</strong></summary>
+## Development
 
-For native development or troubleshooting, see [Run from Terminal](docs/GETTING-STARTED.md#run-from-terminal).
+Python 3.14 and uv are required. Node.js is needed for frontend behavior tests and optional vendored-editor rebuilds, not to run the app.
 
 ```sh
 uv sync --locked --python 3.14
@@ -333,6 +174,23 @@ uv run ruff format --check artifact_studio tests
 node --test tests/*.cjs
 ```
 
-Node.js is needed for frontend behavior tests and optional rebuilds of the vendored [text editor](docs/DESIGN-PACKS.md); it is not required to run the app. Documentation screenshots use fictional projects, not personal files. [CI](docs/CI.md) · [Screenshot inventory](docs/screenshots/README.md).
+See [CI and development checks](docs/CI.md) for browser journeys, agent subprocess checks, Docker/macOS checks, release simulations and their environment requirements. Automated checks do not establish native-app or physical-display behavior. Documentation fixtures are fictional; the [screenshot inventory](docs/screenshots/README.md) records captures and links to real UI examples.
 
-</details>
+The application version comes from [`pyproject.toml`](pyproject.toml); a version file alone does not prove a published release. Follow the platform's update guide and [release process](docs/RELEASING.md).
+
+## Token usage and workflow benchmark
+
+![Pixel chart: scoped and retained reads reduced measured response text by 65.5%; actual token counts were unavailable.](docs/assets/agents-token-usage.png)
+
+The [reproducible presentation workflow benchmark](docs/performance/PRESENTATION-WORKFLOW.md) compares broad reads with scoped reads, retained-context hashes, feedback cursors and compact revision responses over real MCP. Its fictional 12-slide fixture includes 20 unrelated decks, 12 comments and a concurrent speaker-note edit. Both policies read the brief and full target source, reject a stale write, preserve the human note and validate the final deck.
+
+| Measured per workflow | Broad reads | Scoped / retained reads |
+| --- | ---: | ---: |
+| Tool response text, UTF-8 bytes | 166,296 | 57,442 |
+| Serialized MCP response JSON, bytes | 324,527 | 113,253 |
+| Request parameters, bytes | 2,274 | 2,895 |
+| Median local workflow time | 510.422 ms | 514.699 ms |
+
+Response text fell **65.5%** in this fixture. One warmup per policy preceded three measured pairs in alternating order. Tool discovery adds a separate 147,956-byte catalogue. These are local payload and timing measurements, not HTTP wire sizes or evidence of faster model inference; the scoped policy was slightly slower in this run.
+
+**Actual model token usage is unavailable.** Provider prompt/cache/output/reasoning usage, billed totals and image tokens were not recorded; the tokenizer download was unavailable, so no text-token estimate is reported. The separate [multi-role authoring and visual-review study](docs/performance/presentation-workflow-study.md) records the observed collaboration and its limitations; this scripted regression does not measure that complete session. See the [methods and raw results](docs/performance/PRESENTATION-WORKFLOW.md) and [token-efficient reading guidance](docs/TOKEN-EFFICIENCY.md).
