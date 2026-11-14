@@ -64,7 +64,7 @@ accepted under the previous setting.
 The addressed message, selected slide, and attachments go to the named agent.
 Its reply appears in **Shared**. The private **Agent** conversation and **Full
 Shared history** permissions are separate. Turning access off stops queued work
-and replies. An agent may already have read a request before it was turned off.
+and replies to those requests. A decision on the agent’s own structure proposal remains available while the reviewer and agent have edit access. An agent may already have read a request before it was turned off.
 
 1. Ask the agent to read `get_working_context(artifact_id=...)` for one selected artifact. An eligible successful tool call lets its `PostToolUse` hook attach the native session. Project-only discovery does not attach a review.
 2. Check `get_live_review_status(artifact_id=...)` and the Studio connection indicator. Server session IDs are opaque and credential-scoped; they are not native Codex/Claude chat IDs. Status describes the target's current reviewer, which could be another session.

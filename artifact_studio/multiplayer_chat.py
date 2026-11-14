@@ -254,6 +254,28 @@ class Conversations:
             return False
         if sender.person == recipient.person:
             return True
+        # A human response to this agent's own structural proposal is not a new
+        # collaborator-initiated request. Match the durable decision, not its text.
+        if (
+            row["channel"] == "shared"
+            and row["released"]
+            and row["author"] == sender.person
+            and db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='structure_proposals'"
+            ).fetchone()
+            and db.execute(
+                "SELECT 1 FROM structure_proposals WHERE workspace=? AND artifact=? "
+                "AND person=? AND agent=? AND decision_request_id=? AND decision<>''",
+                (
+                    scope.workspace,
+                    scope.resource,
+                    recipient.person,
+                    recipient.agent,
+                    row["request_id"],
+                ),
+            ).fetchone()
+        ):
+            return True
         mode, generation = self._collaborator_setting(db, scope, recipient.agent)
         return (
             row["channel"] == "shared"
@@ -665,7 +687,8 @@ class Conversations:
             # Recheck assigned agents: a revoked or downgraded collaborator cannot
             # publish a formerly eligible edit request using Send batch.
             rows = db.execute(
-                "SELECT assigned,channel,person,collaborator_request_generation "
+                "SELECT assigned,channel,person,author,released,request_id,"
+                "collaborator_request_generation "
                 "FROM conversations WHERE workspace=? AND artifact=? "
                 "AND channel=? AND person=? AND released=0 AND assigned<>''",
                 (scope.workspace, scope.resource, channel, actor.person),
@@ -858,7 +881,8 @@ class Conversations:
     def _has_pending(self, db: sqlite3.Connection, actor: Actor, scope: Scope) -> bool:
         """Check for released requests assigned by people who still have edit access."""
         pending = db.execute(
-            "SELECT DISTINCT person,channel,collaborator_request_generation "
+            "SELECT DISTINCT person,channel,author,released,request_id,"
+            "collaborator_request_generation "
             "FROM conversations WHERE workspace=? "
             "AND artifact=? AND assigned=? "
             "AND released=1 AND completed=0",
