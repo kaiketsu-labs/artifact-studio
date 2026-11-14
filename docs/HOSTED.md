@@ -102,7 +102,7 @@ accept normal direct-child pushes from this identity.
 
 Provide an operator-owned JSON binding file, readable by container UID 1000 and
 outside the collection. Each binding pairs one workspace and project with
-specific registered artifact IDs and dedicated repository folders.
+specific artifact or existing presentation IDs and dedicated repository folders.
 
 ```json
 [
@@ -138,9 +138,17 @@ the updated conflict. A GitHub bundle with a missing entrypoint cannot replace
 Studio source. A missing or invalid paired source is flagged in the dialog. Other
 valid sources in that project still sync.
 
-This setup syncs configured source bundles. A conflict choice applies to the
-whole bundle. Legacy in-place presentations, project metadata, review chat,
-and backup state are outside the configured source folders.
+A conflict choice applies to the whole configured source. Existing presentations
+use a portable folder containing `presentation.json`, individual `slides/*.json`,
+`theme.css`, and `assets/`. Slide notes, source-panel data, agent context, review
+chat, local revision history, and presentation context remain local. Slide HTML,
+interactive content, theme, and every included asset are shared; inspect them
+before enabling sync. Private keys, hidden files, and unsupported assets are
+rejected. Studio journals incoming presentation changes in its private database
+and completes interrupted updates before another presentation edit. The private
+review database must have room for both the previous and incoming presentation
+files while an update is journaled; SQLite may retain allocated disk space after
+completion.
 Grant the GitHub CLI identity access only to the configured private repositories.
 Git stages the branch on a dedicated Linux tmpfs capped at 512 MiB and 32,768
 inodes. The app checks those limits and permits one sync at a time per mount.

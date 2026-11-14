@@ -221,6 +221,11 @@ class Store:
                 CREATE TABLE IF NOT EXISTS revisions (
                     deck TEXT, slide TEXT, hash TEXT, document TEXT,
                     PRIMARY KEY(deck, slide, hash));
+                CREATE TABLE IF NOT EXISTS presentation_sync_journal (
+                    deck TEXT PRIMARY KEY, before_json TEXT NOT NULL, after_json TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS presentation_sync_files (
+                    deck TEXT NOT NULL, path TEXT NOT NULL, before BLOB, after BLOB,
+                    PRIMARY KEY(deck,path));
                 CREATE TABLE IF NOT EXISTS slide_actions (
                     deck TEXT NOT NULL, request_id TEXT NOT NULL, payload_hash TEXT NOT NULL,
                     before_json TEXT NOT NULL, after_json TEXT NOT NULL, result_json TEXT NOT NULL,
@@ -279,7 +284,8 @@ class Store:
             )
             for row in db.execute(
                 "SELECT DISTINCT deck FROM slide_actions WHERE completed=0 UNION "
-                "SELECT DISTINCT deck FROM slide_design_decisions WHERE completed=0"
+                "SELECT DISTINCT deck FROM slide_design_decisions WHERE completed=0 UNION "
+                "SELECT deck FROM presentation_sync_journal"
             ).fetchall():
                 with suppress(ConflictError, ValueError, FileNotFoundError):
                     self.recover_slides(db, cast(str, row[0]))
@@ -372,6 +378,9 @@ class Store:
 
     def recover_slides(self, db: sqlite3.Connection, deck_id: str) -> None:
         """Finish durable structural intents while the caller holds the write transaction."""
+        from .presentation_sync import recover_presentation_sync
+
+        recover_presentation_sync(self, db, deck_id)
         from .slide_actions import recover_pending
 
         recover_pending(self, db, deck_id)

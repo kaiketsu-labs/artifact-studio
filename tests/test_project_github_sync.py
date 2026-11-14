@@ -658,3 +658,151 @@ def test_project_move_waits_for_publication(
         relocating.result(timeout=10)
     assert moved.is_set()
     assert sync.run(owner, scope).reports[0].action == "blocked"
+
+
+def test_legacy_presentation_round_trip_preserves_private_state(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+) -> None:
+    """Exchange individual slides/assets through real Git while retaining private notes."""
+    import json
+
+    from artifact_studio.design_authoring import blank_presentation
+    from artifact_studio.models import AgentContext
+
+    editor, sharing, project, _, binding, scratch = sync_fixture
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    store = sharing.store("default")
+    folder = store.root / "fictional-deck"
+    folder.mkdir()
+    deck = blank_presentation(folder, "fictional-deck", "Fictional presentation")
+    deck.slides[0].notes = "PRIVATE NOTES"
+    deck.slides[0].agent = AgentContext(summary="PRIVATE AGENT CONTEXT")
+    store.write(deck.id, deck)
+    _ = (folder / "README.md").write_text("PRIVATE LOCAL CONTEXT")
+    _ = (folder / "assets" / "image.txt").write_text("original asset")
+    _ = ArtifactStore(store).set_artifact_project(deck.id, project)
+    mapped = binding.model_copy(update={"artifacts": {deck.id: "demo/presentation"}})
+    sync = ProjectGitHubSync(sharing, [mapped], scratch=scratch)
+    scope = Scope("default", "project", project)
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    assert sync.run(owner, scope).reports[0].action == "upload"
+    _ = git(editor, "pull", "--ff-only")
+    root = editor / "demo/presentation"
+    assert not (root / "index.html").exists()
+    contents = b"\n".join(path.read_bytes() for path in root.rglob("*") if path.is_file())
+    assert b"PRIVATE" not in contents
+    slide_path = root / "slides/cover.json"
+    slide = json.loads(slide_path.read_text())
+    slide["title"] = "Remote edit"
+    _ = slide_path.write_text(json.dumps(slide))
+    _ = (root / "assets/image.txt").write_text("remote asset")
+    _ = git(editor, "add", "--all")
+    _ = git(editor, "commit", "-m", "test: edit portable presentation")
+    _ = git(editor, "push")
+    assert sync.run(owner, scope).reports[0].action == "download"
+    updated = store.read(deck.id)
+    assert updated.slides[0].title == "Remote edit"
+    assert updated.slides[0].notes == "PRIVATE NOTES"
+    assert updated.slides[0].agent.summary == "PRIVATE AGENT CONTEXT"
+    assert updated.slides[0].revision == deck.slides[0].revision + 1
+    assert (folder / "README.md").read_text() == "PRIVATE LOCAL CONTEXT"
+    assert (folder / "assets/image.txt").read_text() == "remote asset"
+    assert sync.run(owner, scope).reports[0].action == "unchanged"
+
+
+def test_legacy_independent_edits_and_asset_delete_conflict(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+) -> None:
+    """Merge independent presentation files and require a choice for edit versus delete."""
+    import json
+
+    from artifact_studio.design_authoring import blank_presentation
+
+    editor, sharing, project, _, binding, scratch = sync_fixture
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    store = sharing.store("default")
+    folder = store.root / "fictional-deck"
+    folder.mkdir()
+    deck = blank_presentation(folder, "fictional-deck", "Fictional presentation")
+    _ = (folder / "assets/image.txt").write_text("original")
+    _ = ArtifactStore(store).set_artifact_project(deck.id, project)
+    mapped = binding.model_copy(update={"artifacts": {deck.id: "demo/presentation"}})
+    sync = ProjectGitHubSync(sharing, [mapped], scratch=scratch)
+    scope = Scope("default", "project", project)
+    assert sync.run(owner, scope).reports[0].action == "upload"
+    _ = git(editor, "pull", "--ff-only")
+    with store.editing(deck.id):
+        _ = (folder / "theme.css").write_text("local theme")
+    remote_root = editor / "demo/presentation"
+    slide_path = remote_root / "slides/cover.json"
+    slide = json.loads(slide_path.read_text())
+    slide["title"] = "Independent remote edit"
+    _ = slide_path.write_text(json.dumps(slide))
+    _ = git(editor, "add", "--all")
+    _ = git(editor, "commit", "-m", "test: edit presentation slide")
+    _ = git(editor, "push")
+    assert sync.run(owner, scope).reports[0].action == "merge"
+    assert store.read(deck.id).slides[0].title == "Independent remote edit"
+    assert (folder / "theme.css").read_text() == "local theme"
+    _ = git(editor, "pull", "--ff-only")
+    with store.editing(deck.id):
+        _ = (folder / "assets/image.txt").write_text("local edit")
+    (remote_root / "assets/image.txt").unlink()
+    _ = git(editor, "add", "--all")
+    _ = git(editor, "commit", "-m", "test: delete presentation asset")
+    _ = git(editor, "push")
+    report = sync.run(owner, scope).reports[0]
+    assert report.action == "conflict"
+    assert report.conflict and "assets/image.txt" in report.changed_files
+    assert (folder / "assets/image.txt").read_text() == "local edit"
+    resolution = project_sync.ProjectSyncResolution(conflict=report.conflict, choice="github")
+    assert sync.run(owner, scope, deck.id, resolution).reports[0].action == "download"
+    assert not (folder / "assets/image.txt").exists()
+    assert sync.run(owner, scope).reports[0].action == "unchanged"
+
+
+def test_legacy_merge_restarts_after_push_interruption(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recover a merged portable presentation after its push succeeded but apply failed."""
+    import json
+
+    from artifact_studio.design_authoring import blank_presentation
+
+    editor, sharing, project, _, binding, scratch = sync_fixture
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    store = sharing.store("default")
+    folder = store.root / "fictional-deck"
+    folder.mkdir()
+    deck = blank_presentation(folder, "fictional-deck", "Fictional presentation")
+    deck.slides[0].notes = "Retain private note"
+    store.write(deck.id, deck)
+    _ = ArtifactStore(store).set_artifact_project(deck.id, project)
+    mapped = binding.model_copy(update={"artifacts": {deck.id: "demo/presentation"}})
+    sync = ProjectGitHubSync(sharing, [mapped], scratch=scratch)
+    scope = Scope("default", "project", project)
+    _ = sync.run(owner, scope)
+    _ = git(editor, "pull", "--ff-only")
+    with store.editing(deck.id):
+        _ = (folder / "theme.css").write_text("Local theme")
+    slide_path = editor / "demo/presentation/slides/cover.json"
+    slide = json.loads(slide_path.read_text())
+    slide["title"] = "Remote slide"
+    _ = slide_path.write_text(json.dumps(slide))
+    _ = git(editor, "add", "--all")
+    _ = git(editor, "commit", "-m", "test: remote slide")
+    _ = git(editor, "push")
+
+    def interrupted(*_args: object, **_kwargs: object) -> None:
+        raise OSError("Fictional interruption")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(sync, "_apply_source", interrupted)
+        assert sync.run(owner, scope).reports[0].action == "blocked"
+    restarted = ProjectGitHubSync(sharing, [mapped], scratch=scratch)
+    assert restarted.run(owner, scope).reports[0].action == "merge"
+    assert store.read(deck.id).slides[0].title == "Remote slide"
+    assert store.read(deck.id).slides[0].notes == "Retain private note"
+    assert (folder / "theme.css").read_text() == "Local theme"
+    assert restarted.run(owner, scope).reports[0].action == "unchanged"

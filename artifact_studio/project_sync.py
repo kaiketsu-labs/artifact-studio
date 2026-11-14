@@ -601,16 +601,33 @@ class ProjectGitHubSync:
         scope = Scope(binding.workspace, "artifact", artifact)
         with self.sharing.guard(actor, scope, "edit") as store:
             service = ArtifactStore(store)
-            item, local = service.verified_snapshot(artifact)
+            item = service.get_artifact(artifact)
             if item.project_id != binding.project:
                 raise AccessDenied
+            if item.legacy_deck_id:
+                from .presentation_sync import portable_snapshot
+
+                with store.editing(artifact):
+                    local = portable_snapshot(store, artifact)
+            else:
+                item, local = service.verified_snapshot(artifact)
         _checked_bundle(local)
         prefix = binding.artifacts[artifact]
         remote = tree.read(prefix)
+        portable_valid = False
+        if item.legacy_deck_id and "presentation.json" in remote:
+            from .presentation_sync import canonical_portable
+
+            try:
+                remote = canonical_portable(remote)
+                portable_valid = True
+            except ValueError:
+                # Keep an invalid remote visible as a conflict that can retain Studio.
+                pass
         local_files, remote_files = _file_hashes(local), _file_hashes(remote)
         local_hash = _fingerprint(local_files)
         remote_hash = _fingerprint(remote_files) if remote else None
-        complete = item.entrypoint in remote
+        complete = portable_valid if item.legacy_deck_id else item.entrypoint in remote
         baseline = state.baselines.get(artifact)
         report = self._compare(
             artifact, local_hash, remote_hash, tree.tip, baseline, complete=complete
@@ -626,7 +643,15 @@ class ProjectGitHubSync:
             and baseline.files
         ):
             merged = _merge_independent(local, remote, local_files, remote_files, baseline.files)
-            if merged is not None and item.entrypoint in merged:
+            if merged is not None and item.legacy_deck_id:
+                from .presentation_sync import canonical_portable
+
+                try:
+                    merged = canonical_portable(merged)
+                except ValueError:
+                    merged = None
+            entrypoint = "presentation.json" if item.legacy_deck_id else item.entrypoint
+            if merged is not None and entrypoint in merged:
                 report.action = "merge"
         if report.action == "conflict":
             changed = sorted(
@@ -716,6 +741,11 @@ class ProjectGitHubSync:
         commit: str,
     ) -> None:
         """Apply a verified bundle as a new Studio revision if the source stayed current."""
+        if service.get_artifact(artifact).legacy_deck_id:
+            from .presentation_sync import apply_portable
+
+            apply_portable(service.store, artifact, local, source)
+            return
         files = [
             ArtifactFileInput(path=name, data_base64=base64.b64encode(data).decode())
             for name, data in source.items()
