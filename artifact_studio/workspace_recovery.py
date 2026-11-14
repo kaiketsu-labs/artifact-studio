@@ -26,13 +26,14 @@ from .artifacts import (
     read_tree,
     relative_path,
 )
-from .grant_recovery_models import GrantSnapshot
+from .grant_recovery_models import GrantSnapshot, StagedGrants
 from .libraries import artifact_source, file_hash, inventory
 from .models import Deck, StrictModel
 from .project_tree import TreeDocument
 from .storage import DATA, SAFE_ID, ConflictError, Store, digest, replace_text
 
 PORTABLE_METADATA = "workspace-recovery.json"
+STAGED_GRANTS = "human-grants-recovery.json"
 ARCHIVE_MANIFEST = "workspace.json"
 MAX_FILES = 100_000
 MAX_FILE_BYTES = 2_000_000_000
@@ -645,6 +646,8 @@ class WorkspaceRecovery:
             path = state / directory
             if path.exists() and any(path.rglob("*")):
                 conflicts.append("Destination already contains private attachments.")
+        if (state / STAGED_GRANTS).exists() or (state / STAGED_GRANTS).is_symlink():
+            conflicts.append("Destination already contains staged human grants.")
         artifact_feedback = root / ".state" / "artifact-feedback"
         if artifact_feedback.exists() and any(artifact_feedback.rglob("*")):
             conflicts.append("Destination already contains private artifact attachments.")
@@ -960,12 +963,14 @@ class WorkspaceRecovery:
         source = Path(preview.source)
         with tempfile.TemporaryDirectory(prefix="workspace-restore-") as temporary:
             stage = Path(temporary).resolve()
+            human_grants: GrantSnapshot | None = None
             if mode == "current":
                 for item in self._current_files(source):
                     _copy_verified(source / item.path, stage / "collection" / item.path, item)
                 self._rebuild_current(source, stage)
             else:
                 manifest = self._archive(source)
+                human_grants = manifest.human_grants
                 self._extract(source, manifest, stage)
                 replacements = sorted(
                     [
@@ -991,6 +996,15 @@ class WorkspaceRecovery:
             fresh = self.preview(source, mode=mode)
             if fresh.content_hash != expected_hash or not fresh.can_restore:
                 raise ConflictError("Recovery source or destination changed. Preview it again.")
+            if human_grants is not None:
+                staged_grants = stage / "state" / STAGED_GRANTS
+                staged_grants.parent.mkdir(parents=True, exist_ok=True)
+                staged_grants.write_text(
+                    StagedGrants(
+                        archive_sha256=file_hash(source), snapshot=human_grants
+                    ).model_dump_json()
+                )
+                staged_grants.chmod(0o600)
             self._publish(stage)
         return RecoveryResult(**preview.model_dump())
 

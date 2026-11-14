@@ -27,3 +27,10 @@ class GrantSnapshot(StrictModel):
     owner: str = Field(pattern=r"^[0-9a-f]{64}$")
     owner_email: str = Field(min_length=3, max_length=254)
     grants: list[HumanGrant] = Field(max_length=10000)
+
+
+class StagedGrants(StrictModel):
+    """Grant data staged by a verified restore, bound to the source archive."""
+
+    archive_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    snapshot: GrantSnapshot

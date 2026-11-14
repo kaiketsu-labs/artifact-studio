@@ -6,7 +6,7 @@ import secrets
 from typing import cast
 
 from .deployment import DeploymentConfig
-from .grant_recovery_models import GrantSnapshot, HumanGrant
+from .grant_recovery_models import GrantSnapshot, HumanGrant, StagedGrants
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, email_address
 from .storage import ConflictError
 
@@ -130,3 +130,53 @@ def restore_grants(
                     ),
                 )
     return len(snapshot.grants)
+
+
+def staged_grants(hub: Sharing, workspace: str) -> StagedGrants:
+    """Read only the fixed private state file created by a verified archive restore."""
+    import os
+    import stat
+
+    from .workspace_recovery import MAX_METADATA_BYTES, STAGED_GRANTS
+
+    path = hub.store(workspace).database.parent / STAGED_GRANTS
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as stream:
+        info = os.fstat(stream.fileno())
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o600
+            or info.st_nlink != 1
+        ):
+            raise ValueError("The staged human grants file is unsafe.")
+        data = stream.read(MAX_METADATA_BYTES + 1)
+    if len(data) > MAX_METADATA_BYTES:
+        raise ValueError("The staged human grants file is too large.")
+    return StagedGrants.model_validate_json(data, strict=True)
+
+
+def preview_staged_grants(
+    hub: Sharing, actor: Actor, workspace: str, config: DeploymentConfig
+) -> tuple[StagedGrants, str]:
+    """Expose the fixed staging file to its owner and bind preview to archive bytes."""
+    with hub.locked():
+        if not hub.owner(actor, workspace):
+            raise AccessDenied
+        staged = staged_grants(hub, workspace)
+        if staged.snapshot.workspace != workspace:
+            raise ValueError("The staged grants belong to another workspace.")
+        grant_hash = preview_grants(hub, actor, staged.snapshot, config)
+        return staged, hashlib.sha256((staged.archive_sha256 + grant_hash).encode()).hexdigest()
+
+
+def restore_staged_grants(
+    hub: Sharing, actor: Actor, workspace: str, config: DeploymentConfig, expected_hash: str
+) -> int:
+    """Re-read exactly the reviewed fixed staged file before applying its grants."""
+    with hub.locked():
+        staged, current_hash = preview_staged_grants(hub, actor, workspace, config)
+        if not secrets.compare_digest(current_hash, expected_hash):
+            raise ConflictError("The sharing preview changed. Review it again.")
+        grant_hash = preview_grants(hub, actor, staged.snapshot, config)
+        return restore_grants(hub, actor, staged.snapshot, config, grant_hash)
