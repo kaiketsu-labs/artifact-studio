@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.7.1...v0.8.0) (2026-11-14)
+
+
+### Features
+
+* **collaboration:** let editors address an opted-in agent ([b6e1ce3](https://github.com/kaiketsu-labs/artifact-studio/commit/b6e1ce3fc9bfa569f153acc9b369f9d51d9cd43c))
+* **offline:** edit saved slide text visually ([7ccded7](https://github.com/kaiketsu-labs/artifact-studio/commit/7ccded751de2f1162b35406dee71cdf2c84cb17d))
+* **offline:** move rotate and remove saved slide objects ([5322efe](https://github.com/kaiketsu-labs/artifact-studio/commit/5322efea49683d67d05641d97045686309eee1b4))
+
+
+### Bug Fixes
+
+* **presenting:** focus slide navigation and show startup progress ([#200](https://github.com/kaiketsu-labs/artifact-studio/issues/200)) ([74639fe](https://github.com/kaiketsu-labs/artifact-studio/commit/74639fe10a6755777300c64a3a12cfcfb3184f89))
+* **release:** retry a deferred nightly when CI passes ([786393c](https://github.com/kaiketsu-labs/artifact-studio/commit/786393c2e8b18c154653ec796b9330971550d440))
+
 ## [0.7.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.7.0...v0.7.1) (2026-11-14)
 
 
