@@ -47,6 +47,7 @@ from .models import CreateInput, DeckView, FeedbackWorkflow, SlideSeenInput, Sli
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
 from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth, owner_upload_limit
 from .navigation import NavigationSnapshot
+from .offline_identity import cache_scope
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .sections import sections_hash
 from .share_api import ShareInput, ShareWorkspace, sharing_routes
@@ -269,6 +270,11 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             "collaboration_url": "/together",
             "capabilities": {"local_admin": False, "automatic_feedback": False},
             "scoped_editor": True,
+            "cache_scope": cache_scope(
+                config,
+                principal if isinstance(principal, Principal) else None,
+                workspace_of(request),
+            ),
             "workspace_owner": hub.owner(actor_of(request), workspace_of(request)),
         }
 
