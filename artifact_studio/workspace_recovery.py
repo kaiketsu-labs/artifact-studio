@@ -26,12 +26,14 @@ from .artifacts import (
     read_tree,
     relative_path,
 )
+from .grant_recovery_models import GrantSnapshot, StagedGrants
 from .libraries import artifact_source, file_hash, inventory
 from .models import Deck, StrictModel
 from .project_tree import TreeDocument
 from .storage import DATA, SAFE_ID, ConflictError, Store, digest, replace_text
 
 PORTABLE_METADATA = "workspace-recovery.json"
+STAGED_GRANTS = ".human-grants-recovery.json"
 ARCHIVE_MANIFEST = "workspace.json"
 MAX_FILES = 100_000
 MAX_FILE_BYTES = 2_000_000_000
@@ -131,6 +133,7 @@ class WorkspaceArchive(StrictModel):
     source_state: str
     files: list[RecoveryFile] = Field(max_length=MAX_FILES)
     directories: list[str] = Field(default_factory=list, max_length=MAX_FILES)
+    human_grants: GrantSnapshot | None = None
 
 
 class RecoveryPreview(StrictModel):
@@ -643,6 +646,8 @@ class WorkspaceRecovery:
             path = state / directory
             if path.exists() and any(path.rglob("*")):
                 conflicts.append("Destination already contains private attachments.")
+        if (state / STAGED_GRANTS).exists() or (state / STAGED_GRANTS).is_symlink():
+            conflicts.append("Destination already contains staged human grants.")
         artifact_feedback = root / ".state" / "artifact-feedback"
         if artifact_feedback.exists() and any(artifact_feedback.rglob("*")):
             conflicts.append("Destination already contains private artifact attachments.")
@@ -722,6 +727,10 @@ class WorkspaceRecovery:
         except BadZipFile as error:
             raise ValueError("The file is not a valid workspace archive.") from error
 
+    def archive_grants(self, source: Path) -> GrantSnapshot | None:
+        """Read optional grants only after validating the complete archive."""
+        return self._archive(source.expanduser().absolute()).human_grants
+
     def fingerprint_archive(self, source: Path) -> str:
         """Validate a prior archive and identify its saved content without restoring files."""
         source = source.expanduser().absolute()
@@ -788,6 +797,10 @@ class WorkspaceRecovery:
             warnings.append(
                 "Repository registrations, upload permissions and agent sessions are reset."
             )
+            if manifest.human_grants is not None:
+                warnings.append(
+                    "Human access grants are included but are not restored with the files."
+                )
         token = digest(json.dumps([mode, str(source), source_hash, target_hash]))
         return RecoveryPreview(
             mode=mode,
@@ -950,12 +963,14 @@ class WorkspaceRecovery:
         source = Path(preview.source)
         with tempfile.TemporaryDirectory(prefix="workspace-restore-") as temporary:
             stage = Path(temporary).resolve()
+            human_grants: GrantSnapshot | None = None
             if mode == "current":
                 for item in self._current_files(source):
                     _copy_verified(source / item.path, stage / "collection" / item.path, item)
                 self._rebuild_current(source, stage)
             else:
                 manifest = self._archive(source)
+                human_grants = manifest.human_grants
                 self._extract(source, manifest, stage)
                 replacements = sorted(
                     [
@@ -981,6 +996,15 @@ class WorkspaceRecovery:
             fresh = self.preview(source, mode=mode)
             if fresh.content_hash != expected_hash or not fresh.can_restore:
                 raise ConflictError("Recovery source or destination changed. Preview it again.")
+            if human_grants is not None:
+                staged_grants = stage / "state" / STAGED_GRANTS
+                staged_grants.parent.mkdir(parents=True, exist_ok=True)
+                staged_grants.write_text(
+                    StagedGrants(
+                        archive_sha256=file_hash(source), snapshot=human_grants
+                    ).model_dump_json()
+                )
+                staged_grants.chmod(0o600)
             self._publish(stage)
         return RecoveryResult(**preview.model_dump())
 
@@ -1015,12 +1039,14 @@ class WorkspaceRecovery:
                 path.unlink(missing_ok=True)
             raise
 
-    def export_archive(self, destination: Path) -> ArchiveSummary:
+    def export_archive(
+        self, destination: Path, *, human_grants: GrantSnapshot | None = None
+    ) -> ArchiveSummary:
         """Serialize application edits while creating a local, consistent SQLite archive."""
         with self.store.connect() as db:
             _ = _database_tables(db)
         _ = self.write_portable_metadata()
-        return self._prepare_archive(destination)
+        return self._prepare_archive(destination, human_grants=human_grants)
 
     def export_archive_if_changed(
         self, destination: Path, previous_fingerprint: str
@@ -1032,7 +1058,11 @@ class WorkspaceRecovery:
         return self._prepare_archive(destination, previous_fingerprint)
 
     def _prepare_archive(
-        self, destination: Path, previous_fingerprint: str | None = None
+        self,
+        destination: Path,
+        previous_fingerprint: str | None = None,
+        *,
+        human_grants: GrantSnapshot | None = None,
     ) -> ArchiveSummary:
         """Stage a verified snapshot under lock, then compress it without blocking edits."""
         destination = destination.expanduser().absolute()
@@ -1061,6 +1091,7 @@ class WorkspaceRecovery:
                         "artifact-previews",
                         "artifact-captures",
                         "copilot-captures",
+                        STAGED_GRANTS,
                         *HOST_LOCK_FILES,
                         self.store.database.name,
                         *(
@@ -1092,6 +1123,7 @@ class WorkspaceRecovery:
                             continue
                         if state_relative.parts[0] in {
                             *STATE_DIRECTORIES,
+                            STAGED_GRANTS,
                             *HOST_LOCK_FILES,
                             self.store.database.name,
                             *(
@@ -1151,11 +1183,14 @@ class WorkspaceRecovery:
                     source_state=str(state),
                     files=files,
                     directories=directories,
+                    human_grants=human_grants,
                 )
             archive_path = stage / "workspace.zip"
             seen: set[str] = set()
             with ZipFile(archive_path, "w", ZIP_DEFLATED, compresslevel=6) as archive:
-                archive.writestr(ARCHIVE_MANIFEST, manifest.model_dump_json(indent=2))
+                archive.writestr(
+                    ARCHIVE_MANIFEST, manifest.model_dump_json(indent=2, exclude_none=True)
+                )
                 for item, path in sources:
                     if item.sha256 in seen:
                         continue

@@ -93,6 +93,42 @@ def test_artifact_live_connection_preserves_draft_when_review_ends(
     expect(live).to_have_attribute("title", "Codex connected · browser-review")
 
 
+@pytest.mark.parametrize("markdown", [False, True], ids=["html", "markdown"])
+def test_narrow_artifact_chat_reveals_composer_actions(
+    live_app: RunningApp, page: Page, tmp_path: Path, markdown: bool
+) -> None:
+    """Keep the entire action row clear of the report launcher after opening and typing."""
+    _, html, notes, _, _ = register(live_app, tmp_path)
+    item = notes if markdown else html
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.emulate_media(color_scheme="dark")
+    page.goto(f"{live_app.url}/?artifact={item.id}")
+    close = page.get_by_role("button", name="Close chat", exact=True)
+    open_chat = page.get_by_role("button", name="Open chat", exact=True)
+    textarea = page.get_by_role("textbox", name=f"Feedback for {item.title}")
+    report = page.get_by_role("button", name="Report an issue", exact=True)
+    close.click()
+    open_chat.press("Enter")
+    expect(textarea).to_be_focused()
+    textarea.fill("A fictional draft")
+    page.locator("#hub-feedback-files").set_input_files(
+        {"name": "review.txt", "mimeType": "text/plain", "buffer": b"Fictional attachment"}
+    )
+    expect(page.locator("#hub-feedback-attachments")).to_contain_text("review.txt")
+    page.set_viewport_size({"width": 390, "height": 550})
+    expect(page.locator("#hub-send")).to_be_in_viewport(ratio=1)
+    assert page.locator("#hub-send").evaluate(
+        "button => button.getBoundingClientRect().bottom <= "
+        "document.querySelector('.studio-report-trigger').getBoundingClientRect().top"
+    )
+    expect(report).to_be_in_viewport(ratio=1)
+    close.click()
+    open_chat.click()
+    expect(textarea).to_have_value("A fictional draft")
+    expect(page.locator("#hub-feedback-attachments")).to_contain_text("review.txt")
+    expect(page.locator("#hub-send")).to_be_in_viewport(ratio=1)
+
+
 def test_direct_edit_and_clean_view(live_app: RunningApp, page: Page, tmp_path: Path) -> None:
     """Send one version-bound proposal and retain authored source and preview state."""
     store, item, _, _, source = register(live_app, tmp_path)

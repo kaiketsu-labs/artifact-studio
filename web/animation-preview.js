@@ -95,7 +95,7 @@
     button.addEventListener('click',play);
     button.ownerDocument.addEventListener('keydown',event=>{if(layer&&event.key==='Escape'){event.preventDefault();event.stopPropagation();stop();}},true);
     root.addEventListener('pagehide',stop);
-    render();return {bind,reset,stop,isPlaying:()=>!!layer};
+    render();return {bind,reset,stop,setFrame(next){stop();frame=next;},isPlaying:()=>!!layer};
   }
   const api={Playback,CSSPlayback,hasAnimations,freeze,create};
   if(typeof module!=='undefined')module.exports=api;else root.SlideAnimationPreview=api;
