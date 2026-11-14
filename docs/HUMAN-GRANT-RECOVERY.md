@@ -4,7 +4,8 @@ An operator can include human sharing grants in a private workspace archive. The
 records contain email addresses, identity hashes, scopes and roles. They do not
 contain invitation links, agent tokens, or identity-provider credentials. Treat the
 archive as private. This is separate from the scheduled full-backup setting; existing
-backups do not automatically include sharing grants.
+backups do not automatically include sharing grants. Use a version that supports human
+grant recovery to read archives that include these records; older versions may reject them.
 
 Grant recovery currently supports Cloudflare Access. It binds the backup to the exact
 Access team, application audience, workspace ID, and owner subject and email. An
