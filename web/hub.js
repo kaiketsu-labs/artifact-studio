@@ -475,7 +475,7 @@
       message:message.message,created_at:new Date(message.created*1000).toISOString(),
       content_hash:message.content_hash,target:message.target,released:Boolean(message.released),files:message.files||[],scoped:true
     }));
-    const feedback=sharedEditor||channelOf(id)==='shared'?scoped:[...(detail.feedback||[]),...scoped];
+    const feedback=sharedEditor||(collaborationChat&&channelOf(id)==='shared')?scoped:[...(detail.feedback||[]),...scoped];
     if(!collaborationChat)return {...detail,feedback};
     return {...detail,collaboration:info,feedback,mode:conversationModes.get(id)||'live',
       delivery:{live_available:info.agents.some(agent=>agent.mine&&agent.status==='listening')}};
