@@ -9,6 +9,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import sys
 import tempfile
 import time
@@ -210,7 +211,7 @@ def configure(
                 ]
             )
         handler: dict[str, object] = {"type": "command", "command": command, "timeout": timeout}
-        if harness == "claude-code" and event == "Stop" and not passive:
+        if harness == "claude-code" and event == "Stop" and not passive and os.name != "nt":
             handler["asyncRewake"] = True
             handler["timeout"] = CLAUDE_STOP_TIMEOUT
         if passive:
@@ -400,7 +401,7 @@ def handle_event(
         ):
             return {}
         message["passive"] = True
-    async_stop = harness == "claude-code" and event == "Stop"
+    async_stop = harness == "claude-code" and event == "Stop" and os.name != "nt"
     deadline = time.monotonic() + (CLAUDE_STOP_LIFETIME if async_stop else 540)
     failures = 0
     while True:
@@ -445,41 +446,49 @@ def _claude_stop_lock(url: str, server_name: str, session: str) -> Generator[boo
     digest = hashlib.sha256(
         json.dumps([url.rstrip("/"), server_name, session]).encode()
     ).hexdigest()
-    directory = Path(tempfile.gettempdir()) / (
-        "artifact-studio-hooks-"
-        + str(os.getuid() if hasattr(os, "getuid") else os.environ.get("USERNAME", "user"))
-    )
-    directory.mkdir(mode=0o700, exist_ok=True)
-    with (directory / digest).open("a+b") as stream:
-        try:
-            if os.name == "nt":
-                import msvcrt
+    # POSIX directory descriptors prevent replacement of the directory while opening the file.
+    # Windows needs a separate ACL-aware implementation before it can safely use this lock.
+    if os.name == "nt":
+        yield False
+        return
+    import fcntl
 
-                stream.seek(0)
-                if not stream.read(1):
-                    stream.write(b"0")
-                    stream.flush()
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            yield False
-            return
+    directory = Path(tempfile.gettempdir()) / f"artifact-studio-hooks-{os.getuid()}"
+    try:
+        directory.mkdir(mode=0o700, exist_ok=True)
+        directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
-            yield True
+            directory_info = os.fstat(directory_fd)
+            if (
+                not stat.S_ISDIR(directory_info.st_mode)
+                or directory_info.st_uid != os.getuid()
+                or stat.S_IMODE(directory_info.st_mode) != 0o700
+            ):
+                raise OSError("Unsafe hook lock directory")
+            fd = os.open(digest, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)
         finally:
-            if os.name == "nt":
-                import msvcrt
-
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+            os.close(directory_fd)
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_nlink != 1
+            ):
+                raise OSError("Unsafe hook lock file")
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BaseException:
+            os.close(fd)
+            raise
+    except OSError:
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def main() -> int:
@@ -551,7 +560,7 @@ def main() -> int:
                 )
         except (OSError, ValueError, RecursionError):
             result = {}
-        if args.harness == "claude-code" and args.event == "Stop":
+        if args.harness == "claude-code" and args.event == "Stop" and os.name != "nt":
             reason = result.get("reason")
             if result.get("decision") == "block" and isinstance(reason, str):
                 print(reason, file=sys.stderr)

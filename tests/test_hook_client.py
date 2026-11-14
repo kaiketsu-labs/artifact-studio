@@ -432,3 +432,34 @@ def test_claude_stop_lock_excludes_duplicate_listeners(
             assert other
     with client._claude_stop_lock("https://studio.example.test", "studio", "session") as again:
         assert again
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX lock directory security")
+def test_claude_stop_lock_rejects_symlink_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-created symlink cannot redirect the lock file into another directory."""
+    import os
+
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    (tmp_path / f"artifact-studio-hooks-{os.getuid()}").symlink_to(destination)
+    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+        assert not acquired
+    assert not list(destination.iterdir())
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX lock directory security")
+def test_claude_stop_lock_rejects_unsafe_directory_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject directories accessible by other users."""
+    import os
+
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    directory = tmp_path / f"artifact-studio-hooks-{os.getuid()}"
+    directory.mkdir()
+    directory.chmod(0o777)
+    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+        assert not acquired
