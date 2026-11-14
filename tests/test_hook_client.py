@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 import pytest
 
 from artifact_studio import hook_client as client
+from artifact_studio.hook_client import _claude_stop_lock  # pyright: ignore[reportPrivateUsage]
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
@@ -522,13 +523,13 @@ def test_claude_stop_lock_excludes_duplicate_listeners(
 ) -> None:
     """A second listener exits while the first holds its session lock, then can re-arm."""
     monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
-    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as first:
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as first:
         assert first
-        with client._claude_stop_lock("https://studio.example.test", "studio", "session") as second:
+        with _claude_stop_lock("https://studio.example.test", "studio", "session") as second:
             assert not second
-        with client._claude_stop_lock("https://studio.example.test", "studio", "other") as other:
+        with _claude_stop_lock("https://studio.example.test", "studio", "other") as other:
             assert other
-    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as again:
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as again:
         assert again
 
 
@@ -543,7 +544,7 @@ def test_claude_stop_lock_rejects_symlink_directory(
     destination = tmp_path / "destination"
     destination.mkdir()
     (tmp_path / f"artifact-studio-hooks-{os.getuid()}").symlink_to(destination)
-    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
         assert not acquired
     assert not list(destination.iterdir())
 
@@ -559,7 +560,7 @@ def test_claude_stop_lock_rejects_unsafe_directory_mode(
     directory = tmp_path / f"artifact-studio-hooks-{os.getuid()}"
     directory.mkdir()
     directory.chmod(0o777)
-    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
         assert not acquired
 
 
@@ -580,6 +581,6 @@ def test_claude_stop_lock_rejects_symlink_file(
     target = tmp_path / "target"
     target.write_text("keep")
     (directory / digest).symlink_to(target)
-    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
         assert not acquired
     assert target.read_text() == "keep"
