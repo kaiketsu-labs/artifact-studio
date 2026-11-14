@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.7.0...v0.7.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **collaboration:** make agent routing and presence visible ([3d6a13d](https://github.com/kaiketsu-labs/artifact-studio/commit/3d6a13d69ad425f576548c445c3039cd4799b11b))
+* **feedback:** hand screenshots off to a GitHub issue form ([d7ef9f9](https://github.com/kaiketsu-labs/artifact-studio/commit/d7ef9f973bdeb057d37da3a2da5fd7e98ddc95cd))
+* **review:** recover stale and unconfirmed drafts ([e922376](https://github.com/kaiketsu-labs/artifact-studio/commit/e922376f6f05a3b20a43da2002613def07e7250c))
+
 ## [0.7.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.6.0...v0.7.0) (2026-11-14)
 
 
