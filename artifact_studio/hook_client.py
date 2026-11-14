@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
+import stat
 import sys
 import tempfile
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import cast
 from urllib.error import HTTPError
@@ -25,6 +29,8 @@ else:
     from local_http import validate_hook_url as _validate_url
 
 APP_DIR = Path(__file__).resolve().parent.parent
+CLAUDE_STOP_LIFETIME = 6 * 60 * 60
+CLAUDE_STOP_TIMEOUT = CLAUDE_STOP_LIFETIME + 60
 INBOX_TOOLS = {
     "get_working_context",
     "read_design_requests",
@@ -263,6 +269,9 @@ def configure(
                 ]
             )
         handler: dict[str, object] = {"type": "command", "command": command, "timeout": timeout}
+        if harness == "claude-code" and event == "Stop" and not passive and os.name != "nt":
+            handler["asyncRewake"] = True
+            handler["timeout"] = CLAUDE_STOP_TIMEOUT
         if passive:
             handler["command"] = command + " --claude-mode passive"
             handler["async"] = True
@@ -461,7 +470,8 @@ def handle_event(
         ):
             return {}
         message["passive"] = True
-    deadline = time.monotonic() + 540
+    async_stop = harness == "claude-code" and event == "Stop" and os.name != "nt"
+    deadline = time.monotonic() + (CLAUDE_STOP_LIFETIME if async_stop else 540)
     failures = 0
     while True:
         try:
@@ -490,11 +500,64 @@ def handle_event(
             return {}
         if not isinstance(reason, str) or not reason:
             return {}
-        if result.get("feedback_available") is True or time.monotonic() >= deadline:
+        if result.get("feedback_available") is True:
             return {"decision": "block", "reason": reason}
+        if time.monotonic() >= deadline:
+            return {} if async_stop else {"decision": "block", "reason": reason}
         if result.get("feedback_available") is not False:
             return {}
-        time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
+        time.sleep(min(2.0 if async_stop else 0.25, max(0.0, deadline - time.monotonic())))
+
+
+@contextmanager
+def _claude_stop_lock(url: str, server_name: str, session: str) -> Generator[bool]:
+    """Keep one listener per server and host session; the OS releases it on exit."""
+    digest = hashlib.sha256(
+        json.dumps([url.rstrip("/"), server_name, session]).encode()
+    ).hexdigest()
+    # POSIX directory descriptors prevent replacement of the directory while opening the file.
+    # Windows needs a separate ACL-aware implementation before it can safely use this lock.
+    if os.name == "nt":
+        yield False
+        return
+    import fcntl
+
+    directory = Path(tempfile.gettempdir()) / f"artifact-studio-hooks-{os.getuid()}"
+    try:
+        directory.mkdir(mode=0o700, exist_ok=True)
+        directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            directory_info = os.fstat(directory_fd)
+            if (
+                not stat.S_ISDIR(directory_info.st_mode)
+                or directory_info.st_uid != os.getuid()
+                or stat.S_IMODE(directory_info.st_mode) != 0o700
+            ):
+                raise OSError("Unsafe hook lock directory")
+            fd = os.open(digest, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)
+        finally:
+            os.close(directory_fd)
+        try:
+            info = os.fstat(fd)
+            if (
+                not stat.S_ISREG(info.st_mode)
+                or info.st_uid != os.getuid()
+                or stat.S_IMODE(info.st_mode) != 0o600
+                or info.st_nlink != 1
+            ):
+                raise OSError("Unsafe hook lock file")
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BaseException:
+            os.close(fd)
+            raise
+    except OSError:
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def main() -> int:
@@ -546,12 +609,40 @@ def main() -> int:
             if len(raw) > 2 * 1024 * 1024:
                 raise ValueError("Hook input exceeds the client budget")
             payload = _object(json.loads(raw))
-            result = handle_event(
-                args.harness, args.event, args.url, args.server_name, payload, passive=passive
-            )
+            session = payload.get("session_id")
+            if (
+                args.harness == "claude-code"
+                and args.event == "Stop"
+                and os.name != "nt"
+                and isinstance(session, str)
+                and session
+            ):
+                with _claude_stop_lock(args.url, args.server_name, session) as acquired:
+                    result = (
+                        handle_event(
+                            args.harness,
+                            args.event,
+                            args.url,
+                            args.server_name,
+                            payload,
+                            passive=passive,
+                        )
+                        if acquired
+                        else {}
+                    )
+            else:
+                result = handle_event(
+                    args.harness, args.event, args.url, args.server_name, payload, passive=passive
+                )
         except (OSError, ValueError, RecursionError):
             result = {}
-        print(json.dumps(result))
+        if args.harness == "claude-code" and args.event == "Stop" and os.name != "nt":
+            reason = result.get("reason")
+            if result.get("decision") == "block" and isinstance(reason, str):
+                print(reason, file=sys.stderr)
+                return 2
+        else:
+            print(json.dumps(result))
     return 0
 
 

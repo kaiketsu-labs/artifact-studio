@@ -1,8 +1,10 @@
 """Tests for project hooks and review event handling."""
 
+import io
 import json
 import re
 import shlex
+import sys
 from email.message import Message
 from pathlib import Path
 from urllib.error import HTTPError
@@ -10,6 +12,7 @@ from urllib.error import HTTPError
 import pytest
 
 from artifact_studio import hook_client as client
+from artifact_studio.hook_client import _claude_stop_lock  # pyright: ignore[reportPrivateUsage]
 
 
 @pytest.mark.parametrize("harness", ["codex", "claude-code"])
@@ -107,7 +110,12 @@ def test_configure_merge_and_quote(
     assert data["other"] == 1
     assert data["hooks"]["Stop"][0] == {"hooks": []}
     handler = data["hooks"]["Stop"][1]["hooks"][0]
-    assert handler["timeout"] == 600
+    assert handler["timeout"] == (
+        client.CLAUDE_STOP_TIMEOUT if harness == "claude-code" and sys.platform != "win32" else 600
+    )
+    assert (handler.get("asyncRewake") is True) is (
+        harness == "claude-code" and sys.platform != "win32"
+    )
     assert shlex.split(handler["command"])[0] == str(Path("/tmp/uv with spaces").resolve())
     assert shlex.split(handler["command"])[1] == "--no-cache"
     assert ("Interrupt" in data["hooks"]) is (harness == "codex")
@@ -352,7 +360,7 @@ def test_stop_polling(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
 def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: str) -> None:
     """Forward one compact renewal after the bounded local idle wait."""
     reason = "Artifact Studio idle renewal: call read_design_requests(after_event_id=3)."
-    times = iter([0.0, 541.0])
+    times = iter([0.0, float(client.CLAUDE_STOP_LIFETIME + 1)])
     monkeypatch.setattr(client.time, "monotonic", lambda: next(times))
     monkeypatch.setattr(
         client,
@@ -362,7 +370,11 @@ def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: st
     result = client.handle_event(
         harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     )
-    assert result == {"decision": "block", "reason": reason}
+    assert result == (
+        {}
+        if harness == "claude-code" and sys.platform != "win32"
+        else {"decision": "block", "reason": reason}
+    )
 
 
 @pytest.mark.parametrize(("status", "retries"), [(429, True), (503, True), (401, False)])
@@ -460,3 +472,115 @@ def test_remote_url_and_inbox(tmp_path: Path) -> None:
     assert (
         client.normalize("codex", "PostToolUse", "artifact-studio", event)["start_review"] is True
     )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses synchronous Stop")
+@pytest.mark.parametrize("available", [True, False])
+def test_claude_stop_cli_wakes_only_for_feedback(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], available: bool
+) -> None:
+    """A background Stop emits only a pointer and exit 2 when feedback is available."""
+    monkeypatch.setattr(
+        sys, "argv", ["client", "event", "--harness", "claude-code", "--event", "Stop"]
+    )
+    monkeypatch.setattr(sys, "stdin", io.StringIO('{"session_id":"fixture"}'))
+    result: dict[str, object] = (
+        {"decision": "block", "reason": "Use read_feedback"} if available else {}
+    )
+    monkeypatch.setattr(client, "handle_event", lambda *args, **kwargs: result)  # pyright: ignore[reportUnknownArgumentType, reportUnknownLambdaType]
+    assert client.main() == (2 if available else 0)
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err == ("Use read_feedback\n" if available else "")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses synchronous Stop")
+def test_configure_migrates_synchronous_claude_stop(tmp_path: Path) -> None:
+    """Replace the old synchronous handler without duplicating it or removing neighbors."""
+    target = client.configure(
+        "claude-code", tmp_path, "https://studio.example.test", "artifact-studio", False
+    )
+    data = json.loads(target.read_text())
+    handler = data["hooks"]["Stop"][0]["hooks"][0]
+    del handler["asyncRewake"]
+    handler["timeout"] = 600
+    data["hooks"]["Stop"][0]["hooks"].append({"type": "command", "command": "echo neighbor"})
+    target.write_text(json.dumps(data))
+    client.configure(
+        "claude-code", tmp_path, "https://studio.example.test", "artifact-studio", False
+    )
+    handlers = [
+        h for group in json.loads(target.read_text())["hooks"]["Stop"] for h in group["hooks"]
+    ]
+    assert len(handlers) == 2
+    assert handlers[0]["command"] == "echo neighbor"
+    assert handlers[1]["asyncRewake"] is True
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses synchronous Stop")
+def test_claude_stop_lock_excludes_duplicate_listeners(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second listener exits while the first holds its session lock, then can re-arm."""
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as first:
+        assert first
+        with _claude_stop_lock("https://studio.example.test", "studio", "session") as second:
+            assert not second
+        with _claude_stop_lock("https://studio.example.test", "studio", "other") as other:
+            assert other
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as again:
+        assert again
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX lock directory security")
+def test_claude_stop_lock_rejects_symlink_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-created symlink cannot redirect the lock file into another directory."""
+    import os
+
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    (tmp_path / f"artifact-studio-hooks-{os.getuid()}").symlink_to(destination)
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+        assert not acquired
+    assert not list(destination.iterdir())
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX lock directory security")
+def test_claude_stop_lock_rejects_unsafe_directory_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reject directories accessible by other users."""
+    import os
+
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    directory = tmp_path / f"artifact-studio-hooks-{os.getuid()}"
+    directory.mkdir()
+    directory.chmod(0o777)
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+        assert not acquired
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX lock directory security")
+def test_claude_stop_lock_rejects_symlink_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An existing lock-file symlink is not followed."""
+    import hashlib
+    import os
+
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    directory = tmp_path / f"artifact-studio-hooks-{os.getuid()}"
+    directory.mkdir(mode=0o700)
+    digest = hashlib.sha256(
+        json.dumps(["https://studio.example.test", "studio", "session"]).encode()
+    ).hexdigest()
+    target = tmp_path / "target"
+    target.write_text("keep")
+    (directory / digest).symlink_to(target)
+    with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+        assert not acquired
+    assert target.read_text() == "keep"
