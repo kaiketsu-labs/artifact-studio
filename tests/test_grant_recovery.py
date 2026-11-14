@@ -266,3 +266,72 @@ def test_operator_cli_export_and_restore(tmp_path: Path, monkeypatch: pytest.Mon
     new_owner = new_hub.human(Principal("owner", "owner@example.test"))
     staged, _ = preview_staged_grants(new_hub, new_owner, "default", config)
     assert staged.snapshot.grants[0].email == "guest@example.test"
+
+
+def test_operator_activates_restored_nondefault_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Register only the original non-default ID while preserving other workspace records."""
+    import sys
+
+    from artifact_studio import grant_recovery_cli
+
+    config = DeploymentConfig(
+        mode="hosted",
+        auth_provider="cloudflare",
+        auth_options={"team_domain": "example.cloudflareaccess.com", "audience": "aud"},
+    )
+    monkeypatch.setattr(DeploymentConfig, "from_env", lambda: config)
+    default = Store(tmp_path / "default", tmp_path / "default-state" / "review.sqlite3")
+    old_hub = Sharing(tmp_path / "old-sharing", default, "owner@example.test")
+    owner = old_hub.human(Principal("owner", "owner@example.test"))
+    guest = old_hub.human(Principal("guest", "guest@example.test"))
+    workspace = old_hub.create_workspace(owner, "Fictional team")
+    scope = Scope(workspace)
+    invitation = old_hub.invite(owner, scope, "guest@example.test", "view")
+    old_hub.accept(guest, invitation["token"])
+    store = old_hub.store(workspace)
+    archive = tmp_path / "team.zip"
+    WorkspaceRecovery(store).export_archive(
+        archive, human_grants=snapshot_grants(old_hub, owner, workspace, config)
+    )
+    new_root = tmp_path / "new-sharing"
+    target = new_root / "workspaces" / workspace
+    recovered = Store(target / "collection", target / "state" / "review.sqlite3")
+    service = WorkspaceRecovery(recovered)
+    preview = service.preview(archive, mode="archive")
+    service.restore(archive, preview.content_hash, mode="archive")
+    default2 = Store(tmp_path / "default2", tmp_path / "default2-state" / "review.sqlite3")
+    new_hub = Sharing(new_root, default2, "owner@example.test")
+    new_owner = new_hub.human(Principal("owner", "owner@example.test"))
+    untouched = new_hub.create_workspace(new_owner, "Keep this workspace")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "grant-recovery",
+            "activate",
+            "--collection",
+            str(default2.root),
+            "--database",
+            str(default2.database),
+            "--sharing-root",
+            str(new_root),
+            "--owner-email",
+            "owner@example.test",
+            "--owner-subject",
+            "owner",
+            "--workspace",
+            workspace,
+            "--title",
+            "Restored team",
+        ],
+    )
+    assert grant_recovery_cli.main() == 0
+    staged, token = preview_staged_grants(new_hub, new_owner, workspace, config)
+    assert staged.snapshot.workspace == workspace
+    assert restore_staged_grants(new_hub, new_owner, workspace, config, token) == 1
+    assert new_hub.level(new_hub.human(Principal("guest", "guest@example.test")), scope) == 1
+    assert new_hub.owner(new_owner, untouched)
+    with pytest.raises(ValueError, match="already"):
+        grant_recovery_cli.main()

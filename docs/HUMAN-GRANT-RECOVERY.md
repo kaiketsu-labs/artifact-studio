@@ -36,6 +36,24 @@ uv run python -m artifact_studio.grant_recovery_cli restore \
   --database /private/restored-state/review.sqlite3
 ```
 
+For a non-default workspace, restore its collection and database into the fixed paths
+`<sharing-root>/workspaces/<workspace-id>/collection` and
+`<sharing-root>/workspaces/<workspace-id>/state/review.sqlite3`. With the server
+stopped, register that original ID without changing any other workspace:
+
+```sh
+uv run python -m artifact_studio.grant_recovery_cli activate \
+  --collection /private/default-collection --database /private/default-state/review.sqlite3 \
+  --sharing-root /private/multiplayer --owner-email owner@example.test \
+  --owner-subject 'verified-owner-subject' --workspace ORIGINAL_WORKSPACE_ID \
+  --title 'Recovered workspace'
+```
+
+The default collection and database arguments identify the server's default workspace;
+the command reads the restored non-default workspace only from its fixed paths. It
+requires an unregistered ID with no existing sharing state and checks its staged owner
+and identity context before registration.
+
 Start the server against the restored collection and review database with a fresh
 sharing registry for that workspace, the same workspace ID, owner, and Cloudflare
 Access configuration. Sign in as the original owner, open workspace sharing, and

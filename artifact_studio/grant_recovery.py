@@ -8,7 +8,7 @@ from typing import cast
 from .deployment import DeploymentConfig
 from .grant_recovery_models import GrantSnapshot, HumanGrant, StagedGrants
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, email_address
-from .storage import ConflictError
+from .storage import ConflictError, Store
 
 
 def identity_context(config: DeploymentConfig) -> tuple[str, str]:
@@ -132,14 +132,14 @@ def restore_grants(
     return len(snapshot.grants)
 
 
-def staged_grants(hub: Sharing, workspace: str) -> StagedGrants:
+def read_staged_grants(store: Store) -> StagedGrants:
     """Read only the fixed private state file created by a verified archive restore."""
     import os
     import stat
 
     from .workspace_recovery import MAX_METADATA_BYTES, STAGED_GRANTS
 
-    path = hub.store(workspace).database.parent / STAGED_GRANTS
+    path = store.database.parent / STAGED_GRANTS
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(descriptor, "rb") as stream:
         info = os.fstat(stream.fileno())
@@ -163,7 +163,7 @@ def preview_staged_grants(
     with hub.locked():
         if not hub.owner(actor, workspace):
             raise AccessDenied
-        staged = staged_grants(hub, workspace)
+        staged = read_staged_grants(hub.store(workspace))
         if staged.snapshot.workspace != workspace:
             raise ValueError("The staged grants belong to another workspace.")
         grant_hash = preview_grants(hub, actor, staged.snapshot, config)
