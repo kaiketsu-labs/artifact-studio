@@ -27,9 +27,9 @@
   /** Keep the toggle's accessible name stable and describe its current delivery state. */
   function setAgentToggle(button, pressed, agent) {
     button.setAttribute('aria-pressed', String(pressed));
-    button.title = !agent ? 'Connect an agent to send a request' : pressed
-      ? (agent.status === 'listening' ? 'Agent addressed · click to turn off' : 'Agent addressed · queued until connected')
-      : 'Ask your agent · @@ or @agent · Includes recent Shared messages';
+    button.title = !agent ? 'Connect an agent to send a request · visible to collaborators' : pressed
+      ? (agent.status === 'listening' ? 'Agent addressed · visible to collaborators · click to turn off' : 'Agent addressed · visible to collaborators · queued until connected')
+      : 'Ask your agent · visible to collaborators · @@ or @agent · Includes recent Shared messages';
   }
 
   /** Keep portable anchors and discard the native editor's HTML snapshot and UI metadata. */
