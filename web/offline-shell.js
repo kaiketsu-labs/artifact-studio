@@ -1,4 +1,4 @@
-/* This isolated shell never sends queued private content to the network. */
+/* Queued edits and comments leave this device only through explicit, checked delivery. */
 (()=>{
   'use strict';
   const $=id=>document.getElementById(id),INDEX='artifact-studio-offline-index-v1',ACTIVE='artifact-studio-offline-active-v1';
