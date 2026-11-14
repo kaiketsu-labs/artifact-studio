@@ -586,7 +586,7 @@
   }
   groupEditor=window.MultiElementEdits.create({doc:document,getElements:()=>selectedElements,getContext:groupContext,onError:message=>toast(message,true),onChange:state=>{$('element-properties').inert=state.dirty||state.canRedo||state.sent;$('element-tools').inert=state.dirty||state.canRedo||state.sent;queueMicrotask(resumePreviewUpdates);},onSend:async({context,message})=>{
     if(!deck||context.deck_id!==deck.id||context.slide_id!==selectedId||context.content_hash!==slide().content_hash)throw Error('The slide changed. Reselect the objects before sending.');
-    await postFeedback(`/api/decks/${encodeURIComponent(context.deck_id)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,target:context.target,content_hash:context.content_hash,request_id:context.request_id});await refresh();toast(deck.workflow?.mode==='batch'?'Added to batch.':'Sent to agent.');
+    await postFeedback(`/api/decks/${encodeURIComponent(context.deck_id)}/slides/${encodeURIComponent(context.slide_id)}/feedback`,{message,target:context.target,content_hash:context.content_hash,request_id:context.request_id});await refresh();toast('Sent to agent.');
   }});
   groupEditor.toolbar.addEventListener('click',()=>{if(groupEditor.toolbar.hidden)$('preview').focus({preventScroll:true});});
   async function previewSelection(action){if(feedbackSending)return;if(voice.isActive()){toast('Stop dictation before editing the selection.');return;}if(!await elementEditor.finish())return;groupEditor.preview(action);}
