@@ -103,22 +103,29 @@
   --agent-request-tint: light-dark(#ece5fa,#352a50);
 }
 .compose-actions .chat-agent-toggle,.hub-compose-actions .chat-agent-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: none;
   margin-inline-start: auto;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   box-shadow: none;
   color: var(--muted,var(--hub-muted));
 }
 .compose-actions .chat-agent-toggle[aria-pressed="true"],
 .hub-compose-actions .chat-agent-toggle[aria-pressed="true"] {
-  background: transparent;
-  border: 0;
+  width: auto;
+  padding-inline: 7px;
+  background: var(--agent-request-tint);
+  border-color: var(--agent-request-line);
   color: var(--agent-request-ink);
 }
-:root[data-theme="dark"] :is(.compose-actions,.hub-compose-actions) .chat-agent-toggle:is(:hover,[aria-pressed="true"]) {
-  background: transparent;
-  border: 0;
+.chat-agent-toggle[aria-pressed="true"]::after {
+  content: 'Agent on';
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
 }
 .compose-actions .chat-agent-toggle:focus-visible,.hub-compose-actions .chat-agent-toggle:focus-visible {
   outline: none;
@@ -173,7 +180,7 @@
 }
 .presence-badge[style] { color: hsl(var(--presence-hue) 57% 26%); background: hsl(var(--presence-hue) 68% 91%); }
 :root[data-theme=dark] .presence-badge[style] { color: hsl(var(--presence-hue) 70% 86%); background: hsl(var(--presence-hue) 36% 29%); }
-.presence-agent { color: var(--blue); }
+.presence-agent { color: var(--blue); display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
 .presence-agent .ui-icon { width: 13px; height: 13px; }
 .slide-presence-markers {
   position: absolute;

@@ -5,7 +5,7 @@
     const tab = Array.from(root.crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, '0')).join('');
     const workspace = encodeURIComponent(session.workspace);
     const endpoint = deck => `/api/workspaces/${workspace}/artifacts/${encodeURIComponent(deck)}/presence`;
-    let target = null, viewers = [], listening = false, pending = false, pageActive = true;
+    let target = null, viewers = [], agents = [], listening = false, pending = false, pageActive = true;
     let lastSuccess = 0;
     const staleAfter = 45000;
     const compact = root.matchMedia('(max-width: 600px)');
@@ -35,7 +35,7 @@
       return marks;
     }
     function render() {
-      if (!viewers.length && button.hidden) return;
+      if (!viewers.length && !agents.length && button.hidden) return;
       const bySlide = new Map();
       for (const viewer of viewers) {
         if (!bySlide.has(viewer.slide_id)) bySlide.set(viewer.slide_id, []);
@@ -62,14 +62,22 @@
           thumb.removeAttribute('aria-description');
         }
       });
-      button.hidden = !viewers.length;
-      if (!viewers.length && panel.matches(':popover-open')) panel.hidePopover();
+      button.hidden = !viewers.length && !agents.length;
+      if (button.hidden && panel.matches(':popover-open')) panel.hidePopover();
       const people = viewers.filter(person => !person.agent).length;
       const working = viewers.some(person => person.agent);
-      button.setAttribute('aria-label', [people && `People in this deck (${people})`, working && 'Agent activity'].filter(Boolean).join(', '));
+      const agentLabel = agents.length && `${agents.length} ${agents.length === 1 ? 'agent' : 'agents'} listening`;
+      button.setAttribute('aria-label', [people && `People in this deck (${people})`, agentLabel || working && 'Agent activity'].filter(Boolean).join(', '));
       button.title = button.getAttribute('aria-label');
-      panel.setAttribute('aria-label', working ? 'Deck activity' : 'People in this deck');
-      button.replaceChildren(...badges(viewers, compact.matches ? 1 : 3));
+      panel.setAttribute('aria-label', working || agents.length ? 'Deck activity' : 'People in this deck');
+      const marks = badges(viewers, compact.matches ? 1 : 3);
+      if (agents.length) {
+        const mark = marks.find(item => item.classList.contains('presence-agent')) || badge(null, agentLabel);
+        mark.append(String(agents.length));
+        mark.title = agentLabel;
+        if (!marks.includes(mark)) marks.push(mark);
+      }
+      button.replaceChildren(...marks);
       const focused = panel.contains(document.activeElement) ? document.activeElement.dataset.presenceRow : null;
       panel.replaceChildren(...viewers.map(({name, slide_id: id, agent}) => {
         const row = document.createElement('li');
@@ -93,6 +101,17 @@
         item.append(agent ? badge(null, name) : personBadge(name), person, slide);
         row.append(item);
         return row;
+      }), ...agents.map(name => {
+        const row = document.createElement('li');
+        const item = document.createElement('div');
+        item.className = 'presence-person';
+        const label = document.createElement('span');
+        label.textContent = name;
+        const status = document.createElement('small');
+        status.textContent = 'Listening';
+        item.append(badge(null, 'Agent'), label, status);
+        row.append(item);
+        return row;
       }));
       if (focused && panel.matches(':popover-open')) {
         const next = Array.from(panel.querySelectorAll('button')).find(item => item.dataset.presenceRow === focused);
@@ -100,7 +119,7 @@
       }
     }
     function clear() {
-      if (viewers.length) { viewers = []; render(); }
+      if (viewers.length || agents.length) { viewers = []; agents = []; render(); }
     }
     function post(deck, slide, options) {
       return root.fetch(endpoint(deck), {
@@ -156,6 +175,14 @@
       void refresh();
     }).catch(() => {});
     return {
+      setAgents(deck, scopedAgents) {
+        if (target?.deck !== deck) return;
+        // A recent tool call could be for a different artifact. Only a deck lease counts here.
+        const next = scopedAgents.filter(agent => !agent.mine && agent.status === 'listening').map(agent => agent.name).sort();
+        if (JSON.stringify(next) === JSON.stringify(agents)) return;
+        agents = next;
+        render();
+      },
       select(deck, slide) {
         if (target?.deck === deck && target?.slide === slide) return;
         if (target && target.deck !== deck) leave(target.deck);

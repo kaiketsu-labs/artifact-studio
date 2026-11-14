@@ -373,6 +373,7 @@
       result.messages.unshift(...conversation.messages.filter(message=>!ids.has(message.id)&&message.cursor<result.messages[0]?.cursor));
     }
     conversation=result;conversationDeck=id;unreadMentions=result.mentions;
+    deckPresence.setAgents(id,result.agents);
     void structureReview.sync(id,result.access.role==='edit');
     if(!seenChat.has(id)){
       const {shared={},private:agent={}}=result.incomingCursors;

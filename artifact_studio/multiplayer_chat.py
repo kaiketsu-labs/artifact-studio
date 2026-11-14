@@ -16,7 +16,7 @@ from .artifact_models import ArtifactTarget
 from .artifacts import ArtifactStore
 from .element_alternatives import ElementAlternatives
 from .models import FileInput, StrictModel
-from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, checksum
+from .multiplayer_access import LEVEL, AccessDenied, Actor, Scope, Sharing, checksum
 from .review import ReviewHookInput
 from .slide_designs import SlideDesigns
 from .storage import ConflictError, Store, decode_attachments
@@ -842,8 +842,9 @@ class Conversations:
             result: list[dict[str, object]] = []
             for row in rows:
                 recipient = Actor(cast(str, row["person"]), cast(str, row["id"]))
-                if not self.sharing.level(recipient, scope):
+                if self.sharing.level(recipient, scope) < LEVEL["edit"]:
                     continue
+                mine = recipient.person == actor.person
                 listening = scope.kind == "artifact" and bool(
                     db.execute(
                         "SELECT 1 FROM multiplayer_hooks WHERE agent=? AND workspace=? "
@@ -853,11 +854,17 @@ class Conversations:
                 )
                 result.append(
                     {
-                        **dict(row),
-                        "mine": recipient.person == actor.person,
+                        "id": row["id"],
+                        "email": row["email"],
+                        "name": row["name"],
+                        "mine": mine,
                         "status": "listening"
                         if listening
-                        else ("connected" if row["last_seen"] > time.time() - 120 else "offline"),
+                        else (
+                            "connected"
+                            if mine and row["last_seen"] > time.time() - 120
+                            else "offline"
+                        ),
                     }
                 )
             return result

@@ -206,6 +206,8 @@ The presentation rail marks the slides other people are viewing. The people
 button lists their names and slide numbers. A background tab remains visible
 for up to 45 seconds after its last heartbeat. Closing a tab or leaving the
 presentation clears its presence when the server receives the departure.
+The same menu lists other collaborators' agents while their hooks are listening
+on this presentation and their edit access is valid.
 
 In Shared chat, type `@` and choose a collaborator with access to the
 presentation. Studio highlights the message for that person. Their unread
@@ -215,7 +217,8 @@ Open a presentation and use **Shared** to discuss it with collaborators or
 **Agent** for a private conversation. A dot marks new messages in a tab.
 Switching tabs keeps each unsent draft with its own conversation. If you have a
 connected agent with edit access, start a Shared message with `@@` or `@agent`,
-or click the robot icon by Send. A purple border and robot mark the request,
+or click the robot icon by Send. **Agent on** confirms the next message is
+addressed to your agent. A purple border and robot mark the sent request,
 and its reply stays in Shared. The request can include up to four earlier released
 human messages from the same slide or artifact as context. Drag the chat divider
 left to widen the panel on desktop. Messages in Agent and their replies stay
