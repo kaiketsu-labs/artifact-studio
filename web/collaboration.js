@@ -288,6 +288,18 @@
     showCurrentInvitation();
     root.StudioInvitation.available = !session.scoped_editor || session.workspace_owner === true;
     document.documentElement.toggleAttribute('data-workspace-owner', session.workspace_owner === true);
+    const restoreAccess = document.querySelector('[data-restore-access]');
+    if (restoreAccess && root.StudioInvitation.available) {
+      scopedRequest(workspaceAPI + '/grant-recovery').then(preview => {
+        if (!preview.grants.length) return;
+        restoreAccess.hidden = false;
+        restoreAccess.addEventListener('click', event => {
+          event.preventDefault();
+          document.querySelector('#hub-tools-menu')?.hidePopover();
+          void openInvitation({kind:'workspace',id:'',title:'Current workspace',anchor:restoreAccess});
+        });
+      }).catch(() => {});
+    }
     document.querySelectorAll('#connect-button, [data-hub-connect]').forEach(entry => {
       entry.addEventListener('click', event => {
         event.preventDefault();

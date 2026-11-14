@@ -56,7 +56,7 @@ and identity context before registration.
 
 Start the server against the restored collection and review database with a fresh
 sharing registry for that workspace, the same workspace ID, owner, and Cloudflare
-Access configuration. Sign in as the original owner, open Share link on a project or artifact, and
+Access configuration. Sign in as the original owner, open the library menu and choose Restore human access, and
 review the staged identities and their roles and scopes. Select the confirmation and
 restore access only if every entry is expected. Existing sharing, invitations, or
 agent connections in the destination prevent applying the staged grants. Other
