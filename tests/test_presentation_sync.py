@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from artifact_studio.design_authoring import blank_presentation
-from artifact_studio.models import AgentContext, Slide
+from artifact_studio.models import AgentContext, Slide, Source
 from artifact_studio.presentation_sync import parse_portable, portable_snapshot
 from artifact_studio.storage import Store
 
@@ -17,7 +17,8 @@ def test_portable_snapshot_excludes_private_context_and_preserves_order(tmp_path
     deck = blank_presentation(folder, "fictional-deck", "Fictional deck")
     deck.slides[0].notes = "PRIVATE NOTES SENTINEL"
     deck.slides[0].revision = 17
-    deck.slides[0].agent = AgentContext.model_validate({})
+    deck.slides[0].agent = AgentContext(summary="PRIVATE AGENT SENTINEL")
+    deck.slides[0].sources = [Source(label="PRIVATE SOURCE SENTINEL")]
     deck.slides.append(Slide(id="second", title="Second", html="<article>Second</article>"))
     store.write(deck.id, deck)
     _ = (folder / "README.md").write_text("PRIVATE CONTEXT SENTINEL")
@@ -28,6 +29,8 @@ def test_portable_snapshot_excludes_private_context_and_preserves_order(tmp_path
     serialized = b"\n".join(files.values())
     assert b"PRIVATE NOTES SENTINEL" not in serialized
     assert b"PRIVATE CONTEXT SENTINEL" not in serialized
+    assert b"PRIVATE AGENT SENTINEL" not in serialized
+    assert b"PRIVATE SOURCE SENTINEL" not in serialized
     assert b'"revision"' not in serialized
     assert "index.html" not in files and "README.md" not in files
     manifest, slides = parse_portable(files)
@@ -63,6 +66,8 @@ def test_prepare_preserves_private_slide_state_and_revision(tmp_path: Path) -> N
     deck = blank_presentation(folder, "fictional-deck", "Fictional deck")
     deck.slides[0].notes = "Keep private notes"
     deck.slides[0].notes_revision = 4
+    deck.slides[0].agent = AgentContext(summary="Local context")
+    deck.slides[0].sources = [Source(label="Local source")]
     deck.slides[0].revision = 9
     store.write(deck.id, deck)
     with store.editing(deck.id):
@@ -74,5 +79,7 @@ def test_prepare_preserves_private_slide_state_and_revision(tmp_path: Path) -> N
     assert updated.slides[0].title == "Remote title"
     assert updated.slides[0].notes == "Keep private notes"
     assert updated.slides[0].notes_revision == 4
+    assert updated.slides[0].agent.summary == "Local context"
+    assert updated.slides[0].sources[0].label == "Local source"
     assert updated.slides[0].revision == 10
     assert deck.slides[0].revision == 9
