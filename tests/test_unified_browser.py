@@ -563,11 +563,11 @@ def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentat
                 page.emulate_media(color_scheme="dark")
                 route = f"?deck={resource}#cover" if presentation else f"?artifact={resource}"
                 page.goto(f"{WORKSPACE}/{route}")
-                if presentation:
-                    page.get_by_role("button", name="Open chat", exact=True).click()
+                page.get_by_role("button", name="Open chat", exact=True).click()
                 thread = page.locator("#feedback-list" if presentation else "#hub-thread")
                 day_markers = thread.locator(".chat-day")
                 incoming = thread.locator("article").filter(has_text="Fictional owner message 0")
+                expect(incoming).to_be_visible()
                 expect(incoming).to_contain_text("owner@example.test")
                 expect(incoming).to_have_css("align-self", "flex-start")
                 expect(day_markers).to_have_count(1)
