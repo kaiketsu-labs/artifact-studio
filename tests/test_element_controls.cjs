@@ -2,6 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
+const ElementProperties=require('../web/element-properties.js');
 const {rotationDegrees,rotationDelta,rotationGeometry,editIntent}=require('../web/slide-edits.js');
 
 test('rotation follows the local plane through anisotropic scale and rotated ancestors',()=>{
@@ -43,7 +44,7 @@ function fixture({sendError=false,properties=null}={}){
   }
   const outer={activeElement:null,createElement:()=>new Control()};
   const doc={addEventListener(){},querySelector:()=>({getBoundingClientRect:()=>({left:0,top:0,width:800,height:450})}),defaultView:{getComputedStyle:element=>({perspective:'none',transform:element.style.transform||'none',fontSize:'16px',fontWeight:'400',fontStyle:'normal',textAlign:'left',color:'rgb(0, 0, 0)'}),DOMMatrixReadOnly:class{constructor(){this.is2D=true;}}}};
-  const sandbox={window:{SlideIcons:{svg:()=>''}},document:outer,crypto:{randomUUID:()=>`request-${Math.random()}`},setTimeout};
+  const sandbox={window:{ElementProperties,SlideIcons:{svg:()=>''}},document:outer,crypto:{randomUUID:()=>`request-${Math.random()}`},setTimeout};
   vm.runInNewContext(fs.readFileSync(require.resolve('../web/slide-edits.js'),'utf8'),sandbox);
   const controls=Object.fromEntries(['tools','editButton','moveButton','alignButton','alignMenu','commitButton','cancelButton','sentBadge','deleteButton','rotationInput'].map(key=>[key,new Control()]));
   controls.rotationInput.label=new Control();controls.rotationInput.validity={valid:true};
