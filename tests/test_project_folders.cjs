@@ -4,7 +4,7 @@ const {create, MIME} = require('../web/project-folders.js');
 
 function fixture() {
   const handlers = {}, classes = () => ({values:new Set(), add(x){this.values.add(x)}, remove(x){this.values.delete(x)}});
-  const card = {dataset:{dragArtifact:'artifact-1'}, classList:classes(), closest(selector){return selector.includes('.hub-card') ? this : null}};
+  const card = {dataset:{dragArtifact:'artifact-1'}, draggable:true, classList:classes(), closest(selector){return selector==='[data-drag-artifact][draggable=true]' && this.draggable ? this : null}};
   const folder = {dataset:{projectFolder:'project-2'}, classList:classes(), closest(selector){return selector.includes('.hub-sidebar') ? this : null}, contains(target){return target === this}};
   const content = {addEventListener(name, fn){handlers[name]=fn}, removeEventListener(name){delete handlers[name]}, querySelectorAll(){return [card]}};
   const artifacts = [{id:'artifact-1',project_id:'project-1'}], projects = [{id:'project-1'},{id:'project-2'}];
@@ -28,6 +28,11 @@ test('moves a registered artifact to a different registered folder', async () =>
 test('rejects external transfers, forged payloads, unknown folders and same-project drops', async () => {
   const f=fixture();
   assert.equal((await f.handlers.drop(f.event(f.folder))),undefined);
+  f.card.draggable=false;
+  f.handlers.dragstart(f.event(f.card));
+  assert.equal(f.handlers.dragover(f.event(f.folder)),undefined);
+  assert.equal(f.transfer.types.length,0);
+  f.card.draggable=true;
   f.handlers.dragstart(f.event(f.card)); f.transfer.types.push('Files');
   let over=f.event(f.folder); f.handlers.dragover(over); assert.equal(over.prevented,false);
   f.transfer.types.pop(); f.folder.dataset.projectFolder='project-1';

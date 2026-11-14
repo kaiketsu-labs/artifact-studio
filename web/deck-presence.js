@@ -1,4 +1,4 @@
-/* Show human viewers of this deck without changing the slide previews. */
+/* Show viewers and shared agent activity without changing slide previews. */
 ((root) => {
   'use strict';
   function create({button, panel, rail, session}) {
@@ -8,20 +8,30 @@
     let target = null, viewers = [], listening = false, pending = false, pageActive = true;
     let lastSuccess = 0;
     const staleAfter = 45000;
+    const compact = root.matchMedia('(max-width: 600px)');
 
-    function badge(text, label) {
+    function badge(text, label, hue) {
       const mark = document.createElement('span');
       mark.className = 'presence-badge';
-      mark.textContent = text;
+      if (text === null) {
+        mark.classList.add('presence-agent');
+        mark.innerHTML = root.SlideIcons.svg('robot');
+      } else mark.textContent = text;
+      if (hue !== undefined) mark.style.setProperty('--presence-hue', hue);
       mark.title = label;
       mark.setAttribute('aria-hidden', 'true');
       return mark;
     }
+    function personBadge(name) {
+      const initials = name.split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join('').toUpperCase();
+      const hue = Array.from(name).reduce((value, char) => (value * 31 + char.codePointAt(0)) % 360, 0);
+      return badge(initials, name, hue);
+    }
     function badges(people, limit) {
-      const marks = people.slice(0, limit).map(({name}) => badge(
-        name.split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join('').toUpperCase(), name,
-      ));
-      if (people.length > limit) marks.push(badge(`+${people.length - limit}`, people.slice(limit).map(({name}) => name).join(', ')));
+      const humans = people.filter(person => !person.agent);
+      const marks = humans.slice(0, limit).map(({name}) => personBadge(name));
+      if (humans.length > limit) marks.push(badge(`+${humans.length - limit}`, humans.slice(limit).map(({name}) => name).join(', ')));
+      if (people.some(person => person.agent)) marks.push(badge(null, 'Agent working'));
       return marks;
     }
     function render() {
@@ -34,34 +44,60 @@
       const locations = new Map();
       rail.querySelectorAll('.slide-thumb[data-id]').forEach((thumb, index) => {
         const id = thumb.dataset.id, people = bySlide.get(id) || [];
-        locations.set(id, `Slide ${index + 1}`);
+        locations.set(id, {thumb, number: index + 1});
         const existing = thumb.querySelector('.slide-presence-markers');
-        const names = people.map(({name}) => name).join(', ');
-        if (names && existing?.dataset.names !== names) {
+        const names = people.filter(person => !person.agent).map(({name}) => name).join(', ');
+        const agent = people.some(person => person.agent);
+        const description = [names && `Viewing this slide: ${names}`, agent && 'Agent working on this slide'].filter(Boolean).join('. ');
+        if (description && existing?.dataset.description !== description) {
           const markers = existing || document.createElement('span');
           markers.className = 'slide-presence-markers';
-          markers.dataset.names = names;
-          markers.replaceChildren(...badges(people, 1));
-          thumb.querySelector('.thumb-caption').insertBefore(markers, thumb.querySelector('.dot'));
-          thumb.setAttribute('aria-description', `Viewing this slide: ${names}`);
-        } else if (!names && existing) {
+          markers.dataset.description = description;
+          markers.title = description;
+          markers.replaceChildren(...badges(people, 2));
+          thumb.querySelector('.thumb-preview').append(markers);
+          thumb.setAttribute('aria-description', description);
+        } else if (!description && existing) {
           existing.remove();
           thumb.removeAttribute('aria-description');
         }
       });
       button.hidden = !viewers.length;
       if (!viewers.length && panel.matches(':popover-open')) panel.hidePopover();
-      button.setAttribute('aria-label', `People in this deck (${viewers.length})`);
-      button.replaceChildren(...badges(viewers, 1));
-      panel.replaceChildren(...viewers.map(({name, slide_id: id}) => {
+      const people = viewers.filter(person => !person.agent).length;
+      const working = viewers.some(person => person.agent);
+      button.setAttribute('aria-label', [people && `People in this deck (${people})`, working && 'Agent activity'].filter(Boolean).join(', '));
+      button.title = button.getAttribute('aria-label');
+      panel.setAttribute('aria-label', working ? 'Deck activity' : 'People in this deck');
+      button.replaceChildren(...badges(viewers, compact.matches ? 1 : 3));
+      const focused = panel.contains(document.activeElement) ? document.activeElement.dataset.presenceRow : null;
+      panel.replaceChildren(...viewers.map(({name, slide_id: id, agent}) => {
         const row = document.createElement('li');
+        const location = locations.get(id);
+        const item = document.createElement(location ? 'button' : 'div');
+        item.className = 'presence-person';
+        if (location) {
+          item.type = 'button';
+          item.dataset.presenceRow = `${agent ? 'agent' : name}:${id}`;
+          item.addEventListener('click', () => {
+            panel.hidePopover();
+            const focus = location.thumb.getClientRects().length ? location.thumb : button;
+            focus.focus({preventScroll: true});
+            location.thumb.click();
+          });
+        }
         const person = document.createElement('span');
         person.textContent = name;
-        const location = document.createElement('small');
-        location.textContent = locations.get(id) || '';
-        row.append(person, location);
+        const slide = document.createElement('small');
+        slide.textContent = location ? `Slide ${location.number}` : '';
+        item.append(agent ? badge(null, name) : personBadge(name), person, slide);
+        row.append(item);
         return row;
       }));
+      if (focused && panel.matches(':popover-open')) {
+        const next = Array.from(panel.querySelectorAll('button')).find(item => item.dataset.presenceRow === focused);
+        (next || button).focus({preventScroll: true});
+      }
     }
     function clear() {
       if (viewers.length) { viewers = []; render(); }
@@ -82,6 +118,7 @@
       panel.hidePopover();
       button.focus();
     }, true);
+    compact.addEventListener('change', render);
     async function refresh() {
       if (!listening || !target || pending || document.hidden || !pageActive) return;
       const current = target;

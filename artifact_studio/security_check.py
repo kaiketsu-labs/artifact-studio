@@ -26,7 +26,7 @@ class SecurityReport(BaseModel):
     counts: dict[str, int]
 
 
-def security_report(config: DeploymentConfig) -> SecurityReport:
+def security_report(config: DeploymentConfig, *, scoped_sharing: bool = False) -> SecurityReport:
     """Describe protections and remaining checks without exposing identities or options."""
     if config.mode == "local":
         return SecurityReport(summary="local", checks=[], counts={"warnings": 0, "unverified": 0})
@@ -35,15 +35,23 @@ def security_report(config: DeploymentConfig) -> SecurityReport:
             id="authentication",
             status="pass",
             title="Authentication configured",
-            detail="The server requires a verified identity and an explicit membership match. "
-            "An installed provider is trusted server code.",
+            detail=(
+                "The server verifies identities. Invitations and workspace roles control access."
+                if scoped_sharing
+                else "The server requires a verified identity and an explicit membership match."
+            ),
         ),
         SecurityCheck(
             id="access_boundary",
             status="pass",
             title="Workspace access restricted",
             detail="Host and origin checks are enabled. Agent identities cannot use browser "
-            "or server administration routes. All human members share this workspace.",
+            "or server administration routes. "
+            + (
+                "Project and presentation access follows the grants in this workspace."
+                if scoped_sharing
+                else "All configured human members share this workspace."
+            ),
         ),
         SecurityCheck(
             id="preview_boundary",
@@ -55,9 +63,9 @@ def security_report(config: DeploymentConfig) -> SecurityReport:
         SecurityCheck(
             id="mfa",
             status="unverified",
-            title="Require MFA for every human member",
-            detail="Check the identity provider's sign-in policy, enroll recovery methods and "
-            "test an unlisted account. Studio cannot inspect the provider's MFA policy.",
+            title="Review the sign-in and MFA policy",
+            detail="Check which sign-in methods and MFA requirements your identity provider "
+            "applies to owners and guests. Test access with an unlisted account.",
         ),
         SecurityCheck(
             id="origin_network",

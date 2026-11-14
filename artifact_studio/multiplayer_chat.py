@@ -87,6 +87,7 @@ class Conversations:
                   released INTEGER NOT NULL, reply_to INTEGER,
                   request_id TEXT NOT NULL UNIQUE, payload TEXT NOT NULL,
                   created REAL NOT NULL, completed INTEGER NOT NULL DEFAULT 0,
+                  include_shared_context INTEGER NOT NULL DEFAULT 0,
                   claim TEXT NOT NULL DEFAULT '', claimant TEXT NOT NULL DEFAULT '',
                   claim_expires REAL NOT NULL DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS chat_attachments (
@@ -99,6 +100,9 @@ class Conversations:
                   PRIMARY KEY(message,person));
                 CREATE INDEX IF NOT EXISTS chat_mentions_unread
                   ON chat_mentions(person,message) WHERE seen=0;
+                CREATE TABLE IF NOT EXISTS agent_shared_history (
+                  workspace TEXT NOT NULL, artifact TEXT NOT NULL, agent TEXT NOT NULL,
+                  PRIMARY KEY(workspace,artifact,agent));
                 CREATE INDEX IF NOT EXISTS conversation_scope
                   ON conversations(workspace,artifact,id);
                 CREATE TABLE IF NOT EXISTS chat_delivery (
@@ -138,6 +142,14 @@ class Conversations:
                 _ = db.execute(
                     "ALTER TABLE conversations ADD COLUMN slide_content_hash "
                     "TEXT NOT NULL DEFAULT ''"
+                )
+            if not any(
+                row["name"] == "include_shared_context"
+                for row in db.execute("PRAGMA table_info(conversations)")
+            ):
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN include_shared_context "
+                    "INTEGER NOT NULL DEFAULT 0"
                 )
 
     @staticmethod
@@ -188,7 +200,8 @@ class Conversations:
     def history(
         self, actor: Actor, scope: Scope, channel: Channel, before: int = 0
     ) -> list[dict[str, object]]:
-        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+        with self.sharing.guard(actor, scope) as store, self.sharing.connect() as db:
+            restricted = self._restrict_shared_agent(actor, scope, store, db, channel)
             rows = db.execute(
                 "SELECT c.*,p.email AS author_name,d.id AS cursor, "
                 "EXISTS(SELECT 1 FROM chat_mentions m WHERE m.message=c.id AND m.person=?) "
@@ -196,7 +209,8 @@ class Conversations:
                 "JOIN people p ON p.id=c.person JOIN chat_delivery d ON d.message=c.id "
                 "WHERE workspace=? AND artifact=? AND channel=? "
                 "AND (?=0 OR d.id<?) AND (channel='shared' OR person=?) "
-                "AND (released=1 OR (person=? AND ?=0)) ORDER BY d.id DESC LIMIT 100",
+                "AND (released=1 OR (person=? AND ?=0)) "
+                "AND (?=0 OR c.assigned=? OR c.author=?) ORDER BY d.id DESC LIMIT 100",
                 (
                     actor.person,
                     scope.workspace,
@@ -207,6 +221,9 @@ class Conversations:
                     actor.person,
                     actor.person,
                     bool(actor.agent),
+                    restricted,
+                    actor.agent,
+                    actor.agent,
                 ),
             ).fetchall()
             return [
@@ -214,6 +231,49 @@ class Conversations:
                 | {"author_name": row["author_name"], "mentioned": bool(row["mentioned"])}
                 for row in reversed(rows)
             ]
+
+    def _restrict_shared_agent(
+        self, actor: Actor, scope: Scope, store: Store, db: sqlite3.Connection, channel: Channel
+    ) -> bool:
+        """Limit presentation discussion to the agent's own requests and replies by default."""
+        if not actor.agent or channel != "shared":
+            return False
+        if ArtifactStore(store).get_artifact(scope.resource).legacy_deck_id is None:
+            return False
+        return (
+            db.execute(
+                "SELECT 1 FROM agent_shared_history WHERE workspace=? AND artifact=? AND agent=?",
+                (scope.workspace, scope.resource, actor.agent),
+            ).fetchone()
+            is None
+        )
+
+    def shared_history_access(
+        self, actor: Actor, scope: Scope, agent_id: str, enabled: bool | None = None
+    ) -> bool:
+        """Read or change one owner's agent access to one presentation discussion."""
+        with self.sharing.guard(actor, scope, "edit") as store, self.sharing.connect() as db:
+            self.sharing.manage(actor, scope)
+            if ArtifactStore(store).get_artifact(scope.resource).legacy_deck_id is None:
+                raise AccessDenied
+            connection = Actor(actor.person, agent_id)
+            self.sharing.require(connection, scope)
+            key = (scope.workspace, scope.resource, agent_id)
+            if enabled is True:
+                _ = db.execute("INSERT OR IGNORE INTO agent_shared_history VALUES (?,?,?)", key)
+            elif enabled is False:
+                _ = db.execute(
+                    "DELETE FROM agent_shared_history WHERE workspace=? AND artifact=? AND agent=?",
+                    key,
+                )
+            return (
+                db.execute(
+                    "SELECT 1 FROM agent_shared_history "
+                    "WHERE workspace=? AND artifact=? AND agent=?",
+                    key,
+                ).fetchone()
+                is not None
+            )
 
     def contacts(self, actor: Actor, scope: Scope) -> list[dict[str, str]]:
         """List only verified people who currently have access to this artifact."""
@@ -225,6 +285,25 @@ class Conversations:
                 for person, email in sorted(self.sharing.human_contacts(scope).items())
                 if person != actor.person
             ]
+
+    def incoming_cursors(self, actor: Actor, scope: Scope) -> dict[str, dict[str, int]]:
+        """Return the latest visible incoming message for each conversation and slide."""
+        if actor.agent:
+            raise AccessDenied
+        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+            rows = db.execute(
+                "SELECT c.channel, COALESCE(json_extract(c.target, '$.slide_id'), '') AS slide, "
+                "MAX(d.id) AS cursor FROM conversations c JOIN chat_delivery d ON d.message=c.id "
+                "WHERE c.workspace=? AND c.artifact=? AND c.released=1 AND c.author<>? "
+                "AND (c.channel='shared' OR c.person=?) GROUP BY c.channel, slide",
+                (scope.workspace, scope.resource, actor.person, actor.person),
+            )
+            result: dict[str, dict[str, int]] = {"shared": {}, "private": {}}
+            for row in rows:
+                result[cast(str, row["channel"])][cast(str, row["slide"])] = cast(
+                    int, row["cursor"]
+                )
+            return result
 
     def mentions(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:
         """Return released unread mentions for this person in this artifact."""
@@ -289,9 +368,12 @@ class Conversations:
         *,
         slide_content_hash: str = "",
         proposal: ChatProposal | None = None,
+        include_shared_context: bool = False,
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
+        if include_shared_context and (channel != "shared" or not assigned):
+            raise ValueError("Shared context requires an assigned Shared request.")
         with self.sharing.guard(actor, scope, "edit" if assigned else "comment") as store:
             if actor.agent:
                 raise AccessDenied
@@ -320,6 +402,7 @@ class Conversations:
                         content_hash,
                         *([metadata] if metadata else []),
                         *([proposal.model_dump(), slide_content_hash] if proposal else []),
+                        *(["include_shared_context"] if include_shared_context else []),
                     ],
                     sort_keys=True,
                 )
@@ -367,8 +450,8 @@ class Conversations:
                 cursor = db.execute(
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
                     "target,content_hash,assigned,released,request_id,payload,created,"
-                    "files,proposal,slide_content_hash) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "files,proposal,slide_content_hash,include_shared_context) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -386,6 +469,7 @@ class Conversations:
                         json.dumps(metadata),
                         json.dumps(anchor),
                         slide_content_hash,
+                        include_shared_context,
                     ),
                 )
                 if channel == "shared":
@@ -429,13 +513,17 @@ class Conversations:
         """Read only the requested bytes of a currently visible message attachment."""
         if not 1 <= event <= 2**63 - 1 or not 0 <= index < 5 or not 0 <= offset <= 25_000_000:
             raise AccessDenied
-        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+        with self.sharing.guard(actor, scope) as store, self.sharing.connect() as db:
             message = db.execute(
-                "SELECT channel,person,released,files FROM conversations "
+                "SELECT channel,person,author,assigned,released,files FROM conversations "
                 "WHERE id=? AND workspace=? AND artifact=?",
                 (event, scope.workspace, scope.resource),
             ).fetchone()
             if message is None or not self._visible(actor, message):
+                raise AccessDenied
+            if self._restrict_shared_agent(actor, scope, store, db, message["channel"]) and (
+                actor.agent not in (message["assigned"], message["author"])
+            ):
                 raise AccessDenied
             files = cast(list[ChatFile], json.loads(cast(str, message["files"])))
             if index >= len(files):
@@ -472,6 +560,29 @@ class Conversations:
                 (scope.workspace, scope.resource, channel, actor.person),
             )
 
+    @staticmethod
+    def _shared_context(db: sqlite3.Connection, row: sqlite3.Row) -> list[dict[str, object]]:
+        """Include nearby released human discussion from the same slide or artifact."""
+        if not row["include_shared_context"]:
+            return []
+        rows = db.execute(
+            "SELECT c.id, substr(c.message,1,401) AS excerpt FROM conversations c "
+            "JOIN chat_delivery d ON d.message=c.id "
+            "WHERE c.workspace=? AND c.artifact=? AND c.id<? AND d.id<? "
+            "AND c.channel='shared' AND c.released=1 AND c.assigned='' AND c.author=c.person "
+            "AND json_extract(c.target,'$.slide_id') IS json_extract(?,'$.slide_id') "
+            "AND length(trim(c.message))>0 ORDER BY d.id DESC LIMIT 4",
+            (row["workspace"], row["artifact"], row["id"], row["cursor"], row["target"]),
+        ).fetchall()
+        return [
+            {
+                "id": cast(int, context["id"]),
+                "message": excerpt[:400] + ("…" if len(excerpt) > 400 else ""),
+            }
+            for context in reversed(rows)
+            if (excerpt := cast(str, context["excerpt"]).strip())
+        ]
+
     def tasks(self, actor: Actor, scope: Scope) -> dict[str, object]:
         with self.sharing.guard(actor, scope), self.sharing.connect() as db:
             if not actor.agent:
@@ -494,15 +605,39 @@ class Conversations:
                         break
             # A cursor is informational, never acknowledgement: lost responses and
             # late-released drafts remain pending until a successful claimed reply.
+            events: list[dict[str, object]] = []
+            seen_context: set[int] = set()
+            for row in rows:
+                event = self._public(row)
+                if row["include_shared_context"]:
+                    if len(seen_context) >= 12:
+                        event["shared_context_on_claim"] = True
+                    elif context := self._shared_context(db, row):
+                        excerpts: list[dict[str, object]] = []
+                        for excerpt in context:
+                            identifier = cast(int, excerpt["id"])
+                            excerpts.append(
+                                {"id": identifier} if identifier in seen_context else excerpt
+                            )
+                            seen_context.add(identifier)
+                        event["shared_context"] = excerpts
+                events.append(event)
             return {
-                "events": [self._public(row) for row in rows],
+                "events": events,
                 "next_cursor": max((cast(int, row["id"]) for row in rows), default=0),
                 "delivery": "Claim each event before acting; reply acknowledges it.",
             }
 
     def claim(
-        self, actor: Actor, scope: Scope, event_id: int, session_id: str
+        self,
+        actor: Actor,
+        scope: Scope,
+        event_id: int,
+        session_id: str,
+        *,
+        include_message: bool = True,
     ) -> dict[str, object]:
+        """Claim a request, optionally omitting a message the agent already read."""
         with self.sharing.guard(actor, scope, "edit"), self.sharing.connect() as db:
             row = self._assigned(db, actor, scope, event_id)
             if row["completed"]:
@@ -516,12 +651,17 @@ class Conversations:
                 "UPDATE conversations SET claim=?,claimant=?,claim_expires=? WHERE id=?",
                 (claim, session_id, expires, event_id),
             )
-            return {
+            result: dict[str, object] = {
                 "event_id": event_id,
                 "claim": claim,
                 "expires": expires,
-                "message": self._public(row),
             }
+            if include_message:
+                message = self._public(row)
+                if context := self._shared_context(db, row):
+                    message["shared_context"] = context
+                result["message"] = message
+            return result
 
     def _assigned(
         self, db: sqlite3.Connection, actor: Actor, scope: Scope, event_id: int
@@ -659,17 +799,22 @@ class Conversations:
                 }
             scope = Scope(workspace, "artifact", artifact)
             self.sharing.require(actor, scope, "edit")
-            db.execute(
-                "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
-                (actor.agent, session, scope.workspace, artifact, time.time() + 120),
-            )
+            now = time.time()
+            if not existing or existing["artifact"] != artifact or existing["expires"] <= now + 60:
+                db.execute(
+                    "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,?)",
+                    (actor.agent, session, scope.workspace, artifact, now + 120),
+                )
+            available = body.event == "Stop" and self._has_pending(db, actor, scope)
+            reason = ""
+            if available:
+                reason = f"Studio feedback: call read_feedback(artifact_id={artifact!r})."
+            elif body.event == "Stop":
+                reason = "Studio is idle. End this turn to keep listening."
             return {
                 "listening": True,
-                "feedback_available": self._has_pending(db, actor, scope),
-                "reason": f"Live review for artifact {artifact}. Use read_feedback with "
-                f"artifact_id={artifact!r}; claim assigned requests with claim_feedback "
-                "before acting, then reply_to_feedback in their original channel. "
-                "If no requests are pending, finish this turn to keep listening.",
+                "feedback_available": available,
+                "reason": reason,
             }
 
     def agents(self, actor: Actor, scope: Scope) -> list[dict[str, object]]:

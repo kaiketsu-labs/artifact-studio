@@ -394,6 +394,24 @@ class Sharing:
                 raise AccessDenied
             yield folder
 
+    @contextmanager
+    def guard_presentation_snapshot(
+        self, actor: Actor, workspace: str, deck_id: str
+    ) -> Generator[tuple[Store, str, int]]:
+        """Check current legacy presentation membership without building its artifact view."""
+        scope = Scope(workspace, "artifact", deck_id)
+        with self.locked():
+            store = self.store(workspace)
+            project = ArtifactStore(store).presentation_project(deck_id)
+            ancestors = [("workspace", ""), ("project", project), ("artifact", deck_id)]
+            level = max(
+                (LEVEL[source["role"]] for source in self._sources(actor, scope, ancestors)),
+                default=0,
+            )
+            if level < LEVEL["view"]:
+                raise AccessDenied
+            yield store, project, level
+
     def manage(self, actor: Actor, scope: Scope) -> None:
         if not self.owner(actor, scope.workspace):
             raise AccessDenied

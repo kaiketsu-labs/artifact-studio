@@ -2,6 +2,7 @@
 
 import fcntl
 import json
+import os
 import re
 from contextlib import closing
 from io import BytesIO
@@ -29,6 +30,30 @@ from tests.integration.multiplayer_fixture import (
 )
 from tests.test_multiplayer_server import accept, agent, grant, human
 from tests.test_multiplayer_simulation import Peer
+
+
+def test_design_transfers_require_workspace_ownership(tmp_path: Path) -> None:
+    """Shared edit access does not expose private design ZIPs or install designs."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.project_id, "edit", "project"))
+        path = "/api/design-library/test-brand/export"
+        response = owner.get(path).raise_for_status()
+        assert response.headers["content-disposition"].endswith('test-brand.design.zip"')
+        assert alice.get(path).status_code == 404
+        headers = {"content-type": "application/zip"}
+        upload = "/api/design-library/import"
+        assert alice.post(upload, content=response.content, headers=headers).status_code == 404
+        assert owner.post(upload, content=response.content, headers=headers).status_code == 409
+        workspace = owner.post("/api/workspaces", json={"title": "Design destination"})
+        prefix = "/workspaces/" + workspace.raise_for_status().json()["id"]
+        imported = owner.post(prefix + upload, content=response.content, headers=headers)
+        assert imported.raise_for_status().json()["id"] == "test-brand"
+        assert "local_path" not in imported.text
+        assert owner.get(prefix + path).status_code == 200
 
 
 def test_scoped_exports_follow_the_reader_and_current_project_access(tmp_path: Path) -> None:
@@ -98,6 +123,77 @@ def test_scoped_presentation_export_uses_audience_only_content(tmp_path: Path) -
         html = alice.get(receipt["download_url"]).raise_for_status().text
         assert 'data-export="audience"' in html and "Fictional team deck" in html
         assert "Fictional private" not in html
+
+
+def test_shared_deck_validators_follow_content_and_current_access(tmp_path: Path) -> None:
+    """An unchanged deck sends no body, and a validator never bypasses a current grant."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        for reader, name in ((alice, "alice"), (bob, "bob")):
+            accept(reader, grant(owner, name, app.deck_id, role="view"))
+        path = f"/api/decks/{app.deck_id}"
+        initial = alice.get(path).raise_for_status()
+        headers = {"if-none-match": initial.headers["etag"]}
+        unchanged = alice.get(path, headers=headers)
+        assert unchanged.status_code == 304 and not unchanged.content
+        assert unchanged.headers["cache-control"] == "no-store"
+        assert bob.get(path, headers=headers).status_code == 200
+
+        slide = app.store.view(app.deck_id).slides[0]
+        _ = app.store.save_notes(app.deck_id, slide.id, "Fictional speaker note", slide.notes)
+        revised = alice.get(path, headers=headers).raise_for_status()
+        assert revised.headers["etag"] != initial.headers["etag"]
+        assert revised.json()["slides"][0]["notes"] == "Fictional speaker note"
+        headers["if-none-match"] = revised.headers["etag"]
+
+        app.store.approve(app.deck_id, slide.id, slide.content_hash, True)
+        approved = alice.get(path, headers=headers).raise_for_status()
+        assert approved.json()["slides"][0]["approved"]
+        seen_path = f"{path}/slides/{slide.id}/seen"
+        assert alice.post(seen_path, json={"content_hash": slide.content_hash}).json() == {
+            "seen": True
+        }
+        recorded = alice.get(path, headers={"if-none-match": approved.headers["etag"]})
+        headers["if-none-match"] = recorded.raise_for_status().headers["etag"]
+        theme = app.store.folder(app.deck_id) / "theme.css"
+        _ = theme.write_text(theme.read_text() + "\n.slide { color: navy; }\n")
+        themed = alice.get(path, headers=headers).raise_for_status()
+        assert themed.json()["slides"][0]["content_hash"] != slide.content_hash
+        assert themed.json()["slides"][0]["has_unseen_changes"]
+        headers["if-none-match"] = themed.headers["etag"]
+
+        seen = alice.post(
+            seen_path,
+            json={"content_hash": themed.json()["slides"][0]["content_hash"]},
+        )
+        assert seen.json() == {"seen": True}
+        opened = alice.get(path, headers=headers).raise_for_status()
+        assert not opened.json()["slides"][0]["has_unseen_changes"]
+        headers["if-none-match"] = opened.headers["etag"]
+
+        old_stat = theme.stat()
+        _ = theme.write_text(theme.read_text().replace("color: navy", "color: gold"))
+        os.utime(theme, ns=(old_stat.st_atime_ns, old_stat.st_mtime_ns))
+        same_size = theme.stat()
+        assert same_size.st_size == old_stat.st_size
+        assert same_size.st_mtime_ns == old_stat.st_mtime_ns
+        changed = alice.get(path, headers=headers).raise_for_status()
+        assert changed.headers["etag"] != opened.headers["etag"]
+        assert changed.json()["design_hash"] != opened.json()["design_hash"]
+        headers["if-none-match"] = changed.headers["etag"]
+
+        scope = {"kind": "artifact", "resource": app.deck_id}
+        grants = owner.get("/api/workspaces/default/access", params=scope).json()["grants"]
+        alice_grant = next(item["id"] for item in grants if item["email"] == "alice@example.test")
+        owner.post(
+            f"/api/workspaces/default/access/{alice_grant}/revoke", json=scope
+        ).raise_for_status()
+        denied = alice.get(path, headers=headers)
+        assert denied.status_code == 404 and "etag" not in denied.headers
 
 
 def test_shared_members_cannot_enable_the_full_editor(
@@ -688,9 +784,13 @@ def test_hosted_favorites_follow_reader_and_grant(tmp_path: Path) -> None:
         assert bob.post(index, json=star).is_success
         assert bob.get(index + "/slides").json()[0]["description"] == ""
 
-        preview = f"/api/workspaces/default/artifacts/{app.deck_id}/preview?slide_id=cover"
+        preview = (
+            f"/api/workspaces/default/artifacts/{app.deck_id}/preview?slide_id=cover&thumbnail=true"
+        )
         frame = {"sec-fetch-dest": "iframe"}
-        assert alice.get(preview, headers=frame).is_success
+        document = alice.get(preview, headers=frame).raise_for_status()
+        assert "sandbox; script-src 'none'" in document.headers["content-security-policy"]
+        assert document.headers["cache-control"] == "no-store"
         access = "/api/workspaces/default/access"
         scope = {"kind": "artifact", "resource": app.deck_id}
         grants = owner.get(access, params=scope).json()["grants"]

@@ -133,6 +133,7 @@ jobs:
               tests/integration/test_notes_and_backup.py tests/integration/test_editor_layout.py tests/integration/test_sorter_header.py
               tests/integration/test_structural_undo.py tests/integration/test_element_commands.py tests/integration/test_group_object_commands.py
               tests/integration/test_slide_context_menus.py tests/integration/test_voice_rich.py tests/integration/test_voice_presenter.py
+              tests/test_structure_review_browser.py
               tests/integration/test_sharing_render.py tests/integration/test_feedback_mode_sync.py tests/integration/test_element_mode_guard.py
               tests/integration/test_slide_designs.py tests/integration/test_element_alternatives.py
               tests/integration/test_element_alternative_layout.py tests/integration/test_element_alternative_motion.py

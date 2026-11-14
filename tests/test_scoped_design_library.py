@@ -7,15 +7,129 @@ from typing import cast
 
 import httpx
 import pytest
+from PIL import ImageFont
 from playwright.sync_api import expect, sync_playwright
 
-from tests.design_factory import make_design
+from artifact_studio import design_preview
+from artifact_studio.storage import Store
+from tests.design_factory import TEMPLATE_ID, make_design
 from tests.integration.multiplayer_fixture import (
     WORKSPACE,
     routed_multiplayer_context,
     running_multiplayer_app,
 )
 from tests.test_multiplayer_server import accept, human
+
+
+def test_oversized_design_preview_is_inert(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip oversized source before parsing it and preserve the preview sandbox."""
+    make_design(tmp_path / TEMPLATE_ID)
+    store = Store(tmp_path, tmp_path / "state/review.sqlite3")
+    monkeypatch.setattr(design_preview, "MAX_PAGE_BYTES", 64)
+    result = design_preview.hosted_design_preview(store, "test-brand", WORKSPACE)
+    assert result.status_code == 200
+    assert b"Preview unavailable" in bytes(result.body)
+    assert "sandbox;" in result.headers["content-security-policy"]
+
+
+@pytest.mark.browser
+@pytest.mark.skipif(
+    os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+)
+@pytest.mark.parametrize("identity,width", [("owner", 1400), ("alice", 390)])
+def test_hosted_design_cover_keeps_local_assets_and_layout(
+    tmp_path: Path, identity: str, width: int
+) -> None:
+    """Render the same complete cover in both hosted pickers without network assets."""
+    root = tmp_path / "server"
+    with (
+        running_multiplayer_app(
+            root,
+            tmp_path / "server.log",
+            unified=True,
+            personal_workspace_emails=("alice@example.test",),
+            startup_timeout=45,
+        ) as app,
+        human(app, identity) as owner,
+        sync_playwright() as playwright,
+    ):
+        home = owner.get("/").headers.get("location", "/")
+        workspace = home.split("/")[2] if identity == "alice" else ""
+        if workspace:
+            area = root / "sharing/workspaces" / workspace
+            store = Store(area / "collection", area / "state/review.sqlite3")
+            make_design(store.root / TEMPLATE_ID)
+        else:
+            store = app.store
+        pack = store.folder(TEMPLATE_ID)
+        font = ImageFont.load_default()
+        assert isinstance(font, ImageFont.FreeTypeFont)
+        _ = (pack / "assets/preview.ttf").write_bytes(font.font_bytes)
+        _ = (pack / "assets/preview.css").write_text(
+            "@font-face{font-family:Preview;src:url(preview.ttf)}"
+            ".preview-brand h1{color:rgb(16,96,136);font-family:Preview,serif;"
+            "position:absolute;top:730px;left:100px;font-size:60px;margin:0}"
+        )
+        _ = (pack / "theme.css").write_text(
+            '@import "https://design-assets.example.test/ignored.css";'
+            '@import "assets/preview.css";'
+            ".slide{position:relative;width:100%;height:100%;background:rgb(232,240,248)}"
+        )
+        deck = store.read(TEMPLATE_ID)
+        deck.slides[0].html = (
+            '<article class="slide"><h1>Fictional Cover</h1>'
+            '<img src="assets/test-brand.svg" alt="Fictional logo"></article>'
+        )
+        store.write(TEMPLATE_ID, deck)
+        index = pack / "index.html"
+        _ = index.write_text(
+            index.read_text().replace('<html lang="en">', '<html class="preview-brand">')
+        )
+        route = home + "api/designs/test-brand/preview"
+        response = owner.get(route)
+        response.raise_for_status()
+        assert "sandbox;" in response.headers["content-security-policy"]
+        assert "script-src 'none'" in response.headers["content-security-policy"]
+        assert "data:font/ttf;base64," in response.text
+        assert "design-assets.example.test" not in response.text
+        with human(app, "bob") as other:
+            assert other.get(route).status_code == 404
+
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, identity) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": width, "height": 900})
+                page.goto(WORKSPACE + home)
+                page.locator('button[data-project="designs"]').click()
+                for title in ["test-brand design preview", "test-brand design example"]:
+                    frame = page.locator(f'iframe[title="{title}"]')
+                    cover = frame.content_frame
+                    heading = cover.get_by_role("heading", name="Fictional Cover")
+                    expect(frame).to_have_attribute("sandbox", "")
+                    expect(heading).to_have_css("color", "rgb(16, 96, 136)")
+                    expect(heading).to_have_css("font-family", "Preview, serif")
+                    assert heading.evaluate(
+                        "async () => { await document.fonts.ready; "
+                        "return [...document.fonts].some(f => f.family === 'Preview' "
+                        "&& f.status === 'loaded'); }"
+                    )
+                    assert cover.get_by_alt_text("Fictional logo").evaluate(
+                        "e => e.naturalWidth > 0"
+                    )
+                    box = frame.bounding_box()
+                    text_box = heading.bounding_box()
+                    assert (
+                        box
+                        and text_box
+                        and text_box["y"] + text_box["height"] < box["y"] + box["height"]
+                    )
+                    assert abs(box["width"] / box["height"] - 16 / 9) < 0.05
+                    if title.endswith("preview"):
+                        page.get_by_role("button", name="Menu", exact=True).click()
+                        page.get_by_role("menuitem", name="New presentation", exact=True).click()
+        finally:
+            browser.close()
 
 
 def test_design_library_and_agent_use_only_the_selected_owned_workspace(tmp_path: Path) -> None:

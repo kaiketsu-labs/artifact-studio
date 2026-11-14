@@ -34,6 +34,9 @@ Guests see only granted projects and artifacts. View, Comment and Edit grants
 control the same editor. Edit grants support speaker notes, slide organization,
 approval of the current slide or artifact version, and edits through a scoped agent.
 Update markers clear for each person as they open a revised slide or artifact.
+When a shared presentation stays unchanged, the editor checks the current grant
+and revisions without downloading the slide contents again. Chat and agent
+availability continue refreshing.
 **Agent connection** in the regular
 menu connects your own agent to the selected artifact or project. Shared and
 My agent conversations appear in the regular sidebar. Your messages appear on
@@ -72,9 +75,11 @@ Studio asks for confirmation when either project has current grants, pending
 invitations or active agent connections.
 
 Use the star on an artifact or slide to bookmark it. **Favorite slides** in
-the sidebar opens your own gallery, including any descriptions you add. Stars
-and descriptions are private to your account and workspace. When your access to
-a shared artifact ends, Studio stops showing its bookmarks and previews.
+the sidebar opens your own gallery, including any descriptions you add. The
+gallery uses the slide's static preview with bundled styles, fonts, and images.
+Open the slide to play interactive content. Stars and descriptions are private
+to your account and workspace. When your access to a shared artifact ends,
+Studio stops showing its bookmarks and previews.
 
 Owners can open **Version history** on an artifact to inspect retained files and
 restore them as a new version. The timeline and its old previews are private to
@@ -194,6 +199,9 @@ import, export and backup controls are not yet available in this UI.
 
 ## Share and collaborate
 
+The version at the bottom of the left sidebar opens **Workspace & server**.
+It shows the running release and the build revision when configured.
+
 The presentation rail marks the slides other people are viewing. The people
 button lists their names and slide numbers. A background tab remains visible
 for up to 45 seconds after its last heartbeat. Closing a tab or leaving the
@@ -202,6 +210,17 @@ presentation clears its presence when the server receives the departure.
 In Shared chat, type `@` and choose a collaborator with access to the
 presentation. Studio highlights the message for that person. Their unread
 mention badge opens the referenced slide and message.
+
+Open a presentation and use **Shared** to discuss it with collaborators or
+**Agent** for a private conversation. A dot marks new messages in a tab.
+Switching tabs keeps each unsent draft with its own conversation. If you have a
+connected agent with edit access, start a Shared message with `@@` or `@agent`,
+or click the robot icon by Send. A purple border and robot mark the request,
+and its reply stays in Shared. The request can include up to four earlier released
+human messages from the same slide or artifact as context. Drag the chat divider
+left to widen the panel on desktop. Messages in Agent and their replies stay
+private. If you have comments saved by the earlier batch
+workflow, a **Send queued comments** button is shown in that conversation.
 
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
    Access, and complete MFA. The regular library opens at **All artifacts**.
@@ -339,6 +358,19 @@ validates the presentation in the same read before serving the passive file.
 
 ## Agent setup and delivery
 
+### Review slide structure
+
+An agent with edit access can call `publish_structure_proposal` with the current slide IDs and sections hash from the outline, the proposed IDs, and a short summary. Provide titles for proposed IDs that are absent from Studio. The proposal appears in the presentation conversation under **Review slide structure** for people with edit access.
+
+Compare the two orders and the slides listed on only one side. Choose **Keep current order**, **Request changes**, or **Accept proposal**, and optionally add a message. Studio records the decision and delivers it to the proposing agent in Shared. The agent can then reread the outline and use the existing guarded slide operations to carry out the decision.
+
+Other editors can continue working while the comparison is open. Studio checks the reviewed slide IDs and section structure when sending a decision. If the proposal's base has changed, request an updated proposal before accepting. A second reviewer sees the recorded decision after reopening the comparison.
+
+On a presentation, open **Agent connection** to let a connected agent read
+**Full Shared history**. The permission applies to the selected connection and
+presentation. Turn it off in the same dialog to revoke future history reads.
+Assigned requests from either chat remain available through the agent's work queue.
+
 Set the token using your environment or secret manager. Never put its value in chat,
 source files, screenshots or shared configuration.
 
@@ -374,9 +406,19 @@ Multiple agents can listen to one artifact. Only the assigned agent receives a t
 It calls `claim_feedback` with a unique stable session ID, then uses hash/revision
 guards for edits. Claims last ten minutes and can be renewed. `reply_to_feedback`
 with the claim replies in the original channel and acknowledges the request.
+Use `include_message=false` on `claim_feedback` after reading the request.
+Live review renews its lease silently while tools run and wakes on assigned
+feedback through the Stop hook. Load `get_authoring_guide(topic="slide_designs")`
+for whole-slide proposals, headline alternatives and their decision history.
 Lost responses can be retried with the same request ID; unacknowledged work remains
 pending. This is retryable delivery, not exactly-once network delivery. Ending one
 native session does not stop another. A stopped session requires explicit resume.
+
+For explicitly shareable work on a specific slide, the hosted MCP tool
+`set_slide_activity(deck_id, slide_id, active)` shows a small robot marker to
+current deck readers. Send `active=true` when starting, refresh during long
+edits, and send `active=false` when done. Unrefreshed markers expire after
+90 seconds. Reading slides or handling private feedback never starts a marker.
 
 Stale concurrent edits are rejected; agents must re-read and reconcile. There is no
 silent source merge. Access checks, writes and revocation share a cross-process lock.

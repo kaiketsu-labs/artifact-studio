@@ -45,19 +45,25 @@ MANAGED = {
 }
 
 
-def write_starter(folder: Path, deck: Deck, theme: str) -> None:
-    """Write the shared viewer shell, local runtime and design guidance."""
-    (folder / "assets").mkdir()
+def write_viewer(folder: Path, deck: Deck, *, root_tag: str = '<html lang="en">') -> None:
+    """Write the trusted viewer and embed the editable deck as inert JSON."""
     for filename in ("presentation.js", "icons.js", "slideshow.css"):
         _ = shutil.copy2(PROJECT / "runtime" / filename, folder / filename)
-    _ = (folder / "AGENT-GUIDE.md").write_text(SCAFFOLD_GUIDE)
-    _ = (folder / "PREFERENCES.md").write_text("")
-    _ = (folder / "theme.css").write_text(theme)
     _ = (folder / "index.html").write_text(
         (PROJECT / "runtime/viewer.html")
         .read_text()
+        .replace('<html lang="en">', root_tag, 1)
         .replace("{{DECK_JSON}}", deck.model_dump_json().replace("<", r"\u003c"))
     )
+
+
+def write_starter(folder: Path, deck: Deck, theme: str) -> None:
+    """Write the shared viewer shell, local runtime and design guidance."""
+    (folder / "assets").mkdir()
+    write_viewer(folder, deck)
+    _ = (folder / "AGENT-GUIDE.md").write_text(SCAFFOLD_GUIDE)
+    _ = (folder / "PREFERENCES.md").write_text("")
+    _ = (folder / "theme.css").write_text(theme)
 
 
 def blank_presentation(folder: Path, deck_id: str, title: str) -> Deck:

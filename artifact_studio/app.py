@@ -52,6 +52,7 @@ from .deck_edit_api import DeckID, SlideID, deck_edit_routes
 from .deployment import DeploymentConfig
 from .design_authoring import DesignAuthoring
 from .design_library import DesignDetail, DesignItem, DesignLibrary
+from .design_preview import hosted_design_preview, hosted_slide_thumbnail
 from .design_references import DesignReferences
 from .element_alternative_api import element_alternative_routes
 from .element_alternatives import (
@@ -1582,6 +1583,15 @@ def remove_slide(deck_id: str, slide_id: str, expected_hash: str) -> str:
     return "Slide removed; source retained in local history."
 
 
+@mcp.tool(annotations=READ)
+@tool_errors
+def get_deleted_slides(deck_id: str) -> list[dict[str, object]]:
+    """List recoverable local deletions so agents can avoid re-adding those slide IDs."""
+    from .slide_actions import SlideActions
+
+    return SlideActions(store).deletion_summaries(deck_id)
+
+
 register_artifact_tools(mcp, lambda: store)
 
 
@@ -1734,11 +1744,18 @@ async def local_writes(request: Request, call_next: RequestResponseEndpoint) -> 
 
 
 @app.get("/", response_class=FileResponse)
-def workspace(request: Request, deck: str = "", editor: bool = False) -> FileResponse:
+def workspace(request: Request, deck: str = "", editor: bool = False) -> Response:
     """Open the artifact library while preserving direct presentation editor links."""
     if deck or editor or deployment.mode == "hosted":
         # HostedAuth supplies the navigation policy for all trusted shell routes.
-        return FileResponse(PROJECT / ("web/index.html" if deck or editor else "web/hub.html"))
+        shell = PROJECT / ("web/index.html" if deck or editor else "web/hub.html")
+        if getattr(request.state, "unified_studio", False):
+            return HTMLResponse(
+                shell.read_text().replace(
+                    '<html lang="en">', '<html lang="en" data-native-conversation>', 1
+                )
+            )
+        return FileResponse(shell)
     origin = str(request.base_url).rstrip("/")
     return FileResponse(
         PROJECT / "web/hub.html",
@@ -1755,11 +1772,12 @@ def workspace(request: Request, deck: str = "", editor: bool = False) -> FileRes
 def session_info(request: Request) -> dict[str, object]:
     """Identify the active workspace without exposing credentials or server paths."""
     hosted = deployment.mode == "hosted"
+    unified = bool(getattr(request.state, "unified_studio", False))
     origin = deployment.public_url if hosted else str(request.base_url).rstrip("/")
     principal = cast(Principal | None, getattr(request.state, "principal", None))
     return {
         "mode": deployment.mode,
-        "collaboration_url": "/together" if getattr(request.state, "unified_studio", False) else "",
+        "collaboration_url": "/together" if unified else "",
         "public_url": origin,
         "mcp_url": origin + "/mcp",
         "auth_provider": deployment.auth_provider if hosted else "none",
@@ -1770,14 +1788,16 @@ def session_info(request: Request) -> dict[str, object]:
             "automatic_feedback": not hosted,
             "hosted_hooks": hosted,
         },
-        "security": security_report(deployment).model_dump(),
+        "security": security_report(deployment, scoped_sharing=unified).model_dump(),
     }
 
 
 @app.get("/api/deployment/security")
-def deployment_security() -> SecurityReport:
+def deployment_security(request: Request) -> SecurityReport:
     """Expose configuration facts and external checks without credentials or member lists."""
-    return security_report(deployment)
+    return security_report(
+        deployment, scoped_sharing=bool(getattr(request.state, "unified_studio", False))
+    )
 
 
 @app.get("/api/copilot/setup/{document}", response_class=FileResponse)
@@ -2189,6 +2209,8 @@ def design_attachment(event_id: int, file_index: int) -> FileResponse:
 @app.get("/api/designs/{design_id}/preview", response_class=HTMLResponse)
 def design_preview(design_id: str) -> HTMLResponse:
     """Show the first design example inside the script-free brand picker."""
+    if deployment.mode == "hosted":
+        return hosted_design_preview(store, design_id, deployment.public_url)
     design = store.design(design_id)
     slide = store.read(design.folder_id).slides[0]
     return preview(design.folder_id, slide.id)
@@ -2245,6 +2267,8 @@ def presentation_feedback(deck_id: DeckID, body: PresentationCommentInput) -> di
 @app.get("/api/decks/{deck_id}/slides/{slide_id}/preview", response_class=HTMLResponse)
 def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
     """Render a sandboxed exact slide using its local theme and assets."""
+    if deployment.mode == "hosted":
+        return hosted_slide_thumbnail(store, deck_id, slide_id, deployment.public_url)
     slide = store.locate(store.read(deck_id), slide_id)
     page = (
         '<!doctype html><html><head><meta charset="utf-8">'

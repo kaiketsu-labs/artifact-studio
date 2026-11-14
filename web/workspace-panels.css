@@ -11,7 +11,9 @@
 .workspace-panel-toggle.panel-left{left:0}.workspace-panel-toggle.panel-right{right:0}
 .workspace-panel-resize{width:8px;cursor:col-resize;touch-action:none}
 .workspace-panel-resize.panel-left{left:calc(var(--panel-left-position,205px) - 4px)}
-.workspace-panel-resize.panel-right{right:calc(var(--panel-right-position,335px) - 4px)}
+.workspace-panel-resize.panel-right{width:14px;transform:translateX(-3px);right:calc(var(--panel-right-position,335px) - 4px)}
+.workspace-panel-resize.panel-right::after{content:'';position:absolute;left:5px;top:50%;width:4px;height:36px;border-radius:4px;background:var(--hub-line,var(--line));transform:translateY(-50%)}
+.workspace-panel-resize.panel-right:is(:hover,:focus-visible)::after{background:var(--hub-blue,var(--blue))}
 .workspace-panel-resize:hover,.workspace-panel-resize:focus-visible,.workspace-panel-resize.is-closing{background:var(--hub-soft,#315fce33)}
 .workspace-panel-dragging,.workspace-panel-dragging *{cursor:col-resize!important;user-select:none!important}.workspace-panel-dragging iframe{pointer-events:none}
 .workspace-clean-exit-area{position:fixed;z-index:100;top:0;right:0;width:54px;height:54px;display:flex;justify-content:flex-end;align-items:flex-start;padding:10px}

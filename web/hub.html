@@ -61,9 +61,6 @@
   <header class="hub-top">
     <a class="hub-brand" href="/" aria-label="Artifact Studio library"><img src="/web/brand/mark.svg" width="30" height="30" alt=""><span>Artifact Studio</span></a>
     <div class="hub-top-actions">
-      <button type="button" data-server-version class="hub-session-mode" aria-haspopup="dialog" hidden></button>
-      <button type="button" data-session-mode aria-label="About workspace" aria-haspopup="dialog" class="hub-session-mode" hidden>Local</button>
-      <button type="button" data-collaborate hidden>Collaborate</button>
       <button id="storage-status" type="button" aria-label="Storage and backup" aria-haspopup="dialog" class="hub-icon-only"></button>
       <button id="libraries-button" type="button" hidden></button>
       <button type="button" data-design-action="deleted" aria-label="Deleted designs" title="Deleted designs" class="hub-icon-only" data-icon="restore" hidden></button>
@@ -75,7 +72,7 @@
       <button type="button" data-action="import" data-icon="upload" class="hub-primary">Import</button>
     </div>
     <div id="appearance-menu" class="appearance-menu" popover role="menu" aria-label="Appearance"><button type="button" data-appearance="light" role="menuitemradio" aria-checked="false">Light</button><button type="button" data-appearance="dark" role="menuitemradio" aria-checked="false">Dark</button><button type="button" data-appearance="system" role="menuitemradio" aria-checked="true">System</button></div>
-    <div id="hub-tools-menu" class="hub-tools-menu" popover><a href="/?editor=1&amp;new=1" data-new-presentation data-icon="slideAdd">New presentation</a><a href="/?editor=1" data-icon="slides">Presentation tools</a><a href="#connect" data-hub-connect aria-haspopup="dialog">Agent connection</a><a href="/web/copilot-setup.html" data-icon="plug">Microsoft 365 Copilot</a><button type="button" data-report-issue aria-haspopup="dialog">Report an issue</button><a href="#about" data-app-about aria-haspopup="dialog"><span>About Artifact Studio</span><small class="app-version-label" data-app-version>Version…</small></a></div>
+    <div id="hub-tools-menu" class="hub-tools-menu" popover><a href="/?editor=1&amp;new=1" data-new-presentation data-icon="slideAdd">New presentation</a><a href="/?editor=1" data-icon="slides">Presentation tools</a><a href="#connect" data-hub-connect data-icon="plug" aria-haspopup="dialog">Agent connection</a><a href="/web/copilot-setup.html" data-icon="plug">Microsoft 365 Copilot</a><a href="#about" data-app-about data-icon="info" aria-haspopup="dialog"><span>About Artifact Studio</span></a></div>
   </header>
   <div id="hub-content"><main class="hub-loading" role="status">Loading your artifacts…</main></div>
   <div id="hub-toast" class="hub-toast" role="status" hidden></div>
@@ -93,5 +90,6 @@
   <p id="library-error" class="inline-error" role="alert"></p>
   <details class="backup-details"><summary>What travels with a backup?</summary><p>GitHub receives current artifact files, project briefs, slides, notes, assets and design references. Review chat, approvals, browser drafts and revision history stay on this device. Restore workspace rebuilds the current content and folder structure. For chats, approvals and history, save a local workspace archive.</p><p>Reference folders are read-only. Refresh updates the cached GitHub reference, preserving the working folder.</p></details>
 </dialog>
+<button type="button" class="studio-report-trigger" data-report-issue aria-haspopup="dialog" hidden>Report an issue</button>
 </body>
 </html>

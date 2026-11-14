@@ -29,6 +29,7 @@ from .artifacts import ArtifactStore
 from .authentication import AuthProvider, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
+from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .hosted_preview import verified_file_response
 from .models import FileInput, StrictModel
@@ -46,6 +47,7 @@ from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
+from .structure_proposals import StructureDecision, StructureProposals
 from .visuals import ScopedDeckEmbedder
 
 # The separator is outside the ordinary ticket alphabet.
@@ -69,6 +71,12 @@ class AgentInput(ScopeInput):
     name: str = Field(min_length=1, max_length=80)
 
 
+class SharedHistoryInput(StrictModel):
+    """Set the history permission for a single agent."""
+
+    enabled: bool
+
+
 class TitleInput(StrictModel):
     title: str = Field(min_length=1, max_length=160)
 
@@ -83,6 +91,7 @@ class ChatInput(StrictModel):
     request_id: str = Field(min_length=8, max_length=100)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
+    include_shared_context: bool = False
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
     slide_content_hash: str = Field(default="", max_length=64)
@@ -127,6 +136,7 @@ def create_app(
     hub = sharing
     chat = Conversations(hub)
     presence = DeckPresence(hub)
+    structure = StructureProposals(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
         version=__version__,
@@ -136,7 +146,7 @@ def create_app(
             "Use expected hashes and stable request IDs. Replies stay in the original chat."
         ),
     )
-    toolset = MultiplayerTools(hub, chat, config.public_url)
+    toolset = MultiplayerTools(hub, chat, config.public_url, presence)
     toolset.register(mcp)
     mcp_app = mcp.streamable_http_app(
         stateless_http=True,
@@ -376,6 +386,24 @@ def create_app(
     def own_agents(request: Request, workspace: str) -> list[dict[str, object]]:
         return hub.own_agents(actor_of(request), workspace)
 
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/shared-history")
+    def agent_shared_history(
+        request: Request, workspace: str, artifact: str, agent: str
+    ) -> dict[str, bool]:
+        """Read the owner's current presentation history permission for one agent."""
+        scope = Scope(workspace, "artifact", artifact)
+        return {"enabled": chat.shared_history_access(actor_of(request), scope, agent)}
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/shared-history")
+    def set_agent_shared_history(
+        request: Request, workspace: str, artifact: str, agent: str, body: SharedHistoryInput
+    ) -> dict[str, bool]:
+        """Allow or revoke full Shared history for one connection and presentation."""
+        scope = Scope(workspace, "artifact", artifact)
+        return {
+            "enabled": chat.shared_history_access(actor_of(request), scope, agent, body.enabled)
+        }
+
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/state")
     def artifact_state(request: Request, workspace: str, artifact: str) -> dict[str, object]:
         actor, scope = actor_of(request), Scope(workspace, "artifact", artifact)
@@ -413,9 +441,37 @@ def create_app(
                 "draft_counts": draft_counts,
                 "contacts": [] if actor.agent else chat.contacts(actor, scope),
                 "mentions": [] if actor.agent else chat.mentions(actor, scope),
+                "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
 
-    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/presence")
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals")
+    def structure_list(request: Request, workspace: str, artifact: str) -> Response:
+        """Return presentation structure and its agent proposals."""
+        result, validator = structure.snapshot(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            request.headers.get("If-None-Match", ""),
+        )
+        headers = {"ETag": validator} if validator else {}
+        if result is None:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(result, headers=headers)
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals/{proposal_id}/decision"
+    )
+    def structure_decision(
+        request: Request, workspace: str, artifact: str, proposal_id: str, body: StructureDecision
+    ) -> dict[str, object]:
+        """Deliver a reviewed decision to the proposal's originating agent."""
+        return structure.decide(
+            actor_of(request), Scope(workspace, "artifact", artifact), proposal_id, body
+        )
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/presence",
+        response_model_exclude_defaults=True,
+    )
     def deck_presence(
         request: Request, workspace: str, artifact: str, body: PresenceInput
     ) -> list[DeckViewer]:
@@ -467,6 +523,7 @@ def create_app(
             body.files,
             slide_content_hash=body.slide_content_hash,
             proposal=body.proposal,
+            include_shared_context=body.include_shared_context,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")
@@ -525,6 +582,7 @@ def create_app(
         artifact: str,
         slide_id: str = "",
         history_revision: Annotated[int | None, Query(ge=1, le=2**63 - 1)] = None,
+        thumbnail: bool = False,
     ) -> HTMLResponse:
         if request.headers.get("sec-fetch-dest") not in {"iframe", "frame"}:
             raise HTTPException(403, "Open this preview inside the workspace.")
@@ -538,6 +596,8 @@ def create_app(
             ):
                 raise AccessDenied
             if item.legacy_deck_id:
+                if thumbnail and slide_id:
+                    return hosted_slide_thumbnail(store, artifact, slide_id, config.public_url)
                 deck = store.read(artifact)
                 slide = store.locate(deck, slide_id) if slide_id else deck.slides[0]
                 embedder = ScopedDeckEmbedder(store, artifact)

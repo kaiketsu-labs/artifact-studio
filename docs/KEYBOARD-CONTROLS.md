@@ -92,6 +92,7 @@ Slides nudge by 0.1% of the canvas (1% with Shift), independent of preview zoom.
 | --- | --- |
 | Enter, ⌘Enter or Ctrl+Enter | Send a slide/artifact/design chat message; answer an agent's text question |
 | Shift+Enter | Add a line break in chat |
+| `@@` or `@agent` then Space | Address the next Shared chat message to your agent. The robot icon toggles the same setting. |
 | Escape while recording | Stop dictation |
 | ⌘/Ctrl+Z; ⌘/Ctrl+Shift+Z | Native undo/redo while typing, separate from object or slide history |
 | ⌘/Ctrl+B / I | Bold/italic in the rich-text rules editor |

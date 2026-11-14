@@ -11,7 +11,13 @@ from mcp.types import CallToolResult, TextContent
 from .models import AgentContext
 from .projects import root_tag
 from .storage import Store, digest
-from .visuals import MAX_ASSET_BYTES, MAX_DEPENDENCY_BYTES, CaptureOptions, capture
+from .visuals import (
+    MAX_ASSET_BYTES,
+    MAX_DEPENDENCY_BYTES,
+    CaptureOptions,
+    capture_admitted,
+    render_slot,
+)
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -65,15 +71,19 @@ def capture_cloud_slide(
     """Render a full-size audience slide with its original concurrency and visual tokens."""
     if not -1 <= stage <= 50 or not 0 <= elapsed_ms <= 5000:
         raise ValueError("Use stage -1 for final or 0–50, and elapsed_ms between zero and 5000.")
-    original = store.locate(store.read(deck_id), slide_id)
-    original_hash = store.content_hash(deck_id, original)
-    with TemporaryDirectory(prefix="artifact-studio-copilot-capture-") as temporary:
+    with (
+        render_slot() as waited_ms,
+        TemporaryDirectory(prefix="artifact-studio-copilot-capture-") as temporary,
+    ):
+        original = store.locate(store.read(deck_id), slide_id)
+        original_hash = store.content_hash(deck_id, original)
         folder = Path(temporary)
         clone = audience_clone(store, deck_id, folder)
-        result = capture(
+        result = capture_admitted(
             clone,
             deck_id,
             folder / "captures",
+            waited_ms,
             slide_id=slide_id,
             options=CaptureOptions(stage=None if stage == -1 else stage, elapsed_ms=elapsed_ms),
         )
@@ -88,6 +98,89 @@ def capture_cloud_slide(
             | {
                 "expected_hash": digest(original.model_dump_json()),
                 "content_hash": original_hash,
+                "runtime_matches_deck": False,
+            }
+            for frame in result.frames
+        ]
+        metadata["scope"] = (
+            "Audience-only clone using trusted runtime and theme.css/assets. "
+            "Private notes, feedback, other local files and physical displays are not captured."
+        )
+        return CallToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(metadata)),
+                MCPImage(path=result.path).to_image_content(),
+            ],
+            structured_content=metadata,
+        )
+
+
+def capture_cloud_contact_sheet(
+    store: Store,
+    deck_id: str,
+    offset: int = 0,
+    limit: int = 8,
+    slide_ids: list[str] | None = None,
+) -> CallToolResult:
+    """Render a bounded draft overview with original revision tokens and no host paths."""
+    if offset < 0:
+        raise ValueError("Use offset >= 0.")
+    if not 1 <= limit <= 8:
+        raise ValueError("Remote contact sheets allow 1–8 slides per page.")
+    if slide_ids is not None and (
+        not 1 <= len(slide_ids) <= 100 or len(set(slide_ids)) != len(slide_ids)
+    ):
+        raise ValueError("Provide 1–100 distinct slide IDs.")
+    with (
+        render_slot() as waited_ms,
+        TemporaryDirectory(prefix="artifact-studio-copilot-capture-") as temporary,
+    ):
+        original = store.read(deck_id)
+        originals = {slide.id: slide for slide in original.slides}
+        if slide_ids is not None and set(slide_ids) - originals.keys():
+            raise ValueError("One or more slide_ids were not found in this presentation.")
+        if offset >= (len(slide_ids) if slide_ids is not None else len(originals)):
+            raise ValueError("No slides in this contact-sheet page.")
+        design_hash = store.visual_hash(deck_id)
+        hashes = {
+            slide.id: store.content_hash(deck_id, slide, design_hash=design_hash)
+            for slide in original.slides
+        }
+        structure = [(slide.id, slide.hidden) for slide in original.slides]
+        folder = Path(temporary)
+        clone = audience_clone(store, deck_id, folder)
+        result = capture_admitted(
+            clone,
+            deck_id,
+            folder / "captures",
+            waited_ms,
+            offset=offset,
+            limit=limit,
+            slide_ids=slide_ids,
+            options=CaptureOptions(resolution="draft"),
+        )
+        current = store.read(deck_id)
+        current_design_hash = store.visual_hash(deck_id)
+        if (
+            current_design_hash != design_hash
+            or [(slide.id, slide.hidden) for slide in current.slides] != structure
+            or any(
+                store.content_hash(deck_id, slide, design_hash=current_design_hash)
+                != hashes[slide.id]
+                for slide in current.slides
+            )
+        ):
+            raise ValueError("The source changed during capture; read the current deck and retry.")
+        if Path(result.path).stat().st_size > 3 * 1024 * 1024:
+            raise ValueError(
+                "The captured image exceeds the remote 3 MiB limit; use a smaller page."
+            )
+        metadata = result.model_dump(exclude={"path"})
+        metadata["frames"] = [
+            frame.model_dump(exclude={"path"})
+            | {
+                "expected_hash": digest(originals[frame.slide_id].model_dump_json()),
+                "content_hash": hashes[frame.slide_id],
                 "runtime_matches_deck": False,
             }
             for frame in result.frames
