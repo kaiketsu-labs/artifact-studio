@@ -1578,6 +1578,7 @@ def test_preview_retry_keeps_earlier_preview_and_draft_after_disconnect(tmp_path
                 page.route("**/theme.css**", lambda route: route.abort("internetdisconnected"))
                 page.locator('#slides [data-id="next"]').click()
                 page.locator("#feedback-text").fill("Fictional unsent draft")
+                expect(page.locator("#preview-message")).to_contain_text("earlier preview")
                 expect(page.locator("#retry-preview")).to_be_visible(timeout=15000)
                 assert (
                     page.locator("#preview").evaluate(

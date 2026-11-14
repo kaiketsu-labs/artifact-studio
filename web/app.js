@@ -794,7 +794,7 @@
     staging.style.cssText='position:absolute;inset:0;visibility:hidden;pointer-events:none';staging.inert=true;staging.setAttribute('aria-hidden','true');
     frame.inert=true;frame.setAttribute('aria-hidden','true');frame.parentElement.append(staging);pendingMainPreview=staging;
     clearTimeout(previewStatusTimer);$('preview-status').hidden=true;$('objects-button').disabled=true;$('approve-button').disabled=true;$('retry-preview').hidden=true;
-    previewStatusTimer=setTimeout(()=>{$('preview-message').textContent='Loading slide…';$('preview-status').hidden=false;},180);
+    previewStatusTimer=setTimeout(()=>{$('preview-message').textContent=frame.dataset.loadToken?.endsWith('-ready')?'Loading slide… Showing the earlier preview.':'Loading slide…';$('preview-status').hidden=false;},180);
     const loader=window.SlidePreviewLoader.create({documentFor:previewDocument,
       onReady:(candidate,doc)=>{
         if(pendingMainPreview!==candidate)return;
@@ -802,7 +802,7 @@
         animationPreview.setFrame(candidate);objectPicker.setFrame(candidate);elementAlternatives?.setFrame(candidate);
         clearTimeout(previewStatusTimer);$('preview-status').hidden=true;window.SlideAnimationPreview.freeze(doc);bindPreview();objectPicker.refresh();objectPicker.sync(selectedElements);animationPreview.bind();$('approve-button').disabled=false;candidate.dispatchEvent(new Event('selection-preview-ready'));
       },
-      onFailure:candidate=>{if(pendingMainPreview!==candidate)return;pendingMainPreview=null;candidate.remove();clearTimeout(previewStatusTimer);$('preview-status').hidden=false;$('preview-message').textContent='Slide couldn’t load. Showing the earlier preview.';$('retry-preview').hidden=false;frame.dispatchEvent(new Event('selection-preview-ready'));}
+      onFailure:candidate=>{if(pendingMainPreview!==candidate)return;pendingMainPreview=null;candidate.remove();clearTimeout(previewStatusTimer);$('preview-status').hidden=false;$('preview-message').textContent=frame.dataset.loadToken?.endsWith('-ready')?'Slide couldn’t load. Showing the earlier preview.':'Slide couldn’t load.';$('retry-preview').hidden=false;frame.dispatchEvent(new Event('selection-preview-ready'));}
     });
     // Keep the loader with its candidate so cancellation also stops its retries.
     staging.cancelPreview=()=>loader.cancel(staging);loader.load(staging,item,deckId,designHash||item.content_hash);
