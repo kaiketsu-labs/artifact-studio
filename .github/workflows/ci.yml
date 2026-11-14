@@ -157,6 +157,7 @@ jobs:
               tests/integration/test_hosted_presenter_browser.py
               tests/test_multiplayer_browser_owner.py tests/test_multiplayer_browser_collaborator.py
               tests/test_multiplayer_browser_responsive.py tests/test_unified_browser.py tests/test_shared_chat_attachments.py
+              tests/test_invitation_landing.py
               tests/test_scoped_library_covers.py
               tests/test_offline_store_browser.py tests/test_offline_shell_browser.py
               tests/test_shared_library_shortcuts.py

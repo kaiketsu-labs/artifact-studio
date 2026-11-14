@@ -158,6 +158,11 @@ invitation in the current tab; the second shows the verified account before join
 
 ![Verified account invitation acceptance](assets/invitation-join.png)
 
+On narrow screens the project catalog stacks vertically, keeping an invited empty
+project readable alongside existing shared work.
+
+![Invited empty project on a narrow screen](assets/invitation-empty-project-mobile.png)
+
 ## Required staging acceptance
 
 Use a separate Access application/audience, dedicated group and fictional users.
