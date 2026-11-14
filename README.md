@@ -176,6 +176,10 @@ node --test tests/*.cjs
 
 See [CI and development checks](docs/CI.md) for browser journeys, agent subprocess checks, Docker/macOS checks, release simulations and their environment requirements. Automated checks do not establish native-app or physical-display behavior. Documentation fixtures are fictional; the [screenshot inventory](docs/screenshots/README.md) records captures and links to real UI examples.
 
+The [repository structure plan](docs/REPOSITORY-STRUCTURE.md) maps current ownership,
+proposes feature-based folders and describes an incremental migration that preserves
+installed entrypoints, exported presentations and test coverage.
+
 The application version comes from [`pyproject.toml`](pyproject.toml); a version file alone does not prove a published release. Follow the platform's update guide and [release process](docs/RELEASING.md).
 
 ## Token usage and workflow benchmark

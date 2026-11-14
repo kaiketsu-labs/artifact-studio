@@ -1,5 +1,8 @@
 # Artifact Studio — architecture and implementation status
 
+For source ownership and the proposed incremental folder migration, see
+[Repository structure](REPOSITORY-STRUCTURE.md).
+
 Status: **implementation available, 5 November 2026**. The visual library, project folders, adaptive viewers, generic MCP tools, retained-version timeline and workspace recovery are implemented. The original clickable concept remains a design reference.
 
 The hub preserves existing presentation locations, editor links and review history. Opening it does not migrate personal sources or enable uploads. Full workspace archives can be downloaded locally or explicitly scheduled to a private GitHub repository; current-source Git backup remains separate. Codex/Claude host hooks support presentation and general artifact feedback.

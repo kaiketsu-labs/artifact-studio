@@ -1,6 +1,7 @@
 # Working on Artifact Studio
 
 - Read the project structure and relevant implementation before editing. Reuse existing controllers and API contracts; keep changes small and typed.
+- Use [the source ownership map](docs/REPOSITORY-STRUCTURE.md) to locate feature ownership. Its target layout is a migration plan; verify current paths before editing and preserve public entrypoints when moving code.
 - Use `uv run` for Python tooling. Run Ruff, strict basedpyright, relevant pytest journeys and frontend behavior tests. See [README.md](README.md) for commands.
 - Review changed UI in the rendered app, using fictional fixtures. Exercise the actual mouse and keyboard flow, multi-selection, light/dark appearance, narrow windows and menu placement where relevant. Verify reviewer findings before fixing them. Screenshots and unit tests alone do not establish interaction behavior; state unavailable native-app or physical-display checks honestly.
 - After UI changes, use several fresh-context `gpt-6.1-terra` reviewers as real users, each clicking through a distinct journey. Verify findings, fix confirmed issues and repeat affected reviews. Do not use Luna for review passes.
