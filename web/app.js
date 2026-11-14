@@ -757,6 +757,7 @@
     const agentName=({codex:'Codex','claude-code':'Claude Code'})[state.review_harness]||'Agent';
     agentStatus.innerHTML=(brand(state.review_harness)||svg('robot'))+'<span class="chat-agent-dot '+(connected?'is-connected':'')+'" aria-hidden="true"></span><span id="chat-agent-status-detail" class="sr-only">'+escape(connected?agentName+' connected'+(state.review_session?' · session '+state.review_session.slice(0,8):''):'Agent unavailable')+'</span>';
     agentStatus.title=connected?agentName+' connected'+(state.review_session?' · session '+state.review_session.slice(0,8):''):'Agent unavailable';
+    agentStatus.setAttribute('aria-label','Agent connection status: '+agentStatus.title);
     iconButton($('send-feedback'),'up','Send feedback',false);$('send-feedback').innerHTML=upwardArrow;$('send-feedback').title+=' (Enter · Shift+Enter for a new line)';
     slideQuestions.updateDelivery($('feedback-list'));
   }
