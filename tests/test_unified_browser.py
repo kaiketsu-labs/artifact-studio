@@ -1857,3 +1857,134 @@ def test_restored_grants_remove_menu_action_after_success(tmp_path: Path) -> Non
                     assert alice.get("/api/workspaces/default/catalog").status_code == 200
         finally:
             browser.close()
+
+
+def test_artifact_channel_switch_pending_copy_cannot_export_previous_private_thread(
+    tmp_path: Path,
+) -> None:
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as pw,
+    ):
+        chat = "/api/workspaces/default/artifacts/" + app.artifact_id + "/chat"
+        for channel, message in [
+            ("shared", "Fictional artifact shared message"),
+            ("private", "Fictional artifact private sentinel"),
+        ]:
+            response = owner.post(
+                chat,
+                json={
+                    "channel": channel,
+                    "message": message,
+                    "request_id": "fictional-artifact-" + channel,
+                },
+            )
+            response.raise_for_status()
+        browser = pw.chromium.launch()
+        with routed_multiplayer_context(browser, app, "owner") as context:
+            page = context.new_page()
+            context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+            page.add_init_script(
+                """(() => {
+                  const original = fetch;
+                  window.holdShared = false; window.sharedHeld = false;
+                  const held = new Promise(resolve => window.releaseShared = resolve);
+                  window.fetch = async (...args) => {
+                    if (window.holdShared && String(args[0]).includes('/chat') &&
+                        String(args[0]).includes('channel=shared')) {
+                      window.sharedHeld = true; await held;
+                    }
+                    return original(...args);
+                  };
+                })();"""
+            )
+            page.goto(WORKSPACE + "/?artifact=" + app.artifact_id)
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional artifact shared message")
+            page.locator("#hub-shared-channel").select_option("private")
+            expect(page.locator("#hub-thread")).to_contain_text(
+                "Fictional artifact private sentinel"
+            )
+            page.evaluate(
+                "async()=>{await navigator.clipboard.writeText('Fictional unchanged clipboard');"
+                "window.holdShared=true;}"
+            )
+            page.locator("#hub-shared-channel").select_option("shared")
+            page.wait_for_function("() => window.sharedHeld")
+            copy = page.locator('[data-action="copy-conversation"]')
+            if copy.is_enabled():
+                copy.click()
+            copied = page.evaluate("navigator.clipboard.readText()")
+            assert "Fictional artifact private sentinel" not in copied, (
+                "Copy under selected Shared exported previous private thread"
+            )
+            page.evaluate("window.releaseShared()")
+        browser.close()
+
+
+def test_delayed_private_refresh_cannot_replace_shared_copy(tmp_path: Path) -> None:
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as pw,
+    ):
+        chat = "/api/workspaces/default/artifacts/" + app.artifact_id + "/chat"
+        for channel, message in [
+            ("shared", "Fictional current shared refresh"),
+            ("private", "Fictional stale private refresh"),
+        ]:
+            response = owner.post(
+                chat,
+                json={
+                    "channel": channel,
+                    "message": message,
+                    "request_id": "fictional-refresh-" + channel,
+                },
+            )
+            response.raise_for_status()
+        browser = pw.chromium.launch()
+        with routed_multiplayer_context(browser, app, "owner") as context:
+            page = context.new_page()
+            context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+            page.add_init_script(
+                """(() => {
+                  const original = fetch;
+                  window.holdPrivate = false; window.privateHeld = false;
+                  window.privateReturned = false;
+                  const held = new Promise(resolve => window.releasePrivate = resolve);
+                  window.fetch = async (...args) => {
+                    if (window.holdPrivate && !window.privateHeld &&
+                        String(args[0]).includes('/chat') &&
+                        String(args[0]).includes('channel=private')) {
+                      const response = await original(...args);
+                      window.privateHeld = true; await held;
+                      window.privateReturned = true; return response;
+                    }
+                    return original(...args);
+                  };
+                })();"""
+            )
+            page.goto(WORKSPACE + "/?artifact=" + app.artifact_id)
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional current shared refresh")
+            page.locator("#hub-shared-channel").select_option("private")
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional stale private refresh")
+            page.evaluate("window.holdPrivate=true")
+            page.wait_for_function("() => window.privateHeld", timeout=15000)
+            page.locator("#hub-shared-channel").select_option("shared")
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional current shared refresh")
+            page.evaluate("window.releasePrivate()")
+            page.wait_for_function("() => window.privateReturned")
+            page.evaluate(
+                "() => new Promise(resolve => "
+                "requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+            )
+            expect(page.locator("#hub-thread")).not_to_contain_text(
+                "Fictional stale private refresh"
+            )
+            page.locator('[data-action="copy-conversation"]').click()
+            copied = page.evaluate("navigator.clipboard.readText()")
+            assert (
+                "Fictional current shared refresh" in copied
+                and "Fictional stale private refresh" not in copied
+            )
+        browser.close()

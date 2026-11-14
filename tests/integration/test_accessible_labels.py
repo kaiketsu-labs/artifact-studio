@@ -1,6 +1,7 @@
 """Keep visible control names and their supporting descriptions available to assistive tools."""
 
 import os
+import re
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -47,7 +48,7 @@ def test_agent_availability_and_copy_have_accessible_names(
 ) -> None:
     """Expose the real lease status and the copy control without a delivery switch."""
     open_editor(page, live_app)
-    status = page.get_by_role("status", name="Agent connection status")
+    status = page.get_by_role("status", name=re.compile("^Agent connection status"))
     expect(status).to_have_text("Agent unavailable")
     live_app.store.mark_agent_check(DECK_ID, wait_seconds=120)
     _ = page.reload(wait_until="networkidle")
