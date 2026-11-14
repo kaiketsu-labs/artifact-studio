@@ -58,12 +58,19 @@
     const minX=Math.max(margin,bounds.left),maxX=Math.min(viewport.width-margin,bounds.left+bounds.width);
     const minY=Math.max(margin,bounds.top),maxY=Math.min(viewport.height-margin,bounds.top+bounds.height);
     const left=clamp(anchor.left,maxX-minX>=size.width?minX:margin,maxX-minX>=size.width?maxX-size.width:viewport.width-size.width-margin);
+    // On a fitted narrow slide the row can cover the next object. Dock it
+    // outside the preview when there is room, as the mobile text panel does.
+    if(viewport.width<=600 && anchor.bounds){
+      const belowFrame=bounds.top+bounds.height+gap,aboveFrame=bounds.top-size.height-gap;
+      if(belowFrame>=margin && belowFrame+size.height<=viewport.height-48)return {left,top:belowFrame};
+      if(aboveFrame>=margin && aboveFrame+size.height<=viewport.height-48)return {left,top:aboveFrame};
+    }
     const above=anchor.top-size.height-gap,below=anchor.top+anchor.height+gap;
     const top=above>=minY?above:below>=minY && below+size.height<=maxY?below:clamp(above,margin,viewport.height-size.height-margin);
-    return {left,top};
+    return {left,top:viewport.width<=600?clamp(top,margin,viewport.height-size.height-48):top};
   }
   /** Show compact formatting next to the selection, with optional detail panels. */
-  function create({container,onPreview,onSend,onCancel,getAnchor=()=>null,extraControls=null,getVoice=()=>root.slideVoice}){
+  function create({container,onPreview,onSend,onCancel,getAnchor=()=>null,extraControls=null,getVoice=()=>root.slideVoice,onDockHeight=()=>{}}){
     const doc=container.ownerDocument,view=doc.defaultView,controller=new view.AbortController();
     const svg=name=>root.SlideIcons?.svg(name)||'';
     container.classList.add('element-properties');container.hidden=true;
@@ -74,8 +81,8 @@
     function cancelVoice(){selectionGeneration++;textVoice?.cancel();}
     async function stopVoice(){return !textVoice || !getVoice()?.isActive(text) || await textVoice.stop();}
     function position(){
-      frame=null;if(container.hidden || !container.isConnected)return;
-      const anchor=getAnchor();if(!anchor)return;
+      frame=null;if(container.hidden || !container.isConnected){onDockHeight(0);return;}
+      const anchor=getAnchor();if(!anchor){onDockHeight(0);return;}
       const viewport=view.visualViewport, mobile=view.innerWidth<=600 && !container.querySelector('[data-detail=text]').hidden;
       container.classList.toggle('ep-mobile-text',mobile);
       if(mobile){
@@ -85,13 +92,17 @@
         const preferred=anchor.bounds.top+anchor.bounds.height+8, limit=top+height-container.offsetHeight-48;
         container.style.top=`${Math.max(top+8,Math.min(preferred,limit))}px`;
         container.style.width=`${Math.max(0,width-16)}px`;
-        container.classList.remove('ep-panels-above');return;
+        container.classList.remove('ep-panels-above');
+        onDockHeight(Math.max(0,parseFloat(container.style.top)+container.offsetHeight-anchor.bounds.top-anchor.bounds.height+9));return;
       }
       container.style.width='';
       const point=toolbarPosition(anchor,{width:container.offsetWidth,height:container.offsetHeight},{width:view.innerWidth,height:view.innerHeight});
       container.style.left=`${point.left}px`;container.style.top=`${point.top}px`;
       const panel=container.querySelector('[data-detail]:not([hidden])');
       container.classList.toggle('ep-panels-above',!!panel && point.top>panel.offsetHeight+16 && (point.top+container.offsetHeight<=anchor.top || point.top+container.offsetHeight+panel.offsetHeight+16>view.innerHeight));
+      const docked=view.innerWidth<=600&&point.top>=anchor.bounds.top+anchor.bounds.height;
+      const panelHeight=panel&&!container.classList.contains('ep-panels-above')?panel.offsetHeight+6:0;
+      onDockHeight(docked?container.offsetHeight+panelHeight+18:0);
     }
     function reposition(){if(frame===null)frame=view.requestAnimationFrame(position);}
     function closePanels(){if(getVoice()?.isActive(text))cancelVoice();for(const panel of container.querySelectorAll('[data-detail]'))panel.hidden=true;for(const button of container.querySelectorAll('[data-panel]'))button.setAttribute('aria-expanded','false');}
@@ -124,7 +135,7 @@
       }
       textButton.hidden=!canText;reposition();
     }
-    function clear(){cancelVoice();container.hidden=true;selectionKey=null;closePanels();}
+    function clear(){cancelVoice();container.hidden=true;onDockHeight(0);selectionKey=null;closePanels();}
     text.addEventListener('input',()=>onPreview({text:text.value}));
     size.addEventListener('input',resize);
     color.addEventListener('input',()=>{color.parentElement.style.setProperty('--ep-color',color.value);onPreview({color:color.value});});
@@ -146,7 +157,7 @@
     container.addEventListener('keydown',event=>{if(event.key==='Escape' && container.querySelector('[data-detail]:not([hidden])')){event.preventDefault();event.stopPropagation();const button=container.querySelector('[data-panel][aria-expanded=true]');closePanels();button?.focus();}});
     view.addEventListener('resize',reposition,{signal:controller.signal});view.visualViewport?.addEventListener('resize',reposition,{signal:controller.signal});view.visualViewport?.addEventListener('scroll',reposition,{signal:controller.signal});doc.addEventListener('scroll',reposition,{capture:true,passive:true,signal:controller.signal});
     const observer=new view.ResizeObserver(reposition);observer.observe(container);
-    function destroy(){cancelVoice();controller.abort();observer.disconnect();if(frame!==null)view.cancelAnimationFrame(frame);}
+    function destroy(){cancelVoice();onDockHeight(0);controller.abort();observer.disconnect();if(frame!==null)view.cancelAnimationFrame(frame);}
     return {setSelection,setState,clear,reposition,focusText,cancelVoice,stopVoice,destroy,selectionGeneration:()=>selectionGeneration};
   }
   const api={create,summary,sizeModel,nextSize,selectionLabel,frameAnchor,toolbarPosition};

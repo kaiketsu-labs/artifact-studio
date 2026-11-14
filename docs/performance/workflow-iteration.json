@@ -1,0 +1,751 @@
+{
+  "baseline_revision": "49f2376",
+  "candidate_parent_revision": "49f23762d39aa1d1805a0239976b40cd1aae0a3f",
+  "candidate_dirty": true,
+  "measurement": "Actual UTF-8 serialized HTTP JSON bodies, compact MCP JSON, and response text; image payload sizes separate. Not network wire bytes or provider tokens.",
+  "paired_runs": {
+    "baseline": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 50,
+      "tool_calls": 47,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34673,
+        "request_parameters_utf8_bytes": 31832,
+        "response_http_body_utf8_bytes": 458243,
+        "response_mcp_json_utf8_bytes": 456538,
+        "response_nonimage_json_utf8_bytes": 241198,
+        "response_text_utf8_bytes": 105079
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 3909.4689999999996
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 270.256
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 158.80700000000002
+        },
+        "validation": {
+          "calls": 5,
+          "rpc_wall_ms": 3522.694
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 8715.897,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples",
+        "exact concurrent human note preserved after stale rejection/re-read",
+        "stale human chat409 then explicit current-version retry200",
+        "assigned request claimed and replied",
+        "editor writes only through MCP"
+      ],
+      "initialization_and_schema": [
+        {
+          "method": "initialize",
+          "elapsed_ms": 9.596,
+          "request_http_body_utf8_bytes": 163,
+          "response_http_body_utf8_bytes": 524,
+          "response_mcp_json_utf8_bytes": 490
+        },
+        {
+          "method": "notifications/initialized",
+          "elapsed_ms": 2.991,
+          "request_http_body_utf8_bytes": 54,
+          "response_http_body_utf8_bytes": 0,
+          "response_mcp_json_utf8_bytes": 2
+        },
+        {
+          "method": "tools/list",
+          "elapsed_ms": 8.293,
+          "request_http_body_utf8_bytes": 58,
+          "response_http_body_utf8_bytes": 36157,
+          "response_mcp_json_utf8_bytes": 36123
+        }
+      ],
+      "method_counts": {
+        "add_slide": 12,
+        "capture_slide": 3,
+        "claim_feedback": 1,
+        "get_authoring_guide": 2,
+        "get_presentation_outline": 14,
+        "get_slide": 6,
+        "get_working_context": 1,
+        "initialize": 1,
+        "notifications/initialized": 1,
+        "read_feedback": 3,
+        "reply_to_feedback": 1,
+        "revise_slide": 4,
+        "tools/list": 1
+      },
+      "guide_checkpoint": [
+        {
+          "known_hash_supplied": false,
+          "guide_included": null,
+          "guide_string_characters": 1698,
+          "response_text_utf8_bytes": 10698
+        },
+        {
+          "known_hash_supplied": false,
+          "guide_included": null,
+          "guide_string_characters": 1698,
+          "response_text_utf8_bytes": 10698
+        }
+      ]
+    },
+    "candidate": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 50,
+      "tool_calls": 47,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34737,
+        "request_parameters_utf8_bytes": 31896,
+        "response_http_body_utf8_bytes": 456737,
+        "response_mcp_json_utf8_bytes": 455032,
+        "response_nonimage_json_utf8_bytes": 239692,
+        "response_text_utf8_bytes": 104329
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 4019.453
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 275.569
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 157.524
+        },
+        "validation": {
+          "calls": 5,
+          "rpc_wall_ms": 4298.628
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 9572.525,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples",
+        "exact concurrent human note preserved after stale rejection/re-read",
+        "stale human chat409 then explicit current-version retry200",
+        "assigned request claimed and replied",
+        "editor writes only through MCP"
+      ],
+      "initialization_and_schema": [
+        {
+          "method": "initialize",
+          "elapsed_ms": 9.777,
+          "request_http_body_utf8_bytes": 163,
+          "response_http_body_utf8_bytes": 524,
+          "response_mcp_json_utf8_bytes": 490
+        },
+        {
+          "method": "notifications/initialized",
+          "elapsed_ms": 3.257,
+          "request_http_body_utf8_bytes": 54,
+          "response_http_body_utf8_bytes": 0,
+          "response_mcp_json_utf8_bytes": 2
+        },
+        {
+          "method": "tools/list",
+          "elapsed_ms": 6.499,
+          "request_http_body_utf8_bytes": 58,
+          "response_http_body_utf8_bytes": 36157,
+          "response_mcp_json_utf8_bytes": 36123
+        }
+      ],
+      "method_counts": {
+        "add_slide": 12,
+        "capture_slide": 3,
+        "claim_feedback": 1,
+        "get_authoring_guide": 2,
+        "get_presentation_outline": 14,
+        "get_slide": 6,
+        "get_working_context": 1,
+        "initialize": 1,
+        "notifications/initialized": 1,
+        "read_feedback": 3,
+        "reply_to_feedback": 1,
+        "revise_slide": 4,
+        "tools/list": 1
+      },
+      "guide_checkpoint": [
+        {
+          "known_hash_supplied": false,
+          "guide_included": true,
+          "guide_string_characters": 2045,
+          "response_text_utf8_bytes": 11155
+        },
+        {
+          "known_hash_supplied": true,
+          "guide_included": false,
+          "guide_string_characters": 0,
+          "response_text_utf8_bytes": 9111
+        }
+      ]
+    }
+  },
+  "sample_selection": "Final fresh matched pair after hosted guide-hash fix, with one identical review/resume guide checkpoint per source (two guide reads each). Prior 49-call runs are distinct validation workloads; no fastest-run selection. Only this 50-call pair supplies the final comparison table.",
+  "source_fingerprints": {
+    "baseline": {
+      "agent/bootstrap.md": {
+        "sha256": "c9a2016b70f4710764070f3a4403364c5fe47e39c2759a9c1534b3f021468d45",
+        "bytes": 2308
+      },
+      "artifact_studio/agent_io.py": {
+        "sha256": "0611f5852fb030438ce3517302f5f36c58a2233233b8db2cf81e6197dea03487",
+        "bytes": 5080
+      },
+      "artifact_studio/multiplayer_tools.py": {
+        "sha256": "907e84a8ecd28efd61626fe14888da61140ba6673897543a1f0874bc12cbaa2c",
+        "bytes": 47633
+      },
+      "artifact_studio/app.py": {
+        "sha256": "5e18bbf7fa06c69965135d80ccbea0416763698845d2380ac199e006cdcc7177",
+        "bytes": 93872
+      },
+      "web/app.js": {
+        "sha256": "c55347e944b3bb5e971beb0996fee715e446b4e9973b0732163302aeeeb2ba8f",
+        "bytes": 160515
+      },
+      "web/index.html": {
+        "sha256": "3cc81616f0238110f02d3cd72a7457e14e611ecdaf8e6a71efd20173a9118437",
+        "bytes": 36259
+      },
+      "web/native-conversation.js": {
+        "sha256": "afe3d763ab1f154ba242150bc2172193fa219bbe416001e7ad64563fe21f75fc",
+        "bytes": 12080
+      },
+      "web/style.css": {
+        "sha256": "fd6d8b6b6ab6e5fcbd32a074a3530477e567ba3b932d01d0c24ac3709998cf4f",
+        "bytes": 39001
+      },
+      "scripts/workflow_iteration.py": {
+        "sha256": "82dd283e13ef28026c458b7788853804564f75ec6cde58d360b971f9a6ae76ec",
+        "bytes": 11734
+      },
+      "scripts/benchmark_hosted_iteration.py": {
+        "sha256": "97f808a44d38336cab0a776ce80fbe283130d8a9ae75d9ea951dc2c4cb474567",
+        "bytes": 14435
+      },
+      "uv.lock": {
+        "sha256": "5acdec1db87f397743398af0a83678fdcee1ba5efa5d74ab8708032bbb0a6474",
+        "bytes": 147488
+      }
+    },
+    "candidate": {
+      "agent/bootstrap.md": {
+        "sha256": "0de1b507b443b7f1ea64779d9a9427df115c178e3c9874926f8f894e8e858765",
+        "bytes": 2502
+      },
+      "artifact_studio/agent_io.py": {
+        "sha256": "875ad23a460261218b33653199f559dfc9d33988e639218608b7d05f719cfad0",
+        "bytes": 5662
+      },
+      "artifact_studio/multiplayer_tools.py": {
+        "sha256": "4196c90cef9f77ba337fc37f1081a4f321539fcdaa107c5969c88f56f061d7c5",
+        "bytes": 48519
+      },
+      "artifact_studio/app.py": {
+        "sha256": "3b91c0a385ca9ac9a50fbb0f15a656fca2870ae0bc2fd4e0c25f3e45f72b73cd",
+        "bytes": 93938
+      },
+      "web/app.js": {
+        "sha256": "6c545a934eef8667f5b19807079254a03babae7566b66e330969d1f306b993fb",
+        "bytes": 165466
+      },
+      "web/draft-recovery.js": {
+        "sha256": "13a7c96802c99f61f6856097c4156e31abb54058d1e1e7777f3d6074c447ad74",
+        "bytes": 891
+      },
+      "web/index.html": {
+        "sha256": "88aefd3a02d6c9a28183eb24a36a56c82d94d7f96518610c995287c8b3752a29",
+        "bytes": 36594
+      },
+      "web/native-conversation.js": {
+        "sha256": "dc4d44a98f98f758315a74036996da8fc00b1b84df5d9bbc5dbea93cf55c7c36",
+        "bytes": 12479
+      },
+      "web/style.css": {
+        "sha256": "ecf2dbd15f8a85896929b9f0dc57246000555d920f5e128968f5e2d274b56727",
+        "bytes": 39297
+      },
+      "scripts/workflow_iteration.py": {
+        "sha256": "82dd283e13ef28026c458b7788853804564f75ec6cde58d360b971f9a6ae76ec",
+        "bytes": 11734
+      },
+      "scripts/benchmark_hosted_iteration.py": {
+        "sha256": "97f808a44d38336cab0a776ce80fbe283130d8a9ae75d9ea951dc2c4cb474567",
+        "bytes": 14435
+      },
+      "uv.lock": {
+        "sha256": "5acdec1db87f397743398af0a83678fdcee1ba5efa5d74ab8708032bbb0a6474",
+        "bytes": 147488
+      }
+    }
+  },
+  "environment": {
+    "python": "3.14.8",
+    "mcp": "2.3.0",
+    "playwright": "1.65.0",
+    "executable": "/workspace/artifact-studio/.venv/bin/python",
+    "module_provenance": {
+      "baseline": "/tmp/studio-iteration-baseline/artifact_studio/__init__.py",
+      "candidate": "/workspace/artifact-studio/artifact_studio/__init__.py"
+    },
+    "browser": "System Chromium 155.0.8059.79; explicit test-only executable adapter; sandbox retained"
+  },
+  "exploratory_run_snapshot": {
+    "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+    "calls": 100,
+    "tool_calls": 85,
+    "initializations": 5,
+    "schema_discoveries": 5,
+    "transport_errors": 0,
+    "tool_errors": 3,
+    "jsonrpc_errors": 0,
+    "totals": {
+      "image_base64_utf8_bytes": 188948,
+      "image_decoded_bytes": 141707,
+      "request_http_body_utf8_bytes": 53042,
+      "request_parameters_utf8_bytes": 47383,
+      "response_http_body_utf8_bytes": 732624,
+      "response_mcp_json_utf8_bytes": 729345,
+      "response_nonimage_json_utf8_bytes": 540437,
+      "response_text_utf8_bytes": 181846
+    },
+    "phases": {
+      "authoring": {
+        "calls": 37,
+        "rpc_wall_ms": 6846.7970000000005
+      },
+      "conflict": {
+        "calls": 5,
+        "rpc_wall_ms": 272.342
+      },
+      "context": {
+        "calls": 21,
+        "rpc_wall_ms": 749.162
+      },
+      "editor": {
+        "calls": 5,
+        "rpc_wall_ms": 87.696
+      },
+      "review-corrections": {
+        "calls": 28,
+        "rpc_wall_ms": 1968.42
+      },
+      "validation": {
+        "calls": 4,
+        "rpc_wall_ms": 4251.316
+      }
+    },
+    "tokens": {
+      "provider_usage": null,
+      "text_estimate": null,
+      "reason": "No legitimate local tokenizer resource established"
+    }
+  },
+  "decisions": [
+    {
+      "phase": "context",
+      "goal": "Establish scope and safe authoring",
+      "evidence": "Connected tools/list; working context; locally retained workflow guide; candidate returns guide hash and suppresses repeated body",
+      "choice": "One persistent peer per logical session, discover schemas once, retain guidance locally",
+      "alternative": "Restart a peer for every call",
+      "workaround": "None in product; loopback server required authorized sandbox escalation",
+      "classification": "production MCP operations plus fixture networking",
+      "outcome": "Paired runs each initialize once and discover schema once"
+    },
+    {
+      "phase": "visual sample",
+      "goal": "Inspect composition before expansion",
+      "evidence": "capture_slide returned renderer-not-installed twice",
+      "choice": "Stop expansion, fix test renderer selection, inspect cover image",
+      "alternative": "Skip mandatory visual check",
+      "workaround": "Test-only BrowserType.launch selects installed /usr/bin/chromium155; sandbox retained",
+      "classification": "fixture accommodation, no production readiness bypass",
+      "outcome": "Official matching browser download 403; no mirror attempted; actual captures succeeded after adapter"
+    },
+    {
+      "phase": "authoring",
+      "goal": "Build same 14-slide fictional story",
+      "evidence": "Source hashes, add receipts and fresh outlines",
+      "choice": "Use hosted patch_json/slide_json and server-produced insertion guards",
+      "alternative": "Guess section hashes or directly write canonical source",
+      "workaround": "None; all editor source writes use scoped MCP",
+      "classification": "production capability",
+      "outcome": "14 slides including hidden appendix, editable SVG diagram, comparison table and concrete exercise"
+    },
+    {
+      "phase": "independent review",
+      "goal": "Correct audience clarity and thin content",
+      "evidence": "Reviewer reported sparse repeated layouts and missing exercise",
+      "choice": "Revise HTML for diagram, comparison and concrete 60-second exercise",
+      "alternative": "Treat source validity as sufficient",
+      "workaround": "Some race probes first changed only title metadata; later probes changed visible HTML",
+      "classification": "ordinary authoring correction plus explicit race probes",
+      "outcome": "Public fictional narrative improved; narrow-screen text still small"
+    },
+    {
+      "phase": "concurrency",
+      "goal": "Preserve human note and exact-version approval",
+      "evidence": "Held slide hash, human note saved, MCP conflict result",
+      "choice": "Reject stale write, reread complete source, submit focused title patch",
+      "alternative": "Force overwrite",
+      "workaround": "Paired script injects only simulated human note via Store; autonomous owner uses real UI",
+      "classification": "production revision guards; labeled test-only human race injection",
+      "outcome": "Expected single tool error in each paired run; exact note preserved; UI approval invalidated"
+    },
+    {
+      "phase": "draft recovery",
+      "goal": "Retain work across stale/repeated versions and lost acknowledgment",
+      "evidence": "Owner/reviewer browser409, recovery actions and dropped-response interceptor",
+      "choice": "Explicit review, version confirmation, explicit Send; uncertain delivery retries identical payload/request ID",
+      "alternative": "Reload and retype or silently retarget/send",
+      "workaround": "Browser interceptor deliberately drops one successful response; fixture restarts are separate outages",
+      "classification": "product recovery exercised with test-only fault injection",
+      "outcome": "Owner confirms preserved draft/address and exact-payload retry; server continues guarding further unseen changes"
+    },
+    {
+      "phase": "measurement",
+      "goal": "Separate causal source comparison from policy changes",
+      "evidence": "Same fixed workload against archived 49f2376 and frozen candidate",
+      "choice": "Publish atomic call aggregates and fingerprints; separate original trace and historical policy benchmark",
+      "alternative": "Claim117-to49 as a controlled saving",
+      "workaround": "Existing interpreter reused for archived source; official tokenizer resource unavailable",
+      "classification": "measurement harness",
+      "outcome": "Matched response text decreases 750 bytes; actual model tokens remain unknown"
+    }
+  ],
+  "limitations": [
+    "One final observation per source version; no statistical latency conclusion",
+    "Human HTTP/browser traffic, connection provisioning, renderer download and harness tool traffic excluded from MCP totals",
+    "One simulated human note uses fixture Store API; no editor canonical-source writes bypass MCP",
+    "No provider prompt/cache/reasoning/billed tokens or image-token counts available",
+    "No legitimate installed tokenizer resource established; prior official rank download 403; no mirror/bypass",
+    "Artifact-scoped context intentionally omits workspace rules; retained workspace-rule cache is not exercised by this scope",
+    "Historical117-call trace and12-slide policy benchmark are separate workloads and cannot establish a causal saving here"
+  ],
+  "prior_validation_runs": {
+    "first_baseline": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 49,
+      "tool_calls": 46,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34537,
+        "request_parameters_utf8_bytes": 31753,
+        "response_http_body_utf8_bytes": 439211,
+        "response_mcp_json_utf8_bytes": 437541,
+        "response_nonimage_json_utf8_bytes": 222201,
+        "response_text_utf8_bytes": 94379
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 3728.3979999999997
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 260.088
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 176.68699999999998
+        },
+        "validation": {
+          "calls": 4,
+          "rpc_wall_ms": 3619.195
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 8689.798,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples"
+      ]
+    },
+    "recorder_aligned_baseline": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 49,
+      "tool_calls": 46,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34537,
+        "request_parameters_utf8_bytes": 31753,
+        "response_http_body_utf8_bytes": 439217,
+        "response_mcp_json_utf8_bytes": 437547,
+        "response_nonimage_json_utf8_bytes": 222207,
+        "response_text_utf8_bytes": 94382
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 3514.5910000000003
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 253.257
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 206.424
+        },
+        "validation": {
+          "calls": 4,
+          "rpc_wall_ms": 3637.791
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 8400.408,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples"
+      ]
+    },
+    "first_candidate": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 49,
+      "tool_calls": 46,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34537,
+        "request_parameters_utf8_bytes": 31753,
+        "response_http_body_utf8_bytes": 440661,
+        "response_mcp_json_utf8_bytes": 438991,
+        "response_nonimage_json_utf8_bytes": 223651,
+        "response_text_utf8_bytes": 95107
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 6565.532
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 383.877
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 282.965
+        },
+        "validation": {
+          "calls": 4,
+          "rpc_wall_ms": 5923.156
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 14227.674,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples"
+      ]
+    },
+    "pre_guide_fix_baseline": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 49,
+      "tool_calls": 46,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34537,
+        "request_parameters_utf8_bytes": 31753,
+        "response_http_body_utf8_bytes": 439207,
+        "response_mcp_json_utf8_bytes": 437537,
+        "response_nonimage_json_utf8_bytes": 222197,
+        "response_text_utf8_bytes": 94377
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 3638.236
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 296.158
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 154.721
+        },
+        "validation": {
+          "calls": 4,
+          "rpc_wall_ms": 4355.0160000000005
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 9202.563,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples"
+      ]
+    },
+    "pre_guide_fix_candidate": {
+      "scope": "Actual recorded hosted MCP transport; provider usage unavailable",
+      "calls": 49,
+      "tool_calls": 46,
+      "initializations": 1,
+      "schema_discoveries": 1,
+      "transport_errors": 0,
+      "tool_errors": 1,
+      "jsonrpc_errors": 0,
+      "totals": {
+        "image_base64_utf8_bytes": 215228,
+        "image_decoded_bytes": 161418,
+        "request_http_body_utf8_bytes": 34537,
+        "request_parameters_utf8_bytes": 31753,
+        "response_http_body_utf8_bytes": 440663,
+        "response_mcp_json_utf8_bytes": 438993,
+        "response_nonimage_json_utf8_bytes": 223653,
+        "response_text_utf8_bytes": 95108
+      },
+      "phases": {
+        "authoring": {
+          "calls": 31,
+          "rpc_wall_ms": 3719.993
+        },
+        "conflict": {
+          "calls": 7,
+          "rpc_wall_ms": 304.584
+        },
+        "context": {
+          "calls": 7,
+          "rpc_wall_ms": 170.545
+        },
+        "validation": {
+          "calls": 4,
+          "rpc_wall_ms": 3673.696
+        }
+      },
+      "tokens": {
+        "provider_usage": null,
+        "text_estimate": null,
+        "reason": "No legitimate local tokenizer resource established"
+      },
+      "workflow_wall_ms": 8709.045,
+      "final_slide_count": 14,
+      "assertions": [
+        "14 slides",
+        "source verified",
+        "three visual samples"
+      ]
+    }
+  },
+  "ui_followup_note": "After the MCP measurement, narrow toolbar docking and measured spacing were independently verified at 390x844. UI fingerprints below identify that verified source; these UI changes do not alter the paired MCP workload.",
+  "ui_verification_source_fingerprints": {
+    "web/app.js": {
+      "sha256": "6c545a934eef8667f5b19807079254a03babae7566b66e330969d1f306b993fb",
+      "bytes": 165466
+    },
+    "web/draft-recovery.js": {
+      "sha256": "13a7c96802c99f61f6856097c4156e31abb54058d1e1e7777f3d6074c447ad74",
+      "bytes": 891
+    },
+    "web/element-properties.js": {
+      "sha256": "d5ae95c9e9a02cbdddd5008617979377b33d96f7a9081e585c609df5307d2043",
+      "bytes": 17085
+    },
+    "web/native-conversation.js": {
+      "sha256": "dc4d44a98f98f758315a74036996da8fc00b1b84df5d9bbc5dbea93cf55c7c36",
+      "bytes": 12479
+    },
+    "web/index.html": {
+      "sha256": "88aefd3a02d6c9a28183eb24a36a56c82d94d7f96518610c995287c8b3752a29",
+      "bytes": 36594
+    },
+    "web/style.css": {
+      "sha256": "ecf2dbd15f8a85896929b9f0dc57246000555d920f5e128968f5e2d274b56727",
+      "bytes": 39297
+    },
+    "tests/test_draft_recovery_browser.py": {
+      "sha256": "f7601d5b69222d013257d79213b556c9352b4c3732ff887785b3c574d515be42",
+      "bytes": 17260
+    }
+  },
+  "ui_evidence": {
+    "draft_recovery": "workflow-iteration/draft-recovery.png",
+    "uncertain_delivery": "workflow-iteration/uncertain-delivery.png",
+    "narrow_selection": "workflow-iteration/narrow-selection.png",
+    "scope": "Fictional browser fixtures; no native-app or physical-display claim"
+  }
+}

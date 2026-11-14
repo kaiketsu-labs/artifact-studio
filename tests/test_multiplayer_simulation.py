@@ -183,6 +183,26 @@ def test_shared_history_requires_owner_opt_in_and_preserves_agent_tasks(tmp_path
             assert retained_guide["guide"] == ""
             context = peer.value("get_working_context", **args)
             assert "rules_hash" not in context
+            sizing = cast(dict[str, str], context["presentation_sizing"])
+            assert sizing["aspect_ratio"] == "16:9"
+            assert "100%" in sizing["layout"] and "cqw" in sizing["layout"]
+            workflow = peer.value("get_authoring_guide", topic="workflow")
+            assert "slide_json" in cast(str, workflow["guide"])
+            assert "expected_sections_hash" in cast(str, workflow["guide"])
+            for topic in ("workflow", "live_review"):
+                initial = peer.value("get_authoring_guide", topic=topic)
+                assert initial["guide_included"] is True and initial["guide"]
+                retained = peer.value(
+                    "get_authoring_guide", topic=topic, known_hash=initial["guide_hash"]
+                )
+                assert retained["guide_included"] is False and retained["guide"] == ""
+                assert retained["guide_hash"] == initial["guide_hash"]
+                stale = peer.value("get_authoring_guide", topic=topic, known_hash="stale")
+                assert stale["guide_included"] is True and stale["guide"] == initial["guide"]
+                metadata = set(initial) - {"guide", "guide_hash", "guide_included"}
+                assert metadata
+                for key in metadata:
+                    assert retained[key] == stale[key] == initial[key]
             attachment = {**args, "event_id": shared.json()["id"], "file_index": 0}
 
             def history(channel: str) -> list[str]:

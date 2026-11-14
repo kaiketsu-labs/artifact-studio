@@ -222,6 +222,18 @@ left to widen the panel on desktop. Messages in Agent and their replies stay
 private. If you have comments saved by the earlier batch
 workflow, a **Send queued comments** button is shown in that conversation.
 
+If a slide changes while you are drafting an agent request, choose **Review
+current slide**, inspect it, then **Use this version**. This preserves your text,
+attachments and destination; **Send** remains a separate action. Selected-object
+requests require you to reselect the objects. Voice and proposal edits retain
+their original anchors and must be recreated when those anchors are stale.
+
+If delivery is unconfirmed, editing that draft pauses. Press **Send** again to
+retry the original request with the same ID, payload and destination. Switching
+slides or conversations is still possible. This retry state belongs to the open
+page; it is not durable across a reload. After reloading, check the conversation
+before recreating an uncertain message.
+
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
    Access, and complete MFA. The regular library opens at **All artifacts**.
    Select a project in the sidebar to see its work.

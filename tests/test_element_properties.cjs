@@ -54,3 +54,25 @@ test('toolbar stays within viewport at each edge and flips below near the top',(
   assert.ok(toolbarPosition({left:20,top:5,width:20,height:20},size,viewport).top>=25);
   assert.ok(toolbarPosition({left:20,top:-300,width:20,height:20},size,viewport).top>=0);
 });
+
+test('narrow fitted slide keeps formatting outside its selectable objects',()=>{
+  const bounds={left:12,top:150,width:366,height:206};
+  const anchor={left:30,top:162,width:250,height:24,bounds};
+  const size={width:374,height:76};
+  const point=toolbarPosition(anchor,size,{width:390,height:844});
+  assert.ok(point.top>=bounds.top+bounds.height);
+  assert.ok(point.top+size.height<=844-48);
+  assert.ok(point.left>=8&&point.left+size.width<=390-8);
+  const desktop=toolbarPosition(anchor,size,{width:1000,height:844});
+  assert.ok(desktop.top<bounds.top+bounds.height);
+});
+
+test('narrow toolbar stays visible when its preview is scrolled offscreen',()=>{
+  const size={width:374,height:76},viewport={width:390,height:844};
+  for(const frameTop of [-1000,1000]){
+    const bounds={left:12,top:frameTop,width:366,height:206};
+    const point=toolbarPosition({left:30,top:frameTop+100,width:250,height:24,bounds},size,viewport);
+    assert.ok(point.top>=8);
+    assert.ok(point.top+size.height<=viewport.height-48);
+  }
+});

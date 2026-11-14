@@ -196,6 +196,7 @@ jobs:
               tests/test_scoped_presentation_creation.py
               tests/integration/test_presentation_authoring.py
               tests/test_multiplayer_browser_owner.py
+              tests/test_draft_recovery_browser.py
               tests/test_offline_shell_browser.py
               tests/integration/test_element_properties_layout.py
               tests/integration/test_favorite_preview_lifecycle.py

@@ -83,6 +83,13 @@ The visual-review example uses the production snapshot sanitizer, readiness hook
 
 The logo and conceptual [workflow diagram](../assets/workflow.svg) are artwork, not app screenshots, and are kept separately.
 
+The [workflow iteration evidence](../performance/workflow-iteration.md#captured-fixes)
+shows actual fictional hosted/browser fixtures: explicit stale-draft recovery,
+an intentionally dropped send response, and narrow-screen formatting with Notes
+and Sources unobstructed. Its report distinguishes browser fault injection and
+measurement setup from product behavior; the README keeps the original Pixel
+Studio presentation illustrations.
+
 [capture_chat_references.py](../../scripts/capture_chat_references.py) captures
 the actual [cursor preview](chat-reference-hover.png), [compact draft pills](chat-reference-chips.png),
 [sent pills](chat-reference-sent.png) and [dark narrow artifact composer](chat-reference-artifact-mobile.png)

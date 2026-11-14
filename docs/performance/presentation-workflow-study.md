@@ -46,7 +46,7 @@ The author's local MCP log recorded 117 JSON-RPC requests: 93,874 request-body b
 | Screenshot returned as raw bytes | A reviewer REPL printed PNG bytes into its tool output, adding harness noise outside MCP. | Save the image to a file and return only its path or compact metadata. |
 | Agent status showed unavailable | The fixture had a scoped MCP peer but no listening host hook, so a status indicator alone did not mean this editor was running. | Distinguish a connected credential from an active listener in the workflow and use assigned requests. |
 
-These are observations and suggested improvements, not claims that product optimizations were implemented. The separate benchmark has different units and scope; its results should not be added to these transport totals.
+These were observations and suggested improvements at the end of the first pass. The [follow-up implementation and rerun](workflow-iteration.md) records the resulting fixes, independent browser checks, agent workarounds and matched source comparison. The separate benchmarks have different units and scope; their results should not be added to these transport totals.
 
 ## Original design restored after user review
 

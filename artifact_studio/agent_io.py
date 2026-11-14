@@ -7,6 +7,20 @@ from typing import cast
 from .models import Deck, DeckReceipt, FeedbackFeed, SlideReceipt, SlideView
 
 
+def presentation_sizing() -> dict[str, str]:
+    """Explain the authoring surface across editor, capture and presentation views."""
+    return {
+        "aspect_ratio": "16:9",
+        "layout": (
+            "Slide viewports vary by surface and window. For static html, size the slide root "
+            "to 100% "
+            "and use container-relative dimensions (for example cqw) for layout and text; "
+            "do not assume the displayed viewport is 1600x900."
+        ),
+        "review": "Capture and inspect a representative slide before expanding the deck.",
+    }
+
+
 def compact_source_references(context: dict[str, object]) -> None:
     """Reference only exact selected-file provenance in this same response snapshot."""
     design = context.get("design_context")
