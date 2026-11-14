@@ -32,6 +32,13 @@ KEY = "artifact-studio-invitation-handoff-v1"
 ORIGIN = "https://studio.example.test"
 LOGIN = "https://login.example.test"
 
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
+    ),
+]
+
 
 class FixtureAuth:
     async def authenticate(self, headers: Headers) -> Principal:
@@ -420,7 +427,7 @@ def test_project_invitation_opens_that_project_with_existing_other_access(
     invitation = sharing.invite(
         owner, Scope("default", "project", target_project), "alice@example.test", "view"
     )
-    with browser_journey(app) as journey:
+    with browser_journey(app, width=320, dark=True) as journey:
         page = journey.page
         page.goto(ORIGIN + "/_invitation#invite=" + invitation["token"])
         page.get_by_role("button", name="Continue to sign in").click()
@@ -433,5 +440,11 @@ def test_project_invitation_opens_that_project_with_existing_other_access(
             expect(page.locator("#catalog")).to_contain_text("Empty fictional project")
             expect(page.locator("#editor")).to_be_hidden()
             expect(page).to_have_url(ORIGIN + "/?workspace=default&project=" + target_project)
+            assert page.locator("#catalog").evaluate(
+                "catalog=>[...catalog.children].every(section=>{"
+                "const parent=catalog.getBoundingClientRect();"
+                "const child=section.getBoundingClientRect();"
+                "return child.left>=parent.left&&child.right<=parent.right;})"
+            )
         else:
             expect(page.locator("#artifact-title")).to_have_text(target.title)
