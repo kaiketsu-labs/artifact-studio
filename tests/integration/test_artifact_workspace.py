@@ -79,7 +79,10 @@ def test_artifact_live_connection_preserves_draft_when_review_ends(
     page.emulate_media(color_scheme=theme)
     page.goto(f"{live_app.url}/?artifact={item.id}")
     status = page.locator("#hub-agent-status")
-    expect(status).to_have_text("Agent connected")
+    expect(status).to_have_text("Codex connected · session browser-")
+    expect(status).to_have_accessible_name(
+        "Agent connection status: Codex connected · session browser-"
+    )
     expect(page.get_by_role("button", name="End review", exact=True)).to_be_visible()
     feedback = page.get_by_role("textbox", name="Feedback for Fictional page")
     feedback.fill("A new request")
@@ -103,7 +106,10 @@ def test_artifact_live_connection_preserves_draft_when_review_ends(
     assert not reviews.bind(body).listening
     assert reviews.bind(body.model_copy(update={"start_review": True})).listening
     page.reload()
-    expect(status).to_have_text("Agent connected")
+    expect(status).to_have_text("Codex connected · session browser-")
+    expect(status).to_have_accessible_name(
+        "Agent connection status: Codex connected · session browser-"
+    )
 
 
 @pytest.mark.parametrize("markdown", [False, True], ids=["html", "markdown"])

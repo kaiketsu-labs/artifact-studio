@@ -2,6 +2,7 @@
 
 import os
 import re
+from typing import Literal
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -54,7 +55,11 @@ def test_agent_availability_and_copy_have_accessible_names(
     _ = page.reload(wait_until="networkidle")
     expect(status).to_have_text("Agent connected")
     reviews = Reviews(live_app.store)
-    for harness in ("codex", "claude-code"):
+    harnesses: list[tuple[Literal["codex", "claude-code"], str]] = [
+        ("codex", "Codex"),
+        ("claude-code", "Claude Code"),
+    ]
+    for harness, label in harnesses:
         reviews.disconnect(DECK_ID)
         _ = reviews.bind(
             ReviewHookInput(
@@ -66,7 +71,10 @@ def test_agent_availability_and_copy_have_accessible_names(
             )
         )
         _ = page.reload(wait_until="networkidle")
-        expect(status).to_have_text("Agent connected")
+        details = f"{label} connected · session accessib"
+        expect(status).to_have_text(details)
+        expect(status).to_have_attribute("title", details)
+        expect(status).to_have_accessible_name("Agent connection status: " + details)
     copy = page.get_by_role("button", name="Copy conversation", exact=True)
     expect(copy).to_be_visible()
     copy.focus()
