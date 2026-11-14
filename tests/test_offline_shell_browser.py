@@ -4,11 +4,12 @@ import functools
 import http.server
 import os
 import threading
+import time
 from pathlib import Path
 from typing import cast
 
 import pytest
-from playwright.sync_api import Route, sync_playwright
+from playwright.sync_api import Error, Frame, Page, Route, sync_playwright
 
 pytestmark = [
     pytest.mark.browser,
@@ -16,6 +17,22 @@ pytestmark = [
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+def visible_preview(page: Page, text: str) -> Frame:
+    """Reacquire the sandbox frame while its srcdoc navigation replaces the old document."""
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        element = page.locator("#preview").element_handle()
+        frame = element.content_frame() if element else None
+        try:
+            if frame and text in frame.content() and frame.locator("h1").is_visible():
+                return frame
+        except Error:
+            pass  # The srcdoc can be replaced while it is inspected.
+        page.wait_for_timeout(50)
+    detail = frame.content() if frame else "no frame"
+    raise AssertionError(f"The offline preview did not render {text!r}: {detail[:500]}")
 
 
 def test_saved_shell_opens_and_queues_while_offline() -> None:
@@ -97,13 +114,19 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             page.wait_for_function(
                 "document.querySelector('#status').textContent === 'Available on this device.'"
             )
-            original_frame = page.frame_locator("#preview")
-            original_frame.get_by_text("Original").wait_for()
+            page.locator("#preview").scroll_into_view_if_needed()
+            original_frame = visible_preview(page, "Original")
             assert original_frame.locator("h1").evaluate("e => getComputedStyle(e).color") == (
                 "rgb(12, 34, 56)"
             )
             original_frame.locator("img").wait_for()
             assert original_frame.locator("img").evaluate("e => e.complete && e.naturalWidth > 0")
+            old_preview = page.locator("#preview").element_handle()
+            assert old_preview is not None
+            page.locator("#source").fill("<h1>Rapid first</h1>")
+            page.locator("#source").fill("<h1>Rapid final</h1>")
+            _ = visible_preview(page, "Rapid final")
+            assert not old_preview.evaluate("element => element.isConnected")
             page.locator("#source").fill("<h1>Offline edit</h1>")
             page.locator("#save-edit").scroll_into_view_if_needed()
             page.locator("#save-edit").click()
@@ -134,7 +157,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             assert page.locator("#outbox li").count() == 2
             assert "Offline edit" in (page.locator("#preview").get_attribute("srcdoc") or "")
             page.locator("#preview").scroll_into_view_if_needed()
-            page.frame_locator("#preview").get_by_text("Offline edit").wait_for()
+            _ = visible_preview(page, "Offline edit")
             old_tab = page
             context.set_offline(False)
             page.route(
@@ -284,8 +307,11 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             page.wait_for_function(
                 "document.querySelector('#source').value.includes('Offline edit')"
             )
+            prior_preview = page.locator("#preview").element_handle()
+            assert prior_preview is not None
             page.route("**/api/session", lambda route: route.fulfill(status=401))
             page.evaluate("document.querySelector('#decks').dispatchEvent(new Event('change'))")
+            assert not prior_preview.evaluate("element => element.isConnected")
             page.wait_for_function(
                 "document.querySelector('#status').textContent.includes('Sign in')"
             )
@@ -345,6 +371,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             page.goto(origin + "/web/offline.html")
             page.wait_for_function(
                 "document.querySelector('#status').textContent.includes('account changed')"
+                " || document.querySelector('#status').textContent.includes('Saved data cleared')"
             )
             assert page.locator("#source").input_value() == ""
             assert page.locator("#decks option").count() == 0

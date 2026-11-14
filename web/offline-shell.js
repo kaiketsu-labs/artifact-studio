@@ -5,6 +5,8 @@
   let entries=[],store=null,record=null,selection=0,conflict=null,syncing=false,deliveryController=null;
   try{const active=localStorage.getItem(ACTIVE);entries=JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===active&&/^[a-f0-9]{64}$/.test(item.scope)&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session));}catch{}
   function message(text){$('status').textContent=text;}
+  function clearFrame(id){const old=$(id);if(!old)return;const next=old.cloneNode(false);next.removeAttribute('srcdoc');old.replaceWith(next);}
+  function renderFrame(id,source){const old=$(id);if(!old)return;const next=old.cloneNode(false);next.srcdoc=previewDocument(source,old);old.replaceWith(next);}
   function closeRecovery(){$('recovery').hidden=true;$('recovery-list').replaceChildren();}
   function recoveryEntries(){
     const scope=localStorage.getItem(ACTIVE);if(!/^[a-f0-9]{64}$/.test(scope||''))return [];
@@ -33,8 +35,8 @@
       $('recovery').hidden=false;message(drafts.length?'Your saved drafts are ready to copy.':'No saved drafts remain on this device.');
     }catch(error){closeRecovery();message(error.message);}finally{$('recover-drafts').disabled=false;}
   }
-  function resetConflict(){conflict=null;$('conflict').hidden=true;for(const id of ['conflict-base','conflict-current','conflict-draft'])$(id).textContent='';for(const id of ['conflict-base-preview','conflict-current-preview','conflict-draft-preview']){const frame=$(id);if(frame)frame.srcdoc='';}}
-  function forget(){selection++;closeRecovery();$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';$('preview').srcdoc='';$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
+  function resetConflict(){conflict=null;$('conflict').hidden=true;for(const id of ['conflict-base','conflict-current','conflict-draft'])$(id).textContent='';for(const id of ['conflict-base-preview','conflict-current-preview','conflict-draft-preview'])clearFrame(id);}
+  function forget(){selection++;closeRecovery();$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
   const purgeChannel=new BroadcastChannel('artifact-studio-offline-purge-v1');
   purgeChannel.onmessage=event=>{if(event.data==='purge')forget();};
   window.addEventListener('storage',event=>{if(event.key==='artifact-studio-offline-generation-v1')forget();else if(event.key?.startsWith('artifact-studio-offline-blocked-v1:')&&event.newValue){forget();offerRecovery();}});
@@ -54,14 +56,14 @@
       '<style>html{color-scheme:light;background:#fff;color:#111}body{margin:0;overflow:hidden}'+
       '.offline-canvas{width:1600px;height:900px;font-size:48px;transform-origin:top left;transform:scale('+scale+');overflow:hidden}'+safeTheme+'</style><div class="offline-canvas">'+content+'</div>';
   }
-  function preview(){const frame=$('preview');frame.srcdoc=previewDocument($('source').value,frame);}
+  function preview(){renderFrame('preview',$('source').value);}
   function effective(item){return record?.outbox.filter(value=>value.kind==='edit'&&value.slide_id===item?.id).at(-1)?.body||item?.html||'';}
   function slide(){const item=selectedSlide();$('source').value=effective(item);$('comment').value='';const disabled=syncing||!item?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;preview();}
   function renderQueue(){
     $('outbox').replaceChildren(...(record?.outbox||[]).map(item=>{const row=document.createElement('li');const label=document.createElement('strong');label.textContent=(item.kind==='edit'?'Edit':'Comment')+' · '+(record.snapshot.slides.find(slide=>slide.id===item.slide_id)?.title||item.slide_id);const text=document.createElement('pre');text.textContent=item.body;const remove=document.createElement('button');remove.type='button';remove.textContent='Remove saved change';remove.disabled=syncing;remove.addEventListener('click',async()=>{const own=selection;try{await store.update(record.snapshot.id,item.id,null);if(own!==selection)return;record=await store.read(record.snapshot.id);renderQueue();slide();}catch(error){message(error.message);}});row.append(label,text,remove);return row;}));
   }
   async function select(){
-    const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('outbox').replaceChildren();$('source').value='';$('comment').value='';$('preview').srcdoc='';$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[Number($('decks').value)];
+    const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('outbox').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[Number($('decks').value)];
     if(!entry){message('No saved presentations on this device.');return;}
     const blocked='artifact-studio-offline-blocked-v1:'+entry.scope+':'+encodeURIComponent(entry.deck),identityBlocked='artifact-studio-offline-blocked-v1:'+entry.scope+':*';
     let priorBlock=localStorage.getItem(blocked),priorIdentityBlock=localStorage.getItem(identityBlocked);
@@ -119,7 +121,7 @@
         if(!response.ok||response.redirected){if(response.status===401||response.redirected)OfflineClient.blockIdentity();else if(response.status===403||response.status===404)OfflineClient.blockDeck(deck);if(response.status===401||response.status===403||response.status===404||response.redirected)forget();throw Error('Delivery paused. Your drafts remain on this device.');}
         const result=await response.json();check();
         if(result.status==='conflict'){
-          conflict={id:item.id,expected:result.current_expected_hash,content:result.current_content_hash,current:result.current};$('conflict-base').textContent=result.base;$('conflict-current').textContent=result.current;$('conflict-draft').textContent=result.draft;$('conflict').hidden=false;for(const [name,source] of [['base',result.base],['current',result.current],['draft',result.draft]]){const frame=$('conflict-'+name+'-preview');if(frame)frame.srcdoc=previewDocument(source,frame);}message('Review the conflicting versions.');break;
+          conflict={id:item.id,expected:result.current_expected_hash,content:result.current_content_hash,current:result.current};$('conflict-base').textContent=result.base;$('conflict-current').textContent=result.current;$('conflict-draft').textContent=result.draft;$('conflict').hidden=false;for(const [name,source] of [['base',result.base],['current',result.current],['draft',result.draft]]){renderFrame('conflict-'+name+'-preview',source);}message('Review the conflicting versions.');break;
         }
         await store.update(deck,item.id,null,item.kind==='edit'?result:null);record=await store.read(deck);renderQueue();
       }
@@ -133,7 +135,7 @@
   $('source').addEventListener('input',preview);
   window.addEventListener('resize',()=>{
     if(record)preview();
-    if(conflict)for(const name of ['base','current','draft']){const frame=$('conflict-'+name+'-preview');if(frame)frame.srcdoc=previewDocument($('conflict-'+name).textContent,frame);}
+    if(conflict)for(const name of ['base','current','draft']){renderFrame('conflict-'+name+'-preview',$('conflict-'+name).textContent);}
   });
   $('decks').addEventListener('change',select);$('slides').addEventListener('change',slide);
   $('save-edit').addEventListener('click',()=>queue('edit'));$('save-comment').addEventListener('click',()=>queue('comment'));
