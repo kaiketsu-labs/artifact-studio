@@ -369,7 +369,10 @@ def test_hub_interrupted_recording_send_keeps_drafts_unsent(
         *expected,
         "Typed draft stays",
     ]
-    assert store.feedback_feed(artifact_id).events == []
+    assert [item.message for item in store.feedback_feed(artifact_id).events] == [
+        *expected,
+        "Typed draft stays",
+    ]
 
 
 def open_voice_property(page: Page, live_app: RunningApp) -> str:
