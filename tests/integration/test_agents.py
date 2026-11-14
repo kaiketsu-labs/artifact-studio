@@ -57,9 +57,18 @@ class ReviewHooks:
             text=True,
             capture_output=True,
             timeout=10,
-            check=True,
+            check=False,
         )
         _ = (self.artifacts / f"{self.harness}-{event}.json").write_text(result.stdout)
+        if self.harness == "claude-code" and event == "Stop" and os.name != "nt":
+            # Claude's asyncRewake contract uses exit 2 and stderr to wake the host.
+            assert result.returncode in (0, 2), result.stderr
+            if result.returncode == 2:
+                assert result.stderr.strip()
+                return {"decision": "block", "reason": result.stderr.strip()}
+            assert not result.stdout and not result.stderr
+            return {}
+        result.check_returncode()
         return object_value(json.loads(result.stdout))
 
     def response(self, value: dict[str, object]) -> object:

@@ -31,6 +31,7 @@ from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
 from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
+from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
 from .models import FileInput, StrictModel
 from .multiplayer_access import (
@@ -53,6 +54,7 @@ from .offline_delivery import (
     OfflineSnapshotInput,
 )
 from .offline_identity import cache_scope
+from .renderer_health import RendererBusy
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
 from .structure_proposals import StructureDecision, StructureProposals
@@ -73,6 +75,13 @@ class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
     no_expiry: bool = False
+
+
+class GrantRecoveryConfirmation(StrictModel):
+    """Confirm the exact staged grant preview."""
+
+    preview_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    restore_human_grants: Literal[True]
 
 
 class AgentInput(ScopeInput):
@@ -205,6 +214,14 @@ def create_app(
     @app.exception_handler(ConflictError)
     async def conflict(_: Request, error: ConflictError) -> JSONResponse:
         return JSONResponse({"detail": str(error)}, 409)
+
+    @app.exception_handler(RendererBusy)
+    async def renderer_busy(_: Request, __: RendererBusy) -> JSONResponse:
+        return JSONResponse(
+            {"detail": "The renderer is busy. Try again shortly.", "code": "renderer_saturated"},
+            status_code=503,
+            headers={"Retry-After": "2", "X-Artifact-Error": "renderer_saturated"},
+        )
 
     @app.exception_handler(ValueError)
     async def invalid(_: Request, __: ValueError) -> JSONResponse:
@@ -351,6 +368,27 @@ def create_app(
         request: Request, workspace: str, kind: Kind = "workspace", resource: str = ""
     ) -> dict[str, object]:
         return hub.access(actor_of(request), Scope(workspace, kind, resource))
+
+    @app.get("/api/workspaces/{workspace}/grant-recovery")
+    def grant_recovery_preview(request: Request, workspace: str) -> dict[str, object]:
+        """Show the active workspace owner's fixed, staged human grant recovery."""
+        staged, preview_hash = preview_staged_grants(hub, actor_of(request), workspace, config)
+        return {
+            "archive_sha256": staged.archive_sha256,
+            "preview_hash": preview_hash,
+            "owner": staged.snapshot.owner_email,
+            "issuer": staged.snapshot.issuer,
+            "audience": staged.snapshot.audience,
+            "grants": [grant.model_dump() for grant in staged.snapshot.grants],
+        }
+
+    @app.post("/api/workspaces/{workspace}/grant-recovery")
+    def grant_recovery_apply(
+        request: Request, workspace: str, body: GrantRecoveryConfirmation
+    ) -> dict[str, int]:
+        """Apply only a fresh, explicitly approved owner preview."""
+        count = restore_staged_grants(hub, actor_of(request), workspace, config, body.preview_hash)
+        return {"restored": count}
 
     @app.post("/api/workspaces/{workspace}/invitations")
     def invite(request: Request, workspace: str, body: InviteInput) -> dict[str, str]:

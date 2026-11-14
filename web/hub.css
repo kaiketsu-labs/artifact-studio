@@ -142,6 +142,11 @@
   .hub-list-actions .favorite-star { width: 40px !important; height: 40px; }
 }
 
+@media (max-width: 950px) {
+  .hub-chat .hub-compose textarea { font-size: 16px; }
+  .hub-chat .hub-attachments { max-height: 120px; overflow-y: auto; }
+}
+
 .hub-live-dot.is-connected{background:var(--hub-green);border-color:var(--hub-green)}
 .hub-end-review{margin-left:auto;margin-right:16px;padding:4px}
 .hub-release{white-space:nowrap}

@@ -1051,7 +1051,9 @@
     const selected=[...(attachments.get(state.active) || []),...incoming],error=root.SlideChatComposer.selectionError(selected);
     if(error){doc.getElementById('hub-feedback-error').textContent=error;return false;}
     if(incoming.length){draft().request_id=null;doc.getElementById('hub-feedback-error').textContent='';}
-    attachments.set(state.active,selected);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);return true;
+    attachments.set(state.active,selected);doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);
+    workspacePanels.revealComposer();
+    return true;
   }
   if(!nativeChat)root.ChatReferences.register({inputId:'hub-feedback-text',key:()=>state.active,attach:addAttachments});
   const versions=root.VersionTimeline.create({api,onRestored:async target=>{await openArtifact(target.artifactId,false);toast('Version restored.');}});

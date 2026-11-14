@@ -14,6 +14,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
 from .design_transfer import MAX_DESIGN_ZIP
+from .request_diagnostics import RequestDiagnostics
 
 
 class HostedAuth:
@@ -38,6 +39,9 @@ class HostedAuth:
         self.mcp_timeout = 90.0
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await RequestDiagnostics(self._handle, self.preview_host)(scope, receive, send)
+
+    async def _handle(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return

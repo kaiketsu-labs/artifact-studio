@@ -10,10 +10,29 @@
     const controls = {}, handles = {};
     let workspace = null, left = null, right = null, drag = null, lastFocus = false, focusTrigger = null;
     let compactChatOpen = false, compactSidebarOpen = false;
+    let composerObserver;
     const covered = new Map();
     const compact = () => kind === 'slides' && view.innerWidth <= 1050;
     const narrow = () => kind === 'slides' && view.innerWidth <= 600;
-    const closed = side => side === 'right' && compact() ? !compactChatOpen : side === 'left' && narrow() ? !compactSidebarOpen : state[side];
+    const stackedChat = () => kind === 'hub' && view.innerWidth <= 950;
+    /** Reveal the composer actions above the keyboard and floating report control. */
+    const revealComposer = (onlyWhileFocused = false) => {
+      if (!stackedChat() || closed('right') || state.focus) return;
+      const actions = right?.querySelector('.hub-compose-actions');
+      if (!actions) return;
+      view.requestAnimationFrame(() => {
+        if (!actions.isConnected || closed('right') || state.focus) return;
+        if (onlyWhileFocused && !right.contains(doc.activeElement)) return;
+        const viewport = view.visualViewport;
+        const bottom = viewport ? viewport.offsetTop + viewport.height : view.innerHeight;
+        const report = doc.querySelector('.studio-report-trigger:not([hidden])');
+        const reportTop = report?.getBoundingClientRect().top ?? bottom;
+        const overflow = actions.getBoundingClientRect().bottom - Math.min(reportTop, bottom) + 10;
+        if (overflow > 0) view.scrollBy({top:overflow});
+      });
+    };
+    const compactConversation = () => compact() || stackedChat() && doc.documentElement?.hasAttribute('data-native-conversation');
+    const closed = side => side === 'right' && compactConversation() ? !compactChatOpen : side === 'left' && narrow() ? !compactSidebarOpen : state[side];
     const persist = () => { try { storage?.setItem(key, JSON.stringify({left:state.left,right:state.right})); } catch {} };
     const resizeBounds = side => ({min:120,max:kind === 'slides' && side === 'left' ? Math.max(120,Math.min(650,Math.floor(view.innerWidth * .26))) : 650});
     const uncover = () => { for (const [element,inert] of covered) element.inert = inert; covered.clear(); };
@@ -62,8 +81,10 @@
         button.setAttribute('aria-label', label); button.title = label;
         button.setAttribute('aria-expanded', String(!closed(side)));
         if (kind === 'slides') button.setAttribute('aria-controls',side === 'left' ? 'slides' : 'chat-panel');
-        const direction = side === 'left' ? (state.left ? 'right' : 'left') : (state.right ? 'left' : 'right');
-        if (view.SlideIcons?.svg) button.innerHTML = view.SlideIcons.svg(kind === 'slides' ? (side === 'left' ? 'panelLeft' : 'chat') : direction);
+        if (kind === 'hub' && side === 'right') button.setAttribute('aria-controls', 'hub-chat');
+        const direction = side === 'left' ? (closed(side) ? 'right' : 'left') : (closed(side) ? 'left' : 'right');
+        const symbol = kind === 'slides' ? (side === 'left' ? 'panelLeft' : 'chat') : side === 'right' && stackedChat() ? 'chat' : direction;
+        if (view.SlideIcons?.svg) button.innerHTML = view.SlideIcons.svg(symbol);
         else button.textContent = direction === 'left' ? '‹' : '›';
         handles[side].hidden = state.focus || !available || sorting || closed(side) || (kind === 'slides' && (side === 'right' || narrow()));
       }
@@ -73,13 +94,14 @@
       if (hiddenFocus && !controls[hiddenFocus].hidden && !doc.querySelector('dialog[open]')) controls[hiddenFocus].focus?.({preventScroll:true});
     };
     const toggle = side => {
-      if (side === 'right' && compact()) { compactChatOpen = !compactChatOpen; if (compactChatOpen && narrow()) compactSidebarOpen = false; }
+      if (side === 'right' && compactConversation()) { compactChatOpen = !compactChatOpen; if (compactChatOpen && narrow()) compactSidebarOpen = false; }
       else if (side === 'left' && narrow()) { compactSidebarOpen = !compactSidebarOpen; if (compactSidebarOpen) compactChatOpen = false; }
       else { state[side] = !state[side]; persist(); }
       apply();
-      if (kind === 'slides' && !closed(side)) {
+      if (side === 'right' && !closed(side)) revealComposer();
+      if (!closed(side) && (kind === 'slides' || side === 'right' && stackedChat())) {
         const target = side === 'right' ? right?.querySelector?.('textarea') : left?.querySelector?.('.slide-thumb[aria-current=true]');
-        target?.focus?.({preventScroll:true});
+        if (target && !target.disabled) target.focus({preventScroll:true});
       }
     };
     for (const side of ['left','right']) {
@@ -142,17 +164,31 @@
     doc.addEventListener('keydown', event => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (state.focus) { event.preventDefault(); state.focus = false; apply(); }
-      else if (compact() && compactChatOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactChatOpen = false; apply(); controls.right.focus?.(); }
+      else if (compactConversation() && compactChatOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactChatOpen = false; apply(); controls.right.focus?.(); }
       else if (narrow() && compactSidebarOpen && !doc.querySelector('dialog[open]')) { event.preventDefault(); compactSidebarOpen = false; apply(); controls.left.focus?.(); }
     });
     view.addEventListener('resize', apply);
     view.addEventListener('scroll', positionHandles, true);
+    if (kind === 'hub') {
+      const revealFocused = () => {
+        if (right?.contains(doc.activeElement) && doc.activeElement.closest('.hub-compose')) revealComposer(true);
+      };
+      doc.addEventListener('focusin', revealFocused);
+      view.visualViewport?.addEventListener('resize', revealFocused);
+      if (view.ResizeObserver) composerObserver = new view.ResizeObserver(revealFocused);
+    }
     doc.addEventListener('workspace-collapse-chat', () => { compactChatOpen = false; state.right = true; persist(); apply(); });
     /** Rebind to newly rendered hub elements without touching their contents. */
     function refresh() {
       workspace = doc.querySelector(kind === 'hub' ? '.hub-layout' : '.workspace');
       left = workspace?.querySelector(kind === 'hub' ? '.hub-sidebar' : '.rail');
       right = workspace?.querySelector(kind === 'hub' ? '.hub-chat' : '.discussion');
+      if (composerObserver) {
+        composerObserver.disconnect();
+        // The chat can replace its composer after sending and grow when messages arrive.
+        // Observe the persistent panel so both changes keep the focused actions in view.
+        if (right) composerObserver.observe(right);
+      }
       // Keep keyboard resize controls inside the existing workspace landmark.
       if (workspace) for (const handle of Object.values(handles)) if (handle.parentElement !== workspace) workspace.append(handle);
       const available = !!(workspace && left);
@@ -166,12 +202,13 @@
     }
     return {
       refresh,
+      revealComposer,
       enterView() { if (workspace && right && !workspace.classList.contains('is-empty') && !workspace.classList.contains('is-sorter')) { state.focus = true; apply(); } },
       exitView() { state.focus = false; apply(); },
       openChat() {
         state.focus = false;
         if (right && closed('right')) toggle('right');
-        else apply();
+        else { apply(); revealComposer(); }
       },
     };
   }

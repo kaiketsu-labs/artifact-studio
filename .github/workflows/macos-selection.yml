@@ -1,0 +1,40 @@
+name: macOS selection browser check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selection:
+    name: Shift and Command selection in Chromium
+    runs-on: macos-15
+    timeout-minutes: 10
+    env:
+      ARTIFACT_STUDIO_BROWSER_TESTS: "1"
+      ARTIFACT_STUDIO_TEST_BROWSER: chromium
+      ARTIFACT_STUDIO_ARTIFACTS: test-results/integration
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          version: "0.12.23"
+          python-version: "3.14"
+          enable-cache: true
+          cache-suffix: macos-selection
+      - run: uv sync --locked
+      - run: uv run --no-sync playwright install --only-shell chromium
+      - name: Exercise both selection gestures and click-away save
+        run: >-
+          uv run --no-sync pytest tests/integration/test_element_alternatives.py
+          -k modified_click_away_saves_choice --junitxml=test-results/selection.xml
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: macos-selection-results
+          path: test-results/
+          retention-days: 1

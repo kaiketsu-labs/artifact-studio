@@ -56,6 +56,7 @@ from .offline_delivery import (
 )
 from .offline_identity import cache_scope
 from .project_tree import ProjectTree, TreeChange, TreeView
+from .renderer_health import RendererBusy
 from .sections import sections_hash
 from .share_api import ShareInput, ShareWorkspace, sharing_routes
 from .slide_design_api import design_routes
@@ -206,6 +207,14 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     app.add_middleware(
         MultiplayerAuth, config=config, provider=provider, sharing=hub, shared_shell=True
     )
+
+    @app.exception_handler(RendererBusy)
+    async def renderer_busy(_: Request, __: RendererBusy) -> JSONResponse:
+        return JSONResponse(
+            {"detail": "The renderer is busy. Try again shortly.", "code": "renderer_saturated"},
+            status_code=503,
+            headers={"Retry-After": "2", "X-Artifact-Error": "renderer_saturated"},
+        )
 
     @app.exception_handler(AccessDenied)
     @app.exception_handler(FileNotFoundError)
