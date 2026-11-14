@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.7.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.6.0...v0.7.0) (2026-11-14)
+
+
+### Features
+
+* **chat:** address shared requests with an agent shortcut ([#162](https://github.com/kaiketsu-labs/artifact-studio/issues/162)) ([02ff3d4](https://github.com/kaiketsu-labs/artifact-studio/commit/02ff3d4230e1bd37459bebc28dc6dac46ccfcb2e))
+* **collaboration:** show presence and improve hosted agent review ([#154](https://github.com/kaiketsu-labs/artifact-studio/issues/154)) ([df2f425](https://github.com/kaiketsu-labs/artifact-studio/commit/df2f425ffa94522161a8037ad0f02f8755c4ff15))
+* **designs:** import and export reusable design packs ([#141](https://github.com/kaiketsu-labs/artifact-studio/issues/141)) ([403a7f7](https://github.com/kaiketsu-labs/artifact-studio/commit/403a7f78e8bbab3407186d886f591f108a585200))
+* **hosting:** bring hosted collaboration and reliability fixes to main ([aaf2879](https://github.com/kaiketsu-labs/artifact-studio/commit/aaf28794117a902eb9dbdf5c708717582dff1887))
+* **library:** add a compact artifact list view ([#155](https://github.com/kaiketsu-labs/artifact-studio/issues/155)) ([ccdc64b](https://github.com/kaiketsu-labs/artifact-studio/commit/ccdc64b7bf744179bd2de35f8ed45ed1e5cf32c1))
+* simplify chat and add opt-in collaboration workflows ([#182](https://github.com/kaiketsu-labs/artifact-studio/issues/182)) ([6d84bc6](https://github.com/kaiketsu-labs/artifact-studio/commit/6d84bc647ddc1ed12f906956f0cff09a9705e2cc))
+* **suggestions:** dismiss obsolete design sets ([#133](https://github.com/kaiketsu-labs/artifact-studio/issues/133)) ([35ea160](https://github.com/kaiketsu-labs/artifact-studio/commit/35ea160913ff2ce1c0da4a555d9659512ee247c8))
+
+
+### Bug Fixes
+
+* complete reviewed chat, hooks and recovery ([83795d1](https://github.com/kaiketsu-labs/artifact-studio/commit/83795d1faa9565061e97e7f07d8c53b5c1e89063))
+* **deps:** bump astral-sh/uv from 0.13.7 to 0.13.8 ([#122](https://github.com/kaiketsu-labs/artifact-studio/issues/122)) ([3edc879](https://github.com/kaiketsu-labs/artifact-studio/commit/3edc87918fc9f338c1d49411e6835283e210adf4))
+* **editor:** recover stalled dictation and show slide activity ([#148](https://github.com/kaiketsu-labs/artifact-studio/issues/148)) ([552f0a1](https://github.com/kaiketsu-labs/artifact-studio/commit/552f0a1499380305cabbc0983ae1aa06a6b71f16))
+* **exports:** recover from stalled attachment preparation ([#125](https://github.com/kaiketsu-labs/artifact-studio/issues/125)) ([17eb6b6](https://github.com/kaiketsu-labs/artifact-studio/commit/17eb6b6d550180c3e2375ddc9dfd42fe70afe338))
+* **feedback:** make the issue report dialog easier to use ([#150](https://github.com/kaiketsu-labs/artifact-studio/issues/150)) ([6fe665b](https://github.com/kaiketsu-labs/artifact-studio/commit/6fe665bd574024e43776ae76940543a4efb7334a))
+* **hooks:** check assigned feedback after Claude edits ([#128](https://github.com/kaiketsu-labs/artifact-studio/issues/128)) ([3e16c44](https://github.com/kaiketsu-labs/artifact-studio/commit/3e16c44a36fb6f1a5962e08e21d085f167b955db))
+* **library:** keep context menus open during refresh ([#144](https://github.com/kaiketsu-labs/artifact-studio/issues/144)) ([b85481e](https://github.com/kaiketsu-labs/artifact-studio/commit/b85481e849738c8e97c90ada5c1adbd735814213))
+* **ui:** move issue reporting and restore favorite-slide previews ([#149](https://github.com/kaiketsu-labs/artifact-studio/issues/149)) ([ad065d8](https://github.com/kaiketsu-labs/artifact-studio/commit/ad065d81bc8b5b9f3cf1f7c624477d1848658ab4))
+* **ui:** place server version in the sidebar ([#136](https://github.com/kaiketsu-labs/artifact-studio/issues/136)) ([7f100b8](https://github.com/kaiketsu-labs/artifact-studio/commit/7f100b8b7cc020844975a57ad4fe18931659792c))
+* **ui:** remove the local workspace badge ([#142](https://github.com/kaiketsu-labs/artifact-studio/issues/142)) ([bbf007e](https://github.com/kaiketsu-labs/artifact-studio/commit/bbf007e2968bbed5d19c818c24e53ee61a82405b))
+
+
+### Performance Improvements
+
+* clarify editor actions and parallelize browser CI ([#183](https://github.com/kaiketsu-labs/artifact-studio/issues/183)) ([bc67f95](https://github.com/kaiketsu-labs/artifact-studio/commit/bc67f9563316dbc5e7a67bbcac41a8fc3d45dda2))
+* **hosting:** skip unchanged shared deck snapshots ([#135](https://github.com/kaiketsu-labs/artifact-studio/issues/135)) ([128e06a](https://github.com/kaiketsu-labs/artifact-studio/commit/128e06a5638fd085ab0d625b9fd6d6cf873f7e58))
+
 ## [0.6.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.5.0...v0.6.0) (2026-11-11)
 
 
