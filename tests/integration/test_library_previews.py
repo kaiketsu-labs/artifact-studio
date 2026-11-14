@@ -217,6 +217,20 @@ def test_cold_library_cover_recovers_from_outage_with_real_renderer(
     page = context.new_page()
     attempts: Counter[str] = Counter()
 
+    # Record the transient outage even if the test process is delayed after navigation.
+    page.add_init_script("""(() => {
+        window.unavailableCovers = new Set();
+        new MutationObserver(records => {
+            for (const record of records) {
+                const card = record.target;
+                if (record.oldValue === 'unavailable' ||
+                    card.dataset.previewState === 'unavailable')
+                    window.unavailableCovers.add(card.dataset.dragArtifact);
+            }
+        }).observe(document, {subtree: true, attributes: true,
+            attributeFilter: ['data-preview-state'], attributeOldValue: true});
+    })()""")
+
     def outage(route: Route) -> None:
         attempts[route.request.url] += 1
         if attempts[route.request.url] == 1:
@@ -243,7 +257,8 @@ def test_cold_library_cover_recovers_from_outage_with_real_renderer(
         ]
         for card in cards:
             expect(card).to_be_visible()
-        expect(cards[0]).to_have_attribute("data-preview-state", "unavailable")
+        card_id = cards[0].get_attribute("data-drag-artifact")
+        page.wait_for_function("id => window.unavailableCovers.has(id)", arg=card_id)
         _ = page.screenshot(path=str(artifacts / "cold-preview-before.png"), full_page=True)
         dimensions: list[int] = []
         for card in cards:
