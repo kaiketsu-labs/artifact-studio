@@ -44,6 +44,16 @@ test('ordinary authored content, unknown schemas and malformed details stay inta
   }
 });
 
+test('authored prefixes never resolve to inherited object properties',()=>{
+  for(const prefix of ['__proto__','constructor','toString']) {
+    const record=request('replace_text',{text:'Literal requested text'},prefix);
+    const display=displayEdit(record);
+    assert.equal(display.message,prefix);
+    assert.equal(typeof display.message,'string');
+    assert.equal(display.original_request,record.message);
+  }
+});
+
 test('long replacement fallback displays all text while the agent retains exact wire details',async()=>{
   const text='"\\\n'.repeat(2000),sent=[];
   const chat=create({api:async(path,body)=>{sent.push({path,body});return {id:1};}});

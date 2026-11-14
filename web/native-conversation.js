@@ -103,7 +103,7 @@
     if (!summary.length && intent.action !== 'delete' || intent.action === 'delete' && Object.keys(values).length) return original;
     const captions = {'Update element properties.': 'Element change requested.', 'Replace text.': 'Text change requested.',
       'Update element style.': 'Formatting change requested.', 'Update element text and style.': 'Text and formatting change requested.'};
-    return {message: captions[prefix] || prefix, edit_summary: summary, original_request: original.message};
+    return {message: Object.hasOwn(captions, prefix) ? captions[prefix] : prefix, edit_summary: summary, original_request: original.message};
   }
 
   /** Share the authenticated actor and preserve scoped access and retry errors. */
