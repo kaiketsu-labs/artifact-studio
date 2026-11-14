@@ -4,6 +4,7 @@ Only test identifiers and exception types are emitted, never traceback bodies,
 request URLs or captured output. The full diagnostics remain in existing logs.
 """
 
+import re
 import sys
 from pathlib import Path
 from xml.etree import ElementTree
@@ -36,7 +37,10 @@ def report(paths: list[str]) -> None:
                 part for part in (case.get("classname", ""), case.get("name", "")) if part
             )[:1000]
             kind = failed.get("type", "Test failed")[:160]
-            print(f"::error title=Failed test::{escaped(identifier)} ({escaped(kind)})")
+            # Report source coordinates, not assertion values or captured diagnostics.
+            frames = re.findall(r"(?m)^(tests/[A-Za-z0-9_/.-]+\.py):(\d+):", failed.text or "")
+            location = f" at {frames[-1][0]}:{frames[-1][1]}" if frames else ""
+            print(f"::error title=Failed test::{escaped(identifier)} ({escaped(kind)}){location}")
             remaining -= 1
 
 

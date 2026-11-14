@@ -38,6 +38,21 @@ def test_annotation_count_is_bounded(tmp_path: Path) -> None:
     assert lines[-1].startswith("::notice::")
 
 
+def test_failure_coordinates_omit_the_assertion_values(tmp_path: Path) -> None:
+    report = tmp_path / "results.xml"
+    _ = report.write_text(
+        '<testsuite><testcase classname="tests.test_example" name="case"><failure>'
+        "private-request-body\n"
+        "tests/test_example.py:42: AssertionError\n"
+        ".venv/lib/private.py:99: Error\n"
+        "</failure></testcase></testsuite>"
+    )
+    assert annotate(report).strip() == (
+        "::error title=Failed test::tests.test_example::case (Test failed) "
+        "at tests/test_example.py:42"
+    )
+
+
 def test_missing_and_malformed_results_do_not_add_failures(tmp_path: Path) -> None:
     report = tmp_path / "results.xml"
     assert annotate(report) == ""
