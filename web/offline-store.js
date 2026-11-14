@@ -46,6 +46,10 @@
       await transaction('readwrite',(store,tx)=>{const get=store.get(deckKey);get.onsuccess=()=>{if(get.result){tx.abort();return;}store.add({key:deckKey,snapshot:structuredClone(snapshot),outbox:[]});};return get;});
     }
     async function read(deck){return transaction('readonly',store=>store.get(key(deck)));}
+    async function drafts(deck){
+      const record=await read(deck);
+      return (record?.outbox||[]).filter(item=>['edit','comment'].includes(item.kind)&&typeof item.body==='string').map(item=>({kind:item.kind,body:item.body}));
+    }
     async function queue(deck,operation){
       if(!operation||!validId(operation.id)||!validId(operation.slide_id)||!validId(operation.anchor)||!['edit','comment'].includes(operation.kind)||typeof operation.body!=='string')throw new Error('Invalid offline operation.');
       // Never store caller objects, which may contain authentication material.
@@ -82,7 +86,7 @@
       finally{db.close();closed=true;channel?.close();}
     }
     function close(){fence();closed=true;channel?.close();}
-    return {save,read,queue,update,refresh,purge,close};
+    return {save,read,drafts,queue,update,refresh,purge,close};
   }
   if(typeof module!=='undefined')module.exports={create};else root.OfflineStore={create};
 })(typeof window==='undefined'?globalThis:window);

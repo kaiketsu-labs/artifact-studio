@@ -1,6 +1,6 @@
 /* Cache only the offline shell; private presentation content stays in IndexedDB. */
 'use strict';
-const CACHE='artifact-studio-offline-shell-v2';
+const CACHE='artifact-studio-offline-shell-v3';
 const ASSETS=['/web/offline.html','/web/offline-shell.js','/web/offline-store.js','/web/offline-client.js','/web/offline.css'];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);

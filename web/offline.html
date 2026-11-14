@@ -20,6 +20,12 @@
       <button id="reconnect" class="primary" type="button">Reconnect and review</button>
     </div>
     <p id="status" class="status" role="status"></p>
+    <button id="recover-drafts" type="button" hidden>Recover my saved drafts</button>
+    <section id="recovery" class="panel" hidden aria-labelledby="recovery-title">
+      <div class="section-heading"><div><p class="eyebrow">ON THIS DEVICE</p><h2 id="recovery-title">Your saved drafts</h2><p>Select and copy your own saved edits and comments. The saved presentation is not shown here.</p></div></div>
+      <div id="recovery-list"></div>
+      <div class="actions"><button id="close-recovery" type="button">Close</button></div>
+    </section>
     <div class="picker-bar" aria-label="Choose a saved slide">
       <label for="decks">Presentation<select id="decks"></select></label>
       <label for="slides">Slide<select id="slides"></select></label>

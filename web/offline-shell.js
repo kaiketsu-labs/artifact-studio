@@ -5,11 +5,39 @@
   let entries=[],store=null,record=null,selection=0,conflict=null,syncing=false,deliveryController=null;
   try{const active=localStorage.getItem(ACTIVE);entries=JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===active&&/^[a-f0-9]{64}$/.test(item.scope)&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session));}catch{}
   function message(text){$('status').textContent=text;}
+  function closeRecovery(){$('recovery').hidden=true;$('recovery-list').replaceChildren();}
+  function recoveryEntries(){
+    const scope=localStorage.getItem(ACTIVE);if(!/^[a-f0-9]{64}$/.test(scope||''))return [];
+    try{return JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===scope&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session)&&(localStorage.getItem('artifact-studio-offline-blocked-v1:'+scope+':*')||localStorage.getItem('artifact-studio-offline-blocked-v1:'+scope+':'+encodeURIComponent(item.deck))));}catch{return [];}
+  }
+  function offerRecovery(){$('recover-drafts').hidden=!recoveryEntries().length;}
+  async function recoverDrafts(){
+    const own=selection,scope=localStorage.getItem(ACTIVE),generation=localStorage.getItem('artifact-studio-offline-generation-v1'),candidates=recoveryEntries();
+    const check=()=>{if(selection!==own||scope!==localStorage.getItem(ACTIVE)||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))throw Error('The saved session changed.');};
+    $('recover-drafts').disabled=true;closeRecovery();
+    try{
+      if(!candidates.length)throw Error('No blocked drafts are available.');
+      const sessionPath=candidates[0].session;let response;
+      try{response=await fetch(sessionPath,{cache:'no-store',signal:AbortSignal.timeout(5000)});}catch{if(navigator.onLine)throw Error('Cannot verify the current session.');}
+      check();
+      if(response&&response.ok&&!response.redirected&&(response.headers.get('content-type')||'').includes('application/json')){
+        const session=await response.json();check();
+        if(!/^[a-f0-9]{64}$/.test(session.cache_scope||''))throw Error('Cannot verify the current identity.');
+        if(session.cache_scope!==scope){await OfflineClient.bind(session.cache_scope);forget();throw Error('Saved data was cleared after the account changed.');}
+      }else if(response&&response.status!==401&&response.status!==403&&!response.redirected)throw Error('Cannot verify the current identity.');
+      if(response&&(response.status===401||response.redirected))OfflineClient.blockIdentity();
+      const reader=OfflineStore.create({enabled:true,scope});const drafts=[];
+      try{for(const item of candidates){if(!recoveryEntries().some(value=>value.deck===item.deck))throw Error('Access changed.');drafts.push(...await reader.drafts(item.deck));check();}}finally{reader.close();}
+      check();if(!recoveryEntries().length)throw Error('Access changed.');
+      $('recovery-list').replaceChildren(...drafts.map((draft,index)=>{const label=document.createElement('label');label.textContent=(draft.kind==='edit'?'Edit':'Comment')+' '+(index+1);const body=document.createElement('textarea');body.readOnly=true;body.value=draft.body;body.rows=4;label.append(body);return label;}));
+      $('recovery').hidden=false;message(drafts.length?'Your saved drafts are ready to copy.':'No saved drafts remain on this device.');
+    }catch(error){closeRecovery();message(error.message);}finally{$('recover-drafts').disabled=false;}
+  }
   function resetConflict(){conflict=null;$('conflict').hidden=true;for(const id of ['conflict-base','conflict-current','conflict-draft'])$(id).textContent='';for(const id of ['conflict-base-preview','conflict-current-preview','conflict-draft-preview']){const frame=$(id);if(frame)frame.srcdoc='';}}
-  function forget(){selection++;deliveryController?.abort();store?.close();store=null;entries=[];record=null;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';$('preview').srcdoc='';$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
+  function forget(){selection++;closeRecovery();$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';$('preview').srcdoc='';$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
   const purgeChannel=new BroadcastChannel('artifact-studio-offline-purge-v1');
   purgeChannel.onmessage=event=>{if(event.data==='purge')forget();};
-  window.addEventListener('storage',event=>{if(event.key==='artifact-studio-offline-generation-v1'||event.key?.startsWith('artifact-studio-offline-blocked-v1:')&&event.newValue)forget();});
+  window.addEventListener('storage',event=>{if(event.key==='artifact-studio-offline-generation-v1')forget();else if(event.key?.startsWith('artifact-studio-offline-blocked-v1:')&&event.newValue){forget();offerRecovery();}});
   function option(value,label){const item=document.createElement('option');item.value=value;item.textContent=label;return item;}
   function selectedSlide(){return record?.snapshot.slides.find(item=>item.id===$('slides').value);}
   function previewDocument(source,frame){
@@ -54,7 +82,7 @@
         localStorage.removeItem(identityBlocked);localStorage.removeItem(blocked);priorIdentityBlock=null;priorBlock=null;
       }else if(localStorage.getItem(identityBlocked)||localStorage.getItem(blocked))throw Error('Reconnect and verify access to open this presentation. Your drafts remain on this device.');
       if(localStorage.getItem(ACTIVE)!==entry.scope||localStorage.getItem('artifact-studio-offline-generation-v1')!==generation)throw Error('The saved session changed.');
-      store=OfflineStore.create({enabled:true,scope:entry.scope});record=await store.read(entry.deck);checkBlocks();if(localStorage.getItem('artifact-studio-offline-generation-v1')!==generation){forget();throw Error('The saved session changed.');}if(!record)throw Error('Saved presentation unavailable.');if(!$('decks').options.length)entries.forEach((item,index)=>$('decks').append(option(String(index),item.title||'Saved presentation')));$('slides').replaceChildren(...record.snapshot.slides.map(item=>option(item.id,item.title)));slide();renderQueue();message('Available on this device.');}catch(error){message(error.message);}
+      store=OfflineStore.create({enabled:true,scope:entry.scope});record=await store.read(entry.deck);checkBlocks();if(localStorage.getItem('artifact-studio-offline-generation-v1')!==generation){forget();throw Error('The saved session changed.');}if(!record)throw Error('Saved presentation unavailable.');if(!$('decks').options.length)entries.forEach((item,index)=>$('decks').append(option(String(index),item.title||'Saved presentation')));$('slides').replaceChildren(...record.snapshot.slides.map(item=>option(item.id,item.title)));slide();renderQueue();message('Available on this device.');}catch(error){offerRecovery();message(error.message);}
   }
   async function queue(kind){
     const item=selectedSlide(),body=$(kind==='edit'?'source':'comment').value,own=selection,deck=record?.snapshot.id;
@@ -95,12 +123,13 @@
         }
         await store.update(deck,item.id,null,item.kind==='edit'?result:null);record=await store.read(deck);renderQueue();
       }
-    }catch(error){const active=localStorage.getItem(ACTIVE),deck=record?.snapshot.id;if(active&&deck&&(localStorage.getItem('artifact-studio-offline-blocked-v1:'+active+':*')||localStorage.getItem('artifact-studio-offline-blocked-v1:'+active+':'+encodeURIComponent(deck))))forget();message(error.message||'Delivery paused. Your drafts remain on this device.');}
+    }catch(error){const active=localStorage.getItem(ACTIVE),deck=record?.snapshot.id;if(active&&deck&&(localStorage.getItem('artifact-studio-offline-blocked-v1:'+active+':*')||localStorage.getItem('artifact-studio-offline-blocked-v1:'+active+':'+encodeURIComponent(deck))))forget();offerRecovery();message(error.message||'Delivery paused. Your drafts remain on this device.');}
     finally{deliveryController=null;syncing=false;$('reconnect').disabled=false;renderQueue();if(record)slide();}
   }
   $('reconnect').addEventListener('click',deliver);
   $('use-current').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection;try{await store.update(record.snapshot.id,conflict.id,null,{html:conflict.current,expected_hash:conflict.expected,content_hash:conflict.content});if(own!==selection)return;record=await store.read(record.snapshot.id);resetConflict();slide();void deliver();}catch(error){message(error.message);}});
   $('use-draft').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection;try{await store.update(record.snapshot.id,conflict.id,conflict.expected);if(own!==selection)return;resetConflict();void deliver();}catch(error){message(error.message);}});
+  $('recover-drafts').addEventListener('click',recoverDrafts);$('close-recovery').addEventListener('click',closeRecovery);
   $('source').addEventListener('input',preview);
   window.addEventListener('resize',()=>{
     if(record)preview();

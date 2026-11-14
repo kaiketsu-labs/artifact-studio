@@ -309,6 +309,13 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 "document.querySelector('#status').textContent.includes('drafts remain')"
             )
             assert page.locator("#source").input_value() == ""
+            assert page.locator("#recovery").is_hidden()
+            page.locator("#recover-drafts").click()
+            page.wait_for_function("!document.querySelector('#recovery').hidden")
+            assert page.locator("#recovery textarea").count() == 1
+            assert page.locator("#recovery textarea").input_value() == "Private unfinished draft"
+            assert "Original" not in page.locator("#recovery").inner_text()
+            page.locator("#close-recovery").click()
             assert_blocked_until_authorized()
             page = context.new_page()
             page.route("**/api/session", lambda route: route.fulfill(status=401))
@@ -317,6 +324,10 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 "document.querySelector('#status').textContent.includes('Sign in')"
             )
             assert page.locator("#source").input_value() == ""
+            assert page.locator("#recovery").is_hidden()
+            page.locator("#recover-drafts").click()
+            page.wait_for_function("!document.querySelector('#recovery').hidden")
+            assert page.locator("#recovery textarea").input_value() == "Private unfinished draft"
             preserved = page.evaluate("""async () => {
               const store=OfflineStore.create({enabled:true,scope:'a'.repeat(64)});
               const record=await store.read('deck');store.close();return record.outbox.length;
@@ -337,6 +348,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             )
             assert page.locator("#source").input_value() == ""
             assert page.locator("#decks option").count() == 0
+            assert page.locator("#recover-drafts").is_hidden()
             old_tab.wait_for_function("document.querySelector('#source').value === ''")
             result = page.evaluate("""async () => {
               await OfflineClient.bind('a'.repeat(64));
