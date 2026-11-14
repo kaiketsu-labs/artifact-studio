@@ -144,6 +144,8 @@ and backup state are outside the configured source folders.
 Grant the GitHub CLI identity access only to the configured private repositories.
 Git stages the branch on a dedicated Linux tmpfs capped at 512 MiB and 32,768
 inodes. The app checks those limits and permits one sync at a time per mount.
+During a push, workspace sharing changes and other guarded requests wait until
+the push completes or times out (up to 60 seconds per Git command).
 Sync requires the configured mount. Large branches can exceed the staging limit
 even if the paired artifact is small. Use a smaller private source branch in
 that case. Allow for staging memory and rendering memory in the container budget.
