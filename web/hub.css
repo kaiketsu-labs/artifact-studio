@@ -172,4 +172,4 @@
 .chat-agent-dot { position:absolute; right:-2px; bottom:-1px; width:6px; height:6px; border:1px solid currentColor; border-radius:50%; background:var(--hub-panel); }
 .chat-agent-dot.is-connected { background:var(--hub-green); border-color:var(--hub-green); }
 .chat-agent-status:focus-visible { outline:2px solid var(--hub-blue,#4678ed); outline-offset:3px; border-radius:2px; }
-.chat-agent-status:focus-visible::after { content:attr(title); position:absolute; z-index:10; top:calc(100% + 8px); right:0; width:max-content; max-width:240px; padding:6px 8px; border:1px solid var(--hub-line); border-radius:6px; background:var(--hub-panel); color:var(--hub-ink); font-size:11px; line-height:1.4; box-shadow:0 3px 12px #0002; }
+.chat-agent-status:focus-visible::after { pointer-events:none; content:attr(title); position:absolute; z-index:10; top:calc(100% + 8px); right:0; width:max-content; max-width:240px; padding:6px 8px; border:1px solid var(--hub-line); border-radius:6px; background:var(--hub-panel); color:var(--hub-ink); font-size:11px; line-height:1.4; box-shadow:0 3px 12px #0002; }
