@@ -203,3 +203,39 @@ def test_failed_update_requests_recover_without_a_stale_offer(
         assert not errors
     finally:
         context.close()
+
+
+@pytest.mark.parametrize("surface", ["library", "artifact"])
+@pytest.mark.parametrize("activation", ["mouse", "keyboard"])
+def test_narrow_sidebar_collapse_removes_its_layout_space(
+    live_app: RunningApp, page: Page, tmp_path: Path, surface: str, activation: str
+) -> None:
+    """Hide the sidebar and its version footer without leaving a blank mobile block."""
+    from tests.integration.test_artifact_workspace import register
+
+    _, item, _, _, _ = register(live_app, tmp_path)
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.emulate_media(color_scheme="dark")
+    page.goto(live_app.url + (f"/?artifact={item.id}" if surface == "artifact" else "/"))
+    sidebar = page.locator(".hub-sidebar")
+    version = sidebar.locator("[data-server-version]")
+    expect(version).to_have_text("v" + __version__)
+    heading = page.locator(".hub-edit-heading h1" if surface == "artifact" else ".hub-heading h1")
+    before = heading.bounding_box()
+    sidebar_box = sidebar.bounding_box()
+    assert before and sidebar_box and sidebar_box["height"] > 0
+    close = page.get_by_role("button", name="Close sidebar", exact=True)
+    if activation == "keyboard":
+        close.focus()
+        close.press("Enter")
+    else:
+        close.click()
+    expect(page.get_by_role("button", name="Open sidebar", exact=True)).to_be_visible()
+    assert sidebar.evaluate("element => element.getBoundingClientRect().height") == 0
+    after = heading.bounding_box()
+    assert after and after["y"] <= before["y"] - sidebar_box["height"] + 2
+    page.get_by_role("button", name="Open sidebar", exact=True).click()
+    expect(version).to_be_visible()
+    page.set_viewport_size({"width": 1280, "height": 800})
+    expect(version).to_be_visible()
+    assert sidebar.evaluate("element => element.getBoundingClientRect().width") > 0

@@ -61,7 +61,7 @@ body:has(dialog[open])>.app-session-expired{display:none}
   overflow-wrap: anywhere;
 }
 .app-sidebar-footer > button:hover { background: var(--hub-hover, var(--hover)); }
-.hub-sidebar:has(.app-sidebar-footer:not([hidden])) {
+.hub-layout:not(.panels-left-closed) > .hub-sidebar:has(.app-sidebar-footer:not([hidden])) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -71,7 +71,7 @@ body:has(dialog[open])>.app-session-expired{display:none}
 .hub-sidebar > .app-sidebar-footer > button { width: 100%; padding-inline: 8px; }
 @media (max-width: 650px) {
   .app-sidebar-footer > button { min-height: 44px; }
-  .hub-sidebar[aria-label="Project artifacts"]:has(.app-sidebar-footer:not([hidden])) {
+  .hub-layout:not(.panels-left-closed) > .hub-sidebar[aria-label="Project artifacts"]:has(.app-sidebar-footer:not([hidden])) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
