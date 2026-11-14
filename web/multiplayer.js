@@ -179,8 +179,13 @@ function renderMessages() {
     if (!state.messages.length) list.append(node('p', state.channel === 'shared' ? 'Talk with your collaborators here. Choose an agent when you want a change.' : 'A private conversation with your agents. Changes they make are visible to everyone.', 'empty-chat'));
     if (atEnd) list.scrollTop = list.scrollHeight;
   }
-  $('draft-actions').hidden = !state.current.draft_counts?.[state.channel];
-  $('release').disabled = state.current.access.role === 'view';
+  const savedAvailable = !!state.current.draft_counts?.[state.channel];
+  const canRelease = state.current.access.role !== 'view';
+  if ((!savedAvailable || !canRelease) && document.activeElement === $('release')) {
+    $('copy-conversation').focus({preventScroll: true});
+  }
+  $('draft-actions').hidden = !savedAvailable;
+  $('release').disabled = !canRelease;
   $('earlier').hidden = !state.hasEarlier;
 }
 $('copy-conversation').addEventListener('click', () => {
