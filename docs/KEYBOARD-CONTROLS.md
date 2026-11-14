@@ -76,9 +76,9 @@ The single-element editor supports text, movement and deletion. For multiple sel
 
 HTML artifacts keep single-object direct editing; their multi-selection is for group feedback. Markdown text and image regions retain their format-specific selection tools. Text fields and interactive artifacts outside selection mode keep their native context menu.
 
-Edits remain unsent until **Send edit**. A deletion preview hides the object; Undo restores it. In the single-object editor, deleting supersedes other unsent edits to that object, and Undo restores those too. Movement and deletion do not write source files or release Batch feedback. Send creates the existing version-bound request for the agent, retaining the original target and hash.
+Edits remain unsent until **Send edit**. A deletion preview hides the object; Undo restores it. In the single-object editor, deleting supersedes other unsent edits to that object, and Undo restores those too. Movement and deletion do not write source files or release previously saved feedback. Send creates the existing version-bound request for the agent, retaining the original target and hash.
 
-For slide multi-selection, **Send edit** sends one group-feedback message with the selected objects' original targets and hash. Its JSON message describes `action="edit_selection"` and the requested operations; it does not use a group `edit_intent`. Pending group edits must be sent or cancelled before changing the selection or navigating. Cancel restores the local originals. After sending, **Dismiss preview** or a selection change restores the local preview without retracting the request. Batch still requires **Send batch** before the agent can read it.
+For slide multi-selection, **Send edit** sends one group-feedback message with the selected objects' original targets and hash. Its JSON message describes `action="edit_selection"` and the requested operations; it does not use a group `edit_intent`. Pending group edits must be sent or cancelled before changing the selection or navigating. Cancel restores the local originals. After sending, **Dismiss preview** or a selection change restores the local preview without retracting the request. Previously saved messages require **Send saved messages** before the agent can read them.
 
 The single-object editor retains forty changes in the current unsent edit. Undo/redo for a slide group covers its current unsent selection edit. Selecting another object, changing slide/artifact/version, cancelling, or successfully sending clears that history. Undo does not retract sent feedback or reverse an agent's later source revision. Slide thumbnails keep their separate order/deletion history.
 
@@ -102,7 +102,7 @@ Slides nudge by 0.1% of the canvas (1% with Shift), independent of preview zoom.
 | ⌘/Ctrl+Z / Shift+Z | Undo/redo source edits before saving |
 | Tab / Shift+Tab | Indent/unindent source lines; Escape then Tab exits the editor |
 
-Enter adds a normal line break in notes and other text fields. Sending in Batch mode adds a message to the local batch; use **Send batch** to release it to the agent. Text selection, copy, paste, caret movement and field editing retain their normal browser shortcuts.
+Enter adds a normal line break in notes and other text fields. **Send** submits the new message immediately. **Copy conversation** copies the visible conversation without sending it. Previously saved messages stay private until **Send saved messages**. Text selection, copy, paste, caret movement and field editing retain their normal browser shortcuts.
 
 ## During a slideshow
 

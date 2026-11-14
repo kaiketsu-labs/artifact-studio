@@ -42,7 +42,7 @@ For an existing presentation, the agent should:
 
 > Read get_working_context(deck_id=...), then check get_live_review_status(deck_id=...). Read the outline, brief, relevant files and released feedback; keep review open while the human uses Artifact Studio.
 
-Use `start_live_review()` with no deck for the design inbox, or with a deck to explicitly resume an ended review. The response reports `awaiting_host_hook`; the loaded host hook must run before the connection is established. With loaded hooks, the Live selector shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
+Use `start_live_review()` with no deck for the design inbox, or with a deck to explicitly resume an ended review. The response reports `awaiting_host_hook`; the loaded host hook must run before the connection is established. With loaded hooks, the agent status shows the connected harness, including between revision passes; otherwise it shows **Unavailable**. The tooltip includes the review session identifier. Merely having MCP configured is not availability.
 
 `start_live_review` reports `status="awaiting_host_hook"`: the call requests a connection, and any returned lease describes the target’s current reviewer. The host's `PostToolUse` hook runs **after** that response. Call `get_live_review_status(deck_id=...)` afterward (omit the ID for the design inbox): it returns `status="connected"` or `"unavailable"`, `review_connected`, `review_harness` and `review_session`, without starting or renewing a lease. Status covers the active reviewer for that exact target, which may be another session; compare `review_session` with your host session before claiming your own connection. An ordinary MCP feedback wait is not a host hook connection. Expired or disconnected leases are unavailable. Working context and review status include `workspace_url` and `mcp_url` derived from the actual HTTP request, including its port; direct Python calls receive relative URLs.
 
@@ -50,7 +50,7 @@ The start response is compact: it points to this topic rather than resending the
 
 Use **End review** in the artifact conversation header, or **Menu → Agent connection → End review** for a presentation. This releases its hook wait and preserves queued comments. For a design-only session, interrupt/end the agent session. After ending or interrupting, call `start_live_review` with the selected target to reconnect. If the app server stops, the hook exits rather than trapping the chat. An abrupt host kill can leave a short availability lease until it expires.
 
-Live submits each comment immediately for every artifact type. Batch remains private until **Send batch**. Neither switches nor hooks silently release a queued batch. A closed or unavailable agent can read saved feedback when resumed.
+**Send** submits each new comment immediately for every artifact type. **Copy conversation** copies visible conversation text without sending it. Earlier saved messages remain private until **Send saved messages**; hooks never silently release them. A closed or unavailable agent can read saved feedback when resumed.
 
 ## Agent behavior
 

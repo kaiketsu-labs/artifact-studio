@@ -17,7 +17,7 @@ give each agent its own scoped connection.
   <a href="#how-it-works">How it works</a> ·
   <a href="#install-on-mac">Install on Mac</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
-  <a href="#live-or-batch">Live &amp; Batch</a> ·
+  <a href="#chat-with-your-agent">Chat with your agent</a> ·
   <a href="docs/GETTING-STARTED.md">Full guide</a> ·
   <a href="docs/KEYBOARD-CONTROLS.md">Keyboard shortcuts</a>
 </p>
@@ -235,17 +235,15 @@ You can also ask for headline, supporting-text or graphic options. **Review alte
 
 [Text options](docs/screenshots/element-alternatives-text.png) · [Graphic options](docs/screenshots/element-alternatives-graphic.png) · [Comparison](docs/screenshots/element-alternatives-compare.png) · [Dark appearance](docs/screenshots/element-alternatives-dark.png) · [Touch layout](docs/screenshots/element-alternatives-mobile.png)
 
-## Live or Batch
+## Chat with your agent
 
-![Live releases each submitted comment immediately; Batch collects comments until you choose Send batch.](docs/assets/agents-modes.png)
+**Send** delivers your new message and attachments while retaining the original artifact version and selected targets. **Copy conversation** copies the current conversation's visible text, title, target labels and attachment names for use in another chat; it does not send anything. Earlier saved messages stay private until you explicitly choose **Send saved messages**.
 
-**Live** releases each submitted comment immediately. **Batch** keeps comments and attachments private until you choose **Send batch**. Both retain the original artifact version and selected targets.
+Loaded **Codex/Claude Code hooks** automatically continue the connected agent for every artifact type, including presentations, HTML, Markdown and images. The agent status and tooltip show the connection; **End review** stops listening. Keep the agent chat and local server open. Plain MCP cannot start a closed chat.
 
-Loaded **Codex/Claude Code hooks** automatically continue the connected agent for every artifact type, including presentations, HTML, Markdown and images. The Live dot and tooltip show the connection; End review stops listening. Keep the agent chat and local server open. Plain MCP cannot start a closed chat.
+For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), and have the agent select or work on the presentation. Copying a prompt alone does not configure or activate the host.
 
-For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), the agent then connects automatically when it selects or works on the presentation. Copying a prompt alone does not configure or activate the host.
-
-For other artifacts, the same hooks attach when the agent reads `get_working_context(artifact_id=...)` or works on that artifact. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` to resume after End review. Batch comments remain private until Send batch.
+For other artifacts, the same hooks attach when the agent reads `get_working_context(artifact_id=...)` or works on that artifact. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` to resume after End review.
 
 Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
 

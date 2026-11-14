@@ -40,7 +40,7 @@ This installs a background hook that checks for released requests assigned to
 the agent when it opens an artifact, starts review, or successfully saves edits
 or design alternatives. A pending request adds a short pointer to the next Claude
 turn. Use `read_feedback` to pick up requests directly. The agent does not
-appear as **Listening** in passive mode. Both **Live** and **Send batch** still
+appear as **Listening** in passive mode. Both **Send** and **Send saved messages** still
 release feedback. Choose `--claude-mode live` for automatic continuation.
 
 If you previously installed Claude hooks at both user and project level,
@@ -54,8 +54,8 @@ Reload the agent session and review/trust its generated hooks through the host's
 
 1. Ask the agent to read `get_working_context(artifact_id=...)` for one selected artifact. An eligible successful tool call lets its `PostToolUse` hook attach the native session. Project-only discovery does not attach a review.
 2. Check `get_live_review_status(artifact_id=...)` and the Studio connection indicator. Server session IDs are opaque and credential-scoped; they are not native Codex/Claude chat IDs. Status describes the target's current reviewer, which could be another session.
-3. Leave the agent session open. Send a Live comment: On macOS and Linux, Claude Code's Stop hook waits in the background and wakes the agent when feedback arrives; Codex and Claude Code on Windows wait synchronously and return a continuation decision. The agent must read released feedback through MCP, revise and reply. Wake-up messages contain tool/cursor pointers, not feedback text, and do not acknowledge delivery.
-4. Verify Batch stays private until **Send batch**, and **End review** stops further continuation. Use `start_live_review(artifact_id=...)` to explicitly resume an ended review. Presentation calls may use `deck_id` instead; select exactly one target.
+3. Leave the agent session open. Send a comment: On macOS and Linux, Claude Code's Stop hook waits in the background and wakes the agent when feedback arrives; Codex and Claude Code on Windows wait synchronously and return a continuation decision. The agent must read released feedback through MCP, revise and reply. Wake-up messages contain tool/cursor pointers, not feedback text, and do not acknowledge delivery.
+4. Verify previously saved messages stay private until **Send saved messages**, and **End review** stops further continuation. Use `start_live_review(artifact_id=...)` to explicitly resume an ended review. Presentation calls may use `deck_id` instead; select exactly one target.
 5. Verify SessionEnd/Interrupt and loss of connectivity release or expire availability. A timeout, failed authentication, unavailable server or full request budget makes the client return without blocking unrelated work. An abruptly killed session can remain visible until its short lease expires.
 
 One session follows one target, and one active reviewer owns a target at a time. The hosted adapter excludes the local design-request inbox and host administration. Local-only tools remain unavailable.

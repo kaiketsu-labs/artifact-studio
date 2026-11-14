@@ -68,7 +68,7 @@ to close it. Tap a sent pill once to preview and again to download its source.
 | Presentation | The full audience presentation, including embedded local assets and interactive dependencies. |
 | Slide | The chosen slide and its optional favorite description, with theme and local assets. It does not need to be starred. |
 
-Private feedback, unreleased Batch messages and speaker notes are excluded.
+Private feedback, previously saved unsent messages and speaker notes are excluded.
 References preserve the selected version after the source is renamed, moved or
 edited. Changes while a reference is being selected require choosing it again.
 Readable paths are labels; stable IDs distinguish identical titles. Selecting a

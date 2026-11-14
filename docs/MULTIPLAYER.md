@@ -256,12 +256,14 @@ In the standalone interface, sharing and agent connections use these controls:
    is private to you and your agents with access to this artifact. Replacing an
    agent retains your conversation. Artifact edits remain shared.
 4. Use the attachment button in the regular editor to add files to either
-   conversation. Files follow the message's visibility, including unreleased
-   batches, and require current access on every download. Each message supports
+   conversation. Files follow the message's visibility, including previously saved unsent
+   messages, and require current access on every download. Each message supports
    up to five files, 25 MB per file and 50 MB combined. Shared attachments have
    a 1 GiB budget per workspace and a 4 GiB budget per server.
-5. **Batch** saves messages visible only to their author. **Send batch** releases
-   only your drafts in the selected chat. Text drafts are separate for each person,
+5. **Send** submits your new message immediately. **Copy conversation** copies only
+   the selected conversation’s visible messages without sending them. Earlier saved
+   messages stay private until **Send saved messages**, which releases only your
+   saved messages in the selected chat. Text drafts are separate for each person,
    workspace, artifact, slide and chat. `Ctrl/Cmd+Enter` sends a message.
 
 Projects inherit workspace grants; artifacts inherit workspace and project grants.

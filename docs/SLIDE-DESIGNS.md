@@ -38,7 +38,7 @@ Whole-slide and static element alternatives are advertised in MCP initialization
 5. Read released feedback normally. Proposal-specific comments carry `design_option_id`, `design_option_name` and the immutable option's `source_hash` in `content_hash`. They refer to that proposal, not the currently chosen slide. Element editing remains attached to the chosen slide; proposed designs are reviewed as whole slides.
 6. To refine a proposal, read its source and publish a fresh set against the current slide. Do not overwrite an old proposal ID or an older feedback anchor. Earlier options remain available in History. Never call human decision, feedback or approval endpoints as the agent.
 
-`get_slide_designs` pages independently through publication groups and decisions. Carry `next_cursor` as `cursor` and `next_decision_cursor` as `decision_cursor`; use zero to skip a stream that has finished. `set_id` fetches a retained publication directly. Metadata reads omit slide source, frozen documents, speaker notes and unreleased Batch feedback.
+`get_slide_designs` pages independently through publication groups and decisions. Carry `next_cursor` as `cursor` and `next_decision_cursor` as `decision_cursor`; use zero to skip a stream that has finished. `set_id` fetches a retained publication directly. Metadata reads omit slide source, frozen documents, speaker notes and previously saved unsent feedback.
 
 The scoped Copilot gateway uses `options_json`, a JSON array of the same design objects, to keep its input schema flat. Its history cursors default to `-1` for the first page; zero skips a completed stream. All four tools enforce the currently shared project/workspace scope.
 
