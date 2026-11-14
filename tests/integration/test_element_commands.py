@@ -98,6 +98,54 @@ def test_slide_delete_menu_send_preserves_batch_and_original_target(
     assert live_app.store.feedback_feed(DECK_ID).events == []
 
 
+@pytest.mark.parametrize("delay", ["before", "after"])
+def test_slide_delete_waits_for_pending_batch_mode(
+    page: Page, live_app: RunningApp, delay: str
+) -> None:
+    """A delayed mode change must finish before a delete edit is delivered."""
+    page.add_init_script(
+        """(() => {
+          const original = window.fetch;
+          const held = new Promise(resolve => { window.releaseFixtureMode = resolve; });
+          window.fetch = async (...args) => {
+            if (!String(args[0]).includes('/feedback-mode')) return original(...args);
+            if ('DELAY_POINT' === 'before') await held;
+            const response = await original(...args);
+            if ('DELAY_POINT' === 'after') await held;
+            return response;
+          };
+        })()""".replace("DELAY_POINT", delay)
+    )
+    open_editor(page, live_app)
+    feedback_requests: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            feedback_requests.append(request.url)
+            if request.method == "POST" and request.url.endswith("/feedback")
+            else None
+        ),
+    )
+    page.get_by_role("button", name="Batch", exact=True).click()
+    heading = page.frame_locator("#preview").get_by_role("heading", level=1)
+    heading.click()
+    heading.press("Delete")
+    expect(heading).to_be_hidden()
+    page.locator("#element-properties").click(button="right", position={"x": 3, "y": 3})
+    page.get_by_role("menuitem", name="Send edit", exact=True).click()
+    assert feedback_requests == []
+    assert live_app.store.comments(DECK_ID) == []
+    page.evaluate("window.releaseFixtureMode()")
+    expect(page.locator("#feedback-list")).to_contain_text("Delete this element.")
+    comments = live_app.store.comments(DECK_ID)
+    assert len(comments) == 1 and comments[0].edit_intent is not None
+    assert comments[0].edit_intent.action == "delete"
+    target = comments[0].target
+    assert isinstance(target, ElementTarget) and "visibility" not in target.html
+    assert not comments[0].released
+    assert live_app.store.feedback_feed(DECK_ID).events == []
+
+
 def open_artifact(
     page: Page, live_app: RunningApp, tmp_path: Path
 ) -> tuple[ArtifactStore, str, Path]:
