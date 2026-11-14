@@ -105,11 +105,10 @@
     /** Read the authored size unit when possible and computed values otherwise. */
     function inspect(){
       if(!properties||!element){properties?.clear();return;}
-      const computed=doc.defaultView.getComputedStyle(element),raw=element.style.fontSize||computed.fontSize,match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw),rgb=/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/.exec(computed.color),color=rgb?'#'+rgb.slice(1,4).map(value=>Number(value).toString(16).padStart(2,'0')).join(''):(/^#[0-9a-f]{6}$/i.test(computed.color)?computed.color:'#000000');
+      const typography=root.ElementProperties.typographyOf(element,doc.defaultView);
       // Keep viewport-based slide sizes stable while the editing canvas is resized or zoomed.
-      const unit=match?.[2]||'px',scale=['cqw','vw'].includes(unit)?1280/doc.documentElement.clientWidth:['cqh','vh'].includes(unit)?720/doc.documentElement.clientHeight:1;
-      const pixels=Math.round((Number.parseFloat(computed.fontSize)||16)*scale*1000)/1000;
-      const typography={font_size:match?Number(match[1]):16,font_size_unit:unit,font_size_px:pixels,font_weight:computed.fontWeight||'normal',font_style:computed.fontStyle||'normal',text_align:['left','center','right','justify'].includes(computed.textAlign)?computed.textAlign:'left',color};
+      const unit=typography.font_size_unit,scale=['cqw','vw'].includes(unit)?1280/doc.documentElement.clientWidth:['cqh','vh'].includes(unit)?720/doc.documentElement.clientHeight:1;
+      typography.font_size_px=Math.round(typography.font_size_px*scale*1000)/1000;
       propertyBaseline={text:element.textContent||'',...typography};
       properties.setSelection({key:element,label:element.tagName.toLowerCase(),text:propertyBaseline.text,canText:canPropertyText(),typography});
     }
@@ -370,9 +369,7 @@
       if(('font_size' in propertyValues||'font_size_unit' in propertyValues)){propertyValues.font_size=values.font_size??propertyValues.font_size??propertyBaseline.font_size;propertyValues.font_size_unit=values.font_size_unit??propertyValues.font_size_unit??propertyBaseline.font_size_unit;}
       if(element.innerHTML!==original.html)element.innerHTML=original.html;
       if(original.style===null)element.removeAttribute('style');else element.setAttribute('style',original.style);
-      if('text' in propertyValues)element.textContent=propertyValues.text;
-      for(const [key,css] of Object.entries({font_weight:'fontWeight',font_style:'fontStyle',text_align:'textAlign',color:'color'}))if(key in propertyValues)element.style[css]=propertyValues[key];
-      if('font_size' in propertyValues||'font_size_unit' in propertyValues){const computed=doc.defaultView.getComputedStyle(element),raw=element.style.fontSize||computed.fontSize,match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw);element.style.fontSize=`${propertyValues.font_size??Number(match?.[1]||16)}${propertyValues.font_size_unit??match?.[2]??'px'}`;}
+      root.ElementProperties.applyTextPatch(element,propertyValues,propertyBaseline);
       sent=false;update();
     }
     function nudge(key,step=1){return positionKey({key,shiftKey:step===10,preventDefault(){},ctrlKey:false,metaKey:false,altKey:false});}

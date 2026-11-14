@@ -15,8 +15,7 @@
     return `${vertical} ${horizontal}`;
   }
   /** Collect visible, meaningful elements while retaining explicit groups. */
-  function collect(doc){
-    const slide=doc?.querySelector('.slide');
+  function collect(doc,slide=doc?.querySelector('.slide')){
     if(!slide)return [];
     const view=doc.defaultView,canvas=slide.getBoundingClientRect();
     const entries=[];
