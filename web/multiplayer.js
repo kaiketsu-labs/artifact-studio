@@ -151,7 +151,7 @@ async function refresh(first = false) {
   $('access-role').textContent = roleNames[current.access.role];
   $('revision').textContent = `Revision ${current.revision}`;
   const canComment = current.access.role !== 'view';
-  $('message').disabled = !canComment; $('send').disabled = !canComment; $('batch').disabled = !canComment;
+  $('message').disabled = !canComment; $('send').disabled = !canComment;
   if (!canComment) $('message').placeholder = 'You have view access';
   else $('message').placeholder = state.channel === 'private' ? 'Ask your agent…' : 'Discuss this artifact…';
   renderAgents(); renderSlides(); renderMessages();
@@ -173,7 +173,7 @@ function renderMessages() {
       row.append(header);
       if (message.target?.label) row.append(node('div', message.target.label, 'anchor'));
       row.append(node('div', message.message, 'body'));
-      if (message.assigned && !message.completed) row.append(node('span', message.released ? 'Requested' : 'Waiting for Send batch', 'subtle small'));
+      if (message.assigned && !message.completed) row.append(node('span', message.released ? 'Requested' : 'Saved privately · not sent', 'subtle small'));
       return row;
     }, day => node('p', day, 'chat-day')));
     if (!state.messages.length) list.append(node('p', state.channel === 'shared' ? 'Talk with your collaborators here. Choose an agent when you want a change.' : 'A private conversation with your agents. Changes they make are visible to everyone.', 'empty-chat'));
@@ -183,6 +183,16 @@ function renderMessages() {
   $('release').disabled = state.current.access.role === 'view';
   $('earlier').hidden = !state.hasEarlier;
 }
+$('copy-conversation').addEventListener('click', () => {
+  const generation=state.generation, channel=state.channel;
+  const messages=state.messages.map(message=>({
+    name:message.author!==message.person?(state.current.agents.find(agent=>agent.id===message.author)?.name||'Agent'):(message.author===state.session.person?'You':message.author_name),
+    message:message.message, files:message.files||[]
+  }));
+  void window.StudioChatCopy.copy({messages,clipboard:navigator.clipboard,
+    current:()=>state.generation===generation&&state.channel===channel,
+    notify:(message,error)=>error?noticeError(new Error(message)):notice(message)});
+});
 function switchChannel(channel) {
   saveDraft(); state.generation++; state.channel = channel; state.messages = []; $('messages').dataset.signature = ''; $('messages').replaceChildren();
   document.querySelectorAll('[data-channel]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.channel === channel)));
@@ -273,7 +283,7 @@ $('composer').addEventListener('submit', async event => {
   event.preventDefault(); if (!$('message').value.trim()) return;
   if (state.channel === 'private' && !$('recipient').value) {notice('Connect or choose your agent first.'); return;}
   const key = draftKey(), endpoint = artifactBase(), generation = state.generation;
-  const payload = {channel: state.channel, message: $('message').value.trim(), assigned: $('recipient').value, released: !$('batch').checked, content_hash: state.current.content_hash,
+  const payload = {channel: state.channel, message: $('message').value.trim(), assigned: $('recipient').value, released: true, content_hash: state.current.content_hash,
     target: state.slide ? {kind: 'slide', slide_id: state.slide, label: state.current.slides.find(slide => slide.id === state.slide)?.title || state.slide} : null};
   const prior = state.outgoing.get(key); const signature = JSON.stringify(payload);
   const requestId = prior?.signature === signature ? prior.requestId : crypto.randomUUID();

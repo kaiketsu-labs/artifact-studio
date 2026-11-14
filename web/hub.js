@@ -187,7 +187,7 @@
       catch(error){if(error.status===409)await refreshArtifactReview(item.id);throw error;}
       const detail=await artifactDetail(item.id);
       if(state.active===item.id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery,collaboration:detail.collaboration};renderChat();}
-      toast(item.mode==='batch'?'Added to batch.':'Saved for agent.');
+      toast('Saved for agent.');
     },onError:message=>toast(message,true)
   });
   const elementMenu=root.ElementCommands.menu({doc,onError:message=>toast(message,true)});
@@ -475,17 +475,24 @@
       message:message.message,created_at:new Date(message.created*1000).toISOString(),
       content_hash:message.content_hash,target:message.target,released:Boolean(message.released),files:message.files||[],scoped:true
     }));
-    const feedback=sharedEditor?scoped:[...(detail.feedback||[]),...scoped];
+    const feedback=sharedEditor||channelOf(id)==='shared'?scoped:[...(detail.feedback||[]),...scoped];
     if(!collaborationChat)return {...detail,feedback};
     return {...detail,collaboration:info,feedback,mode:conversationModes.get(id)||'live',
       delivery:{live_available:info.agents.some(agent=>agent.mine&&agent.status==='listening')}};
   }
   async function postArtifactFeedback(item,body) {
-    if(!collaborationChat)return api(artifactPath(item.id,'/feedback'),body);
+    if(!collaborationChat){
+      if(item.mode!=='live'){
+        const workflow=await api(artifactPath(item.id,'/mode'),{mode:'live'});
+        if(state.active!==item.id)throw new Error('The artifact changed. Review your draft before sending.');
+        item.mode='live';item.workflow=workflow;body={...body,expected_mode:'live'};
+      }
+      return api(artifactPath(item.id,'/feedback'),{...body,expected_mode:'live'});
+    }
     if(!canComment(item))throw new Error('You have view access.');
     const channel=channelOf(item.id),forAgent=body.edit_intent||body.ask_agent||channel==='private';
     const assigned=forAgent?ownChatAgent(item)?.id||'':'';
-    return collaborationChat.send(item.id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:body.content_hash,target:body.target,editIntent:body.edit_intent,channel,assigned,forAgent,includeSharedContext:body.ask_agent,released:body.expected_mode!=='batch'});
+    return collaborationChat.send(item.id,{message:body.message,files:body.files,requestId:body.request_id,contentHash:body.content_hash,target:body.target,editIntent:body.edit_intent,channel,assigned,forAgent,includeSharedContext:body.ask_agent,released:true});
   }
   function toast(message, error=false) {
     const node=doc.getElementById('hub-toast');node.textContent=message;node.classList.toggle('is-error',error);node.hidden=false;
@@ -649,22 +656,19 @@
       const url=root.ChatImages.downloadURL(file.download_url);
       return url?`<a class="hub-attachment" href="${escape(url)}" download>${icon('attach')}<span>${escape(file.name || file.path)}</span></a>`:`<span class="hub-attachment">${icon('attach')}<span>${escape(file.name || file.path)}</span></span>`;
     }).join('');
-    return `<article class="hub-message  ${user&&!message.collaborator?'is-user':''}${message.agentRequest?' is-agent-request':''}"${message.scoped?' data-scoped':''}><div class="hub-message-head">${icon(user?'user':'robot')}<span>${escape(message.name||(user?'You':'Agent'))}</span>${message.agentRequest?nativeConversation.agentBadge():''}${message.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}${root.ElementProperties.summary(message.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Private batch · not released</div>':''}</article>`;
+    return `<article class="hub-message  ${user&&!message.collaborator?'is-user':''}${message.agentRequest?' is-agent-request':''}"${message.scoped?' data-scoped':''}><div class="hub-message-head">${icon(user?'user':'robot')}<span>${escape(message.name||(user?'You':'Agent'))}</span>${message.agentRequest?nativeConversation.agentBadge():''}${message.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}${date && !Number.isNaN(date.getTime())?`<time datetime="${date.toISOString()}" title="${escape(date.toLocaleString())}">${escape(date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time>`:''}</div>${targets.length?`<div class="hub-message-target">${escape(targets.map(targetLabel).join(' · '))}${message.content_hash && message.content_hash!==item.content_hash?' · Earlier version':''}</div>`:''}<div class="hub-message-body">${root.SlideChatMarkdown.render(message.message || message.text || '')}${root.ElementProperties.summary(message.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}</div>${files?`<div class="hub-attachments">${files}</div>`:''}${message.released===false?'<div class="hub-message-state">Saved privately · not sent</div>':''}</article>`;
   }
   function threadMarkup(item) {
     return root.StudioChatTimeline.render(item.feedback||[],message=>message.created_at,
       message=>messageMarkup(message,item),day=>`<p class="chat-day">${escape(day)}</p>`).join('');
   }
   function deliveryMarkup(item) {
-    const mode=item.mode || 'batch',count=pendingCount(item),live=item.delivery?.live_available===true;
-    const harness=item.workflow?.review_harness==='claude-code'?'Claude Code':'Codex';
-    const availability=live?`${harness} connected${item.workflow?.review_session?' · '+item.workflow.review_session:''}`:'Automatic continuation unavailable';
-    const writable=canComment(item),disabled=writable?'':'disabled';
-    return `<div class="hub-delivery"><div class="hub-mode-switch" role="group" aria-label="Feedback delivery mode"><button type="button" data-mode="live" aria-pressed="${mode==='live'}" title="${escape(availability)}" ${disabled}>${icon('live')}Live<span class="hub-live-dot ${live?'is-connected':''}" aria-label="${live?'Agent connected':'Automatic continuation unavailable'}"></span></button><button type="button" data-mode="batch" aria-pressed="${mode==='batch'}" title="Keep feedback private until Send batch" ${disabled}>${icon('batch')}Batch</button></div>${mode==='batch'||(collaborationChat&&count)?button('release',`Send batch${count?' · '+count:''}`,'send',`class="hub-release" ${count&&writable?'':'disabled'}`):''}</div>`;
+    const count=pendingCount(item),earlier=collaborationChat&&channelOf(item.id)==='private'?(item.feedback||[]).filter(message=>!message.scoped&&message.author==='user'&&message.released===false).length:0;
+    return `<div class="hub-delivery" ${count||earlier?'':'hidden'}>${count?button('release',`Send saved messages for this artifact · ${count}`,'send',`class="hub-release" ${canComment(item)?'':'disabled'}`):''}${earlier?button('release-legacy',`Send earlier saved messages for this artifact · ${earlier}`,'send','class="hub-release"'):''}</div>`;
   }
   function chatMarkup(item) {
-    const value=draft(item),mode=item.mode || 'batch';
-    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation${button('end-review','','stop',`id="hub-end-review" class="hub-end-review" aria-label="End review" title="End review" ${item.delivery?.live_available?'':'hidden'}`)}</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)}${sharedEditor?' · '+escape({view:'Can view',comment:'Can comment',edit:'Can edit'}[item.access_role]||''):' · version '+escape(item.revision||1)}</p></header>${collaborationChat?`<label class="shared-channel"><span class="sr-only">Conversation</span><select id="hub-shared-channel"><option value="shared">Shared</option><option value="private" ${channelOf(item.id)==='private'?'selected':''}>My agent</option></select></label>`:''}${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${threadMarkup(item)}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length || attachments.get(item.id)?.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="${collaborationChat?(canComment(item)?channelOf(item.id)==='private'?'Message your agent…':'Message collaborators…':'View access'):'Message your agent… Type @ to reference'}" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}" title="${mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback'}">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}${collaborationChat?button('ask-agent','','robot','id="hub-ask-agent" class="chat-agent-toggle" aria-label="Ask your agent" aria-pressed="false" hidden'):''}${button('reference-slides','','favoriteSlides','aria-label="Reference favorite slides" title="Reference favorite slides"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="${mode==='batch'?'Add feedback to batch':'Send feedback'}" title="${mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
+    const value=draft(item);
+    return `<header><div class="hub-chat-heading">${icon('reply')}Conversation<span id="hub-agent-status" class="chat-agent-status" role="status" aria-label="Agent connection status">${item.delivery?.live_available?'Agent connected':'Agent unavailable'}</span>${button('copy-conversation','','copy','class="copy-conversation" aria-label="Copy conversation" title="Copy conversation"')}${button('end-review','','stop',`id="hub-end-review" class="hub-end-review" aria-label="End review" title="End review" ${item.delivery?.live_available?'':'hidden'}`)}</div><p class="hub-chat-title" title="${escape(item.title)}">${escape(item.title)}${sharedEditor?' · '+escape({view:'Can view',comment:'Can comment',edit:'Can edit'}[item.access_role]||''):' · version '+escape(item.revision||1)}</p></header>${collaborationChat?`<label class="shared-channel"><span class="sr-only">Conversation</span><select id="hub-shared-channel"><option value="shared">Shared</option><option value="private" ${channelOf(item.id)==='private'?'selected':''}>My agent</option></select></label>`:''}${deliveryMarkup(item)}<div class="hub-thread" id="hub-thread">${threadMarkup(item)}</div><details class="hub-chat-context"><summary>Context & sources</summary><p>${escape(typeof item.context==='string'?item.context:typeof selectedProject(item.project_id)?.context==='string'?selectedProject(item.project_id).context:'')}</p>${button('context','Inspect agent context','code')}</details><form id="hub-feedback-form" class="hub-compose"><div id="hub-targets">${targetsMarkup(value,item)}</div><div id="hub-feedback-attachments" class="hub-attachments">${attachmentMarkup(item.id)}</div>${value.content_hash!==item.content_hash && (value.message || value.targets.length || attachments.get(item.id)?.length)?'<p class="hub-draft-warning">This draft refers to an earlier version. Its original targets are retained.</p>':''}<div id="hub-voice-segments" class="voice-segments" aria-label="Dictated feedback drafts"></div><textarea id="hub-feedback-text" aria-label="Feedback for ${escape(item.title)}" placeholder="${collaborationChat?(canComment(item)?channelOf(item.id)==='private'?'Message your agent…':'Message collaborators…':'View access'):'Message your agent… Type @ to reference'}" maxlength="10000">${escape(value.message)}</textarea><p id="hub-feedback-error" class="hub-compose-error" role="alert"></p><input type="file" id="hub-feedback-files" multiple hidden><div id="hub-feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden><button id="hub-cancel-voice" type="button" aria-label="Cancel recording" title="Cancel recording">${icon('close')}</button><div class="voice-listening-dots" role="status" aria-label="Listening">${Array.from({length:28},()=>'<span aria-hidden="true"></span>').join('')}</div><button id="hub-stop-voice" type="button" aria-label="Stop recording" title="Stop recording"><span aria-hidden="true"></span></button><button id="hub-send-voice" type="button" aria-label="Send dictated feedback" title="Send dictated feedback">${icon('voiceSend')}</button></div><div class="hub-compose-actions">${button('attach','','attach','aria-label="Attach files" title="Attach files"')}${collaborationChat?button('ask-agent','','robot','id="hub-ask-agent" class="chat-agent-toggle" aria-label="Ask your agent" aria-pressed="false" hidden'):''}${button('reference-slides','','favoriteSlides','aria-label="Reference favorite slides" title="Reference favorite slides"')}<button type="submit" id="hub-send" class="hub-primary" aria-label="Send feedback" title="Send · Enter; new line · Shift+Enter">${icon('voiceSend')}</button></div></form>`;
   }
   function attachmentMarkup(id) {
     chatImages.retain([...attachments.values()].flat());
@@ -729,6 +733,7 @@
     }
     if(deliveryChanged || feedbackChanged){
       const end=doc.getElementById('hub-end-review');if(end)end.hidden=item.delivery?.live_available!==true;
+      const status=doc.getElementById('hub-agent-status');if(status)status.textContent=item.delivery?.live_available?'Agent connected':'Agent unavailable';
       const node=doc.querySelector('.hub-delivery'),focused=doc.activeElement,mode=focused?.dataset.mode,release=focused?.dataset.action==='release';
       if(node){
         const ownedFocus=node.contains(focused);node.outerHTML=deliveryMarkup(item);
@@ -738,7 +743,7 @@
           next?.focus({preventScroll:true});
         }
       }
-      const dictated=doc.getElementById('hub-send-voice'),label=item.mode==='batch'?'Add dictated feedback to batch':'Send dictated feedback';if(dictated){dictated.setAttribute('aria-label',label);dictated.title=label;}
+      const dictated=doc.getElementById('hub-send-voice'),label='Send dictated feedback';if(dictated){dictated.setAttribute('aria-label',label);dictated.title=label;}
     }
     syncArtifactStatus(item,detail);
     lockComposer();
@@ -753,7 +758,7 @@
   function lockComposer() {
     for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input'))if(!control.closest('.voice-input-controls'))control.disabled=sending.has(state.active)||!canComment(state.detail);
     const submit=doc.getElementById('hub-send'),active=voice.isActive();
-    if(submit){submit.setAttribute('aria-label',state.detail?.mode==='batch'?'Add feedback to batch':'Send feedback');submit.disabled=sending.has(state.active)||active||!canComment(state.detail);submit.title=active?'Stop dictation before sending feedback':`${state.detail?.mode==='batch'?'Add feedback to batch':'Send'} · Enter; new line · Shift+Enter`;}
+    if(submit){submit.setAttribute('aria-label','Send feedback');submit.disabled=sending.has(state.active)||active||!canComment(state.detail);submit.title=active?'Stop dictation before sending feedback':'Send · Enter; new line · Shift+Enter';}
     syncAgentToggle();
     syncVoiceChrome();
   }
@@ -1124,7 +1129,16 @@
       return;
     }
     if(name==='end-review'){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/review/disconnect'),{});const detail=await artifactDetail(id);if(state.active===id)syncArtifactReview(detail);toast('Review ended.');}finally{node.disabled=false;}return;}
-    if(name==='release'){const id=state.active;node.disabled=true;try{if(collaborationChat)await collaborationChat.release(id,channelOf(id));else await api(artifactPath(id,'/release'),{});const detail=await artifactDetail(id);if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery,collaboration:detail.collaboration};renderChat();}toast('Batch released.');}finally{node.disabled=false;}}
+    if(name==='copy-conversation'){
+      const item=state.detail,id=item?.id,channel=id&&channelOf(id);if(!item)return;
+      void root.StudioChatCopy.copy({messages:item.feedback||[],clipboard:root.navigator.clipboard,current:()=>{
+        try{root.ArtifactSession?.assertActive();return state.active===id&&channelOf(id)===channel;}catch{return false;}
+      },notify:toast});
+    }
+    if(name==='release-legacy'){
+      const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/release'),{});const detail=await artifactDetail(id);if(state.active===id){state.detail=detail;renderChat();}toast('Saved messages sent.');}finally{node.disabled=false;}
+    }
+    if(name==='release'){const id=state.active;node.disabled=true;try{if(collaborationChat)await collaborationChat.release(id,channelOf(id));else await api(artifactPath(id,'/release'),{});const detail=await artifactDetail(id);if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery,collaboration:detail.collaboration};renderChat();}toast('Saved messages sent.');}finally{node.disabled=false;}}
   }
   doc.addEventListener('click',event=>{
     const node=event.target.closest('button');if(!node)return;
@@ -1167,7 +1181,7 @@
         doc.getElementById('hub-feedback-error').textContent='';
         doc.getElementById('hub-feedback-attachments').innerHTML=attachmentMarkup(state.active);return;
       }
-      if(node.dataset.mode){const id=state.active;node.disabled=true;try{if(collaborationChat)conversationModes.set(id,node.dataset.mode);else await api(artifactPath(id,'/mode'),{mode:node.dataset.mode});const detail=await artifactDetail(id);if(state.active===id){state.detail={...state.detail,feedback:detail.feedback,mode:detail.mode,delivery:detail.delivery,collaboration:detail.collaboration};renderChat();}}finally{node.disabled=false;}}
+
     };run().catch(error=>toast(error.message,true));
   });
   /** Keep browser menus on editable fields, links and authored content outside selection mode. */

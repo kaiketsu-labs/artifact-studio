@@ -6,6 +6,7 @@
   <link rel="stylesheet" href="/web/multiplayer.css">
   <link rel="stylesheet" href="/web/chat-timeline.css">
   <script src="/web/chat-timeline.js" defer></script>
+  <script src="/web/chat-copy.js" defer></script>
   <script type="module" src="/web/multiplayer.js"></script>
 </head>
 <body>
@@ -34,11 +35,12 @@
           <section class="canvas" aria-label="Artifact preview"><div class="preview-stage"><iframe id="preview" title="Artifact preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe></div><nav id="slides" aria-label="Slides"></nav><div class="canvas-footer"><span id="revision" class="subtle"></span><span id="people" class="subtle"></span></div></section>
           <section class="chat" aria-label="Conversation">
             <div class="chat-tabs" role="tablist" aria-label="Chat visibility"><button id="shared-tab" role="tab" aria-selected="true" data-channel="shared">Shared</button><button id="private-tab" role="tab" aria-selected="false" data-channel="private" tabindex="-1">My agent</button></div>
+            <button id="copy-conversation" type="button" class="text-button" aria-label="Copy conversation">Copy conversation</button>
             <p id="privacy-hint" class="chat-hint">Visible to everyone with access.</p>
             <button id="earlier" class="text-button" hidden>Earlier messages</button>
             <div id="messages" role="log" aria-label="Messages" aria-live="polite"></div>
-            <form id="composer"><label id="target-label" class="target-label" for="message"></label><textarea id="message" placeholder="Discuss this artifact…" aria-label="Message" rows="3" maxlength="10000"></textarea><div class="compose-controls"><select id="recipient" aria-label="Send to"><option value="">Discuss</option></select><label class="batch"><input id="batch" type="checkbox">Batch</label><button id="send" class="send" aria-label="Send message">↑</button></div></form>
-            <div id="draft-actions" hidden><span>Only you can see these drafts.</span><button id="release" class="text-button">Send batch</button></div>
+            <form id="composer"><label id="target-label" class="target-label" for="message"></label><textarea id="message" placeholder="Discuss this artifact…" aria-label="Message" rows="3" maxlength="10000"></textarea><div class="compose-controls"><select id="recipient" aria-label="Send to"><option value="">Discuss</option></select><button id="send" class="send" aria-label="Send message">↑</button></div></form>
+            <div id="draft-actions" hidden><span>Saved messages are private until sent.</span><button id="release" class="text-button">Send saved messages for this artifact</button></div>
           </section>
         </div>
       </section>

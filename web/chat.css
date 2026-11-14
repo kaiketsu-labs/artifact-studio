@@ -96,3 +96,5 @@
 .mention-menu[hidden]{display:none}.mention-menu button{display:block;width:100%;padding:8px;text-align:left;border:0;background:transparent;color:inherit}.mention-menu button[aria-selected="true"],.mention-menu button:hover{background:var(--hover,#e8effb)}
 .comment.mentioned{outline:2px solid var(--blue,#426ca8);outline-offset:2px}
 #unread-mentions{font-size:12px;border-radius:999px}
+.copy-conversation { margin-left:auto; padding:5px; border:0; background:transparent; color:inherit; box-shadow:none; }
+.copy-conversation .ui-icon, .copy-conversation .icon { width:16px; height:16px; }
