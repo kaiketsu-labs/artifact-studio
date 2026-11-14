@@ -45,7 +45,7 @@ from .multiplayer_access import (
     checksum,
     workspace_editor_path,
 )
-from .multiplayer_chat import Channel, ChatProposal, Conversations
+from .multiplayer_chat import Channel, ChatProposal, CollaboratorRequestMode, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .offline_delivery import (
@@ -106,6 +106,12 @@ class SharedHistoryInput(StrictModel):
     enabled: bool
 
 
+class CollaboratorRequestsInput(StrictModel):
+    """Set the collaborator request mode of one presentation connection."""
+
+    mode: CollaboratorRequestMode
+
+
 class TitleInput(StrictModel):
     title: str = Field(min_length=1, max_length=160)
 
@@ -115,6 +121,7 @@ class AcceptInput(StrictModel):
 
 
 class ChatInput(StrictModel):
+    collaborator_request_generation: int = Field(default=0, ge=0)
     channel: Channel = "shared"
     message: str = Field(max_length=10000)
     request_id: str = Field(min_length=8, max_length=100)
@@ -543,6 +550,24 @@ def create_app(
             "enabled": chat.shared_history_access(actor_of(request), scope, agent, body.enabled)
         }
 
+    @app.get(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/collaborator-requests"
+    )
+    def agent_collaborator_requests(
+        request: Request, workspace: str, artifact: str, agent: str
+    ) -> dict[str, CollaboratorRequestMode]:
+        scope = Scope(workspace, "artifact", artifact)
+        return {"mode": chat.collaborator_requests(actor_of(request), scope, agent)}
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/agents/{agent}/collaborator-requests"
+    )
+    def set_agent_collaborator_requests(
+        request: Request, workspace: str, artifact: str, agent: str, body: CollaboratorRequestsInput
+    ) -> dict[str, CollaboratorRequestMode]:
+        scope = Scope(workspace, "artifact", artifact)
+        return {"mode": chat.collaborator_requests(actor_of(request), scope, agent, body.mode)}
+
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/state")
     def artifact_state(request: Request, workspace: str, artifact: str) -> dict[str, object]:
         actor, scope = actor_of(request), Scope(workspace, "artifact", artifact)
@@ -730,6 +755,7 @@ def create_app(
             slide_content_hash=body.slide_content_hash,
             proposal=body.proposal,
             include_shared_context=body.include_shared_context,
+            collaborator_request_generation=body.collaborator_request_generation,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")

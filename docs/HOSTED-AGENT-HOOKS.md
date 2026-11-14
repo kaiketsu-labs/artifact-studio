@@ -52,6 +52,20 @@ Reload the agent session and review/trust its generated hooks through the host's
 
 ## Verify the complete journey
 
+On a shared presentation, open **Menu → Agent connection** and set
+**Collaborator requests** for your agent. **Off** is the default. **Apply directly**
+lets editors select the agent in **Shared** and request an edit using the usual
+revision checks. **Suggest changes** requires this connection to publish slide,
+element or structure proposals for review on this presentation. This also applies
+when you address the same connection there. An editor reviews and applies the
+proposal in Studio. Each mode change invalidates outstanding collaborator requests
+accepted under the previous setting.
+
+The addressed message, selected slide, and attachments go to the named agent.
+Its reply appears in **Shared**. The private **Agent** conversation and **Full
+Shared history** permissions are separate. Turning access off stops queued work
+and replies. An agent may already have read a request before it was turned off.
+
 1. Ask the agent to read `get_working_context(artifact_id=...)` for one selected artifact. An eligible successful tool call lets its `PostToolUse` hook attach the native session. Project-only discovery does not attach a review.
 2. Check `get_live_review_status(artifact_id=...)` and the Studio connection indicator. Server session IDs are opaque and credential-scoped; they are not native Codex/Claude chat IDs. Status describes the target's current reviewer, which could be another session.
 3. Leave the agent session open. Send a comment: On macOS and Linux, Claude Code's Stop hook waits in the background and wakes the agent when feedback arrives; Codex and Claude Code on Windows wait synchronously and return a continuation decision. The agent must read released feedback through MCP, revise and reply. Wake-up messages contain tool/cursor pointers, not feedback text, and do not acknowledge delivery.

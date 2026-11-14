@@ -122,12 +122,12 @@ function renderPreview() {
 }
 function renderAgents() {
   const selected = state.recipients.get(recipientKey()) || '';
-  const agents = state.current.agents.filter(item => state.channel === 'shared' || item.mine);
+  const agents = state.current.agents.filter(item => item.mine || (state.channel === 'shared' && ['direct', 'suggest'].includes(item.collaborator_request_mode)));
   const options = state.channel === 'shared' ? [new Option('Discuss', '')] : [new Option('Choose your agent', '')];
   options.push(...agents.map(item => new Option(`${item.mine ? item.name : `${item.email} · ${item.name}`} (${item.status})`, item.id)));
+  if (selected && !agents.some(item => item.id === selected)) options.push(new Option('Selected agent unavailable', selected));
   if (JSON.stringify([...$('recipient').options].map(item => [item.value, item.text])) !== JSON.stringify(options.map(item => [item.value, item.text]))) $('recipient').replaceChildren(...options);
-  if (agents.some(item => item.id === selected)) $('recipient').value = selected;
-  else $('recipient').value = '';
+  $('recipient').value = selected;
   $('recipient').disabled = state.current.access.role !== 'edit';
   const listening = state.current.agents.filter(item => item.status === 'listening').length;
   $('people').textContent = listening ? `${listening} agent${listening === 1 ? '' : 's'} listening` : 'Connect an agent to work together';
@@ -295,7 +295,9 @@ $('composer').addEventListener('submit', async event => {
   event.preventDefault(); if (!$('message').value.trim()) return;
   if (state.channel === 'private' && !$('recipient').value) {notice('Connect or choose your agent first.'); return;}
   const key = draftKey(), endpoint = artifactBase(), generation = state.generation;
+  const recipient = state.current.agents.find(item => item.id === $('recipient').value);
   const payload = {channel: state.channel, message: $('message').value.trim(), assigned: $('recipient').value, released: true, content_hash: state.current.content_hash,
+    ...(!recipient?.mine && recipient?.collaborator_request_generation ? {collaborator_request_generation: recipient.collaborator_request_generation} : {}),
     target: state.slide ? {kind: 'slide', slide_id: state.slide, label: state.current.slides.find(slide => slide.id === state.slide)?.title || state.slide} : null};
   const prior = state.outgoing.get(key); const signature = JSON.stringify(payload);
   const requestId = prior?.signature === signature ? prior.requestId : crypto.randomUUID();

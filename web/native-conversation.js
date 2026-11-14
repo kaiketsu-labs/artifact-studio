@@ -22,7 +22,10 @@
   }
 
   const agentRequest = message => message.channel === 'shared' && !!message.assigned && message.author === message.person;
-  const agentBadge = () => `<span class="chat-agent-badge" role="img" aria-label="Agent request" title="Agent request">${root.SlideIcons.svg('robot')}</span>`;
+  function agentBadge(recipient, escape) {
+    const label = recipient && escape ? escape(`Request for ${recipient}`) : 'Agent request';
+    return `<span class="chat-agent-badge" role="img" aria-label="${label}" title="${label}">${root.SlideIcons.svg('robot')}</span>`;
+  }
 
   /** Keep the toggle's accessible name stable and describe its current delivery state. */
   function setAgentToggle(button, pressed, agent) {
@@ -151,7 +154,7 @@
         return pendingRequests.has(`${base(artifactId)}/${requestId}`);
       },
       async send(artifactId, {message, requestId, contentHash, slideId, slideContentHash, target,
-        editIntent, files, proposal, channel = 'shared', released = true, assigned = '', forAgent = false, includeSharedContext = false}) {
+        editIntent, files, proposal, channel = 'shared', released = true, assigned = '', forAgent = false, includeSharedContext = false, collaboratorRequestGeneration}) {
         const endpoint = base(artifactId), anchor = artifactTarget(target, slideId);
         const stale = message => Object.assign(new Error(message), {status: 409, stale: true});
         const key = `${endpoint}/${requestId}`;
@@ -166,6 +169,7 @@
           message: editMessage(message, editIntent), request_id: requestId,
           content_hash: discussion || proposal ? '' : contentHash,
           target: structuredClone(anchor), channel, released, assigned,
+          ...(Number.isInteger(collaboratorRequestGeneration) ? {collaborator_request_generation: collaboratorRequestGeneration} : {}),
           ...(channel === 'shared' && assigned && includeSharedContext ? {include_shared_context: true} : {}),
           ...((!discussion || proposal) && slideContentHash ? {slide_content_hash: slideContentHash} : {}),
           ...(proposal ? {proposal: structuredClone(proposal)} : {}),

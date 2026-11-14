@@ -18,16 +18,17 @@ test('a lost acknowledgement retries the exact saved payload after revision and 
   const target={kind:'element',selector:'#heading',label:'Original heading'};
   const draft={message:'Clarify this heading',requestId:'original-request',contentHash:'artifact-v1',
     slideContentHash:'slide-v1',slideId:'cover',target,files,channel:'shared',assigned:'original-agent',
-    forAgent:true,includeSharedContext:true};
+    forAgent:true,includeSharedContext:true,collaboratorRequestGeneration:4};
   await assert.rejects(chat.send('deck',draft),/Response lost/);
   assert.equal(chat.hasPendingRequest('deck',draft.requestId),true);
   assert.equal(chat.hasPendingRequest('another-deck',draft.requestId),false);
   files[0].data='changed';target.selector='#another-heading';
   const receipt=await chat.send('deck',{...draft,contentHash:'artifact-v2',slideContentHash:'slide-v2',
-    assigned:'another-agent',includeSharedContext:false});
+    assigned:'another-agent',includeSharedContext:false,collaboratorRequestGeneration:5});
   assert.equal(receipt.id,1);
   assert.equal(stored.size,1);
   assert.deepEqual(attempts[1],attempts[0]);
+  assert.equal(attempts[0].collaborator_request_generation,4);
   assert.equal(chat.hasPendingRequest('deck',draft.requestId),false);
 });
 
