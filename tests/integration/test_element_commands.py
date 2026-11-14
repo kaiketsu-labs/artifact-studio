@@ -394,6 +394,7 @@ def test_artifact_movement_request_has_exact_canvas_context(
 ) -> None:
     store, artifact_id, source = open_artifact(page, live_app, tmp_path)
     original = source.read_text()
+    original_hash = store.get_artifact(artifact_id).content_hash
     heading = page.frame_locator("#hub-html-preview").locator("#title")
     heading.click()
     expect(page.locator("#hub-element-properties")).to_be_visible()
@@ -417,5 +418,8 @@ def test_artifact_movement_request_has_exact_canvas_context(
     assert float(values["y"]) * float(values["canvas_height"]) == pytest.approx(
         position["y"], abs=0.02
     )
-    assert not feedback[0].released
+    assert feedback[0].released and feedback[0].content_hash == original_hash
+    feed = store.feedback_feed(artifact_id)
+    assert [event.event_id for event in feed.events] == [feedback[0].event_id]
+    assert feed.events[0].edit_intent is not None and feed.events[0].edit_intent.action == "move"
     assert source.read_text() == original
