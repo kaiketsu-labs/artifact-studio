@@ -105,16 +105,25 @@
 .compose-actions .chat-agent-toggle,.hub-compose-actions .chat-agent-toggle {
   flex: none;
   margin-inline-start: auto;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   color: var(--muted,var(--hub-muted));
 }
-.compose-actions .chat-agent-toggle[aria-pressed="true"],.hub-compose-actions .chat-agent-toggle[aria-pressed="true"] {
-  background: var(--agent-request-tint);
-  border-color: var(--agent-request-line);
+.compose-actions .chat-agent-toggle:is(:hover,[aria-pressed="true"]),
+.hub-compose-actions .chat-agent-toggle:is(:hover,[aria-pressed="true"]) {
+  background: transparent;
+  border: 0;
   color: var(--agent-request-ink);
 }
-.discussion .feedback-compose:has(.chat-agent-toggle[aria-pressed="true"]),
-.hub-chat .hub-compose:has(.chat-agent-toggle[aria-pressed="true"]) {
-  border-color: var(--agent-request-line);
+:root[data-theme="dark"] :is(.compose-actions,.hub-compose-actions) .chat-agent-toggle:is(:hover,[aria-pressed="true"]) {
+  background: transparent;
+  border: 0;
+}
+.compose-actions .chat-agent-toggle:focus-visible,.hub-compose-actions .chat-agent-toggle:focus-visible {
+  outline: none;
+  color: var(--agent-request-ink);
+  box-shadow: inset 0 -2px currentColor;
 }
 .chat-resizer:focus-visible,.workspace-panel-resize.panel-right:focus-visible { outline: none; }
 .chat-resizer:focus-visible::after,.workspace-panel-resize.panel-right:focus-visible::after {
