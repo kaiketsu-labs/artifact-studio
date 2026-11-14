@@ -1,5 +1,14 @@
 # Documentation screenshots
 
+The presentation startup screen on [desktop](presentation-loading.png) and
+[narrow windows](presentation-loading-mobile.png) shows a loading indicator and
+Cancel while the viewer starts. These Chromium captures use the fictional
+integration deck with a deliberately delayed presentation document, at 1600 ×
+844 in light appearance and 390 × 844 in dark appearance. Both use the same dark
+presentation background. Browser review exercised cancellation, restarting,
+Enter navigation and returning to the editor; native apps and physical displays
+were not tested.
+
 The current [single-send chat in light](chat-single-send-light.png) and [dark](chat-single-send-dark.png) uses compact agent icons, connection dots and Copy conversation. The rendered fictional fixture seeds a review lease through the API; no agent CLI or provider is connected. [Capture provenance](chat-single-send-captures.json) records browser, source and image hashes. Older screenshots may show the retired Live/Batch controls.
 
 The [default-design controls](default-design.png) were reviewed in actual Chromium at 1440 × 844 with two fictional slide design packs and a reference-only collection. The filled star and Default badge identify the saved workspace preference.

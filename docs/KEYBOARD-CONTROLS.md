@@ -117,7 +117,7 @@ These controls also work in the self-contained HTML export. Navigation advances/
 | Escape | End the show; a hosted show returns to the editor at the current slide |
 | Tab, then Enter/Space | Focus and activate presentation controls |
 
-Clicking the slide background also advances. Buttons, links, text entry, open dialogs and system/browser modifier shortcuts retain their own behavior. In an exported file, ending returns to that file's preview view. There, **F** toggles fullscreen, **N** opens notes and **S** opens sources; these letters advance during an active show. Audience-only windows omit private note/source commands. Exports contain no private speaker notes.
+Clicking the slide background and pressing **Enter** use the same action: advance one animation step, then move to the next visible slide after the final step. Starting Present focuses the slide so Enter works immediately. Buttons, links, text entry, open dialogs and system/browser modifier shortcuts retain their own behavior. In an exported file, ending returns to that file's preview view. There, **F** toggles fullscreen, **N** opens notes and **S** opens sources; these letters advance during an active show. Audience-only windows omit private note/source commands. Exports contain no private speaker notes.
 
 ## Menus, projects and panels
 

@@ -153,6 +153,12 @@ The [keyboard shortcut reference](KEYBOARD-CONTROLS.md) lists the available file
 
 The following controls apply to the presentation editor. Its top-right **Menu** groups file actions, workspace settings and the agent connection; **Present** stays beside it. Return through the library to open related non-slide artifacts. Open the menu with **F10** or focus it and press Up/Down. Use arrows, Home/End, Enter or type an action's name; Escape returns focus to the menu button. Appearance opens a submenu with Right; Left returns.
 
+**Present** immediately opens the presentation screen. While pending notes save
+or the viewer starts, a visible loading indicator and **Cancel** replace the
+blank screen. The first rendered slide becomes usable without waiting for every
+document asset to finish loading. Press **Enter** or click the slide to advance
+one animation step, then the next visible slide. **Escape** returns to editing.
+
 | Action | Mac | Windows/Linux |
 | --- | --- | --- |
 | New presentation | ⌘N | Ctrl+N |

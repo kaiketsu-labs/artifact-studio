@@ -491,7 +491,10 @@
   async function startPresentation(){
     if(active){endPresentation();return;}
     const initial=startIndex(deck.slides,current);emptyShow=initial<0;if(!emptyShow)current=initial;revealed=0;
-    active=true;mode='single';clock.pause();clock.reset();startClock();render();if(!embedded)void fullscreen();
+    active=true;mode='single';clock.pause();clock.reset();startClock();render();
+    // The launch button is now hidden. Give advance keys to the visible slide.
+    $('stage').tabIndex=-1;$('stage').focus({preventScroll:true});
+    if(!embedded)void fullscreen();
     if(!('getScreenDetails' in window)||!navigator.permissions?.query)return;
     try{
       const permission=await navigator.permissions.query({name:'window-management'});
