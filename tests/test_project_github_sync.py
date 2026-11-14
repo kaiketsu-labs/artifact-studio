@@ -2,7 +2,9 @@
 
 import os
 import subprocess
+import threading
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from typing import BinaryIO
@@ -608,3 +610,51 @@ def test_concurrent_remote_editor_cannot_be_overwritten(
     report = sync.run(owner, scope).reports[0]
     assert report.action == "conflict"
     assert report.conflict
+
+
+def test_project_move_waits_for_publication(
+    sync_fixture: tuple[Path, Sharing, str, str, GitHubProject, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A move cannot invalidate membership while an authorized push is in flight."""
+    _, sharing, project, artifact, binding, scratch = sync_fixture
+    sync = ProjectGitHubSync(sharing, [binding], scratch=scratch)
+    scope = Scope("default", "project", project)
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    _ = sync.run(owner, scope)
+    service = ArtifactStore(sharing.store("default"))
+    destination = service.create_project("Fictional destination")
+    revise(service, artifact, "Updated before move")
+    started, release, moving, moved = (threading.Event() for _ in range(4))
+    publish = project_sync.GitTree.publish
+
+    def paused_publish(
+        tree: project_sync.GitTree,
+        prefix: str,
+        previous: dict[str, bytes],
+        source: dict[str, bytes],
+    ) -> str:
+        started.set()
+        assert release.wait(10)
+        return publish(tree, prefix, previous, source)
+
+    def move() -> None:
+        moving.set()
+        with sharing.guard(owner, Scope("default", "artifact", artifact), "edit"):
+            _ = service.set_artifact_project(artifact, destination.id)
+        moved.set()
+
+    monkeypatch.setattr(project_sync.GitTree, "publish", paused_publish)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        running = pool.submit(sync.run, owner, scope)
+        assert started.wait(10)
+        relocating = pool.submit(move)
+        assert moving.wait(10)
+        try:
+            assert not moved.wait(0.2)
+        finally:
+            release.set()
+        assert running.result(timeout=10).reports[0].action == "upload"
+        relocating.result(timeout=10)
+    assert moved.is_set()
+    assert sync.run(owner, scope).reports[0].action == "blocked"

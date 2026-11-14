@@ -675,6 +675,8 @@ class ProjectGitHubSync:
                     "GitHub needs a complete bundle with its entrypoint before it can be used."
                 )
             report.action = "upload" if resolution.choice == "studio" else "download"
+        # Keep the sharing lock through publication so a project move or permission
+        # revocation cannot invalidate the authorization between the check and push.
         with self.sharing.guard(actor, scope, "edit") as store:
             service = ArtifactStore(store)
             latest = service.get_artifact(artifact)
@@ -686,20 +688,15 @@ class ProjectGitHubSync:
                 raise ConflictError("Studio changed during sync. Check sync again.")
             if report.action == "download":
                 self._apply_source(service, artifact, local, remote, item.revision, tree.tip)
-        if report.action == "conflict":
-            return report
-        agreed = remote if report.action == "download" else local
-        if report.action == "merge":
-            assert merged is not None
-            agreed = merged
-        if agreed != remote:
-            report.commit = tree.publish(prefix, remote, agreed)
-        if report.action == "merge" and agreed != local:
-            with self.sharing.guard(actor, scope, "edit") as store:
-                service = ArtifactStore(store)
-                latest = service.get_artifact(artifact)
-                if latest.project_id != binding.project:
-                    raise AccessDenied
+            if report.action == "conflict":
+                return report
+            agreed = remote if report.action == "download" else local
+            if report.action == "merge":
+                assert merged is not None
+                agreed = merged
+            if agreed != remote:
+                report.commit = tree.publish(prefix, remote, agreed)
+            if report.action == "merge" and agreed != local:
                 self._apply_source(service, artifact, local, agreed, item.revision, report.commit)
         files = _file_hashes(agreed)
         state.baselines[artifact] = Baseline(
