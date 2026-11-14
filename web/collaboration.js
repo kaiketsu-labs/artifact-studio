@@ -144,7 +144,7 @@
     const error = dialog.querySelector('[role="alert"]');
     const manage = dialog.querySelector('.studio-invite-manage');
     const recovery = dialog.querySelector('.studio-grant-recovery');
-    if (kind === 'workspace') {
+    {
       fetch(workspaceAPI + '/grant-recovery').then(async response => {
         if (response.status === 404) return;
         root.ArtifactSession.observe(response); root.ArtifactSession.assertActive();
