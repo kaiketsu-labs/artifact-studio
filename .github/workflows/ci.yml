@@ -142,6 +142,8 @@ jobs:
               tests/integration/test_element_alternative_layout.py tests/integration/test_element_alternative_motion.py
               tests/integration/test_presentation_displays.py tests/integration/test_rail_previews.py tests/integration/test_design_dialog_lifecycle.py
               tests/integration/test_presentation_start.py
+              tests/integration/test_presentation_lazy.py tests/integration/test_presentation_warmup.py
+              tests/integration/test_section_refresh_efficiency.py
           - suite: runtime-1
             browsers: chromium firefox
             tests: >-

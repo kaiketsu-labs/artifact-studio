@@ -37,8 +37,7 @@ and all license files before testing. [Dependency update automation](DEPENDENCY-
 uses this gate with strict native GitHub branch protection.
 
 The four browser jobs (`editor` and `runtime-1` through `runtime-3`) run in
-parallel with `fail-fast: false` and independent 25-minute timeouts. Their 86
-module entries are the same inventory as the previous two jobs. The runtime
+parallel with `fail-fast: false` and independent 25-minute timeouts. The runtime
 assignments were balanced using an existing local JUnit report, with test counts
 as a fallback for modules absent from that report; hosted timings have not yet
 validated the balance. Each suite and the Python unit step use two pytest-xdist
@@ -48,6 +47,9 @@ silently restarting workers. The agent integration step remains sequential. It
 also runs one paired [presentation-workflow regression](performance/PRESENTATION-WORKFLOW.md)
 to check conflict recovery, feedback cursors and equivalent final content. Repeated
 timing trials and optional tokenizer estimates remain manual benchmark commands.
+The [presentation startup benchmark](performance/presentation-startup.md) measures
+rendering cost separately; its cancellation and lazy-view regressions run in the
+existing browser jobs.
 
 `tests/conftest.py` isolates each worker's default collection, database and explicit
 artifact directory by run ID and worker ID before application imports. Existing

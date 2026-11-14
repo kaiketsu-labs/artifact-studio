@@ -1950,10 +1950,21 @@ def export_html(deck_id: DeckID) -> HTMLResponse:
 @app.get("/decks/{deck_id}/presentation.js")
 @app.get("/decks/{deck_id}/icons.js")
 @app.get("/decks/{deck_id}/slideshow.css")
-def presentation_runtime(deck_id: DeckID, request: Request) -> FileResponse:
-    """Use installed viewer controls for existing decks without rewriting their files."""
-    _ = store.read(deck_id)
-    return FileResponse(PROJECT / "runtime" / Path(request.url.path).name)
+def presentation_runtime(deck_id: DeckID, request: Request) -> Response:
+    """Revalidate installed viewer controls without reading or parsing a whole deck."""
+    if not (store.folder(deck_id) / "index.html").is_file():
+        raise FileNotFoundError("Presentation unavailable")
+    path = PROJECT / "runtime" / Path(request.url.path).name
+    response = FileResponse(path, stat_result=path.stat())
+    if StaticFiles().is_not_modified(response.headers, request.headers):
+        return Response(
+            status_code=304,
+            headers={
+                "ETag": response.headers["etag"],
+                "Last-Modified": response.headers["last-modified"],
+            },
+        )
+    return response
 
 
 @app.get("/api/decks/{deck_id}/audience")
