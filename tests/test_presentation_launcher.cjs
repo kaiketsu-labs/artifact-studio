@@ -8,13 +8,15 @@ function fixture({unsupported=false,reject=false,prepare=null,onError=()=>{}}={}
   const doc={fullscreenElement:null,documentElement:{},body:{children:[],classList:{add:value=>classes.add(value),remove:value=>classes.delete(value)},append(element){this.children.push(element);}},addEventListener(type,listener){handlers[type]=listener;}};
   const view={location:{origin:'http://localhost',href:'http://localhost/?deck=test'},addEventListener(type,listener){handlers[type]=listener;}};
   class Element{
-    constructor(tag){this.tag=tag;this.handlers={};this.inert=false;this.contentWindow={postMessage:data=>messages.push(data)};}
+    constructor(tag){this.tag=tag;this.handlers={};this.inert=false;this.style={};this.attributes={};this.contentWindow={location:{href:'about:blank',pathname:'blank'},postMessage:data=>messages.push(data)};}
     addEventListener(type,listener){this.handlers[type]=listener;}
-    append(child){this.child=child;}
-    focus(){this.focused=true;}
+    append(...children){this.children=children;this.child=children[0];}
+    focus(){this.focused=true;this.focusCount=(this.focusCount||0)+1;}
     remove(){this.removed=true;}
-    getAttribute(){return '/decks/test/index.html?present=1#cover';}
-    set src(value){order.push('navigate');this.url=value;}
+    getAttribute(name){return name==='href'?'/decks/test/index.html?present=1#cover':this.attributes[name];}
+    setAttribute(name,value){this.attributes[name]=value;}
+    removeAttribute(name){delete this.attributes[name];}
+    set src(value){order.push('navigate');this.url=value;this.contentWindow.location=new URL(value);}
   }
   doc.createElement=tag=>{
     const element=new Element(tag);
@@ -27,8 +29,9 @@ function fixture({unsupported=false,reject=false,prepare=null,onError=()=>{}}={}
   const launcher=create({button,additionalButtons:[fullscreenButton],doc,view,prepare,onError,onReturn:id=>{returned=id;},onUnavailable:()=>unavailable++});
   const click=(extra={})=>button.handlers.click({button:0,preventDefault(){},...extra});
   const layer=()=>doc.body.children.at(-1),frame=()=>layer().child;
+  const loading=()=>layer().children[1];
   const message=(data,extra={})=>handlers.message({source:frame().contentWindow,origin:view.location.origin,data:{type:'artifact-studio:presentation',...data},...extra});
-  return {doc,handlers,launcher,button,fullscreenButton,sibling,order,messages,classes,click,layer,frame,message,returned:()=>returned,unavailable:()=>unavailable};
+  return {doc,handlers,launcher,button,fullscreenButton,sibling,order,messages,classes,click,layer,frame,loading,message,returned:()=>returned,unavailable:()=>unavailable};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 
@@ -36,8 +39,38 @@ test('pending notes save after fullscreen activation and before the presentation
   let finish;const saving=new Promise(resolve=>{finish=resolve;});
   const check=fixture({prepare:()=>saving});check.click();
   assert.deepEqual(check.order,['fullscreen']);
+  assert.equal(check.loading().children[0].textContent,'Starting presentation…');
+  assert.equal(check.loading().children[1].focused,true);
+  assert.equal(check.frame().style.visibility,'hidden');
   await settle();assert.deepEqual(check.order,['fullscreen']);
   finish();await settle();assert.deepEqual(check.order,['fullscreen','navigate']);
+  assert.equal(check.loading().children[0].textContent,'Loading slides…');
+});
+
+test('runtime readiness reveals and focuses the slide before slower assets finish loading',()=>{
+  const check=fixture();check.click();
+  check.message({action:'ready'});
+  assert.equal(check.loading().removed,true);
+  assert.equal(check.frame().style.visibility,'');
+  assert.equal(check.frame().getAttribute('aria-hidden'),undefined);
+  assert.equal(check.frame().focusCount,1);
+  check.frame().handlers.load();
+  assert.equal(check.frame().focusCount,1,'late document load must not steal focus from presenter controls');
+});
+
+test('the initial blank document cannot dismiss loading or take focus',async()=>{
+  let finish;const check=fixture({prepare:()=>new Promise(resolve=>{finish=resolve;})});
+  check.click();await settle();check.frame().handlers.load();
+  assert.equal(check.loading().removed,undefined);assert.equal(check.frame().focused,undefined);
+  check.loading().children[1].handlers.click();await settle();finish();await settle();
+  assert.equal(check.launcher.isOpen(),false);assert.deepEqual(check.order,['fullscreen']);
+  assert.equal(check.button.focused,true);
+});
+
+test('Escape can cancel loading even when native fullscreen is unavailable',async()=>{
+  const check=fixture({unsupported:true});check.click();
+  check.handlers.keydown({key:'Escape',preventDefault(){}});await settle();
+  assert.equal(check.launcher.isOpen(),false);assert.equal(check.button.focused,true);
 });
 
 test('a failed note save returns to editing with an actionable error',async()=>{
@@ -52,6 +85,7 @@ test('Present requests fullscreen synchronously before loading the slideshow',as
   assert.deepEqual(check.order,['fullscreen','navigate']);
   assert.equal(check.doc.fullscreenElement,check.layer());
   assert.match(check.frame().url,/workspace=1/);
+  check.frame().contentWindow.location.hash='#second';
   check.message({action:'state',slide_id:'second'});
   check.message({action:'end'});await settle();
   assert.equal(check.returned(),'second');assert.equal(check.launcher.isOpen(),false);
