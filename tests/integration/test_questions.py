@@ -149,7 +149,7 @@ def test_free_answer_draft_survives_updates_slide_switch_reload_and_project(
     expect(text).to_have_value("A mix of customer outcomes and practical next steps.")
     with page.expect_download() as downloaded:
         page.get_by_role("button", name="Menu", exact=True).click()
-        page.get_by_role("menuitem", name="Save presentation", exact=True).click()
+        page.get_by_role("menuitem", name="Save a copy…", exact=True).click()
     project = downloaded.value.path()
     with zipfile.ZipFile(project) as archive:
         payload = json.loads(archive.read("project.json"))

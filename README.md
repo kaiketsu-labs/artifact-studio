@@ -263,7 +263,7 @@ Right-click slide thumbnails for new, duplicate, hide/unhide, delete and movemen
 
 The editor keeps tools in one row. Top-bar icons toggle the slide list and conversation; in narrower windows, chat opens as a drawer instead of moving below the slide. Notes start collapsed and remember your choice. Slide navigation sits beside the position count at the bottom.
 
-The hub's **… → Presentation tools** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
+The hub's **… → Presentation editor** opens the existing editor menu for design references, reference libraries, instructions and agent connection. **← All artifacts** at the top of the presentation sidebar returns to the hub, including from slide overview. Existing `/?deck=...` links remain valid.
 
 Star artifacts to keep them first in the library. Star individual slide thumbnails to save them in **Favorite slides**, across presentations. Add an optional description to explain why a slide is useful; search finds descriptions and titles. In either chat, **type @** to search projects, artifacts, presentations and slides by path. **Tab** or **Enter** attaches the highlighted result as a compact title pill; **→** browses into a project or presentation. Hover over a suggestion for a preview beside the cursor; hover a title pill to unfold its saved thumbnail. The **slide and star button beside the paperclip** also opens the favorite-slide picker. References preserve the selected source and description for the agent. [Chat references](docs/CHAT-REFERENCES.md).
 
@@ -286,7 +286,7 @@ In **Designs**, use the star on a slide design card or its detail page to make i
 
 **Share** exports one artifact or a project ZIP. Choose **HTML** or **PDF** for presentations, then **Share…** opens your device’s native share sheet. Choose Teams, Mail or another compatible installed app there. **Save file** remains available when the browser cannot share the file; Outlook drafts are also available on supported Macs. HTML presentation files embed local assets and keep animations; PDF includes all slides. Multi-file HTML artifacts retain their bundle in a ZIP. Private review chats and speaker notes are omitted. Outlook handoff is available on macOS with Outlook installed; nothing is sent automatically. [Sharing and exports](docs/PROJECTS.md#share-an-artifact-or-project).
 
-**Save presentation / Import presentation** transfers a portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Repository connections default to reference only. Creating a project does not enable uploads. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
+**Save a copy… / Import presentation** transfers a portable editing archive, including private review state. A shared project ZIP contains audience files, not a restorable Studio workspace. Repository connections default to reference only. Creating a project does not enable uploads. [Reference libraries and sync](docs/REPOSITORY-SYNC.md).
 
 The app's **Menu** and [Mac menu-bar app](docs/MACOS.md) put active agent reviews first, marked with green dots. **Recent projects →** opens a submenu of your last five projects, shared across both interfaces. Hover, click or use arrow keys to switch projects.
 

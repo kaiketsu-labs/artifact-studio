@@ -5,10 +5,10 @@ window.SlideProjects={
     const $=id=>document.getElementById(id),dialog=$('project-dialog');
     const {button,svg}=window.SlideIcons;
     for(const [id,icon,label,show] of [
-      ['project-button','external','Presentation files',true],['close-project','close','Close',false]
+      ['project-button','external','Export presentation…',true],['close-project','close','Close',false]
     ])button($(id),icon,label,show);
     for(const [id,icon,label,detail,format] of [
-      ['save-project','save','Save presentation','Slides, notes & feedback','project'],
+      ['save-project','save','Save a copy…','Editable .artifact-studio.zip · Slides, notes & feedback','project'],
       ['open-project','folder','Import presentation','.artifact-studio.zip','open'],
       ['export-html','code','HTML','Images & animations','html'],
       ['export-pdf','pdf','PDF','Print or save as PDF','pdf']
@@ -25,7 +25,7 @@ window.SlideProjects={
     $('close-project').addEventListener('click',()=>dialog.close());
     $('save-project').addEventListener('click',async()=>{
       const deck=read();if(!deck||busy)return;busy=true;update();$('project-error').textContent='';
-      try{const state=await capture();if(read()?.id!==deck.id)throw new Error('The presentation changed. Save the current project again.');const response=await responseData(await fetch(studioPath(`/api/decks/${encodeURIComponent(deck.id)}/project`),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)}));download(await response.blob(),`${deck.id}.artifact-studio.zip`);toast('Project saved.');dialog.close();}
+      try{const state=await capture();if(read()?.id!==deck.id)throw new Error('The presentation changed. Download a copy of the current presentation again.');const response=await responseData(await fetch(studioPath(`/api/decks/${encodeURIComponent(deck.id)}/project`),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)}));download(await response.blob(),`${deck.id}.artifact-studio.zip`);toast('Editable presentation copy downloaded.');dialog.close();}
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();}
     });

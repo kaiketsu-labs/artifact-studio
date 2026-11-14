@@ -64,7 +64,7 @@ The home page is a visual library with cached previews, title, project, kind and
 
 Inside a general artifact, a compact left rail has one project selector and related artifact rows. The central viewer keeps the artifact's natural format. Conversation stays on the right and stacks below the preview at widths up to 950 px. The presentation editor instead opens chat as a drawer at widths up to 1050 px. Collapsed panels remain mounted to preserve drafts and live previews. Sources, paths, context and receipt details are available in disclosures and the Agent context inspector.
 
-The Import action accepts arbitrary files or a folder and an entrypoint. **… → New presentation** reaches the existing deck-creation flow; **Presentation tools** reaches its workspace menus. New generic artifacts do not require a corporate design or conversion into slide HTML.
+The Import action accepts arbitrary files or a folder and an entrypoint. **… → New presentation** reaches the existing deck-creation flow; **Presentation editor** reaches its workspace menus. New generic artifacts do not require a corporate design or conversion into slide HTML.
 
 Select an element, text block/range or image region. Cmd/Ctrl/Shift adds targets to a group; each target can be removed independently. A message records the originating artifact, source hash and selection group. HTML selections use a scoped bridge across the iframe boundary; authored code does not receive the parent workspace's privileges.
 

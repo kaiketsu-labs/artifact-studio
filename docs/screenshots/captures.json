@@ -125,12 +125,12 @@
         "height": 1000
       },
       "region": null,
-      "captured_at": "2026-11-04T13:12:25.031503+00:00",
+      "captured_at": "2026-11-14T09:31:22.809481+00:00",
       "pixels": [
         1440,
         1000
       ],
-      "sha256": "1ab147fcce59eb6b7444d31f570b96964ba14b59e2d06822fc096687cd04acf4"
+      "sha256": "1dbed62da7903d91eb92ef07bfc2e2269759d1c957ef2bede795211cb2f17088"
     },
     "docs/assets/interactive-slide.png": {
       "viewport": {

@@ -26,7 +26,7 @@ a{color:inherit}
 .studio-icon{display:flex;color:#516b91}
 .studio-icon img{display:block;width:30px;height:30px;object-fit:contain}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:9px}
-.workspace-menu{position:fixed;inset:auto;margin:0;width:min(292px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);color:inherit;box-shadow:0 16px 48px #152c4926,0 3px 10px #152c490d}
+.workspace-menu{position:fixed;inset:auto;margin:0;width:min(320px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);color:inherit;box-shadow:0 16px 48px #152c4926,0 3px 10px #152c490d}
 .workspace-menu::backdrop{background:transparent}
 .workspace-menu [role=separator]{height:1px;background:var(--line);margin:6px 5px}
 .workspace-menu button[role=menuitem]{display:flex;justify-content:flex-start;gap:11px;width:100%;min-height:39px;padding:9px 11px;border:0;border-radius:7px;background:transparent;color:inherit;font-size:13px;text-align:left}
@@ -133,6 +133,7 @@ a{color:inherit}
 .file-choice-copy>span{font-size:11px;line-height:1.45;color:var(--subtle);overflow-wrap:anywhere}
 .file-choice:hover:not(:disabled){background:var(--file-tint);border-color:var(--file-border);box-shadow:0 3px 10px #1b35520b}
 .file-choice:focus-visible{outline-color:var(--blue);border-color:var(--file-color)}
+.project-group-detail{margin:-3px 0 12px;font-size:12px;line-height:1.5;color:var(--subtle)}
 .project-group-label{margin:21px 0 10px;font-size:11px;font-weight:600;color:var(--subtle);letter-spacing:.04em}
 .library-auto{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:11px!important;font-weight:500!important;color:#52667d}
 .library-auto input,.library-checkbox input{accent-color:#4167a5}

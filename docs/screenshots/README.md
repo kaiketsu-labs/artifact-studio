@@ -68,7 +68,7 @@ The [README capture audit](readme-captures.json) checks README PNG references ag
 | [Question, light](slide-question-light.png), [dark](slide-question-dark.png) | Suggested answers and a free-text answer in the slide's chat. |
 | [Design references](design-references.png), [pending files](reference-controls.png), [saved files](reference-files.png), [removed file](reference-removed.png) | A fictional PowerPoint source plus attach, save and remove controls. |
 | [New presentation references](new-presentation-references.png) | Managing shared design sources while preparing a new deck. |
-| [Presentation files](../assets/projects.png) | Editable project save/open and audience export choices. |
+| [Export presentation](../assets/projects.png) | Editable project save/open and audience export choices. |
 | [Presenter](../assets/presenter.png) | Current/next slides, private notes, timer and filmstrip. |
 | [Interactive slide](../assets/interactive-slide.png) | The result of clicking Compare inside an actual sandboxed interactive slide. |
 | [Notes conflict](notes-conflict.png), [retry](notes-retry.png) | Actual HTTP conflict handling and a simulated connection failure, with both recovery paths exercised. |

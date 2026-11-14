@@ -24,7 +24,8 @@
     const iconButton=view.SlideIcons.button;
     iconButton(button,'menu','Menu');button.title='Menu (F10)';
     iconButton($('menu-open-project'),'folder','Import presentation',true);
-    iconButton($('menu-save-project'),'save','Save presentation',true);
+    iconButton($('menu-save-project'),'save','Save a copy…',true);
+    $('menu-save-project').title='Download an editable .artifact-studio.zip copy, including notes and feedback.';
     for(const [id,key,shifted] of [['new-button','N',false],['menu-open-project','O',false],['menu-save-project','S',false],['project-button','S',true]]){
       const control=$(id);control.dataset.shortcut=(mac?(shifted?shift:'')+primary:primary+(shifted?shift:''))+key;
       control.setAttribute('aria-keyshortcuts',`${mac?'Meta':'Control'}+${shifted?'Shift+':''}${key}`);

@@ -133,11 +133,16 @@ def test_editor_secondary_text_placeholders_and_control_states(
     page.locator('.studio-share-formats input[value="html"]').check()
     readable(page.locator(".studio-share-formats label").first.locator("small"))
     page.keyboard.press("Escape")
-    menu(page, "Presentation files")
+    menu(page, "Export presentation…")
     page.keyboard.press("Tab")
     page.locator("#save-project").focus()
     readable(page.locator("#save-project"), kind="outline", minimum=3)
-    for selector in ("#project-context", ".project-group-label", ".file-choice-copy>span"):
+    for selector in (
+        "#project-context",
+        ".project-group-label",
+        ".project-group-detail",
+        ".file-choice-copy>span",
+    ):
         for label in page.locator(selector).all():
             readable(label)
     page.keyboard.press("Escape")
