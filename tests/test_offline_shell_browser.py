@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from playwright.sync_api import Error, Frame, Page, Route, sync_playwright
+from playwright.sync_api import Error, Frame, Page, Route, expect, sync_playwright
 
 pytestmark = [
     pytest.mark.browser,
@@ -125,12 +125,43 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             old_preview = page.locator("#preview").element_handle()
             assert old_preview is not None
             page.locator("#source").fill("<h1>Rapid first</h1>")
+            page.locator("#source").fill(
+                '<h1 onclick="parent.document.body.dataset.offlineTest=1">Passive</h1>'
+                "<script>parent.document.body.dataset.offlineTest=2</script>"
+                '<meta http-equiv="refresh" content="0;url=https://example.test/redirection">'
+                '<a href="https://example.test/navigation">Untrusted destination</a>'
+                '<iframe src="https://example.test/frame"></iframe>'
+                '<img src="https://example.test/resource">'
+            )
+            passive = visible_preview(page, "Passive")
+            passive.get_by_role("heading", name="Passive").click()
+            assert passive.locator("script,meta[http-equiv=refresh],iframe,[onclick]").count() == 0
+            assert passive.locator("a").get_attribute("href") is None
+            assert page.locator("body").get_attribute("data-offline-test") is None
+            assert passive.locator("img").evaluate("image => image.naturalWidth") == 0
             page.locator("#source").fill("<h1>Rapid final</h1>")
             _ = visible_preview(page, "Rapid final")
             assert not old_preview.evaluate("element => element.isConnected")
-            page.locator("#source").fill("<h1>Offline edit</h1>")
-            page.locator("#save-edit").scroll_into_view_if_needed()
-            page.locator("#save-edit").click()
+            frame = visible_preview(page, "Rapid final")
+            frame.get_by_role("heading", name="Rapid final").click()
+            page.get_by_role("button", name="Edit text", exact=True).click()
+            page.get_by_role("textbox", name="Text", exact=True).fill("Offline edit")
+            page.get_by_role("button", name="Italic", exact=True).click()
+            expect(frame.get_by_role("heading", name="Offline edit")).to_have_css(
+                "font-style", "italic"
+            )
+            page.get_by_role("button", name="Cancel edit", exact=True).click()
+            frame = visible_preview(page, "Rapid final")
+            # Select from the accessible object list without entering the frame.
+            picker = page.get_by_label("Text object")
+            picker.select_option(label="Heading · Rapid final")
+            page.get_by_role("button", name="Edit text", exact=True).click()
+            page.get_by_role("textbox", name="Text", exact=True).fill("Offline edit")
+            page.set_viewport_size({"width": 390, "height": 640})
+            expect(page.get_by_role("textbox", name="Text", exact=True)).to_have_value(
+                "Offline edit"
+            )
+            page.get_by_role("button", name="Save visual edit for later").click()
             page.wait_for_function(
                 "document.querySelector('#status').textContent === 'Saved on this device.'",
                 timeout=3000,
@@ -206,6 +237,9 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
 
             def edit_response(route: Route) -> None:
                 calls["edit"] += 1
+                request = cast(dict[str, object], route.request.post_data_json)
+                assert request["html"] == "<h1>Offline edit</h1>"
+                assert request["receipt"] == "fictional-receipt"
                 if calls["edit"] == 1:
                     route.fulfill(
                         status=200,

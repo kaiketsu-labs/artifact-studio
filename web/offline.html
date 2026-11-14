@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Saved presentations · Artifact Studio</title>
   <link rel="stylesheet" href="/web/offline.css">
+  <link rel="stylesheet" href="/web/element-properties.css">
+  <script src="/web/icons.js" defer></script>
+  <script src="/web/objects.js" defer></script>
+  <script src="/web/element-properties.js" defer></script>
+  <script src="/web/offline-visual-edit.js" defer></script>
   <script src="/web/offline-store.js" defer></script>
   <script src="/web/offline-client.js" defer></script>
   <script src="/web/offline-shell.js" defer></script>
@@ -42,14 +47,15 @@
     <div class="workspace">
       <div class="work-column">
         <section class="panel preview-panel" aria-labelledby="preview-title">
-          <div class="section-heading"><div><p class="eyebrow">SELECTED SLIDE</p><h2 id="preview-title">Preview</h2></div><span class="badge">Saved copy</span></div>
-          <div class="preview-stage"><iframe id="preview" title="Slide preview" sandbox></iframe></div>
-          <p class="hint">Static preview. Referenced assets, themes and interactive content may not appear offline.</p>
+          <div class="section-heading"><h2 id="preview-title">Slide</h2><label for="edit-object">Text object <select id="edit-object" disabled><option value="">Select text</option></select></label></div>
+          <div class="preview-stage"><iframe id="preview" title="Slide preview" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
+          <p class="hint">Select text on the slide or from the text object list. Interactive content may look different offline.</p>
+          <div id="offline-properties" hidden></div>
         </section>
         <section class="panel editor-panel" aria-labelledby="edit-title">
           <div class="section-heading"><div><p class="eyebrow">EDIT SLIDE</p><h2 id="edit-title">Slide HTML</h2><p>Save your edit to keep it on this device until you reconnect.</p></div></div>
           <label class="sr-only" for="source">Slide HTML</label><textarea id="source" rows="12" autocomplete="off" spellcheck="false" disabled></textarea>
-          <div class="actions"><button id="save-edit" type="button" disabled>Save edit for later</button></div>
+          <div class="actions"><button id="discard-edit" type="button">Reset to saved slide</button><button id="save-edit" type="button" disabled>Save edit for later</button></div>
         </section>
       </div>
       <aside class="side-column" aria-label="Shared comments and saved changes">

@@ -3,6 +3,25 @@
   'use strict';
   const sizeSteps=[8,9,10,11,12,14,16,18,20,22,24,26,28,32,36,40,44,48,54,60,66,72,80,88,96,112,128,144,192,256,320,400,512,720];
   const round=value=>Number(value.toFixed(3));
+  /** Read the effective text formatting, retaining a supported authored size unit. */
+  function typographyOf(element, view=element.ownerDocument.defaultView){
+    const computed=view.getComputedStyle(element);
+    const raw=element.style.fontSize||computed.fontSize;
+    const match=/^([\d.]+)(px|pt|em|rem|%|vw|vh|cqw|cqh)$/.exec(raw);
+    const rgb=/rgba?\(\s*(\d+)[, ]+\s*(\d+)[, ]+\s*(\d+)/.exec(computed.color);
+    const color=rgb?'#'+rgb.slice(1,4).map(value=>Number(value).toString(16).padStart(2,'0')).join(''):(/^#[0-9a-f]{6}$/i.test(computed.color)?computed.color:'#000000');
+    return {font_size:match?Number(match[1]):16,font_size_unit:match?.[2]||'px',font_size_px:Number.parseFloat(computed.fontSize)||16,
+      font_weight:computed.fontWeight||'normal',font_style:computed.fontStyle||'normal',
+      text_align:['left','center','right','justify'].includes(computed.textAlign)?computed.textAlign:'left',color};
+  }
+  /** Apply a supported text patch without copying the rendered document. */
+  function applyTextPatch(element, values, baseline){
+    if('text' in values)element.textContent=values.text;
+    for(const [key,css] of Object.entries({font_weight:'fontWeight',font_style:'fontStyle',text_align:'textAlign',color:'color'})){
+      if(key in values)element.style[css]=values[key];
+    }
+    if('font_size' in values||'font_size_unit' in values)element.style.fontSize=`${values.font_size??baseline.font_size}${values.font_size_unit??baseline.font_size_unit}`;
+  }
   /** Present a familiar point size while preserving the source's responsive CSS unit. */
   function sizeModel(typography={}){
     const raw=Number(typography.font_size)>0?Number(typography.font_size):16;
@@ -70,12 +89,14 @@
     return {left,top:viewport.width<=600?clamp(top,margin,viewport.height-size.height-48):top};
   }
   /** Show compact formatting next to the selection, with optional detail panels. */
-  function create({container,onPreview,onSend,onCancel,getAnchor=()=>null,extraControls=null,getVoice=()=>root.slideVoice,onDockHeight=()=>{}}){
+  function create({container,onPreview,onSend,onCancel,getAnchor=()=>null,extraControls=null,getVoice=()=>root.slideVoice,onDockHeight=()=>{},saveLabel='Send edit'}){
     const doc=container.ownerDocument,view=doc.defaultView,controller=new view.AbortController();
     const svg=name=>root.SlideIcons?.svg(name)||'';
     container.classList.add('element-properties');container.hidden=true;
     container.innerHTML=`<span class="ep-label sr-only"></span><div class="ep-formatting" role="toolbar" aria-label="Text formatting"><button type="button" data-panel="text" title="Edit text" aria-label="Edit text" aria-expanded="false">${svg('edit')}</button><span class="ep-group ep-size" role="group" aria-label="Text size"><button type="button" data-step="-1" title="Smaller text" aria-label="Smaller text"><span class="ep-smaller" aria-hidden="true">A<sup>−</sup></span></button><input type="number" min="1" max="2000" step="any" aria-label="Font size" aria-description="Text size in points" title="Font size"><button type="button" data-step="1" title="Larger text" aria-label="Larger text"><span class="ep-larger" aria-hidden="true">A<sup>+</sup></span></button></span><span class="ep-group" role="group" aria-label="Text style"><button type="button" data-toggle="font_weight" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-toggle="font_style" title="Italic" aria-label="Italic"><i>I</i></button><label class="ep-color" title="Text color"><span aria-hidden="true">A</span><input type="color" aria-label="Text color"></label></span><button type="button" data-panel="alignment" title="Text alignment" aria-label="Text alignment" aria-expanded="false">${alignmentIcon('left')}</button>${extraControls?`<button type="button" data-panel="objects" title="Move, rotate or remove" aria-label="Object options" aria-expanded="false">${svg('more')}</button>`:''}</div><div class="ep-panel ep-text-panel" data-detail="text" hidden><textarea aria-label="Text" rows="2" maxlength="9000"></textarea></div><span class="ep-actions" hidden><button type="button" data-action="send" title="Send edit" aria-label="Send edit">${svg('send')}</button><button type="button" data-action="cancel" title="Cancel edit" aria-label="Cancel edit">${svg('close')}</button></span><div class="ep-panel ep-alignment-panel" data-detail="alignment" hidden role="group" aria-label="Text alignment">${[['left','Align left'],['center','Center text'],['right','Align right'],['justify','Justify text']].map(([value,label])=>`<button type="button" data-align="${value}" title="${label}" aria-label="${label}" aria-pressed="false">${alignmentIcon(value)}</button>`).join('')}</div>${extraControls?'<div class="ep-panel ep-object-panel" data-detail="objects" hidden></div>':''}`;
     if(extraControls)container.querySelector('.ep-object-panel').append(extraControls);
+    const save=container.querySelector('[data-action=send]');
+    save.setAttribute('aria-label',saveLabel);save.title=saveLabel;
     const text=container.querySelector('textarea'),size=container.querySelector('input[type=number]'),color=container.querySelector('input[type=color]'),bold=container.querySelector('[data-toggle=font_weight]'),italic=container.querySelector('[data-toggle=font_style]'),actions=container.querySelector('.ep-actions'),textButton=container.querySelector('[data-panel=text]');
     let model=sizeModel(),state={},selectionKey=null,canText=false,frame=null,textVoice=null,selectionGeneration=0;
     function cancelVoice(){selectionGeneration++;textVoice?.cancel();}
@@ -160,6 +181,6 @@
     function destroy(){cancelVoice();onDockHeight(0);controller.abort();observer.disconnect();if(frame!==null)view.cancelAnimationFrame(frame);}
     return {setSelection,setState,clear,reposition,focusText,cancelVoice,stopVoice,destroy,selectionGeneration:()=>selectionGeneration};
   }
-  const api={create,summary,sizeModel,nextSize,selectionLabel,frameAnchor,toolbarPosition};
+  const api={create,summary,sizeModel,nextSize,selectionLabel,frameAnchor,toolbarPosition,typographyOf,applyTextPatch};
   if(typeof module!=='undefined')module.exports=api;else root.ElementProperties=api;
 })(typeof window==='undefined'?{}:window);

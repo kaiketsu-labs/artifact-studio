@@ -3,9 +3,12 @@
   'use strict';
   const $=id=>document.getElementById(id),INDEX='artifact-studio-offline-index-v1',ACTIVE='artifact-studio-offline-active-v1';
   let entries=[],store=null,record=null,selection=0,conflict=null,syncing=false,deliveryController=null;
+  let activeDeck='',activeSlide='';
+  const visual=OfflineVisualEdit.create({picker:$('edit-object'),container:$('offline-properties'),
+    source:$('source'),onSource:preview,onSave:()=>queue('edit')});
   try{const active=localStorage.getItem(ACTIVE);entries=JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===active&&/^[a-f0-9]{64}$/.test(item.scope)&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session));}catch{}
   function message(text){$('status').textContent=text;}
-  function clearFrame(id){const old=$(id);if(!old)return;const next=old.cloneNode(false);next.removeAttribute('srcdoc');old.replaceWith(next);}
+  function clearFrame(id){const old=$(id);if(!old)return;if(id==='preview')visual.reset();const next=old.cloneNode(false);next.removeAttribute('srcdoc');old.replaceWith(next);}
   function renderFrame(id,source){const old=$(id);if(!old)return;const next=old.cloneNode(false);next.srcdoc=previewDocument(source,old);old.replaceWith(next);}
   function closeRecovery(){$('recovery').hidden=true;$('recovery-list').replaceChildren();}
   function recoveryEntries(){
@@ -36,33 +39,45 @@
     }catch(error){closeRecovery();message(error.message);}finally{$('recover-drafts').disabled=false;}
   }
   function resetConflict(){conflict=null;$('conflict').hidden=true;for(const id of ['conflict-base','conflict-current','conflict-draft'])$(id).textContent='';for(const id of ['conflict-base-preview','conflict-current-preview','conflict-draft-preview'])clearFrame(id);}
-  function forget(){selection++;closeRecovery();$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
+  function forget(){selection++;closeRecovery();$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;activeDeck=activeSlide='';$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
   const purgeChannel=new BroadcastChannel('artifact-studio-offline-purge-v1');
   purgeChannel.onmessage=event=>{if(event.data==='purge')forget();};
   window.addEventListener('storage',event=>{if(event.key==='artifact-studio-offline-generation-v1')forget();else if(event.key?.startsWith('artifact-studio-offline-blocked-v1:')&&event.newValue){forget();offerRecovery();}});
   function option(value,label){const item=document.createElement('option');item.value=value;item.textContent=label;return item;}
   function selectedSlide(){return record?.snapshot.slides.find(item=>item.id===$('slides').value);}
   function previewDocument(source,frame){
-    let theme=record?.snapshot.theme||'',content=source||'';
-    const assets=record?.snapshot.assets||{};
-    for(const [path,data] of Object.entries(assets).sort((a,b)=>b[0].length-a[0].length)){
-      if(typeof data!=='string'||!data.startsWith('data:'))continue;
-      for(const name of ['./'+path,path]){theme=theme.split(name).join(data);content=content.split(name).join(data);}
+    const assets=Object.entries(record?.snapshot.assets||{}).sort((a,b)=>b[0].length-a[0].length);
+    function inlineAssets(value){
+      for(const [path,data] of assets){
+        if(typeof data==='string'&&/^data:[\w.+/-]+;base64,[a-z0-9+/=]+$/i.test(data))value=value.split('./'+path).join(data).split(path).join(data);
+      }
+      return value;
     }
+    const theme=inlineAssets(record?.snapshot.theme||'');
+    const content=frame.id==='preview'?OfflineVisualEdit.markup(source,inlineAssets):inlineAssets(source);
     const scale=Math.max(.01,(frame.clientWidth||800)/1600);
-    const policy="default-src 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'";
+    const policy="default-src 'none'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'";
     const safeTheme=theme.replace(/<\/style/gi,'<\\/style');
     return '<!doctype html><meta http-equiv="Content-Security-Policy" content="'+policy+'">'+
       '<style>html{color-scheme:light;background:#fff;color:#111}body{margin:0;overflow:hidden}'+
-      '.offline-canvas{width:1600px;height:900px;font-size:48px;transform-origin:top left;transform:scale('+scale+');overflow:hidden}'+safeTheme+'</style><div class="offline-canvas">'+content+'</div>';
+      '.offline-canvas{width:1600px;height:900px;font-size:48px;transform-origin:top left;transform:scale('+scale+');overflow:hidden}'+safeTheme+
+      '.offline-canvas .offline-selected{outline:3px solid #315fce!important;outline-offset:4px}</style><div class="offline-canvas">'+content+'</div>';
   }
-  function preview(){renderFrame('preview',$('source').value);}
+  function preview(restoreIndex){
+    const old=$('preview'),next=old.cloneNode(false),source=$('source').value;
+    visual.bind(next,source,restoreIndex);
+    next.srcdoc=previewDocument(source,old);
+    old.replaceWith(next);
+  }
   function effective(item){return record?.outbox.filter(value=>value.kind==='edit'&&value.slide_id===item?.id).at(-1)?.body||item?.html||'';}
-  function slide(){const item=selectedSlide();$('source').value=effective(item);$('comment').value='';const disabled=syncing||!item?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;preview();}
+  const hasUnsaved=()=>!!record&&($('source').value!==effective(record.snapshot.slides.find(item=>item.id===activeSlide))||!!$('comment').value.trim());
+  function slide(){const item=selectedSlide();activeDeck=$('decks').value;activeSlide=item?.id||'';$('source').value=effective(item);$('comment').value='';const disabled=syncing||!item?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;preview();}
   function renderQueue(){
     $('outbox').replaceChildren(...(record?.outbox||[]).map(item=>{const row=document.createElement('li');const label=document.createElement('strong');label.textContent=(item.kind==='edit'?'Edit':'Shared comment')+' · '+(record.snapshot.slides.find(slide=>slide.id===item.slide_id)?.title||item.slide_id);const text=document.createElement('pre');text.textContent=item.body;const remove=document.createElement('button');remove.type='button';remove.textContent='Remove saved change';remove.disabled=syncing;remove.addEventListener('click',async()=>{const own=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1'),deck=record.snapshot.id,activeStore=store;try{await activeStore.update(deck,item.id,null);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;const updated=await activeStore.read(deck);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;record=updated;renderQueue();slide();}catch(error){message(error.message);}});row.append(label,text,remove);return row;}));
   }
   async function select(){
+    if($('decks').value!==activeDeck&&hasUnsaved()){$('decks').value=activeDeck;message('Save or discard your current changes before switching presentations.');return;}
+    activeDeck=$('decks').value;
     const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('outbox').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[Number($('decks').value)];
     if(!entry){message('No saved presentations on this device.');return;}
     const blocked='artifact-studio-offline-blocked-v1:'+entry.scope+':'+encodeURIComponent(entry.deck),identityBlocked='artifact-studio-offline-blocked-v1:'+entry.scope+':*';
@@ -92,10 +107,10 @@
     if(!item||!body.trim()||!deck){message('No slide selected.');return;}
     if(!item.receipt){message('Reconnect to refresh this slide before saving another change.');return;}
     message('Saving…');
-    try{await activeStore.queue(deck,{id:crypto.randomUUID(),slide_id:item.id,anchor:item.content_hash,expected_hash:item.expected_hash,receipt:item.receipt,kind,body});if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;const updated=await activeStore.read(deck);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;record=updated;renderQueue();message('Saved on this device.');if(kind==='comment')$('comment').value='';}catch(error){if(own===selection&&generation===localStorage.getItem('artifact-studio-offline-generation-v1'))message(error.message);}
+    try{await activeStore.queue(deck,{id:crypto.randomUUID(),slide_id:item.id,anchor:item.content_hash,expected_hash:item.expected_hash,receipt:item.receipt,kind,body});if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;const updated=await activeStore.read(deck);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;record=updated;renderQueue();message('Saved on this device.');if(kind==='comment'&&selectedSlide()?.id===item.id&&$('comment').value===body)$('comment').value='';if(kind==='edit'&&selectedSlide()?.id===item.id&&$('source').value===body)preview();}catch(error){if(own===selection&&generation===localStorage.getItem('artifact-studio-offline-generation-v1'))message(error.message);}
   }
   async function deliver(){
-    if(syncing||!record||!store)return;if($('source').value!==effective(selectedSlide())||$('comment').value.trim()){message('Save or clear the current edit and comment before reconnecting.');return;}syncing=true;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('reconnect').disabled=true;renderQueue();
+    if(syncing||!record||!store)return;if(hasUnsaved()){message('Save or discard your current changes before reconnecting.');return;}syncing=true;$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('reconnect').disabled=true;visual.sync();renderQueue();
     const ownSelection=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1');
     const controller=new AbortController();deliveryController=controller;
     const check=()=>{if(ownSelection!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))throw Error('Saved session changed.');};
@@ -128,18 +143,26 @@
         await activeStore.update(deck,item.id,null,item.kind==='edit'?result:null);check();const updated=await activeStore.read(deck);check();record=updated;renderQueue();
       }
     }catch(error){if(ownSelection!==selection)return;const active=localStorage.getItem(ACTIVE),deck=record?.snapshot.id;if(active&&deck&&(localStorage.getItem('artifact-studio-offline-blocked-v1:'+active+':*')||localStorage.getItem('artifact-studio-offline-blocked-v1:'+active+':'+encodeURIComponent(deck))))forget();offerRecovery();message(error.message||'Delivery paused. Your drafts remain on this device.');}
-    finally{if(deliveryController===controller)deliveryController=null;syncing=false;$('reconnect').disabled=false;if(ownSelection===selection){renderQueue();if(record)slide();}else if(record){renderQueue();const disabled=!selectedSlide()?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;}}
+    finally{if(deliveryController===controller)deliveryController=null;syncing=false;$('reconnect').disabled=false;if(ownSelection===selection){renderQueue();if(record)slide();}else if(record){renderQueue();const disabled=!selectedSlide()?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;visual.sync();}}
   }
   $('reconnect').addEventListener('click',deliver);
   $('use-current').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1'),deck=record.snapshot.id,activeStore=store,choice=conflict;try{await activeStore.update(deck,choice.id,null,{html:choice.current,expected_hash:choice.expected,content_hash:choice.content});if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;const updated=await activeStore.read(deck);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;record=updated;resetConflict();slide();void deliver();}catch(error){message(error.message);}});
   $('use-draft').addEventListener('click',async()=>{if(!conflict||!record)return;const own=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1'),deck=record.snapshot.id,activeStore=store,choice=conflict;try{await activeStore.update(deck,choice.id,choice.expected);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;resetConflict();void deliver();}catch(error){message(error.message);}});
   $('recover-drafts').addEventListener('click',recoverDrafts);$('close-recovery').addEventListener('click',closeRecovery);
-  $('source').addEventListener('input',preview);
+  $('source').addEventListener('input',()=>preview());
   window.addEventListener('resize',()=>{
-    if(record)preview();
+    if(record)visual.resize();
     if(conflict)for(const name of ['base','current','draft']){renderFrame('conflict-'+name+'-preview',$('conflict-'+name).textContent);}
   });
-  $('decks').addEventListener('change',select);$('slides').addEventListener('change',slide);
+  $('decks').addEventListener('change',select);
+  $('slides').addEventListener('change',()=>{
+    if(hasUnsaved()){$('slides').value=activeSlide;message('Save or discard your current changes before switching slides.');return;}
+    slide();
+  });
+  $('discard-edit').addEventListener('click',()=>{
+    if(!record||syncing)return;
+    $('source').value=effective(selectedSlide());preview();
+  });
   $('save-edit').addEventListener('click',()=>queue('edit'));$('save-comment').addEventListener('click',()=>queue('comment'));
   $('clear').addEventListener('click',async()=>{try{await OfflineClient.clear();forget();}catch(error){message(error.message);}});
   void select();
