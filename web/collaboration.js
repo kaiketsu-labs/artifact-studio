@@ -134,6 +134,7 @@
       <p class="studio-invite-note">Only this email can accept. The recipient must be allowed to sign in.</p>
       <div class="studio-invite-result" hidden><label for="studio-invitation-link">Invitation link</label><div><input id="studio-invitation-link" readonly spellcheck="false"><button type="button" class="studio-share-system">Copy link</button></div></div>
       <details class="studio-invite-manage"><summary>Manage access</summary><div class="studio-access-list" aria-live="polite"></div></details>
+      <section class="studio-grant-recovery" hidden><h3>Restore previous human access</h3><p>Review every person and permission before restoring access to this workspace.</p><div class="studio-grant-identities"></div><p class="studio-grant-archive"></p><label><input type="checkbox" data-confirm-grants> I reviewed these people and permissions</label><button type="button" class="studio-share-system" data-restore-grants disabled>Restore human access</button></section>
       <p class="studio-share-status" role="status"></p><p class="studio-share-error" role="alert" hidden></p>`;
     dialog.querySelector('[data-invite-title]').textContent = title;
     const form = dialog.querySelector('form');
@@ -142,6 +143,31 @@
     const notice = dialog.querySelector('[role="status"]');
     const error = dialog.querySelector('[role="alert"]');
     const manage = dialog.querySelector('.studio-invite-manage');
+    const recovery = dialog.querySelector('.studio-grant-recovery');
+    {
+      fetch(workspaceAPI + '/grant-recovery').then(async response => {
+        if (response.status === 404) return;
+        root.ArtifactSession.observe(response); root.ArtifactSession.assertActive();
+        if (!response.ok) throw new Error('Previous access cannot be restored in this workspace.');
+        const preview = await response.json();
+        if (!dialog.open || !preview.grants.length) return;
+        const list = recovery.querySelector('.studio-grant-identities');
+        list.replaceChildren(...preview.grants.map(grant => {
+          const row = document.createElement('p');
+          row.textContent = `${grant.email} · ${grant.role} · ${grant.kind}${grant.resource ? ' ' + grant.resource : ''} · Identity ${grant.person}`;
+          return row;
+        }));
+        recovery.querySelector('.studio-grant-archive').textContent = `Owner ${preview.owner} · Archive SHA-256 ${preview.archive_sha256}`;
+        recovery.hidden = false;
+        const confirm = recovery.querySelector('[data-confirm-grants]'), button = recovery.querySelector('[data-restore-grants]');
+        confirm.addEventListener('change', () => { button.disabled = !confirm.checked; });
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          try { await scopedRequest(workspaceAPI + '/grant-recovery', {preview_hash:preview.preview_hash,restore_human_grants:true}); recovery.hidden = true; const menuEntry = document.querySelector('[data-restore-access]'); if (menuEntry) menuEntry.hidden = true; notice.textContent = 'Human access restored.'; if (manage.open) await loadAccess(); }
+          catch (reason) { error.textContent = reason.message; error.hidden = false; button.disabled = !confirm.checked; }
+        });
+      }).catch(reason => { if (dialog.open) { error.textContent = reason.message; error.hidden = false; } });
+    }
     async function loadAccess() {
       const query = new URLSearchParams({kind, resource: id});
       const access = await scopedRequest(workspaceAPI + '/access?' + query);
@@ -262,6 +288,18 @@
     showCurrentInvitation();
     root.StudioInvitation.available = !session.scoped_editor || session.workspace_owner === true;
     document.documentElement.toggleAttribute('data-workspace-owner', session.workspace_owner === true);
+    const restoreAccess = document.querySelector('[data-restore-access]');
+    if (restoreAccess && root.StudioInvitation.available) {
+      scopedRequest(workspaceAPI + '/grant-recovery').then(preview => {
+        if (!preview.grants.length) return;
+        restoreAccess.hidden = false;
+        restoreAccess.addEventListener('click', event => {
+          event.preventDefault();
+          document.querySelector('#hub-tools-menu')?.hidePopover();
+          void openInvitation({kind:'workspace',id:'',title:'Current workspace',anchor:restoreAccess});
+        });
+      }).catch(() => {});
+    }
     document.querySelectorAll('#connect-button, [data-hub-connect]').forEach(entry => {
       entry.addEventListener('click', event => {
         event.preventDefault();

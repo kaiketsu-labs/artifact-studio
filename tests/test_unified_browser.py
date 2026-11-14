@@ -1747,3 +1747,67 @@ def test_preview_retry_keeps_earlier_preview_and_draft_after_disconnect(tmp_path
                 expect(page.locator("#slide-title")).to_contain_text("Next")
         finally:
             browser.close()
+
+
+def test_restored_grants_remove_menu_action_after_success(tmp_path: Path) -> None:
+    """Review and apply once, then ensure reopening the menu offers no stale action."""
+    from artifact_studio.grant_recovery_models import GrantSnapshot, HumanGrant, StagedGrants
+    from artifact_studio.multiplayer_access import checksum
+    from artifact_studio.workspace_recovery import STAGED_GRANTS
+
+    with (
+        running_multiplayer_app(
+            tmp_path / "app",
+            tmp_path / "server.log",
+            unified=True,
+            grant_recovery_fixture=True,
+            startup_timeout=30,
+        ) as app,
+        sync_playwright() as playwright,
+    ):
+        staged = app.store.database.parent / STAGED_GRANTS
+        snapshot = GrantSnapshot(
+            issuer="https://fictional.cloudflareaccess.com",
+            audience="fixture-audience",
+            workspace="default",
+            owner=checksum("owner"),
+            owner_email="owner@example.test",
+            grants=[
+                HumanGrant(
+                    person=checksum("alice"),
+                    email="alice@example.test",
+                    kind="workspace",
+                    resource="",
+                    role="view",
+                )
+            ],
+        )
+        staged.write_text(
+            StagedGrants(archive_sha256="a" * 64, snapshot=snapshot).model_dump_json()
+        )
+        staged.chmod(0o600)
+        browser = playwright.chromium.launch(
+            executable_path=os.environ.get("ARTIFACT_STUDIO_CHROMIUM_EXECUTABLE")
+        )
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.goto(WORKSPACE + "/")
+                page.locator("#hub-tools-button").click()
+                entry = page.get_by_text("Restore human access", exact=True)
+                expect(entry).to_be_visible()
+                entry.click()
+                dialog = page.get_by_role("dialog", name="Share link")
+                expect(dialog.get_by_text(re.compile("alice@example.test"))).to_be_visible()
+                restore = dialog.get_by_role("button", name="Restore human access")
+                expect(restore).to_be_disabled()
+                dialog.get_by_label("I reviewed these people and permissions").check()
+                restore.click()
+                expect(dialog.get_by_role("status")).to_have_text("Human access restored.")
+                dialog.get_by_role("button", name="Close share link").click()
+                page.locator("#hub-tools-button").click()
+                expect(page.locator("[data-restore-access]")).to_be_hidden()
+                with human(app, "alice") as alice:
+                    assert alice.get("/api/workspaces/default/catalog").status_code == 200
+        finally:
+            browser.close()

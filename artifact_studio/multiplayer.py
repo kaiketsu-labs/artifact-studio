@@ -31,6 +31,7 @@ from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
 from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
+from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
 from .models import FileInput, StrictModel
 from .multiplayer_access import (
@@ -66,6 +67,13 @@ class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
     no_expiry: bool = False
+
+
+class GrantRecoveryConfirmation(StrictModel):
+    """Confirm the exact staged grant preview."""
+
+    preview_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    restore_human_grants: Literal[True]
 
 
 class AgentInput(ScopeInput):
@@ -351,6 +359,27 @@ def create_app(
         request: Request, workspace: str, kind: Kind = "workspace", resource: str = ""
     ) -> dict[str, object]:
         return hub.access(actor_of(request), Scope(workspace, kind, resource))
+
+    @app.get("/api/workspaces/{workspace}/grant-recovery")
+    def grant_recovery_preview(request: Request, workspace: str) -> dict[str, object]:
+        """Show the active workspace owner's fixed, staged human grant recovery."""
+        staged, preview_hash = preview_staged_grants(hub, actor_of(request), workspace, config)
+        return {
+            "archive_sha256": staged.archive_sha256,
+            "preview_hash": preview_hash,
+            "owner": staged.snapshot.owner_email,
+            "issuer": staged.snapshot.issuer,
+            "audience": staged.snapshot.audience,
+            "grants": [grant.model_dump() for grant in staged.snapshot.grants],
+        }
+
+    @app.post("/api/workspaces/{workspace}/grant-recovery")
+    def grant_recovery_apply(
+        request: Request, workspace: str, body: GrantRecoveryConfirmation
+    ) -> dict[str, int]:
+        """Apply only a fresh, explicitly approved owner preview."""
+        count = restore_staged_grants(hub, actor_of(request), workspace, config, body.preview_hash)
+        return {"restored": count}
 
     @app.post("/api/workspaces/{workspace}/invitations")
     def invite(request: Request, workspace: str, body: InviteInput) -> dict[str, str]:
