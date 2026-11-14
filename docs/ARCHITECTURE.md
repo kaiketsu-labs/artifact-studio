@@ -2,7 +2,7 @@
 
 Status: **implementation available, 5 November 2026**. The visual library, project folders, adaptive viewers, generic MCP tools, retained-version timeline and workspace recovery are implemented. The original clickable concept remains a design reference.
 
-The hub preserves existing presentation locations, editor links and review history. Opening it does not migrate personal sources or enable uploads. Full workspace archives can be downloaded locally or explicitly scheduled to a private GitHub repository; current-source Git backup remains separate. General artifact host hooks remain outside the implemented scope.
+The hub preserves existing presentation locations, editor links and review history. Opening it does not migrate personal sources or enable uploads. Full workspace archives can be downloaded locally or explicitly scheduled to a private GitHub repository; current-source Git backup remains separate. Codex/Claude host hooks support presentation and general artifact feedback.
 
 ## Implemented surface
 
@@ -15,7 +15,7 @@ The hub preserves existing presentation locations, editor links and review histo
 | Markdown | Rendered document and original source, text/block selections | Raw HTML is escaped. Owned image resources retain revision identity. |
 | Images/SVG | Original proportions, zoom and region multiselection | Regions retain normalized coordinates and original dimensions. |
 | Other files | Original storage, file downloads and artifact-level discussion | Native editing/rendering is not promised for arbitrary binary formats. |
-| Review | Per-artifact drafts, grouped targets, attachments, explicit Send and conversation copy, replies and human approval | Generic feedback release is implemented; automatic Codex/Claude host continuation remains presentation-only. |
+| Review | Per-artifact drafts, grouped targets, attachments, explicit Send and conversation copy, replies and human approval | Automatic Codex/Claude continuation requires loaded, trusted host hooks and an open agent session. |
 | Context menus and element edits | Contextual library/project/folder, slide and object actions; local unsent previews with explicit Send | HTML direct edits remain single-object. Slide groups submit one version-anchored feedback request; unsupported arrangement layouts and group alignment have no final-layout preview. |
 | Revisions | Immutable snapshots, expected-version writes, idempotent retries and out-of-band source reconciliation | SQLite publishes the current revision pointer; the adjacent manifest is a readable mirror. Arbitrary external file writes are not a multi-file transaction. |
 | Version timeline | Paginated metadata, isolated selected-version preview, Content changes/All saves and restore as a new revision | Filters preserve every retained save. Historical slide previews reuse current shared theme/assets. |
