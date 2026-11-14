@@ -613,6 +613,7 @@ def main() -> int:
             if (
                 args.harness == "claude-code"
                 and args.event == "Stop"
+                and os.name != "nt"
                 and isinstance(session, str)
                 and session
             ):

@@ -109,8 +109,12 @@ def test_configure_merge_and_quote(
     assert data["other"] == 1
     assert data["hooks"]["Stop"][0] == {"hooks": []}
     handler = data["hooks"]["Stop"][1]["hooks"][0]
-    assert handler["timeout"] == (client.CLAUDE_STOP_TIMEOUT if harness == "claude-code" else 600)
-    assert (handler.get("asyncRewake") is True) is (harness == "claude-code")
+    assert handler["timeout"] == (
+        client.CLAUDE_STOP_TIMEOUT if harness == "claude-code" and sys.platform != "win32" else 600
+    )
+    assert (handler.get("asyncRewake") is True) is (
+        harness == "claude-code" and sys.platform != "win32"
+    )
     assert shlex.split(handler["command"])[0] == str(Path("/tmp/uv with spaces").resolve())
     assert shlex.split(handler["command"])[1] == "--no-cache"
     assert ("Interrupt" in data["hooks"]) is (harness == "codex")
@@ -365,7 +369,11 @@ def test_stop_renews_after_deadline(monkeypatch: pytest.MonkeyPatch, harness: st
     result = client.handle_event(
         harness, "Stop", "http://localhost", "artifact-studio", {"session_id": "s"}
     )
-    assert result == ({} if harness == "claude-code" else {"decision": "block", "reason": reason})
+    assert result == (
+        {}
+        if harness == "claude-code" and sys.platform != "win32"
+        else {"decision": "block", "reason": reason}
+    )
 
 
 @pytest.mark.parametrize(("status", "retries"), [(429, True), (503, True), (401, False)])
@@ -465,6 +473,7 @@ def test_remote_url_and_inbox(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses synchronous Stop")
 @pytest.mark.parametrize("available", [True, False])
 def test_claude_stop_cli_wakes_only_for_feedback(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], available: bool
@@ -484,6 +493,7 @@ def test_claude_stop_cli_wakes_only_for_feedback(
     assert output.err == ("Use read_feedback\n" if available else "")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses synchronous Stop")
 def test_configure_migrates_synchronous_claude_stop(tmp_path: Path) -> None:
     """Replace the old synchronous handler without duplicating it or removing neighbors."""
     target = client.configure(
@@ -506,6 +516,7 @@ def test_configure_migrates_synchronous_claude_stop(tmp_path: Path) -> None:
     assert handlers[1]["asyncRewake"] is True
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses synchronous Stop")
 def test_claude_stop_lock_excludes_duplicate_listeners(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -550,3 +561,25 @@ def test_claude_stop_lock_rejects_unsafe_directory_mode(
     directory.chmod(0o777)
     with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
         assert not acquired
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX lock directory security")
+def test_claude_stop_lock_rejects_symlink_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An existing lock-file symlink is not followed."""
+    import hashlib
+    import os
+
+    monkeypatch.setattr(client.tempfile, "gettempdir", lambda: str(tmp_path))
+    directory = tmp_path / f"artifact-studio-hooks-{os.getuid()}"
+    directory.mkdir(mode=0o700)
+    digest = hashlib.sha256(
+        json.dumps(["https://studio.example.test", "studio", "session"]).encode()
+    ).hexdigest()
+    target = tmp_path / "target"
+    target.write_text("keep")
+    (directory / digest).symlink_to(target)
+    with client._claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
+        assert not acquired
+    assert target.read_text() == "keep"
