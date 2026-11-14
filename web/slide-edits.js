@@ -80,7 +80,7 @@
       if(selectionBox){selectionBox.classList.toggle('deletion-proposal',pendingDelete);selectionBox.classList.toggle('element-manipulation-disabled',busy||blocked()||textEditing||pendingDelete||editingProperties||!canMove()||!dragEnabled);selectionBox.setAttribute('aria-label',pendingDelete?'Selected element · deletion requested':'Selected element · drag border or use arrow keys to move');}
 
       const draft=draftGeometry||editingProperties||textEditing&&original&&(element.innerText??element.textContent)!==original.text;
-      const status=draft?'draft':deliveryStatus(submission),label=({draft:'Unsent edit',queued:'Queued in Batch',released:'Saved for agent',answered:'Agent replied'})[status]||'Saved for agent';
+      const status=draft?'draft':deliveryStatus(submission),label=({draft:'Unsent edit',queued:'Saved privately · not sent',released:'Saved for agent',answered:'Agent replied'})[status]||'Saved for agent';
       sentBadge.hidden=(!sent&&!draft)||busy;
       if(sentBadge.dataset.state!==status){sentBadge.dataset.state=status;sentBadge.title=label;sentBadge.setAttribute('aria-label',label);sentBadge.innerHTML=root.SlideIcons.svg(({draft:'edit',queued:'batch',released:'send',answered:'notes'})[status]||'send');const text=document.createElement('span');text.className='sr-only';text.textContent=label;sentBadge.append(text);}
       tools.classList.toggle('has-suggestion',!!(sent||draft));
