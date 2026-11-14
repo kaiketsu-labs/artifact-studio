@@ -171,3 +171,4 @@
 .chat-agent-status .ui-icon { width:16px; height:16px; }
 .chat-agent-dot { position:absolute; right:-2px; bottom:-1px; width:6px; height:6px; border:1px solid currentColor; border-radius:50%; background:var(--hub-panel); }
 .chat-agent-dot.is-connected { background:var(--hub-green); border-color:var(--hub-green); }
+.chat-agent-status:focus-visible { outline:2px solid var(--hub-blue,#4678ed); outline-offset:3px; border-radius:2px; }

@@ -755,7 +755,7 @@
     $('end-review').hidden=!state.review_connected;
     const agentStatus=$('chat-agent-status'),connected=!!state.agent_waiting;
     const agentName=({codex:'Codex','claude-code':'Claude Code'})[state.review_harness]||'Agent';
-    agentStatus.innerHTML=(brand(state.review_harness)||svg('robot'))+'<span class="chat-agent-dot '+(connected?'is-connected':'')+'" aria-hidden="true"></span><span class="sr-only">'+(connected?'Agent connected':'Agent unavailable')+'</span>';
+    agentStatus.innerHTML=(brand(state.review_harness)||svg('robot'))+'<span class="chat-agent-dot '+(connected?'is-connected':'')+'" aria-hidden="true"></span><span id="chat-agent-status-detail" class="sr-only">'+escape(connected?agentName+' connected'+(state.review_session?' · session '+state.review_session.slice(0,8):''):'Agent unavailable')+'</span>';
     agentStatus.title=connected?agentName+' connected'+(state.review_session?' · session '+state.review_session.slice(0,8):''):'Agent unavailable';
     iconButton($('send-feedback'),'up','Send feedback',false);$('send-feedback').innerHTML=upwardArrow;$('send-feedback').title+=' (Enter · Shift+Enter for a new line)';
     slideQuestions.updateDelivery($('feedback-list'));

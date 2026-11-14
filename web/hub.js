@@ -673,7 +673,7 @@
     const connected=item.delivery?.live_available===true,harness=item.workflow?.review_harness;
     const name=({codex:'Codex','claude-code':'Claude Code'})[harness]||'Agent';
     const title=connected?name+' connected'+(item.workflow?.review_session?' · session '+item.workflow.review_session.slice(0,8):''):'Agent unavailable';
-    return `<span id="hub-agent-status" class="chat-agent-status" role="status" aria-label="Agent connection status" title="${escape(title)}">${root.SlideIcons.brand(harness)||icon('robot')}<span class="chat-agent-dot ${connected?'is-connected':''}" aria-hidden="true"></span><span class="sr-only">${connected?'Agent connected':'Agent unavailable'}</span></span>`;
+    return `<span id="hub-agent-status" class="chat-agent-status" role="status" aria-label="Agent connection status" aria-describedby="hub-agent-status-detail" tabindex="0" title="${escape(title)}">${root.SlideIcons.brand(harness)||icon('robot')}<span class="chat-agent-dot ${connected?'is-connected':''}" aria-hidden="true"></span><span id="hub-agent-status-detail" class="sr-only">${escape(title)}</span></span>`;
   }
   function chatMarkup(item) {
     const value=draft(item);
