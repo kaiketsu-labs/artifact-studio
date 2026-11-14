@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
@@ -33,6 +33,8 @@ from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
+from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
+from .invitation_provisioning import InvitationProvisioning, invitation_destination
 from .models import FileInput, StrictModel
 from .multiplayer_access import (
     AccessDenied,
@@ -83,6 +85,10 @@ class InviteInput(ScopeInput):
     no_expiry: bool = False
 
 
+class ProvisioningRetry(StrictModel):
+    email: str = Field(max_length=254)
+
+
 class GrantRecoveryConfirmation(StrictModel):
     """Confirm the exact staged grant preview."""
 
@@ -131,6 +137,7 @@ def create_app(
     provider: AuthProvider | None = None,
     sharing: Sharing | None = None,
     project_sync: ProjectGitHubSync | None = None,
+    invitation_provisioning: InvitationProvisioning | None = None,
 ) -> FastAPI:
     """Build with explicit dependencies so real HTTP tests never touch a user's collection."""
     config = config or DeploymentConfig.from_env()
@@ -159,6 +166,12 @@ def create_app(
         )
     hub = sharing
     github_sync = project_sync or ProjectGitHubSync.from_env(hub)
+    admission = invitation_provisioning or InvitationProvisioning.from_env(hub, config)
+    if admission is not None and admission.sharing is not hub:
+        raise ValueError("Invitation provisioner must use this sharing registry.")
+    landing_enabled = os.environ.get("ARTIFACT_STUDIO_INVITATION_LANDING") == "1"
+    if landing_enabled and admission is None:
+        raise ValueError("Invitation landing requires the configured admission provisioner.")
     chat = Conversations(hub)
     offline_delivery = OfflineDelivery(hub)
     presence = DeckPresence(hub)
@@ -187,7 +200,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-        async with mcp.session_manager.run(), github_sync.worker():
+        async with mcp.session_manager.run(), github_sync.worker(), AsyncExitStack() as stack:
+            if admission is not None:
+                await stack.enter_async_context(admission.worker())
             yield
 
     app = FastAPI(
@@ -199,8 +214,18 @@ def create_app(
     )
     app.state.sharing, app.state.chat = hub, chat
     app.add_middleware(
-        MultiplayerAuth, config=config, provider=provider or load_auth_provider(config), sharing=hub
+        MultiplayerAuth,
+        config=config,
+        provider=provider or load_auth_provider(config),
+        sharing=hub,
+        invitation_landing=landing_enabled,
     )
+
+    @app.get(CONTINUE_PATH)
+    def continue_invitation(request: Request) -> HTMLResponse:
+        if not landing_enabled or request.url.query:
+            raise AccessDenied
+        return handoff_response("continue")
 
     @app.exception_handler(AccessDenied)
     async def denied(_: Request, __: AccessDenied) -> JSONResponse:
@@ -299,7 +324,27 @@ def create_app(
     @app.post("/api/invitations/accept")
     def accept(request: Request, body: AcceptInput) -> dict[str, str]:
         scope = hub.accept(actor_of(request), body.token)
-        return {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
+        result = {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
+        if admission is not None:
+            result["destination"] = invitation_destination(
+                scope, unified=bool(getattr(request.state, "unified_studio", False))
+            )
+        return result
+
+    @app.get("/api/workspaces/{workspace}/invitation-provisioning")
+    def provisioning_status(request: Request, workspace: str) -> list[dict[str, object]]:
+        if admission is None:
+            raise AccessDenied
+        return admission.status(actor_of(request), workspace)
+
+    @app.post("/api/workspaces/{workspace}/invitation-provisioning/retry")
+    def retry_provisioning(
+        request: Request, workspace: str, body: ProvisioningRetry
+    ) -> dict[str, bool]:
+        if admission is None:
+            raise AccessDenied
+        admission.retry(actor_of(request), workspace, body.email)
+        return {"ok": True}
 
     @app.get("/api/workspaces/{workspace}/catalog")
     def catalog(request: Request, workspace: str) -> dict[str, object]:
@@ -441,9 +486,13 @@ def create_app(
             no_expiry=body.no_expiry,
         )
         path = (
-            workspace_editor_path(workspace)
-            if getattr(request.state, "unified_studio", False)
-            else "/"
+            LANDING_PATH
+            if landing_enabled
+            else (
+                workspace_editor_path(workspace)
+                if getattr(request.state, "unified_studio", False)
+                else "/"
+            )
         )
         # Fragment keeps the secret out of HTTP access logs and Referer headers.
         return {

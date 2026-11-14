@@ -1,6 +1,6 @@
 const $ = id => document.getElementById(id);
 const collaborationPath = location.pathname === '/together' ? '/together' : '/';
-const state = {session: null, workspace: '', artifact: '', slide: '', channel: 'shared', catalog: null,
+const state = {session: null, workspace: '', project: '', artifact: '', slide: '', channel: 'shared', catalog: null,
   current: null, generation: 0, messages: [], accessScope: null, accessWorkspace: '', outgoing: new Map(), recipients: new Map(), hasEarlier: false};
 const roleNames = {view: 'Can view', comment: 'Can comment', edit: 'Can edit'};
 const node = (tag, text, className) => {const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n;};
@@ -19,7 +19,7 @@ const recipientKey = () => [state.workspace, state.artifact, state.channel].join
 function saveDraft() {if (state.artifact) {try {localStorage.setItem(draftKey(), $('message').value);} catch { /* Private browsing may disable storage. */ }}}
 function loadDraft() {try {$('message').value = localStorage.getItem(draftKey()) || '';} catch {$('message').value = '';}}
 function clearEditor() {state.current = null; state.messages = []; state.hasEarlier = false; $('editor').hidden = true; $('empty').hidden = false; $('preview').removeAttribute('src'); $('messages').replaceChildren(); $('messages').dataset.signature = ''; $('slides').dataset.signature = '';}
-function updateURL() {const url = new URL(location.href); url.search = new URLSearchParams({workspace: state.workspace, ...(state.artifact ? {artifact: state.artifact} : {}), ...(state.slide ? {slide: state.slide} : {})}); history.replaceState(null, '', url);}
+function updateURL() {const url = new URL(location.href); url.search = new URLSearchParams({workspace: state.workspace, ...(state.artifact ? {artifact: state.artifact} : state.project ? {project: state.project} : {}), ...(state.slide ? {slide: state.slide} : {})}); history.replaceState(null, '', url);}
 function sharingBadge(text) {return node('span', text, `badge ${text.includes('Shared') || text.includes('shared') ? 'shared' : ''}`);}
 
 async function boot() {
@@ -37,14 +37,14 @@ async function boot() {
   const desired = requested.get('workspace');
   const selected = state.session.workspaces.find(item => item.id === (desired || state.workspace)) || state.session.workspaces[0];
   if (selected) {
-    await selectWorkspace(selected.id, requested.get('artifact'), requested.get('slide'));
+    await selectWorkspace(selected.id, requested.get('artifact'), requested.get('slide'), requested.get('project'));
     if (requested.get('action') === 'agent') openAgents();
 
   }
   else {clearEditor(); $('empty').querySelector('p').textContent = invitation ? 'Join the invitation above to start collaborating.' : 'No shared workspaces yet. Ask the owner for an invitation.'; $('empty-connect').hidden = true; $('new-project').hidden = true; $('workspace-access').hidden = true;}
 }
-async function selectWorkspace(workspace, artifact = '', slide = '') {
-  saveDraft(); state.generation++; state.workspace = workspace; state.artifact = ''; state.slide = ''; clearEditor();
+async function selectWorkspace(workspace, artifact = '', slide = '', project = '') {
+  saveDraft(); state.generation++; state.workspace = workspace; state.project = ''; state.artifact = ''; state.slide = ''; clearEditor();
   $('full-editor').href = '/';
   $('full-editor').hidden = !state.session.editor_available && (!state.session.scoped_editor_available || workspace !== 'default');
   $('workspace').value = workspace;
@@ -52,6 +52,7 @@ async function selectWorkspace(workspace, artifact = '', slide = '') {
   const catalog = await api(`${base()}/catalog`);
   if (generation !== state.generation) return;
   state.catalog = catalog;
+  state.project = catalog.projects.some(item => item.id === project) ? project : '';
   $('workspace-access').hidden = !catalog.owner;
   $('workspace-sharing').replaceWith(Object.assign(sharingBadge(catalog.sharing), {id: 'workspace-sharing'}));
   $('new-project').hidden = !catalog.can_create_project;
@@ -59,9 +60,11 @@ async function selectWorkspace(workspace, artifact = '', slide = '') {
   renderCatalog(); updateURL();
   const selected = artifact
     ? catalog.artifacts.find(item => item.id === artifact)
+    : project ? catalog.artifacts.find(item => item.project_id === project)
     : collaborationPath === '/' ? catalog.artifacts[0] : null;
   if (selected) await selectArtifact(selected.id, slide);
   else if (artifact) notice('This artifact is unavailable.');
+  else if (project && !state.project) notice('This project is unavailable.');
 }
 function renderCatalog() {
   const groups = [...state.catalog.projects, {id: '', title: 'Shared with me'}];
