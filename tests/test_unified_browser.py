@@ -794,13 +794,18 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 shared = page.locator("#chat-tab-shared")
                 agent_tab = page.locator("#chat-tab-private")
                 toggle = page.get_by_role("button", name="Ask your agent")
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 composer.fill("@@Request in Shared")
                 expect(composer).to_have_value("Request in Shared")
                 expect(toggle).to_have_attribute("aria-pressed", "true")
+                expect(composer).to_have_attribute("placeholder", "Ask agent · shared with others…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 shared.focus()
                 page.keyboard.press("ArrowRight")
                 expect(agent_tab).to_be_focused()
                 expect(composer).to_have_value("")
+                expect(composer).to_have_attribute("placeholder", "Private message to your agent…")
                 expect(page.locator("#feedback-list")).to_contain_text("Earlier private review")
                 expect(guest.locator("#feedback-list")).not_to_contain_text(
                     "Earlier private review"
@@ -890,6 +895,8 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 toggle = page.get_by_role("button", name="Ask your agent")
                 thread = page.locator("#hub-thread")
                 expect(toggle).to_be_visible()
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 composer.fill("@agent@example.test is the reference address.")
                 expect(toggle).to_have_attribute("aria-pressed", "false")
                 composer.press("Enter")
@@ -897,8 +904,11 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 composer.fill("@agent Please review the headline.")
                 expect(toggle).to_have_attribute("aria-pressed", "true")
                 expect(composer).to_have_value("Please review the headline.")
+                expect(composer).to_have_attribute("placeholder", "Ask agent · shared with others…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 toggle.click()
                 expect(toggle).to_have_attribute("aria-pressed", "false")
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
                 composer.press("Enter")
                 expect(thread).to_contain_text("Please review the headline.")
                 assert peer.value("read_feedback", artifact_id=app.artifact_id)["events"] == []
@@ -921,6 +931,8 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 )
                 assert [event["message"] for event in events] == ["Can you simplify it?"]
                 assert "Please review the headline." in str(events[0]["shared_context"])
+                page.locator("#hub-shared-channel").select_option("private")
+                expect(composer).to_have_attribute("placeholder", "Private message to your agent…")
         finally:
             browser.close()
             peer.client.close()
