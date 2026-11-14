@@ -1,6 +1,6 @@
 [project]
 name = "artifact-studio"
-version = "0.7.0"
+version = "0.7.1"
 description = "Local artifact workspace for agents and human review through stateless MCP."
 requires-python = ">=3.14"
 dependencies = [
