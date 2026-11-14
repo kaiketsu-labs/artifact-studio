@@ -59,4 +59,4 @@ VOLUME ["/data"]
 EXPOSE 8790
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "import http.client; c = http.client.HTTPConnection('127.0.0.1', 8790, timeout=3); c.request('GET', '/api/health'); r = c.getresponse(); raise SystemExit(0 if r.status == 200 else 1)"
-CMD ["uvicorn", "artifact_studio.app:app", "--host", "0.0.0.0", "--port", "8790", "--no-proxy-headers"]
+CMD ["python", "-m", "artifact_studio.server"]

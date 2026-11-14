@@ -1706,3 +1706,44 @@ def test_narrow_artifact_composer_stays_visible_when_long_thread_arrives(
                 expect(page.locator("#hub-thread")).to_contain_text("review.txt")
         finally:
             browser.close()
+
+
+def test_preview_retry_keeps_earlier_preview_and_draft_after_disconnect(tmp_path: Path) -> None:
+    """A failed stylesheet load does not erase the last usable slide or the new draft."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        sync_playwright() as playwright,
+    ):
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "owner") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                expect(page.locator("#preview")).to_have_attribute(
+                    "data-load-token", re.compile("-ready$")
+                )
+                old_key = page.locator("#preview").evaluate(
+                    "f => f.contentDocument.body.dataset.previewKey"
+                )
+                page.route("**/theme.css**", lambda route: route.abort("internetdisconnected"))
+                page.locator('#slides [data-id="next"]').click()
+                page.locator("#feedback-text").fill("Fictional unsent draft")
+                expect(page.locator("#preview-message")).to_contain_text("earlier preview")
+                expect(page.locator("#retry-preview")).to_be_visible(timeout=15000)
+                assert (
+                    page.locator("#preview").evaluate(
+                        "f => f.contentDocument.body.dataset.previewKey"
+                    )
+                    == old_key
+                )
+                expect(page.locator("#feedback-text")).to_have_value("Fictional unsent draft")
+                expect(page.locator("#slide-title")).to_contain_text("Next")
+                page.unroute("**/theme.css**")
+                page.locator("#retry-preview").click()
+                expect(page.locator("#preview")).to_have_attribute(
+                    "data-load-token", re.compile("/next/.*-ready$"), timeout=15000
+                )
+                expect(page.locator("#feedback-text")).to_have_value("Fictional unsent draft")
+                expect(page.locator("#slide-title")).to_contain_text("Next")
+        finally:
+            browser.close()

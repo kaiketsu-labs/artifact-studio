@@ -45,6 +45,7 @@ from .multiplayer_access import (
 from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
+from .renderer_health import RendererBusy
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
 from .structure_proposals import StructureDecision, StructureProposals
@@ -196,6 +197,14 @@ def create_app(
     @app.exception_handler(ConflictError)
     async def conflict(_: Request, error: ConflictError) -> JSONResponse:
         return JSONResponse({"detail": str(error)}, 409)
+
+    @app.exception_handler(RendererBusy)
+    async def renderer_busy(_: Request, __: RendererBusy) -> JSONResponse:
+        return JSONResponse(
+            {"detail": "The renderer is busy. Try again shortly.", "code": "renderer_saturated"},
+            status_code=503,
+            headers={"Retry-After": "2", "X-Artifact-Error": "renderer_saturated"},
+        )
 
     @app.exception_handler(ValueError)
     async def invalid(_: Request, __: ValueError) -> JSONResponse:
