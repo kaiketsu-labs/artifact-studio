@@ -32,7 +32,7 @@
         <figure hidden><img alt="Screenshot preview">
           <figcaption><button type="button" data-copy hidden>${icon('copy')}<span>Copy screenshot</span></button><a download="artifact-studio-issue.png">${icon('download')}<span>Save screenshot</span></a>
             <button type="button" data-remove aria-label="Remove screenshot" title="Remove screenshot">${icon('trash')}</button></figcaption>
-          <p data-attachment-help>Save the image to attach it in GitHub.</p>
+          <p data-attachment-help>Save the image, then choose it in the Screenshot field on GitHub.</p>
         </figure>
       </fieldset>
       <footer class="studio-report-footer">
@@ -55,7 +55,7 @@
   const canCopy = typeof clipboard?.write === 'function' && typeof root.ClipboardItem === 'function';
   copy.hidden = !canCopy;
   if (canCopy) dialog.querySelector('[data-attachment-help]').textContent =
-    'Paste the screenshot in the GitHub issue body, or attach the saved file.';
+    'Paste the screenshot into “What happened?” on GitHub, or add the saved file in the Screenshot field.';
   const figure = dialog.querySelector('figure');
   const preview = figure.querySelector('img');
   const save = figure.querySelector('a');
@@ -228,8 +228,8 @@
     const copied = await copyScreenshot(selected);
     if (dialog.open && selected === screenshot) {
       status.textContent = copied
-        ? 'Screenshot copied. Paste it into the GitHub issue body.'
-        : 'Could not copy the screenshot. Save it to attach in GitHub.';
+        ? 'Screenshot copied. Paste it into “What happened?” on GitHub.'
+        : 'Could not copy the screenshot. Save it and use the Screenshot field on GitHub.';
     }
   });
 
@@ -247,13 +247,22 @@
     clearDraft();
     const attempt = handoff;
     const github = new URL('https://github.com/kaiketsu-labs/artifact-studio/issues/new');
+    github.searchParams.set('template', 'studio-feedback.yml');
     github.searchParams.set('title', title);
-    github.searchParams.set('body', body);
-    if (!selected || !canCopy) {
-      if (selected) status.textContent = 'Save the screenshot to attach it in GitHub.';
+    github.searchParams.set('report-details', body);
+    const copyReport = github.href.length > 7500;
+    if (copyReport) {
+      github.searchParams.delete('title');
+      github.searchParams.delete('report-details');
+    }
+    function openDraft(attachmentHint = '') {
+      status.textContent = [copyReport ? 'Copy your title and description into GitHub.' : '', attachmentHint].filter(Boolean).join(' ');
       draftLink.href = github.href;
       draftLink.hidden = false;
       draftLink.click();
+    }
+    if (!selected || !canCopy) {
+      openDraft(selected ? 'Save the screenshot and use the Screenshot field on GitHub.' : '');
       return;
     }
     submit.disabled = true;
@@ -261,12 +270,9 @@
     void copyScreenshot(selected).then(success => {
       if (handoff !== attempt || !dialog.open) return;
       submit.disabled = false;
-      status.textContent = success
-        ? 'Screenshot copied. Paste it into the GitHub issue body.'
-        : 'Save the screenshot to attach it in GitHub.';
-      draftLink.href = github.href;
-      draftLink.hidden = false;
-      draftLink.click();
+      openDraft(success
+        ? 'Screenshot copied. Paste it into “What happened?” on GitHub.'
+        : 'Save the screenshot and use the Screenshot field on GitHub.');
     });
   });
 

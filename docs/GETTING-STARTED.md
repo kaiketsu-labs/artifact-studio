@@ -271,7 +271,8 @@ and draft a public GitHub issue. Capture the Studio tab or browser window throug
 choose an image file, or paste a screenshot into Studio. Review the image in
 Studio before opening the draft. Studio copies it when your browser permits
 clipboard access. Paste it into the GitHub issue body, or use **Save screenshot**
-and attach the file in GitHub.
+and add the saved file in the **Screenshot** field on GitHub. Selecting a file
+there uploads it immediately. You can review the issue before submitting it.
 
 | Symptom | Check |
 | --- | --- |
