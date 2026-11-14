@@ -111,7 +111,7 @@ jobs:
           node --test scripts/release/*.cjs
       - name: Annotate failed test IDs
         if: failure()
-        run: python scripts/ci/test-failures.py test-results/unit.xml
+        run: uv run --no-sync python scripts/ci/test-failures.py test-results/unit.xml
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -216,7 +216,7 @@ jobs:
           --junitxml=test-results/browser-firefox.xml
       - name: Annotate failed test IDs
         if: failure()
-        run: python scripts/ci/test-failures.py test-results/browser-*.xml
+        run: uv run --no-sync python scripts/ci/test-failures.py test-results/browser-*.xml
       - name: Upload screenshots, Playwright traces and server logs on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -256,7 +256,7 @@ jobs:
         run: uv run --no-sync pytest tests/integration/test_native_clients.py --junitxml=test-results/native-clients.xml
       - name: Annotate failed test IDs
         if: failure()
-        run: python scripts/ci/test-failures.py test-results/agents.xml test-results/native-clients.xml
+        run: uv run --no-sync python scripts/ci/test-failures.py test-results/agents.xml test-results/native-clients.xml
       - name: Upload client logs on failure
         if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
