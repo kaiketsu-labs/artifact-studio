@@ -164,7 +164,7 @@
     properties,
     tools:$('element-tools'),selectionBox:$('selection-box'),deleteButton:$('delete-element'),rotationInput:$('rotate-element'),editButton:$('edit-element-text'),moveButton:$('move-element'),alignButton:$('align-element'),alignMenu:$('element-align-menu'),commitButton:$('commit-element-text'),cancelButton:$('cancel-element-edit'),sentBadge:$('element-proposal-sent'),
     anchor:()=>({deck_id:deck.id,slide_id:selectedId,content_hash:slide().content_hash,target:structuredClone(currentTarget)}),
-    getFeedbackMode:()=>deck?.workflow?.mode,
+    getFeedbackMode:()=>modeChange&&modeChange.deckId===deck?.id?modeChange.mode:deck?.workflow?.mode,
     onSend:async({deck_id,slide_id,content_hash,target,message,request_id,edit_intent,expected_mode})=>{
       const result=await postFeedback(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/feedback`,{message,content_hash,target,request_id,edit_intent},expected_mode);
       const released=deck.workflow?.mode!=='batch';
