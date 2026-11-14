@@ -9,7 +9,7 @@ Current-source snapshots and full archives have different recovery guarantees:
 | Source | What returns | What cannot return |
 | --- | --- | --- |
 | Connected current-source Git backup or local source snapshot | Projects and briefs, folder hierarchy and sibling order, current artifact files, current artifact registry, legacy presentations and portable memberships/archived visibility/default design | Private comments, approvals, connected sessions, earlier artifact revisions, private attachments excluded from the snapshot |
-| Full workspace archive, saved locally or explicitly uploaded through Full workspace backups | Collection files, retained artifact revisions, saved database review history and drafts, approvals, navigation, and app-owned attachments both inside and outside the collection | Host credentials, Git configuration, reference-library checkouts, upload opt-ins, connected agent sessions and unsaved browser-only edits |
+| Full workspace archive, saved locally or explicitly uploaded through Full workspace backups | Collection files, retained artifact revisions, saved database review history and drafts, approvals, navigation, and app-owned attachments both inside and outside the collection | Host credentials, collaboration grants, Git configuration, reference-library checkouts, upload opt-ins, connected agent sessions and unsaved browser-only edits |
 
 A current-source restore keeps the original artifact ID, project membership, physical `storage_project_id`, revision number and content identity. It reconstructs one immutable snapshot for that current revision and clears approval/seen state. It does not create missing earlier revisions. Legacy deck source files are recovered in place within the new collection. Snapshots made before portable recovery metadata existed cannot recover legacy memberships or archived visibility; preview explains that limitation.
 
@@ -30,7 +30,7 @@ To recover a full GitHub backup on another computer:
 3. Select a **Workspace backup** and click **Preview full backup**. The download's SHA-256 is checked, and the archive is validated before the normal recovery preview appears.
 4. Review the contents and new destination, then click **Restore files**. The running workspace remains active.
 
-The recovered folder includes its own `.artifact-studio/review.sqlite3`. To run that workspace later, select **both** its collection folder and database through setup, or start a separate instance with `ARTIFACT_STUDIO_COLLECTION` pointing to the recovered folder and `ARTIFACT_STUDIO_DATABASE` pointing to its `.artifact-studio/review.sqlite3`. Reconnect repositories and agents, and explicitly re-enable any desired upload permissions or backup schedules. Restoration does not merge two workspaces.
+The recovered folder includes its own `.artifact-studio/review.sqlite3`. To run that workspace later, select **both** its collection folder and database through setup, or start a separate instance with `ARTIFACT_STUDIO_COLLECTION` pointing to the recovered folder and `ARTIFACT_STUDIO_DATABASE` pointing to its `.artifact-studio/review.sqlite3`. Reconnect repositories and agents, and explicitly re-enable any desired upload permissions or backup schedules. Restoration does not merge two workspaces. Collaboration grants live in the separate multiplayer sharing registry and are not included in these archives; recreate them after configuring the recovered workspace.
 
 ## Version timeline
 
@@ -80,3 +80,9 @@ Continue including `project-tree.json`, `projects/*/project.json`, project `READ
 ## Validation
 
 `tests/test_workspace_recovery.py` uses fictional temporary collections. It covers fresh registry recovery, moved artifact storage, current-only history, navigation order, legacy memberships, archived visibility, old-snapshot warnings, stale preview tokens, existing-workspace refusal, local full-state recovery, private draft attachments inside/outside the collection, complete retained revisions, approval preservation, timestamp preservation, path rebasing, source JSON byte identity, unknown triggers and malformed/tampered archives. Tests never open or modify the real presentation collection.
+
+## Size investigation
+
+A fictional two-project fixture with three retained versions of an artifact was measured locally. It contained 2,097,152 bytes of current media, 6,291,456 bytes of identical historical media, 5,129 bytes of other revision files, 356,352 bytes of database and 3,946 bytes of other files. A 524,288-byte generated preview cache was excluded. The existing archive stored 23 objects for 30 files and was 2,121,335 bytes; a comparison ZIP containing a separate copy of each file was 8,411,644 bytes. Full archive creation took 0.283 seconds; writing the comparison ZIP alone took 0.592 seconds. Preview and restore together took 0.516 seconds, including repeated integrity checks. These are one local run, not performance guarantees; media compressibility, machine load and filesystem affect the result. The comparison includes no staging or verification time.
+
+The restored fixture retained both projects, the current asset and the first and third artifact revisions. The destination was an independent temporary directory on a separate tmpfs filesystem. Collaboration grants were not verified because the separate sharing registry is not part of workspace archives. Original assets and retained revisions remain included: their arbitrary authored contents cannot generally be reconstructed. No retention or backup defaults were changed.

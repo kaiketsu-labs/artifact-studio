@@ -274,6 +274,11 @@ def test_full_archive_restores_private_history_and_external_attachments(tmp_path
             "INSERT INTO review_sessions(harness,session_id,deck,expires_at) "
             "VALUES ('codex','host-session','fictional-deck',9999999999)"
         )
+    # Preview caches are disposable; identical current and historical assets must
+    # still be restored at every path even though the archive stores them once.
+    preview_cache = original.database.parent / "artifact-previews" / "fictional.png"
+    preview_cache.parent.mkdir(parents=True, exist_ok=True)
+    _ = preview_cache.write_bytes(b"fictional generated preview")
     recovery = WorkspaceRecovery(original)
     archive_path = tmp_path / "backup.zip"
     summary = recovery.export_archive(archive_path)
@@ -287,6 +292,9 @@ def test_full_archive_restores_private_history_and_external_attachments(tmp_path
             item.area == "state" and item.path.startswith("design-inbox/")
             for item in manifest.files
         )
+        assets = [item for item in manifest.files if item.path.endswith("/image.bin")]
+        assert len(assets) >= 3 and len({item.sha256 for item in assets}) == 1
+        assert not any("artifact-previews" in item.path for item in manifest.files)
     target = workspace(tmp_path / "restored")
     restore = WorkspaceRecovery(target)
     preview = restore.preview(archive_path, mode="archive")
@@ -297,6 +305,12 @@ def test_full_archive_restores_private_history_and_external_attachments(tmp_path
     assert restored.get_artifact(artifact_id).project_id == project_id
     assert restored.snapshot_files(artifact_id, 1)["index.html"] == b"<h1>First</h1>"
     assert restored.snapshot_files(artifact_id, 2)["index.html"] == b"<h1>Current</h1>"
+    assert restored.snapshot_files(artifact_id, 1)["image.bin"] == b"fictional image"
+    assert restored.snapshot_files(artifact_id, 2)["image.bin"] == b"fictional image"
+    assert (Path(restored.get_artifact(artifact_id).source_path) / "image.bin").read_bytes() == (
+        b"fictional image"
+    )
+    assert not (target.database.parent / "artifact-previews" / "fictional.png").exists()
     events = restored.feedback(artifact_id, include_pending=True)
     assert len(events) == 1 and events[0].message == "Private draft" and not events[0].released
     restored_file, _ = restored.resolve_feedback_file(
