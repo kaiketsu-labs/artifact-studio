@@ -24,7 +24,7 @@ RUN --mount=type=secret,id=proxy_ca \
       printf 'Acquire::https::CaInfo "/run/secrets/proxy_ca";\n' > "$APT_CONFIG"; \
     fi; \
     apt-get update \
-    && apt-get install -y --no-install-recommends git gh tesseract-ocr tesseract-ocr-eng \
+    && apt-get install -y --no-install-recommends git gh libatomic1 tesseract-ocr tesseract-ocr-eng \
     && uv sync --locked --no-dev --no-cache \
     && playwright install --with-deps chromium --only-shell \
     && chmod -R a+rX /opt/playwright \
