@@ -33,7 +33,7 @@
     $('outbox').replaceChildren(...(record?.outbox||[]).map(item=>{const row=document.createElement('li');const label=document.createElement('strong');label.textContent=(item.kind==='edit'?'Edit':'Comment')+' · '+(record.snapshot.slides.find(slide=>slide.id===item.slide_id)?.title||item.slide_id);const text=document.createElement('pre');text.textContent=item.body;const remove=document.createElement('button');remove.type='button';remove.textContent='Remove saved change';remove.disabled=syncing;remove.addEventListener('click',async()=>{const own=selection;try{await store.update(record.snapshot.id,item.id,null);if(own!==selection)return;record=await store.read(record.snapshot.id);renderQueue();slide();}catch(error){message(error.message);}});row.append(label,text,remove);return row;}));
   }
   async function select(){
-    const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('source').value='';$('comment').value='';$('preview').srcdoc='';$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[Number($('decks').value)];
+    const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('outbox').replaceChildren();$('source').value='';$('comment').value='';$('preview').srcdoc='';$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[Number($('decks').value)];
     if(!entry){message('No saved presentations on this device.');return;}
     const blocked='artifact-studio-offline-blocked-v1:'+entry.scope+':'+encodeURIComponent(entry.deck),identityBlocked='artifact-studio-offline-blocked-v1:'+entry.scope+':*';
     let priorBlock=localStorage.getItem(blocked),priorIdentityBlock=localStorage.getItem(identityBlocked);
@@ -44,13 +44,13 @@
       }
       checkBlocks();
       if(response){
-        if(!response.ok||response.redirected||!(response.headers.get('content-type')||'').includes('application/json')){localStorage.setItem(identityBlocked,crypto.randomUUID());throw Error('Sign in to open saved presentations.');}
+        if(!response.ok||response.redirected||!(response.headers.get('content-type')||'').includes('application/json')){localStorage.setItem(identityBlocked,crypto.randomUUID());forget();throw Error('Sign in to open saved presentations.');}
         const session=await response.json();checkBlocks();
         if(!/^[a-f0-9]{64}$/.test(session.cache_scope||''))throw Error('Offline access is unavailable for this session.');
         if(session.cache_scope!==entry.scope){await OfflineClient.clear();forget();throw Error('Saved data was cleared after the account changed.');}
         const deckPath=entry.session.replace(/api\/session$/,'api/decks/'+encodeURIComponent(entry.deck));
         const access=await fetch(deckPath,{cache:'no-store',signal:AbortSignal.timeout(5000)});checkBlocks();
-        if(!access.ok||access.redirected){if(access.status===401||access.redirected)localStorage.setItem(identityBlocked,crypto.randomUUID());else if(access.status>=400&&access.status<500)localStorage.setItem(blocked,crypto.randomUUID());throw Error('This presentation is unavailable. Your drafts remain on this device.');}
+        if(!access.ok||access.redirected){if(access.status===401||access.redirected)localStorage.setItem(identityBlocked,crypto.randomUUID());else if(access.status>=400&&access.status<500)localStorage.setItem(blocked,crypto.randomUUID());forget();throw Error('This presentation is unavailable. Your drafts remain on this device.');}
         localStorage.removeItem(identityBlocked);localStorage.removeItem(blocked);priorIdentityBlock=null;priorBlock=null;
       }else if(localStorage.getItem(identityBlocked)||localStorage.getItem(blocked))throw Error('Reconnect and verify access to open this presentation. Your drafts remain on this device.');
       if(localStorage.getItem(ACTIVE)!==entry.scope||localStorage.getItem('artifact-studio-offline-generation-v1')!==generation)throw Error('The saved session changed.');

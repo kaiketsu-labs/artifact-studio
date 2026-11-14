@@ -125,6 +125,7 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             )
             assert page.locator("#outbox li").count() == 2
             assert "Offline edit" in (page.locator("#preview").get_attribute("srcdoc") or "")
+            page.wait_for_timeout(500)
             page.frame_locator("#preview").get_by_text("Offline edit").wait_for()
             old_tab = page
             context.set_offline(False)
@@ -282,6 +283,8 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             )
             assert page.locator("#source").input_value() == ""
             assert page.locator("#save-edit").is_disabled()
+            assert page.locator("#outbox li").count() == 0
+            assert page.locator("#decks option").count() == 0
             assert_blocked_until_authorized()
             page = context.new_page()
             page.route(
