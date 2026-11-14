@@ -9,6 +9,7 @@
   <script src="/web/icons.js" defer></script>
   <script src="/web/objects.js" defer></script>
   <script src="/web/element-properties.js" defer></script>
+  <script src="/web/slide-edits.js" defer></script>
   <script src="/web/offline-visual-edit.js" defer></script>
   <script src="/web/offline-store.js" defer></script>
   <script src="/web/offline-client.js" defer></script>
@@ -47,9 +48,9 @@
     <div class="workspace">
       <div class="work-column">
         <section class="panel preview-panel" aria-labelledby="preview-title">
-          <div class="section-heading"><h2 id="preview-title">Slide</h2><label for="edit-object">Text object <select id="edit-object" disabled><option value="">Select text</option></select></label></div>
+          <div class="section-heading"><h2 id="preview-title">Slide</h2><label for="edit-object">Slide object <select id="edit-object" disabled><option value="">Select an object</option></select></label></div>
           <div class="preview-stage"><iframe id="preview" title="Slide preview" sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe></div>
-          <p class="hint">Select text on the slide or from the text object list. Interactive content may look different offline.</p>
+          <p class="hint">Select an object to edit it. Interactive content may look different offline.</p>
           <div id="offline-properties" hidden></div>
         </section>
         <section class="panel editor-panel" aria-labelledby="edit-title">
