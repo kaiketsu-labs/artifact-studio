@@ -26,6 +26,7 @@ from .artifacts import (
     read_tree,
     relative_path,
 )
+from .grant_recovery_models import GrantSnapshot
 from .libraries import artifact_source, file_hash, inventory
 from .models import Deck, StrictModel
 from .project_tree import TreeDocument
@@ -131,6 +132,7 @@ class WorkspaceArchive(StrictModel):
     source_state: str
     files: list[RecoveryFile] = Field(max_length=MAX_FILES)
     directories: list[str] = Field(default_factory=list, max_length=MAX_FILES)
+    human_grants: GrantSnapshot | None = None
 
 
 class RecoveryPreview(StrictModel):
@@ -722,6 +724,10 @@ class WorkspaceRecovery:
         except BadZipFile as error:
             raise ValueError("The file is not a valid workspace archive.") from error
 
+    def archive_grants(self, source: Path) -> GrantSnapshot | None:
+        """Read optional grants only after validating the complete archive."""
+        return self._archive(source.expanduser().absolute()).human_grants
+
     def fingerprint_archive(self, source: Path) -> str:
         """Validate a prior archive and identify its saved content without restoring files."""
         source = source.expanduser().absolute()
@@ -788,6 +794,10 @@ class WorkspaceRecovery:
             warnings.append(
                 "Repository registrations, upload permissions and agent sessions are reset."
             )
+            if manifest.human_grants is not None:
+                warnings.append(
+                    "Human access grants are included but are not restored with the files."
+                )
         token = digest(json.dumps([mode, str(source), source_hash, target_hash]))
         return RecoveryPreview(
             mode=mode,
@@ -1015,12 +1025,14 @@ class WorkspaceRecovery:
                 path.unlink(missing_ok=True)
             raise
 
-    def export_archive(self, destination: Path) -> ArchiveSummary:
+    def export_archive(
+        self, destination: Path, *, human_grants: GrantSnapshot | None = None
+    ) -> ArchiveSummary:
         """Serialize application edits while creating a local, consistent SQLite archive."""
         with self.store.connect() as db:
             _ = _database_tables(db)
         _ = self.write_portable_metadata()
-        return self._prepare_archive(destination)
+        return self._prepare_archive(destination, human_grants=human_grants)
 
     def export_archive_if_changed(
         self, destination: Path, previous_fingerprint: str
@@ -1032,7 +1044,11 @@ class WorkspaceRecovery:
         return self._prepare_archive(destination, previous_fingerprint)
 
     def _prepare_archive(
-        self, destination: Path, previous_fingerprint: str | None = None
+        self,
+        destination: Path,
+        previous_fingerprint: str | None = None,
+        *,
+        human_grants: GrantSnapshot | None = None,
     ) -> ArchiveSummary:
         """Stage a verified snapshot under lock, then compress it without blocking edits."""
         destination = destination.expanduser().absolute()
@@ -1151,11 +1167,14 @@ class WorkspaceRecovery:
                     source_state=str(state),
                     files=files,
                     directories=directories,
+                    human_grants=human_grants,
                 )
             archive_path = stage / "workspace.zip"
             seen: set[str] = set()
             with ZipFile(archive_path, "w", ZIP_DEFLATED, compresslevel=6) as archive:
-                archive.writestr(ARCHIVE_MANIFEST, manifest.model_dump_json(indent=2))
+                archive.writestr(
+                    ARCHIVE_MANIFEST, manifest.model_dump_json(indent=2, exclude_none=True)
+                )
                 for item, path in sources:
                     if item.sha256 in seen:
                         continue
