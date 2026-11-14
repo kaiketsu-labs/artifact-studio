@@ -97,8 +97,9 @@ def test_report_copies_screenshot_and_opens_public_draft(
     assert target.path == "/kaiketsu-labs/artifact-studio/issues/new"
     assert popup.value.evaluate("window.opener === null")
     assert parse_qs(target.query) == {
+        "template": ["studio-feedback.yml"],
         "title": ["Fictional PDF delay"],
-        "body": ["Preparing attachment stalled."],
+        "report-details": ["Preparing attachment stalled."],
     }
     dialog.get_by_role("button", name="Remove screenshot").click()
     expect(dialog.get_by_role("img", name="Screenshot preview")).to_be_hidden()
@@ -212,4 +213,25 @@ def test_report_keeps_a_draft_link_and_image_when_clipboard_or_popup_is_blocked(
     expect(link).to_be_hidden()
     expect(dialog.locator("[data-draft-link]")).not_to_have_attribute("href", re.compile(".+"))
     dialog.get_by_role("button", name="Copy screenshot and open GitHub draft").click()
-    expect(link).to_have_attribute("href", re.compile(r"body=Redacted\+report$"))
+    expect(link).to_have_attribute("href", re.compile(r"report-details=Redacted\+report$"))
+
+
+def test_report_opens_empty_github_form_when_prefill_is_too_large(
+    live_app: RunningApp, page: Page
+) -> None:
+    """Preserve the report in Studio when its encoded URL would be too long."""
+    page.context.route("https://github.com/**", lambda route: route.fulfill(body="Fictional form"))
+    page.goto(live_app.url)
+    page.get_by_role("button", name="Report an issue", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Report an issue")
+    title = "Fictional report"
+    details = "翻" * 1000
+    dialog.get_by_role("textbox", name="Title").fill(title)
+    dialog.get_by_role("textbox", name="What happened?").fill(details)
+    with page.expect_popup() as popup:
+        dialog.get_by_role("button", name="Open GitHub draft").click()
+    popup.value.wait_for_url("https://github.com/**")
+    assert parse_qs(urlsplit(popup.value.url).query) == {"template": ["studio-feedback.yml"]}
+    expect(dialog.get_by_role("status")).to_contain_text("Copy your title and description")
+    expect(dialog.get_by_role("textbox", name="Title")).to_have_value(title)
+    expect(dialog.get_by_role("textbox", name="What happened?")).to_have_value(details)

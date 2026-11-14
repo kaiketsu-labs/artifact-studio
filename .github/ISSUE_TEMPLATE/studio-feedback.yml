@@ -1,0 +1,16 @@
+name: Artifact Studio report
+description: Report a problem from Artifact Studio.
+body:
+  - type: textarea
+    id: report-details
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: upload
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: Add a saved screenshot only after checking it for private information. Selecting a file uploads it to GitHub immediately.
+    validations:
+      accept: .png,.jpg,.jpeg,.webp
