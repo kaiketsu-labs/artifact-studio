@@ -42,6 +42,8 @@ def test_presenter_click_opens_synchronized_audience_without_display_access(
             if (!original) continue;
             prototype[method] = function(...args) {
                 record(prefix);
+                record(document.hasFocus() ? 'h1' : 'h0');
+                record(navigator.userActivation?.isActive ? 'a1' : 'a0');
                 try {
                     const result = original.apply(this, args);
                     result.then(() => record(prefix + 's'), error =>
@@ -85,6 +87,8 @@ def test_presenter_click_opens_synchronized_audience_without_display_access(
     viewer.locator("#audience-view-button").click()
     viewer.get_by_role("button", name="Presenter view", exact=True).click()
     expect(viewer.get_by_role("button", name="Resume timer", exact=True)).to_be_visible()
+    audience.bring_to_front()
+    audience.wait_for_function("document.hasFocus()")
     already_fullscreen = audience.evaluate(
         """() => {
             const active = Boolean(document.fullscreenElement || document.webkitFullscreenElement);

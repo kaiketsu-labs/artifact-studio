@@ -22,7 +22,7 @@ def report(paths: list[str]) -> None:
             continue
         try:
             root = ElementTree.parse(path).getroot()
-        except (OSError, ElementTree.ParseError):
+        except OSError, ElementTree.ParseError:
             continue
         for case in root.iter("testcase"):
             failed = case.find("failure")
@@ -46,7 +46,7 @@ def report(paths: list[str]) -> None:
                 "test_presenter_click_opens_synchronized_audience_without_display_access"
             )
             if identifier.startswith(presenter_test):
-                token = r"(?:r|rs|rn|rx|e|es|en|ex|c0|c1|q0|q1|k)"
+                token = r"(?:r|rs|rn|rx|e|es|en|ex|c0|c1|q0|q1|k|h0|h1|a0|a1)"
                 match = re.search(
                     rf"FULLSCREEN_TRACE=((?:{token},){{0,31}}{token})(?=\s|$)",
                     failed.text or "",

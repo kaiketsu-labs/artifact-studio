@@ -66,14 +66,14 @@ def test_fullscreen_trace_only_accepts_fixed_tokens_for_presenter_test(tmp_path:
     classname = "tests.integration.test_presentation_displays"
     report.write_text(
         f'<testsuite><testcase classname="{classname}" name="{name}">'
-        '<failure>FULLSCREEN_TRACE=r,q0,k,rs,c1,e,es,c0</failure></testcase>'
+        "<failure>FULLSCREEN_TRACE=r,h1,a1,q0,k,rs,c1,e,es,c0</failure></testcase>"
         f'<testcase classname="{classname}" name="{name}">'
-        '<failure>FULLSCREEN_TRACE=r,private-data</failure></testcase>'
+        "<failure>FULLSCREEN_TRACE=r,private-data</failure></testcase>"
         '<testcase name="other"><failure>FULLSCREEN_TRACE=r,c1</failure></testcase>'
-        '</testsuite>'
+        "</testsuite>"
     )
     lines = annotate(report).splitlines()
-    assert lines[0].endswith("fullscreen events: r,q0,k,rs,c1,e,es,c0")
+    assert lines[0].endswith("fullscreen events: r,h1,a1,q0,k,rs,c1,e,es,c0")
     assert "fullscreen events" not in lines[1]
     assert "fullscreen events" not in lines[2]
     assert "private" not in "".join(lines)
