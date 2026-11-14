@@ -214,9 +214,12 @@ mention badge opens the referenced slide and message.
 Open a presentation and use **Shared** to discuss it with collaborators or
 **Agent** for a private conversation. A dot marks new messages in a tab.
 Switching tabs keeps each unsent draft with its own conversation. If you have a
-connected agent with edit access, select **Ask my agent** in Shared to send a
-request whose reply stays in Shared. Messages in Agent go to the same connection
-and its replies stay private. If you have comments saved by the earlier batch
+connected agent with edit access, start a Shared message with `@@` or `@agent`,
+or click the robot icon by Send. A purple border and robot mark the request,
+and its reply stays in Shared. The request can include up to four earlier released
+human messages from the same slide or artifact as context. Drag the chat divider
+left to widen the panel on desktop. Messages in Agent and their replies stay
+private. If you have comments saved by the earlier batch
 workflow, a **Send queued comments** button is shown in that conversation.
 
 1. Open the Studio HTTPS URL, sign in with the email allowed by Cloudflare
@@ -355,6 +358,14 @@ validates the presentation in the same read before serving the passive file.
 
 ## Agent setup and delivery
 
+### Review slide structure
+
+An agent with edit access can call `publish_structure_proposal` with the current slide IDs and sections hash from the outline, the proposed IDs, and a short summary. Provide titles for proposed IDs that are absent from Studio. The proposal appears in the presentation conversation under **Review slide structure** for people with edit access.
+
+Compare the two orders and the slides listed on only one side. Choose **Keep current order**, **Request changes**, or **Accept proposal**, and optionally add a message. Studio records the decision and delivers it to the proposing agent in Shared. The agent can then reread the outline and use the existing guarded slide operations to carry out the decision.
+
+Other editors can continue working while the comparison is open. Studio checks the reviewed slide IDs and section structure when sending a decision. If the proposal's base has changed, request an updated proposal before accepting. A second reviewer sees the recorded decision after reopening the comparison.
+
 On a presentation, open **Agent connection** to let a connected agent read
 **Full Shared history**. The permission applies to the selected connection and
 presentation. Turn it off in the same dialog to revoke future history reads.
@@ -395,6 +406,10 @@ Multiple agents can listen to one artifact. Only the assigned agent receives a t
 It calls `claim_feedback` with a unique stable session ID, then uses hash/revision
 guards for edits. Claims last ten minutes and can be renewed. `reply_to_feedback`
 with the claim replies in the original channel and acknowledges the request.
+Use `include_message=false` on `claim_feedback` after reading the request.
+Live review renews its lease silently while tools run and wakes on assigned
+feedback through the Stop hook. Load `get_authoring_guide(topic="slide_designs")`
+for whole-slide proposals, headline alternatives and their decision history.
 Lost responses can be retried with the same request ID; unacknowledged work remains
 pending. This is retryable delivery, not exactly-once network delivery. Ending one
 native session does not stop another. A stopped session requires explicit resume.

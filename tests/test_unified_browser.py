@@ -32,6 +32,71 @@ pytestmark = [
 ]
 
 
+def test_structure_review_preserves_a_concurrent_edit_and_reaches_origin_agent(
+    tmp_path: Path,
+) -> None:
+    """Two fictional editors share a structural proposal while one reorders the deck."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app", tmp_path / "server.log", unified=True, startup_timeout=30
+        ) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        peer = Peer(app, agent(owner, app.deck_id))
+        unrelated = Peer(app, agent(alice, app.deck_id))
+        outline = peer.value("get_presentation_outline", deck_id=app.deck_id)
+        _ = peer.value(
+            "publish_structure_proposal",
+            deck_id=app.deck_id,
+            summary="Fictional proposed outline",
+            base_slide_ids=["cover", "next"],
+            base_sections_hash=outline["sections_hash"],
+            proposed_slide_ids=["next", "missing"],
+            proposed_titles={"missing": "Fictional additional slide"},
+            request_id="fictional-outline-proposal",
+        )
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 850, "height": 720})
+                page.emulate_media(color_scheme="dark")
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.get_by_role("button", name="Open chat", exact=True).click()
+                page.locator("#structure-review-trigger").click()
+                dialog = page.get_by_role("dialog", name="Review slide structure")
+                expect(
+                    dialog.locator("li").filter(has_text="Fictional additional slide")
+                ).to_be_visible()
+                dialog.get_by_role("radio", name="Accept proposal").check()
+                message = dialog.get_by_role("textbox", name="Message to the proposing agent")
+                message.fill("Keep the recent edit and review the extra slide.")
+                response = alice.post(
+                    f"/api/decks/{app.deck_id}/slide-order",
+                    json={"slide_ids": ["next", "cover"], "expected_slide_ids": ["cover", "next"]},
+                )
+                response.raise_for_status()
+                dialog.get_by_role("button", name="Send decision").click()
+                expect(dialog.get_by_role("alert").filter(has_text="changed")).to_be_visible()
+                expect(message).to_have_value("Keep the recent edit and review the extra slide.")
+                expect(dialog.get_by_role("radio", name="Accept proposal")).to_be_disabled()
+                dialog.get_by_role("radio", name="Request changes").check()
+                dialog.get_by_role("button", name="Send decision").click()
+                expect(dialog.get_by_text(re.compile("Decision: Request changes"))).to_be_visible()
+                mine = peer.value("read_feedback", deck_id=app.deck_id)
+                other = unrelated.value("read_feedback", deck_id=app.deck_id)
+                assert "Keep the recent edit" in str(mine)
+                assert "Keep the recent edit" not in str(other)
+                assert [item.id for item in app.store.read(app.deck_id).slides] == ["next", "cover"]
+        finally:
+            unrelated.client.close()
+            peer.client.close()
+            browser.close()
+
+
 def test_owner_can_toggle_full_shared_history_for_one_agent(tmp_path: Path) -> None:
     """Exercise the presentation permission through the owner's agent dialog."""
     with (
@@ -128,7 +193,7 @@ def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
                 page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
                 button = page.get_by_role("button", name="People in this deck (3)")
                 expect(button.get_by_text("+2", exact=True)).to_be_visible()
-                expect(page.locator("#slides .slide-presence-markers")).to_contain_text("+2")
+                expect(page.locator(".thumb-preview .slide-presence-markers")).to_contain_text("+1")
                 button.click()
                 people = page.locator("#deck-viewers")
                 expect(people).to_contain_text("Alice")
@@ -141,6 +206,10 @@ def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
                 expect(button).to_be_visible()
                 expect(people).to_be_visible()
                 page.keyboard.press("Escape")
+                expect(people).to_be_hidden()
+                expect(button).to_be_focused()
+                button.click()
+                people.get_by_role("button", name="Alice Slide 1").click()
                 expect(people).to_be_hidden()
                 expect(button).to_be_focused()
                 with human(app, "dana") as outsider:
@@ -164,6 +233,7 @@ def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> N
                 page = context.new_page()
                 page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
                 composer = page.locator("#feedback-text")
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
                 composer.fill("Fictional guest discussion")
                 held: list[Route] = []
 
@@ -595,8 +665,10 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 composer = page.locator("#feedback-text")
                 shared = page.locator("#chat-tab-shared")
                 agent_tab = page.locator("#chat-tab-private")
-                composer.fill("Request in Shared")
-                page.get_by_label("Ask my agent").check()
+                toggle = page.get_by_role("button", name="Ask your agent")
+                composer.fill("@@Request in Shared")
+                expect(composer).to_have_value("Request in Shared")
+                expect(toggle).to_have_attribute("aria-pressed", "true")
                 shared.focus()
                 page.keyboard.press("ArrowRight")
                 expect(agent_tab).to_be_focused()
@@ -614,11 +686,17 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 expect(page.locator("#feedback-list")).to_contain_text("Request in Agent")
                 shared.click()
                 expect(composer).to_have_value("Request in Shared")
-                expect(page.get_by_label("Ask my agent")).to_be_checked()
+                expect(toggle).to_have_attribute("aria-pressed", "true")
                 composer.press("Enter")
-                expect(guest.locator("#feedback-list")).to_contain_text("Request in Shared")
+                expect(guest.locator("#feedback-list .is-agent-request")).to_contain_text(
+                    "Request in Shared"
+                )
+                expect(page.locator("#feedback-list .is-agent-request")).to_have_css(
+                    "border-top-color", "rgb(142, 120, 203)"
+                )
+                expect(toggle).to_have_attribute("aria-pressed", "false")
                 expect(guest.locator("#feedback-list")).not_to_contain_text("Request in Agent")
-                expect(guest.get_by_label("Ask my agent")).to_be_hidden()
+                expect(guest.get_by_role("button", name="Ask your agent")).to_be_hidden()
 
                 events = cast(
                     list[dict[str, object]],
@@ -629,6 +707,10 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                     "Request in Agent",
                 }
                 for event in events:
+                    if event["channel"] == "shared":
+                        assert "Previously queued shared comment" in str(event["shared_context"])
+                    else:
+                        assert "shared_context" not in event
                     claimed = peer.value(
                         "claim_feedback",
                         artifact_id=app.deck_id,
@@ -654,6 +736,59 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 expect(guest.locator("#feedback-list")).not_to_contain_text(
                     "Agent reply in private"
                 )
+        finally:
+            browser.close()
+            peer.client.close()
+
+
+def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
+    """Send only explicitly addressed Shared messages to the scoped agent."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        peer = Peer(app, agent(owner, app.artifact_id))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}/?artifact={app.artifact_id}")
+                composer = page.locator("#hub-feedback-text")
+                toggle = page.get_by_role("button", name="Ask your agent")
+                thread = page.locator("#hub-thread")
+                expect(toggle).to_be_visible()
+                composer.fill("@agent@example.test is the reference address.")
+                expect(toggle).to_have_attribute("aria-pressed", "false")
+                composer.press("Enter")
+                expect(thread).to_contain_text("@agent@example.test")
+                composer.fill("@agent Please review the headline.")
+                expect(toggle).to_have_attribute("aria-pressed", "true")
+                expect(composer).to_have_value("Please review the headline.")
+                toggle.click()
+                expect(toggle).to_have_attribute("aria-pressed", "false")
+                composer.press("Enter")
+                expect(thread).to_contain_text("Please review the headline.")
+                assert peer.value("read_feedback", artifact_id=app.artifact_id)["events"] == []
+                composer.fill("Can you simplify it?")
+                toggle.focus()
+                toggle.press("Space")
+                expect(composer).to_be_focused()
+                expect(toggle).to_have_attribute("aria-pressed", "true")
+                composer.press("Enter")
+                addressed = thread.locator(".is-agent-request")
+                expect(addressed).to_contain_text("Can you simplify it?")
+                expect(addressed.get_by_role("img", name="Agent request")).to_be_visible()
+                expect(addressed.locator(".hub-message-body")).to_have_css(
+                    "box-shadow", "rgb(148, 124, 202) 0px 0px 0px 1px inset"
+                )
+                expect(toggle).to_have_attribute("aria-pressed", "false")
+                events = cast(
+                    list[dict[str, object]],
+                    peer.value("read_feedback", artifact_id=app.artifact_id)["events"],
+                )
+                assert [event["message"] for event in events] == ["Can you simplify it?"]
+                assert "Please review the headline." in str(events[0]["shared_context"])
         finally:
             browser.close()
             peer.client.close()

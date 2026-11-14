@@ -34,7 +34,8 @@
 :root[data-theme=dark] #hide-slide.is-hidden{background:var(--raised);color:var(--subtle)}
 :root[data-theme=dark] .discussion{background:#1e222a}
 :root[data-theme=dark] :is(.discussion .agent-panel,.discussion .comment,.discussion .feedback-compose,.chat-slide-number){background:var(--surface);border-color:var(--line);color:var(--ink)}
-:root[data-theme=dark] .discussion .comment.user:not([data-collaborator]){background:#293c59;border-color:#3b5275}
+:root[data-theme=dark] .discussion .comment.user:not([data-collaborator]){background:#293c59}
+:root[data-theme=dark] .discussion .comment.user:not([data-collaborator],.is-agent-request){border-color:#3b5275}
 :root[data-theme=dark] :is(.discussion .comment-header,.discussion .comment-header strong,.discussion #attach-feedback){color:var(--subtle)}
 :root[data-theme=dark] .discussion .mode-switch{background:#171b22}
 :root[data-theme=dark] .mode-switch button{background:transparent}

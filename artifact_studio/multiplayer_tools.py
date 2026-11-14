@@ -16,12 +16,13 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from .agent_io import deck_receipt
+from .agent_io import deck_receipt, guide_fields, rule_fields
 from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .copilot_tools import (
     MAX_READ_BYTES,
     READ,
     WRITE,
+    RequestID,
     ScopedTools,
     attachment_page,
     public_object,
@@ -51,6 +52,7 @@ from .sections import Sections, section_layout
 from .slide_actions import SlideActions
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import Store
+from .structure_proposals import StructureProposals
 from .version_authors import revision_author
 
 Ctx = Context[None, Request]
@@ -124,8 +126,10 @@ class MultiplayerTools:
                 ],
             }
 
-    def get_working_context(self, ctx: Ctx, artifact_id: str = "") -> dict[str, object]:
-        """Read first: exact workspace/scope, selected artifact, and collaboration workflow."""
+    def get_working_context(
+        self, ctx: Ctx, artifact_id: str = "", known_rules_hash: str = ""
+    ) -> dict[str, object]:
+        """Read the selected scope and workflow. Pass known_rules_hash only for retained rules."""
         actor = self.actor(ctx)
         scope = self.scope(actor, artifact_id)
         with self.sharing.guard(actor, scope) as store:
@@ -140,7 +144,7 @@ class MultiplayerTools:
                 "acting; reply_to_feedback with that claim acknowledges it. Renew claims for "
                 "work beyond 10 minutes. Private replies stay private; artifact edits are shared. "
                 "After a conflict, re-read and reconcile. Retry writes with the same request_id. "
-                "Get_authoring_guide loads details on demand.",
+                "Use get_authoring_guide for details and slide_designs for proposals.",
             }
             if scope.kind == "artifact":
                 scoped = ScopedTools(store, "", True, hosted_hooks=True)
@@ -165,7 +169,13 @@ class MultiplayerTools:
                     )
                     result["project_context"] = project.context
             if self.sharing.level(actor, Scope(scope.workspace)):
-                result["authoring_instructions"] = store.authoring_instructions()
+                result.update(
+                    rule_fields(
+                        store.authoring_instructions(),
+                        store.learned_preferences(),
+                        known_rules_hash,
+                    )
+                )
             return result
 
     def list_artifacts(self, ctx: Ctx) -> dict[str, object]:
@@ -245,11 +255,30 @@ class MultiplayerTools:
             return DesignAuthoring(store).write_file(design_id, path, text, expected_hash)
 
     def get_authoring_guide(
-        self, ctx: Ctx, topic: Literal["workflow", "live_review"] = "workflow"
+        self,
+        ctx: Ctx,
+        topic: Literal["workflow", "live_review", "slide_designs"] = "workflow",
+        known_hash: str = "",
     ) -> dict[str, object]:
         """Load detailed authoring or host-hook guidance only when needed."""
         actor = self.actor(ctx)
         with self.sharing.guard(actor, self.scope(actor)) as store:
+            if topic == "slide_designs":
+                return guide_fields(
+                    "Use publish_slide_designs for whole slides, or publish_element_alternatives "
+                    "for a static headline, text or graphic. Read get_slide first and publish "
+                    "against its content_hash. For element options, target a unique HTML id "
+                    "and keep that id in each complete replacement element. For a slide with "
+                    "custom interactions, use a whole-slide design. Offer two or three distinct "
+                    "options, capture the proposals, and leave adoption to the human. Use "
+                    "get_slide_designs or get_element_alternatives for decisions. Assigned option "
+                    "feedback is in read_feedback. Follow its proposal ID and context_hash to "
+                    "read or capture the reviewed option. Publish a new set against current "
+                    "source when refining. A reusable design library requires a workspace-wide "
+                    "owner connection. Existing slide source and theme are available through "
+                    "the presentation tools within the current scope.",
+                    known_hash,
+                )
             if topic == "live_review":
                 return {
                     "guide": (
@@ -271,9 +300,8 @@ class MultiplayerTools:
                 "For shareable slide work, set_slide_activity shows an expiring marker; clear "
                 "it when done and omit it for private work. "
                 "add_slide, reorder_slides and set_presentation_sections use the outline's order "
-                "and sections hashes. Use publish_slide_designs for alternate designs and "
-                "publish_element_alternatives for existing elements. Humans choose in the "
-                "editor. Remove only slides the human asked to delete, using remove_slide "
+                "and sections hashes. Load the slide_designs topic for design and element "
+                "alternatives. Remove only slides the human asked to delete, using remove_slide "
                 "and the current expected_hash; list and recover with get_deleted_slides and "
                 "restore_slides. create_presentation creates a native deck in an owned "
                 "workspace with a workspace or appropriate project connection. For artifacts, "
@@ -319,7 +347,17 @@ class MultiplayerTools:
             return ScopedTools(store, "", True).read_artifact_files(artifact_id, paths, revision)
 
     def revise_artifact(
-        self, ctx: Ctx, artifact_id: str, files_json: str, expected_revision: int, request_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        files_json: Annotated[
+            str,
+            Field(
+                description="JSON array of file changes with path and text, data_base64, or delete."
+            ),
+        ],
+        expected_revision: Annotated[int, Field(ge=1)],
+        request_id: RequestID,
     ) -> dict[str, object]:
         """Publish changed inline files with optimistic concurrency and an idempotent request ID."""
         actor = self.actor(ctx)
@@ -537,6 +575,30 @@ class MultiplayerTools:
                 expected_sections_hash,
                 section_id,
             )
+
+    def publish_structure_proposal(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        summary: str,
+        base_slide_ids: list[str],
+        base_sections_hash: str,
+        proposed_slide_ids: list[str],
+        request_id: str,
+        proposed_titles: dict[str, str] | None = None,
+    ) -> dict[str, object]:
+        """Request a human decision on a proposed presentation structure without editing it."""
+        actor = self.actor(ctx)
+        return StructureProposals(self.sharing).publish(
+            actor,
+            self.scope(actor, deck_id),
+            summary,
+            base_slide_ids,
+            base_sections_hash,
+            proposed_slide_ids,
+            request_id,
+            proposed_titles,
+        )
 
     def reorder_slides(
         self,
@@ -898,7 +960,11 @@ class MultiplayerTools:
     def read_feedback(
         self, ctx: Ctx, artifact_id: str = "", deck_id: str = "", after: int = 0
     ) -> dict[str, object]:
-        """Read pending requests assigned to you; after is not an acknowledgement."""
+        """Read pending requests with optional excerpts of prior Shared discussion.
+
+        Repeated excerpt IDs reference text included earlier in the response.
+        If shared_context_on_claim is true, claim with include_message=true for excerpts.
+        """
         actor = self.actor(ctx)
         if not (artifact_id or deck_id) or (artifact_id and deck_id) or after < 0:
             raise ValueError(
@@ -907,16 +973,36 @@ class MultiplayerTools:
         return self.chat.tasks(actor, self.scope(actor, artifact_id or deck_id))
 
     def claim_feedback(
-        self, ctx: Ctx, artifact_id: str, event_id: int, session_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        event_id: int,
+        session_id: str,
+        include_message: bool = True,
     ) -> dict[str, object]:
-        """Atomically claim/renew a task for 10 minutes; use a unique stable native session ID."""
+        """Claim or renew for 10 minutes with a stable session ID.
+
+        Set include_message=false after reading the task.
+        """
         if not 8 <= len(session_id) <= 200:
             raise ValueError("Use a session_id of 8–200 characters.")
         actor = self.actor(ctx)
-        return self.chat.claim(actor, self.scope(actor, artifact_id), event_id, session_id)
+        return self.chat.claim(
+            actor,
+            self.scope(actor, artifact_id),
+            event_id,
+            session_id,
+            include_message=include_message,
+        )
 
     def reply_to_feedback(
-        self, ctx: Ctx, artifact_id: str, event_id: int, claim: str, message: str, request_id: str
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        event_id: int,
+        claim: str,
+        message: str,
+        request_id: RequestID,
     ) -> dict[str, object]:
         """Reply in the request's original channel and acknowledge the claimed task atomically."""
         if not message.strip() or len(message) > 10000:
@@ -997,6 +1083,7 @@ class MultiplayerTools:
             self.add_slide,
             self.create_presentation,
             self.reorder_slides,
+            self.publish_structure_proposal,
             self.set_presentation_sections,
             self.restore_slides,
             self.publish_slide_designs,

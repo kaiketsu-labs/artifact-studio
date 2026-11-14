@@ -53,6 +53,7 @@ from .project_sync import (
 )
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
+from .structure_proposals import StructureDecision, StructureProposals
 from .visuals import ScopedDeckEmbedder
 
 # The separator is outside the ordinary ticket alphabet.
@@ -96,6 +97,7 @@ class ChatInput(StrictModel):
     request_id: str = Field(min_length=8, max_length=100)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
+    include_shared_context: bool = False
     target: ArtifactTarget | None = None
     content_hash: str = Field(default="", max_length=64)
     slide_content_hash: str = Field(default="", max_length=64)
@@ -142,6 +144,7 @@ def create_app(
     github_sync = project_sync or ProjectGitHubSync.from_env(hub)
     chat = Conversations(hub)
     presence = DeckPresence(hub)
+    structure = StructureProposals(hub)
     mcp = MCPServer[None](
         "Artifact Studio Multiplayer",
         version=__version__,
@@ -482,6 +485,30 @@ def create_app(
                 "incoming_cursors": {} if actor.agent else chat.incoming_cursors(actor, scope),
             }
 
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals")
+    def structure_list(request: Request, workspace: str, artifact: str) -> Response:
+        """Return presentation structure and its agent proposals."""
+        result, validator = structure.snapshot(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            request.headers.get("If-None-Match", ""),
+        )
+        headers = {"ETag": validator} if validator else {}
+        if result is None:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(result, headers=headers)
+
+    @app.post(
+        "/api/workspaces/{workspace}/artifacts/{artifact}/structure-proposals/{proposal_id}/decision"
+    )
+    def structure_decision(
+        request: Request, workspace: str, artifact: str, proposal_id: str, body: StructureDecision
+    ) -> dict[str, object]:
+        """Deliver a reviewed decision to the proposal's originating agent."""
+        return structure.decide(
+            actor_of(request), Scope(workspace, "artifact", artifact), proposal_id, body
+        )
+
     @app.post(
         "/api/workspaces/{workspace}/artifacts/{artifact}/presence",
         response_model_exclude_defaults=True,
@@ -537,6 +564,7 @@ def create_app(
             body.files,
             slide_content_hash=body.slide_content_hash,
             proposal=body.proposal,
+            include_shared_context=body.include_shared_context,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")

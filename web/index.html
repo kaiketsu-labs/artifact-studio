@@ -14,6 +14,7 @@
   <script src="/web/chat-timeline.js" defer></script>
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/slide-questions.css">
+  <link rel="stylesheet" href="/web/structure-review.css">
   <link rel="stylesheet" href="/web/element-controls.css">
   <link rel="stylesheet" href="/web/element-properties.css">
   <link rel="stylesheet" href="/web/workspace-panels.css">
@@ -53,6 +54,7 @@
   <script src="/web/notes-autosave.js" defer></script>
   <script src="/web/conversations.js" defer></script>
   <script src="/web/slide-questions.js" defer></script>
+  <script src="/web/structure-review.js" defer></script>
   <script src="/web/slide-edits.js" defer></script>
   <script src="/web/element-properties.js" defer></script>
   <script src="/web/workspace-panels.js" defer></script>
@@ -196,12 +198,12 @@
       <div id="questions" hidden></div>
       <details id="alternatives-panel" hidden><summary>Alternatives <span id="alternative-count"></span></summary><div id="alternatives"></div></details>
     </details>
+    <button id="structure-review-trigger" class="structure-review-trigger" type="button" hidden></button>
     <div id="feedback-list" aria-live="polite"></div>
     <div id="start-help" class="start-help" hidden><p id="start-help-text"></p><button id="copy-start" type="button">Copy agent prompt</button></div>
     <form id="feedback-form" class="feedback-compose">
       <div class="compose-context"><div id="feedback-slide-context" class="feedback-slide-context"></div><span id="feedback-design-context" class="feedback-design-context" hidden></span><div id="target-chip" class="target-chip"><span id="target-label" role="status"></span><button id="clear-target" type="button" aria-label="Clear element selection" hidden></button></div><button id="select-parent" type="button" aria-label="Select surrounding group" hidden></button></div>
       <div id="target-members" class="target-members" aria-label="Selected objects" hidden></div>
-      <label id="chat-ask-agent" hidden><input id="chat-ask-agent-input" type="checkbox"> Ask my agent</label>
       <label class="sr-only" for="feedback-text">Your feedback</label>
       <div id="feedback-files"></div>
       <div id="voice-feedback-segments" class="voice-segments" aria-label="Dictated feedback" hidden></div>
@@ -215,7 +217,7 @@
         <button id="stop-feedback-voice" type="button" aria-label="Stop recording" title="Stop recording"></button>
         <button id="send-feedback-voice" type="button" aria-label="Send dictated feedback" title="Send dictated feedback"></button>
       </div>
-      <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="reference-slides" type="button" aria-label="Reference favorite slides" title="Reference favorite slides"></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
+      <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="reference-slides" type="button" aria-label="Reference favorite slides" title="Reference favorite slides"></button><button id="chat-ask-agent" class="chat-agent-toggle" type="button" aria-label="Ask your agent" aria-pressed="false" hidden></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
       <p id="batch-delivery-help" class="compose-delivery-help" hidden>Comments stay private until you choose Send batch.</p>
     </form>
   </aside>
@@ -382,6 +384,7 @@
   <p id="design-reference-status" role="status" aria-live="polite"></p>
   <div class="dialog-actions"><button id="save-design-references" type="button" class="primary" disabled>Save references</button></div>
 </dialog>
+<dialog id="structure-review-dialog" aria-labelledby="structure-review-title"></dialog>
 <dialog id="notes-conflict-dialog" aria-labelledby="notes-conflict-title">
   <header><h2 id="notes-conflict-title">Notes changed elsewhere</h2><button id="close-notes-conflict" type="button" aria-label="Close"></button></header>
   <div class="notes-comparison"><label>Your draft<textarea id="notes-conflict-draft" readonly></textarea></label><label>Saved on this device<textarea id="notes-conflict-saved" readonly></textarea></label></div>
