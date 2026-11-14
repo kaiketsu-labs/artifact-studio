@@ -1242,8 +1242,8 @@
   $('copy-conversation').addEventListener('click',()=>{
     const id=deck?.id,slideId=selectedId,channel=conversationChannel;
     if(!id||!slide())return;
-    const messages=currentComments(slide());
-    void window.StudioChatCopy.copy({messages,clipboard:navigator.clipboard,
+    const item=slide(),messages=currentComments(item).map(message=>({...message,copyTarget:message.target?.label||''}));
+    void window.StudioChatCopy.copy({messages,title:deck.title+' · '+item.title,clipboard:navigator.clipboard,
       current:()=>{try{window.ArtifactSession?.assertActive();return deck?.id===id&&selectedId===slideId&&conversationChannel===channel;}catch{return false;}},notify:toast});
   });
   $('reference-slides').addEventListener('click',()=>{const context=key();void window.FavoriteSlides.open({attach:files=>context===key()&&chatComposer.add(files)});});

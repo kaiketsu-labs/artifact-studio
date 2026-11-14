@@ -14,3 +14,10 @@ test('clipboard failure is actionable and never retries after context changes',a
   active=true;await copy({messages:[{message:'text'}],clipboard:null,current:()=>active,notify:(...args)=>notices.push(args)});
   assert.match(notices[0][0],/clipboard access/i);assert.equal(notices[0][1],true);
 });
+
+test('copy includes only supplied visible title and target labels, never target metadata',()=>{
+  const text=format([{name:'You',message:'Delete this element.',copyTarget:'Revenue chart',target:{html:'<secret>',quote:'private note',preview_url:'https://preview.test/_preview/token'}}], 'Quarterly plan · Cover');
+  assert.match(text,/^Quarterly plan · Cover\n\nYou:\nTarget: Revenue chart\nDelete this element\./);
+  assert.doesNotMatch(text,/secret|private note|_preview|token/);
+  assert.equal(format([], 'Empty conversation'), '');
+});

@@ -187,9 +187,9 @@ $('copy-conversation').addEventListener('click', () => {
   const generation=state.generation, channel=state.channel;
   const messages=state.messages.map(message=>({
     name:message.author!==message.person?(state.current.agents.find(agent=>agent.id===message.author)?.name||'Agent'):(message.author===state.session.person?'You':message.author_name),
-    message:message.message, files:message.files||[]
+    message:message.message, files:message.files||[], copyTarget:message.target?.label||''
   }));
-  void window.StudioChatCopy.copy({messages,clipboard:navigator.clipboard,
+  void window.StudioChatCopy.copy({messages,title:state.current.title,clipboard:navigator.clipboard,
     current:()=>state.generation===generation&&state.channel===channel,
     notify:(message,error)=>error?noticeError(new Error(message)):notice(message)});
 });

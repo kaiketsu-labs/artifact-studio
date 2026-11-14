@@ -1130,7 +1130,8 @@
     if(name==='end-review'){const id=state.active;node.disabled=true;try{await api(artifactPath(id,'/review/disconnect'),{});const detail=await artifactDetail(id);if(state.active===id)syncArtifactReview(detail);toast('Review ended.');}finally{node.disabled=false;}return;}
     if(name==='copy-conversation'){
       const item=state.detail,id=item?.id,channel=id&&channelOf(id);if(!item)return;
-      void root.StudioChatCopy.copy({messages:item.feedback||[],clipboard:root.navigator.clipboard,current:()=>{
+      const messages=(item.feedback||[]).map(message=>{const target=message.target,targets=target?.kind==='group'?target.elements:[target].filter(Boolean);return {...message,copyTarget:targets.map(targetLabel).join(' · ')};});
+      void root.StudioChatCopy.copy({messages,title:item.title,clipboard:root.navigator.clipboard,current:()=>{
         try{root.ArtifactSession?.assertActive();return state.active===id&&channelOf(id)===channel;}catch{return false;}
       },notify:toast});
     }

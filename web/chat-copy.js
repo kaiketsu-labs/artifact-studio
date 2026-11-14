@@ -2,20 +2,22 @@
 ((root) => {
   'use strict';
   const safeText = value => String(value || '').replace(/(?:https?:\/\/[^\s<>()]+)?\/_preview\/[^\s<>()]+/gi, '[preview link omitted]');
-  function format(messages) {
-    return messages.map(message => {
+  function format(messages, title = '') {
+    const content = messages.map(message => {
       const name = safeText(message.name || (message.author === 'user' ? 'You' : 'Agent'));
       const text = safeText(message.message || message.text || '');
       const files = (message.files || []).map(file => safeText(file.name || file.filename || '')).filter(Boolean);
-      return [name + ':', text, ...files.map(file => {
+      const target = safeText(message.copyTarget || '');
+      return [name + ':', target ? 'Target: ' + target : '', text, ...files.map(file => {
         const reference = /^(.+) - (?:project|artifact|presentation|slide) reference\.(?:json|html)$/.exec(file);
         return reference ? 'Reference: ' + reference[1] : 'Attachment: ' + file;
       })].filter(Boolean).join('\n');
     }).join('\n\n');
+    return content && title ? safeText(title) + '\n\n' + content : content;
   }
-  async function copy({messages, clipboard, current, notify}) {
+  async function copy({messages, title, clipboard, current, notify}) {
     if (!current()) return;
-    const text = format(messages);
+    const text = format(messages, title);
     if (!text) { if (current()) notify('No messages to copy.'); return; }
     try {
       if (!clipboard?.writeText) throw new Error('Clipboard unavailable');
