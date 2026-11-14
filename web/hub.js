@@ -734,13 +734,12 @@
     if(deliveryChanged || feedbackChanged){
       const end=doc.getElementById('hub-end-review');if(end)end.hidden=item.delivery?.live_available!==true;
       const status=doc.getElementById('hub-agent-status');if(status)status.textContent=item.delivery?.live_available?'Agent connected':'Agent unavailable';
-      const node=doc.querySelector('.hub-delivery'),focused=doc.activeElement,mode=focused?.dataset.mode,release=focused?.dataset.action==='release';
+      const node=doc.querySelector('.hub-delivery'),focused=doc.activeElement,action=focused?.dataset.action;
       if(node){
         const ownedFocus=node.contains(focused);node.outerHTML=deliveryMarkup(item);
         if(ownedFocus){
-          let next=doc.querySelector(mode?`[data-mode="${mode}"]`:release?'[data-action=release]':`[data-mode="${item.mode}"]`);
-          if(!next || next.disabled)next=doc.querySelector(`[data-mode="${item.mode}"]`);
-          next?.focus({preventScroll:true});
+          const next=action&&doc.querySelector(`.hub-delivery [data-action="${action}"]`);
+          (next&&!next.disabled?next:doc.querySelector('[data-action="copy-conversation"]'))?.focus({preventScroll:true});
         }
       }
       const dictated=doc.getElementById('hub-send-voice'),label='Send dictated feedback';if(dictated){dictated.setAttribute('aria-label',label);dictated.title=label;}
