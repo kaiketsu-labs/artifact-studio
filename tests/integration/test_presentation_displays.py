@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import Page, expect
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp
 from tests.integration.test_browser import open_editor
@@ -30,6 +31,31 @@ def test_presenter_click_opens_synchronized_audience_without_display_access(
         "throw new DOMException('Display permission denied', 'NotAllowedError');};"
     )
     page.add_init_script(script)
+    page.context.add_init_script("""(() => {
+        const trace = window.__fullscreenTrace = [];
+        const record = token => { if (trace.length < 32) trace.push(token); };
+        for (const [prototype, method, prefix] of [
+            [Element.prototype, 'requestFullscreen', 'r'],
+            [Document.prototype, 'exitFullscreen', 'e'],
+        ]) {
+            const original = prototype[method];
+            if (!original) continue;
+            prototype[method] = function(...args) {
+                record(prefix);
+                try {
+                    const result = original.apply(this, args);
+                    result.then(() => record(prefix + 's'), error =>
+                        record(prefix + (error?.name === 'NotAllowedError' ? 'n' : 'x')));
+                    return result;
+                } catch (error) {
+                    record(prefix + (error?.name === 'NotAllowedError' ? 'n' : 'x'));
+                    throw error;
+                }
+            };
+        }
+        document.addEventListener('fullscreenchange', () =>
+            record(document.fullscreenElement ? 'c1' : 'c0'));
+    })()""")
     _ = (live_app.store.folder(DECK_ID) / "presentation.js").write_text(
         "/* Older offline viewer; the running app supplies current controls. */"
     )
@@ -59,13 +85,27 @@ def test_presenter_click_opens_synchronized_audience_without_display_access(
     viewer.locator("#audience-view-button").click()
     viewer.get_by_role("button", name="Presenter view", exact=True).click()
     expect(viewer.get_by_role("button", name="Resume timer", exact=True)).to_be_visible()
-    if not audience.evaluate(
-        "Boolean(document.fullscreenElement || document.webkitFullscreenElement)"
-    ):
-        audience.get_by_role("button", name="Fullscreen", exact=True).click()
-    audience.wait_for_function(
-        "Boolean(document.fullscreenElement || document.webkitFullscreenElement)"
+    already_fullscreen = audience.evaluate(
+        """() => {
+            const active = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+            if (window.__fullscreenTrace.length < 32)
+                window.__fullscreenTrace.push(active ? 'q1' : 'q0');
+            return active;
+        }"""
     )
+    if not already_fullscreen:
+        audience.evaluate(
+            "if (window.__fullscreenTrace.length < 32) window.__fullscreenTrace.push('k')"
+        )
+        audience.get_by_role("button", name="Fullscreen", exact=True).click()
+    try:
+        audience.wait_for_function(
+            "Boolean(document.fullscreenElement || document.webkitFullscreenElement)"
+        )
+    except PlaywrightTimeoutError as error:
+        trace = audience.evaluate("window.__fullscreenTrace || []")
+        error.add_note("FULLSCREEN_TRACE=" + ",".join(trace))
+        raise
     viewer.locator("#presenter-next-button").click()
     expect(audience.locator("#stage h1")).to_have_text("Present with confidence")
     expect(viewer.locator("#presenter-current h1")).to_have_text("Present with confidence")
