@@ -44,24 +44,22 @@ def test_hub_poll_updates_review_controls_without_replacing_drafts(
     field.focus()
     _ = field.evaluate("field => field.setSelectionRange(2, 8)")
     original = field.element_handle()
+    detail_url = f"{live_app.url}/api/artifacts/{artifact_id}"
     _ = live_app.post(f"/api/artifacts/{artifact_id}/mode", {"mode": "live"})
-    page.clock.fast_forward(12_001)
+    current = ArtifactStore(live_app.store).get_artifact(artifact_id)
+    _ = live_app.post(
+        f"/api/artifacts/{artifact_id}/approve", {"content_hash": current.content_hash}
+    )
+    with page.expect_response(detail_url) as polled:
+        page.clock.fast_forward(12_001)
+    assert polled.value.ok
+    expect(page.get_by_role("button", name="Approved", exact=True)).to_be_disabled()
     expect(page.locator("#hub-send")).to_have_attribute("aria-label", "Send feedback")
     expect(field).to_be_focused()
     assert field.evaluate("(field, original) => field === original", original)
     assert field.evaluate("field => [field.selectionStart, field.selectionEnd]") == [2, 8]
     expect(page.locator("#hub-feedback-attachments")).to_contain_text("context.txt")
     _ = live_app.post(f"/api/artifacts/{artifact_id}/mode", {"mode": "batch"})
-    page.clock.fast_forward(12_001)
-    expect(page.locator("#hub-send")).to_have_attribute("aria-label", "Send feedback")
-    expect(field).to_have_value("Keep this draft while another tab changes delivery.")
-    expect(field).to_be_focused()
-    current = ArtifactStore(live_app.store).get_artifact(artifact_id)
-    _ = live_app.post(
-        f"/api/artifacts/{artifact_id}/approve", {"content_hash": current.content_hash}
-    )
-    page.clock.fast_forward(12_001)
-    expect(page.get_by_role("button", name="Approved", exact=True)).to_be_disabled()
     _ = live_app.post(
         f"/api/artifacts/{artifact_id}/feedback",
         {
@@ -71,12 +69,18 @@ def test_hub_poll_updates_review_controls_without_replacing_drafts(
             "expected_mode": "batch",
         },
     )
-    page.clock.fast_forward(12_001)
+    with page.expect_response(detail_url) as polled:
+        page.clock.fast_forward(12_001)
+    assert polled.value.ok
     release = page.locator('[data-action="release"]')
     expect(release).to_be_enabled()
+    expect(field).to_have_value("Keep this draft while another tab changes delivery.")
+    expect(field).to_be_focused()
     release.focus()
     _ = live_app.post(f"/api/artifacts/{artifact_id}/release", {})
-    page.clock.fast_forward(12_001)
+    with page.expect_response(detail_url) as polled:
+        page.clock.fast_forward(12_001)
+    assert polled.value.ok
     expect(release).to_have_count(0)
     expect(page.get_by_role("button", name="Copy conversation", exact=True)).to_be_focused()
 
