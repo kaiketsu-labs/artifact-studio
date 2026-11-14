@@ -42,6 +42,7 @@ def test_hosted_draft_conflict_requires_explicit_review_and_send(tmp_path: Path)
                 expect(composer).to_be_enabled()
                 page.locator("#notes-panel summary").click()
                 page.locator("#notes").fill("Fictional presenter note kept during review")
+                expect(page.locator("#notes-state")).to_have_text("Saved")
                 page.locator("#chat-ask-agent").click()
                 composer.fill("Fictional revision request with attachment")
                 page.locator("#feedback-file-input").set_input_files(
@@ -52,13 +53,13 @@ def test_hosted_draft_conflict_requires_explicit_review_and_send(tmp_path: Path)
                     }
                 )
                 expect(page.locator("#feedback-files")).to_contain_text("fictional.txt")
-                original = app.store.view(app.deck_id).slides[0]
                 attempts: list[dict[str, object]] = []
 
                 def race(route: Route) -> None:
                     if route.request.method == "POST":
                         attempts.append(cast(dict[str, object], route.request.post_data_json))
                         if len(attempts) == 1:
+                            original = app.store.view(app.deck_id).slides[0]
                             app.store.revise_view(
                                 app.deck_id,
                                 original.id,
@@ -158,13 +159,13 @@ def test_hosted_draft_conflict_requires_explicit_review_and_send(tmp_path: Path)
                 expect(page.locator("#send-feedback")).to_be_disabled()
                 assert len(attempts) == 2
                 page.frame_locator("#preview").get_by_role("heading", level=1).click()
-                assert page.locator("#draft-recovery").is_hidden()
-                assert page.locator("#send-feedback").is_enabled()
+                expect(page.locator("#draft-recovery")).to_be_hidden()
+                expect(page.locator("#send-feedback")).to_be_enabled()
                 page.frame_locator("#preview").get_by_text("Fictional supporting text").click(
                     modifiers=["Shift"]
                 )
                 expect(page.locator("#target-members .target-member")).to_have_count(2)
-                assert page.locator("#send-feedback").is_enabled()
+                expect(page.locator("#send-feedback")).to_be_enabled()
                 composer.press("Enter")
                 expect(composer).to_have_value("")
                 assert len(attempts) == 3
