@@ -3,12 +3,19 @@
 import hashlib
 import re
 import secrets
-from typing import cast
+import sqlite3
+from typing import Protocol, cast
 
 from .deployment import DeploymentConfig
 from .grant_recovery_models import GrantSnapshot, HumanGrant, StagedGrants
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing, email_address
 from .storage import ConflictError, Store
+
+
+class _Provisioning(Protocol):
+    def changed(self, db: sqlite3.Connection, email: str) -> None:
+        """Queue a recipient change in the same sharing transaction."""
+        ...
 
 
 def identity_context(config: DeploymentConfig) -> tuple[str, str]:
@@ -129,6 +136,11 @@ def restore_grants(
                         grant.role,
                     ),
                 )
+                provisioning = cast(
+                    "_Provisioning | None", getattr(hub, "invitation_provisioning", None)
+                )
+                if provisioning is not None:
+                    provisioning.changed(db, grant.email)
     return len(snapshot.grants)
 
 

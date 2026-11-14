@@ -19,7 +19,9 @@ from artifact_studio.storage import ConflictError, Store
 from artifact_studio.workspace_recovery import WorkspaceRecovery
 
 
-def test_restore_fictional_workspace_and_grants(tmp_path: Path) -> None:
+def test_restore_fictional_workspace_and_grants(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     config = DeploymentConfig(
         mode="hosted",
         auth_provider="cloudflare",
@@ -78,6 +80,17 @@ def test_restore_fictional_workspace_and_grants(tmp_path: Path) -> None:
         restore_grants(restored, new_owner, snapshot, config, "0" * 64)
     with pytest.raises(AccessDenied):
         restore_grants(restored, new_guest, snapshot, config, token)
+
+    class FailedProvisioning:
+        def changed(self, db: object, email: str) -> None:
+            assert email == "guest@example.test"
+            raise RuntimeError("fixture failure")
+
+    monkeypatch.setattr(restored, "invitation_provisioning", FailedProvisioning(), raising=False)
+    with pytest.raises(RuntimeError, match="fixture failure"):
+        restore_staged_grants(restored, new_owner, "default", config, staged_token)
+    assert restored.level(new_guest, scope) == 0
+    monkeypatch.setattr(restored, "invitation_provisioning", None)
     assert restore_staged_grants(restored, new_owner, "default", config, staged_token) == 1
     assert restored.level(new_guest, scope) == 3
     assert restored.level(new_guest, other_scope) == 1
