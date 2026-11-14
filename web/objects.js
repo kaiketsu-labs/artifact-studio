@@ -105,7 +105,7 @@
     panel.addEventListener('toggle',event=>{button.setAttribute('aria-expanded',String(event.newState==='open'));if(event.newState==='closed')onHover(null);});
     frame.addEventListener('load',refresh);
     refresh();
-    return {refresh,sync};
+    return {refresh,sync,setFrame(next){frame.removeEventListener('load',refresh);frame=next;frame.addEventListener('load',refresh);refresh();}};
   }
   const api={create,collect,objectLabel,location};
   if(typeof module!=='undefined')module.exports=api;else root.SlideObjects=api;

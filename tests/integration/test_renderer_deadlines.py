@@ -69,3 +69,40 @@ def test_bounded_results_preserve_json_values(browser: Browser) -> None:
             assert bounded_evaluate(page, "async value => value", value) == value
     finally:
         context.close()
+
+
+def test_live_renderer_saturation_rejects_and_recovers(
+    browser: Browser, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An actual Chromium capture holds the bounded queue while another request is rejected."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from artifact_studio import visuals
+
+    queue = visuals.RenderQueue(capacity=1, timeout=5)
+    monkeypatch.setattr(visuals, "_RENDER_QUEUE", queue)
+    context = browser.new_context(viewport={"width": 240, "height": 240})
+    try:
+        page = context.new_page()
+        page.set_content("<style>body{background:navy}</style><h1>Fictional slide</h1>")
+
+        def competing_capture() -> str:
+            try:
+                with render_slot():
+                    return "admitted"
+            except ValueError as error:
+                return str(error)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            with render_slot():
+                waiting = pool.submit(competing_capture)
+                with queue.condition:
+                    assert queue.condition.wait_for(lambda: len(queue.waiters) == 1, timeout=5)
+                assert "queue is full" in pool.submit(competing_capture).result(timeout=5)
+                assert page.screenshot()
+            assert waiting.result(timeout=5) == "admitted"
+        with render_slot():
+            assert page.screenshot()
+        assert queue.status()["running"] is False
+    finally:
+        context.close()
