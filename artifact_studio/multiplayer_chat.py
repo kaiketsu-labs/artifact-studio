@@ -369,6 +369,7 @@ class Conversations:
         slide_content_hash: str = "",
         proposal: ChatProposal | None = None,
         include_shared_context: bool = False,
+        offline_anchor: tuple[str, str, str] | None = None,
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
@@ -403,6 +404,7 @@ class Conversations:
                         *([metadata] if metadata else []),
                         *([proposal.model_dump(), slide_content_hash] if proposal else []),
                         *(["include_shared_context"] if include_shared_context else []),
+                        *([list(offline_anchor)] if offline_anchor else []),
                     ],
                     sort_keys=True,
                 )
@@ -417,7 +419,16 @@ class Conversations:
                     if prior["payload"] != payload:
                         raise ConflictError("This request_id already belongs to another message.")
                     return self._public(prior)
-                if not proposal and content_hash and content_hash != item.content_hash:
+                if offline_anchor and (
+                    proposal or offline_anchor[1:] != (content_hash, slide_content_hash)
+                ):
+                    raise ValueError("Invalid offline anchor.")
+                if (
+                    not offline_anchor
+                    and not proposal
+                    and content_hash
+                    and content_hash != item.content_hash
+                ):
                     raise ConflictError("The artifact changed. Review the current version first.")
                 slide_id = target.slide_id if target else None
                 version = item.presentation_versions.get(slide_id) if slide_id else None
@@ -437,7 +448,11 @@ class Conversations:
                     anchor = proposal_anchor(
                         store, item.legacy_deck_id, slide_id, proposal, slide_content_hash
                     )
-                elif slide_content_hash and (version is None or version[0] != slide_content_hash):
+                elif (
+                    not offline_anchor
+                    and slide_content_hash
+                    and (version is None or version[0] != slide_content_hash)
+                ):
                     raise ConflictError("The slide changed. Review the current version first.")
                 if assigned:
                     recipient = self._recipient(db, assigned)
@@ -460,7 +475,7 @@ class Conversations:
                         actor.person,
                         message,
                         target.model_dump_json() if target else "null",
-                        item.content_hash,
+                        content_hash if offline_anchor else item.content_hash,
                         assigned,
                         released,
                         operation,

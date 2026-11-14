@@ -50,7 +50,18 @@
       if(!operation||!validId(operation.id)||!validId(operation.slide_id)||!validId(operation.anchor)||!['edit','comment'].includes(operation.kind)||typeof operation.body!=='string')throw new Error('Invalid offline operation.');
       // Never store caller objects, which may contain authentication material.
       const entry={id:operation.id,slide_id:operation.slide_id,anchor:operation.anchor,kind:operation.kind,body:operation.body};
+      if(validId(operation.expected_hash))entry.expected_hash=operation.expected_hash;
+      if(validId(operation.receipt))entry.receipt=operation.receipt;
       await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{const record=get.result;if(!record){tx.abort();return;}const prior=record.outbox.find(item=>item.id===entry.id);if(prior&&JSON.stringify(prior)!==JSON.stringify(entry)){tx.abort();return;}if(!prior)record.outbox.push(entry);store.put(record);};return get;});
+    }
+    async function update(deck,id,choice){
+      await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{
+        const record=get.result,item=record?.outbox.find(value=>value.id===id);
+        if(!item){tx.abort();return;}
+        if(choice===null)record.outbox=record.outbox.filter(value=>value.id!==id);
+        else if(validId(choice))item.overwrite_expected=choice;else{tx.abort();return;}
+        store.put(record);
+      };return get;});
     }
     async function purge(){
       await ready;storage.setItem(marker,crypto.randomUUID());fence();channel.postMessage('purge');
@@ -59,7 +70,7 @@
       finally{db.close();closed=true;channel?.close();}
     }
     function close(){fence();closed=true;channel?.close();}
-    return {save,read,queue,purge,close};
+    return {save,read,queue,update,purge,close};
   }
   if(typeof module!=='undefined')module.exports={create};else root.OfflineStore={create};
 })(typeof window==='undefined'?globalThis:window);

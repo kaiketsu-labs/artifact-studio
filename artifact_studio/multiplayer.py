@@ -26,7 +26,7 @@ from . import __version__
 from .artifact_models import ArtifactTarget
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore
-from .authentication import AuthProvider, load_auth_provider
+from .authentication import AuthProvider, Principal, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
 from .design_preview import hosted_slide_thumbnail
@@ -45,6 +45,14 @@ from .multiplayer_access import (
 from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
+from .offline_delivery import (
+    OfflineCommentInput,
+    OfflineDelivery,
+    OfflineEditInput,
+    OfflineReceiptInput,
+    OfflineSnapshotInput,
+)
+from .offline_identity import cache_scope
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
 from .structure_proposals import StructureDecision, StructureProposals
@@ -135,6 +143,7 @@ def create_app(
         )
     hub = sharing
     chat = Conversations(hub)
+    offline_delivery = OfflineDelivery(hub)
     presence = DeckPresence(hub)
     structure = StructureProposals(hub)
     mcp = MCPServer[None](
@@ -507,6 +516,69 @@ def create_app(
         """Acknowledge one mention addressed to the signed-in person."""
         chat.read_mention(actor_of(request), Scope(workspace, "artifact", artifact), event)
         return {"ok": True}
+
+    def offline_namespace(request: Request, workspace: str) -> str:
+        principal = getattr(request.state, "authenticated_principal", None)
+        namespace = cache_scope(
+            config, principal if isinstance(principal, Principal) else None, workspace
+        )
+        if namespace is None:
+            raise AccessDenied
+        return namespace
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-snapshot")
+    def offline_snapshot(
+        request: Request, workspace: str, artifact: str, body: OfflineSnapshotInput
+    ) -> dict[str, str]:
+        return offline_delivery.issue_snapshot(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.slides,
+        )
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-receipts")
+    def offline_receipt(
+        request: Request, workspace: str, artifact: str, body: OfflineReceiptInput
+    ) -> dict[str, str]:
+        receipt = offline_delivery.issue(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.slide_id,
+            body.content_hash,
+            body.expected_hash,
+            body.channel,
+        )
+        return {"receipt": receipt}
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-edits")
+    def offline_edit(
+        request: Request, workspace: str, artifact: str, body: OfflineEditInput
+    ) -> dict[str, object]:
+        return offline_delivery.edit(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.receipt,
+            body.request_id,
+            body.html,
+            body.overwrite_expected,
+        )
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-comments")
+    def offline_comment(
+        request: Request, workspace: str, artifact: str, body: OfflineCommentInput
+    ) -> dict[str, object]:
+        return offline_delivery.comment(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.receipt,
+            body.request_id,
+            body.message,
+            body.channel,
+        )
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def post(request: Request, workspace: str, artifact: str, body: ChatInput) -> dict[str, object]:
