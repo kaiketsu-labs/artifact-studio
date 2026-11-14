@@ -292,7 +292,7 @@
     form.reset();
     trigger.focus();
   });
-  root.SlideIcons.button(trigger, 'flag', 'Report an issue', true);
+  root.SlideIcons.button(trigger, 'feedback', 'Report an issue', false);
   trigger.addEventListener('click', () => {
     if (dialog.open) {
       dialog.close();

@@ -58,10 +58,9 @@ def test_report_copies_screenshot_and_opens_public_draft(
     assert bounds and bounds["width"] >= 44 and bounds["height"] >= 44
     assert width - bounds["x"] - bounds["width"] <= 24
     assert 0 <= 700 - bounds["y"] - bounds["height"] <= 60
-    if width <= 650:
-        expect(trigger.locator("span")).to_be_hidden()
-    else:
-        expect(trigger.locator("span")).to_be_visible()
+    expect(trigger.locator("span")).to_have_count(0)
+    expect(trigger).to_have_attribute("title", "Report an issue")
+    if width > 650:
         composer = page.locator("#feedback-form").bounding_box()
         assert composer and composer["y"] + composer["height"] < bounds["y"]
     trigger.focus()

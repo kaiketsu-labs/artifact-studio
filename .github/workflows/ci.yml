@@ -141,33 +141,72 @@ jobs:
               tests/integration/test_slide_designs.py tests/integration/test_element_alternatives.py
               tests/integration/test_element_alternative_layout.py tests/integration/test_element_alternative_motion.py
               tests/integration/test_presentation_displays.py tests/integration/test_rail_previews.py tests/integration/test_design_dialog_lifecycle.py
-          - suite: runtime
+          - suite: runtime-1
             browsers: chromium firefox
             tests: >-
-              tests/integration/test_design_references.py tests/integration/test_design_library.py tests/integration/test_object_selection.py
-              tests/integration/test_artifact_workspace.py tests/integration/test_artifact_sorting.py tests/integration/test_snapshot_inventory.py tests/integration/test_element_properties.py
-              tests/integration/test_element_properties_layout.py tests/integration/test_native_sharing.py tests/integration/test_hub_context_menus.py
-              tests/integration/test_version_recovery.py tests/integration/test_voice_input.py tests/integration/test_voice_hub.py
-              tests/integration/test_full_backup_ui.py tests/integration/test_library_previews.py tests/integration/test_favorites.py tests/integration/test_favorite_preview_lifecycle.py tests/integration/test_chat_references.py tests/integration/test_reference_pill_previews.py
-              tests/integration/test_artifact_downloads.py tests/integration/test_project_tree.py tests/integration/test_sharing_workspace.py tests/integration/test_report_issue.py
-              tests/integration/test_ui_contrast.py tests/integration/test_accessible_labels.py tests/integration/test_marquee_export.py
-              tests/integration/test_presentation_authoring.py tests/integration/test_agent_workflow_gaps.py
-              tests/integration/test_audit_followups.py tests/test_text_review.py tests/test_visuals.py tests/test_interactive.py
-              tests/integration/test_hosted_browser.py tests/integration/test_hosted_hooks_browser.py
-              tests/integration/test_hosted_presenter_browser.py
-              tests/test_multiplayer_browser_owner.py tests/test_multiplayer_browser_collaborator.py
-              tests/test_multiplayer_browser_responsive.py tests/test_unified_browser.py tests/test_shared_chat_attachments.py
+              tests/test_unified_browser.py
               tests/test_invitation_landing.py
-              tests/test_scoped_library_covers.py
-              tests/test_offline_store_browser.py tests/test_offline_shell_browser.py
-              tests/test_shared_library_shortcuts.py
+              tests/integration/test_artifact_workspace.py
+              tests/integration/test_favorites.py
+              tests/integration/test_hub_context_menus.py
+              tests/integration/test_version_recovery.py
+              tests/test_visuals.py
+              tests/test_multiplayer_browser_responsive.py
               tests/test_scoped_owner_import.py
-              tests/test_scoped_presentation_creation.py
+              tests/integration/test_object_selection.py
+              tests/integration/test_hosted_presenter_browser.py
+              tests/integration/test_audit_followups.py
+              tests/integration/test_artifact_sorting.py
+              tests/integration/test_library_previews.py
+              tests/test_multiplayer_browser_collaborator.py
+              tests/test_hub_cover_rendering.py
+              tests/test_text_review.py
+              tests/test_copilot_capture.py
+          - suite: runtime-2
+            browsers: chromium
+            tests: >-
+              tests/integration/test_reference_pill_previews.py
+              tests/integration/test_voice_input.py
+              tests/integration/test_full_backup_ui.py
+              tests/integration/test_marquee_export.py
+              tests/integration/test_chat_references.py
+              tests/integration/test_ui_contrast.py
               tests/test_scoped_design_library.py
+              tests/integration/test_report_issue.py
+              tests/test_scoped_library_covers.py
+              tests/integration/test_renderer_deadlines.py
+              tests/integration/test_accessible_labels.py
+              tests/integration/test_hosted_hooks_browser.py
+              tests/test_capture_deadlines.py
+              tests/integration/test_snapshot_inventory.py
+              tests/integration/test_agent_workflow_gaps.py
+              tests/test_offline_store_browser.py
+              tests/test_presentation_authoring.py
+              tests/integration/test_element_properties.py
+              tests/test_element_alternative_tools.py
+          - suite: runtime-3
+            browsers: chromium
+            tests: >-
+              tests/integration/test_design_library.py
               tests/test_project_github_sync.py
-              tests/integration/test_renderer_deadlines.py tests/test_capture_deadlines.py
-              tests/test_presentation_authoring.py tests/test_element_rotation_dom.py tests/test_copilot_capture.py
-              tests/test_element_alternative_tools.py tests/test_hub_cover_rendering.py tests/test_sharing_renderer.py
+              tests/integration/test_voice_hub.py
+              tests/integration/test_hosted_browser.py
+              tests/integration/test_native_sharing.py
+              tests/integration/test_design_references.py
+              tests/test_scoped_presentation_creation.py
+              tests/integration/test_presentation_authoring.py
+              tests/test_multiplayer_browser_owner.py
+              tests/test_offline_shell_browser.py
+              tests/integration/test_element_properties_layout.py
+              tests/integration/test_favorite_preview_lifecycle.py
+              tests/test_shared_chat_attachments.py
+              tests/integration/test_sharing_workspace.py
+              tests/integration/test_project_tree.py
+              tests/test_interactive.py
+              tests/test_shared_library_shortcuts.py
+              tests/integration/test_artifact_downloads.py
+              tests/test_element_rotation_dom.py
+              tests/test_sharing_renderer.py
     env:
       ARTIFACT_STUDIO_BROWSER_TESTS: "1"
       ARTIFACT_STUDIO_RENDER_TESTS: "1"
@@ -190,7 +229,7 @@ jobs:
       - name: Install browser OS dependencies
         run: uv run --no-sync playwright install-deps ${{ matrix.browsers }}
       - name: Install text review engine
-        if: matrix.suite == 'runtime'
+        if: startsWith(matrix.suite, 'runtime-')
         run: sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
       - name: Install pinned browsers on cache miss
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -209,7 +248,7 @@ jobs:
           --junitxml=test-results/browser-${{ matrix.suite }}.xml
       - name: Firefox presentation journeys
         if: >-
-          !cancelled() && matrix.suite == 'runtime' &&
+          !cancelled() && matrix.suite == 'runtime-1' &&
           (success() || steps.browser_tests.outcome == 'failure')
         env:
           ARTIFACT_STUDIO_TEST_BROWSER: firefox

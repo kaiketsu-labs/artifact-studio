@@ -1,6 +1,6 @@
 # Projects and exports
 
-Open **Menu → Presentation files**. Your existing presentations already persist locally between agent sessions; project files provide a portable copy you can reopen in another Artifact Studio workspace.
+Open **Menu → Export presentation…** for HTML/PDF audience files. The separate **Editable copy** section saves or imports `.artifact-studio.zip` archives, including private notes and feedback. Your existing presentations already persist locally between agent sessions; project files provide a portable copy you can reopen in another Artifact Studio workspace.
 
 | Format | Purpose | Included |
 | --- | --- | --- |
@@ -10,7 +10,7 @@ Open **Menu → Presentation files**. Your existing presentations already persis
 
 ## Save and reopen a project
 
-Choose **Save presentation** to download the selected deck. **Import presentation** accepts that file and restores its selected slide, unsent comments, unsaved notes and open supporting panels. Finish or cancel an element edit before saving or opening a project; that provisional edit is not silently discarded.
+Choose **Save a copy…** from the menu or export dialog to download the selected deck as an editable `.artifact-studio.zip` archive, including private notes and feedback. **Import presentation** accepts that file and restores its selected slide, unsent comments, unsaved notes and open supporting panels. Finish or cancel an element edit before saving or opening a project; that provisional edit is not silently discarded.
 
 If a deck with the same ID exists, opening the file creates a separate **(copy)**. Existing work is never overwritten. Chats keep their original timestamps, slide context, reply relationships and release state. Approvals and unread markers retain their original content checks, including asset timestamps. The application rebuilds executable viewer code from the installed runtime while preserving inert design settings and the slide data.
 
@@ -38,7 +38,7 @@ The design library’s **Use with agent** dialog also offers native sharing for 
 
 Shares use saved artifact revisions. Speaker notes, review chat, workspace rules and Studio review metadata stay out of presentation audience exports. Generic bundles omit recognized private/configuration paths and list exclusions in the Share panel; a detected reference to an excluded file stops the export. Authored files can still contain sensitive content. Remote dependencies in generic HTML are not downloaded automatically.
 
-Prepared files stay in local memory for up to one hour, are limited to 100 MB, and are never uploaded by sharing preparation. Outlook receives a local attachment copy in the system temporary directory so it can finish reading the file. A project sharing ZIP is for distribution; it does not restore review state. Use **Save presentation** for an editable presentation archive.
+Prepared files stay in local memory for up to one hour, are limited to 100 MB, and are never uploaded by sharing preparation. Outlook receives a local attachment copy in the system temporary directory so it can finish reading the file. A project sharing ZIP is for distribution; it does not restore review state. Use **Save a copy…** for an editable presentation archive.
 
 ## HTML
 

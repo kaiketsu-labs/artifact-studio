@@ -172,7 +172,14 @@ function renderMessages() {
       if (!message.released) header.append(node('span', 'Draft'));
       row.append(header);
       if (message.target?.label) row.append(node('div', message.target.label, 'anchor'));
-      row.append(node('div', message.message, 'body'));
+      const display = window.StudioNativeConversation.displayEdit(message);
+      row.append(node('div', display.message, 'body'));
+      if (display.edit_summary.length) row.append(node('div', display.edit_summary.join('\n'), 'body'));
+      if (display.original_request) {
+        const details = node('details', null, 'chat-edit-details');
+        details.append(node('summary', 'Exact request'), node('pre', display.original_request));
+        row.append(details);
+      }
       if (message.assigned && !message.completed) row.append(node('span', message.released ? 'Requested' : 'Saved privately · not sent', 'subtle small'));
       return row;
     }, day => node('p', day, 'chat-day')));
@@ -192,7 +199,7 @@ $('copy-conversation').addEventListener('click', () => {
   const generation=state.generation, channel=state.channel;
   const messages=state.messages.map(message=>({
     name:message.author!==message.person?(state.current.agents.find(agent=>agent.id===message.author)?.name||'Agent'):(message.author===state.session.person?'You':message.author_name),
-    message:message.message, files:message.files||[], copyTarget:message.target?.label||''
+    ...window.StudioNativeConversation.displayEdit(message),copySummary:window.StudioNativeConversation.displayEdit(message).edit_summary, files:message.files||[], copyTarget:message.target?.label||''
   }));
   void window.StudioChatCopy.copy({messages,title:state.current.title,clipboard:navigator.clipboard,
     current:()=>state.generation===generation&&state.channel===channel,

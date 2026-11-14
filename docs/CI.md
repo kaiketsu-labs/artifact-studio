@@ -12,7 +12,7 @@ corporate packs and model credentials are not required.
 | --- | --- |
 | Ruff, types, unit tests & release simulation | Ruff lint and formatting, strict basedpyright, the Python suite, frontend behavior tests, JavaScript syntax and offline Release Please simulations. |
 | Playwright user journeys and rendering (editor) | Slides and thumbnails, UI-to-MCP feedback, notes/approval state, keyboard navigation, drafts, chat, sorter/sections, presentation/audience behavior, slide/object menus, rich-text/presenter voice input, structural undo, element commands and whole-slide design alternatives. |
-| Playwright user journeys and rendering (runtime) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus and cover loading, chat path references and pending/cached hover previews, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
+| Playwright user journeys and rendering (runtime-1, runtime-2, runtime-3) | Artifact/design workspaces, object/property controls, sharing, history/recovery, library menus and cover loading, chat path references and pending/cached hover previews, voice input, sandboxed renderer, interactive-content, DOM checks, authoring recovery, and Firefox presentation compatibility. |
 | Agent integration | Official SDK Streamable HTTP negotiation and tool discovery; stateless guarded edits, retries, conflicts, batch withholding/release, authoring recovery, slide insertion, and native Codex and Claude Code client and hook integration. |
 | Docker | Builds the image and exercises the shipped Compose setup: HTTP/MCP, sandboxed captures and OCR, host-file import, and deck/feedback/settings/capture persistence across container replacement. |
 | Dependency audit | Audits Python's Linux, macOS and Windows dependency graphs and both npm trees, including child libraries; also runs daily without a source change. |
@@ -36,9 +36,13 @@ that platform. Quality checks rebuild and compare the committed offline editor
 and all license files before testing. [Dependency update automation](DEPENDENCY-UPDATES.md)
 uses this gate with strict native GitHub branch protection.
 
-The two browser suites run in parallel with `fail-fast: false` and independent
-25-minute timeouts. Each suite and the Python unit step use two pytest-xdist workers
-with work stealing, so a long test file cannot hold up an otherwise idle worker.
+The four browser jobs (`editor` and `runtime-1` through `runtime-3`) run in
+parallel with `fail-fast: false` and independent 25-minute timeouts. Their 86
+module entries are the same inventory as the previous two jobs. The runtime
+assignments were balanced using an existing local JUnit report, with test counts
+as a fallback for modules absent from that report; hosted timings have not yet
+validated the balance. Each suite and the Python unit step use two pytest-xdist
+workers with work stealing, so a long test file cannot hold up an otherwise idle worker.
 Every selected case still runs once; worker crashes fail the check instead of
 silently restarting workers. The agent integration step remains sequential.
 
@@ -49,10 +53,11 @@ Do not increase the worker count without checking runner CPU and memory limits.
 
 Browser cache keys follow the installed Playwright browser manifest, architecture
 and suite, so an unrelated Python lockfile update does not download browsers again.
-OS dependencies are still installed on every runner. The runtime suite prepares
-Chromium and Firefox together, avoiding a second package-index refresh, and matching
-caches skip browser downloads. Chromium renderer sandboxing remains enabled.
-Only the runtime suite installs Tesseract, where the real OCR checks run.
+OS dependencies are still installed on every runner. `runtime-1` prepares Chromium
+and Firefox together and runs the same Firefox presentation journeys after its
+Chromium tests, including when those tests fail. The other jobs prepare Chromium.
+Matching caches skip browser downloads. Chromium renderer sandboxing remains enabled.
+The runtime jobs install Tesseract, where the real OCR checks run.
 Completed browser installs are cached before tests, so a later test failure does
 not force the next attempt to download the browsers again.
 Isolated integration servers disable automatic upstream release checks; the version
@@ -126,7 +131,8 @@ an enabled native check; they are not silently skipped.
 Set `ARTIFACT_STUDIO_ARTIFACTS=test-results/integration` to retain per-test server logs,
 browser screenshots, Playwright traces and client logs. In CI, failed runs upload
 these diagnostics with 1-day retention. Browser
-artifacts are named `browser-results-<suite>` for `editor` and `runtime`; their JUnit files are
+artifacts are named `browser-results-<suite>` for `editor` and `runtime-1`
+through `runtime-3`; their JUnit files are
 `browser-<suite>.xml`, with `browser-firefox.xml` for Firefox. View a
 trace with `uv run playwright show-trace path/to/trace.zip`.
 

@@ -133,11 +133,16 @@ def test_editor_secondary_text_placeholders_and_control_states(
     page.locator('.studio-share-formats input[value="html"]').check()
     readable(page.locator(".studio-share-formats label").first.locator("small"))
     page.keyboard.press("Escape")
-    menu(page, "Presentation files")
+    menu(page, "Export presentation…")
     page.keyboard.press("Tab")
     page.locator("#save-project").focus()
     readable(page.locator("#save-project"), kind="outline", minimum=3)
-    for selector in ("#project-context", ".project-group-label", ".file-choice-copy>span"):
+    for selector in (
+        "#project-context",
+        ".project-group-label",
+        ".project-group-detail",
+        ".file-choice-copy>span",
+    ):
         for label in page.locator(selector).all():
             readable(label)
     page.keyboard.press("Escape")
@@ -167,7 +172,11 @@ def test_agent_status_icon_and_keyboard_tooltip_contrast(
     status.focus()
     assert status.evaluate("element => element.matches(':focus-visible')")
     assert status.evaluate("element => getComputedStyle(element, '::after').content") != "none"
-    readable(status, kind="outline", minimum=3)
+    assert status.evaluate(
+        "element => getComputedStyle(element).boxShadow.includes('inset') && "
+        "getComputedStyle(element).boxShadow.includes('-2px')"
+    )
+    readable(status, minimum=3)
     readable(status, kind="tooltip")
 
     live_app.store.mark_agent_check(DECK_ID, wait_seconds=120)

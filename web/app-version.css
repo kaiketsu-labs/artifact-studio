@@ -61,7 +61,7 @@ body:has(dialog[open])>.app-session-expired{display:none}
   overflow-wrap: anywhere;
 }
 .app-sidebar-footer > button:hover { background: var(--hub-hover, var(--hover)); }
-.hub-sidebar:has(.app-sidebar-footer:not([hidden])) {
+.hub-layout:not(.panels-left-closed) > .hub-sidebar:has(.app-sidebar-footer:not([hidden])) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -71,7 +71,7 @@ body:has(dialog[open])>.app-session-expired{display:none}
 .hub-sidebar > .app-sidebar-footer > button { width: 100%; padding-inline: 8px; }
 @media (max-width: 650px) {
   .app-sidebar-footer > button { min-height: 44px; }
-  .hub-sidebar[aria-label="Project artifacts"]:has(.app-sidebar-footer:not([hidden])) {
+  .hub-layout:not(.panels-left-closed) > .hub-sidebar[aria-label="Project artifacts"]:has(.app-sidebar-footer:not([hidden])) {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
@@ -90,9 +90,10 @@ body:has(dialog[open])>.app-session-expired{display:none}
   align-items: center;
   justify-content: center;
   gap: 7px;
+  width: 44px;
   min-width: 44px;
   min-height: 44px;
-  padding: 0 12px;
+  padding: 0;
   border: 1px solid var(--hub-line, var(--line));
   border-radius: 10px;
   background: var(--hub-panel, var(--surface, #fff));
@@ -111,10 +112,7 @@ body:has(>.workspace) > .studio-report-trigger {
 body:has(>.studio-report-trigger:not([hidden])) :is(.hub-main, .hub-edit-area, .hub-chat, .canvas-area, #chat-panel) {
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
-@media (max-width: 650px) {
-  .studio-report-trigger { padding-inline: 0; }
-  .studio-report-trigger > span { display: none; }
-}
+.studio-report-trigger > span { display: none; }
 dialog.studio-report {
   --report-line: var(--hub-line, var(--line, #d8deea));
   --report-muted: var(--hub-muted, var(--subtle, #526174));

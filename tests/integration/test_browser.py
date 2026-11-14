@@ -63,7 +63,7 @@ def test_copied_agent_prompts_use_the_selected_deck_and_loadable_guides(
     if not selected:
         expect(page.get_by_role("heading", name="All artifacts", exact=True)).to_be_visible()
         page.get_by_role("button", name="Menu", exact=True).click()
-        page.get_by_role("menuitem", name="Presentation tools", exact=True).click()
+        page.get_by_role("menuitem", name="Presentation editor", exact=True).click()
         expect(page.locator("#slide-title")).to_have_text("No presentations")
 
     def check_prompt(setup: bool = False) -> str:

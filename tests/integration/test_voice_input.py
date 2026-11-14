@@ -216,7 +216,7 @@ def test_saving_project_waits_for_the_current_recognizers_final_words(
     voice_result(page, "First confirmed instruction.")
     with page.expect_download() as downloaded:
         page.get_by_role("button", name="Menu", exact=True).click()
-        page.get_by_role("menuitem", name="Save presentation", exact=True).click()
+        page.get_by_role("menuitem", name="Save a copy…", exact=True).click()
         voice_result(page, "Final words during save.")
         voice_end(page)
     with ZipFile(downloaded.value.path()) as archive:

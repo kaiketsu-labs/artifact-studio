@@ -253,7 +253,7 @@ class Capture:
         self.page.keyboard.press("Escape")
 
     def projects(self) -> None:
-        self.menu("Presentation files")
+        self.menu("Export presentation…")
         self.save("docs/assets/projects.png")
         self.page.locator("#close-project").click()
 

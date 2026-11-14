@@ -169,9 +169,22 @@ def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: 
     """A handoff archive waits for note persistence instead of racing the debounce timer."""
     open_editor(page, live_app)
     open_notes(page)
+    page.get_by_role("button", name="Menu", exact=True).click()
+    page.get_by_role("menuitem", name="Export presentation…", exact=True).click()
+    dialog = page.get_by_role("dialog", name="Export presentation", exact=True)
+    assert dialog.locator(".file-choice").evaluate_all(
+        "buttons => buttons.map(button => button.getAttribute('aria-label'))"
+    ) == ["Export HTML", "Export PDF", "Save a copy…", "Import presentation"]
+    expect(dialog.locator("#save-project")).to_contain_text(
+        "Editable .artifact-studio.zip · Slides, notes & feedback"
+    )
+    expect(dialog).to_contain_text("HTML and PDF omit private notes and feedback.")
+    page.keyboard.press("Escape")
     page.get_by_label("Speaker notes", exact=True).fill("Carry these notes to the next workspace")
     with page.expect_download() as downloaded:
         page.keyboard.press("ControlOrMeta+s")
+    assert downloaded.value.suggested_filename == DECK_ID + ".artifact-studio.zip"
+    expect(page.locator("#toast")).to_have_text("Editable presentation copy downloaded.")
     with ZipFile(downloaded.value.path()) as archive:
         sources = [name for name in archive.namelist() if name.endswith("index.html")]
         assert sources

@@ -32,6 +32,81 @@ pytestmark = [
 ]
 
 
+@pytest.mark.parametrize("presentation", [True, False], ids=["presentation", "artifact"])
+def test_editor_requests_show_readable_changes_and_keep_exact_agent_payload(
+    tmp_path: Path, presentation: bool
+) -> None:
+    """Show useful text and copy it while the agent receives its original edit envelope."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as playwright,
+    ):
+        if presentation:
+            resource = app.deck_id
+            url = f"{WORKSPACE}/?deck={resource}#cover"
+        else:
+            registry = ArtifactStore(app.store)
+            project = registry.get_artifact(app.artifact_id).project_id
+            source = tmp_path / "page.html"
+            source.write_text('<h1 id="title">Fictional editable heading</h1>')
+            item = registry.register_artifact(project, "Fictional edit", source, "page.html")
+            resource = item.id
+            url = f"{WORKSPACE}/?artifact={resource}"
+            owner.get("/api/hub").raise_for_status()
+        state_url = f"/api/workspaces/default/artifacts/{resource}/state"
+        state = owner.get(state_url)
+        state.raise_for_status()
+        original = str(state.json()["content_hash"])
+        peer = Peer(app, agent(owner, resource))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+                page = context.new_page()
+                page.goto(url)
+                frame_id = "#preview" if presentation else "#hub-html-preview"
+                panel_id = "#element-properties" if presentation else "#hub-element-properties"
+                thread = page.locator("#feedback-list" if presentation else "#hub-thread")
+                if not presentation:
+                    page.get_by_role("button", name="Select", exact=True).click()
+                page.frame_locator(frame_id).get_by_role("heading", level=1).click()
+                panel = page.locator(panel_id)
+                panel.get_by_role("button", name="Edit text", exact=True).click()
+                replacement = "A clearer story <script>window.editPayloadExecuted=true</script>"
+                panel.get_by_role("textbox", name="Text", exact=True).fill(replacement)
+                panel.get_by_role("button", name="Send edit", exact=True).click()
+                expect(thread).to_contain_text("Text: " + replacement)
+                assert "Edit details:" not in thread.inner_text()
+                assert "replace_text" not in thread.inner_text()
+                assert page.evaluate("window.editPayloadExecuted") is None
+                events = cast(
+                    list[dict[str, object]],
+                    peer.value("read_feedback", artifact_id=resource)["events"],
+                )
+                assert len(events) == 1
+                wire = str(events[0]["message"])
+                assert '\n\nEdit details:\n{"action":"replace_text","values":' in wire
+                assert replacement in wire
+                assert str(events[0]["content_hash"]) == original
+                thread.get_by_text("Exact request", exact=True).click()
+                expect(thread.locator("pre")).to_have_text(wire)
+                assert page.evaluate("window.editPayloadExecuted") is None
+                thread.get_by_text("Exact request", exact=True).click()
+                page.get_by_role("button", name="Copy conversation", exact=True).click()
+                copied = str(page.evaluate("navigator.clipboard.readText()"))
+                assert replacement in copied
+                assert "Edit details:" not in copied and '"values"' not in copied
+                page.reload()
+                expect(thread).to_contain_text("Text: " + replacement)
+                assert "Edit details:" not in thread.inner_text()
+                current = str(owner.get(state_url).json()["content_hash"])
+                assert current == original
+        finally:
+            browser.close()
+            peer.client.close()
+
+
 def test_structure_review_preserves_a_concurrent_edit_and_reaches_origin_agent(
     tmp_path: Path,
 ) -> None:
@@ -794,13 +869,18 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 shared = page.locator("#chat-tab-shared")
                 agent_tab = page.locator("#chat-tab-private")
                 toggle = page.get_by_role("button", name="Ask your agent")
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 composer.fill("@@Request in Shared")
                 expect(composer).to_have_value("Request in Shared")
                 expect(toggle).to_have_attribute("aria-pressed", "true")
+                expect(composer).to_have_attribute("placeholder", "Ask agent · shared with others…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 shared.focus()
                 page.keyboard.press("ArrowRight")
                 expect(agent_tab).to_be_focused()
                 expect(composer).to_have_value("")
+                expect(composer).to_have_attribute("placeholder", "Private message to your agent…")
                 expect(page.locator("#feedback-list")).to_contain_text("Earlier private review")
                 expect(guest.locator("#feedback-list")).not_to_contain_text(
                     "Earlier private review"
@@ -890,6 +970,8 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 toggle = page.get_by_role("button", name="Ask your agent")
                 thread = page.locator("#hub-thread")
                 expect(toggle).to_be_visible()
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 composer.fill("@agent@example.test is the reference address.")
                 expect(toggle).to_have_attribute("aria-pressed", "false")
                 composer.press("Enter")
@@ -897,8 +979,11 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 composer.fill("@agent Please review the headline.")
                 expect(toggle).to_have_attribute("aria-pressed", "true")
                 expect(composer).to_have_value("Please review the headline.")
+                expect(composer).to_have_attribute("placeholder", "Ask agent · shared with others…")
+                expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
                 toggle.click()
                 expect(toggle).to_have_attribute("aria-pressed", "false")
+                expect(composer).to_have_attribute("placeholder", "Message collaborators…")
                 composer.press("Enter")
                 expect(thread).to_contain_text("Please review the headline.")
                 assert peer.value("read_feedback", artifact_id=app.artifact_id)["events"] == []
@@ -921,6 +1006,8 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 )
                 assert [event["message"] for event in events] == ["Can you simplify it?"]
                 assert "Please review the headline." in str(events[0]["shared_context"])
+                page.locator("#hub-shared-channel").select_option("private")
+                expect(composer).to_have_attribute("placeholder", "Private message to your agent…")
         finally:
             browser.close()
             peer.client.close()

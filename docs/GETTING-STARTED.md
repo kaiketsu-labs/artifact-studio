@@ -52,7 +52,7 @@ For [Claude Code](https://code.claude.com/docs/en/mcp), run from the project whe
 claude mcp add --transport http artifact-studio http://127.0.0.1:8790/mcp
 ```
 
-Use a new agent session if the newly added server is not visible in the current one. From the hub, **… → Presentation tools** opens the existing editor. Its **Menu → Agent connection** provides a copyable presentation prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
+Use a new agent session if the newly added server is not visible in the current one. From the hub, **… → Presentation editor** opens the existing editor. Its **Menu → Agent connection** provides a copyable presentation prompt and the server URL. Copying the prompt does not configure an MCP client or start an idle agent.
 
 For **Microsoft 365 Copilot**, choose the Microsoft 365 option in the hub menu or the editor's Agent connection dialog. Follow the [Copilot Studio setup guide](MICROSOFT-COPILOT.md) for the separate authenticated gateway, project scope and HTTPS endpoint. Keep the ordinary local server private. A local agent can prepare this setup; Microsoft sign-in, credentials and tenant permissions remain explicit steps. Cloud feedback must be requested in the Copilot conversation; local lifecycle hooks do not apply.
 
@@ -157,8 +157,8 @@ The following controls apply to the presentation editor. Its top-right **Menu** 
 | --- | --- | --- |
 | New presentation | ⌘N | Ctrl+N |
 | Import presentation | ⌘O | Ctrl+O |
-| Save presentation | ⌘S | Ctrl+S |
-| Presentation files / choose format | ⇧⌘S | Ctrl+Shift+S |
+| Save a copy… | ⌘S | Ctrl+S |
+| Export presentation… / choose format | ⇧⌘S | Ctrl+Shift+S |
 | Present from current slide | ⌘Return | Shift+F5 |
 | Present from beginning | ⇧⌘Return or F5 | F5 |
 
@@ -213,7 +213,7 @@ Open each deck in its own browser tab and use a separate agent chat with that de
 
 The native server creates its collection in `~/Documents/Artifacts` and its review state in `.state/` inside the checkout on first launch. Set other paths through the Mac installer or the Terminal environment. [Mac configuration](MACOS.md#existing-workspaces-and-updates) · [Terminal configuration](#run-from-terminal)
 
-In the presentation editor, use **Menu → Presentation files** for **Save presentation**, **Import presentation**, **Export HTML** and **Export PDF**. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
+In the presentation editor, use **Menu → Export presentation…** for **HTML** and **PDF** audience exports. Its separate **Editable copy** section offers **Save a copy…** and **Import presentation** for `.artifact-studio.zip` archives. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides. [Formats, restoration and limits](PROJECTS.md).
 
 For the whole workspace, open the storage icon and choose **Save workspace**. This archive includes collection sources, retained artifact revisions, saved review history, approvals and app-owned private attachments. Browser-only unfinished edits remain separate. To keep full archives on GitHub, expand **Full workspace backups** beside a connected private repository and check **Back up full workspace**. Set an interval of **1–720 hours** and keep **1–100 backups**, then choose **Save backup settings**. Defaults are daily and seven backups. The first backup starts when enabled; later backups run while the Studio server is open, with one missed run caught up after reopening. The section also offers **Back up full workspace now** and shows the last result, next time and errors. [Schedule and retention](REPOSITORY-SYNC.md#scheduled-full-workspace-backups).
 
@@ -237,7 +237,7 @@ Back up **both the collection and the state folder**. If you override `ARTIFACT_
 
 ## Optional reference libraries and private sync
 
-From **… → Presentation tools**, open **Menu → Storage and backup**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
+From **… → Presentation editor**, open **Menu → Storage and backup**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
 
 ### Switch projects quickly
 
