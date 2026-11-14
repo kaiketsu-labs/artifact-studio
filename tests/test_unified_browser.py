@@ -293,6 +293,53 @@ def test_presence_stays_visible_through_a_failed_poll(tmp_path: Path) -> None:
             browser.close()
 
 
+def test_presence_shows_only_agents_listening_on_this_deck(tmp_path: Path) -> None:
+    """Show a collaborator's listener without exposing unrelated activity or routing to it."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        scope = {"kind": "artifact", "resource": app.deck_id}
+        accept(alice, grant(owner, "alice", app.deck_id, role="edit"))
+        peer = Peer(app, agent(alice, app.deck_id))
+        hook = {"harness": "codex", "session_id": "fictional-agent", "deck_id": app.deck_id}
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app) as context:
+                page = context.new_page()
+                page.set_viewport_size({"width": 390, "height": 844})
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                expect(page.locator("#feedback-text")).to_be_enabled()
+                presence = page.locator("#deck-presence")
+                expect(presence).to_be_hidden()
+                response = peer.client.post(
+                    "/api/review/hooks", json={**hook, "event": "PostToolUse", "start_review": True}
+                )
+                assert response.json()["listening"] is True
+                _ = page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                expect(presence).to_have_accessible_name("1 agent listening")
+                presence.click()
+                roster = page.locator("#deck-viewers")
+                expect(roster).to_contain_text("Fictional agent")
+                expect(roster).to_contain_text("Listening")
+                expect(roster).not_to_contain_text("@example.test")
+                expect(page.locator("#chat-ask-agent")).to_be_hidden()
+                grants = owner.get("/api/workspaces/default/access", params=scope).json()["grants"]
+                response = owner.post(
+                    f"/api/workspaces/default/access/{grants[0]['id']}/revoke", json=scope
+                )
+                assert response.is_success
+                accept(alice, grant(owner, "alice", app.deck_id, role="view"))
+                _ = page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+                expect(presence).to_be_hidden()
+                expect(roster).to_be_hidden()
+        finally:
+            browser.close()
+            peer.client.close()
+
+
 def test_guest_discussion_sends_without_waiting_for_refresh(tmp_path: Path) -> None:
     """A saved message shows and unlocks the composer while refresh requests are pending."""
     with (
@@ -978,6 +1025,9 @@ def test_artifact_chat_shortcuts_and_robot_toggle(tmp_path: Path) -> None:
                 expect(thread).to_contain_text("@agent@example.test")
                 composer.fill("@agent Please review the headline.")
                 expect(toggle).to_have_attribute("aria-pressed", "true")
+                assert toggle.evaluate("node => getComputedStyle(node, '::after').content") == (
+                    '"Agent on"'
+                )
                 expect(composer).to_have_value("Please review the headline.")
                 expect(composer).to_have_attribute("placeholder", "Ask agent · shared with others…")
                 expect(toggle).to_have_attribute("title", re.compile("visible to collaborators"))
