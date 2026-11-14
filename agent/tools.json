@@ -3668,7 +3668,7 @@
     },
     {
       "name": "ask_slide_question",
-      "description": "Ask a question in this slide's chat, optionally suggesting up to six distinct answers.\nThe human can always write a different answer. Read get_slide first for expected_hash.\nAsking does not revise the slide or its approval. Answers arrive via read_feedback,\nlinked by reply_to; Batch answers remain private until Send batch.\n",
+      "description": "Ask a question in this slide's chat, optionally suggesting up to six distinct answers.\nThe human can always write a different answer. Read get_slide first for expected_hash.\nAsking does not revise the slide or its approval. Answers arrive via read_feedback,\nlinked by reply_to. Previously saved answers remain private until the human\nexplicitly sends saved messages.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -3789,7 +3789,7 @@
     },
     {
       "name": "get_slide_questions",
-      "description": "Read pending slide questions without slide source; omit slide_id to check the deck.\ninclude_resolved=True adds answers/cancellations. Withheld Batch answers stay private.\n",
+      "description": "Read pending slide questions without slide source; omit slide_id to check the deck.\ninclude_resolved=True adds answers/cancellations. Previously saved unsent answers stay private.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -8338,7 +8338,7 @@
     },
     {
       "name": "start_live_review",
-      "description": "Request installed Codex/Claude Code review hooks for this deck or the design inbox.\n\nRead get_authoring_guide(topic=\"live_review\") for one-time hook setup and host trust.\nThis call alone cannot wake an idle client or install its hooks.\nThe host's PostToolUse hook connects after this response; check get_live_review_status next.\ninclude_guide=True adds the full setup guide; normally load its topic on demand.\n",
+      "description": "Request installed Codex/Claude Code hooks for an artifact, deck or design inbox.\n\nRead get_authoring_guide(topic=\"live_review\") for one-time hook setup and host trust.\nThis call alone cannot wake an idle client or install its hooks.\nThe host's PostToolUse hook connects after this response; check get_live_review_status next.\ninclude_guide=True adds the full setup guide; normally load its topic on demand.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -8350,6 +8350,11 @@
             "default": false,
             "title": "Include Guide",
             "type": "boolean"
+          },
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
           }
         },
         "title": "start_live_reviewArguments",
@@ -8367,12 +8372,17 @@
     },
     {
       "name": "get_live_review_status",
-      "description": "Check a target's active host hook lease without starting or renewing review.\n\nOmit deck_id for the design inbox. A connected reviewer can belong to another host session.\n",
+      "description": "Check a target's active host hook lease without starting or renewing review.\n\nSelect artifact_id or deck_id; omit both for the design inbox.\nA connected reviewer can belong to another host session.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
             "default": "",
             "title": "Deck Id",
+            "type": "string"
+          },
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
             "type": "string"
           }
         },
@@ -9647,6 +9657,44 @@
       "annotations": {
         "read_only_hint": false,
         "destructive_hint": true
+      }
+    },
+    {
+      "name": "get_deleted_slides",
+      "description": "List recoverable local deletions so agents can avoid re-adding those slide IDs.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "get_deleted_slidesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_deleted_slidesOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
       }
     },
     {

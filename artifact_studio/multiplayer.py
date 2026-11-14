@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
@@ -26,13 +26,15 @@ from . import __version__
 from .artifact_models import ArtifactTarget
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore
-from .authentication import AuthProvider, load_auth_provider
+from .authentication import AuthProvider, Principal, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
 from .design_preview import hosted_slide_thumbnail
 from .design_thumbnails import raster_thumbnail
 from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
+from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
+from .invitation_provisioning import InvitationProvisioning, invitation_destination
 from .models import FileInput, StrictModel
 from .multiplayer_access import (
     AccessDenied,
@@ -46,6 +48,20 @@ from .multiplayer_access import (
 from .multiplayer_chat import Channel, ChatProposal, Conversations
 from .multiplayer_http import MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
+from .offline_delivery import (
+    OfflineCommentInput,
+    OfflineDelivery,
+    OfflineEditInput,
+    OfflineReceiptInput,
+    OfflineSnapshotInput,
+)
+from .offline_identity import cache_scope
+from .project_sync import (
+    ProjectGitHubSync,
+    ProjectSyncResolution,
+    ProjectSyncSettings,
+    ProjectSyncView,
+)
 from .renderer_health import RendererBusy
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
@@ -67,6 +83,10 @@ class InviteInput(ScopeInput):
     email: str = Field(max_length=254)
     role: Literal["view", "comment", "edit"] = "edit"
     no_expiry: bool = False
+
+
+class ProvisioningRetry(StrictModel):
+    email: str = Field(max_length=254)
 
 
 class GrantRecoveryConfirmation(StrictModel):
@@ -116,6 +136,8 @@ def create_app(
     config: DeploymentConfig | None = None,
     provider: AuthProvider | None = None,
     sharing: Sharing | None = None,
+    project_sync: ProjectGitHubSync | None = None,
+    invitation_provisioning: InvitationProvisioning | None = None,
 ) -> FastAPI:
     """Build with explicit dependencies so real HTTP tests never touch a user's collection."""
     config = config or DeploymentConfig.from_env()
@@ -143,7 +165,15 @@ def create_app(
             personal_workspace_emails=config.personal_workspace_emails,
         )
     hub = sharing
+    github_sync = project_sync or ProjectGitHubSync.from_env(hub)
+    admission = invitation_provisioning or InvitationProvisioning.from_env(hub, config)
+    if admission is not None and admission.sharing is not hub:
+        raise ValueError("Invitation provisioner must use this sharing registry.")
+    landing_enabled = os.environ.get("ARTIFACT_STUDIO_INVITATION_LANDING") == "1"
+    if landing_enabled and admission is None:
+        raise ValueError("Invitation landing requires the configured admission provisioner.")
     chat = Conversations(hub)
+    offline_delivery = OfflineDelivery(hub)
     presence = DeckPresence(hub)
     structure = StructureProposals(hub)
     mcp = MCPServer[None](
@@ -170,7 +200,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
-        async with mcp.session_manager.run():
+        async with mcp.session_manager.run(), github_sync.worker(), AsyncExitStack() as stack:
+            if admission is not None:
+                await stack.enter_async_context(admission.worker())
             yield
 
     app = FastAPI(
@@ -182,8 +214,18 @@ def create_app(
     )
     app.state.sharing, app.state.chat = hub, chat
     app.add_middleware(
-        MultiplayerAuth, config=config, provider=provider or load_auth_provider(config), sharing=hub
+        MultiplayerAuth,
+        config=config,
+        provider=provider or load_auth_provider(config),
+        sharing=hub,
+        invitation_landing=landing_enabled,
     )
+
+    @app.get(CONTINUE_PATH)
+    def continue_invitation(request: Request) -> HTMLResponse:
+        if not landing_enabled or request.url.query:
+            raise AccessDenied
+        return handoff_response("continue")
 
     @app.exception_handler(AccessDenied)
     async def denied(_: Request, __: AccessDenied) -> JSONResponse:
@@ -234,6 +276,7 @@ def create_app(
             "multiplayer.css",
             "chat-timeline.js",
             "chat-timeline.css",
+            "chat-copy.js",
         }:
             raise AccessDenied
         return FileResponse(PROJECT / "web" / name)
@@ -282,7 +325,27 @@ def create_app(
     @app.post("/api/invitations/accept")
     def accept(request: Request, body: AcceptInput) -> dict[str, str]:
         scope = hub.accept(actor_of(request), body.token)
-        return {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
+        result = {"workspace": scope.workspace, "kind": scope.kind, "resource": scope.resource}
+        if admission is not None:
+            result["destination"] = invitation_destination(
+                scope, unified=bool(getattr(request.state, "unified_studio", False))
+            )
+        return result
+
+    @app.get("/api/workspaces/{workspace}/invitation-provisioning")
+    def provisioning_status(request: Request, workspace: str) -> list[dict[str, object]]:
+        if admission is None:
+            raise AccessDenied
+        return admission.status(actor_of(request), workspace)
+
+    @app.post("/api/workspaces/{workspace}/invitation-provisioning/retry")
+    def retry_provisioning(
+        request: Request, workspace: str, body: ProvisioningRetry
+    ) -> dict[str, bool]:
+        if admission is None:
+            raise AccessDenied
+        admission.retry(actor_of(request), workspace, body.email)
+        return {"ok": True}
 
     @app.get("/api/workspaces/{workspace}/catalog")
     def catalog(request: Request, workspace: str) -> dict[str, object]:
@@ -348,6 +411,39 @@ def create_app(
                 ],
             }
 
+    @app.get("/api/workspaces/{workspace}/github-sync-projects")
+    def project_sync_projects(request: Request, workspace: str) -> list[str]:
+        """Advertise configured sync only to the workspace owner."""
+        return github_sync.projects(actor_of(request), workspace)
+
+    @app.get("/api/workspaces/{workspace}/projects/{project}/github-sync")
+    def project_sync_status(request: Request, workspace: str, project: str) -> ProjectSyncView:
+        """Show the owning human the current project sync checkpoint."""
+        return github_sync.status(actor_of(request), Scope(workspace, "project", project))
+
+    @app.put("/api/workspaces/{workspace}/projects/{project}/github-sync")
+    def configure_project_sync(
+        request: Request, workspace: str, project: str, body: ProjectSyncSettings
+    ) -> ProjectSyncView:
+        """Enable or pause the operator-approved project destination."""
+        return github_sync.configure(
+            actor_of(request), Scope(workspace, "project", project), body.enabled
+        )
+
+    @app.post("/api/workspaces/{workspace}/projects/{project}/github-sync/check")
+    def run_project_sync(request: Request, workspace: str, project: str) -> ProjectSyncView:
+        """Check and synchronize an explicitly configured project on demand."""
+        return github_sync.run(actor_of(request), Scope(workspace, "project", project))
+
+    @app.post("/api/workspaces/{workspace}/projects/{project}/github-sync/{artifact}/resolve")
+    def resolve_project_sync(
+        request: Request, workspace: str, project: str, artifact: str, body: ProjectSyncResolution
+    ) -> ProjectSyncView:
+        """Apply a conflict choice only if the current comparison still matches it."""
+        return github_sync.run(
+            actor_of(request), Scope(workspace, "project", project), artifact, body
+        )
+
     @app.post("/api/workspaces/{workspace}/projects")
     def create_project(request: Request, workspace: str, body: TitleInput) -> dict[str, str]:
         with hub.guard(actor_of(request), Scope(workspace), "edit") as store:
@@ -391,9 +487,13 @@ def create_app(
             no_expiry=body.no_expiry,
         )
         path = (
-            workspace_editor_path(workspace)
-            if getattr(request.state, "unified_studio", False)
-            else "/"
+            LANDING_PATH
+            if landing_enabled
+            else (
+                workspace_editor_path(workspace)
+                if getattr(request.state, "unified_studio", False)
+                else "/"
+            )
         )
         # Fragment keeps the secret out of HTTP access logs and Referer headers.
         return {
@@ -545,6 +645,73 @@ def create_app(
         """Acknowledge one mention addressed to the signed-in person."""
         chat.read_mention(actor_of(request), Scope(workspace, "artifact", artifact), event)
         return {"ok": True}
+
+    def offline_namespace(request: Request, workspace: str) -> str:
+        principal = getattr(request.state, "authenticated_principal", None)
+        namespace = cache_scope(
+            config, principal if isinstance(principal, Principal) else None, workspace
+        )
+        if namespace is None:
+            raise AccessDenied
+        return namespace
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-snapshot")
+    def offline_snapshot(
+        request: Request, workspace: str, artifact: str, body: OfflineSnapshotInput
+    ) -> dict[str, object]:
+        namespace = offline_namespace(request, workspace)
+        return {
+            "cache_scope": namespace,
+            **offline_delivery.issue_snapshot(
+                actor_of(request),
+                Scope(workspace, "artifact", artifact),
+                namespace,
+                body.slides,
+            ),
+        }
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-receipts")
+    def offline_receipt(
+        request: Request, workspace: str, artifact: str, body: OfflineReceiptInput
+    ) -> dict[str, str]:
+        receipt = offline_delivery.issue(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.slide_id,
+            body.content_hash,
+            body.expected_hash,
+            body.channel,
+        )
+        return {"receipt": receipt}
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-edits")
+    def offline_edit(
+        request: Request, workspace: str, artifact: str, body: OfflineEditInput
+    ) -> dict[str, object]:
+        return offline_delivery.edit(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.receipt,
+            body.request_id,
+            body.html,
+            body.overwrite_expected,
+        )
+
+    @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-comments")
+    def offline_comment(
+        request: Request, workspace: str, artifact: str, body: OfflineCommentInput
+    ) -> dict[str, object]:
+        return offline_delivery.comment(
+            actor_of(request),
+            Scope(workspace, "artifact", artifact),
+            offline_namespace(request, workspace),
+            body.receipt,
+            body.request_id,
+            body.message,
+            body.channel,
+        )
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/chat")
     def post(request: Request, workspace: str, artifact: str, body: ChatInput) -> dict[str, object]:

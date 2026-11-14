@@ -46,7 +46,6 @@ def test_hub_poll_updates_review_controls_without_replacing_drafts(
     original = field.element_handle()
     _ = live_app.post(f"/api/artifacts/{artifact_id}/mode", {"mode": "live"})
     page.clock.fast_forward(12_001)
-    expect(page.locator('[data-mode="live"]')).to_have_attribute("aria-pressed", "true")
     expect(page.locator("#hub-send")).to_have_attribute("aria-label", "Send feedback")
     expect(field).to_be_focused()
     assert field.evaluate("(field, original) => field === original", original)
@@ -54,8 +53,7 @@ def test_hub_poll_updates_review_controls_without_replacing_drafts(
     expect(page.locator("#hub-feedback-attachments")).to_contain_text("context.txt")
     _ = live_app.post(f"/api/artifacts/{artifact_id}/mode", {"mode": "batch"})
     page.clock.fast_forward(12_001)
-    expect(page.locator('[data-mode="batch"]')).to_have_attribute("aria-pressed", "true")
-    expect(page.locator("#hub-send")).to_have_attribute("aria-label", "Add feedback to batch")
+    expect(page.locator("#hub-send")).to_have_attribute("aria-label", "Send feedback")
     expect(field).to_have_value("Keep this draft while another tab changes delivery.")
     expect(field).to_be_focused()
     current = ArtifactStore(live_app.store).get_artifact(artifact_id)
@@ -79,8 +77,8 @@ def test_hub_poll_updates_review_controls_without_replacing_drafts(
     release.focus()
     _ = live_app.post(f"/api/artifacts/{artifact_id}/release", {})
     page.clock.fast_forward(12_001)
-    expect(release).to_be_disabled()
-    expect(page.locator('[data-mode="batch"]')).to_be_focused()
+    expect(release).to_have_count(0)
+    expect(page.get_by_role("button", name="Copy conversation", exact=True)).to_be_focused()
 
 
 def test_slide_feedback_waits_for_the_initial_slide(page: Page, live_app: RunningApp) -> None:
@@ -134,7 +132,7 @@ def test_feedback_mode_race_preserves_draft_and_requires_explicit_resubmit(
             TypeAdapter(dict[str, object]).validate_python(route.request.post_data_json)
         )
         if len(requests) == 1:
-            _ = live_app.post(mode_path, {"mode": "live"})
+            _ = live_app.post(mode_path, {"mode": "batch"})
         route.continue_()
 
     page.route("**" + route_path, change_mode_before_publish)
@@ -149,7 +147,7 @@ def test_feedback_mode_race_preserves_draft_and_requires_explicit_resubmit(
         expect(page.locator("#" + error_id)).to_contain_text("Feedback mode changed")
         expect(field).to_have_value("A deliberate cross-tab delivery review")
         expect(page.locator("#" + files_id)).to_contain_text("context.txt")
-        assert requests[0]["expected_mode"] == "batch"
+        assert requests[0]["expected_mode"] == "live"
         if kind == "artifact":
             assert not ArtifactStore(live_app.store).feedback(artifact_id, include_pending=True)
         else:

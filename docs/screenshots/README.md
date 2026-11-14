@@ -1,5 +1,7 @@
 # Documentation screenshots
 
+The current [single-send chat in light](chat-single-send-light.png) and [dark](chat-single-send-dark.png) uses compact agent icons, connection dots and Copy conversation. The rendered fictional fixture seeds a review lease through the API; no agent CLI or provider is connected. [Capture provenance](chat-single-send-captures.json) records browser, source and image hashes. Older screenshots may show the retired Live/Batch controls.
+
 The [default-design controls](default-design.png) were reviewed in actual Chromium at 1440 × 844 with two fictional slide design packs and a reference-only collection. The filled star and Default badge identify the saved workspace preference.
 
 The [version menu](app-version-menu.png), [current version](app-version-current.png),
@@ -12,7 +14,7 @@ Native Mac menu compilation and appearance require macOS.
 
 App screenshots use the fictional **Studio Blue** presentation and **Team launch** artifact project. They contain no user files, corporate masters, external fonts or AI-generated app mockups.
 
-The README also reuses four audience-facing slides from the product presentation **Working with agents**, with the user's explicit permission: the [cover](../assets/agents-cover.png), [workflow](../assets/agents-loop.png), [agent context](../assets/agents-context.png) and [Live/Batch](../assets/agents-modes.png). These are static illustrations in the presentation's Pixel Studio styling, distinct from app screenshots. Completed 1600 × 900 captures preserve the original typography, colours and pixel artwork; notes, chats, source documents and design assets are excluded. [Illustration provenance](presentation-illustrations.json) records source slide IDs, revision hashes and image hashes. The canonical presentation remains local and unchanged. GitHub displays the completed frames; these PNGs do not contain the presentation's animations.
+The repository retains four audience-facing slides from the product presentation **Working with agents**, with the user's explicit permission: the [cover](../assets/agents-cover.png), [workflow](../assets/agents-loop.png), [agent context](../assets/agents-context.png) and [Live/Batch](../assets/agents-modes.png). These are static illustrations in the presentation's Pixel Studio styling, distinct from app screenshots. The Live/Batch illustration records the earlier delivery UI and is no longer shown in the README. Completed 1600 × 900 captures preserve the original typography, colours and pixel artwork; notes, chats, source documents and design assets are excluded. [Illustration provenance](presentation-illustrations.json) records source slide IDs, revision hashes and image hashes. The canonical presentation remains local and unchanged. GitHub displays the completed frames; these PNGs do not contain the presentation's animations.
 
 Design reference captures also include the [formatted text preview](design-text-preview.png) and VS Code-style editor in [light](../assets/design-text-editor.png), [dark](design-text-editor-dark.png) and [narrow](design-text-editor-mobile.png) layouts. They use fictional Markdown and actual Edit, Save and Cancel actions.
 

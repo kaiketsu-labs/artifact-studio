@@ -23,15 +23,21 @@ example = "example_auth:create_provider"
 ```python
 from artifact_studio.authentication import AuthenticationError, Principal
 
+
 def create_provider(options):
     return ExampleProvider(options)
 
+
 class ExampleProvider:
     def __init__(self, options):
-        self.verifier = make_verified_token_verifier(options)  # Your library and trusted issuer/keys.
+        self.verifier = make_verified_token_verifier(
+            options
+        )  # Your library and trusted issuer/keys.
 
     async def authenticate(self, headers):
-        claims = await self.verifier.verify(headers)  # Must reject invalid or expired signatures and claims.
+        claims = await self.verifier.verify(
+            headers
+        )  # Must reject invalid or expired signatures and claims.
         if not claims.subject:
             raise AuthenticationError("Missing subject")
         return Principal(subject=claims.subject, email=claims.email, service=claims.service)

@@ -148,7 +148,6 @@ class Capture:
         self.appearance("Light")
         self.page.locator("#chat-resizer").focus()
         self.page.keyboard.press("Enter")
-        self.page.locator("#mode-batch").click()
         self.page.frame_locator("#preview").locator("#review-step").click(
             position={"x": 15, "y": 15}
         )
@@ -157,7 +156,6 @@ class Capture:
         self.save("docs/assets/element-review.png")
         self.page.locator("#feedback-text").fill("")
         self.page.locator("#clear-target").click()
-        self.page.locator("#mode-live").click()
 
     def selection_export(self) -> None:
         """Show the object image action through the actual multi-selection menu."""
@@ -513,8 +511,11 @@ p{font-size:20px;max-width:480px;line-height:1.6}.cards{display:flex;gap:16px;ma
             expect(self.page.get_by_role("heading", name=title, exact=True)).to_be_visible()
         _ = Reviews(self.app.store).bind(
             ReviewHookInput(
-                harness="codex", session_id="documentation-fixture", event="PostToolUse",
-                deck_id=DECK_ID, auto_start=True,
+                harness="codex",
+                session_id="documentation-fixture",
+                event="PostToolUse",
+                deck_id=DECK_ID,
+                auto_start=True,
             )
         )
         self.page.get_by_role("button", name="Menu", exact=True).click()

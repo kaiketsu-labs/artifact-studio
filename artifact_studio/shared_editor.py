@@ -47,6 +47,14 @@ from .models import CreateInput, DeckView, FeedbackWorkflow, SlideSeenInput, Sli
 from .multiplayer_access import AccessDenied, Actor, Role, Scope, Sharing, workspace_editor_path
 from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth, owner_upload_limit
 from .navigation import NavigationSnapshot
+from .offline_delivery import (
+    OfflineCommentInput,
+    OfflineDelivery,
+    OfflineEditInput,
+    OfflineReceiptInput,
+    OfflineSnapshotInput,
+)
+from .offline_identity import cache_scope
 from .project_tree import ProjectTree, TreeChange, TreeView
 from .renderer_health import RendererBusy
 from .sections import sections_hash
@@ -195,6 +203,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     """Build the guest surface without mounting any whole-workspace API."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     snapshot_epoch = secrets.token_hex(16)
+    offline_delivery = OfflineDelivery(hub)
     app.add_middleware(
         MultiplayerAuth, config=config, provider=provider, sharing=hub, shared_shell=True
     )
@@ -260,7 +269,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
         asset = (root / path).resolve()
         if (
             not asset.is_relative_to(root)
-            or asset.suffix.lower() not in ASSET_SUFFIXES
+            or (asset.suffix.lower() not in ASSET_SUFFIXES and path != "offline.html")
             or not asset.is_file()
         ):
             raise AccessDenied
@@ -278,6 +287,11 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             "collaboration_url": "/together",
             "capabilities": {"local_admin": False, "automatic_feedback": False},
             "scoped_editor": True,
+            "cache_scope": cache_scope(
+                config,
+                principal if isinstance(principal, Principal) else None,
+                workspace_of(request),
+            ),
             "workspace_owner": hub.owner(actor_of(request), workspace_of(request)),
         }
 
@@ -484,6 +498,71 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 principal.email if role == "edit" and isinstance(principal, Principal) else None
             ):
                 yield store
+
+    def offline_namespace(request: Request) -> str:
+        principal = getattr(request.state, "verified_guest", None)
+        namespace = cache_scope(
+            config, principal if isinstance(principal, Principal) else None, workspace_of(request)
+        )
+        if namespace is None:
+            raise AccessDenied
+        return namespace
+
+    @app.post("/api/decks/{deck_id}/offline-snapshot")
+    def offline_snapshot(
+        request: Request, deck_id: str, body: OfflineSnapshotInput
+    ) -> dict[str, object]:
+        namespace = offline_namespace(request)
+        return {
+            "cache_scope": namespace,
+            **offline_delivery.issue_snapshot(
+                actor_of(request),
+                artifact_scope(request, deck_id),
+                namespace,
+                body.slides,
+            ),
+        }
+
+    @app.post("/api/decks/{deck_id}/offline-receipts")
+    def offline_receipt(
+        request: Request, deck_id: str, body: OfflineReceiptInput
+    ) -> dict[str, str]:
+        receipt = offline_delivery.issue(
+            actor_of(request),
+            artifact_scope(request, deck_id),
+            offline_namespace(request),
+            body.slide_id,
+            body.content_hash,
+            body.expected_hash,
+            body.channel,
+        )
+        return {"receipt": receipt}
+
+    @app.post("/api/decks/{deck_id}/offline-edits")
+    def offline_edit(request: Request, deck_id: str, body: OfflineEditInput) -> dict[str, object]:
+        return offline_delivery.edit(
+            actor_of(request),
+            artifact_scope(request, deck_id),
+            offline_namespace(request),
+            body.receipt,
+            body.request_id,
+            body.html,
+            body.overwrite_expected,
+        )
+
+    @app.post("/api/decks/{deck_id}/offline-comments")
+    def offline_comment(
+        request: Request, deck_id: str, body: OfflineCommentInput
+    ) -> dict[str, object]:
+        return offline_delivery.comment(
+            actor_of(request),
+            artifact_scope(request, deck_id),
+            offline_namespace(request),
+            body.receipt,
+            body.request_id,
+            body.message,
+            body.channel,
+        )
 
     @app.get("/api/decks/{deck_id}")
     def deck(request: Request, deck_id: str) -> Response:

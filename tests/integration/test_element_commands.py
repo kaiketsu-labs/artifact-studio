@@ -77,11 +77,8 @@ def test_slide_menu_and_native_text_undo(page: Page, live_app: RunningApp, artif
     assert len(live_app.store.read(DECK_ID).slides) == 2
 
 
-def test_slide_delete_menu_send_preserves_batch_and_original_target(
-    page: Page, live_app: RunningApp
-) -> None:
+def test_slide_delete_menu_send_preserves_original_target(page: Page, live_app: RunningApp) -> None:
     open_editor(page, live_app)
-    page.get_by_role("button", name="Batch", exact=True).click()
     heading = page.frame_locator("#preview").get_by_role("heading", level=1)
     heading.click()
     heading.press("Delete")
@@ -94,8 +91,60 @@ def test_slide_delete_menu_send_preserves_batch_and_original_target(
     assert comments[0].edit_intent.action == "delete"
     target = comments[0].target
     assert isinstance(target, ElementTarget) and "visibility" not in target.html
-    assert not comments[0].released
-    assert live_app.store.feedback_feed(DECK_ID).events == []
+    assert comments[0].released
+    assert [event.event_id for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        comments[0].event_id
+    ]
+
+
+@pytest.mark.parametrize("delay", ["before", "after"])
+def test_slide_delete_waits_for_normal_delivery_mode(
+    page: Page, live_app: RunningApp, delay: str
+) -> None:
+    """A delayed legacy mode change must finish before a delete edit is delivered."""
+    _ = live_app.store.set_mode(DECK_ID, "batch")
+    page.add_init_script(
+        """(() => {
+          const original = window.fetch;
+          const held = new Promise(resolve => { window.releaseFixtureMode = resolve; });
+          window.fetch = async (...args) => {
+            if (!String(args[0]).includes('/feedback-mode')) return original(...args);
+            if ('DELAY_POINT' === 'before') await held;
+            const response = await original(...args);
+            if ('DELAY_POINT' === 'after') await held;
+            return response;
+          };
+        })()""".replace("DELAY_POINT", delay)
+    )
+    open_editor(page, live_app)
+    feedback_requests: list[str] = []
+    page.on(
+        "request",
+        lambda request: (
+            feedback_requests.append(request.url)
+            if request.method == "POST" and request.url.endswith("/feedback")
+            else None
+        ),
+    )
+    heading = page.frame_locator("#preview").get_by_role("heading", level=1)
+    heading.click()
+    heading.press("Delete")
+    expect(heading).to_be_hidden()
+    page.locator("#element-properties").click(button="right", position={"x": 3, "y": 3})
+    page.get_by_role("menuitem", name="Send edit", exact=True).click()
+    assert feedback_requests == []
+    assert live_app.store.comments(DECK_ID) == []
+    page.evaluate("window.releaseFixtureMode()")
+    expect(page.locator("#feedback-list")).to_contain_text("Delete this element.")
+    comments = live_app.store.comments(DECK_ID)
+    assert len(comments) == 1 and comments[0].edit_intent is not None
+    assert comments[0].edit_intent.action == "delete"
+    target = comments[0].target
+    assert isinstance(target, ElementTarget) and "visibility" not in target.html
+    assert comments[0].released
+    assert [event.event_id for event in live_app.store.feedback_feed(DECK_ID).events] == [
+        comments[0].event_id
+    ]
 
 
 def open_artifact(
@@ -139,9 +188,11 @@ def test_artifact_delete_undo_redo_and_explicit_send(
     expect(page.locator("#hub-thread")).to_contain_text("Delete this element.")
     feedback = store.feedback(artifact_id, include_pending=True)
     assert len(feedback) == 1 and feedback[0].edit_intent is not None
-    assert feedback[0].edit_intent.action == "delete" and not feedback[0].released
+    assert feedback[0].edit_intent.action == "delete" and feedback[0].released
     assert source.read_text() == original
-    assert store.feedback_feed(artifact_id).events == []
+    assert [event.event_id for event in store.feedback_feed(artifact_id).events] == [
+        feedback[0].event_id
+    ]
 
 
 def test_artifact_nudge_history_and_forged_send_are_local(
@@ -343,6 +394,7 @@ def test_artifact_movement_request_has_exact_canvas_context(
 ) -> None:
     store, artifact_id, source = open_artifact(page, live_app, tmp_path)
     original = source.read_text()
+    original_hash = store.get_artifact(artifact_id).content_hash
     heading = page.frame_locator("#hub-html-preview").locator("#title")
     heading.click()
     expect(page.locator("#hub-element-properties")).to_be_visible()
@@ -366,5 +418,8 @@ def test_artifact_movement_request_has_exact_canvas_context(
     assert float(values["y"]) * float(values["canvas_height"]) == pytest.approx(
         position["y"], abs=0.02
     )
-    assert not feedback[0].released
+    assert feedback[0].released and feedback[0].content_hash == original_hash
+    feed = store.feedback_feed(artifact_id)
+    assert [event.event_id for event in feed.events] == [feedback[0].event_id]
+    assert feed.events[0].edit_intent is not None and feed.events[0].edit_intent.action == "move"
     assert source.read_text() == original

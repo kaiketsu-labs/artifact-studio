@@ -569,13 +569,51 @@ def test_shared_chat_aligns_senders_and_marks_new_days(tmp_path: Path, presentat
                 incoming = thread.locator("article").filter(has_text="Fictional owner message 0")
                 expect(incoming).to_be_visible()
                 expect(incoming).to_contain_text("owner@example.test")
-                expect(incoming).to_have_css("align-self", "flex-start")
                 expect(day_markers).to_have_count(1)
                 composer = page.locator("#feedback-text" if presentation else "#hub-feedback-text")
                 composer.fill("Fictional guest reply")
                 composer.press("Enter")
                 outgoing = thread.locator("article").filter(has_text="Fictional guest reply")
-                expect(outgoing).to_have_css("align-self", "flex-end")
+                # Reserve scrollbar space even on systems with overlay scrollbars.
+                page.add_style_tag(
+                    content="""
+                    #feedback-list, #hub-thread {
+                        overflow-y: scroll !important; scrollbar-gutter: stable !important;
+                    }
+                    #feedback-list::-webkit-scrollbar, #hub-thread::-webkit-scrollbar {
+                        width: 12px;
+                    }
+                """
+                )
+                expect(outgoing).to_be_visible()
+                # Check the rendered positions in the thread, independent of how the
+                # browser serializes flex alignment keywords.
+                positions = thread.evaluate(
+                    """thread => {
+                      const incoming = [...thread.querySelectorAll('article')].find(
+                        row => row.textContent.includes('Fictional owner message 0'));
+                      const outgoing = [...thread.querySelectorAll('article')].find(
+                        row => row.textContent.includes('Fictional guest reply'));
+                      const bounds = element => {
+                        const r = element.getBoundingClientRect();
+                        return {left:r.left, right:r.right, top:r.top, bottom:r.bottom};
+                      };
+                      const box = thread.getBoundingClientRect();
+                      const style = getComputedStyle(thread);
+                      const left = box.left + thread.clientLeft;
+                      const content = {
+                        left:left + parseFloat(style.paddingLeft),
+                        right:left + thread.clientWidth - parseFloat(style.paddingRight)
+                      };
+                      return {thread:content, incoming:bounds(incoming),
+                              outgoing:bounds(outgoing)};
+                    }"""
+                )
+                assert 0 <= positions["incoming"]["left"] - positions["thread"]["left"] <= 6
+                assert 0 <= positions["thread"]["right"] - positions["outgoing"]["right"] <= 6
+                assert positions["incoming"]["right"] < positions["thread"]["right"] - 20
+                assert positions["outgoing"]["left"] > positions["thread"]["left"] + 20
+                assert positions["incoming"]["bottom"] <= positions["outgoing"]["top"]
                 expect(day_markers).to_have_count(2)
                 assert day_markers.nth(0).text_content() != day_markers.nth(1).text_content()
                 assert page.locator("html").get_attribute("data-theme") == "dark"
@@ -679,8 +717,8 @@ def test_full_editor_round_trip_and_scoped_agent_entry(tmp_path: Path) -> None:
                 )
                 expect(page.get_by_role("button", name="Collaborate")).to_have_count(0)
                 expect(page.get_by_role("button", name="Local review")).to_have_count(0)
-                expect(page.locator("#mode-live")).to_be_hidden()
-                expect(page.locator("#mode-batch")).to_be_hidden()
+                expect(page.locator("#mode-live")).to_have_count(0)
+                expect(page.locator("#mode-batch")).to_have_count(0)
                 expect(page).to_have_url(re.compile(r"[?&]deck=" + app.deck_id + "#next"))
                 expect(page.locator("#slide-title")).to_have_text("Next")
                 page.get_by_role("button", name="Menu", exact=True).click()
@@ -743,9 +781,13 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                     if panel_toggle.get_attribute("aria-expanded") == "false":
                         panel_toggle.click()
                     expect(editor.get_by_role("tab", name="Shared", exact=True)).to_be_visible()
-                expect(page.get_by_role("button", name="Send queued comments (1)")).to_be_visible()
+                expect(
+                    page.get_by_role("button", name="Send saved messages for this presentation (1)")
+                ).to_be_visible()
                 expect(guest.locator("#feedback-list")).not_to_contain_text("Previously queued")
-                page.get_by_role("button", name="Send queued comments (1)").click()
+                page.get_by_role(
+                    "button", name="Send saved messages for this presentation (1)"
+                ).click()
                 expect(guest.locator("#feedback-list")).to_contain_text("Previously queued")
 
                 composer = page.locator("#feedback-text")
@@ -763,9 +805,13 @@ def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
                 expect(guest.locator("#feedback-list")).not_to_contain_text(
                     "Earlier private review"
                 )
-                page.get_by_role("button", name="Send earlier review comments (1)").click()
+                page.get_by_role(
+                    "button", name="Send earlier saved messages for this presentation (1)"
+                ).click()
                 expect(
-                    page.get_by_role("button", name="Send earlier review comments (1)")
+                    page.get_by_role(
+                        "button", name="Send earlier saved messages for this presentation (1)"
+                    )
                 ).to_have_count(0)
                 composer.fill("Request in Agent")
                 composer.press("Enter")
@@ -1811,3 +1857,134 @@ def test_restored_grants_remove_menu_action_after_success(tmp_path: Path) -> Non
                     assert alice.get("/api/workspaces/default/catalog").status_code == 200
         finally:
             browser.close()
+
+
+def test_artifact_channel_switch_pending_copy_cannot_export_previous_private_thread(
+    tmp_path: Path,
+) -> None:
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as pw,
+    ):
+        chat = "/api/workspaces/default/artifacts/" + app.artifact_id + "/chat"
+        for channel, message in [
+            ("shared", "Fictional artifact shared message"),
+            ("private", "Fictional artifact private sentinel"),
+        ]:
+            response = owner.post(
+                chat,
+                json={
+                    "channel": channel,
+                    "message": message,
+                    "request_id": "fictional-artifact-" + channel,
+                },
+            )
+            response.raise_for_status()
+        browser = pw.chromium.launch()
+        with routed_multiplayer_context(browser, app, "owner") as context:
+            page = context.new_page()
+            context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+            page.add_init_script(
+                """(() => {
+                  const original = fetch;
+                  window.holdShared = false; window.sharedHeld = false;
+                  const held = new Promise(resolve => window.releaseShared = resolve);
+                  window.fetch = async (...args) => {
+                    if (window.holdShared && String(args[0]).includes('/chat') &&
+                        String(args[0]).includes('channel=shared')) {
+                      window.sharedHeld = true; await held;
+                    }
+                    return original(...args);
+                  };
+                })();"""
+            )
+            page.goto(WORKSPACE + "/?artifact=" + app.artifact_id)
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional artifact shared message")
+            page.locator("#hub-shared-channel").select_option("private")
+            expect(page.locator("#hub-thread")).to_contain_text(
+                "Fictional artifact private sentinel"
+            )
+            page.evaluate(
+                "async()=>{await navigator.clipboard.writeText('Fictional unchanged clipboard');"
+                "window.holdShared=true;}"
+            )
+            page.locator("#hub-shared-channel").select_option("shared")
+            page.wait_for_function("() => window.sharedHeld")
+            copy = page.locator('[data-action="copy-conversation"]')
+            if copy.is_enabled():
+                copy.click()
+            copied = page.evaluate("navigator.clipboard.readText()")
+            assert "Fictional artifact private sentinel" not in copied, (
+                "Copy under selected Shared exported previous private thread"
+            )
+            page.evaluate("window.releaseShared()")
+        browser.close()
+
+
+def test_delayed_private_refresh_cannot_replace_shared_copy(tmp_path: Path) -> None:
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        sync_playwright() as pw,
+    ):
+        chat = "/api/workspaces/default/artifacts/" + app.artifact_id + "/chat"
+        for channel, message in [
+            ("shared", "Fictional current shared refresh"),
+            ("private", "Fictional stale private refresh"),
+        ]:
+            response = owner.post(
+                chat,
+                json={
+                    "channel": channel,
+                    "message": message,
+                    "request_id": "fictional-refresh-" + channel,
+                },
+            )
+            response.raise_for_status()
+        browser = pw.chromium.launch()
+        with routed_multiplayer_context(browser, app, "owner") as context:
+            page = context.new_page()
+            context.grant_permissions(["clipboard-read", "clipboard-write"], origin=WORKSPACE)
+            page.add_init_script(
+                """(() => {
+                  const original = fetch;
+                  window.holdPrivate = false; window.privateHeld = false;
+                  window.privateReturned = false;
+                  const held = new Promise(resolve => window.releasePrivate = resolve);
+                  window.fetch = async (...args) => {
+                    if (window.holdPrivate && !window.privateHeld &&
+                        String(args[0]).includes('/chat') &&
+                        String(args[0]).includes('channel=private')) {
+                      const response = await original(...args);
+                      window.privateHeld = true; await held;
+                      window.privateReturned = true; return response;
+                    }
+                    return original(...args);
+                  };
+                })();"""
+            )
+            page.goto(WORKSPACE + "/?artifact=" + app.artifact_id)
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional current shared refresh")
+            page.locator("#hub-shared-channel").select_option("private")
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional stale private refresh")
+            page.evaluate("window.holdPrivate=true")
+            page.wait_for_function("() => window.privateHeld", timeout=15000)
+            page.locator("#hub-shared-channel").select_option("shared")
+            expect(page.locator("#hub-thread")).to_contain_text("Fictional current shared refresh")
+            page.evaluate("window.releasePrivate()")
+            page.wait_for_function("() => window.privateReturned")
+            page.evaluate(
+                "() => new Promise(resolve => "
+                "requestAnimationFrame(() => requestAnimationFrame(resolve)))"
+            )
+            expect(page.locator("#hub-thread")).not_to_contain_text(
+                "Fictional stale private refresh"
+            )
+            page.locator('[data-action="copy-conversation"]').click()
+            copied = page.evaluate("navigator.clipboard.readText()")
+            assert (
+                "Fictional current shared refresh" in copied
+                and "Fictional stale private refresh" not in copied
+            )
+        browser.close()

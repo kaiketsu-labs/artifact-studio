@@ -91,6 +91,74 @@ docker compose -f compose.yaml -f compose.hosted.yaml logs --tail=100 studio
 
 The override mounts that file read-only, retains the base Compose sandbox and loopback-only port, disables proxy-header trust, and disables application access logs. Run `cloudflared` on the host and route both public hostnames to `http://127.0.0.1:8790`. Preserve each incoming Host header: do not set `originRequest.httpHostHeader`. The browser hostname is protected by Access; the preview hostname is not. Keep the browser Access cookie host-only. The local container health check still uses loopback.
 
+### Hosted project GitHub sync
+
+Use the [unified collaboration deployment](MULTIPLAYER.md#use-the-regular-studio-interface)
+for project sync. Give the service's GitHub CLI identity read and write access
+to the approved private repositories. Use the container's GitHub CLI config directory
+(`/data/config/gh`) or inject `GH_TOKEN` from your deployment secret store.
+Keep credentials out of the binding file. The configured branch must exist and
+accept normal direct-child pushes from this identity.
+
+Provide an operator-owned JSON binding file, readable by container UID 1000 and
+outside the collection. Each binding pairs one workspace and project with
+specific artifact or existing presentation IDs and dedicated repository folders.
+
+```json
+[
+  {
+    "workspace": "default",
+    "project": "fictional-project",
+    "repository": "fictional-org/private-sources",
+    "branch": "main",
+    "artifacts": {"fictional-page": "source/fictional-page"}
+  }
+]
+```
+
+```sh
+export ARTIFACT_STUDIO_PROJECT_GITHUB_SYNC_FILE=/absolute/path/to/project-github-sync.json
+docker compose -f compose.yaml -f compose.hosted.yaml -f compose.shared.yaml \
+  -f compose.project-github-sync.yaml up -d --build --wait
+```
+
+Open the configured project's options menu and choose **GitHub sync**. The dialog
+shows the repository, branch and paired source folders. Choose **Sync now** to
+check once, or enable **Automatically sync both ways** to check about once a
+minute. Automatic sync is off until the workspace owner enables it.
+
+Sync compares each registered source bundle against the last version shared by
+Studio and GitHub. One-sided changes and edits to different files transfer
+automatically. If both sides change the same file differently, the dialog lists
+the differing files and the saved revisions.
+Choose **Keep Studio** or **Keep GitHub** and confirm the replacement. The
+previous Studio revision or GitHub commit remains in its respective history.
+If either bundle changes again before confirmation, run **Sync now** to review
+the updated conflict. A GitHub bundle with a missing entrypoint cannot replace
+Studio source. A missing or invalid paired source is flagged in the dialog. Other
+valid sources in that project still sync.
+
+A conflict choice applies to the whole configured source. Existing presentations
+use a portable folder containing `presentation.json`, individual `slides/*.json`,
+`theme.css`, and `assets/`. Slide notes, source-panel data, agent context, review
+chat, local revision history, and presentation context remain local. Slide HTML,
+interactive content, theme, and every included asset are shared; inspect them
+before enabling sync. Private keys, hidden files, and unsupported assets are
+rejected. Studio journals incoming presentation changes in its private database
+and completes interrupted updates before another presentation edit. The private
+review database must have room for both the previous and incoming presentation
+files while an update is journaled; SQLite may retain allocated disk space after
+completion.
+Grant the GitHub CLI identity access only to the configured private repositories.
+Git stages the branch on a dedicated Linux tmpfs capped at 512 MiB and 32,768
+inodes. The app checks those limits and permits one sync at a time per mount.
+During a push, workspace sharing changes and other guarded requests wait until
+the push completes or times out (up to 60 seconds per Git command).
+Sync requires the configured mount. Large branches can exceed the staging limit
+even if the paired artifact is small. Use a smaller private source branch in
+that case. Allow for staging memory and rendering memory in the container budget.
+The mount is cleared when the container stops.
+
 Keep **local mode** on a private listener too: it has no login. Docker listens on
 all interfaces inside its container so port forwarding works; the Compose host
 binding is deliberately `127.0.0.1`. Do not change the published binding to `0.0.0.0`

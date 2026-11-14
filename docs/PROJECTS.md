@@ -4,7 +4,7 @@ Open **Menu → Presentation files**. Your existing presentations already persis
 
 | Format | Purpose | Included |
 | --- | --- | --- |
-| `.artifact-studio.zip` | Continue editing later or elsewhere | Current slides and order, hidden flags, assets, themes, brief attachments, context documents, speaker notes, chat history and replies, approvals, unread markers, revision history, Live/Batch delivery preference, unreleased Batch comments and unfinished browser/presenter note drafts. |
+| `.artifact-studio.zip` | Continue editing later or elsewhere | Current slides and order, hidden flags, assets, themes, brief attachments, context documents, speaker notes, chat history and replies, approvals, unread markers, revision history, legacy delivery settings, previously saved unsent comments and unfinished browser/presenter note drafts. |
 | `.html` | Share or present an audience version offline | All slides, local images and fonts, CSS animations and interactive reveal steps. Normal navigation skips hidden slides; they remain available through See all slides. No private notes, chats or agent explanations. |
 | PDF | Distribute a static audience version | Every slide, including hidden slides, with reveal steps visible. No private notes or chats. |
 
@@ -18,7 +18,7 @@ Recoverable slide deletions and completed structural actions travel with the pro
 
 The bundle stores copies of workspace instructions and learned preferences under `project-context/` in the restored folder. These are reference snapshots. The destination workspace's `INSTRUCTIONS.md` remains primary and is not replaced by imported files. A shared design pack is not registered or replaced when a presentation is opened; its own copied styling and assets are sufficient to edit and present it.
 
-Live agent leases and external harness chats are not portable. Connect your agent normally, copy the selected project's agent prompt, and have it read `get_working_context`, `get_presentation` and `read_feedback`. Saved Batch comments remain withheld until you release them.
+Live agent leases and external harness chats are not portable. Connect your agent normally, copy the selected project's agent prompt, and have it read `get_working_context`, `get_presentation` and `read_feedback`. Previously saved unsent comments remain withheld until you choose **Send saved messages**.
 
 The versioned archive contains `project.json` and a hashed `files/` inventory. Limits are **100 MB compressed**, **300 MB expanded** and **3000 files**. Assets must be actual files inside the project; copy symbolic-link targets into the project before saving. Environment/cache folders, hidden root configuration and credential-named sidecars outside asset trees are excluded. Complete asset and brief-attachment trees, including hidden files used by review hashes, are retained.
 

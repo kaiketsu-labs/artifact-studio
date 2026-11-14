@@ -17,7 +17,7 @@ give each agent its own scoped connection.
   <a href="#how-it-works">How it works</a> ·
   <a href="#install-on-mac">Install on Mac</a> ·
   <a href="#connect-your-agent">Connect an agent</a> ·
-  <a href="#live-or-batch">Live &amp; Batch</a> ·
+  <a href="#chat-with-your-agent">Chat with your agent</a> ·
   <a href="docs/GETTING-STARTED.md">Full guide</a> ·
   <a href="docs/KEYBOARD-CONTROLS.md">Keyboard shortcuts</a>
 </p>
@@ -235,17 +235,15 @@ You can also ask for headline, supporting-text or graphic options. **Review alte
 
 [Text options](docs/screenshots/element-alternatives-text.png) · [Graphic options](docs/screenshots/element-alternatives-graphic.png) · [Comparison](docs/screenshots/element-alternatives-compare.png) · [Dark appearance](docs/screenshots/element-alternatives-dark.png) · [Touch layout](docs/screenshots/element-alternatives-mobile.png)
 
-## Live or Batch
+## Chat with your agent
 
-![Live releases each submitted comment immediately; Batch collects comments until you choose Send batch.](docs/assets/agents-modes.png)
+**Send** delivers your new message and attachments while retaining the original artifact version and selected targets. **Copy conversation** copies the current conversation's visible text, title, target labels and attachment names for use in another chat; it does not send anything. Earlier saved messages stay private until you explicitly choose **Send saved messages**.
 
-**Live** releases each submitted comment immediately. **Batch** keeps comments and attachments private until you choose **Send batch**. Both retain the original artifact version and selected targets.
+Loaded **Codex/Claude Code hooks** automatically continue the connected agent for every artifact type, including presentations, HTML, Markdown and images. The agent status and tooltip show the connection; **End review** stops listening. Keep the agent chat and local server open. Plain MCP cannot start a closed chat.
 
-Loaded **Codex/Claude Code hooks** automatically continue the connected agent for every artifact type, including presentations, HTML, Markdown and images. The Live dot and tooltip show the connection; End review stops listening. Keep the agent chat and local server open. Plain MCP cannot start a closed chat.
+For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), and have the agent select or work on the presentation. Copying a prompt alone does not configure or activate the host.
 
-For a deck, open the editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt**, follow the [hook setup](docs/LIVE-REVIEW.md), the agent then connects automatically when it selects or works on the presentation. Copying a prompt alone does not configure or activate the host.
-
-For other artifacts, the same hooks attach when the agent reads `get_working_context(artifact_id=...)` or works on that artifact. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` to resume after End review. Batch comments remain private until Send batch.
+For other artifacts, the same hooks attach when the agent reads `get_working_context(artifact_id=...)` or works on that artifact. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` to resume after End review.
 
 Drag from empty canvas space to select several objects; hold **Shift, Cmd or Ctrl** to add more. Right-click for **Save as image…** (transparent PNG), or **Save original image…** on a picture. Exports include the displayed local edit preview without sending feedback or saving edits.
 
@@ -295,6 +293,8 @@ The app's **Menu** and [Mac menu-bar app](docs/MACOS.md) put active agent review
 The **storage icon** in the library and editor shows the working folder and actual GitHub delivery status. **Back up all artifacts** enables one-way current-source backup to a selected private repository; it excludes review chats, approvals and retained revisions. The Mac menu’s **GitHub Backup** submenu exposes that setting, last delivery, Sync Now/Retry and backup settings.
 
 In **Storage and backup**, **Save workspace** always downloads a full archive with projects, folders, sources, saved review chats, approvals and retained versions. Expand **Full workspace backups** beside a private repository, choose **Enable full backups** and **Save settings** to enable scheduled checks. **Check now** runs one on demand. Only changed workspaces create a new archive; an unchanged check preserves **Last backup** and advances **Next check**. Backups are off by default and run while Studio is open. **Restore workspace** previews a local archive, a full GitHub backup or a current-source snapshot, then restores into a new sibling folder. Configure the recovered collection and database to open it later; reconnect agents and repositories separately. [Backup settings](docs/REPOSITORY-SYNC.md), [recovery guide](docs/WORKSPACE-RECOVERY.md).
+
+Hosted Cloudflare deployments can opt into an experimental offline source editor for explicitly saved presentations. Its preview and editing scope have important limits; see [offline presentations](docs/OFFLINE.md).
 
 The **history icon** above a slide or artifact opens a timeline with small previews of saved content. Click a thumbnail for the larger preview; use ↑/↓ to browse. Thumbnails load as you scroll and use a bounded local cache. **Content changes** filters consecutive identical content by default; **All saves** includes internal-title/source-only saves and repeated restores. Filtering deletes no saved versions. Rapid-save groups initially show only their latest version; expand an earlier-versions row to browse the rest. Source and animation changes may look identical in a still preview. **Restore version** creates a new save while preserving current speaker notes and slide placement. Artifact revisions retain their local dependencies; historical slides reuse current shared theme/assets, so their appearance may differ from the original. Current-only GitHub backups cannot recover missing earlier revisions.
 

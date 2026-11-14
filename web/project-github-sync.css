@@ -1,0 +1,16 @@
+.project-github-sync [data-project] { margin: 0; font-weight: 650; overflow-wrap: anywhere; }
+.project-github-sync [data-destination] { margin: 4px 0 12px; color: var(--share-muted); overflow-wrap: anywhere; }
+.project-github-sync summary { cursor: pointer; }
+.project-github-sync ul { padding-inline-start: 20px; overflow-wrap: anywhere; }
+.project-sync-controls { display: grid; gap: 12px; margin-top: 18px; }
+.project-sync-controls label { display: flex; align-items: center; gap: 8px; }
+.project-sync-controls input { width: 16px; height: 16px; accent-color: var(--share-blue); }
+.project-github-sync article { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--share-line); overflow-wrap: anywhere; }
+.project-github-sync article h3 { margin: 0; font-size: 14px; }
+.project-github-sync article p { margin: 4px 0; }
+.project-github-sync a { color: var(--share-blue); }
+.project-sync-choices, .project-sync-confirmation { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.project-sync-confirmation p { flex-basis: 100%; }
+.project-sync-choices button, .project-sync-confirmation button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--share-line); border-radius: 8px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.project-sync-choices button:hover:not(:disabled), .project-sync-confirmation button:hover:not(:disabled) { background: var(--share-soft); }
+.project-sync-choices button:disabled, .project-sync-confirmation button:disabled { opacity: .5; cursor: default; }

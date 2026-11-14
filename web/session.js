@@ -19,6 +19,7 @@
   function observe(response){
     const loginPage=response.redirected && (response.headers?.get?.('content-type')||'').toLowerCase().includes('text/html');
     if(response.status===401||loginPage){
+      root.OfflineClient?.blockIdentity();
       pending=null;
       root.artifactStudioSession=null;
       if(!expired){expired=true;root.dispatchEvent(new Event('artifact-session-expired'));}

@@ -96,3 +96,12 @@
 .mention-menu[hidden]{display:none}.mention-menu button{display:block;width:100%;padding:8px;text-align:left;border:0;background:transparent;color:inherit}.mention-menu button[aria-selected="true"],.mention-menu button:hover{background:var(--hover,#e8effb)}
 .comment.mentioned{outline:2px solid var(--blue,#426ca8);outline-offset:2px}
 #unread-mentions{font-size:12px;border-radius:999px}
+.copy-conversation { margin-left:auto; padding:5px; border:0; background:transparent; color:inherit; box-shadow:none; }
+.copy-conversation .ui-icon, .copy-conversation .icon { width:16px; height:16px; }
+
+.chat-agent-status { position:relative; display:inline-flex; align-items:center; flex:none; color:var(--muted,#64748b); }
+.chat-agent-status .ui-icon { width:16px; height:16px; }
+.chat-agent-dot { position:absolute; right:-2px; bottom:-1px; width:6px; height:6px; border:1px solid currentColor; border-radius:50%; background:var(--surface,#fff); }
+.chat-agent-dot.is-connected { background:var(--green,#16834a); border-color:var(--green,#16834a); }
+.chat-agent-status:focus-visible { outline:2px solid var(--focus,#4678ed); outline-offset:3px; border-radius:2px; }
+.chat-agent-status:focus-visible::after { pointer-events:none; content:attr(title); position:absolute; z-index:10; top:calc(100% + 8px); right:0; width:max-content; max-width:240px; padding:6px 8px; border:1px solid var(--line,#d8deea); border-radius:6px; background:var(--surface,#fff); color:var(--ink,#18243a); font-size:11px; line-height:1.4; box-shadow:0 3px 12px #0002; }

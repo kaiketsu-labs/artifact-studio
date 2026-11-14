@@ -1,0 +1,9 @@
+# Opt-in only. Use after compose.yaml and compose.hosted.yaml.
+services:
+  studio:
+    environment:
+      ARTIFACT_STUDIO_PROJECT_GITHUB_SYNC: /run/artifact-studio/project-github-sync.json
+    volumes:
+      - ${ARTIFACT_STUDIO_PROJECT_GITHUB_SYNC_FILE:?Set the path to the private project bindings}:/run/artifact-studio/project-github-sync.json:ro
+    tmpfs:
+      - /run/artifact-studio-project-sync:rw,noexec,nosuid,nodev,size=512m,nr_inodes=32768,mode=0700,uid=1000,gid=1000

@@ -41,7 +41,6 @@ def open_voice_artifact(page: Page, live_app: RunningApp, kind: str = "html") ->
             ],
         },
     )
-    _ = live_app.post(f"/api/artifacts/{item['id']}/mode", {"mode": "batch"})
     page.goto(live_app.url + "/?artifact=" + str(item["id"]), wait_until="networkidle")
     expect(page.locator("#hub-feedback-text")).to_be_visible()
     page.get_by_role("button", name="Select", exact=True).click()
@@ -59,7 +58,7 @@ def selected_nodes(page: Page, kind: str):
 
 
 @pytest.mark.parametrize("kind", ["html", "markdown"])
-def test_hub_dictation_pins_late_finals_groups_and_batch_delivery(
+def test_hub_dictation_pins_late_finals_groups_and_delivery(
     page: Page, live_app: RunningApp, kind: str
 ) -> None:
     """Selection changes create editable, versioned voice drafts without automatic sends."""
@@ -100,8 +99,6 @@ def test_hub_dictation_pins_late_finals_groups_and_batch_delivery(
     page.locator("#hub-send").click()
     expect(drafts).to_have_count(0)
     store = ArtifactStore(live_app.store)
-    assert store.feedback_feed(artifact_id).events == []
-    page.get_by_role("button", name="Send batch", exact=False).click()
     expect(page.locator(".hub-message-state")).to_have_count(0)
     events = store.feedback_feed(artifact_id).events
     assert [event.message for event in events] == [
@@ -291,10 +288,10 @@ def test_hub_cancel_recording_keeps_prior_voice_and_typed_drafts(
     assert live_app.get(f"/api/artifacts/{artifact_id}")["feedback"] == []
 
 
-def test_hub_recording_send_drains_final_words_before_adding_batch(
+def test_hub_recording_send_drains_final_words_before_delivery(
     page: Page, live_app: RunningApp, artifacts: Path
 ) -> None:
-    """The arrow is an explicit send; it waits for the final result and respects Batch privacy."""
+    """The arrow is an explicit send and waits for the final speech result."""
     install_voice(page)
     artifact_id = open_voice_artifact(page, live_app, "markdown")
     heading, _ = selected_nodes(page, "markdown")
@@ -318,7 +315,7 @@ def test_hub_recording_send_drains_final_words_before_adding_batch(
         control["x"] for control in controls if control
     )
     _ = page.screenshot(path=str(artifacts / "hub-voice-recording.png"), full_page=True)
-    page.get_by_role("button", name="Add dictated feedback to batch", exact=True).click()
+    page.get_by_role("button", name="Send dictated feedback", exact=True).click()
     assert live_app.get(f"/api/artifacts/{artifact_id}")["feedback"] == []
     voice_result(page, "with the final words", session=0)
     voice_end(page, session=0)
@@ -331,8 +328,8 @@ def test_hub_recording_send_drains_final_words_before_adding_batch(
         "Spoken feedback with the final words",
         "Typed feedback alongside",
     ]
-    assert all(not message.released for message in messages)
-    assert store.feedback_feed(artifact_id).events == []
+    assert all(message.released for message in messages)
+    assert len(store.feedback_feed(artifact_id).events) == 2
 
 
 @pytest.mark.parametrize("ending", ["cancel", "error", "timeout", "unfinished"])
@@ -372,7 +369,10 @@ def test_hub_interrupted_recording_send_keeps_drafts_unsent(
         *expected,
         "Typed draft stays",
     ]
-    assert store.feedback_feed(artifact_id).events == []
+    assert [item.message for item in store.feedback_feed(artifact_id).events] == [
+        *expected,
+        "Typed draft stays",
+    ]
 
 
 def open_voice_property(page: Page, live_app: RunningApp) -> str:

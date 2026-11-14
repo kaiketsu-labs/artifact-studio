@@ -1,6 +1,7 @@
 """Keep visible control names and their supporting descriptions available to assistive tools."""
 
 import os
+import re
 from typing import Literal
 
 import pytest
@@ -43,21 +44,21 @@ def test_design_cards_keep_names_concise_and_expose_supporting_context(
     expect(page.get_by_role("heading", name=reference.name, exact=True)).to_be_visible()
 
 
-def test_live_mode_name_tracks_visible_availability_and_keyboard_activation(
+def test_agent_availability_and_copy_have_accessible_names(
     page: Page, live_app: RunningApp
 ) -> None:
-    """Expose each real lease state with the same words people can see on the control."""
+    """Expose the real lease status and the copy control without a delivery switch."""
     open_editor(page, live_app)
-    live = page.get_by_role("button", name="Live Unavailable", exact=True)
-    expect(live).to_be_visible()
+    status = page.get_by_role("status", name=re.compile("^Agent connection status"))
+    expect(status).to_have_text("Agent unavailable")
     live_app.store.mark_agent_check(DECK_ID, wait_seconds=120)
     _ = page.reload(wait_until="networkidle")
-    expect(page.get_by_role("button", name="Live Available", exact=True)).to_be_visible()
+    expect(status).to_have_text("Agent connected")
+    reviews = Reviews(live_app.store)
     harnesses: list[tuple[Literal["codex", "claude-code"], str]] = [
         ("codex", "Codex"),
         ("claude-code", "Claude Code"),
     ]
-    reviews = Reviews(live_app.store)
     for harness, label in harnesses:
         reviews.disconnect(DECK_ID)
         _ = reviews.bind(
@@ -70,13 +71,12 @@ def test_live_mode_name_tracks_visible_availability_and_keyboard_activation(
             )
         )
         _ = page.reload(wait_until="networkidle")
-        live = page.get_by_role("button", name="Live " + label, exact=True)
-        expect(live).to_be_visible()
-        expect(live).to_contain_text(label)
-    page.get_by_role("button", name="Batch", exact=True).focus()
-    page.keyboard.press("Enter")
-    expect(page.locator("#mode-batch")).to_have_attribute("aria-pressed", "true")
-    live.focus()
-    page.keyboard.press("Space")
-    expect(live).to_have_attribute("aria-pressed", "true")
-    assert live_app.store.workflow(DECK_ID).mode == "live"
+        details = f"{label} connected · session accessib"
+        expect(status).to_have_text(details)
+        expect(status).to_have_attribute("title", details)
+        expect(status).to_have_accessible_name("Agent connection status: " + details)
+    copy = page.get_by_role("button", name="Copy conversation", exact=True)
+    expect(copy).to_be_visible()
+    copy.focus()
+    expect(copy).to_be_focused()
+    expect(page.get_by_role("button", name="Batch", exact=True)).to_have_count(0)

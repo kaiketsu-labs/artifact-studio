@@ -48,14 +48,13 @@ def assert_composer_controls_fit(page: Page, selectors: list[str]) -> None:
     expect(page.locator(".discussion-top")).to_be_in_viewport()
 
 
-def test_dictation_pins_late_results_and_multiple_objects_before_batch_release(
+def test_dictation_pins_late_results_and_multiple_objects_before_send(
     page: Page, live_app: RunningApp, artifacts: Path
 ) -> None:
     """Changing selection creates explicit contexts without sending or reassigning prior words."""
     install_voice(page)
     page.set_viewport_size({"width": 1280, "height": 800})
     open_editor(page, live_app)
-    page.get_by_role("button", name="Batch", exact=True).click()
     original = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
     preview = page.frame_locator("#preview")
     heading = preview.get_by_role("heading", level=1)
@@ -66,7 +65,7 @@ def test_dictation_pins_late_results_and_multiple_objects_before_batch_release(
     expect(page.locator("#feedback-text")).to_be_hidden()
     expect(page.locator(FEEDBACK_MIC)).to_be_hidden()
     expect(page.locator("#send-feedback-voice")).to_have_attribute(
-        "aria-label", "Add dictated feedback to batch"
+        "aria-label", "Send dictated feedback"
     )
     voice_result(page, "Unconfirmed heading words", final=False)
     expect(page.locator(SEGMENTS)).to_have_count(0)
@@ -123,12 +122,9 @@ def test_dictation_pins_late_results_and_multiple_objects_before_batch_release(
         "Review together",
     ]
     assert all(item.content_hash == original["content_hash"] for item in comments)
-    assert all(not item.released for item in comments)
-    assert live_app.store.feedback_feed(DECK_ID).events == []
-    assert live_app.store.read(DECK_ID).slides[0].notes == PRIVATE_NOTE
-    page.get_by_role("button", name="Send batch (3)", exact=True).click()
-    expect(page.locator("#send-batch")).to_be_hidden()
+    assert all(item.released for item in comments)
     assert len(live_app.store.feedback_feed(DECK_ID).events) == 3
+    assert live_app.store.read(DECK_ID).slides[0].notes == PRIVATE_NOTE
 
 
 def test_navigation_and_reload_keep_dictated_feedback_on_its_original_slide(

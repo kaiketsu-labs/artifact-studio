@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/web/chat.css">
   <link rel="stylesheet" href="/web/chat-timeline.css">
   <script src="/web/chat-timeline.js" defer></script>
+  <script src="/web/chat-copy.js" defer></script>
   <link rel="stylesheet" href="/web/chat-layout.css">
   <link rel="stylesheet" href="/web/slide-questions.css">
   <link rel="stylesheet" href="/web/structure-review.css">
@@ -92,6 +93,8 @@
   <script src="/web/sharing.js" defer></script>
   <script src="/web/design-references.js" defer></script>
   <script src="/web/hub-rail.js" defer></script>
+  <script src="/web/offline-store.js" defer></script>
+  <script src="/web/offline-client.js" defer></script>
   <script src="/web/app.js" defer></script>
   <link rel="stylesheet" href="/web/app-version.css">
   <script src="/web/app-version.js" defer></script>
@@ -104,6 +107,9 @@
     <button id="unread-mentions" type="button" hidden></button>
     <button id="deck-presence" type="button" popovertarget="deck-viewers" aria-label="People in this deck" hidden></button>
     <ul id="deck-viewers" popover aria-label="People in this deck"></ul>
+    <button id="offline-save" class="quiet" type="button" hidden>Save offline</button>
+    <a id="offline-open" class="quiet" href="/web/offline.html" hidden>Saved presentations</a>
+    <button id="offline-signout" class="quiet" type="button" hidden>Sign out</button>
     <button id="storage-status" class="quiet" type="button" aria-label="Storage and backup" aria-haspopup="dialog"></button>
     <button id="share-artifact" class="quiet" type="button" aria-label="Share presentation" title="Share presentation" disabled></button>
     <button id="workspace-menu-button" class="quiet" type="button" aria-label="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="workspace-menu" aria-keyshortcuts="F10"></button>
@@ -183,15 +189,14 @@
   </section>
   <div id="chat-resizer" class="chat-resizer" role="separator" tabindex="0" aria-label="Resize chat panel" aria-orientation="vertical" aria-controls="chat-panel" title="Drag to resize chat · Arrow keys to resize · Enter or double-click to reset"></div>
   <aside id="chat-panel" class="discussion" aria-label="Agent context and feedback">
-    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="shared-deck-role" hidden></span><span id="feedback-count"></span><button id="chat-question-status" type="button" hidden aria-label="Jump to unanswered question"></button></header>
+    <header class="discussion-top"><span id="chat-slide-number" class="chat-slide-number" aria-hidden="true"></span><h2 id="chat-slide-title"></h2><span id="shared-deck-role" hidden></span><span id="feedback-count"></span><span id="chat-agent-status" class="chat-agent-status" role="status" aria-label="Agent connection status" aria-describedby="chat-agent-status-detail" tabindex="0"></span><button id="copy-conversation" class="copy-conversation" type="button" aria-label="Copy conversation" title="Copy conversation"></button><button id="chat-question-status" type="button" hidden aria-label="Jump to unanswered question"></button></header>
     <div class="chat-tabs" id="chat-tabs" role="tablist" aria-label="Conversation" hidden>
       <button type="button" id="chat-tab-shared" role="tab" data-chat-channel="shared" aria-selected="true" aria-controls="feedback-list">Shared<span class="chat-unread-dot" hidden aria-hidden="true"></span></button>
       <button type="button" id="chat-tab-private" role="tab" data-chat-channel="private" aria-selected="false" aria-controls="feedback-list" tabindex="-1">Agent<span class="chat-unread-dot" hidden aria-hidden="true"></span></button>
     </div>
     <section class="delivery-panel" aria-label="Feedback delivery" hidden>
-      <div class="mode-switch"><button id="mode-live" type="button" aria-pressed="true">Live</button><button id="mode-batch" type="button" aria-pressed="false">Batch</button></div>
-      <button id="send-batch" type="button" hidden>Send batch</button>
-      <button id="send-legacy-batch" type="button" hidden>Send earlier review comments</button>
+      <button id="send-batch" type="button" hidden>Send saved messages</button>
+      <button id="send-legacy-batch" type="button" hidden>Send saved messages</button>
     </section>
     <details id="agent-panel" class="agent-panel" hidden>
       <summary>Agent notes</summary><p id="agent-summary"></p><div id="brief-attachments"></div>
@@ -218,7 +223,6 @@
         <button id="send-feedback-voice" type="button" aria-label="Send dictated feedback" title="Send dictated feedback"></button>
       </div>
       <div class="compose-actions"><button id="attach-feedback" type="button" aria-label="Attach files"></button><button id="reference-slides" type="button" aria-label="Reference favorite slides" title="Reference favorite slides"></button><button id="chat-ask-agent" class="chat-agent-toggle" type="button" aria-label="Ask your agent" aria-pressed="false" hidden></button><button id="send-feedback" type="submit" class="primary" aria-label="Send feedback" aria-keyshortcuts="Enter Meta+Enter Control+Enter"></button></div>
-      <p id="batch-delivery-help" class="compose-delivery-help" hidden>Comments stay private until you choose Send batch.</p>
     </form>
   </aside>
 </main>

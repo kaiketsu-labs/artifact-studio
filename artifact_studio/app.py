@@ -118,6 +118,7 @@ from .models import (
     SlideView,
     WorkspaceInstructionsInput,
 )
+from .offline_identity import cache_scope
 from .presentation_files import PresentationFiles
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
@@ -901,7 +902,8 @@ def ask_slide_question(
     """Ask a question in this slide's chat, optionally suggesting up to six distinct answers.
     The human can always write a different answer. Read get_slide first for expected_hash.
     Asking does not revise the slide or its approval. Answers arrive via read_feedback,
-    linked by reply_to; Batch answers remain private until Send batch.
+    linked by reply_to. Previously saved answers remain private until the human
+    explicitly sends saved messages.
     """
     return Questions(store).ask(
         deck_id, slide_id, question, options or [], expected_hash, request_id
@@ -916,7 +918,7 @@ def get_slide_questions(
     include_resolved: bool = False,
 ) -> list[SlideQuestionView]:
     """Read pending slide questions without slide source; omit slide_id to check the deck.
-    include_resolved=True adds answers/cancellations. Withheld Batch answers stay private.
+    include_resolved=True adds answers/cancellations. Previously saved unsent answers stay private.
     """
     return Questions(store).list(deck_id, slide_id, include_resolved=include_resolved)
 
@@ -1791,6 +1793,7 @@ def session_info(request: Request) -> dict[str, object]:
         "public_url": origin,
         "mcp_url": origin + "/mcp",
         "auth_provider": deployment.auth_provider if hosted else "none",
+        "cache_scope": cache_scope(deployment, principal, "default"),
         "email": principal.email if principal is not None else None,
         "shared_workspace": hosted,
         "capabilities": {

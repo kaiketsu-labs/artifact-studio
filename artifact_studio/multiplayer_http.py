@@ -18,6 +18,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
 from .design_transfer import MAX_DESIGN_ZIP
+from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
 from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
 from .multiplayer_access import Scope as GrantScope
 from .request_diagnostics import RequestDiagnostics
@@ -60,11 +61,13 @@ class MultiplayerAuth:
         sharing: Sharing,
         *,
         shared_shell: bool = False,
+        invitation_landing: bool = False,
     ) -> None:
         self.app, self.config, self.provider, self.sharing = app, config, provider, sharing
         self.host = urlsplit(config.public_url).netloc
         self.preview = urlsplit(config.preview_url).netloc
         self.shared_shell = shared_shell
+        self.invitation_landing = invitation_landing and not shared_shell
         self.slots = asyncio.Semaphore(8)
         self.asset_slots = asyncio.Semaphore(16)
         self.asset_waiters = 0
@@ -153,6 +156,9 @@ class MultiplayerAuth:
         host = hosts[0].lower() if len(hosts) == 1 else ""
 
         async def reject(status: int, detail: str) -> None:
+            if self.invitation_landing and path == CONTINUE_PATH and status == 401:
+                await handoff_response("unavailable")(scope, receive, send)
+                return
             response_headers = {"Cache-Control": "no-store"}
             if status == 429:
                 response_headers["Retry-After"] = "2"
@@ -174,6 +180,16 @@ class MultiplayerAuth:
             return
         if any(part in {".", ".."} for part in path.split("/")) or any(c in path for c in "%\\\0"):
             await reject(404, "Not found")
+            return
+        if self.invitation_landing and host == self.host and path == LANDING_PATH:
+            if (
+                method not in {"GET", "HEAD"}
+                or scope.get("query_string")
+                or scope.get("raw_path", path.encode()) != LANDING_PATH.encode()
+            ):
+                await reject(404, "Not found")
+                return
+            await handoff_response("landing", head=method == "HEAD")(scope, receive, send)
             return
         if host == self.preview:
             if method not in {"GET", "HEAD"} or not path.startswith("/_preview/"):
@@ -214,6 +230,7 @@ class MultiplayerAuth:
                         else await self.provider.authenticate(headers)
                     )
                     actor = await run_in_threadpool(self.sharing.human, principal)
+                    scope.setdefault("state", {})["authenticated_principal"] = principal
                     if self.shared_shell:
                         scope.setdefault("state", {})["verified_guest"] = principal
                 scope.setdefault("state", {})["actor"] = actor
