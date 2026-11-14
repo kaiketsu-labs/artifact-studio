@@ -100,7 +100,9 @@ The test suite checks compact/full responses, transport serialization, exact rul
 
 ## Idle review work
 
-The hook waits locally; each short server poll checks only whether a released delivery or queued design request exists. It does not load feedback bodies, attachments, full inboxes or workspace rules. Live leases renew near expiry instead of on every 0.2-second poll. The bounded 540-second host continuation remains: removing it without verifying host timeouts could silently end review. This improves local work without claiming fewer model wakeups or billed tokens.
+The hook waits locally; each short server poll checks only whether a released delivery or queued design request exists. It does not load feedback bodies, attachments, full inboxes or workspace rules. Live leases renew near expiry instead of on every 0.2-second poll.
+
+On macOS and Linux, Claude Code uses a background `asyncRewake` listener. It renews the lease for up to six hours and wakes the model only when feedback is available. An idle lifetime ends quietly; a later agent turn re-arms the listener. Codex and Claude Code on Windows keep the bounded 540-second synchronous continuation. Their idle renewals can still start model turns. Host behavior and context caching determine actual billed savings; server polls are not model calls. See [hook setup and verification](HOSTED-AGENT-HOOKS.md).
 
 The raw MCP tool catalogue does not repeat the bootstrap. Some hosts append the server's initialization instructions to every exposed tool description; the shorter canonical [bootstrap](../agent/bootstrap.md) reduces that repeated guidance. How much enters a prompt depends on the host's tool selection and caching.
 
