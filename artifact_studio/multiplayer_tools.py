@@ -86,12 +86,17 @@ class MultiplayerTools:
         )
 
     @contextmanager
-    def deck_store(self, actor: Actor, deck_id: str, role: Role = "view") -> Generator[Store]:
+    def deck_store(
+        self, actor: Actor, deck_id: str, role: Role = "view", *, proposal: bool = False
+    ) -> Generator[Store]:
         """Restrict deck tools to the presentation associated with the authorized artifact."""
-        with self.sharing.guard(actor, self.scope(actor, deck_id), role) as store:
+        scope = self.scope(actor, deck_id)
+        with self.sharing.guard(actor, scope, role) as store:
             if ArtifactStore(store).get_artifact(deck_id).legacy_deck_id != deck_id:
                 raise AccessDenied
             if role == "edit":
+                if not proposal:
+                    self.chat.require_direct_edit(actor, scope)
                 record = self.sharing.agent_record(actor)
                 with revision_author(str(record["name"]) + " · agent"):
                     yield store
@@ -704,7 +709,7 @@ class MultiplayerTools:
     ) -> dict[str, object]:
         """Publish named whole-slide designs against get_slide's content_hash for human review."""
         actor = self.actor(ctx)
-        with self.deck_store(actor, deck_id, "edit") as store:
+        with self.deck_store(actor, deck_id, "edit", proposal=True) as store:
             result = SlideDesigns(store, scoped=True).publish(
                 deck_id,
                 slide_id,
@@ -768,7 +773,7 @@ class MultiplayerTools:
     ) -> dict[str, object]:
         """Publish alternatives for an existing static element, retaining its unique HTML ID."""
         actor = self.actor(ctx)
-        with self.deck_store(actor, deck_id, "edit") as store:
+        with self.deck_store(actor, deck_id, "edit", proposal=True) as store:
             result = ElementAlternatives(store, scoped=True).publish(
                 deck_id,
                 slide_id,
@@ -979,6 +984,8 @@ class MultiplayerTools:
 
         Repeated excerpt IDs reference text included earlier in the response.
         If shared_context_on_claim is true, claim with include_message=true for excerpts.
+        For collaborator_request_mode="suggest", use a proposal tool and reply with what
+        is ready for review. The connection cannot make direct edits in that mode.
         """
         actor = self.actor(ctx)
         if not (artifact_id or deck_id) or (artifact_id and deck_id) or after < 0:

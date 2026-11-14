@@ -15,7 +15,7 @@
   }
 
   /** Connect an agent to the selected scope using the standard editor menu. */
-  function connectAgent({kind, id, title, anchor, mcpUrl, manageHistory}) {
+  function connectAgent({kind, id, title, anchor, mcpUrl, manageHistory, presentation}) {
     if (document.querySelector('.studio-agent[open]')) return;
     const dialog = document.createElement('dialog');
     dialog.className = 'studio-share studio-agent';
@@ -42,16 +42,18 @@
       const agents = await scopedRequest(agentsPath);
       const list = dialog.querySelector('.studio-access-list');
       const artifactPath = workspaceAPI + '/artifacts/' + encodeURIComponent(id);
-      const available = manageHistory ? new Set((await scopedRequest(artifactPath + '/state'))
+      const available = presentation ? new Set((await scopedRequest(artifactPath + '/state'))
         .agents.filter(agent => agent.mine).map(agent => agent.id)) : new Set();
       const exactScope = agent => agent.kind === kind && agent.resource === id;
       const scopedAgents = agents.filter(agent => exactScope(agent) || available.has(agent.id));
       const historyPath = artifactPath + '/agents/';
+      const requestSettings = presentation ? await Promise.all(scopedAgents.map(agent => available.has(agent.id) ? scopedRequest(historyPath + encodeURIComponent(agent.id) + '/collaborator-requests') : null)) : [];
       const historySettings = manageHistory ? await Promise.all(scopedAgents.map(agent =>
         scopedRequest(historyPath + encodeURIComponent(agent.id) + '/shared-history')
       )) : [];
       list.replaceChildren(...scopedAgents.map((agent, index) => {
         const row = document.createElement('div'), label = document.createElement('span'), button = document.createElement('button');
+        row.className = 'studio-agent-connection';
         label.textContent = agent.name; button.textContent = 'Revoke'; button.type = 'button';
         button.addEventListener('click', async () => {
           button.disabled = true;
@@ -84,6 +86,30 @@
             }
           });
           row.append(permission);
+        }
+        if (available.has(agent.id)) {
+            const setting = document.createElement('label');
+            setting.className = 'studio-agent-requests';
+            setting.textContent = 'Collaborator requests ';
+            const select = document.createElement('select');
+            const help = document.createElement('small');
+            help.id = 'studio-agent-request-help-' + agent.id;
+            help.textContent = 'Editors can message this agent in Shared. Suggest changes requires review for all of this connection’s edits on this presentation.';
+            select.setAttribute('aria-label', 'Collaborator requests for ' + agent.name);
+            select.setAttribute('aria-describedby', help.id);
+            select.add(new Option('Off','off'));
+            select.add(new Option('Apply directly','direct'));
+            select.add(new Option('Suggest changes','suggest'));
+            select.value = requestSettings[index].mode;
+            select.addEventListener('change', async () => {
+              const previous = requestSettings[index].mode;
+              const restoreFocus = document.activeElement === select;
+              select.disabled = true; error.hidden = true;
+              try { const result = await scopedRequest(historyPath + encodeURIComponent(agent.id) + '/collaborator-requests', {mode:select.value}); requestSettings[index] = result; select.value = result.mode; }
+              catch (reason) { select.value = previous; failed(reason); }
+              finally { select.disabled = false; if(restoreFocus&&document.activeElement===document.body&&dialog.open)select.focus(); }
+            });
+            setting.append(select,help); row.append(setting);
         }
         if (exactScope(agent)) row.append(button);
         return row;
@@ -322,6 +348,7 @@
           || (kind === 'workspace' ? 'Current workspace' : kind === 'project' ? 'Current project' : 'Current artifact');
         connectAgent({
           kind, id: artifact || project || '', title, anchor: entry, mcpUrl: root.location.origin + '/mcp',
+          presentation: !!params.get('deck'),
           manageHistory: !!params.get('deck') && (!session.scoped_editor || session.workspace_owner === true),
         });
 

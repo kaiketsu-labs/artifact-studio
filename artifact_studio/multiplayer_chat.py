@@ -22,6 +22,7 @@ from .slide_designs import SlideDesigns
 from .storage import ConflictError, Store, decode_attachments
 
 Channel = Literal["shared", "private"]
+CollaboratorRequestMode = Literal["off", "direct", "suggest"]
 _WORKSPACE_FILE_LIMIT = 1024**3
 _HOST_FILE_LIMIT = 4 * 1024**3
 _MINIMUM_DISK_FREE = 1024**3
@@ -103,6 +104,10 @@ class Conversations:
                 CREATE TABLE IF NOT EXISTS agent_shared_history (
                   workspace TEXT NOT NULL, artifact TEXT NOT NULL, agent TEXT NOT NULL,
                   PRIMARY KEY(workspace,artifact,agent));
+                CREATE TABLE IF NOT EXISTS agent_collaborator_requests (
+                  workspace TEXT NOT NULL, artifact TEXT NOT NULL, agent TEXT NOT NULL,
+                  mode TEXT NOT NULL, generation INTEGER NOT NULL,
+                  PRIMARY KEY(workspace,artifact,agent));
                 CREATE INDEX IF NOT EXISTS conversation_scope
                   ON conversations(workspace,artifact,id);
                 CREATE TABLE IF NOT EXISTS chat_delivery (
@@ -151,6 +156,18 @@ class Conversations:
                     "ALTER TABLE conversations ADD COLUMN include_shared_context "
                     "INTEGER NOT NULL DEFAULT 0"
                 )
+            if not any(
+                row["name"] == "collaborator_request_generation"
+                for row in db.execute("PRAGMA table_info(conversations)")
+            ):
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN collaborator_request_generation "
+                    "INTEGER NOT NULL DEFAULT 0"
+                )
+                _ = db.execute(
+                    "ALTER TABLE conversations ADD COLUMN collaborator_request_mode "
+                    "TEXT NOT NULL DEFAULT 'off'"
+                )
 
     @staticmethod
     def _public(row: sqlite3.Row) -> dict[str, object]:
@@ -176,6 +193,8 @@ class Conversations:
         }
         if row["proposal"] != "null":
             public["proposal"] = json.loads(cast(str, row["proposal"]))
+        if row["collaborator_request_generation"]:
+            public["collaborator_request_mode"] = row["collaborator_request_mode"]
         public.update(
             {
                 "target": json.loads(cast(str, row["target"])),
@@ -189,6 +208,68 @@ class Conversations:
             }
         )
         return public
+
+    @staticmethod
+    def _collaborator_setting(
+        db: sqlite3.Connection, scope: Scope, agent: str
+    ) -> tuple[CollaboratorRequestMode, int]:
+        """Read the mode and generation for this presentation connection."""
+        row = db.execute(
+            "SELECT mode,generation FROM agent_collaborator_requests "
+            "WHERE workspace=? AND artifact=? AND agent=?",
+            (scope.workspace, scope.resource, agent),
+        ).fetchone()
+        if row is None:
+            return "off", 0
+        return cast(CollaboratorRequestMode, row["mode"]), cast(int, row["generation"])
+
+    def collaborator_requests(
+        self, actor: Actor, scope: Scope, agent: str, mode: CollaboratorRequestMode | None = None
+    ) -> CollaboratorRequestMode:
+        """Manage how other editors can address a human's own presentation agent."""
+        with self.sharing.guard(actor, scope, "edit") as store, self.sharing.connect() as db:
+            if (
+                actor.agent
+                or ArtifactStore(store).get_artifact(scope.resource).legacy_deck_id is None
+            ):
+                raise AccessDenied
+            self.sharing.require(Actor(actor.person, agent), scope, "edit")
+            current, generation = self._collaborator_setting(db, scope, agent)
+            if mode is None or mode == current:
+                return current
+            _ = db.execute(
+                "INSERT INTO agent_collaborator_requests VALUES (?,?,?,?,?) "
+                "ON CONFLICT(workspace,artifact,agent) DO UPDATE "
+                "SET mode=excluded.mode,generation=excluded.generation",
+                (scope.workspace, scope.resource, agent, mode, generation + 1),
+            )
+            return mode
+
+    def _request_is_current(
+        self, db: sqlite3.Connection, scope: Scope, recipient: Actor, row: sqlite3.Row
+    ) -> bool:
+        """Check the sender's current access and the consent that authorized delivery."""
+        sender = Actor(cast(str, row["person"]))
+        if self.sharing.level(sender, scope) < LEVEL["edit"]:
+            return False
+        if sender.person == recipient.person:
+            return True
+        mode, generation = self._collaborator_setting(db, scope, recipient.agent)
+        return (
+            row["channel"] == "shared"
+            and mode != "off"
+            and generation == row["collaborator_request_generation"]
+        )
+
+    def require_direct_edit(self, actor: Actor, scope: Scope) -> None:
+        """Guard canonical presentation writes while holding the sharing lock."""
+        with self.sharing.connect() as db:
+            mode, _ = self._collaborator_setting(db, scope, actor.agent)
+        if mode == "suggest":
+            raise ConflictError(
+                "This connection can only suggest changes on this presentation. "
+                "Use a slide, element, or structure proposal tool."
+            )
 
     @staticmethod
     def _visible(actor: Actor, row: sqlite3.Row) -> bool:
@@ -370,6 +451,7 @@ class Conversations:
         proposal: ChatProposal | None = None,
         include_shared_context: bool = False,
         offline_anchor: tuple[str, str, str] | None = None,
+        collaborator_request_generation: int = 0,
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
@@ -405,6 +487,11 @@ class Conversations:
                         *([proposal.model_dump(), slide_content_hash] if proposal else []),
                         *(["include_shared_context"] if include_shared_context else []),
                         *([list(offline_anchor)] if offline_anchor else []),
+                        *(
+                            [collaborator_request_generation]
+                            if collaborator_request_generation
+                            else []
+                        ),
                     ],
                     sort_keys=True,
                 )
@@ -454,19 +541,33 @@ class Conversations:
                     and (version is None or version[0] != slide_content_hash)
                 ):
                     raise ConflictError("The slide changed. Review the current version first.")
+                mode, generation = "off", 0
                 if assigned:
                     recipient = self._recipient(db, assigned)
-                    if channel == "private" and recipient.person != actor.person:
-                        raise AccessDenied
                     self.sharing.require(recipient, scope, "edit")
+                    if recipient.person != actor.person:
+                        if channel != "shared" or item.legacy_deck_id is None:
+                            raise AccessDenied
+                        mode, generation = self._collaborator_setting(db, scope, assigned)
+                        if mode == "off":
+                            raise AccessDenied
+                        if generation != collaborator_request_generation:
+                            raise ConflictError(
+                                "The agent's request setting changed. Choose a recipient again."
+                            )
+                        if include_shared_context:
+                            raise ValueError(
+                                "Collaborator requests can only include the selected message."
+                            )
                 self._reserve_attachments(
                     db, scope.workspace, sum(file["size"] for file in metadata)
                 )
                 cursor = db.execute(
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
                     "target,content_hash,assigned,released,request_id,payload,created,"
-                    "files,proposal,slide_content_hash,include_shared_context) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "files,proposal,slide_content_hash,include_shared_context,"
+                    "collaborator_request_generation,collaborator_request_mode) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -485,6 +586,8 @@ class Conversations:
                         json.dumps(anchor),
                         slide_content_hash,
                         include_shared_context,
+                        generation,
+                        mode,
                     ),
                 )
                 if channel == "shared":
@@ -562,13 +665,16 @@ class Conversations:
             # Recheck assigned agents: a revoked or downgraded collaborator cannot
             # publish a formerly eligible edit request using Send batch.
             rows = db.execute(
-                "SELECT assigned FROM conversations WHERE workspace=? AND artifact=? "
+                "SELECT assigned,channel,person,collaborator_request_generation "
+                "FROM conversations WHERE workspace=? AND artifact=? "
                 "AND channel=? AND person=? AND released=0 AND assigned<>''",
                 (scope.workspace, scope.resource, channel, actor.person),
             ).fetchall()
             for row in rows:
-                self.sharing.require(actor, scope, "edit")
-                self.sharing.require(self._recipient(db, cast(str, row["assigned"])), scope, "edit")
+                recipient = self._recipient(db, cast(str, row["assigned"]))
+                self.sharing.require(recipient, scope, "edit")
+                if not self._request_is_current(db, scope, recipient, row):
+                    raise AccessDenied
             db.execute(
                 "UPDATE conversations SET released=1 WHERE workspace=? AND artifact=? "
                 "AND channel=? AND person=? AND released=0",
@@ -599,7 +705,7 @@ class Conversations:
         ]
 
     def tasks(self, actor: Actor, scope: Scope) -> dict[str, object]:
-        with self.sharing.guard(actor, scope), self.sharing.connect() as db:
+        with self.sharing.guard(actor, scope, "edit"), self.sharing.connect() as db:
             if not actor.agent:
                 raise AccessDenied
             cursor = db.execute(
@@ -611,10 +717,7 @@ class Conversations:
             )
             rows: list[sqlite3.Row] = []
             for row in cursor:
-                if (
-                    self._visible(actor, row)
-                    and self.sharing.level(Actor(cast(str, row["person"])), scope) >= 3
-                ):
+                if self._visible(actor, row) and self._request_is_current(db, scope, actor, row):
                     rows.append(row)
                     if len(rows) == 100:
                         break
@@ -689,7 +792,8 @@ class Conversations:
         ).fetchone()
         if not actor.agent or not row or not self._visible(actor, row):
             raise AccessDenied
-        self.sharing.require(Actor(cast(str, row["person"])), scope, "edit")
+        if not self._request_is_current(db, scope, actor, row):
+            raise AccessDenied
         return row
 
     @staticmethod
@@ -754,14 +858,13 @@ class Conversations:
     def _has_pending(self, db: sqlite3.Connection, actor: Actor, scope: Scope) -> bool:
         """Check for released requests assigned by people who still have edit access."""
         pending = db.execute(
-            "SELECT DISTINCT person FROM conversations WHERE workspace=? "
+            "SELECT DISTINCT person,channel,collaborator_request_generation "
+            "FROM conversations WHERE workspace=? "
             "AND artifact=? AND assigned=? "
             "AND released=1 AND completed=0",
             (scope.workspace, scope.resource, actor.agent),
         ).fetchall()
-        return any(
-            self.sharing.level(Actor(cast(str, row["person"])), scope) >= 3 for row in pending
-        )
+        return any(self._request_is_current(db, scope, actor, row) for row in pending)
 
     def hook(self, actor: Actor, body: ReviewHookInput) -> dict[str, object]:
         """Check assigned feedback and track leases for active host listeners."""
@@ -845,6 +948,7 @@ class Conversations:
                 if self.sharing.level(recipient, scope) < LEVEL["edit"]:
                     continue
                 mine = recipient.person == actor.person
+                mode, generation = self._collaborator_setting(db, scope, recipient.agent)
                 listening = scope.kind == "artifact" and bool(
                     db.execute(
                         "SELECT 1 FROM multiplayer_hooks WHERE agent=? AND workspace=? "
@@ -858,6 +962,8 @@ class Conversations:
                         "email": row["email"],
                         "name": row["name"],
                         "mine": mine,
+                        "collaborator_request_mode": mode,
+                        "collaborator_request_generation": generation,
                         "status": "listening"
                         if listening
                         else (

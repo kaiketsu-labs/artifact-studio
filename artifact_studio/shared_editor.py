@@ -175,7 +175,7 @@ def shared_deck(
 
 
 def deck_source_version(store: Store, deck_id: str, *, owner: bool) -> str:
-    """Identify a scoped deck's source and visual assets without reading slide bodies."""
+    """Identify scoped source, assets and review options without reading slide bodies."""
     folder = store.folder(deck_id)
     paths = [folder / "index.html", folder / "theme.css"]
     paths.extend(sorted(path for path in (folder / "assets").rglob("*") if path.is_file()))
@@ -196,7 +196,17 @@ def deck_source_version(store: Store, deck_id: str, *, owner: bool) -> str:
                 details.st_ctime_ns,
             )
         )
-    return digest(json.dumps(version))
+    with store.connect() as db:
+        changes = db.execute(
+            "SELECT "
+            "(SELECT MAX(sequence) FROM slide_design_sets WHERE deck=?),"
+            "(SELECT MAX(sequence) FROM slide_design_decisions WHERE deck=? AND completed=1),"
+            "(SELECT MAX(sequence) FROM element_alternative_sets WHERE deck=?),"
+            "(SELECT MAX(sequence) FROM element_alternative_decisions "
+            "WHERE deck=? AND completed=1)",
+            (deck_id, deck_id, deck_id, deck_id),
+        ).fetchone()
+    return digest(json.dumps([version, list(changes)]))
 
 
 def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: Sharing) -> FastAPI:

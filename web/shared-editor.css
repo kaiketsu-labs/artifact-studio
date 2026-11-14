@@ -231,3 +231,17 @@
   #deck-presence { min-height: 44px; }
   #deck-presence .presence-badge { min-width: 20px; height: 20px; }
 }
+
+.chat-recipient { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin:0 0 6px; font-size:11px; color:var(--muted,#667085); }
+.chat-recipient[hidden] { display:none; }
+.chat-recipient select { max-width:100%; min-height:32px; padding:4px 8px; border:1px solid var(--line,#d7dce5); border-radius:6px; background:var(--panel,#fff); color:var(--ink,#222); font:inherit; }
+.chat-recipient span { flex-basis:100%; }
+.studio-agent-requests { display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.studio-agent-requests select { max-width:100%; }
+.studio-agent-requests small { flex-basis:100%; }
+.studio-agent .studio-access-list > .studio-agent-connection {
+  display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start;
+}
+.studio-agent-connection > span { grid-column:1; grid-row:1; }
+.studio-agent-connection > button { grid-column:2; grid-row:1; }
+.studio-agent-connection > label { grid-column:1 / -1; }

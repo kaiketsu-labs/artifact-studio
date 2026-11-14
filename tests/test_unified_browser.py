@@ -850,6 +850,127 @@ def test_full_editor_round_trip_and_scoped_agent_entry(tmp_path: Path) -> None:
             browser.close()
 
 
+@pytest.mark.parametrize("mode", ["direct", "suggest"])
+def test_collaborator_addresses_an_opted_in_agent_on_a_slide(tmp_path: Path, mode: str) -> None:
+    """A named Shared recipient can edit or propose according to the owner's setting."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        peer = Peer(app, agent(owner, app.deck_id))
+        browser = playwright.chromium.launch()
+        try:
+            with (
+                routed_multiplayer_context(browser, app, "owner") as owner_context,
+                routed_multiplayer_context(browser, app, "alice") as guest_context,
+            ):
+                page, guest = owner_context.new_page(), guest_context.new_page()
+                guest.set_viewport_size({"width": 390, "height": 844})
+                for editor in (page, guest):
+                    editor.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                toggle = guest.get_by_role("button", name=re.compile(r"^(Open|Close) chat$"))
+                if toggle.get_attribute("aria-expanded") == "false":
+                    toggle.click()
+                picker = guest.get_by_role("combobox", name="Shared message recipient")
+                expect(picker.locator("option")).to_have_count(1)
+                page.locator("#workspace-menu-button").click()
+                page.locator("#connect-button").click()
+                dialog = page.get_by_role("dialog", name="Agent connection")
+                setting = dialog.get_by_role(
+                    "combobox", name="Collaborator requests for Fictional agent"
+                )
+                expect(setting).to_have_value("off")
+                with page.expect_response(
+                    lambda response: (
+                        response.request.method == "POST"
+                        and response.url.endswith("/collaborator-requests")
+                    )
+                ) as saved:
+                    _ = setting.select_option(mode)
+                assert saved.value.ok
+                dialog.get_by_role("button", name="Close agent connection").click()
+                option = picker.locator("option").filter(has_text="Fictional agent")
+                expect(option).to_have_count(1)
+                _ = picker.select_option(label="Fictional agent · owner@example.test")
+                composer = guest.locator("#feedback-text")
+                composer.fill("Please clarify the fictional cover")
+                composer.press("Enter")
+                thread = guest.locator("#feedback-list")
+                expect(
+                    thread.get_by_role("img", name="Request for Fictional agent")
+                ).to_be_visible()
+                expect(picker).to_have_value("")
+                [event] = cast(
+                    list[dict[str, object]],
+                    peer.value("read_feedback", deck_id=app.deck_id)["events"],
+                )
+                assert event["message"] == "Please clarify the fictional cover"
+                assert event["collaborator_request_mode"] == mode
+                assert "shared_context" not in event
+                claim = peer.value(
+                    "claim_feedback",
+                    artifact_id=app.deck_id,
+                    event_id=event["id"],
+                    session_id="fictional-session",
+                )
+                cover = peer.value("get_slide", deck_id=app.deck_id, slide_id="cover")
+                assert cover["content_hash"] == event["slide_content_hash"]
+                revised = peer.call(
+                    "revise_slide",
+                    deck_id=app.deck_id,
+                    slide_id="cover",
+                    expected_hash=cover["expected_hash"],
+                    request_id="fictional-delegated-edit",
+                    patch_json='{"title":"Clarified fictional cover"}',
+                )
+                assert bool(revised.is_error) == (mode == "suggest")
+                if mode == "suggest":
+                    assert "only suggest changes" in str(revised.content)
+                    _ = peer.value(
+                        "publish_slide_designs",
+                        deck_id=app.deck_id,
+                        slide_id="cover",
+                        expected_content_hash=cover["content_hash"],
+                        request_id="fictional-delegated-proposal",
+                        options=[
+                            {
+                                "name": "Clearer cover",
+                                "title": "Clearer cover",
+                                "html": '<article class="slide"><h1>Clearer cover</h1></article>',
+                            }
+                        ],
+                    )
+                _ = peer.value(
+                    "reply_to_feedback",
+                    artifact_id=app.deck_id,
+                    event_id=event["id"],
+                    claim=claim["claim"],
+                    message="The cover update is ready.",
+                    request_id="fictional-delegated-reply",
+                )
+                expect(thread).to_contain_text("The cover update is ready.")
+                current = app.store.view(app.deck_id).slides[0]
+                if mode == "suggest":
+                    assert current.content_hash == cover["content_hash"]
+                    toggle = guest.get_by_role("button", name="Close chat", exact=True)
+                    if toggle.is_visible():
+                        toggle.click()
+                    tray = guest.locator("#slide-design-tray")
+                    expect(tray).to_be_visible()
+                    tray.get_by_role("tab", name="Clearer cover", exact=True).click()
+                    tray.locator("[data-sd-use]").click()
+                    expect(tray).to_be_hidden()
+                    assert app.store.view(app.deck_id).slides[0].title == "Clearer cover"
+                else:
+                    assert current.title == "Clarified fictional cover"
+        finally:
+            browser.close()
+            peer.client.close()
+
+
 def test_hosted_chat_routes_both_tabs_to_one_agent(tmp_path: Path) -> None:
     """Keep shared and private drafts separate and route assigned requests in both tabs."""
     with (
