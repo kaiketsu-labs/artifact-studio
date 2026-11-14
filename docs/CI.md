@@ -44,7 +44,10 @@ as a fallback for modules absent from that report; hosted timings have not yet
 validated the balance. Each suite and the Python unit step use two pytest-xdist
 workers with work stealing, so a long test file cannot hold up an otherwise idle worker.
 Every selected case still runs once; worker crashes fail the check instead of
-silently restarting workers. The agent integration step remains sequential.
+silently restarting workers. The agent integration step remains sequential. It
+also runs one paired [presentation-workflow regression](performance/PRESENTATION-WORKFLOW.md)
+to check conflict recovery, feedback cursors and equivalent final content. Repeated
+timing trials and optional tokenizer estimates remain manual benchmark commands.
 
 `tests/conftest.py` isolates each worker's default collection, database and explicit
 artifact directory by run ID and worker ID before application imports. Existing

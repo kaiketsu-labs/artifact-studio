@@ -41,6 +41,10 @@ def test_compact_bootstrap_preserves_complete_rules_and_loadable_guides(store: S
     assert compact["preferences"] == full["preferences"]
     assert compact["rules_hash"] == full["rules_hash"]
     assert "interactive_html" in str(compact["authoring_capabilities"])
+    capabilities = cast(dict[str, object], compact["authoring_capabilities"])
+    sizing = cast(dict[str, str], capabilities["sizing"])
+    assert sizing["aspect_ratio"] == "16:9"
+    assert "100%" in sizing["layout"] and "cqw" in sizing["layout"]
     assert compact["asset_inventory_included"] is False
     assert "live_review_guide" not in compact and "visual_review_guide" not in compact
     assert "Read get_slide" in str(compact["guide"])

@@ -109,7 +109,7 @@
   /** Share the authenticated actor and preserve scoped access and retry errors. */
   function create({api}) {
     let personRequest;
-    const pendingRoutes = new Map();
+    const pendingRequests = new Map();
     async function request(path, body) {
       root.ArtifactSession?.assertActive();
       try {
@@ -147,32 +147,40 @@
       readMention(artifactId, id) {
         return request(`${base(artifactId)}/mentions/${id}/read`, {});
       },
+      hasPendingRequest(artifactId, requestId) {
+        return pendingRequests.has(`${base(artifactId)}/${requestId}`);
+      },
       async send(artifactId, {message, requestId, contentHash, slideId, slideContentHash, target,
         editIntent, files, proposal, channel = 'shared', released = true, assigned = '', forAgent = false, includeSharedContext = false}) {
         const endpoint = base(artifactId), anchor = artifactTarget(target, slideId);
         const stale = message => Object.assign(new Error(message), {status: 409, stale: true});
         const key = `${endpoint}/${requestId}`;
-        const previousRoute = pendingRoutes.get(key);
-        const route = previousRoute || {assigned, includeSharedContext};
-        if (forAgent && !route.assigned) throw new Error('Connect your agent or turn off the robot icon to send to Shared chat.');
+        const previous = pendingRequests.get(key);
+        if (!previous && forAgent && !assigned) throw new Error('Connect your agent or turn off the robot icon to send to Shared chat.');
         // Shared discussion follows the slide ID, while edits and selected objects keep their revision.
-        const discussion = slideId && !target && !editIntent && !route.assigned && channel === 'shared';
-        if (!discussion && !proposal && !contentHash) throw stale(staleArtifact);
+        const discussion = slideId && !target && !editIntent && !assigned && channel === 'shared';
+        if (!previous && !discussion && !proposal && !contentHash) throw stale(staleArtifact);
+        // A lost response may already have saved this exact request. Replaying its
+        // original anchors and routing lets the server acknowledge it idempotently.
+        const payload = previous || {
+          message: editMessage(message, editIntent), request_id: requestId,
+          content_hash: discussion || proposal ? '' : contentHash,
+          target: structuredClone(anchor), channel, released, assigned,
+          ...(channel === 'shared' && assigned && includeSharedContext ? {include_shared_context: true} : {}),
+          ...((!discussion || proposal) && slideContentHash ? {slide_content_hash: slideContentHash} : {}),
+          ...(proposal ? {proposal: structuredClone(proposal)} : {}),
+          ...(files?.length ? {files: files.map(file => ({...file}))} : {}),
+        };
         try {
-          const result = await request(`${endpoint}/chat`, {message: editMessage(message, editIntent), request_id: requestId,
-            content_hash: discussion || proposal ? '' : contentHash, target: anchor, channel, released, assigned: route.assigned,
-            ...(channel === 'shared' && route.assigned && route.includeSharedContext ? {include_shared_context: true} : {}),
-            ...((!discussion || proposal) && slideContentHash ? {slide_content_hash: slideContentHash} : {}),
-            ...(proposal ? {proposal} : {}),
-            ...(files?.length ? {files} : {})});
-          pendingRoutes.delete(key);
+          const result = await request(`${endpoint}/chat`, payload);
+          pendingRequests.delete(key);
           return result;
         } catch (error) {
           // An uncertain response may already have persisted this request and its routing.
           if (!error.status || error.status >= 500 || error.status === 408) {
-            pendingRoutes.set(key, route);
-            if (pendingRoutes.size > 100) pendingRoutes.delete(pendingRoutes.keys().next().value);
-          }
+            pendingRequests.set(key, payload);
+            if (pendingRequests.size > 100) pendingRequests.delete(pendingRequests.keys().next().value);
+          } else pendingRequests.delete(key);
           throw error;
         }
       },

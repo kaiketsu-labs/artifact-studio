@@ -1,0 +1,1039 @@
+{
+  "git_commit": "0de54b953608f661262d541c030b4a6d7b07a015",
+  "git_dirty": true,
+  "elapsed_distribution_ms": {
+    "baseline": {
+      "min": 405.134,
+      "max": 553.732,
+      "call_min": 9.822,
+      "call_max": 94.088
+    },
+    "efficient": {
+      "min": 380.524,
+      "max": 791.417,
+      "call_min": 10.594,
+      "call_max": 81.593
+    }
+  },
+  "source_sha256": {
+    "/workspace/artifact-studio/scripts/benchmark_presentation_workflow.py": "6cd217d8d4cb1e3e0246f41950f3cded0470e58159afe33de36bd80695de4184",
+    "docs/AGENT-QUICKSTART.md": "aa90a8432b8ae5b2efa22d2a29314fec6aba0a9cf9722dddb7d13c8fb8570a32",
+    "agent/guides/artifacts.md": "53fd82c47a1e7beda4f9d7c0bb63a2e6eb836b9a776a9872ad91cf6630ed277e",
+    "agent/bootstrap.md": "c9a2016b70f4710764070f3a4403364c5fe47e39c2759a9c1534b3f021468d45",
+    "docs/LIVE-REVIEW.md": "60fa4e7ab38bd75a8d0653f5db61cd93410627b3b7bb103cdbb479bf1be022e9",
+    "tests/integration/support.py": "0b236a81aa4e5f4cd2fd7006dd2f2616b9e51e682a4a58c56eb652d854481927",
+    "uv.lock": "5acdec1db87f397743398af0a83678fdcee1ba5efa5d74ab8708032bbb0a6474",
+    "artifact_studio/__init__.py": "c965d6a50fbe5d3c6d85d672e4654dd156ea089a4887a6b64df18fd4e5a129da",
+    "artifact_studio/agent_client.py": "5000d098bb9f101e2ecb9b978b443e5da4559a81b1cdd5eccf51e63553b4678c",
+    "artifact_studio/agent_io.py": "0611f5852fb030438ce3517302f5f36c58a2233233b8db2cf81e6197dea03487",
+    "artifact_studio/app.py": "5e18bbf7fa06c69965135d80ccbea0416763698845d2380ac199e006cdcc7177",
+    "artifact_studio/app_info.py": "ecb450818ce36bbf1a59c8b96e81264ca475f6bfdfb9089ce36f348a2ccb9bd0",
+    "artifact_studio/artifact_api.py": "fe1a00e5d00927fcdba74187f8cb79aff8516eafd86bba4fd4edc6ca52ad16e9",
+    "artifact_studio/artifact_capture.py": "363e57dec2eab5324b1dff8f39ddab420090a954fb2c745a9dee17b06cd8051a",
+    "artifact_studio/artifact_context.py": "54ff49515f14b6bf792a88c9b4be1ffd6051833ef38c944067a248458388f290",
+    "artifact_studio/artifact_models.py": "23c85a87b2f40e3e00cd590bcfc617ef8bd50700b5d38aa642b2b08d0c439671",
+    "artifact_studio/artifact_preview.py": "5e57a13f605c4a9524d4b11586eda6c8c01abef8210bd88623f56bb60b6110d5",
+    "artifact_studio/artifact_tools.py": "f044015e2d0fc47cf4169659c1de50baedc28e508d6b22417e4df54e2cf2d0c8",
+    "artifact_studio/artifacts.py": "36559874ff3960b5948e007ae638b578523db24c4dc2490a55e499fa23b6fc27",
+    "artifact_studio/authentication.py": "89e53188516985c7851bc5cd75f24f7df3ce87e27601601a521c88a52d6e157c",
+    "artifact_studio/autosync.py": "9835059194870e31ca58edb73cee5c2c84d2485a4d10ca366f18474c8a8faeae",
+    "artifact_studio/chat_references.py": "6bfb7432fdd9d1b5688f4cbaf5991e4b63bcbe09332c97713f8b09a48f28f62d",
+    "artifact_studio/cloudflare_admission.py": "755772b2e62b1e398e0981ff0458c83b0fb04e95c545e809e5244854dd74f58b",
+    "artifact_studio/cloudflare_auth.py": "5c2c607d38ad0f73083173f45b8a2ff1906de9ae2d8531cb38b56cbc2ceef729",
+    "artifact_studio/copilot.py": "5c5ec6a6c9cdea66e7a87b12810867cd639a8d08f4f40eef71f0dd9d849634fa",
+    "artifact_studio/copilot_capture.py": "31e5d1c9d096bc49a72c49fb8d2acbbfa74deed3fed2985a529ba86c778b4e3a",
+    "artifact_studio/copilot_tools.py": "5e89f76c9283c2af9ffcc23c0994934bf02b2ec0d6b283eb4f05e489da23f1f0",
+    "artifact_studio/css_assets.py": "c84cb1ec0e9d039b3f9bd9d7e46024fce11882be4bac30b070c3097a75c37cf4",
+    "artifact_studio/deck_edit_api.py": "8d699efa8fcac632519caf193842260d1edf091158cdf3418cc32e957177e42f",
+    "artifact_studio/deck_presence.py": "42e4354e83ef3b306e16621784f8aaad31101ce83bae05d2ee76d449ac35055c",
+    "artifact_studio/deployment.py": "cc732678cddd5cc63c340a3f74356ee59ce20b7c0106c75e05e4bdb76ae5320d",
+    "artifact_studio/design_authoring.py": "49a514d3ae5018c1e3b8b0385d6069eb3adca66c8fe180d287451c6ccd6cd042",
+    "artifact_studio/design_library.py": "85ac4e3796875bb031cb90c4bc96e997cb4a664af80a5aa9b817ea408ce3be98",
+    "artifact_studio/design_library_api.py": "303b24cf2c8166e2650c9415a3813268e21a0e643a40bc7148b295f9ce3902f1",
+    "artifact_studio/design_preview.py": "9111f874b797077fee01a14fbb17d8c1e22c227354ee5203224c1978532f7192",
+    "artifact_studio/design_references.py": "6e21f7f94bd22ce2b2ae1d86518f2840c0efd5f5a4ee1a33eacf2ddc51df5171",
+    "artifact_studio/design_thumbnails.py": "48b575e6cb8d51b10c5cf8173f2083601cd9428c36879a74e5fcefc795a287b6",
+    "artifact_studio/design_transfer.py": "67ddc180cfd0d68434d4143e3345cb0455a9c64e5fe454d8158f622368d499b7",
+    "artifact_studio/element_alternative_api.py": "1ebef35f00f5c18eaaa535a01e978586ea41e12232ba5ede46565edb94b3cd51",
+    "artifact_studio/element_alternatives.py": "fbd1a257cc868e3059575e960b6039ad528bedb397c34f1b72e3113ff773c5e3",
+    "artifact_studio/events.py": "a21e346f248035304b6be33eb6a946500efbc6e8b0bb76d29f9069ffeda94622",
+    "artifact_studio/favorites.py": "f498b52c70d8c4be7a2a6bc5a0d2c264c61f24a421bf854e58a73f29438a0bbf",
+    "artifact_studio/feedback_previews.py": "3179ca9a4b03f6f0cac4a1200036077cd6326d1969bd0b83927f2d9e308bc61d",
+    "artifact_studio/github_backups.py": "34baa2604e9410d8499799537a1d98b2e4b6539dbc27139f97f799685378ca3b",
+    "artifact_studio/grant_recovery.py": "dff8e1c9841e6da62b1e5fb6a9314c6df48cba1d35f9fb696696ea09c075a8b4",
+    "artifact_studio/grant_recovery_cli.py": "308f182b8da1e89d5002600a0ba16d4ed9bb811c9287ba6bc8b4fb51dbc2419b",
+    "artifact_studio/grant_recovery_models.py": "88b045794ca6b45e1fdaf74612068be692cf4b45993786cb9baa1398363f90ab",
+    "artifact_studio/history_api.py": "4fdedd2c2dab2f12530d572f59f67ebf5d73eff6f83344f335e1c6086a270a10",
+    "artifact_studio/history_thumbnails.py": "7321d9ffbcb5e55d9a34a2fecdc5fc286381ed325a35d176d9e458d1c6bc8015",
+    "artifact_studio/hook_bundle.py": "38dd9bfea21639acaabfa51e551e7aabdbfeba916fabaf6d59e23598b1d9b4e4",
+    "artifact_studio/hook_client.py": "bfaa50f829657c5ff95378399fa5f9d9b4912bfd4fcc98720237f6662da93361",
+    "artifact_studio/hosted_auth.py": "47450ef62a8304670f9e70468754cdb55dbab556561c71dd656f1e2285bd6fee",
+    "artifact_studio/hosted_policy.py": "e2ce3c8e964c1cf769212b9d38b5d90f7644d0fb43667803a563ffd5e65edb20",
+    "artifact_studio/hosted_presenter.py": "79356f6350db3f7400d6aa789e99e23260e22d5c18d4e14a4e1de077df45248a",
+    "artifact_studio/hosted_preview.py": "18faa53e1d937e2b031666382e28aeb5250a9edb2d830eb5a0fbfecbb22550ec",
+    "artifact_studio/hub_previews.py": "66f1754f66cd593dd4880ccaae5986b8be991dc8ca41b2f0b2c70de37c906f8f",
+    "artifact_studio/image_api.py": "b5e12f7b9b31fc253c41acde8ac6c4d03cec295e1637e7de586853514654f25e",
+    "artifact_studio/interactive.py": "872984a9809f96a20d9841676cce3dacce1df67e9ecca93f11396cc607e31fcb",
+    "artifact_studio/invitation_landing.py": "6987d2b8c6d2099eed91838573049fdfa0abdf52feb6882b9bce89b6754c8b73",
+    "artifact_studio/invitation_provisioning.py": "d46c2624ac0ab9ca95e9d6d496e1aeaf327456d79d773f18ce6440ca93cf8cb4",
+    "artifact_studio/libraries.py": "a0802d1a9c1d8e39ab5e317475f9fb13b09ee4bd5ec1370ee7efa8590e10b2fb",
+    "artifact_studio/local_http.py": "8d43c2cd5acf094349f25ac4dffa9847f6b5247faf6b884d9ccb5463b02c3b77",
+    "artifact_studio/models.py": "cf0b756bd33ae033d8b0b3ae0dfdfde8a3b379c2032797b7adbd9785fb0b3567",
+    "artifact_studio/multiplayer.py": "dc30976eea12e53589bc2dbe6444f2e764e2bf1fc7d488577915e629a0309d94",
+    "artifact_studio/multiplayer_access.py": "dabdc7eb52dc68508ee16ab6a02bdb085b2d8ed37e8e20486ce0d8fa3d42ffa6",
+    "artifact_studio/multiplayer_chat.py": "555749729308c41590943a0939867c05e5267b7bfcecf1cd86eb6d730f18f2cf",
+    "artifact_studio/multiplayer_http.py": "da92dd9e9a4a9f274bc77978cb037ad5db540a91fe16bf3039dd8fc51b997db1",
+    "artifact_studio/multiplayer_tools.py": "907e84a8ecd28efd61626fe14888da61140ba6673897543a1f0874bc12cbaa2c",
+    "artifact_studio/navigation.py": "273bfb2587c3070a352a437a7d5e6c1e96b206d3fd6d1baf76c922d6d00f5e6b",
+    "artifact_studio/offline_delivery.py": "bab03d56b91beb9238ff7337f3dad5343aa47e9ded30f96a647ebc8130576c79",
+    "artifact_studio/offline_identity.py": "d9588dd9cc9cb659698a1b6e507c0fbdd54d019e523d90ec6d3972de84b0c947",
+    "artifact_studio/presentation_files.py": "1145d223d82bf36b90a47a293cb07c90b32f2ee838150fafe49dd99ad9a27ad4",
+    "artifact_studio/presentation_sync.py": "7526d9244dd371c65fa0f86856a3231ff9a75a9e4f67d3f11bb0bec5b5f43382",
+    "artifact_studio/project_sync.py": "e635468ae47e65f78e9ea915c92689fbe95023917b4973e13fef60730e5a686e",
+    "artifact_studio/project_tree.py": "932c81bf0e89ae322ef7dac3bb79219d3107cfa9c544bfb404227e8f91169bf6",
+    "artifact_studio/projects.py": "40d37979ed7b41b19f40f5a142ff46c8f189341c969bca6bd503fc9b7c89d5a0",
+    "artifact_studio/questions.py": "f90f07efd815b859e2526e93c7a26c93a93db633c1bc31341502b4591f3eaf5e",
+    "artifact_studio/recovery_api.py": "fb5309f4cfb50a046b6b40f60c3f82c118c43399ad529ab37fa1bc2fc746aeed",
+    "artifact_studio/renderer_health.py": "f7a2cc9903f8a6559afe967e31b22bd624183d0507ff37301f989596cfbfb6f6",
+    "artifact_studio/request_diagnostics.py": "a7cb47e8714fc8d6dd0de463c96dc7e98e4eacaa4ad8c773c4164546608facdc",
+    "artifact_studio/review.py": "b152390954e0d772985e1a2ad39f6ea5826a1acd57148fdb3a0f5a8fb1350691",
+    "artifact_studio/sections.py": "18857dca7bb3b7497237ff7a27c2bb32d0f519b6c60c4dd15cc72fc71d355e7f",
+    "artifact_studio/security_check.py": "b45595bcd6598344c5f2613da1b827a28331bf7e7808b8ce738784f7085af74b",
+    "artifact_studio/selection_image.py": "02945d732ea4a4f9d25c04dbcb9ddc73b4c4a5140cdfd427d789f36bbb8ff812",
+    "artifact_studio/server.py": "25ac0d9cacbdcdd53a43d677fe5a88b38161aba2a07f38467ce0473e102fe119",
+    "artifact_studio/share_api.py": "4618cad259679b94e130aa45f144300d196571ebdeb6aa648b6402a9b37ec387",
+    "artifact_studio/share_outlook.py": "44b310f3814de9b018b583152bcd5158e7d47872497f589e97212397d8beec6d",
+    "artifact_studio/share_pdf_worker.py": "4854850ef5af280dbe6437b8cd208e317bdff32b608b85dcc5c7910902f96940",
+    "artifact_studio/shared_editor.py": "eee5192fed571aa96e1470414aedf1be76c19d105d50f93b030d88df9df9d462",
+    "artifact_studio/sharing.py": "2fc37c753da4fc7097e2bce9af1ec815083da67f8126168870260adc4db6c9d8",
+    "artifact_studio/slide_actions.py": "0e87451c778ad8a2a486332527043e71d32015ca4964ab4ba583a868f1ad3dec",
+    "artifact_studio/slide_css.py": "4d84f139dad131621948951e71cbf18af8fb56c087cea76849e3f7c8afaae537",
+    "artifact_studio/slide_design_api.py": "6f5578d08fe73cb6f1ac8ce92fcc0fbcc7956b0655909d7caeb66254c8792a4c",
+    "artifact_studio/slide_designs.py": "f39f3e64a9ef43c33d33db59ff1683d3bb0453668ef1ebd762506009c3234f4c",
+    "artifact_studio/storage.py": "f19feb4ae8d90fe736a52e7e59dccd251329779ebb6b69dac7fb45d573698164",
+    "artifact_studio/structure_proposals.py": "baca2a664e24767b7c323e49b7ab77b8f111cb60c9662efc7f295d58cab37733",
+    "artifact_studio/text_review.py": "a6b475d70bfa3676ae1c4a5d95e130a530ae8d592970e828c8703d682687b25b",
+    "artifact_studio/unified.py": "e5b844376bc839ba0c6872ffba167a13446e9ddb6caaa2db939340d2ff84434f",
+    "artifact_studio/updater.py": "d335392f637c864d416d835784b2a7ff5b740177909fdd0adee231bb23c614f4",
+    "artifact_studio/version_authors.py": "5fe9ad52d53250fda3a960863a687d924c231ba0ce795bbc8dc0a7ced8168102",
+    "artifact_studio/version_history.py": "dbe7346b48ba871e431d304f5cc5cd8a086bedd2d3a4a462d850f240524888a0",
+    "artifact_studio/visuals.py": "6f8495691f8789c36c7733a0cb8da293fb653a1e94c6d296ce8acbb9d362bae9",
+    "artifact_studio/workspace_recovery.py": "718e5bae726538b5bebf058c344440239983a862705d3bc800e8f544347edc08"
+  },
+  "tokenizer": null,
+  "tokenizer_status": "not requested; see methodology for recorded audit download limitation",
+  "measurement": "Compact JSON UTF-8 bytes; not HTTP wire bytes or billed tokens",
+  "environment": {
+    "python": "3.14.8",
+    "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "mcp": "2.3.0",
+    "playwright": "1.65.0"
+  },
+  "warmups_per_policy": 1,
+  "repeats_per_policy": 3,
+  "fixture": "12 fictional slides, 20 unrelated decks, 12 released comments, concurrent notes",
+  "unavailable": [
+    "provider prompt/cache/billed tokens",
+    "reasoning tokens",
+    "image tokens",
+    "model inference latency",
+    "visual render/capture metrics"
+  ],
+  "runs": [
+    {
+      "policy": "baseline",
+      "final_state": {
+        "title": "Evidence-led decision",
+        "html": "<article class=\"slide\" style=\"background:#f4f7fb;color:#172b4d;padding:6.875cqw;font-family:Arial,sans-serif\"><p style=\"font-size:1.5625cqw\">FICTIONAL CI FIXTURE</p><h1 style=\"font-size:4.625cqw;line-height:1.1;margin:4.6875cqw 0\">Evidence-led decision</h1><p style=\"font-size:2.25cqw\">Create, review and present.</p></article>",
+        "notes": "PRIVATE_CI_SPEAKER_NOTE_71b03 Human added evidence provenance."
+      },
+      "elapsed_ms": 553.732,
+      "samples": [
+        {
+          "label": "fresh_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 38.023,
+          "request_parameters_utf8_bytes": 104,
+          "response_text_utf8_bytes": 18059,
+          "response_mcp_json_utf8_bytes": 35717,
+          "expected_error": false
+        },
+        {
+          "label": "retained_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 41.572,
+          "request_parameters_utf8_bytes": 104,
+          "response_text_utf8_bytes": 18059,
+          "response_mcp_json_utf8_bytes": 35717,
+          "expected_error": false
+        },
+        {
+          "label": "fresh_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 17.541,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "retained_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 13.667,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "brief",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 22.501,
+          "request_parameters_utf8_bytes": 107,
+          "response_text_utf8_bytes": 9207,
+          "response_mcp_json_utf8_bytes": 18013,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_first",
+          "tool": "read_feedback",
+          "elapsed_ms": 30.514,
+          "request_parameters_utf8_bytes": 73,
+          "response_text_utf8_bytes": 12695,
+          "response_mcp_json_utf8_bytes": 24180,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_poll",
+          "tool": "read_feedback",
+          "elapsed_ms": 40.104,
+          "request_parameters_utf8_bytes": 95,
+          "response_text_utf8_bytes": 12695,
+          "response_mcp_json_utf8_bytes": 24180,
+          "expected_error": false
+        },
+        {
+          "label": "broad_read",
+          "tool": "get_presentation",
+          "elapsed_ms": 25.672,
+          "request_parameters_utf8_bytes": 76,
+          "response_text_utf8_bytes": 50244,
+          "response_mcp_json_utf8_bytes": 97146,
+          "expected_error": false
+        },
+        {
+          "label": "source",
+          "tool": "get_slide",
+          "elapsed_ms": 22.116,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1181,
+          "response_mcp_json_utf8_bytes": 2430,
+          "expected_error": false
+        },
+        {
+          "label": "stale_rejected",
+          "tool": "revise_slide",
+          "elapsed_ms": 40.828,
+          "request_parameters_utf8_bytes": 617,
+          "response_text_utf8_bytes": 88,
+          "response_mcp_json_utf8_bytes": 142,
+          "expected_error": true
+        },
+        {
+          "label": "rebase_source",
+          "tool": "get_slide",
+          "elapsed_ms": 16.229,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1214,
+          "response_mcp_json_utf8_bytes": 2496,
+          "expected_error": false
+        },
+        {
+          "label": "revision",
+          "tool": "revise_slide",
+          "elapsed_ms": 26.696,
+          "request_parameters_utf8_bytes": 618,
+          "response_text_utf8_bytes": 10119,
+          "response_mcp_json_utf8_bytes": 19009,
+          "expected_error": false
+        },
+        {
+          "label": "validation_source",
+          "tool": "get_slide",
+          "elapsed_ms": 14.813,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1230,
+          "response_mcp_json_utf8_bytes": 2528,
+          "expected_error": false
+        },
+        {
+          "label": "validation_outline",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 23.261,
+          "request_parameters_utf8_bytes": 84,
+          "response_text_utf8_bytes": 8543,
+          "response_mcp_json_utf8_bytes": 16669,
+          "expected_error": false
+        }
+      ],
+      "totals": {
+        "request_parameters_utf8_bytes": 2274,
+        "response_text_utf8_bytes": 166296,
+        "response_mcp_json_utf8_bytes": 324527
+      },
+      "tool_catalog": {
+        "mcp_json_utf8_bytes": 147956,
+        "elapsed_ms": 50.72
+      },
+      "assertions": [
+        "stale revision rejected",
+        "human notes preserved after rebase",
+        "requested title and HTML saved",
+        "12 slides preserved",
+        "full source and brief inspected; final source and outline validated"
+      ]
+    },
+    {
+      "policy": "efficient",
+      "final_state": {
+        "title": "Evidence-led decision",
+        "html": "<article class=\"slide\" style=\"background:#f4f7fb;color:#172b4d;padding:6.875cqw;font-family:Arial,sans-serif\"><p style=\"font-size:1.5625cqw\">FICTIONAL CI FIXTURE</p><h1 style=\"font-size:4.625cqw;line-height:1.1;margin:4.6875cqw 0\">Evidence-led decision</h1><p style=\"font-size:2.25cqw\">Create, review and present.</p></article>",
+        "notes": "PRIVATE_CI_SPEAKER_NOTE_71b03 Human added evidence provenance."
+      },
+      "elapsed_ms": 514.699,
+      "samples": [
+        {
+          "label": "fresh_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 24.68,
+          "request_parameters_utf8_bytes": 105,
+          "response_text_utf8_bytes": 15808,
+          "response_mcp_json_utf8_bytes": 31582,
+          "expected_error": false
+        },
+        {
+          "label": "retained_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 20.531,
+          "request_parameters_utf8_bytes": 277,
+          "response_text_utf8_bytes": 4726,
+          "response_mcp_json_utf8_bytes": 9352,
+          "expected_error": false
+        },
+        {
+          "label": "fresh_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 14.989,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "retained_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 21.417,
+          "request_parameters_utf8_bytes": 146,
+          "response_text_utf8_bytes": 217,
+          "response_mcp_json_utf8_bytes": 515,
+          "expected_error": false
+        },
+        {
+          "label": "brief",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 19.282,
+          "request_parameters_utf8_bytes": 193,
+          "response_text_utf8_bytes": 5978,
+          "response_mcp_json_utf8_bytes": 11531,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_first",
+          "tool": "read_feedback",
+          "elapsed_ms": 51.42,
+          "request_parameters_utf8_bytes": 159,
+          "response_text_utf8_bytes": 9466,
+          "response_mcp_json_utf8_bytes": 17698,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_poll",
+          "tool": "read_feedback",
+          "elapsed_ms": 81.593,
+          "request_parameters_utf8_bytes": 278,
+          "response_text_utf8_bytes": 385,
+          "response_mcp_json_utf8_bytes": 846,
+          "expected_error": false
+        },
+        {
+          "label": "source",
+          "tool": "get_slide",
+          "elapsed_ms": 14.563,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1181,
+          "response_mcp_json_utf8_bytes": 2430,
+          "expected_error": false
+        },
+        {
+          "label": "stale_rejected",
+          "tool": "revise_slide",
+          "elapsed_ms": 30.044,
+          "request_parameters_utf8_bytes": 618,
+          "response_text_utf8_bytes": 88,
+          "response_mcp_json_utf8_bytes": 142,
+          "expected_error": true
+        },
+        {
+          "label": "rebase_source",
+          "tool": "get_slide",
+          "elapsed_ms": 18.158,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1214,
+          "response_mcp_json_utf8_bytes": 2496,
+          "expected_error": false
+        },
+        {
+          "label": "revision",
+          "tool": "revise_slide",
+          "elapsed_ms": 23.93,
+          "request_parameters_utf8_bytes": 619,
+          "response_text_utf8_bytes": 354,
+          "response_mcp_json_utf8_bytes": 796,
+          "expected_error": false
+        },
+        {
+          "label": "validation_source",
+          "tool": "get_slide",
+          "elapsed_ms": 14.393,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1230,
+          "response_mcp_json_utf8_bytes": 2528,
+          "expected_error": false
+        },
+        {
+          "label": "validation_outline",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 16.752,
+          "request_parameters_utf8_bytes": 170,
+          "response_text_utf8_bytes": 5314,
+          "response_mcp_json_utf8_bytes": 10187,
+          "expected_error": false
+        }
+      ],
+      "totals": {
+        "request_parameters_utf8_bytes": 2895,
+        "response_text_utf8_bytes": 57442,
+        "response_mcp_json_utf8_bytes": 113253
+      },
+      "tool_catalog": {
+        "mcp_json_utf8_bytes": 147956,
+        "elapsed_ms": 39.271
+      },
+      "assertions": [
+        "stale revision rejected",
+        "human notes preserved after rebase",
+        "requested title and HTML saved",
+        "12 slides preserved",
+        "full source and brief inspected; final source and outline validated"
+      ]
+    },
+    {
+      "policy": "efficient",
+      "final_state": {
+        "title": "Evidence-led decision",
+        "html": "<article class=\"slide\" style=\"background:#f4f7fb;color:#172b4d;padding:6.875cqw;font-family:Arial,sans-serif\"><p style=\"font-size:1.5625cqw\">FICTIONAL CI FIXTURE</p><h1 style=\"font-size:4.625cqw;line-height:1.1;margin:4.6875cqw 0\">Evidence-led decision</h1><p style=\"font-size:2.25cqw\">Create, review and present.</p></article>",
+        "notes": "PRIVATE_CI_SPEAKER_NOTE_71b03 Human added evidence provenance."
+      },
+      "elapsed_ms": 791.417,
+      "samples": [
+        {
+          "label": "fresh_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 35.682,
+          "request_parameters_utf8_bytes": 105,
+          "response_text_utf8_bytes": 15808,
+          "response_mcp_json_utf8_bytes": 31582,
+          "expected_error": false
+        },
+        {
+          "label": "retained_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 34.768,
+          "request_parameters_utf8_bytes": 277,
+          "response_text_utf8_bytes": 4726,
+          "response_mcp_json_utf8_bytes": 9352,
+          "expected_error": false
+        },
+        {
+          "label": "fresh_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 22.025,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "retained_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 33.378,
+          "request_parameters_utf8_bytes": 146,
+          "response_text_utf8_bytes": 217,
+          "response_mcp_json_utf8_bytes": 515,
+          "expected_error": false
+        },
+        {
+          "label": "brief",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 58.572,
+          "request_parameters_utf8_bytes": 193,
+          "response_text_utf8_bytes": 5978,
+          "response_mcp_json_utf8_bytes": 11531,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_first",
+          "tool": "read_feedback",
+          "elapsed_ms": 44.196,
+          "request_parameters_utf8_bytes": 159,
+          "response_text_utf8_bytes": 9466,
+          "response_mcp_json_utf8_bytes": 17698,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_poll",
+          "tool": "read_feedback",
+          "elapsed_ms": 31.17,
+          "request_parameters_utf8_bytes": 278,
+          "response_text_utf8_bytes": 385,
+          "response_mcp_json_utf8_bytes": 846,
+          "expected_error": false
+        },
+        {
+          "label": "source",
+          "tool": "get_slide",
+          "elapsed_ms": 31.301,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1181,
+          "response_mcp_json_utf8_bytes": 2430,
+          "expected_error": false
+        },
+        {
+          "label": "stale_rejected",
+          "tool": "revise_slide",
+          "elapsed_ms": 60.369,
+          "request_parameters_utf8_bytes": 618,
+          "response_text_utf8_bytes": 88,
+          "response_mcp_json_utf8_bytes": 142,
+          "expected_error": true
+        },
+        {
+          "label": "rebase_source",
+          "tool": "get_slide",
+          "elapsed_ms": 43.989,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1214,
+          "response_mcp_json_utf8_bytes": 2496,
+          "expected_error": false
+        },
+        {
+          "label": "revision",
+          "tool": "revise_slide",
+          "elapsed_ms": 59.747,
+          "request_parameters_utf8_bytes": 619,
+          "response_text_utf8_bytes": 354,
+          "response_mcp_json_utf8_bytes": 796,
+          "expected_error": false
+        },
+        {
+          "label": "validation_source",
+          "tool": "get_slide",
+          "elapsed_ms": 30.658,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1230,
+          "response_mcp_json_utf8_bytes": 2528,
+          "expected_error": false
+        },
+        {
+          "label": "validation_outline",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 40.244,
+          "request_parameters_utf8_bytes": 170,
+          "response_text_utf8_bytes": 5314,
+          "response_mcp_json_utf8_bytes": 10187,
+          "expected_error": false
+        }
+      ],
+      "totals": {
+        "request_parameters_utf8_bytes": 2895,
+        "response_text_utf8_bytes": 57442,
+        "response_mcp_json_utf8_bytes": 113253
+      },
+      "tool_catalog": {
+        "mcp_json_utf8_bytes": 147956,
+        "elapsed_ms": 83.638
+      },
+      "assertions": [
+        "stale revision rejected",
+        "human notes preserved after rebase",
+        "requested title and HTML saved",
+        "12 slides preserved",
+        "full source and brief inspected; final source and outline validated"
+      ]
+    },
+    {
+      "policy": "baseline",
+      "final_state": {
+        "title": "Evidence-led decision",
+        "html": "<article class=\"slide\" style=\"background:#f4f7fb;color:#172b4d;padding:6.875cqw;font-family:Arial,sans-serif\"><p style=\"font-size:1.5625cqw\">FICTIONAL CI FIXTURE</p><h1 style=\"font-size:4.625cqw;line-height:1.1;margin:4.6875cqw 0\">Evidence-led decision</h1><p style=\"font-size:2.25cqw\">Create, review and present.</p></article>",
+        "notes": "PRIVATE_CI_SPEAKER_NOTE_71b03 Human added evidence provenance."
+      },
+      "elapsed_ms": 405.134,
+      "samples": [
+        {
+          "label": "fresh_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 26.658,
+          "request_parameters_utf8_bytes": 104,
+          "response_text_utf8_bytes": 18059,
+          "response_mcp_json_utf8_bytes": 35717,
+          "expected_error": false
+        },
+        {
+          "label": "retained_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 29.172,
+          "request_parameters_utf8_bytes": 104,
+          "response_text_utf8_bytes": 18059,
+          "response_mcp_json_utf8_bytes": 35717,
+          "expected_error": false
+        },
+        {
+          "label": "fresh_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 10.214,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "retained_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 9.822,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "brief",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 18.125,
+          "request_parameters_utf8_bytes": 107,
+          "response_text_utf8_bytes": 9207,
+          "response_mcp_json_utf8_bytes": 18013,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_first",
+          "tool": "read_feedback",
+          "elapsed_ms": 26.377,
+          "request_parameters_utf8_bytes": 73,
+          "response_text_utf8_bytes": 12695,
+          "response_mcp_json_utf8_bytes": 24180,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_poll",
+          "tool": "read_feedback",
+          "elapsed_ms": 28.325,
+          "request_parameters_utf8_bytes": 95,
+          "response_text_utf8_bytes": 12695,
+          "response_mcp_json_utf8_bytes": 24180,
+          "expected_error": false
+        },
+        {
+          "label": "broad_read",
+          "tool": "get_presentation",
+          "elapsed_ms": 23.363,
+          "request_parameters_utf8_bytes": 76,
+          "response_text_utf8_bytes": 50244,
+          "response_mcp_json_utf8_bytes": 97146,
+          "expected_error": false
+        },
+        {
+          "label": "source",
+          "tool": "get_slide",
+          "elapsed_ms": 11.926,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1181,
+          "response_mcp_json_utf8_bytes": 2430,
+          "expected_error": false
+        },
+        {
+          "label": "stale_rejected",
+          "tool": "revise_slide",
+          "elapsed_ms": 21.999,
+          "request_parameters_utf8_bytes": 617,
+          "response_text_utf8_bytes": 88,
+          "response_mcp_json_utf8_bytes": 142,
+          "expected_error": true
+        },
+        {
+          "label": "rebase_source",
+          "tool": "get_slide",
+          "elapsed_ms": 14.295,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1214,
+          "response_mcp_json_utf8_bytes": 2496,
+          "expected_error": false
+        },
+        {
+          "label": "revision",
+          "tool": "revise_slide",
+          "elapsed_ms": 21.012,
+          "request_parameters_utf8_bytes": 618,
+          "response_text_utf8_bytes": 10119,
+          "response_mcp_json_utf8_bytes": 19009,
+          "expected_error": false
+        },
+        {
+          "label": "validation_source",
+          "tool": "get_slide",
+          "elapsed_ms": 14.683,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1230,
+          "response_mcp_json_utf8_bytes": 2528,
+          "expected_error": false
+        },
+        {
+          "label": "validation_outline",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 16.173,
+          "request_parameters_utf8_bytes": 84,
+          "response_text_utf8_bytes": 8543,
+          "response_mcp_json_utf8_bytes": 16669,
+          "expected_error": false
+        }
+      ],
+      "totals": {
+        "request_parameters_utf8_bytes": 2274,
+        "response_text_utf8_bytes": 166296,
+        "response_mcp_json_utf8_bytes": 324527
+      },
+      "tool_catalog": {
+        "mcp_json_utf8_bytes": 147956,
+        "elapsed_ms": 37.752
+      },
+      "assertions": [
+        "stale revision rejected",
+        "human notes preserved after rebase",
+        "requested title and HTML saved",
+        "12 slides preserved",
+        "full source and brief inspected; final source and outline validated"
+      ]
+    },
+    {
+      "policy": "baseline",
+      "final_state": {
+        "title": "Evidence-led decision",
+        "html": "<article class=\"slide\" style=\"background:#f4f7fb;color:#172b4d;padding:6.875cqw;font-family:Arial,sans-serif\"><p style=\"font-size:1.5625cqw\">FICTIONAL CI FIXTURE</p><h1 style=\"font-size:4.625cqw;line-height:1.1;margin:4.6875cqw 0\">Evidence-led decision</h1><p style=\"font-size:2.25cqw\">Create, review and present.</p></article>",
+        "notes": "PRIVATE_CI_SPEAKER_NOTE_71b03 Human added evidence provenance."
+      },
+      "elapsed_ms": 510.422,
+      "samples": [
+        {
+          "label": "fresh_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 26.741,
+          "request_parameters_utf8_bytes": 104,
+          "response_text_utf8_bytes": 18059,
+          "response_mcp_json_utf8_bytes": 35717,
+          "expected_error": false
+        },
+        {
+          "label": "retained_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 25.876,
+          "request_parameters_utf8_bytes": 104,
+          "response_text_utf8_bytes": 18059,
+          "response_mcp_json_utf8_bytes": 35717,
+          "expected_error": false
+        },
+        {
+          "label": "fresh_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 17.826,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "retained_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 14.577,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "brief",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 17.001,
+          "request_parameters_utf8_bytes": 107,
+          "response_text_utf8_bytes": 9207,
+          "response_mcp_json_utf8_bytes": 18013,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_first",
+          "tool": "read_feedback",
+          "elapsed_ms": 24.494,
+          "request_parameters_utf8_bytes": 73,
+          "response_text_utf8_bytes": 12695,
+          "response_mcp_json_utf8_bytes": 24180,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_poll",
+          "tool": "read_feedback",
+          "elapsed_ms": 26.52,
+          "request_parameters_utf8_bytes": 95,
+          "response_text_utf8_bytes": 12695,
+          "response_mcp_json_utf8_bytes": 24180,
+          "expected_error": false
+        },
+        {
+          "label": "broad_read",
+          "tool": "get_presentation",
+          "elapsed_ms": 20.29,
+          "request_parameters_utf8_bytes": 76,
+          "response_text_utf8_bytes": 50244,
+          "response_mcp_json_utf8_bytes": 97146,
+          "expected_error": false
+        },
+        {
+          "label": "source",
+          "tool": "get_slide",
+          "elapsed_ms": 13.67,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1181,
+          "response_mcp_json_utf8_bytes": 2430,
+          "expected_error": false
+        },
+        {
+          "label": "stale_rejected",
+          "tool": "revise_slide",
+          "elapsed_ms": 24.95,
+          "request_parameters_utf8_bytes": 617,
+          "response_text_utf8_bytes": 88,
+          "response_mcp_json_utf8_bytes": 142,
+          "expected_error": true
+        },
+        {
+          "label": "rebase_source",
+          "tool": "get_slide",
+          "elapsed_ms": 16.623,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1214,
+          "response_mcp_json_utf8_bytes": 2496,
+          "expected_error": false
+        },
+        {
+          "label": "revision",
+          "tool": "revise_slide",
+          "elapsed_ms": 31.498,
+          "request_parameters_utf8_bytes": 618,
+          "response_text_utf8_bytes": 10119,
+          "response_mcp_json_utf8_bytes": 19009,
+          "expected_error": false
+        },
+        {
+          "label": "validation_source",
+          "tool": "get_slide",
+          "elapsed_ms": 12.789,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1230,
+          "response_mcp_json_utf8_bytes": 2528,
+          "expected_error": false
+        },
+        {
+          "label": "validation_outline",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 94.088,
+          "request_parameters_utf8_bytes": 84,
+          "response_text_utf8_bytes": 8543,
+          "response_mcp_json_utf8_bytes": 16669,
+          "expected_error": false
+        }
+      ],
+      "totals": {
+        "request_parameters_utf8_bytes": 2274,
+        "response_text_utf8_bytes": 166296,
+        "response_mcp_json_utf8_bytes": 324527
+      },
+      "tool_catalog": {
+        "mcp_json_utf8_bytes": 147956,
+        "elapsed_ms": 63.372
+      },
+      "assertions": [
+        "stale revision rejected",
+        "human notes preserved after rebase",
+        "requested title and HTML saved",
+        "12 slides preserved",
+        "full source and brief inspected; final source and outline validated"
+      ]
+    },
+    {
+      "policy": "efficient",
+      "final_state": {
+        "title": "Evidence-led decision",
+        "html": "<article class=\"slide\" style=\"background:#f4f7fb;color:#172b4d;padding:6.875cqw;font-family:Arial,sans-serif\"><p style=\"font-size:1.5625cqw\">FICTIONAL CI FIXTURE</p><h1 style=\"font-size:4.625cqw;line-height:1.1;margin:4.6875cqw 0\">Evidence-led decision</h1><p style=\"font-size:2.25cqw\">Create, review and present.</p></article>",
+        "notes": "PRIVATE_CI_SPEAKER_NOTE_71b03 Human added evidence provenance."
+      },
+      "elapsed_ms": 380.524,
+      "samples": [
+        {
+          "label": "fresh_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 20.888,
+          "request_parameters_utf8_bytes": 105,
+          "response_text_utf8_bytes": 15808,
+          "response_mcp_json_utf8_bytes": 31582,
+          "expected_error": false
+        },
+        {
+          "label": "retained_context",
+          "tool": "get_working_context",
+          "elapsed_ms": 17.25,
+          "request_parameters_utf8_bytes": 277,
+          "response_text_utf8_bytes": 4726,
+          "response_mcp_json_utf8_bytes": 9352,
+          "expected_error": false
+        },
+        {
+          "label": "fresh_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 10.594,
+          "request_parameters_utf8_bytes": 66,
+          "response_text_utf8_bytes": 11481,
+          "response_mcp_json_utf8_bytes": 23150,
+          "expected_error": false
+        },
+        {
+          "label": "retained_guide",
+          "tool": "get_authoring_guide",
+          "elapsed_ms": 12.713,
+          "request_parameters_utf8_bytes": 146,
+          "response_text_utf8_bytes": 217,
+          "response_mcp_json_utf8_bytes": 515,
+          "expected_error": false
+        },
+        {
+          "label": "brief",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 18.328,
+          "request_parameters_utf8_bytes": 193,
+          "response_text_utf8_bytes": 5978,
+          "response_mcp_json_utf8_bytes": 11531,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_first",
+          "tool": "read_feedback",
+          "elapsed_ms": 27.264,
+          "request_parameters_utf8_bytes": 159,
+          "response_text_utf8_bytes": 9466,
+          "response_mcp_json_utf8_bytes": 17698,
+          "expected_error": false
+        },
+        {
+          "label": "feedback_poll",
+          "tool": "read_feedback",
+          "elapsed_ms": 26.262,
+          "request_parameters_utf8_bytes": 278,
+          "response_text_utf8_bytes": 385,
+          "response_mcp_json_utf8_bytes": 846,
+          "expected_error": false
+        },
+        {
+          "label": "source",
+          "tool": "get_slide",
+          "elapsed_ms": 13.909,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1181,
+          "response_mcp_json_utf8_bytes": 2430,
+          "expected_error": false
+        },
+        {
+          "label": "stale_rejected",
+          "tool": "revise_slide",
+          "elapsed_ms": 23.353,
+          "request_parameters_utf8_bytes": 618,
+          "response_text_utf8_bytes": 88,
+          "response_mcp_json_utf8_bytes": 142,
+          "expected_error": true
+        },
+        {
+          "label": "rebase_source",
+          "tool": "get_slide",
+          "elapsed_ms": 18.398,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1214,
+          "response_mcp_json_utf8_bytes": 2496,
+          "expected_error": false
+        },
+        {
+          "label": "revision",
+          "tool": "revise_slide",
+          "elapsed_ms": 21.964,
+          "request_parameters_utf8_bytes": 619,
+          "response_text_utf8_bytes": 354,
+          "response_mcp_json_utf8_bytes": 796,
+          "expected_error": false
+        },
+        {
+          "label": "validation_source",
+          "tool": "get_slide",
+          "elapsed_ms": 18.886,
+          "request_parameters_utf8_bytes": 88,
+          "response_text_utf8_bytes": 1230,
+          "response_mcp_json_utf8_bytes": 2528,
+          "expected_error": false
+        },
+        {
+          "label": "validation_outline",
+          "tool": "get_presentation_outline",
+          "elapsed_ms": 18.286,
+          "request_parameters_utf8_bytes": 170,
+          "response_text_utf8_bytes": 5314,
+          "response_mcp_json_utf8_bytes": 10187,
+          "expected_error": false
+        }
+      ],
+      "totals": {
+        "request_parameters_utf8_bytes": 2895,
+        "response_text_utf8_bytes": 57442,
+        "response_mcp_json_utf8_bytes": 113253
+      },
+      "tool_catalog": {
+        "mcp_json_utf8_bytes": 147956,
+        "elapsed_ms": 41.611
+      },
+      "assertions": [
+        "stale revision rejected",
+        "human notes preserved after rebase",
+        "requested title and HTML saved",
+        "12 slides preserved",
+        "full source and brief inspected; final source and outline validated"
+      ]
+    }
+  ],
+  "median_elapsed_ms": {
+    "baseline": 510.422,
+    "efficient": 514.699
+  }
+}

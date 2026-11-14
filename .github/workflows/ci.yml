@@ -196,6 +196,7 @@ jobs:
               tests/test_scoped_presentation_creation.py
               tests/integration/test_presentation_authoring.py
               tests/test_multiplayer_browser_owner.py
+              tests/test_draft_recovery_browser.py
               tests/test_offline_shell_browser.py
               tests/integration/test_element_properties_layout.py
               tests/integration/test_favorite_preview_lifecycle.py
@@ -290,7 +291,7 @@ jobs:
       - name: MCP protocol, guarded edits, authoring recovery and slide insertion
         run: >-
           uv run --no-sync pytest tests/integration/test_agents.py tests/integration/test_authoring_recovery.py
-          tests/integration/test_slide_insertion.py
+          tests/integration/test_slide_insertion.py tests/test_workflow_benchmark.py
           --junitxml=test-results/agents.xml
       - name: Native Codex and Claude Code clients
         env:

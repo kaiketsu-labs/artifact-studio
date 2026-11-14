@@ -2,7 +2,7 @@
 
 Artifact Studio uses the same stateless MCP server for Codex, Claude Code and other MCP clients. Automatic continuation additionally needs a lifecycle adapter in the agent harness. This app includes project-local or optional user-level command hooks for **Codex** and **Claude Code**. Other clients can still read and revise slides through MCP; they need their own lifecycle adapter for automatic continuation.
 
-The hooks automatically attach to selected artifacts of every file type, including presentations, HTML, Markdown, images and other files. They keep the review open at the end of an agent response. New Live feedback, a released batch or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
+The hooks automatically attach to selected artifacts of every file type, including presentations, HTML, Markdown, images and other files. They keep listening at the end of an agent response. Sent feedback, explicitly released saved messages or a design request lets the same agent continue. They do not start a closed application, resurrect a terminated chat or bypass host permissions. Keep both the local server and the review session open.
 
 For a remote hosted workspace, use the [client-only hosted setup](HOSTED-AGENT-HOOKS.md). The instructions below cover a local server.
 
@@ -64,7 +64,11 @@ One active hook reviewer owns an artifact at a time; another session is refused 
 
 ## How it works and limitations
 
-`PostToolUse` reports successful Artifact Studio tool calls and delivery cursors to the local `/api/review/hooks` endpoint. No transcript or reference-file content is forwarded by the hook. `Stop` waits in a local command, long-polling the durable queue without a model request for each poll. Feedback returns the host's `decision: block` with a tool-reading instruction, so the existing review turn continues. The hook renews after about nine quiet minutes through one agent continuation; it is not an unlimited, cost-free background worker.
+`PostToolUse` reports successful Artifact Studio tool calls and delivery cursors to the local `/api/review/hooks` endpoint. No transcript or reference-file content is forwarded by the hook. `Stop` polls the durable queue in a local command without a model request for each poll.
+
+On macOS and Linux, Claude Code uses `asyncRewake`: the turn ends normally while a background hook keeps the lease alive for up to six hours. Feedback makes the hook exit with code 2 and a tool-reading instruction to wake Claude. An idle lifetime ends quietly; the next relevant agent tool call re-arms listening. This removes periodic idle model turns during that lifetime. Reconfigure older installations to load the current hook settings.
+
+Codex and Claude Code on Windows use a synchronous Stop hook. Feedback returns `decision: block` with a tool-reading instruction; about nine quiet minutes also trigger a continuation to renew listening. Those idle renewals can still cost model tokens. Actual billing depends on the host and its cache; hook polls themselves are not model calls. See [token measurements and limits](TOKEN-EFFICIENCY.md).
 
 Session end releases the lease; Codex also has an Interrupt hook. The Claude adapter uses the common events supported by the pinned Claude Code client and omits the newer StopFailure event. After a Claude interruption/API failure or an abrupt process kill, availability can persist until its bounded lease expires; use End review for immediate release. Only another explicit start reconnects an ended review. Local server loss fails open so unrelated agent work can continue. Run only one server against the same state database while testing hooks.
 

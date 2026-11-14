@@ -16,7 +16,7 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import CallToolResult, ToolAnnotations
 from pydantic import Field
 
-from .agent_io import deck_receipt, guide_fields, rule_fields
+from .agent_io import deck_receipt, guide_fields, presentation_sizing, rule_fields
 from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .copilot_tools import (
     MAX_READ_BYTES,
@@ -159,6 +159,7 @@ class MultiplayerTools:
                 result["artifact"] = metadata
                 if item.legacy_deck_id:
                     result["outline"] = self.presentation_outline(store, actor, scope)
+                    result["presentation_sizing"] = presentation_sizing()
             else:
                 result.update(self.catalog(actor, scope))
                 if scope.kind == "project":
@@ -281,43 +282,57 @@ class MultiplayerTools:
                 )
             if topic == "live_review":
                 return {
-                    "guide": (
+                    **guide_fields(
                         "Install get_agent_hook_client's client using normal native host trust. "
                         "Set ARTIFACT_STUDIO_AGENT_TOKEN in the host environment, never in chat. "
                         "Configure hooks with this HTTPS origin and the same MCP server name. "
                         "start_live_review requests a connection; get_live_review_status reports "
                         "whether hooks are actually listening. Other agents remain connected. "
                         "A hook signals pending assigned requests. read_feedback and "
-                        "claim_feedback retrieve/claim them. Polling works without hooks."
+                        "claim_feedback retrieve/claim them. Polling works without hooks.",
+                        known_hash,
                     ),
                     "origin": self.public_url,
                 }
             guide = ScopedTools(store, "", True).get_authoring_guide()
-            guide["guide"] = (
-                "Use get_working_context for the selected scope. For presentations, read "
-                "get_presentation_outline (brief, order, hashes), then get_slide only for slides "
-                "you need. revise_slide takes SlidePatch JSON and the expected_hash you read. "
-                "For shareable slide work, set_slide_activity shows an expiring marker; clear "
-                "it when done and omit it for private work. "
-                "add_slide, reorder_slides and set_presentation_sections use the outline's order "
-                "and sections hashes. Load the slide_designs topic for design and element "
-                "alternatives. Remove only slides the human asked to delete, using remove_slide "
-                "and the current expected_hash; list and recover with get_deleted_slides and "
-                "restore_slides. create_presentation creates a native deck in an owned "
-                "workspace with a workspace or appropriate project connection. For artifacts, "
-                "get_artifact returns the manifest; read_artifact_files loads selected files. "
-                "revise_artifact takes files_json, expected_revision and request_id. "
-                "create_artifact needs an editable project and inline file bundle. "
-                "capture_slide, capture_contact_sheet and capture_artifact return real pixels "
-                "for visual review. "
-                "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
-                "Read only assigned requests with read_feedback. Claim with claim_feedback "
-                "before acting. Reply with reply_to_feedback using the claim and a stable "
-                "request_id. Reply visibility follows the original chat; never summarize "
-                "private chat publicly without permission. Read_chat provides shared context "
-                "or your owner's private conversation. Read_chat_attachment retrieves one "
-                "visible file by event ID and index. Withheld drafts stay private. "
-                "On conflicts re-read and reconcile; on lost responses retry the same request_id."
+            guide.update(
+                guide_fields(
+                    "Use get_working_context for the selected scope. For presentations, read "
+                    "get_presentation_outline (brief, order, hashes), then get_slide only for "
+                    "slides "
+                    "you need. revise_slide takes SlidePatch JSON and the expected_hash you read. "
+                    "For shareable slide work, set_slide_activity shows an expiring marker; clear "
+                    "it when done and omit it for private work. "
+                    "Use this connection's registered tool schemas before writing; inspect missing "
+                    "tool details once and reuse them. Hosted "
+                    "add_slide takes slide_json (a JSON string), request_id, after_slide_id, "
+                    "expected_slide_ids and expected_sections_hash. Use an empty after_slide_id "
+                    "to insert at the beginning; obtain slide IDs and sections_hash from the "
+                    "outline. "
+                    "add_slide, reorder_slides and set_presentation_sections use the outline's "
+                    "order "
+                    "and sections hashes. Load the slide_designs topic for design and element "
+                    "alternatives. Remove only slides the human asked to delete, using "
+                    "remove_slide "
+                    "and the current expected_hash; list and recover with get_deleted_slides and "
+                    "restore_slides. create_presentation creates a native deck in an owned "
+                    "workspace with a workspace or appropriate project connection. For artifacts, "
+                    "get_artifact returns the manifest; read_artifact_files loads selected files. "
+                    "revise_artifact takes files_json, expected_revision and request_id. "
+                    "create_artifact needs an editable project and inline file bundle. "
+                    "capture_slide, capture_contact_sheet and capture_artifact return real pixels "
+                    "for visual review. "
+                    "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
+                    "Read only assigned requests with read_feedback. Claim with claim_feedback "
+                    "before acting. Reply with reply_to_feedback using the claim and a stable "
+                    "request_id. Reply visibility follows the original chat; never summarize "
+                    "private chat publicly without permission. Read_chat provides shared context "
+                    "or your owner's private conversation. Read_chat_attachment retrieves one "
+                    "visible file by event ID and index. Withheld drafts stay private. "
+                    "On conflicts re-read and reconcile; on lost responses retry the same "
+                    "request_id.",
+                    known_hash,
+                )
             )
             return guide
 

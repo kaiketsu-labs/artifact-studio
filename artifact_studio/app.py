@@ -37,6 +37,7 @@ from .agent_io import (
     deck_receipt,
     feedback_response,
     guide_fields,
+    presentation_sizing,
     rule_fields,
     slide_receipt,
 )
@@ -224,6 +225,7 @@ def presentation_capabilities() -> dict[str, object]:
         "free_composition": True,
         "slide_format": "HTML/CSS/SVG/JavaScript",
         "presentation_canvas": "16:9",
+        "sizing": presentation_sizing(),
         "powerpoint_reference_input": True,
         "powerpoint_export": False,
         "audience_exports": ["HTML", "PDF"],

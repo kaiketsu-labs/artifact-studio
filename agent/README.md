@@ -34,7 +34,7 @@ The opt-in Microsoft Copilot gateway has its own smaller tool surface and explic
 | `get_working_context(deck_id=...)` | Existing presentation startup, that deck's design guidance and reference pointers. Selecting a legacy deck through `artifact_id` also returns its presentation context. |
 | `get_artifact` | Current manifest, entrypoint, file inventory, version and review status. Released discussion is optional. |
 | `read_artifact_files` | Only explicitly requested files, optionally from a retained revision. Binary content uses base64. |
-| `read_artifact_feedback` | Released human messages with original targets, revision, attachments and a delivery cursor. Withheld Batch comments remain private. |
+| `read_artifact_feedback` | Released human messages with original targets, revision, attachments and a delivery cursor. Older saved messages remain private until explicitly sent. |
 | `get_presentation_outline` / `get_presentation` / `get_slide` | Existing deck, outline or slide reads, with their respective context and discussion options. |
 | `get_presentation_theme` / `update_presentation_theme` | Deck-specific author CSS with managed viewer styles and conflict hashes. |
 | `list_presentation_assets` / `import_presentation_asset` | Deck asset inventory, download staging directory and bounded source copies without binary echoes. |
@@ -71,7 +71,7 @@ Call `capture_artifact` for an actual image of the exact revision and viewport. 
 
 Read `read_artifact_feedback` using the returned `next_cursor` as `after_delivery_id`. A multiselection is a flat group of individual element, text or image-region anchors. Those anchors belong to the recorded version. Reply with `reply_to_artifact_feedback`; only humans can approve through the review UI.
 
-Live releases feedback immediately; Batch requires explicit release. Loaded Codex/Claude Code hooks attach on selected artifact context or authoring calls for every file type. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` after End review. Project-only discovery does not attach a review. Keep the agent chat open; hooks cannot start a closed chat.
+**Send** delivers new feedback immediately; older saved messages require **Send saved messages**. Loaded Codex/Claude Code hooks attach on selected artifact context or authoring calls for every file type. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` after End review. Project-only discovery does not attach a review. Keep the agent chat open; hooks cannot start a closed chat.
 
 Direct element changes, including right-click commands and keyboard movement/deletion, remain provisional until **Send edit**. Undo/redo covers the current unsent edit only. A sent request retains the original target and revision; apply it through the normal read/merge/revise/review loop. [Controls and boundaries](../docs/KEYBOARD-CONTROLS.md).
 

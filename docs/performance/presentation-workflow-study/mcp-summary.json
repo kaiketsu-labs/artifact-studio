@@ -1,0 +1,20 @@
+{
+  "scope": "MCP JSON-RPC request and response bodies only; notifications excluded",
+  "calls": 117,
+  "request_bytes": 93874,
+  "response_bytes": 350762,
+  "methods": {
+    "initialize": 16,
+    "get_presentation_outline": 19,
+    "get_slide": 34,
+    "revise_slide": 25,
+    "add_slide": 14,
+    "read_feedback": 3,
+    "claim_feedback": 2,
+    "reply_to_feedback": 2,
+    "get_working_context": 1,
+    "get_authoring_guide": 1
+  },
+  "tool_errors": "Not recorded systematically; known failures are a minimum",
+  "provider_tokens": "unavailable"
+}

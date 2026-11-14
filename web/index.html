@@ -51,6 +51,7 @@
   <script src="/web/image-export.js" defer></script>
   <script src="/web/voice-feedback.js" defer></script>
   <script src="/web/drafts.js" defer></script>
+  <script src="/web/draft-recovery.js" defer></script>
   <script src="/web/voice-input.js" defer></script>
   <script src="/web/notes-autosave.js" defer></script>
   <script src="/web/conversations.js" defer></script>
@@ -214,6 +215,11 @@
       <div id="voice-feedback-segments" class="voice-segments" aria-label="Dictated feedback" hidden></div>
       <textarea id="feedback-text" placeholder="Message your agent… Type @ to reference" maxlength="10000" disabled></textarea>
       <div id="feedback-error" role="alert"></div>
+      <div id="draft-recovery" role="status" hidden>
+        <p id="draft-recovery-message"></p>
+        <button id="review-draft-slide" type="button">Review current slide</button>
+        <button id="use-draft-version" type="button" hidden>Use this version</button>
+      </div>
       <div id="feedback-upload-status" role="status"></div>
       <input id="feedback-file-input" type="file" multiple hidden>
       <div id="feedback-recording" class="voice-recording-bar" aria-label="Voice recording" hidden>

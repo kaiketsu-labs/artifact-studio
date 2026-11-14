@@ -2,6 +2,14 @@
 
 MCP is stateless at the transport level. Agents can still retain context between calls: sending the same guide, slide history or encoded image on every request is unnecessary.
 
+## Current workflow benchmark · 14 November 2026
+
+The [repeatable presentation benchmark](performance/PRESENTATION-WORKFLOW.md) compares redundant and scoped read policies on the same current application, with identical edits, feedback and a concurrent human notes change. Both must reject the stale write, reread source, preserve notes and validate the final result. Its [raw report](performance/presentation-workflow.json) records per-call bytes/timing, repeated trials, environment and source fingerprints. This measures tool traffic; it does not measure provider billing or autonomous model speed. Optional named tokenizer estimates are supported, but the recorded run could not download the encoding resource and therefore contains no token estimates.
+
+The [three-role presentation study](performance/presentation-workflow-study.md) adds separate browser users and an editing agent. It documents actual authoring/review friction and avoidable tool output, including a canvas-size assumption that caused rework. Follow its observable action summaries rather than treating a scripted byte benchmark as evidence of human usability.
+
+The [implementation rerun](performance/workflow-iteration.md) tests the resulting fixes against the earlier source with an identical hosted workload. It distinguishes simulated human browser journeys, exploratory agent attempts and the scripted comparison. Keep one initialized client, inspect the connected schemas once, and render a representative sample before expanding a deck. These practices avoid observed restart, schema and layout repair work; the matched source comparison does not demonstrate a reduction in billed tokens.
+
 ## Audit follow-ups · 4 November 2026
 
 For static-source or notes inspection, `get_slide(include_interactive_html=False)` omits only the embedded interactive body. The empty field is explicitly marked `interactive_html_included=false`; its byte count and SHA-256 remain, along with exact static source, notes, revision/content hashes and requested released feedback. Full source remains the default and must be read before editing interactive content. Never copy an omitted field into a patch to clear it. Use the outline for status-only checks.
@@ -67,6 +75,13 @@ Delivery cursors still govern released feedback; unchanged-rule omission never r
 ## Retain guides and queued requests separately
 
 Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Expanded context remains explicitly available and still includes its requested guides and inventory.
+
+The hosted connection uses `guide_hash` and `guide_included` for its workflow,
+live-review and slide-design topics. Pass the retained `guide_hash` as
+`known_hash`; an exact match returns an empty `guide`. Schemas, file rules,
+visual-review guidance and origin metadata remain available where applicable.
+The [hosted rerun](performance/workflow-iteration.md) caught and fixed workflow
+and live-review topics previously accepting this argument without using it.
 
 `include_discovery=False` is the default: unrelated presentation, design and library lists are omitted and `discovery_included=false`. The selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages remain. Use `list_presentations`, `list_design_contexts` or `list_libraries` when discovering new work, or explicitly pass `include_discovery=True` for the previous lists. This default applies to compact and full startup, including artifact/project context.
 
