@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.8.0...v0.8.1) (2026-11-15)
+
+
+### Performance Improvements
+
+* reduce hidden preview work and add bounded idle warmup ([#201](https://github.com/kaiketsu-labs/artifact-studio/issues/201)) ([a5ace7f](https://github.com/kaiketsu-labs/artifact-studio/commit/a5ace7fb12778a227d58b1cf1c73abbe73b8d62d))
+
+
+### Documentation
+
+* add repository structure plan and multi-person review skill ([#202](https://github.com/kaiketsu-labs/artifact-studio/issues/202)) ([2a4f750](https://github.com/kaiketsu-labs/artifact-studio/commit/2a4f7509b6068297d07719f792b34752bbf6750b))
+
 ## [0.8.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.7.1...v0.8.0) (2026-11-14)
 
 
