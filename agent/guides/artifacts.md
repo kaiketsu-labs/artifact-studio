@@ -12,3 +12,13 @@
 - Reply with `reply_to_artifact_feedback`. Human approval is available only in the UI. Suggest changes to related artifacts first.
 
 Presentation operations remain specialized: use slide tools, per-slide discussion, notes, reveal captures and presenter checks. A slide multi-object edit arrives as one group-feedback JSON message (`action="edit_selection"`, `operations`) with original targets/hash, without a group `edit_intent`. Delete/supported layer changes preview locally; other arrangements and alignment are requests without a final-layout preview. HTML artifacts keep single-object direct edits and group comments. A generic image or document has no speaker notes or slide dimensions.
+
+For a new project, use `create_project(title, context="")`. Local agents and hosted
+workspace-owner agents can organize projects with `get_project_tree`,
+`create_project_folder` and `move_project_to_folder`. Each mutation returns
+`tree_hash`; pass the latest as `expected_tree_hash` when creating a folder or
+moving a project. `create_project` changes this hash too. Folder organization is
+independent of source locations and sharing grants. After a lost project-creation
+response, rediscover projects before retrying; this operation has no request-ID
+deduplication. A scoped hosted project/artifact connection cannot create another
+project. See the [hosted project workflow](../../docs/MULTIPLAYER.md#create-projects-and-sidebar-folders-through-mcp).
