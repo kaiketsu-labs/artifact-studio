@@ -779,8 +779,14 @@ def get_slide_design(deck_id: str, slide_id: str, design_id: str) -> DesignSourc
 
 @mcp.tool(annotations=READ)
 @tool_errors
-def capture_slide_design(deck_id: str, slide_id: str, design_id: str) -> CallToolResult:
-    """Visually inspect a frozen proposed design without changing the chosen slide."""
+def capture_slide_design(
+    deck_id: str, slide_id: str, design_id: str, return_image: bool = True
+) -> CallToolResult:
+    """Capture a frozen design without changing the chosen slide.
+
+    return_image=False returns saved paths/metadata without inline pixels.
+    Inspect the saved file separately before claiming a visual review.
+    """
     designs = SlideDesigns(store)
     option = designs.read(deck_id, slide_id, design_id).option
     frozen = designs.preview(deck_id, slide_id, design_id)
@@ -801,7 +807,8 @@ def capture_slide_design(deck_id: str, slide_id: str, design_id: str) -> CallToo
             frames=[frozen.frame],
             total_slides=1,
             selected_slides=1,
-        )
+        ),
+        return_image=return_image,
     )
 
 
@@ -864,12 +871,18 @@ def get_element_alternative(
 @mcp.tool(annotations=READ)
 @tool_errors
 def capture_element_alternative(
-    deck_id: str, slide_id: str, element_option_id: str, context_hash: str | None = None
+    deck_id: str,
+    slide_id: str,
+    element_option_id: str,
+    context_hash: str | None = None,
+    return_image: bool = True,
 ) -> CallToolResult:
     """Inspect actual full-slide pixels for an element proposal through the offline renderer.
 
     Captures retain the option identity and source hash; they do not revise the chosen slide.
     Earlier design contexts remain labelled by the corresponding metadata/source read.
+    return_image=False returns saved paths/metadata without inline pixels.
+    Inspect the saved file separately before claiming a visual review.
     """
     alternatives = ElementAlternatives(store)
     source = alternatives.read(deck_id, slide_id, element_option_id, context_hash=context_hash)
@@ -895,7 +908,8 @@ def capture_element_alternative(
             frames=[frozen.frame],
             total_slides=1,
             selected_slides=1,
-        )
+        ),
+        return_image=return_image,
     )
 
 
@@ -945,15 +959,15 @@ def cancel_slide_question(
     return Questions(store).cancel(deck_id, slide_id, event_id, request_id)
 
 
-def visual_result(result: VisualResult) -> CallToolResult:
-    """Return actual image pixels alongside a versioned, machine-readable manifest."""
-    return CallToolResult(
-        content=[
-            TextContent(type="text", text=result.model_dump_json()),
-            MCPImage(path=result.path, format="png").to_image_content(),
-        ],
+def visual_result(result: VisualResult, *, return_image: bool = True) -> CallToolResult:
+    """Return capture metadata, optionally attaching the saved image's pixels."""
+    response = CallToolResult(
+        content=[TextContent(type="text", text=result.model_dump_json())],
         structured_content=result.model_dump(mode="json"),
     )
+    if return_image:
+        response.content.append(MCPImage(path=result.path, format="png").to_image_content())
+    return response
 
 
 @mcp.tool(annotations=READ)
@@ -965,6 +979,7 @@ def capture_slide(
     elapsed_ms: int = 0,
     reduced_motion: bool = False,
     resolution: Literal["full", "draft"] = "full",
+    return_image: bool = True,
 ) -> CallToolResult:
     """Inspect a full-size slide image with exact version metadata, locally through MCP.
 
@@ -972,6 +987,8 @@ def capture_slide(
     build, elapsed_ms samples that build's animation. Earlier builds are complete.
     Read get_authoring_guide(topic="visual_review") first. Host access restrictions apply; this tool
     is not permission to inspect a deck through an alternative blocked surface.
+    return_image=False saves the same capture but returns only paths/metadata for local automation.
+    Inspect the saved image separately before claiming a visual review.
     """
     return visual_result(
         capture(
@@ -985,7 +1002,8 @@ def capture_slide(
                 reduced_motion=reduced_motion,
                 resolution=resolution,
             ),
-        )
+        ),
+        return_image=return_image,
     )
 
 
@@ -997,6 +1015,7 @@ def capture_contact_sheet(
     limit: Annotated[int, Field(ge=1, le=MAX_CONTACT_SLIDES)] = MAX_CONTACT_SLIDES,
     slide_ids: Annotated[list[str], Field(min_length=1, max_length=500)] | None = None,
     resolution: Literal["full", "draft"] = "draft",
+    return_image: bool = True,
 ) -> CallToolResult:
     """Inspect a paginated overview of completed slides, including hidden slides.
 
@@ -1006,6 +1025,8 @@ def capture_contact_sheet(
     local frame paths, version hashes and next_offset. Concurrent captures queue.
     Use capture_slide for chart detail and reveal steps; a contact sheet alone is
     not a full-size review. Respect the host's access restrictions for the deck.
+    return_image=False returns saved paths/metadata without inline pixels.
+    Inspect the saved files separately before claiming a visual review.
     """
     return visual_result(
         capture(
@@ -1016,7 +1037,8 @@ def capture_contact_sheet(
             limit=limit,
             slide_ids=slide_ids,
             options=CaptureOptions(resolution=resolution),
-        )
+        ),
+        return_image=return_image,
     )
 
 

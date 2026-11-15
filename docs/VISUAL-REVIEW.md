@@ -49,6 +49,20 @@ Captures do not approve slides, clear revision markers or mutate canonical deck 
 
 Images and `manifest.json` are saved below the local state directory's `visual-reviews/` folder. They can contain private slide content; do not upload or commit them. Inline MCP images work for clients without local filesystem access. Keep ordinary audience/export and presentation data restrictions in force.
 
+The local MCP tools `capture_slide`, `capture_contact_sheet`, `capture_artifact`,
+`capture_slide_design` and `capture_element_alternative` accept
+`return_image=False` for file-based automation. This still performs the capture
+and saves the same image; the response contains its normal paths and metadata
+without encoding or attaching an inline image block. Defaults remain unchanged.
+For example, `capture_slide(deck_id=..., slide_id=..., return_image=False)` can
+prepare a capture for local `check_slide_text` or a later permitted file inspection.
+Inspect the actual pixels before claiming a visual review; metadata or an OCR
+match alone is insufficient. Use the default when the host cannot read the saved
+file. Hosted/Copilot tools continue returning pixels and do not expose this local
+option or host filesystem paths. This delivery option reduces response payload,
+not rendering work; it does not establish a model-token or latency saving.
+[Adaptation source and license](third-party/turbo-browser-mcp.md).
+
 This verifies slide content in Chromium. It does not verify presenter controls, live interaction, keyboard behavior, browser-specific layout, physical screen placement, native PowerPoint or native PDF output. Those require their own permitted application checks. Never describe a capture as a physical-display or end-to-end presentation-mode test.
 
 ## Custom interactive documents

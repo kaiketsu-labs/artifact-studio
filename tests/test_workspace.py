@@ -45,7 +45,7 @@ def test_design_discovery_and_brand_creation(store: Store) -> None:
 
 def test_unknown_design_leaves_no_partial_deck(store: Store) -> None:
     """Reject missing designs before creating a partially populated folder."""
-    with pytest.raises(ValueError, match="list_designs"):
+    with pytest.raises(ValueError, match='list_design_contexts\\(kind="slide_pack"\\)'):
         _ = store.create("2026-10-28-missing-brand", "New story", "unknown")
     assert not (store.root / "2026-10-28-missing-brand").exists()
 

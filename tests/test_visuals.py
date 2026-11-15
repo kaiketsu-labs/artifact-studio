@@ -187,6 +187,16 @@ def test_real_contact_sheet_pagination_and_inline_mcp(
     assert result.content[1].type == "image"
     with Image.open(io.BytesIO(base64.b64decode(result.content[1].data))) as image:
         assert image.width > 600
+    saved = service.capture_contact_sheet(DECK, limit=2, return_image=False)
+    assert [item.type for item in saved.content] == ["text"]
+    assert saved.structured_content is not None
+    manifest = VisualResult.model_validate(saved.structured_content)
+    assert manifest.frames[1].hidden and manifest.next_offset is None
+    assert Path(manifest.path).is_file()
+    assert all(Path(frame.path).is_file() for frame in manifest.frames)
+    assert manifest.frames[0].content_hash == store.content_hash(DECK, store.read(DECK).slides[0])
+    with Image.open(manifest.path) as saved_image:
+        assert saved_image.width > 600
 
 
 def test_render_hash_tracks_root_settings_and_imported_css(store: Store) -> None:

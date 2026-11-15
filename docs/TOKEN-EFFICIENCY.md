@@ -105,6 +105,14 @@ Feedback reads and waits return `design_requests_hash` and `design_requests_incl
 
 ## Keep binaries out of model text
 
+For local capture automation, `return_image=False` on the capture tools saves
+the rendered image and returns normal paths/version metadata without an inline
+image block. This allows the file-input client to prepare captures or run local
+text checks without receiving pixel payloads. The default still includes images;
+inspect the saved pixels separately before declaring visual correctness. Remote
+hosted/Copilot captures keep inline images because clients cannot use server-local
+paths. [Capture delivery and limits](VISUAL-REVIEW.md#scope-and-storage).
+
 For custom content, send local image/font/script/style references in `interactive_html` and set `embed_assets=True` on the mutation. The server embeds those dependencies into the saved isolated document. The agent neither reads a large base64 result nor repeats it in a second tool call. The static `html` fallback remains required and selectable.
 
 `prepare_interactive_html` remains available when prepared-source inspection is useful, but its returned embedded document can be expensive. Images used for visual inspection should arrive as image blocks through capture tools, rather than base64 text. Original files remain local.

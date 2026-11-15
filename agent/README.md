@@ -95,6 +95,12 @@ Use `revise_artifact` for a changed-file set, passing the current revision or co
 
 Call `capture_artifact` for an actual image of the exact revision and viewport. Authored JavaScript runs in a fresh offline runtime; `elapsed_ms` samples animations and `full_page` requests the full page within capture limits. Returned metadata includes blocked requests and external dependencies. User-driven interaction states require browser inspection. Legacy decks continue to use their specialized slide capture tools.
 
+Local capture tools accept `return_image=False` to save the same image while
+returning only the normal paths and metadata for file-based automation. The
+default includes pixels; inspect the saved image separately before claiming
+visual correctness. Hosted/Copilot tools keep inline images and omit host paths.
+See [capture delivery](../docs/VISUAL-REVIEW.md#scope-and-storage).
+
 Read `read_artifact_feedback` using the returned `next_cursor` as `after_delivery_id`. A multiselection is a flat group of individual element, text or image-region anchors. Those anchors belong to the recorded version. Reply with `reply_to_artifact_feedback`; only humans can approve through the review UI.
 
 **Send** delivers new feedback immediately; older saved messages require **Send saved messages**. Loaded Codex/Claude Code hooks attach on selected artifact context or authoring calls for every file type. Check `get_live_review_status(artifact_id=...)`; use `start_live_review(artifact_id=...)` after End review. Project-only discovery does not attach a review. Keep the agent chat open; hooks cannot start a closed chat.
