@@ -164,6 +164,10 @@ even if the paired artifact is small. Use a smaller private source branch in
 that case. Allow for staging memory and rendering memory in the container budget.
 The mount is cleared when the container stops.
 
+Use the [private GitHub acceptance harness](GITHUB-SYNC-ACCEPTANCE.md) to verify
+an existing presentation's round trip, conflict choices and interrupted-push
+recovery against a dedicated fictional repository before enabling production sync.
+
 Keep **local mode** on a private listener too: it has no login. Docker listens on
 all interfaces inside its container so port forwarding works; the Compose host
 binding is deliberately `127.0.0.1`. Do not change the published binding to `0.0.0.0`
