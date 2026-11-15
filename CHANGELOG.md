@@ -6,7 +6,6 @@
 ### Features
 
 * **chat:** connect replies and add inline thread conversations ([bef3364](https://github.com/kaiketsu-labs/artifact-studio/commit/bef3364ab34fc03265b35f9406326f7e7796ff71))
-* **chat:** connect replies with inline thread conversations ([2c3e890](https://github.com/kaiketsu-labs/artifact-studio/commit/2c3e89006c108d166014ee27c94edbb54060d34c))
 
 ## [0.9.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.8.1...v0.9.0) (2026-11-15)
 
