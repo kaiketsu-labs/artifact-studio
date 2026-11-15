@@ -1,12 +1,13 @@
 """Real human/MCP replies stay scoped, discoverable and stable during polling."""
 
 import os
+from collections.abc import Iterator
 from contextlib import closing
 from pathlib import Path
 from typing import cast
 
 import pytest
-from playwright.sync_api import Page, expect, sync_playwright
+from playwright.sync_api import Browser, Page, expect, sync_playwright
 
 from artifact_studio.agent_client import Invocation
 from artifact_studio.artifacts import ArtifactStore
@@ -29,10 +30,50 @@ pytestmark = [
 ]
 
 
+@pytest.fixture
+def reply_page(browser: Browser, artifacts: Path, live_app: RunningApp) -> Iterator[Page]:
+    """Retain diagnostics while allowing only this journey's injected reply outages."""
+    with browser.new_context(viewport={"width": 1600, "height": 1000}) as context:
+        context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        page = context.new_page()
+        page.set_default_timeout(10_000)
+        errors: list[str] = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.on(
+            "response",
+            lambda response: (
+                errors.append(f"HTTP {response.status}: {response.url}")
+                if response.status >= 400
+                and not (
+                    response.status == 503
+                    and response.request.method == "POST"
+                    and response.url.endswith("/slides/cover/feedback")
+                )
+                else None
+            ),
+        )
+        page.on(
+            "requestfailed",
+            lambda request: (
+                errors.append(f"Request failed: {request.failure}: {request.url}")
+                if request.failure not in {"net::ERR_ABORTED", "NS_BINDING_ABORTED"}
+                else None
+            ),
+        )
+        try:
+            yield page
+        finally:
+            page.screenshot(path=str(artifacts / "browser.png"), full_page=True)
+            context.tracing.stop(path=str(artifacts / "trace.zip"))
+        assert not errors, "\n".join(errors)
+
+
 def test_slide_thread_keyboard_polling_new_replies_and_copy(
-    page: Page, live_app: RunningApp, artifacts: Path
+    reply_page: Page, live_app: RunningApp, artifacts: Path
 ) -> None:
+    page = reply_page
     slide = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    live_app.post(f"/api/decks/{DECK_ID}/feedback-mode", {"mode": "live"})
     request = live_app.post(
         f"/api/decks/{DECK_ID}/slides/cover/feedback",
         {
@@ -44,6 +85,46 @@ def test_slide_thread_keyboard_polling_new_replies_and_copy(
     )
     open_editor(page, live_app)
     page.locator("#feedback-text").fill("My unsent follow-up stays here.")
+    page.locator("#feedback-file-input").set_input_files(
+        {"name": "draft.txt", "mimeType": "text/plain", "buffer": b"Separate fictional draft"}
+    )
+    root = page.locator("#feedback-list .chat-thread").filter(
+        has=page.locator(f'[data-comment-id="{request["event_id"]}"]')
+    )
+    root.locator(".chat-thread-reply").click()
+    inline = root.locator(".chat-thread-input")
+    inline.fill("Please include the launch owner beside each milestone.")
+    page.route(
+        "**/slides/cover/feedback",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"Fictional temporary outage. Try again."}',
+        ),
+        times=1,
+    )
+    with page.expect_response(lambda response: response.status == 503) as failed:
+        inline.press("Enter")
+    expect(root.get_by_role("alert")).to_have_text("Fictional temporary outage. Try again.")
+    expect(root.get_by_role("alert")).to_be_in_viewport()
+    expect(inline).to_have_value("Please include the launch owner beside each milestone.")
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST" and response.url.endswith("/slides/cover/feedback")
+        )
+    ) as sent:
+        inline.press("Enter")
+    payload = cast(dict[str, object], sent.value.request.post_data_json)
+    failed_payload = cast(dict[str, object], failed.value.request.post_data_json)
+    assert payload["request_id"] == failed_payload["request_id"]
+    assert str(payload["reply_to"]) == str(request["event_id"])
+    assert payload["content_hash"] == slide["content_hash"]
+    expect(root).to_contain_text("Please include the launch owner beside each milestone.")
+    expect(root.locator(".chat-thread-input")).to_have_value("")
+    expect(page.locator("#feedback-text")).to_have_value("My unsent follow-up stays here.")
+    expect(page.locator("#feedback-files")).to_contain_text("draft.txt")
+    inline.fill("Keep this thread draft through polling.")
+    inline.evaluate("field => field.setSelectionRange(5, 9)")
 
     def reply(number: int) -> None:
         live_app.client().call(
@@ -62,9 +143,13 @@ def test_slide_thread_keyboard_polling_new_replies_and_copy(
     reply(1)
     thread = page.locator("#feedback-list .chat-replies")
     toggle = thread.locator("summary")
-    expect(toggle).to_contain_text("1 reply")
+    expect(toggle).to_contain_text("2 replies")
+    expect(inline).to_have_value("Keep this thread draft through polling.")
+    expect(inline).to_be_focused()
+    assert inline.evaluate("field => [field.selectionStart, field.selectionEnd]") == [5, 9]
     expect(thread).to_have_attribute("open", "")
-    expect(thread.locator(".chat-reply-excerpt")).to_have_text(
+    expect(thread.locator(".chat-reply-origin, .chat-reply-excerpt")).to_have_count(0)
+    expect(root.locator(":scope > .comment")).to_contain_text(
         "Make the launch timeline easier to scan."
     )
     expect(page.locator("#feedback-list").get_by_role("link", name="brief.txt")).to_be_visible()
@@ -72,7 +157,7 @@ def test_slide_thread_keyboard_polling_new_replies_and_copy(
     toggle.press("Enter")
     expect(thread).not_to_have_attribute("open", "")
     reply(2)
-    expect(toggle).to_contain_text("2 replies")
+    expect(toggle).to_contain_text("3 replies")
     expect(toggle).to_contain_text("1 new")
     expect(toggle).to_be_focused()
     expect(thread).not_to_have_attribute("open", "")
@@ -81,8 +166,24 @@ def test_slide_thread_keyboard_polling_new_replies_and_copy(
     toggle.press("Space")
     expect(thread).to_have_attribute("open", "")
     expect(thread.locator(".chat-thread-new")).to_be_hidden()
-    thread.get_by_role("button", name="Go to message from You").first.press("Enter")
-    expect(page.locator(f'[data-comment-id="{request["event_id"]}"]')).to_be_focused()
+    expect(thread).to_contain_text("Please include the launch owner beside each milestone.")
+    root.locator(".chat-thread-reply").press("Enter")
+    expect(root.locator(".chat-thread-input")).to_be_focused()
+    # A long thread must expose the error above the fixed main composer too.
+    page.route(
+        "**/slides/cover/feedback",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"detail":"Fictional temporary outage. Try again."}',
+        ),
+        times=1,
+    )
+    inline.press("Enter")
+    expect(root.get_by_role("alert")).to_have_text("Fictional temporary outage. Try again.")
+    expect(root.get_by_role("alert")).to_be_in_viewport(ratio=1)
+    expect(inline).to_have_value("Keep this thread draft through polling.")
+    inline.fill("My next reply stays in this thread.")
     page.screenshot(path=str(artifacts / "threads-expanded-light.png"))
     toggle.click()
     page.evaluate(
@@ -103,13 +204,14 @@ def test_slide_thread_keyboard_polling_new_replies_and_copy(
 
 
 def test_local_artifact_replies_keep_their_parent_and_draft(
-    page: Page, live_app: RunningApp, tmp_path: Path
+    page: Page, live_app: RunningApp, tmp_path: Path, artifacts: Path
 ) -> None:
     store = ArtifactStore(live_app.store)
     project = store.create_project("Fictional thread review")
     source = tmp_path / "launch.md"
     source.write_text("# Fictional launch brief")
     item = store.register_artifact(project.id, "Launch brief", source, source.name)
+    live_app.post(f"/api/artifacts/{item.id}/mode", {"mode": "live"})
     request = live_app.post(
         f"/api/artifacts/{item.id}/feedback",
         {
@@ -128,20 +230,38 @@ def test_local_artifact_replies_keep_their_parent_and_draft(
     )
     page.goto(live_app.url + f"/?artifact={item.id}")
     thread = page.locator("#hub-thread .chat-replies")
-    expect(thread.locator("summary")).to_have_text("1 reply")
+    expect(thread.locator("summary")).to_contain_text("1 reply")
     expect(thread).to_have_attribute("open", "")
     page.locator("#hub-feedback-text").fill("Keep this unsent draft.")
+    root = page.locator("#hub-thread .chat-thread").filter(has_text="Clarify the owner.")
+    root.locator(".chat-thread-reply").click()
+    root.locator(".chat-thread-input").fill("Please add Alex to the ownership section.")
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith(f"/artifacts/{item.id}/feedback")
+        )
+    ) as sent:
+        root.get_by_role("button", name="Send reply", exact=True).click()
+    payload = cast(dict[str, object], sent.value.request.post_data_json)
+    assert str(payload["reply_to"]) == str(request["event_id"])
+    assert payload["content_hash"] == item.content_hash
+    expect(thread).to_contain_text("Please add Alex to the ownership section.")
+    expect(thread.locator("summary")).to_contain_text("2 replies")
+    expect(page.locator("#hub-feedback-text")).to_have_value("Keep this unsent draft.")
+    expect(thread.locator(".chat-reply-origin, .chat-reply-excerpt")).to_have_count(0)
     thread.locator("summary").press("Enter")
     page.locator("#hub-send").click()
     expect(page.locator("#hub-thread")).to_contain_text("Keep this unsent draft.")
     expect(thread).not_to_have_attribute("open", "")
     thread.locator("summary").press("Enter")
-    thread.get_by_role("button", name="Go to message from You").click()
-    expect(page.locator("#hub-thread .chat-thread > .hub-message")).to_be_focused()
+    expect(page.locator("#hub-feedback-text")).to_have_value("")
+    expect(root.locator(":scope > .hub-message")).to_contain_text("Clarify the owner.")
+    page.screenshot(path=str(artifacts / "artifact-expanded-light.png"))
 
 
 def test_focused_question_stays_visible_when_chat_height_shrinks(
-    page: Page, live_app: RunningApp
+    page: Page, live_app: RunningApp, artifacts: Path
 ) -> None:
     page.set_viewport_size({"width": 390, "height": 844})
     open_editor(page, live_app)
@@ -168,6 +288,7 @@ def test_focused_question_stays_visible_when_chat_height_shrinks(
     expect(card.get_by_role("button", name="Send answer", exact=True)).to_be_in_viewport()
     expect(page.locator("#feedback-text")).to_have_value("Keep this separate unsent draft.")
     expect(page.locator("#feedback-files")).to_contain_text("draft.txt")
+    page.screenshot(path=str(artifacts / "question-resize-fixed.png"))
 
 
 @pytest.mark.parametrize("surface", ["presentation", "artifact", "together"])
@@ -196,8 +317,9 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
             },
         ).json()
         endpoint = f"/api/workspaces/default/artifacts/{artifact}"
+        parents: dict[str, dict[str, object]] = {}
         for channel in ("shared", "private"):
-            owner.post(
+            response = owner.post(
                 endpoint + "/chat",
                 json={
                     "message": "Public launch request"
@@ -210,7 +332,9 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
                     if surface == "presentation"
                     else None,
                 },
-            ).raise_for_status()
+            )
+            response.raise_for_status()
+            parents[channel] = cast(dict[str, object], response.json())
         alice.post(
             endpoint + "/chat",
             json={
@@ -244,6 +368,7 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
                 )
         browser = playwright.chromium.launch()
         try:
+            shared_replies = 1
             for identity in ("owner", "alice"):
                 with routed_multiplayer_context(browser, app, identity) as context:
                     page = context.new_page()
@@ -268,15 +393,54 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
                     expect(thread).to_have_attribute("open", "")
                     expect(thread).to_contain_text("Shared response")
                     expect(page.locator(list_selector)).not_to_contain_text("PRIVATE")
-                    expect(thread.locator(".chat-reply-excerpt")).to_have_text(
+                    expect(thread.locator(".chat-reply-origin, .chat-reply-excerpt")).to_have_count(
+                        0
+                    )
+                    main_selector = {
+                        "presentation": "#feedback-text",
+                        "artifact": "#hub-feedback-text",
+                        "together": "#message",
+                    }[surface]
+                    main = page.locator(main_selector)
+                    main.fill(f"Unsent main draft for {identity}.")
+                    root = page.locator(list_selector + " .chat-thread").filter(
+                        has_text="Shared response"
+                    )
+                    expect(root.locator(":scope > article")).to_contain_text(
                         "Public launch request"
                     )
+                    root.locator(".chat-thread-reply").click()
+                    expect(root.locator(".chat-thread-compose-label")).to_contain_text(
+                        "Reply to Fictional launch agent"
+                        if identity == "owner"
+                        else "Shared conversation"
+                    )
+                    inline_message = f"Human {identity} reply on {surface}."
+                    root.locator(".chat-thread-input").fill(inline_message)
+                    with page.expect_response(
+                        lambda response: (
+                            response.request.method == "POST" and response.url.endswith("/chat")
+                        )
+                    ) as sent:
+                        root.get_by_role("button", name="Send reply", exact=True).click()
+                    payload = cast(dict[str, object], sent.value.request.post_data_json)
+                    assert payload["reply_to"] == parents["shared"]["id"]
+                    assert payload["channel"] == "shared"
+                    assert payload["assigned"] == (connection["id"] if identity == "owner" else "")
+                    assert sent.value.ok
+                    saved = cast(dict[str, object], sent.value.json())
+                    assert saved["target"] == parents["shared"]["target"]
+                    expect(thread).to_contain_text(inline_message)
+                    shared_replies += 1
+                    expect(thread.locator("summary")).to_contain_text(f"{shared_replies} replies")
+                    expect(main).to_have_value(f"Unsent main draft for {identity}.")
+                    root.locator(".chat-thread-input").fill(f"Unsent thread draft for {identity}.")
                     # Identical human text must not cause the other user's request to be grouped.
                     expect(
-                        page.locator(list_selector + " > article").filter(
+                        page.locator(list_selector + " > .chat-thread > article").filter(
                             has_text="Public launch request"
                         )
-                    ).to_have_count(1)
+                    ).to_have_count(2)
                     thread.locator("summary").click()
                     alice.post(
                         endpoint + "/chat",
@@ -298,19 +462,35 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
                         else:
                             page.locator(f'[data-channel="{channel}"]').click()
 
+                    if surface == "artifact":
+                        # Artifact chat keeps its existing main-draft switch guard.
+                        switch("private")
+                        expect(page.locator("#hub-shared-channel")).to_have_value("shared")
+                        expect(main).to_have_value(f"Unsent main draft for {identity}.")
+                        main.fill("")
                     switch("private")
                     if identity == "owner":
                         expect(thread).to_have_attribute("open", "")
                         expect(thread).to_contain_text("PRIVATE REPLY SENTINEL")
-                        expect(thread.locator(".chat-reply-excerpt")).to_have_text(
-                            "PRIVATE THREAD SENTINEL"
-                        )
+                        expect(
+                            page.locator(list_selector + " .chat-thread > article")
+                        ).to_contain_text(["PRIVATE THREAD SENTINEL"])
+                        expect(
+                            thread.locator(".chat-reply-origin, .chat-reply-excerpt")
+                        ).to_have_count(0)
                     else:
                         expect(thread).to_have_count(0)
                         expect(page.locator(list_selector)).not_to_contain_text("PRIVATE")
                     expect(page.locator(list_selector)).not_to_contain_text("Shared response")
                     switch("shared")
-                    expect(thread.locator("summary")).to_contain_text("1 reply")
+                    expect(thread.locator("summary")).to_contain_text(f"{shared_replies} replies")
                     expect(thread).not_to_have_attribute("open", "")
+                    thread.locator("summary").click()
+                    expect(root.locator(".chat-thread-input")).to_have_value(
+                        f"Unsent thread draft for {identity}."
+                    )
+                    expect(main).to_have_value(
+                        "" if surface == "artifact" else f"Unsent main draft for {identity}."
+                    )
         finally:
             browser.close()

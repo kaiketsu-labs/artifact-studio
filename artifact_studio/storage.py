@@ -976,6 +976,7 @@ class Store:
                 )
                 + ([intent_json] if intent_json is not None else [])
                 + (["agent"] if author == "agent" and reply_to is None else [])
+                + (["user-reply"] if author == "user" and reply_to is not None else [])
                 + (["slide-design", design_option_id] if design_option_id is not None else [])
                 + (
                     ["element-alternative", element_option_id, element_context_hash]
@@ -985,6 +986,7 @@ class Store:
             )
         )
         stored_slide_id = slide_id or ""
+        stored_context_slide_id = context_slide_id or slide_id
         element_option_name: str | None = None
         with self.editing(deck_id) as db:
             prior = db.execute(
@@ -1040,16 +1042,60 @@ class Store:
                 _ = self.locate(deck, slide_id)
             elif target is not None:
                 raise ValueError("Element targets need a slide ID.")
-            if (
-                reply_to is not None
-                and db.execute(
-                    "SELECT id FROM feedback WHERE id=? AND deck=? AND slide=?"
-                    + (" AND released=1" if author == "agent" else ""),
+            if reply_to is not None:
+                parent = db.execute(
+                    "SELECT * FROM feedback WHERE id=? AND deck=? AND slide=? AND released=1",
                     (reply_to, deck_id, stored_slide_id),
                 ).fetchone()
-                is None
-            ):
-                raise ValueError("Reply must reference feedback in the same presentation context.")
+                if parent is None:
+                    raise ValueError(
+                        "Reply must reference feedback in the same presentation context."
+                    )
+                if author == "user":
+                    seen = {reply_to}
+                    while parent["reply_to"] is not None:
+                        ancestor_id = cast(int, parent["reply_to"])
+                        if ancestor_id in seen:
+                            raise ValueError("Reply must reference a valid feedback thread.")
+                        seen.add(ancestor_id)
+                        parent = db.execute(
+                            "SELECT * FROM feedback WHERE id=? AND deck=? AND slide=? "
+                            "AND released=1",
+                            (ancestor_id, deck_id, stored_slide_id),
+                        ).fetchone()
+                        if parent is None:
+                            raise ValueError("Reply must reference a released feedback thread.")
+                    if parent["question"] is not None:
+                        raise ValueError(
+                            "Use the question's answer controls to respond to a question."
+                        )
+                    if (
+                        content_hash != parent["content_hash"]
+                        or (
+                            target is not None
+                            and json.loads(target_json or "null")
+                            != json.loads(cast(str, parent["target"]) or "null")
+                        )
+                        or (
+                            context_slide_id is not None
+                            and context_slide_id != parent["context_slide_id"]
+                        )
+                        or any(
+                            value is not None and value != parent[key]
+                            for key, value in (
+                                ("design_option_id", design_option_id),
+                                ("element_option_id", element_option_id),
+                                ("element_context_hash", element_context_hash),
+                            )
+                        )
+                    ):
+                        raise ConflictError("A thread reply must retain its original context.")
+                    target_json = cast(str | None, parent["target"])
+                    stored_context_slide_id = cast(str | None, parent["context_slide_id"])
+                    design_option_id = cast(str | None, parent["design_option_id"])
+                    element_option_id = cast(str | None, parent["element_option_id"])
+                    element_context_hash = cast(str | None, parent["element_context_hash"])
+                    element_option_name = cast(str | None, parent["element_option_name"])
             mode_row = db.execute("SELECT mode FROM workflow WHERE deck=?", (deck_id,)).fetchone()
             mode = cast(Literal["live", "batch"], mode_row["mode"]) if mode_row else "live"
             if expected_mode is not None and mode != expected_mode:
@@ -1069,7 +1115,7 @@ class Store:
                 released=released,
                 reply_to=reply_to,
                 target_json=target_json,
-                context_slide_id=context_slide_id or slide_id,
+                context_slide_id=stored_context_slide_id,
                 files_json=TypeAdapter(list[FeedbackFile]).dump_json(attachments).decode(),
                 intent_json=intent_json,
                 design_option_id=design_option_id,

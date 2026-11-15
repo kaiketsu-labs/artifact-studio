@@ -668,7 +668,30 @@
       message=>messageMarkup(message,item),day=>`<p class="chat-day">${escape(day)}</p>`).join('');
   }
   function mountThreads(item,focus) {
-    chatThreads.mount(doc.getElementById('hub-thread'),item.feedback||[],{context:`${studioPath('')}:${item.collaboration?.person||'local'}:${item.id}:${channelOf(item.id)}`,focus});
+    const channel=channelOf(item.id),version=channelVersions.get(item.id)||0;
+    const current=()=>state.active===item.id&&channelOf(item.id)===channel&&(channelVersions.get(item.id)||0)===version&&!channelSwitches.has(item.id);
+    const source=parent=>state.detail?.collaboration?.messages.find(message=>message.id===-(parent.event_id??parent.id));
+    const route=parent=>nativeConversation.replyRecipient(source(parent),state.detail?.collaboration,channel);
+    const canReply=parent=>current()&&canComment(state.detail)&&parent.released!==false&&
+      (parent.scoped?Boolean(source(parent)&&route(parent).allowed):!sharedEditor);
+    chatThreads.mount(doc.getElementById('hub-thread'),item.feedback||[],{
+      context:`${studioPath('')}:${item.collaboration?.person||'local'}:${item.id}:${channel}`,focus,canReply,
+      replyHint:parent=>parent.scoped?route(parent).hint:'Reply to your agent',
+      onReply:async(parent,message,requestId)=>{
+        if(!canReply(parent))throw new Error('This thread is no longer available for replies.');
+        if(parent.scoped){
+          await scopedChat.reply(item.id,{message,requestId,replyTo:-(parent.event_id??parent.id),channel,...route(parent)});
+        }else{
+          if(state.detail.mode!=='live'){
+            await api(artifactPath(item.id,'/mode'),{mode:'live'});
+            if(!current())throw new Error('The conversation changed. Your thread draft was kept.');
+          }
+          await api(artifactPath(item.id,'/feedback'),{message,request_id:requestId,reply_to:parent.event_id??parent.id,
+            content_hash:parent.content_hash||item.content_hash,target:parent.target||null,expected_mode:'live'});
+        }
+        if(current())await refreshArtifactReview(item.id);
+      },
+    });
   }
   function deliveryMarkup(item) {
     const count=pendingCount(item),earlier=collaborationChat&&channelOf(item.id)==='private'?(item.feedback||[]).filter(message=>!message.scoped&&message.author==='user'&&message.released===false).length:0;
@@ -740,12 +763,17 @@
       (collaborationChat&&(detail.conversationChannel!==channelOf(item.id)||item.conversationChannel!==channelOf(item.id)||detail.conversationVersion!==(channelVersions.get(item.id)||0)||item.conversationVersion!==(channelVersions.get(item.id)||0))))return;
     const deliveryChanged=canComment(item)!==canComment(detail)||pendingCount(item)!==pendingCount(detail)||JSON.stringify([item.mode,item.workflow,item.delivery])!==JSON.stringify([detail.mode,detail.workflow,detail.delivery]);
     const feedbackChanged=JSON.stringify(item.feedback)!==JSON.stringify(detail.feedback);
+    const threadAccessChanged=JSON.stringify([item.access_role,item.collaboration?.agents,item.collaboration?.access])!==JSON.stringify([detail.access_role,detail.collaboration?.agents,detail.collaboration?.access]);
     for(const field of ['mode','workflow','delivery','collaboration','access_role'])item[field]=detail[field];
     if(sharedEditor)doc.documentElement.dataset.sharedRole=item.access_role||'view';
-    if(feedbackChanged){
+    if(feedbackChanged || threadAccessChanged || doc.getElementById('hub-thread')?.dataset.replyAccessPending){
       const thread=doc.getElementById('hub-thread'),atBottom=thread && thread.scrollHeight-thread.scrollTop-thread.clientHeight<50;
-      item.feedback=detail.feedback;
-      if(thread){const focused=chatThreads.capture(thread);thread.innerHTML=threadMarkup(item);mountThreads(item,focused);if(atBottom)thread.scrollTop=thread.scrollHeight;}
+      if(thread)thread.dataset.replyAccessPending='true';
+      if(!thread || !chatThreads.isComposing(thread)){
+        if(thread)delete thread.dataset.replyAccessPending;
+        item.feedback=detail.feedback;
+        if(thread){const focused=chatThreads.capture(thread);thread.innerHTML=threadMarkup(item);mountThreads(item,focused);if(atBottom)thread.scrollTop=thread.scrollHeight;}
+      }
     }
     if(deliveryChanged || feedbackChanged){
       const end=doc.getElementById('hub-end-review');if(end)end.hidden=item.delivery?.live_available!==true;

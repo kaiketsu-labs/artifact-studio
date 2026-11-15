@@ -443,6 +443,7 @@ class CommentInput(StrictModel):
     message: str = Field(default="", max_length=10_000)
     content_hash: str
     request_id: str = Field(min_length=8, max_length=100)
+    reply_to: int | None = Field(default=None, strict=True, ge=1, le=2**63 - 1)
     expected_mode: Literal["live", "batch"] | None = None
     target: SlideTarget | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)
@@ -470,6 +471,7 @@ class PresentationCommentInput(StrictModel):
 
     message: str = Field(default="", max_length=10_000)
     request_id: str = Field(min_length=8, max_length=100)
+    reply_to: int | None = Field(default=None, strict=True, ge=1, le=2**63 - 1)
     expected_mode: Literal["live", "batch"] | None = None
     context_slide_id: str | None = None
     files: list[FileInput] = Field(default_factory=list, max_length=5)

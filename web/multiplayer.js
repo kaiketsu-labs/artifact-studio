@@ -13,6 +13,7 @@ async function api(path, body) {
   if (!response.ok) {const error = new Error(data.detail || `Request failed (${response.status})`); error.status = response.status; throw error;}
   return data;
 }
+const threadChat = window.StudioNativeConversation.create({api, workspace: () => state.workspace});
 const base = (workspace = state.workspace) => `/api/workspaces/${encodeURIComponent(workspace)}`;
 const artifactBase = () => `${base()}/artifacts/${encodeURIComponent(state.artifact)}`;
 const draftKey = () => ['studio-chat-v1', state.session?.person, state.workspace, state.artifact, state.slide, state.channel].join(':');
@@ -143,8 +144,6 @@ async function refresh(first = false) {
   if (!state.messages.length || first) state.hasEarlier = messages.length === 100;
   const latestIds = new Set(messages.map(message => message.id));
   state.messages = [...state.messages.filter(message => !latestIds.has(message.id) && message.cursor < (messages[0]?.cursor || 0)), ...messages];
-  const completed = new Set(state.messages.filter(message => message.reply_to).map(message => message.reply_to));
-  state.messages.forEach(message => {if (completed.has(message.id)) message.completed = true;});
   $('empty').hidden = true; $('editor').hidden = false; $('artifact-title').textContent = current.title;
   const item = state.catalog.artifacts.find(item => item.id === current.id);
   $('artifact-path').textContent = state.catalog.projects.find(project => project.id === item?.project_id)?.title || 'Shared artifact';
@@ -159,10 +158,25 @@ async function refresh(first = false) {
   if (first) loadDraft();
   if (first || changed) renderPreview();
 }
+function threadReplyOptions() {
+  const generation = state.generation, artifact = state.artifact, channel = state.channel;
+  const current = () => generation === state.generation && artifact === state.artifact && channel === state.channel;
+  const route = parent => window.StudioNativeConversation.replyRecipient(parent, state.current, channel);
+  const canReply = parent => current() && state.current?.access.role !== 'view' && parent.released &&
+    state.messages.some(message => message.id === parent.id) && route(parent).allowed;
+  return {
+    canReply, replyHint: parent => route(parent).hint,
+    onReply: async (parent, message, requestId) => {
+      if (!canReply(parent)) throw new Error('This thread is no longer available for replies.');
+      await threadChat.reply(artifact, {message, requestId, replyTo: parent.id, channel, ...route(parent)});
+      if (current()) await refresh();
+    },
+  };
+}
 function renderMessages() {
   const list = $('messages'); const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 70;
-  const signature = JSON.stringify(state.messages);
-  if (list.dataset.signature !== signature) {
+  const signature = JSON.stringify([state.messages,state.current.access,state.current.agents]);
+  if (list.dataset.signature !== signature && !chatThreads.isComposing(list)) {
     const threadFocus = chatThreads.capture(list);
     list.dataset.signature = signature;
     list.replaceChildren(...window.StudioChatTimeline.render(state.messages, message => message.created * 1000, message => {
@@ -187,7 +201,8 @@ function renderMessages() {
     }, day => node('p', day, 'chat-day')));
     chatThreads.mount(list, state.messages, {
       context: [state.session.person, state.workspace, state.artifact, state.channel].join(':'), focus: threadFocus,
-      name: message => message.author !== message.person ? state.current.agents.find(agent => agent.id === message.author)?.name || 'Agent' : message.author === state.session.person ? 'You' : message.author_name
+      name: message => message.author !== message.person ? state.current.agents.find(agent => agent.id === message.author)?.name || 'Agent' : message.author === state.session.person ? 'You' : message.author_name,
+      ...threadReplyOptions(),
     });
     if (!state.messages.length) list.append(node('p', state.channel === 'shared' ? 'Talk with your collaborators here. Choose an agent when you want a change.' : 'A private conversation with your agents. Changes they make are visible to everyone.', 'empty-chat'));
     if (atEnd) list.scrollTop = list.scrollHeight;

@@ -127,6 +127,7 @@ class ChatInput(StrictModel):
     channel: Channel = "shared"
     message: str = Field(max_length=10000)
     request_id: str = Field(min_length=8, max_length=100)
+    reply_to: int | None = Field(default=None, strict=True, ge=1, le=2**63 - 1)
     assigned: str = Field(default="", max_length=100)
     released: bool = True
     include_shared_context: bool = False
@@ -769,6 +770,7 @@ def create_app(
             proposal=body.proposal,
             include_shared_context=body.include_shared_context,
             collaborator_request_generation=body.collaborator_request_generation,
+            reply_to=body.reply_to,
         )
 
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/{event_id}/files/{index}")

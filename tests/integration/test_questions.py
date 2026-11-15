@@ -183,14 +183,9 @@ def test_batch_answer_has_a_visible_queued_state_until_release(
     event_id = ask(live_app)
     slide = live_app.store.view(DECK_ID).slides[0]
     _ = live_app.store.set_mode(DECK_ID, "batch")
-    _ = live_app.store.add_feedback(
-        DECK_ID,
-        slide.id,
-        "PRIVATE_BATCH_BROWSER_ANSWER",
-        slide.content_hash,
-        "fixture-saved-answer",
-        reply_to=event_id,
-        author="user",
+    _ = live_app.post(
+        f"/api/decks/{DECK_ID}/slides/{slide.id}/questions/{event_id}/answer",
+        {"answer": "PRIVATE_BATCH_BROWSER_ANSWER", "request_id": "fixture-saved-answer"},
     )
     open_editor(page, live_app)
     card = page.locator(f'[data-question-id="{event_id}"]')
