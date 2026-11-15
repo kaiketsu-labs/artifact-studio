@@ -32,7 +32,10 @@ from .copilot_tools import (
 from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
 from .designs.authoring import DesignAuthoring
 from .designs.elements import ElementAlternatives, ElementInput
+from .designs.hosted import owner_design_store, reference_receipt
+from .designs.inputs import MAX_REFERENCE_BYTES
 from .designs.library import DesignLibrary
+from .designs.references import ReferenceInput
 from .designs.slides import DesignInput, SlideDesigns
 from .hosted_policy import public_deck_asset
 from .interactive import prepare_document
@@ -90,7 +93,21 @@ class MultiplayerTools:
     def deck_store(
         self, actor: Actor, deck_id: str, role: Role = "view", *, proposal: bool = False
     ) -> Generator[Store]:
-        """Restrict deck tools to the presentation associated with the authorized artifact."""
+        """Guard ordinary artifacts, or a private example for its owner's workspace agent."""
+        binding = self.scope(actor)
+        if binding.kind == "workspace" and self.sharing.owner(
+            Actor(actor.person), binding.workspace
+        ):
+            with self.sharing.guard(actor, binding, role) as store:
+                if (store.folder(deck_id) / "design.json").is_file() and any(
+                    item.folder_id == deck_id for item in store.designs()
+                ):
+                    if (store.root / deck_id).is_symlink():
+                        raise AccessDenied
+                    record = self.sharing.agent_record(actor)
+                    with revision_author(str(record["name"]) + " · agent"):
+                        yield store
+                    return
         scope = self.scope(actor, deck_id)
         with self.sharing.guard(actor, scope, role) as store:
             if ArtifactStore(store).get_artifact(deck_id).legacy_deck_id != deck_id:
@@ -194,13 +211,7 @@ class MultiplayerTools:
     @contextmanager
     def design_store(self, ctx: Ctx) -> Generator[Store]:
         """Limit private reusable designs to the owner's workspace-wide connection."""
-        actor = self.actor(ctx)
-        scope = self.scope(actor)
-        if scope.kind != "workspace" or not self.sharing.owner(
-            Actor(actor.person), scope.workspace
-        ):
-            raise AccessDenied
-        with self.sharing.guard(actor, scope, "edit") as store:
+        with owner_design_store(self.sharing, self.actor(ctx)) as store:
             yield store
 
     def list_design_contexts(
@@ -229,14 +240,17 @@ class MultiplayerTools:
         max_bytes: int = 65536,
         encoding: Literal["utf-8", "base64"] = "utf-8",
     ) -> dict[str, object]:
-        """Read a bounded page of an inventoried file from a private design."""
+        """Read up to 1 MiB from an inventoried private design file (up to 50 MB total).
+        Prefer compact guidance and examples first. For original binaries use
+        python -m artifact_studio.designs.download with the inventoried path/hash.
+        """
         if not 4 <= max_bytes <= MAX_READ_BYTES:
             raise ValueError("Read 4–1048576 bytes per design file page.")
         with self.design_store(ctx) as store:
             target = DesignLibrary(store).file(design_id, path)
             size = target.stat().st_size
-            if size > 25_000_000:
-                raise ValueError("Files above 25 MB are available from the Designs download.")
+            if size > MAX_REFERENCE_BYTES:
+                raise ValueError("Files above 50 MB are available from the Designs download.")
             metadata = DesignFile(name=target.name, path=path, size=size, sha256=file_hash(target))
             return attachment_page(
                 target,
@@ -245,6 +259,7 @@ class MultiplayerTools:
                 offset,
                 max_bytes,
                 encoding,
+                max_file_bytes=MAX_REFERENCE_BYTES,
             )
 
     def create_design_pack(
@@ -255,6 +270,31 @@ class MultiplayerTools:
             created = DesignAuthoring(store).create(design_id, name, description, css)
             created.pop("import_directory", None)
             return created
+
+    def attach_design_reference(
+        self,
+        ctx: Ctx,
+        design_id: str,
+        name: Annotated[str, Field(min_length=1, max_length=250)],
+        data_base64: Annotated[str, Field(max_length=1_398_104)],
+    ) -> dict[str, object]:
+        """Attach an original source up to 1 MiB; returns metadata only. For files up to 50 MB,
+        use python -m artifact_studio.designs.upload with --url, --design-id and --file;
+        supply ARTIFACT_STUDIO_AGENT_TOKEN through the environment, never chat arguments.
+        """
+        with self.design_store(ctx) as store:
+            data = base64.b64decode(data_base64, validate=True)
+            if not data or len(data) > 1024 * 1024:
+                raise ValueError(
+                    "Inline references must be non-empty and at most 1 MiB; "
+                    "use the file upload client for larger files."
+                )
+            if disk_usage(store.root).free < IMPORT_DISK_RESERVE + 3 * len(data_base64):
+                raise ValueError("Not enough workspace storage for this reference.")
+            files = DesignLibrary(store).attach(
+                design_id, ReferenceInput(files=[FileInput(name=name, data_base64=data_base64)])
+            )
+            return reference_receipt(design_id, name, data, files.files)
 
     def get_design_file(self, ctx: Ctx, design_id: str, path: str) -> dict[str, object]:
         """Read one author-editable design text file and its current hash."""
@@ -334,7 +374,23 @@ class MultiplayerTools:
                     "revise_artifact takes files_json, expected_revision and request_id. "
                     "create_artifact needs an editable project and inline file bundle. "
                     "capture_slide, capture_contact_sheet and capture_artifact return real pixels "
-                    "for visual review. "
+                    "for visual review. To author private reusable designs, use a workspace-wide "
+                    "owner connection: create_design_pack returns a folder_id for normal slide "
+                    "read/edit/capture tools. Use get_design_file/write_design_file for guidance "
+                    "and theme. Prefer python -m artifact_studio.designs.upload "
+                    "--url <HTTPS-origin> "
+                    "--design-id <id> --file <local-file> for original references up to 50 MB, "
+                    "with ARTIFACT_STUDIO_AGENT_TOKEN supplied in the environment, never chat. "
+                    "This sends file bytes directly and returns a compact receipt. The inline "
+                    "attach_design_reference alternative accepts at most 1 MiB; read stored "
+                    "metadata with get_design_context and content with read_design_reference. "
+                    "Start with selected PREFERENCES.md, concise README, author CSS and relevant "
+                    "example slides; reuse hashes. Do not reread generic guides or original "
+                    "PowerPoint sources each turn. Download an original only when needed using "
+                    "python -m artifact_studio.designs.download --url <HTTPS-origin> --design-id "
+                    "<id> --path <inventoried-path> --sha256 <source-hash> --output <local-file>. "
+                    "The same environment token authorizes this bounded 50 MB file transfer; "
+                    "it prints only a filename/size/hash receipt and refuses to overwrite files. "
                     "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
                     "Read only assigned requests with read_feedback. Claim with claim_feedback "
                     "before acting. Reply with reply_to_feedback using the claim and a stable "
@@ -489,7 +545,9 @@ class MultiplayerTools:
 
     def presentation_outline(self, store: Store, actor: Actor, scope: Scope) -> dict[str, object]:
         """Include attachment names only for the workspace owner's scoped agent."""
-        result = ScopedTools(store, "", True).get_presentation_outline(scope.resource)
+        result = ScopedTools(
+            store, "", True, design_example=scope.resource
+        ).get_presentation_outline(scope.resource)
         if self.sharing.owner(Actor(actor.person), scope.workspace):
             files = store.brief_files(scope.resource)
             if files:
@@ -539,7 +597,9 @@ class MultiplayerTools:
         actor = self.actor(ctx)
         scope = self.scope(actor, deck_id)
         with self.deck_store(actor, deck_id) as store:
-            result = ScopedTools(store, "", True).get_slide(deck_id, slide_id)
+            result = ScopedTools(store, "", True, design_example=deck_id).get_slide(
+                deck_id, slide_id
+            )
             if not self.sharing.owner(actor, scope.workspace):
                 result.pop("agent", None)
             return result
@@ -572,7 +632,7 @@ class MultiplayerTools:
         """Edit one slide with the hash you read; conflicts must be re-read and reconciled."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id, "edit") as store:
-            return ScopedTools(store, "", True).revise_slide(
+            return ScopedTools(store, "", True, design_example=deck_id).revise_slide(
                 deck_id,
                 slide_id,
                 expected_hash,
@@ -594,7 +654,7 @@ class MultiplayerTools:
         """Add a slide to a shared presentation using the existing slide contract."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id, "edit") as store:
-            return ScopedTools(store, "", True).add_slide(
+            return ScopedTools(store, "", True, design_example=deck_id).add_slide(
                 deck_id,
                 slide_json,
                 self.sharing.request_id(actor, request_id),
@@ -765,7 +825,9 @@ class MultiplayerTools:
         """Render a frozen slide design without changing the current slide."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
-            return ScopedTools(store, "", True).capture_slide_design(deck_id, slide_id, design_id)
+            return ScopedTools(store, "", True, design_example=deck_id).capture_slide_design(
+                deck_id, slide_id, design_id
+            )
 
     def publish_element_alternatives(
         self,
@@ -842,7 +904,7 @@ class MultiplayerTools:
         """Render a frozen element proposal in its full-slide context."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
-            return ScopedTools(store, "", True).capture_element_alternative(
+            return ScopedTools(store, "", True, design_example=deck_id).capture_element_alternative(
                 deck_id, slide_id, element_option_id, context_hash or "", scoped=True
             )
 
@@ -922,7 +984,9 @@ class MultiplayerTools:
         """Render actual audience pixels; excludes private discussion and speaker notes."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
-            return ScopedTools(store, "", True).capture_slide(deck_id, slide_id, stage, elapsed_ms)
+            return ScopedTools(store, "", True, design_example=deck_id).capture_slide(
+                deck_id, slide_id, stage, elapsed_ms
+            )
 
     def capture_contact_sheet(
         self,
@@ -936,7 +1000,7 @@ class MultiplayerTools:
         Select up to 100 distinct slide IDs; use capture_slide for full-size detail."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
-            return ScopedTools(store, "", True).capture_contact_sheet(
+            return ScopedTools(store, "", True, design_example=deck_id).capture_contact_sheet(
                 deck_id, offset, limit, slide_ids
             )
 
@@ -1116,6 +1180,7 @@ class MultiplayerTools:
             self.create_artifact,
             self.create_design_pack,
             self.write_design_file,
+            self.attach_design_reference,
             self.revise_slide,
             self.set_slide_activity,
             self.add_slide,

@@ -18,12 +18,13 @@ from pydantic import Field
 from ..libraries import allowed, file_hash, inventory
 from ..models import DesignMessage, DesignRequestInput, FileInput, StrictModel
 from ..storage import ConflictError, Store, decode_attachments
+from .inputs import MAX_REFERENCE_BYTES, DesignFileInput
 
 
 class ReferenceInput(StrictModel):
     """A bounded batch of original reference files of any type."""
 
-    files: list[FileInput] = Field(min_length=1, max_length=5)
+    files: list[DesignFileInput | FileInput] = Field(min_length=1, max_length=5)
 
 
 class RemoveReferenceInput(StrictModel):
@@ -194,7 +195,7 @@ class DesignReferences:
     def attach(self, design_id: str, body: ReferenceInput) -> list[DesignReference]:
         """Validate the entire batch first; preserve earlier files and deduplicate retries."""
         folder = self.store.folder(self.store.design(design_id).folder_id)
-        decoded = decode_attachments(body.files)
+        decoded = decode_attachments(body.files, max_file_bytes=MAX_REFERENCE_BYTES)
         for name, data in decoded:
             if Path(name).suffix.lower() in {".pptx", ".potx"}:
                 validate_powerpoint(name, data)

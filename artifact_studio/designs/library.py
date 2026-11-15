@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -15,6 +16,7 @@ from pydantic import Field
 from ..libraries import LibraryFile, allowed, file_hash, inventory, safe_file
 from ..models import FileInput, StrictModel
 from ..storage import ConflictError, Store, decode_attachments, digest, replace_text
+from .inputs import MAX_REFERENCE_BYTES, DesignFileInput
 from .references import (
     DesignReferences,
     ReferenceInput,
@@ -40,7 +42,7 @@ class DesignCreate(StrictModel):
 
     name: str = Field(min_length=1, max_length=80)
     description: str = Field(default="", max_length=2000)
-    files: list[FileInput] = Field(default_factory=list, max_length=5)
+    files: list[DesignFileInput | FileInput] = Field(default_factory=list, max_length=5)
 
 
 class ContextManifest(StrictModel):
@@ -280,8 +282,8 @@ class DesignLibrary:
         return self.get(design_id)
 
     @staticmethod
-    def _attach(folder: Path, files: list[FileInput]) -> None:
-        decoded = decode_attachments(files)
+    def _attach(folder: Path, files: Sequence[FileInput]) -> None:
+        decoded = decode_attachments(files, max_file_bytes=MAX_REFERENCE_BYTES)
         # Validate the entire batch before publishing any file.
         prepared: list[tuple[Path, bytes]] = []
         for name, data in decoded:

@@ -122,6 +122,7 @@ button.design-file-visual.has-preview{cursor:zoom-in;transition:border-color .15
 .design-agent-handoff{display:grid;gap:17px}
 .design-agent-handoff textarea{width:100%;font-size:12px;line-height:1.6;resize:vertical}
 #design-agent-copy-status:empty,#design-library-error:empty{display:none}
+#design-library-error{color:var(--red,#bc493f);font-size:12px}
 #design-agent-copy-status{font-size:12px;color:var(--hub-muted)}
 #design-library-pending li,.design-deleted-list li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hub-line);font-size:13px}
 #design-library-pending li>span,.design-deleted-list li>span{flex:1;overflow-wrap:anywhere;min-width:0}
