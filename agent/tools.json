@@ -2837,7 +2837,7 @@
     },
     {
       "name": "capture_slide_design",
-      "description": "Visually inspect a frozen proposed design without changing the chosen slide.",
+      "description": "Capture a frozen design without changing the chosen slide.\n\nreturn_image=False returns saved paths/metadata without inline pixels.\nInspect the saved file separately before claiming a visual review.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -2851,6 +2851,11 @@
           "design_id": {
             "title": "Design Id",
             "type": "string"
+          },
+          "return_image": {
+            "default": true,
+            "title": "Return Image",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3625,7 +3630,7 @@
     },
     {
       "name": "capture_element_alternative",
-      "description": "Inspect actual full-slide pixels for an element proposal through the offline renderer.\n\nCaptures retain the option identity and source hash; they do not revise the chosen slide.\nEarlier design contexts remain labelled by the corresponding metadata/source read.\n",
+      "description": "Inspect actual full-slide pixels for an element proposal through the offline renderer.\n\nCaptures retain the option identity and source hash; they do not revise the chosen slide.\nEarlier design contexts remain labelled by the corresponding metadata/source read.\nreturn_image=False returns saved paths/metadata without inline pixels.\nInspect the saved file separately before claiming a visual review.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -3651,6 +3656,11 @@
             ],
             "default": null,
             "title": "Context Hash"
+          },
+          "return_image": {
+            "default": true,
+            "title": "Return Image",
+            "type": "boolean"
           }
         },
         "required": [
@@ -4004,7 +4014,7 @@
     },
     {
       "name": "capture_slide",
-      "description": "Inspect a full-size slide image with exact version metadata, locally through MCP.\n\nDefault: completed slide. For reveals, stage=0 is initial, stage=N is the Nth\nbuild, elapsed_ms samples that build's animation. Earlier builds are complete.\nRead get_authoring_guide(topic=\"visual_review\") first. Host access restrictions apply; this tool\nis not permission to inspect a deck through an alternative blocked surface.\n",
+      "description": "Inspect a full-size slide image with exact version metadata, locally through MCP.\n\nDefault: completed slide. For reveals, stage=0 is initial, stage=N is the Nth\nbuild, elapsed_ms samples that build's animation. Earlier builds are complete.\nRead get_authoring_guide(topic=\"visual_review\") first. Host access restrictions apply; this tool\nis not permission to inspect a deck through an alternative blocked surface.\nreturn_image=False saves the same capture but returns only paths/metadata for local automation.\nInspect the saved image separately before claiming a visual review.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -4045,6 +4055,11 @@
             ],
             "title": "Resolution",
             "type": "string"
+          },
+          "return_image": {
+            "default": true,
+            "title": "Return Image",
+            "type": "boolean"
           }
         },
         "required": [
@@ -4061,7 +4076,7 @@
     },
     {
       "name": "capture_contact_sheet",
-      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect slide_ids or page through the deck; up to 24 frames per sheet, in deck order.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\n",
+      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect slide_ids or page through the deck; up to 24 frames per sheet, in deck order.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\nreturn_image=False returns saved paths/metadata without inline pixels.\nInspect the saved files separately before claiming a visual review.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -4101,6 +4116,11 @@
             ],
             "title": "Resolution",
             "type": "string"
+          },
+          "return_image": {
+            "default": true,
+            "title": "Return Image",
+            "type": "boolean"
           }
         },
         "required": [
@@ -9699,7 +9719,7 @@
     },
     {
       "name": "capture_artifact",
-      "description": "Inspect an actual rendered artifact image with exact revision and viewport metadata.\nAuthored JavaScript runs in a fresh offline sandbox. elapsed_ms samples animations;\nuse the browser for user-driven interaction states. For decks use capture_slide.\n",
+      "description": "Inspect an actual rendered artifact image with exact revision and viewport metadata.\nAuthored JavaScript runs in a fresh offline sandbox. elapsed_ms samples animations;\nuse the browser for user-driven interaction states. For decks use capture_slide.\nreturn_image=False returns saved paths/metadata without inline pixels for local automation.\nInspect the saved image separately before claiming a visual review.\n",
       "input_schema": {
         "properties": {
           "artifact_id": {
@@ -9737,6 +9757,11 @@
             ],
             "default": null,
             "title": "Revision"
+          },
+          "return_image": {
+            "default": true,
+            "title": "Return Image",
+            "type": "boolean"
           }
         },
         "required": [
