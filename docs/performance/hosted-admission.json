@@ -1,0 +1,13 @@
+{
+  "fixture": "fictional identities and httpx.MockTransport; no external calls",
+  "idle_ticks": 1000,
+  "initial_admission_calls": 1,
+  "idle_admission_calls": 0,
+  "idle_seconds": 1.60389,
+  "mean_idle_tick_ms": 1.60389,
+  "same_provider_operation_retries": 100,
+  "mock_provider_requests": 402,
+  "mock_provider_group_writes": 1,
+  "mock_provider_policy_writes": 0,
+  "real_network_requests": 0
+}

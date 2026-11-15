@@ -34,6 +34,11 @@ Connect an agent using the hosted `https://studio.example.com/mcp` URL and Strea
 
 Before production use, validate the actual account's MFA policy, tunnel routing, origin isolation, service-token authentication and revocation, preview isolation, and backup and restore procedure. Application tests cannot establish those account-specific properties.
 
+The [fictional deployment simulation](performance/hosted-deployment-simulation.md)
+exercises invitation recovery, browser cookie isolation, preview capabilities and
+redacted diagnostics without provider credentials. It includes a parent-domain
+cookie negative control and identifies which production checks remain external.
+
 ## Check safety before starting
 
 Keep configuration in an owner-controlled regular file outside the collection,
