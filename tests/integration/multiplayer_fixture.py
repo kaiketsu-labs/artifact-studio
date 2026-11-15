@@ -50,6 +50,7 @@ def running_multiplayer_app(
     startup_timeout: float = 10,
     saturate_renderer: bool = False,
     grant_recovery_fixture: bool = False,
+    offline_fixture: bool = False,
 ) -> Generator[MultiplayerApp]:
     root.mkdir(parents=True, exist_ok=True)
     collection, database = root / "collection", root / "state/review.sqlite3"
@@ -135,13 +136,18 @@ uvicorn.run(app, host="127.0.0.1",
         env["ARTIFACT_STUDIO_FIXTURE_GRANT_RECOVERY"] = "1"
     if unified:
         config_path = root / "hosted.json"
+        auth_options = (
+            {"team_domain": "fictional.cloudflareaccess.com", "audience": "fixture-audience"}
+            if offline_fixture
+            else {}
+        )
         config_path.write_text(
             json.dumps(
                 {
                     "public_url": WORKSPACE,
                     "preview_url": PREVIEW,
-                    "auth_provider": "fixture",
-                    "auth_options": {},
+                    "auth_provider": "cloudflare" if offline_fixture else "fixture",
+                    "auth_options": auth_options,
                     "member_emails": ["owner@example.test"],
                     "agent_subjects": [],
                     "personal_workspace_emails": personal_workspace_emails,
@@ -157,6 +163,8 @@ uvicorn.run(app, host="127.0.0.1",
             ARTIFACT_STUDIO_COLLECTION=str(collection),
             ARTIFACT_STUDIO_DATABASE=str(database),
         )
+        if offline_fixture:
+            env["ARTIFACT_STUDIO_EXPERIMENTAL_OFFLINE"] = "1"
     logs.parent.mkdir(parents=True, exist_ok=True)
     with logs.open("w") as output:
         process = subprocess.Popen(
