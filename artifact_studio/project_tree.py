@@ -153,7 +153,10 @@ class ProjectTree:
         self, title: str, expected_tree_hash: str, parent_id: str = ""
     ) -> dict[str, object]:
         """Create one folder through the native guarded controller and return only its receipt."""
-        before = {node.id for node in self.view().nodes}
+        baseline = self.view()
+        if baseline.content_hash != expected_tree_hash:
+            raise ConflictError("Projects changed in another window. Try again.")
+        before = {node.id for node in baseline.nodes}
         current = self.change(
             TreeChange(
                 action="create",

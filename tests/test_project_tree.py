@@ -227,3 +227,21 @@ def test_local_registered_tools_share_project_folder_workflow(tree: ProjectTree)
         assert moved["folder_id"] == folder["id"]
 
     asyncio.run(exercise())
+
+
+def test_folder_receipt_rejects_unbound_baseline_before_external_restore(tree: ProjectTree) -> None:
+    """An A→B→A external restore must not let a restored old folder masquerade as the new one."""
+    original, state_a = folder(tree, "Existing folder")
+    saved_a = tree.path.read_bytes()
+    _ = tree.change(TreeChange(action="remove", id=original, expected_hash=state_a.content_hash))
+    saved_b = tree.path.read_bytes()
+
+    class RestoringTree(ProjectTree):
+        def change(self, change: TreeChange) -> TreeView:
+            # Simulate portable metadata restored after create_folder's preflight read.
+            _ = self.path.write_bytes(saved_a)
+            return super().change(change)
+
+    with pytest.raises(ConflictError):
+        _ = RestoringTree(tree.store).create_folder("Requested folder", state_a.content_hash)
+    assert tree.path.read_bytes() == saved_b
