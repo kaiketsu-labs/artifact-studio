@@ -145,4 +145,65 @@ class ProjectTree:
                     nodes.insert(nodes.index(before), node)
             document = TreeDocument.model_validate({"nodes": nodes})
             replace_text(self.path, document.model_dump_json(indent=2) + "\n")
-        return self.view()
+        # Return this operation's committed revision, even if another editor changes
+        # navigation as soon as the transaction releases its lock.
+        return TreeView(nodes=document.nodes, content_hash=digest(document.model_dump_json()))
+
+    def create_folder(
+        self, title: str, expected_tree_hash: str, parent_id: str = ""
+    ) -> dict[str, object]:
+        """Create one folder through the native guarded controller and return only its receipt."""
+        before = {node.id for node in self.view().nodes}
+        current = self.change(
+            TreeChange(
+                action="create",
+                title=title,
+                parent_id=parent_id or None,
+                expected_hash=expected_tree_hash,
+            )
+        )
+        created = next(
+            node for node in current.nodes if node.kind == "folder" and node.id not in before
+        )
+        return {
+            "id": created.id,
+            "title": created.title,
+            "parent_id": created.parent_id,
+            "tree_hash": current.content_hash,
+        }
+
+    def move_project(
+        self, project_id: str, expected_tree_hash: str, folder_id: str = ""
+    ) -> dict[str, object]:
+        """Change private navigation only; project sources, contents and grants stay in place."""
+        if not any(node.id == project_id and node.kind == "project" for node in self.view().nodes):
+            raise FileNotFoundError("Choose a project from this workspace's project tree.")
+        current = self.change(
+            TreeChange(
+                action="move",
+                id=project_id,
+                parent_id=folder_id or None,
+                expected_hash=expected_tree_hash,
+            )
+        )
+        return {
+            "project_id": project_id,
+            "folder_id": folder_id or None,
+            "tree_hash": current.content_hash,
+        }
+
+    def agent_view(self) -> dict[str, object]:
+        """Discover private folder IDs and parents without copying project briefs."""
+        projects = {
+            project.id: project.title for project in ArtifactStore(self.store).list_projects()
+        }
+        current = self.view(list(projects))
+        return {
+            "nodes": [
+                {**node.model_dump(), "title": projects[node.id]}
+                if node.kind == "project"
+                else node.model_dump()
+                for node in current.nodes
+            ],
+            "tree_hash": current.content_hash,
+        }

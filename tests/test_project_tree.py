@@ -1,6 +1,9 @@
 """Persistent nested project navigation, source safety and concurrent editing."""
 
+import sqlite3
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -138,3 +141,89 @@ def test_discovery_and_validation_do_not_hide_new_projects(tree: ProjectTree) ->
     with pytest.raises(ValueError, match="linked"):
         _ = tree.view()
     assert target.read_text() == "untouched"
+
+
+def test_folder_receipt_keeps_its_committed_identity_after_another_editor_writes(
+    tree: ProjectTree, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A later remove/create may obsolete a receipt, but must not substitute another folder."""
+    connect = tree.store.connect
+    interleaved = False
+
+    @contextmanager
+    def after_commit() -> Generator[sqlite3.Connection]:
+        nonlocal interleaved
+        with connect() as db:
+            yield db
+            wrote = db.in_transaction
+        if (
+            wrote
+            and not interleaved
+            and tree.path.exists()
+            and "Requested folder" in tree.path.read_text()
+        ):
+            interleaved = True
+            other = ProjectTree(tree.store)
+            current = other.view()
+            requested = next(node for node in current.nodes if node.title == "Requested folder")
+            removed = other.change(
+                TreeChange(action="remove", id=requested.id, expected_hash=current.content_hash)
+            )
+            _ = other.change(
+                TreeChange(
+                    action="create", title="Other editor folder", expected_hash=removed.content_hash
+                )
+            )
+
+    expected = tree.view().content_hash
+    monkeypatch.setattr(tree.store, "connect", after_commit)
+    receipt = tree.create_folder("Requested folder", expected)
+    assert interleaved
+    assert receipt["title"] == "Requested folder"
+    current = tree.view()
+    assert receipt["id"] not in {node.id for node in current.nodes}
+    assert receipt["tree_hash"] != current.content_hash
+    assert any(node.title == "Other editor folder" for node in current.nodes)
+
+
+def test_local_registered_tools_share_project_folder_workflow(tree: ProjectTree) -> None:
+    """Local agents use the same hash receipts without losing existing create_project fields."""
+    import asyncio
+
+    from mcp.types import CallToolResult
+
+    from artifact_studio.artifact_tools import register_artifact_tools
+    from artifact_studio.tool_server import ToolServer
+
+    server = ToolServer[None]("Fictional local project tools")
+    register_artifact_tools(server, lambda: tree.store)
+
+    async def call(name: str, arguments: dict[str, object]) -> dict[str, object]:
+        result = await server.call_tool(name, arguments)
+        assert isinstance(result, CallToolResult)
+        assert not result.is_error and result.structured_content is not None
+        return result.structured_content
+
+    async def exercise() -> None:
+        current = await call("get_project_tree", {})
+        folder = await call(
+            "create_project_folder",
+            {"title": "Fictional collection", "expected_tree_hash": current["tree_hash"]},
+        )
+        project = await call(
+            "create_project",
+            {"title": "Fictional project", "context": "Keep local metadata compatible"},
+        )
+        assert project["context"] == "Keep local metadata compatible"
+        assert project["source_path"]
+        moved = await call(
+            "move_project_to_folder",
+            {
+                "project_id": project["id"],
+                "folder_id": folder["id"],
+                "expected_tree_hash": project["tree_hash"],
+            },
+        )
+        assert moved["folder_id"] == folder["id"]
+
+    asyncio.run(exercise())

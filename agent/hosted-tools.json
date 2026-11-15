@@ -32,6 +32,24 @@
       }
     },
     {
+      "name": "get_project_tree",
+      "description": "Read private folder IDs and tree_hash with an owner workspace token.",
+      "input_schema": {
+        "properties": {},
+        "title": "get_project_treeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_project_treeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "list_artifacts",
       "description": "List only artifacts and projects available to this particular agent connection.",
       "input_schema": {
@@ -1147,6 +1165,116 @@
       },
       "annotations": {
         "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_project",
+      "description": "Create a project/brief in the owned workspace; returns its ID and current tree_hash.\nNo request-ID deduplication: after a lost response, discover projects before retrying.\n",
+      "input_schema": {
+        "properties": {
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "context": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "Context",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "create_projectArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_projectDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_project_folder",
+      "description": "Create a private folder using current tree_hash; an empty parent_id selects root.",
+      "input_schema": {
+        "properties": {
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          },
+          "expected_tree_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Tree Hash",
+            "type": "string"
+          },
+          "parent_id": {
+            "default": "",
+            "title": "Parent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "expected_tree_hash"
+        ],
+        "title": "create_project_folderArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_project_folderDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "move_project_to_folder",
+      "description": "Place a project in a private folder using tree_hash; empty=root. No grant changes.",
+      "input_schema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "expected_tree_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Expected Tree Hash",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_tree_hash"
+        ],
+        "title": "move_project_to_folderArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "move_project_to_folderDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
         "destructive_hint": false
       }
     },
