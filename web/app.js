@@ -139,6 +139,8 @@
   function proposalPreviewChanged(proposal){
     if(draftUncertain())return;
     if(!deck||!selectedId)return;
+    // A refresh of the inactive controller must not clear the other visible proposal.
+    proposal=proposal||liveProposalContext();
     const previous=feedbackDraft();
     if(!previous?.feedback?.trim()&&!previous?.target&&!chatComposer.hasFiles()&&JSON.stringify(proposalReference(previous))!==JSON.stringify(proposal)){
       feedbackDrafts.set(chatKey(),{...previous,feedback:previous?.feedback||'',target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,element_option_id:proposal?.element_option_id,element_option_name:proposal?.element_option_name,element_context_hash:proposal?.element_context_hash,request_id:crypto.randomUUID()});

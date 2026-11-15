@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 import pytest
-from playwright.sync_api import Browser, Locator, Page, expect
+from playwright.sync_api import Browser, Locator, Page, Route, expect
 
 from artifact_studio.models import SlidePatch
 from artifact_studio.storage import digest
@@ -371,14 +371,25 @@ def test_element_choices_preserve_siblings_notes_and_saved_history(
     _ = page.screenshot(path=str(artifacts / "element-saved-history.png"))
 
 
+@pytest.mark.parametrize("late_open_acknowledgement", [False, True])
 def test_element_proposal_feedback_retains_original_proposal_when_switching(
-    live_app: RunningApp, page: Page
+    live_app: RunningApp, page: Page, artifacts: Path, late_open_acknowledgement: bool
 ) -> None:
     """The visible draft stays anchored to its proposal, not the later preview or chosen slide."""
     group = seed_elements(live_app, groups=("headline",))["headline"]
+    pending: list[Route] = []
+    if late_open_acknowledgement:
+        page.route("**/slides/cover/seen", lambda route: pending.append(route), times=1)
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
     open_group(page, group)
     option(page, group, 1).click()
+    if late_open_acknowledgement:
+        # The delayed acknowledgement refreshes both proposal controllers while
+        # the element preview is selected, before an attachment pins its anchor.
+        assert len(pending) == 1
+        expect(page.locator("#preview-wrap.has-unseen-changes")).to_have_count(1)
+        pending[0].continue_()
+        expect(page.locator("#preview-wrap.has-unseen-changes")).to_have_count(0)
     page.locator("#feedback-text").click()
     page.locator("#feedback-file-input").set_input_files(
         {"name": "brief.txt", "mimeType": "text/plain", "buffer": b"Fictional audience brief."}
@@ -387,6 +398,8 @@ def test_element_proposal_feedback_retains_original_proposal_when_switching(
     expect(page.locator("#feedback-design-context")).to_contain_text("Clearer promise")
     option(page, group, 2).click()
     expect(page.locator("#feedback-design-context")).to_contain_text("Clearer promise")
+    if late_open_acknowledgement:
+        _ = page.screenshot(path=str(artifacts / "element-feedback-original-proposal.png"))
     page.locator("#send-feedback").click()
     expect(page.locator("#feedback-text")).to_have_value("")
     comment = next(item for item in live_app.store.comments(DECK_ID) if item.author == "user")
