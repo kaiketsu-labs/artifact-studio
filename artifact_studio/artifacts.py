@@ -1379,13 +1379,34 @@ class ArtifactStore:
                 raise ConflictError("Feedback must reference an existing artifact snapshot.")
             reviewed = ArtifactManifest.model_validate_json(cast(str, revision_row[0]))
             self._verify_snapshot(reviewed)
+            target = body.target
             if body.reply_to is not None:
                 parent = db.execute(
-                    "SELECT released FROM artifact_feedback WHERE id=? AND artifact_id=?",
+                    "SELECT document,released FROM artifact_feedback WHERE id=? AND artifact_id=?",
                     (body.reply_to, artifact_id),
                 ).fetchone()
-                if parent is None or (author == "agent" and not parent[0]):
+                if parent is None or not parent["released"]:
                     raise ValueError("Reply must reference visible feedback on the same artifact.")
+                if author == "user":
+                    root = ArtifactFeedback.model_validate_json(cast(str, parent["document"]))
+                    seen = {body.reply_to}
+                    while root.reply_to is not None:
+                        if root.reply_to in seen:
+                            raise ValueError("Reply must reference a valid feedback thread.")
+                        seen.add(root.reply_to)
+                        parent = db.execute(
+                            "SELECT document FROM artifact_feedback WHERE id=? AND artifact_id=? "
+                            "AND released=1",
+                            (root.reply_to, artifact_id),
+                        ).fetchone()
+                        if parent is None:
+                            raise ValueError("Reply must reference a released feedback thread.")
+                        root = ArtifactFeedback.model_validate_json(cast(str, parent["document"]))
+                    if body.content_hash != root.content_hash or (
+                        body.target is not None and body.target != root.target
+                    ):
+                        raise ConflictError("A thread reply must retain its original context.")
+                    target = root.target
             released = author == "agent" or row["mode"] == "live"
             cursor = db.execute(
                 "INSERT INTO artifact_feedback(artifact_id,document,released,author) "
@@ -1421,7 +1442,7 @@ class ArtifactStore:
                 author=author,
                 message=body.message,
                 created_at=datetime.now(UTC).isoformat(),
-                target=body.target,
+                target=target,
                 edit_intent=body.edit_intent,
                 reply_to=body.reply_to,
                 released=released,

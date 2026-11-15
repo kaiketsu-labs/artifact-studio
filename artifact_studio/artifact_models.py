@@ -141,7 +141,7 @@ class ArtifactFeedbackInput(StrictModel):
     content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     target: ArtifactTarget | None = None
     edit_intent: EditIntent | None = None
-    reply_to: int | None = None
+    reply_to: int | None = Field(default=None, strict=True, ge=1, le=2**63 - 1)
     files: list[FileInput] = Field(default_factory=list, max_length=5)
 
 

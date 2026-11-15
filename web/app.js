@@ -896,19 +896,60 @@
     const user=author==='user',label=escape(name||((user?'You':'Agent')+(isReply?' reply':'')));
     return `<span class="chat-sender"><span class="chat-avatar ${user?'user':'agent'}" role="img" aria-label="${label}" title="${label}">${svg(user?'user':'robot')}</span>${name&&name!=='You'?`<span class="chat-sender-name" title="${label}">${label}</span>`:''}${isReply?`<span class="chat-reply" aria-hidden="true" title="Reply">${svg('reply')}</span>`:''}</span>`;
   }
+  function threadReplyOptions(item) {
+    const id=deck.id,slideId=item.id,channel=conversationChannel;
+    const selected=()=>deck?.id===id&&selectedId===slideId&&conversationChannel===channel;
+    const current=()=>selected()&&!switchingDeck;
+    const source=parent=>conversation?.messages.find(message=>message.id===-parent.event_id);
+    const route=parent=>nativeConversation.replyRecipient(source(parent),conversation,channel);
+    const canReply=parent=>selected()&&commentAllowed()&&parent.released!==false&&!parent.question&&
+      (parent.scoped?Boolean(source(parent)&&route(parent).allowed):!sharedEditor);
+    return {
+      canReply,
+      replyHint:parent=>parent.scoped?route(parent).hint:'Reply to your agent',
+      onReply:async(parent,message,requestId)=>{
+        if(!current()||!canReply(parent))throw new Error('This thread is no longer available for replies.');
+        if(parent.scoped){
+          const sent=await scopedChat.reply(id,{message,requestId,replyTo:-parent.event_id,channel,...route(parent)});
+          if(current()&&conversationDeck===id&&conversation){
+            conversationRead++;
+            if(!conversation.messages.some(value=>value.id===sent.id))conversation.messages.push(sent);
+            conversation.messages.sort((a,b)=>a.cursor-b.cursor);
+            commentsSignature='';renderComments(slide());
+          }
+        }else{
+          const presentation=parent.scope==='presentation';
+          const endpoint=presentation?`/api/decks/${encodeURIComponent(id)}/feedback`:
+            `/api/decks/${encodeURIComponent(id)}/slides/${encodeURIComponent(parent.slide_id||slideId)}/feedback`;
+          const body={message,request_id:requestId,reply_to:parent.event_id,expected_mode:'live',
+            ...(presentation?{context_slide_id:parent.context_slide_id||null}:{
+              content_hash:parent.content_hash??'',target:parent.target||null,
+              ...(parent.design_option_id?{design_option_id:parent.design_option_id}:{}),
+              ...(parent.element_option_id?{element_option_id:parent.element_option_id,element_context_hash:parent.element_context_hash}:{}),
+            })};
+          await ensureLive(id);
+          if(!current())throw new Error('The conversation changed. Your thread draft was kept.');
+          await api(endpoint,body);
+          if(current())await refresh();
+        }
+      },
+    };
+  }
   /** Preserve reading position while new messages arrive. */
   function renderComments(item){
     if(!item)return;
     const comments=currentComments(item);
     $('feedback-count').textContent=comments.length?String(comments.length):'';
-    const signature=JSON.stringify([item.content_hash,comments]),list=$('feedback-list'),changedContext=commentsKey!==key();
+    const context=`${studioHome}:${conversation?.person||'local'}:${key()}:${conversationChannel}`;
+    const signature=JSON.stringify([item.content_hash,comments,conversation?.access,conversation?.agents,commentAllowed()]),list=$('feedback-list'),changedContext=commentsKey!==context;
     if(!changedContext&&signature===commentsSignature)return;
+    if(!changedContext&&chatThreads.isComposing(list))return;
     const pendingQuestions=window.SlideQuestions.pending(comments).length,questionStatus=$('chat-question-status');questionStatus.hidden=!pendingQuestions;iconButton(questionStatus,'question',`${pendingQuestions} question${pendingQuestions===1?'':'s'} awaiting your answer`,false);
     const focused=slideQuestions.captureFocus(list),threadFocus=chatThreads.capture(list);
     const atEnd=list.scrollHeight-list.scrollTop-list.clientHeight<35;
-    commentsKey=key();commentsSignature=signature;
+    commentsKey=context;commentsSignature=signature;
     list.innerHTML=window.StudioChatTimeline.render(comments,comment=>comment.created_at,comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}${comment.mentioned?' mentioned':''}${comment.agentRequest?' is-agent-request':''}" data-comment-id="${comment.event_id}"${comment.collaborator?' data-collaborator':''}><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to,comment.name)}${comment.agentRequest?nativeConversation.agentBadge(comment.agentRecipient,escape):''}${comment.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.author==='user'&&comment.target?(window.MultiElementEdits.readableMessage(comment.message)||comment.message):comment.message)}${comment.edit_summary?.length?`<p class="chat-edit-summary">${escape(comment.edit_summary.join('\n'))}</p>`:window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}${comment.original_request?`<details class="chat-edit-details"><summary>Exact request</summary><pre>${escape(comment.original_request)}</pre></details>`:''}</div>${slideDesignOptions?.card(comment)||''}${elementAlternatives?.card(comment)||''}${comment.element_option_id?`<span class="comment-design-context">Option · ${escape(comment.element_option_name||'Saved alternative')}</span>`:''}${comment.design_option_id?`<span class="comment-design-context">Design · ${escape(comment.design_option_name||'Saved alternative')}</span>`:''}${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&!comment.design_option_id&&!comment.design_set_id&&!comment.element_option_id&&!comment.element_set_id&&((comment.scoped&&comment.target&&!comment.content_hash)||(comment.content_hash&&comment.content_hash!==item.content_hash))?`<span class="old-version">${comment.scoped&&comment.target&&!comment.content_hash?'Original version unavailable':'Earlier version'}</span>`:''}</article>`,day=>`<p class="chat-day">${escape(day)}</p>`).join('');
-    chatThreads.mount(list,comments,{context:`${studioHome}:${conversation?.person||'local'}:${key()}:${conversationChannel}`,focus:threadFocus});
+    chatThreads.mount(list,comments,{context,focus:threadFocus,...threadReplyOptions(item)});
     slideQuestions.mount(list,comments,deck.id,item.id);slideDesignOptions?.mountCards();elementAlternatives?.mountCards();
     if(changedContext&&pendingQuestions){list.querySelector('[data-question-state="open"]')?.scrollIntoView({block:'nearest'});}else if(changedContext||atEnd)list.scrollTop=list.scrollHeight;
     slideQuestions.restoreFocus(list,focused);

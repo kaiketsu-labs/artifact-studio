@@ -458,6 +458,25 @@ class Conversations:
             (workspace, total),
         )
 
+    def _thread_root(
+        self, db: sqlite3.Connection, actor: Actor, scope: Scope, channel: Channel, event: int
+    ) -> sqlite3.Row:
+        """Resolve only released ancestors in this conversation's visible audience."""
+        seen: set[int] = set()
+        while event not in seen:
+            seen.add(event)
+            row = db.execute(
+                "SELECT * FROM conversations WHERE id=? AND workspace=? AND artifact=? "
+                "AND channel=? AND released=1",
+                (event, scope.workspace, scope.resource, channel),
+            ).fetchone()
+            if row is None or not self._visible(actor, row):
+                raise AccessDenied
+            if row["reply_to"] is None:
+                return row
+            event = cast(int, row["reply_to"])
+        raise AccessDenied
+
     def post(
         self,
         actor: Actor,
@@ -476,11 +495,14 @@ class Conversations:
         include_shared_context: bool = False,
         offline_anchor: tuple[str, str, str] | None = None,
         collaborator_request_generation: int = 0,
+        reply_to: int | None = None,
     ) -> dict[str, object]:
         if (not message.strip() and not files) or len(message) > 10000:
             raise ValueError("Write a message or attach a file.")
         if include_shared_context and (channel != "shared" or not assigned):
             raise ValueError("Shared context requires an assigned Shared request.")
+        if reply_to is not None and (isinstance(reply_to, bool) or not 1 <= reply_to <= 2**63 - 1):
+            raise ValueError("Reply must reference a positive message ID.")
         with self.sharing.guard(actor, scope, "edit" if assigned else "comment") as store:
             if actor.agent:
                 raise AccessDenied
@@ -512,6 +534,11 @@ class Conversations:
                         *(["include_shared_context"] if include_shared_context else []),
                         *([list(offline_anchor)] if offline_anchor else []),
                         *(
+                            ["reply_to", reply_to, slide_content_hash]
+                            if reply_to is not None
+                            else []
+                        ),
+                        *(
                             [collaborator_request_generation]
                             if collaborator_request_generation
                             else []
@@ -521,6 +548,11 @@ class Conversations:
                 )
             )
             with self.sharing.connect() as db:
+                parent = (
+                    self._thread_root(db, actor, scope, channel, reply_to)
+                    if reply_to is not None
+                    else None
+                )
                 prior = db.execute(
                     "SELECT c.*,d.id AS cursor FROM conversations c "
                     "JOIN chat_delivery d ON d.message=c.id WHERE request_id=?",
@@ -530,12 +562,44 @@ class Conversations:
                     if prior["payload"] != payload:
                         raise ConflictError("This request_id already belongs to another message.")
                     return self._public(prior)
+                if parent is not None:
+                    if offline_anchor:
+                        raise ValueError("Offline comments cannot start a thread reply.")
+                    parent_target = json.loads(cast(str, parent["target"]))
+                    parent_proposal = json.loads(cast(str, parent["proposal"]))
+                    if (
+                        (target is not None and target.model_dump() != parent_target)
+                        or (content_hash and content_hash != parent["content_hash"])
+                        or (
+                            slide_content_hash
+                            and slide_content_hash != parent["slide_content_hash"]
+                        )
+                        or (
+                            proposal is not None
+                            and (
+                                parent_proposal is None
+                                or any(
+                                    parent_proposal.get(key) != value
+                                    for key, value in proposal.model_dump().items()
+                                )
+                            )
+                        )
+                    ):
+                        raise ConflictError("A thread reply must retain its original context.")
+                    if channel == "private":
+                        recipient_id = cast(str, parent["assigned"])
+                        if assigned and assigned != recipient_id:
+                            raise AccessDenied
+                        assigned = recipient_id
+                        if assigned:
+                            self.sharing.require(actor, scope, "edit")
                 if offline_anchor and (
                     proposal or offline_anchor[1:] != (content_hash, slide_content_hash)
                 ):
                     raise ValueError("Invalid offline anchor.")
                 if (
-                    not offline_anchor
+                    parent is None
+                    and not offline_anchor
                     and not proposal
                     and content_hash
                     and content_hash != item.content_hash
@@ -543,12 +607,21 @@ class Conversations:
                     raise ConflictError("The artifact changed. Review the current version first.")
                 slide_id = target.slide_id if target else None
                 version = item.presentation_versions.get(slide_id) if slide_id else None
-                if slide_id and item.legacy_deck_id and version is None:
+                if parent is None and slide_id and item.legacy_deck_id and version is None:
                     raise ConflictError(
                         "This slide was removed. Choose another slide to send your message."
                     )
                 anchor = None
-                if proposal:
+                if parent is not None:
+                    anchor = json.loads(cast(str, parent["proposal"]))
+                    target = (
+                        ArtifactTarget.model_validate_json(cast(str, parent["target"]))
+                        if parent["target"] != "null"
+                        else None
+                    )
+                    content_hash = cast(str, parent["content_hash"])
+                    slide_content_hash = cast(str, parent["slide_content_hash"])
+                elif proposal:
                     if (
                         not item.legacy_deck_id
                         or not target
@@ -590,8 +663,8 @@ class Conversations:
                     "INSERT INTO conversations (workspace,artifact,channel,person,author,message,"
                     "target,content_hash,assigned,released,request_id,payload,created,"
                     "files,proposal,slide_content_hash,include_shared_context,"
-                    "collaborator_request_generation,collaborator_request_mode) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "collaborator_request_generation,collaborator_request_mode,reply_to) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (
                         scope.workspace,
                         scope.resource,
@@ -600,7 +673,7 @@ class Conversations:
                         actor.person,
                         message,
                         target.model_dump_json() if target else "null",
-                        content_hash if offline_anchor else item.content_hash,
+                        content_hash if offline_anchor or parent is not None else item.content_hash,
                         assigned,
                         released,
                         operation,
@@ -612,6 +685,7 @@ class Conversations:
                         include_shared_context,
                         generation,
                         mode,
+                        reply_to,
                     ),
                 )
                 if channel == "shared":

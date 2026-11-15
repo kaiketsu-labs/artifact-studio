@@ -58,8 +58,12 @@ The human can still use **End review** in the artifact conversation header, or *
 
 Agent replies with a stored parent appear in an expandable thread below that
 message. Threads start expanded, preserve your collapse choice during refreshes,
-and count new replies while collapsed. The quoted message links to the exact
-original. Copy conversation includes collapsed replies. A parent outside the
+and count new replies while collapsed. Choose **Reply in thread** to continue
+beneath the original; its text is not repeated in each reply. The inline reply
+box keeps its own draft and shows who will receive it. Replies preserve the
+original revision, slide or selected element and conversation audience. Structured
+questions retain their dedicated answer controls. Copy conversation includes
+collapsed replies. A parent outside the
 currently visible conversation is never fetched or inferred from similar text;
 its reply remains visible on its own.
 

@@ -6,7 +6,6 @@
   const editMarker = '\n\nEdit details:\n';
   const replacementMarker = '\nReplacement text:\n';
   const anchorFields = ['selector', 'label', 'quote', 'section', 'start', 'end', 'x', 'y', 'width', 'height', 'region', 'viewport', 'state'];
-  const base = id => `/api/workspaces/${root.ArtifactSession?.workspace || 'default'}/artifacts/${encodeURIComponent(id)}`;
   const inChannel = (path, channel) => `${path}?${new URLSearchParams({channel})}`;
 
   /** Turn a leading shortcut into routing metadata, keeping the message and caret intact. */
@@ -33,6 +32,21 @@
     button.title = !agent ? 'Connect an agent to send a request · visible to collaborators' : pressed
       ? (agent.status === 'listening' ? 'Agent addressed · visible to collaborators · click to turn off' : 'Agent addressed · visible to collaborators · queued until connected')
       : 'Ask your agent · visible to collaborators · @@ or @agent · Includes recent Shared messages';
+  }
+
+  /** Keep a thread's intended agent visible without broadening current permissions. */
+  function replyRecipient(message, info, channel = 'shared') {
+    const id = message?.assigned || (message?.author !== message?.person ? message?.author : '');
+    const agent = info?.agents?.find(item => item.id === id);
+    const allowed = info?.access?.role === 'edit' && agent &&
+      (agent.mine || ['direct', 'suggest'].includes(agent.collaborator_request_mode));
+    return {
+      allowed: channel !== 'private' || Boolean(allowed && agent.mine),
+      assigned: channel === 'shared' && allowed ? agent.id : '',
+      collaboratorRequestGeneration: allowed && !agent.mine ? agent.collaborator_request_generation : undefined,
+      hint: channel === 'private' ? `Only you and ${agent?.name || 'your agent'}`
+        : allowed ? `Reply to ${agent.name} · Shared` : 'Shared conversation',
+    };
   }
 
   /** Keep portable anchors and discard the native editor's HTML snapshot and UI metadata. */
@@ -110,7 +124,8 @@
   }
 
   /** Share the authenticated actor and preserve scoped access and retry errors. */
-  function create({api}) {
+  function create({api, workspace = () => root.ArtifactSession?.workspace || 'default'}) {
+    const base = id => `/api/workspaces/${encodeURIComponent(workspace())}/artifacts/${encodeURIComponent(id)}`;
     let personRequest;
     const pendingRequests = new Map();
     async function request(path, body) {
@@ -135,6 +150,20 @@
       return personRequest;
     }
 
+    async function transmit(endpoint, key, payload) {
+      try {
+        const result = await request(`${endpoint}/chat`, payload);
+        pendingRequests.delete(key);
+        return result;
+      } catch (error) {
+        if (!error.status || error.status >= 500 || error.status === 408) {
+          pendingRequests.set(key, payload);
+          if (pendingRequests.size > 100) pendingRequests.delete(pendingRequests.keys().next().value);
+        } else pendingRequests.delete(key);
+        throw error;
+      }
+    }
+
     return {
       async read(artifactId, {channel = 'shared'} = {}) {
         const endpoint = base(artifactId);
@@ -152,6 +181,15 @@
       },
       hasPendingRequest(artifactId, requestId) {
         return pendingRequests.has(`${base(artifactId)}/${requestId}`);
+      },
+      reply(artifactId, {message, requestId, replyTo, channel, assigned = '', collaboratorRequestGeneration}) {
+        if (!Number.isInteger(replyTo) || replyTo <= 0) throw new Error('The original message is unavailable.');
+        const endpoint = base(artifactId), key = `${endpoint}/${requestId}`;
+        const payload = pendingRequests.get(key) || {
+          message, request_id: requestId, reply_to: replyTo, channel, released: true, assigned,
+          ...(Number.isInteger(collaboratorRequestGeneration) ? {collaborator_request_generation: collaboratorRequestGeneration} : {}),
+        };
+        return transmit(endpoint, key, payload);
       },
       async send(artifactId, {message, requestId, contentHash, slideId, slideContentHash, target,
         editIntent, files, proposal, channel = 'shared', released = true, assigned = '', forAgent = false, includeSharedContext = false, collaboratorRequestGeneration}) {
@@ -175,18 +213,7 @@
           ...(proposal ? {proposal: structuredClone(proposal)} : {}),
           ...(files?.length ? {files: files.map(file => ({...file}))} : {}),
         };
-        try {
-          const result = await request(`${endpoint}/chat`, payload);
-          pendingRequests.delete(key);
-          return result;
-        } catch (error) {
-          // An uncertain response may already have persisted this request and its routing.
-          if (!error.status || error.status >= 500 || error.status === 408) {
-            pendingRequests.set(key, payload);
-            if (pendingRequests.size > 100) pendingRequests.delete(pendingRequests.keys().next().value);
-          } else pendingRequests.delete(key);
-          throw error;
-        }
+        return transmit(endpoint, key, payload);
       },
       release(artifactId, channel = 'shared') {
         return request(inChannel(`${base(artifactId)}/release`, channel), {});
@@ -194,7 +221,7 @@
     };
   }
 
-  const api = {create, takeAgentShortcut, agentRequest, agentBadge, setAgentToggle, displayEdit};
+  const api = {create, takeAgentShortcut, agentRequest, agentBadge, setAgentToggle, displayEdit, replyRecipient};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.StudioNativeConversation = api;
 })(typeof window === 'undefined' ? {} : window);

@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {create}=require('../web/native-conversation.js');
+const {create,replyRecipient}=require('../web/native-conversation.js');
 
 test('a lost acknowledgement retries the exact saved payload after revision and routing changes',async()=>{
   const stored=new Map(),attempts=[];
@@ -54,4 +54,41 @@ test('unassigned shared discussion remains version independent',async()=>{
   assert.equal(sent.content_hash,'');
   assert.equal('slide_content_hash' in sent,false);
   assert.equal(sent.assigned,'');
+});
+
+test('thread retry keeps its parent and audience after a lost response without sending current anchors',async()=>{
+  const attempts=[];
+  const chat=create({workspace:()=> 'fictional-workspace',api:async(path,body)=>{
+    attempts.push({path,body:structuredClone(body)});
+    if(attempts.length===1)throw new Error('Response lost');
+    return {id:42};
+  }});
+  const draft={message:'Keep the original heading',requestId:'reply-1',replyTo:17,
+    channel:'shared',assigned:'original-agent',collaboratorRequestGeneration:3};
+  await assert.rejects(chat.reply('fictional-deck',draft),/Response lost/);
+  assert.deepEqual(await chat.reply('fictional-deck',{...draft,replyTo:18,assigned:'another-agent',
+    collaboratorRequestGeneration:4}),{id:42});
+  assert.deepEqual(attempts[1],attempts[0]);
+  assert.equal(attempts[0].path,'/api/workspaces/fictional-workspace/artifacts/fictional-deck/chat');
+  assert.equal(attempts[0].body.reply_to,17);
+  assert.equal('content_hash' in attempts[0].body,false);
+  assert.equal('target' in attempts[0].body,false);
+});
+
+test('thread audience follows current permission and never routes private replies to a collaborator agent',()=>{
+  const message={assigned:'agent',author:'person',person:'person'};
+  const agent={id:'agent',name:'Design helper',mine:false,collaborator_request_mode:'suggest',collaborator_request_generation:7};
+  const info={access:{role:'edit'},agents:[agent]};
+  assert.equal(replyRecipient(message,info).assigned,'agent');
+  assert.equal(replyRecipient(message,info).collaboratorRequestGeneration,7);
+  assert.equal(replyRecipient(message,info,'private').allowed,false);
+  info.access.role='comment';
+  assert.equal(replyRecipient(message,info).assigned,'');
+  assert.equal(replyRecipient(message,info).hint,'Shared conversation');
+  info.access.role='edit';agent.mine=true;
+  assert.equal(replyRecipient(message,info,'private').allowed,true);
+  assert.equal(replyRecipient(message,info,'private').assigned,'');
+  agent.mine=false;agent.collaborator_request_mode='off';
+  assert.equal(replyRecipient(message,info).assigned,'');
+  assert.equal(replyRecipient(message,info,'private').allowed,false);
 });
