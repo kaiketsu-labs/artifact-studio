@@ -99,6 +99,8 @@ Shared conversations let people discuss the work; **Ask agent** marks a message 
 
 With loaded Codex/Claude Code lifecycle hooks, selecting or working on an artifact attaches its review session. **Send** delivers a new message and attachments; the agent can continue in the open chat for presentations, HTML, Markdown, images and other files. Older saved messages require **Send saved messages**. **Copy conversation** copies displayed text without delivering it.
 
+Replies appear beneath the original message. Use the reply count to collapse or expand a thread; new replies are counted while it stays collapsed. Select a reply's quote to jump to its original message. Copy conversation includes replies in collapsed threads.
+
 Follow the [hook setup and native trust/reload steps](docs/LIVE-REVIEW.md). The editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt** prepares the instructions. The connection status shows availability; **End review** stops listening. Keep the server and agent chat open: an MCP connection cannot start a closed chat.
 
 ## Create, review and present
