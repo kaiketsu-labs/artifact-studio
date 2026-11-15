@@ -328,3 +328,42 @@ def test_revoked_authors_do_not_starve_tasks(scenario: Scenario) -> None:
     grant = cast(list[dict[str, object]], s.sharing.access(s.owner, s.scope)["grants"])[0]
     s.sharing.revoke(s.owner, s.scope, cast(str, grant["id"]))
     assert ids(s.chat.tasks(s.a, s.scope)["events"]) == [valid["id"]]
+
+
+def test_explicit_stop_preserves_claims_and_private_drafts(scenario: Scenario) -> None:
+    s = scenario
+    request = s.chat.post(s.owner, s.scope, "private", "Released task", "stop-task-1", s.a.agent)
+    claim = s.chat.claim(s.a, s.scope, cast(int, request["id"]), "stop-claim-1")
+    _ = s.chat.post(
+        s.owner, s.scope, "private", "Held private draft", "stop-draft-1", s.a.agent, False
+    )
+    initial = ReviewHookInput(
+        harness="codex",
+        session_id="native",
+        event="PostToolUse",
+        artifact_id=s.scope.resource,
+        auto_start=True,
+    )
+    assert s.chat.hook(s.a, initial)["listening"]
+    with s.sharing.connect() as db:
+        before = [tuple(row) for row in db.execute("SELECT * FROM conversations ORDER BY id")]
+    stop = initial.model_copy(
+        update={
+            "event": "StopReview",
+            "review_control": s.chat.request_review_control(s.a, s.scope, "stop"),
+        }
+    )
+    assert not s.chat.hook(s.a, stop)["listening"]
+    assert not s.chat.hook(s.a, initial)["listening"]
+    with s.sharing.connect() as db:
+        assert [
+            tuple(row) for row in db.execute("SELECT * FROM conversations ORDER BY id")
+        ] == before
+    with pytest.raises(ConflictError):
+        s.chat.claim(s.a, s.scope, cast(int, request["id"]), "different-session")
+    renewed = s.chat.claim(s.a, s.scope, cast(int, request["id"]), "stop-claim-1")
+    assert renewed["claim"] == claim["claim"]
+    assert renewed["event_id"] == claim["event_id"]
+    assert cast(float, renewed["expires"]) >= cast(float, claim["expires"])
+    assert ids(s.chat.tasks(s.a, s.scope)["events"]) == [request["id"]]
+    assert not s.chat.tasks(s.b, s.scope)["events"]

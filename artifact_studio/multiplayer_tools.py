@@ -398,6 +398,9 @@ class MultiplayerTools:
                         "Configure hooks with this HTTPS origin and the same MCP server name. "
                         "start_live_review requests a connection; get_live_review_status reports "
                         "whether hooks are actually listening. Other agents remain connected. "
+                        "When finished reviewing, stop_live_review requests this native session's "
+                        "pause through the updated trusted hook; its awaiting_host_hook receipt "
+                        "does not confirm disconnection. Explicit start_live_review resumes it. "
                         "A hook signals pending assigned requests. read_feedback and "
                         "claim_feedback retrieve/claim them. Polling works without hooks.",
                         known_hash,
@@ -1192,11 +1195,34 @@ class MultiplayerTools:
         if bool(artifact_id) == bool(deck_id):
             raise ValueError("Select exactly one artifact_id or deck_id.")
         status = self.get_live_review_status(ctx, artifact_id, deck_id)
+        actor = self.actor(ctx)
         return {
             **status,
-            "status": "awaiting_host_hook" if status["status"] != "listening" else "listening",
+            "status": "awaiting_host_hook",
+            "review_control": self.chat.request_review_control(
+                actor, self.scope(actor, artifact_id or deck_id), "start"
+            ),
             "artifact_id": artifact_id or deck_id,
             "guide": "get_authoring_guide(topic='live_review')",
+        }
+
+    def stop_live_review(
+        self, ctx: Ctx, artifact_id: str = "", deck_id: str = ""
+    ) -> dict[str, object]:
+        """Pause only this native host session when finished; preserve collaborators and feedback.
+
+        Requires an updated trusted PostToolUse hook. Explicit start_live_review resumes review.
+        """
+        if bool(artifact_id) == bool(deck_id):
+            raise ValueError("Select exactly one artifact_id or deck_id.")
+        actor = self.actor(ctx)
+        return {
+            "status": "awaiting_host_hook",
+            "review_control": self.chat.request_review_control(
+                actor, self.scope(actor, artifact_id or deck_id), "stop"
+            ),
+            "next_step": "The updated host hook confirms this session stopped. Without it, "
+            "the connection is unchanged; refresh the installed hook client.",
         }
 
     def register(self, server: MCPServer[None]) -> None:
@@ -1259,6 +1285,7 @@ class MultiplayerTools:
             self.claim_feedback,
             self.reply_to_feedback,
             self.start_live_review,
+            self.stop_live_review,
         )
         for functions, annotations in ((reads, READ), (writes, WRITE)):
             for function in functions:

@@ -427,8 +427,19 @@ class ScopedTools:
         return {
             **self.get_live_review_status(artifact_id, deck_id),
             "status": "awaiting_host_hook",
+            "review_control": Reviews(self.store).request_control("start", deck_id, artifact_id),
             "setup_required": "Install the small hooks client from the authenticated workspace; "
             "configure its HTTPS origin and load/trust hooks in the agent host.",
+        }
+
+    def stop_live_review(self, artifact_id: str = "", deck_id: str = "") -> dict[str, object]:
+        """Pause this session when finished; requires the updated trusted PostToolUse hook."""
+        _ = self.get_live_review_status(artifact_id, deck_id)
+        return {
+            "status": "awaiting_host_hook",
+            "review_control": Reviews(self.store).request_control("stop", deck_id, artifact_id),
+            "next_step": "The updated host hook confirms this session stopped. Without it, "
+            "the connection is unchanged. Resume explicitly with start_live_review.",
         }
 
     def get_authoring_guide(
@@ -1082,7 +1093,7 @@ def register_tools(
             scoped.get_live_review_status,
             scoped.get_agent_hook_client,
         )
-        writes += (scoped.start_live_review,)
+        writes += (scoped.start_live_review, scoped.stop_live_review)
     for function in reads:
         if cancellable_waits and function == scoped.read_feedback:
             continue

@@ -1502,6 +1502,7 @@ def start_live_review(
     result["status"] = "awaiting_host_hook"
     return {
         **result,
+        "review_control": Reviews(store).request_control("start", deck_id, artifact_id),
         "guide_topic": "live_review",
         "guide_included": include_guide,
         **({"guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text()} if include_guide else {}),
@@ -1511,6 +1512,23 @@ def start_live_review(
             "this caller; compare review_session with your host session. If unavailable, "
             'read get_authoring_guide(topic="live_review") and load/trust the host hooks.'
         ),
+    }
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def stop_live_review(deck_id: str = "", artifact_id: str = "") -> dict[str, object]:
+    """Pause only this host session when finished reviewing; preserve queued feedback.
+
+    Select a target, or omit both IDs to stop this session's current review/design inbox.
+    Requires the updated trusted PostToolUse hook; resume explicitly with start_live_review.
+    Do not stop merely because a turn finished while continued feedback is expected.
+    """
+    return {
+        "status": "awaiting_host_hook",
+        "review_control": Reviews(store).request_control("stop", deck_id, artifact_id),
+        "next_step": "The updated host PostToolUse hook stops only this session and confirms it. "
+        "Without that hook the connection is unchanged; refresh the installed hook client.",
     }
 
 

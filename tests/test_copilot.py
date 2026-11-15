@@ -163,6 +163,7 @@ def test_initialization_catalog_flat_schemas_and_bootstrap(gateway: GatewayFixtu
         "read_library_file",
         "sync_presentations",
         "start_live_review",
+        "stop_live_review",
         "register_design",
         "set_default_design",
         "prepare_interactive_html",
@@ -691,6 +692,7 @@ def test_existing_local_mcp_remains_independent(
         "register_artifact",
         "sync_presentations",
         "start_live_review",
+        "stop_live_review",
         "capture_slide",
     } <= names
     assert "create_artifact" not in names

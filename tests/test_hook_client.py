@@ -584,3 +584,77 @@ def test_claude_stop_lock_rejects_symlink_file(
     with _claude_stop_lock("https://studio.example.test", "studio", "session") as acquired:
         assert not acquired
     assert target.read_text() == "keep"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {},
+        {"status": "awaiting_host_hook"},
+        {"status": "stopped", "review_control": "a" * 64},
+        {"status": "awaiting_host_hook", "review_control": 1},
+        {"status": "awaiting_host_hook", "review_control": "not-a-receipt"},
+        {
+            "isError": True,
+            "structuredContent": {"status": "awaiting_host_hook", "review_control": "a" * 64},
+        },
+    ],
+)
+def test_stop_normalization_requires_successful_new_client_receipt(response: object) -> None:
+    assert (
+        client.normalize(
+            "codex",
+            "PostToolUse",
+            "artifact-studio",
+            {
+                "session_id": "native-session",
+                "tool_name": "mcp__artifact_studio__stop_live_review",
+                "tool_input": {"deck_id": "fictional"},
+                "tool_response": response,
+            },
+        )
+        == {}
+    )
+
+
+def test_explicit_stop_bypasses_passive_check_and_confirms_only_after_hook(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[dict[str, object]] = []
+
+    def post(_url: str, message: dict[str, object], _timeout: int) -> dict[str, object]:
+        sent.append(message)
+        return {"listening": False, "feedback_available": False, "reason": "Live review stopped."}
+
+    monkeypatch.setattr(client, "_post", post)
+    output = client.handle_event(
+        "claude-code",
+        "PostToolUse",
+        "http://127.0.0.1:8765",
+        "artifact-studio",
+        {
+            "session_id": "native-session",
+            "tool_name": "mcp__artifact_studio__stop_live_review",
+            "tool_input": {},
+            "tool_response": {
+                "status": "awaiting_host_hook",
+                "review_control": "a" * 64,
+            },
+        },
+        passive=True,
+    )
+    assert sent == [
+        {
+            "harness": "claude-code",
+            "session_id": "native-session",
+            "event": "StopReview",
+            "review_control": "a" * 64,
+            "deck_id": None,
+        }
+    ]
+    assert output == {
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": "Live review stopped.",
+        }
+    }
