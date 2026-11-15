@@ -32,13 +32,19 @@
         <figure hidden><img alt="Screenshot preview">
           <figcaption><button type="button" data-copy hidden>${icon('copy')}<span>Copy screenshot</span></button><a download="artifact-studio-issue.png">${icon('download')}<span>Save screenshot</span></a>
             <button type="button" data-remove aria-label="Remove screenshot" title="Remove screenshot">${icon('trash')}</button></figcaption>
-          <p data-attachment-help>Save the image, then choose it in the Screenshot field on GitHub.</p>
+          <p data-attachment-help>Save the image, then choose it in the Screenshot field on GitHub. Studio has not uploaded this image.</p>
         </figure>
       </fieldset>
       <footer class="studio-report-footer">
         <p>${icon('info')}<span>GitHub issues are public. Check your report for private information.</span></p>
         <button type="submit"><span>Open GitHub draft</span> ${icon('external')}</button>
         <a data-draft-link target="_blank" rel="noopener noreferrer" hidden>Open the draft in GitHub</a>
+        <section class="studio-report-handoff" aria-label="Finish your report" hidden>
+          <strong>Attach the screenshot on GitHub</strong>
+          <ol><li>Sign in to GitHub if asked.</li><li>Paste the copied image into “What happened?”, or choose your saved image in <b>Screenshot</b>.</li><li>Check the image appears in the draft, then submit your issue.</li></ol>
+          <p>Studio cannot attach the image for you or check whether it was uploaded. Attaching it on GitHub makes it public.</p>
+        </section>
+        <div class="studio-report-draft-actions"><small>Your draft stays in this tab until you discard it or reload.</small><button type="button" data-discard>Discard draft</button></div>
       </footer>
     </form>`;
   doc.body.append(dialog);
@@ -51,11 +57,12 @@
   const submit = dialog.querySelector('[type=submit]');
   const submitLabel = submit.querySelector('span');
   const draftLink = dialog.querySelector('[data-draft-link]');
+  const handoffHelp = dialog.querySelector('.studio-report-handoff');
   const clipboard = root.navigator.clipboard;
   const canCopy = typeof clipboard?.write === 'function' && typeof root.ClipboardItem === 'function';
   copy.hidden = !canCopy;
   if (canCopy) dialog.querySelector('[data-attachment-help]').textContent =
-    'Paste the screenshot into “What happened?” on GitHub, or add the saved file in the Screenshot field.';
+    'Paste the screenshot into “What happened?” on GitHub, or add the saved file in the Screenshot field. Studio has not uploaded this image.';
   const figure = dialog.querySelector('figure');
   const preview = figure.querySelector('img');
   const save = figure.querySelector('a');
@@ -67,6 +74,7 @@
     handoff++;
     draftLink.hidden = true;
     draftLink.removeAttribute('href');
+    handoffHelp.hidden = true;
     submit.disabled = false;
   }
 
@@ -259,6 +267,8 @@
       status.textContent = [copyReport ? 'Copy your title and description into GitHub.' : '', attachmentHint].filter(Boolean).join(' ');
       draftLink.href = github.href;
       draftLink.hidden = false;
+      handoffHelp.hidden = !selected;
+      if (selected) handoffHelp.scrollIntoView({block: 'nearest'});
       draftLink.click();
     }
     if (!selected || !canCopy) {
@@ -280,6 +290,14 @@
     clearScreenshot();
     choose.focus();
   });
+  dialog.querySelector('[data-discard]').addEventListener('click', () => {
+    generation++;
+    activeStream?.getTracks().forEach(track => track.stop());
+    activeStream = undefined;
+    clearScreenshot();
+    form.reset();
+    dialog.close();
+  });
   dialog.querySelector('[aria-label="Close report"]').addEventListener('click', () => dialog.close());
   dialog.addEventListener('keydown', event => {
     if (event.key !== 'Escape') return;
@@ -294,8 +312,10 @@
     activeStream = undefined;
     dialog.classList.remove('studio-report-capturing');
     capture.disabled = false;
-    clearScreenshot();
-    form.reset();
+    // Closing the panel is not discarding a draft. Keep the reviewed image and
+    // report recoverable if sign-in, clipboard permissions or a popup interrupts.
+    handoff++;
+    submit.disabled = false;
     trigger.focus();
   });
   root.SlideIcons.button(trigger, 'feedback', 'Report an issue', false);

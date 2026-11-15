@@ -284,6 +284,13 @@ Studio before opening the draft. Studio copies it when your browser permits
 clipboard access. Paste it into the GitHub issue body, or use **Save screenshot**
 and add the saved file in the **Screenshot** field on GitHub. Selecting a file
 there uploads it immediately. You can review the issue before submitting it.
+Studio shows the remaining attachment steps after opening GitHub. It cannot upload
+an image through the prefilled-draft URL or verify that you attached it. Closing
+the report panel keeps your text and image in the current tab, so reopen it to
+retry copying, save the image, or reopen the draft after a blocked popup or sign-in.
+**Discard draft** clears both. Reloading or leaving Studio also clears this
+in-memory draft; save the image first if you need to navigate away. No screenshot
+is uploaded by Studio, and no GitHub credential is requested or stored.
 
 | Symptom | Check |
 | --- | --- |
