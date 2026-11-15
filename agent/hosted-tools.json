@@ -1,0 +1,2437 @@
+{
+  "generated_by": "uv run python scripts/export-agent-contract.py --hosted",
+  "bootstrap": "agent/bootstrap.md",
+  "tools": [
+    {
+      "name": "get_working_context",
+      "description": "Read the selected scope and workflow. Pass known_rules_hash only for retained rules.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "known_rules_hash": {
+            "default": "",
+            "title": "Known Rules Hash",
+            "type": "string"
+          }
+        },
+        "title": "get_working_contextArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_working_contextDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "list_artifacts",
+      "description": "List only artifacts and projects available to this particular agent connection.",
+      "input_schema": {
+        "properties": {
+          "kind": {
+            "default": "",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "list_artifactsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "list_artifactsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "list_design_contexts",
+      "description": "Discover reusable packs and references with the owner's workspace connection.",
+      "input_schema": {
+        "properties": {
+          "kind": {
+            "default": "all",
+            "enum": [
+              "all",
+              "slide_pack",
+              "references"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "title": "list_design_contextsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "list_design_contextsOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_design_context",
+      "description": "List current design references and source hashes without server filesystem paths.",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id"
+        ],
+        "title": "get_design_contextArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_design_contextDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_design_reference",
+      "description": "Read a bounded page of an inventoried file from a private design.",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 65536,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "encoding": {
+            "default": "utf-8",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "title": "Encoding",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "path"
+        ],
+        "title": "read_design_referenceArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "read_design_referenceDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_design_file",
+      "description": "Read one author-editable design text file and its current hash.",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "path"
+        ],
+        "title": "get_design_fileArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_design_fileDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_authoring_guide",
+      "description": "Load detailed authoring or host-hook guidance only when needed.",
+      "input_schema": {
+        "properties": {
+          "topic": {
+            "default": "workflow",
+            "enum": [
+              "workflow",
+              "live_review",
+              "slide_designs"
+            ],
+            "title": "Topic",
+            "type": "string"
+          },
+          "known_hash": {
+            "default": "",
+            "title": "Known Hash",
+            "type": "string"
+          }
+        },
+        "title": "get_authoring_guideArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_authoring_guideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_agent_hook_client",
+      "description": "Get the optional stdlib hook client; respect native host installation and trust.",
+      "input_schema": {
+        "properties": {},
+        "title": "get_agent_hook_clientArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_agent_hook_clientDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_artifact",
+      "description": "Read this artifact's manifest and brief, excluding private legacy discussion.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id"
+        ],
+        "title": "get_artifactArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_artifactDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_artifact_files",
+      "description": "Read declared owned files, at most 1 MiB; revision=0 selects current source.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "revision": {
+            "default": 0,
+            "title": "Revision",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "paths"
+        ],
+        "title": "read_artifact_filesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "read_artifact_filesOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_presentation_outline",
+      "description": "Read this presentation's brief, slide order and current concurrency hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "get_presentation_outlineArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_presentation_outlineDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_presentation_brief_file",
+      "description": "Read a bounded page of an owner brief file listed by get_presentation_outline.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "file_index": {
+            "title": "File Index",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 65536,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "encoding": {
+            "default": "utf-8",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "title": "Encoding",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "file_index"
+        ],
+        "title": "read_presentation_brief_fileArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "read_presentation_brief_fileDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_slide",
+      "description": "Read complete slide source and expected_hash without other people's chat.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id"
+        ],
+        "title": "get_slideArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_slideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_slide_designs",
+      "description": "Read published design sets and human decisions for this slide.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "decision_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Cursor"
+          },
+          "set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Set Id"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id"
+        ],
+        "title": "get_slide_designsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_slide_designsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_slide_design",
+      "description": "Read one frozen design's editable audience source.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "design_id"
+        ],
+        "title": "get_slide_designArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_slide_designDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_slide_design",
+      "description": "Render a frozen slide design without changing the current slide.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "design_id"
+        ],
+        "title": "capture_slide_designArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_element_alternatives",
+      "description": "Read element option groups and human decisions for this slide.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Cursor"
+          },
+          "decision_cursor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Decision Cursor"
+          },
+          "set_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Set Id"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id"
+        ],
+        "title": "get_element_alternativesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_element_alternativesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_element_alternative",
+      "description": "Read an immutable element fragment in its retained full-slide context.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "element_option_id": {
+            "title": "Element Option Id",
+            "type": "string"
+          },
+          "context_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Hash"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "element_option_id"
+        ],
+        "title": "get_element_alternativeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_element_alternativeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_element_alternative",
+      "description": "Render a frozen element proposal in its full-slide context.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "element_option_id": {
+            "title": "Element Option Id",
+            "type": "string"
+          },
+          "context_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Context Hash"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "element_option_id"
+        ],
+        "title": "capture_element_alternativeArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_deleted_slides",
+      "description": "List slide IDs and titles for recoverable deletions in an editable presentation.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "get_deleted_slidesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_deleted_slidesOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_presentation_theme",
+      "description": "Read the presentation's author CSS and its current expected_hash.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "get_presentation_themeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_presentation_themeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "list_presentation_assets",
+      "description": "List this deck's asset paths, sizes and current replacement hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "prefix": {
+            "default": "assets/",
+            "title": "Prefix",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 50,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "list_presentation_assetsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "list_presentation_assetsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "prepare_interactive_html",
+      "description": "Inline this deck's assets into interactive HTML without executing the supplied code.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "html": {
+            "title": "Html",
+            "type": "string"
+          },
+          "include_theme": {
+            "default": true,
+            "title": "Include Theme",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deck_id",
+          "html"
+        ],
+        "title": "prepare_interactive_htmlArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "prepare_interactive_htmlOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_slide",
+      "description": "Render actual audience pixels; excludes private discussion and speaker notes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "stage": {
+            "default": -1,
+            "title": "Stage",
+            "type": "integer"
+          },
+          "elapsed_ms": {
+            "default": 0,
+            "title": "Elapsed Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id"
+        ],
+        "title": "capture_slideArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_contact_sheet",
+      "description": "Render 1–8 completed slides per scoped draft page; offset must be nonnegative.\nSelect up to 100 distinct slide IDs; use capture_slide for full-size detail.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 8,
+            "maximum": 8,
+            "minimum": 1,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "slide_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Slide Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "capture_contact_sheetArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "capture_artifact",
+      "description": "Render this owned artifact using the existing isolated browser capture.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id"
+        ],
+        "title": "capture_artifactArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_chat",
+      "description": "Read assigned Shared threads or private Agent chat.\n\nOwners can allow full Shared history on a presentation.\n",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "channel": {
+            "default": "shared",
+            "enum": [
+              "shared",
+              "private"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "before": {
+            "default": 0,
+            "title": "Before",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "artifact_id"
+        ],
+        "title": "read_chatArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "read_chatOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_chat_attachment",
+      "description": "Read a bounded page from an attachment visible to this scoped agent.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "file_index": {
+            "title": "File Index",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 65536,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "encoding": {
+            "default": "utf-8",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "title": "Encoding",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "event_id",
+          "file_index"
+        ],
+        "title": "read_chat_attachmentArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "read_chat_attachmentDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_feedback",
+      "description": "Read pending requests with optional excerpts of prior Shared discussion.\n\nRepeated excerpt IDs reference text included earlier in the response.\nIf shared_context_on_claim is true, claim with include_message=true for excerpts.\nFor collaborator_request_mode=\"suggest\", use a proposal tool and reply with what\nis ready for review. The connection cannot make direct edits in that mode.\n",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "deck_id": {
+            "default": "",
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "after": {
+            "default": 0,
+            "title": "After",
+            "type": "integer"
+          }
+        },
+        "title": "read_feedbackArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "read_feedbackDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "get_live_review_status",
+      "description": "Distinguish a requested connection from a host hook that is actually listening.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "deck_id": {
+            "default": "",
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "title": "get_live_review_statusArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_live_review_statusDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "revise_artifact",
+      "description": "Publish changed inline files with optimistic concurrency and an idempotent request ID.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "files_json": {
+            "description": "JSON array of file changes with path and text, data_base64, or delete.",
+            "title": "Files Json",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "request_id": {
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "files_json",
+          "expected_revision",
+          "request_id"
+        ],
+        "title": "revise_artifactArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "revise_artifactDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_artifact",
+      "description": "Create an inline file bundle in an editable shared project; no host file paths.",
+      "input_schema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "entrypoint": {
+            "title": "Entrypoint",
+            "type": "string"
+          },
+          "files_json": {
+            "title": "Files Json",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "context": {
+            "default": "",
+            "title": "Context",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "title",
+          "entrypoint",
+          "files_json",
+          "request_id"
+        ],
+        "title": "create_artifactArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_artifactDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_design_pack",
+      "description": "Scaffold a reusable HTML slide pack in the owner's selected workspace.",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "css": {
+            "default": "",
+            "title": "Css",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "name"
+        ],
+        "title": "create_design_packArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_design_packDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "write_design_file",
+      "description": "Save guidance, theme CSS or a text asset with its current design hash.",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "expected_hash": {
+            "default": "",
+            "title": "Expected Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "path",
+          "text"
+        ],
+        "title": "write_design_fileArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "write_design_fileDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "attach_design_reference",
+      "description": "Attach an original source up to 1 MiB; returns metadata only. For files up to 25 MB,\nuse python -m artifact_studio.designs.upload with --url, --design-id and --file;\nsupply ARTIFACT_STUDIO_AGENT_TOKEN through the environment, never chat arguments.\n",
+      "input_schema": {
+        "properties": {
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 250,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "data_base64": {
+            "maxLength": 1398104,
+            "title": "Data Base64",
+            "type": "string"
+          }
+        },
+        "required": [
+          "design_id",
+          "name",
+          "data_base64"
+        ],
+        "title": "attach_design_referenceArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "attach_design_referenceDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "revise_slide",
+      "description": "Edit one slide with the hash you read; conflicts must be re-read and reconciled.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "expected_hash": {
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "patch_json": {
+            "title": "Patch Json",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "expected_hash",
+          "request_id",
+          "patch_json"
+        ],
+        "title": "revise_slideArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "revise_slideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "set_slide_activity",
+      "description": "Show anonymous editing activity to deck readers. Refresh during work; clear when done.\n\nUse only when you may share that work on this slide is in progress. Reading slides and\nhandling private feedback never publish this signal automatically.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "active"
+        ],
+        "title": "set_slide_activityArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "integer"
+        },
+        "title": "set_slide_activityDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "add_slide",
+      "description": "Add a slide to a shared presentation using the existing slide contract.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_json": {
+            "title": "Slide Json",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "after_slide_id": {
+            "title": "After Slide Id",
+            "type": "string"
+          },
+          "expected_slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Slide Ids",
+            "type": "array"
+          },
+          "expected_sections_hash": {
+            "title": "Expected Sections Hash",
+            "type": "string"
+          },
+          "section_id": {
+            "default": "",
+            "title": "Section Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_json",
+          "request_id",
+          "after_slide_id",
+          "expected_slide_ids",
+          "expected_sections_hash"
+        ],
+        "title": "add_slideArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "add_slideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_presentation",
+      "description": "Create a native deck with an initial cover and brief in your owned workspace.\n\nA workspace connection can choose the project; a project connection defaults to its\nproject. Use a stable request_id to safely retry and include_content to read the cover.\n",
+      "input_schema": {
+        "$defs": {
+          "FileInput": {
+            "additionalProperties": false,
+            "description": "A local reference file attached to a brief or design request.",
+            "properties": {
+              "name": {
+                "maxLength": 250,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "data_base64": {
+                "maxLength": 35000000,
+                "title": "Data Base64",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "data_base64"
+            ],
+            "title": "FileInput",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "maxLength": 100,
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}-[a-z0-9][a-z0-9-]*$",
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "design_id": {
+            "default": "",
+            "title": "Design Id",
+            "type": "string"
+          },
+          "brief": {
+            "default": "",
+            "title": "Brief",
+            "type": "string"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/FileInput"
+                },
+                "maxItems": 5,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Files"
+          },
+          "include_content": {
+            "default": false,
+            "title": "Include Content",
+            "type": "boolean"
+          },
+          "request_id": {
+            "default": "",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "project_id": {
+            "default": "",
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "title"
+        ],
+        "title": "create_presentationArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_presentationDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "reorder_slides",
+      "description": "Move slides using the previous order; include sections for cross-group moves.",
+      "input_schema": {
+        "$defs": {
+          "DeckSection": {
+            "additionalProperties": false,
+            "description": "A named, contiguous group of slides in the editing overview.",
+            "properties": {
+              "id": {
+                "pattern": "^[a-z0-9][a-z0-9-]{0,79}$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "slide_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "title": "Slide Ids",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "title": "DeckSection",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Slide Ids",
+            "type": "array"
+          },
+          "expected_slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Slide Ids",
+            "type": "array"
+          },
+          "include_content": {
+            "default": false,
+            "title": "Include Content",
+            "type": "boolean"
+          },
+          "sections": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/DeckSection"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sections"
+          },
+          "expected_sections_hash": {
+            "default": "",
+            "title": "Expected Sections Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_ids",
+          "expected_slide_ids"
+        ],
+        "title": "reorder_slidesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "reorder_slidesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "publish_structure_proposal",
+      "description": "Request a human decision on a proposed presentation structure without editing it.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "base_slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Base Slide Ids",
+            "type": "array"
+          },
+          "base_sections_hash": {
+            "title": "Base Sections Hash",
+            "type": "string"
+          },
+          "proposed_slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Proposed Slide Ids",
+            "type": "array"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "proposed_titles": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Proposed Titles"
+          }
+        },
+        "required": [
+          "deck_id",
+          "summary",
+          "base_slide_ids",
+          "base_sections_hash",
+          "proposed_slide_ids",
+          "request_id"
+        ],
+        "title": "publish_structure_proposalArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "publish_structure_proposalDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "set_presentation_sections",
+      "description": "Set named slide groups using the outline's slide order and sections hash.",
+      "input_schema": {
+        "$defs": {
+          "DeckSection": {
+            "additionalProperties": false,
+            "description": "A named, contiguous group of slides in the editing overview.",
+            "properties": {
+              "id": {
+                "pattern": "^[a-z0-9][a-z0-9-]{0,79}$",
+                "title": "Id",
+                "type": "string"
+              },
+              "title": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Title",
+                "type": "string"
+              },
+              "slide_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "title": "Slide Ids",
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "title": "DeckSection",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/$defs/DeckSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "expected_slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Slide Ids",
+            "type": "array"
+          },
+          "expected_sections_hash": {
+            "title": "Expected Sections Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "sections",
+          "expected_slide_ids",
+          "expected_sections_hash"
+        ],
+        "title": "set_presentation_sectionsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "set_presentation_sectionsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "restore_slides",
+      "description": "Restore a recoverable deletion using its operation_id and a stable request_id.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "deletion_id": {
+            "title": "Deletion Id",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "deletion_id",
+          "request_id"
+        ],
+        "title": "restore_slidesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "restore_slidesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "publish_slide_designs",
+      "description": "Publish named whole-slide designs against get_slide's content_hash for human review.",
+      "input_schema": {
+        "$defs": {
+          "DesignInput": {
+            "additionalProperties": false,
+            "description": "A whole-slide direction; human notes and approval cannot be supplied.",
+            "properties": {
+              "name": {
+                "maxLength": 60,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "default": "",
+                "maxLength": 240,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "maxLength": 150000,
+                "minLength": 1,
+                "title": "Html",
+                "type": "string"
+              },
+              "interactive_html": {
+                "default": "",
+                "maxLength": 2000000,
+                "title": "Interactive Html",
+                "type": "string"
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Title"
+              },
+              "sources": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "$ref": "#/$defs/Source"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Sources"
+              }
+            },
+            "required": [
+              "name",
+              "html"
+            ],
+            "title": "DesignInput",
+            "type": "object"
+          },
+          "Source": {
+            "additionalProperties": false,
+            "description": "A source attached to a specific slide.",
+            "properties": {
+              "label": {
+                "title": "Label",
+                "type": "string"
+              },
+              "url": {
+                "default": "",
+                "title": "Url",
+                "type": "string"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "title": "Source",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "expected_content_hash": {
+            "title": "Expected Content Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/$defs/DesignInput"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "expected_content_hash",
+          "request_id",
+          "options"
+        ],
+        "title": "publish_slide_designsArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "publish_slide_designsDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "publish_element_alternatives",
+      "description": "Publish alternatives for an existing static element, retaining its unique HTML ID.",
+      "input_schema": {
+        "$defs": {
+          "ElementInput": {
+            "additionalProperties": false,
+            "description": "One static replacement subtree, retaining the target's existing HTML id.",
+            "properties": {
+              "name": {
+                "maxLength": 60,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "rationale": {
+                "default": "",
+                "maxLength": 240,
+                "title": "Rationale",
+                "type": "string"
+              },
+              "html": {
+                "maxLength": 150000,
+                "minLength": 1,
+                "title": "Html",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "html"
+            ],
+            "title": "ElementInput",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "headline",
+              "text",
+              "graphic"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "expected_content_hash": {
+            "title": "Expected Content Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/$defs/ElementInput"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "target_id",
+          "kind",
+          "label",
+          "expected_content_hash",
+          "request_id",
+          "options"
+        ],
+        "title": "publish_element_alternativesArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "publish_element_alternativesDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "update_presentation_context",
+      "description": "Replace the deck brief using context_hash from get_presentation_outline.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          },
+          "expected_hash": {
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "mode": {
+            "default": "replace",
+            "enum": [
+              "replace",
+              "append"
+            ],
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "markdown",
+          "expected_hash"
+        ],
+        "title": "update_presentation_contextArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "properties": {
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "update_presentation_contextOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "update_presentation_theme",
+      "description": "Replace this presentation's author CSS using its current expected_hash.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "css": {
+            "title": "Css",
+            "type": "string"
+          },
+          "expected_hash": {
+            "title": "Expected Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "css",
+          "expected_hash"
+        ],
+        "title": "update_presentation_themeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "update_presentation_themeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "upload_presentation_asset",
+      "description": "Upload an inline deck asset; use its current sha256 when replacing existing bytes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "asset_path": {
+            "title": "Asset Path",
+            "type": "string"
+          },
+          "data_base64": {
+            "title": "Data Base64",
+            "type": "string"
+          },
+          "expected_sha256": {
+            "default": "",
+            "title": "Expected Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "asset_path",
+          "data_base64"
+        ],
+        "title": "upload_presentation_assetArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "upload_presentation_assetDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "claim_feedback",
+      "description": "Claim or renew for 10 minutes with a stable session ID.\n\nSet include_message=false after reading the task.\n",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "include_message": {
+            "default": true,
+            "title": "Include Message",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "event_id",
+          "session_id"
+        ],
+        "title": "claim_feedbackArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "claim_feedbackDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "reply_to_feedback",
+      "description": "Reply in the request's original channel and acknowledge the claimed task atomically.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "integer"
+          },
+          "claim": {
+            "title": "Claim",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "event_id",
+          "claim",
+          "message",
+          "request_id"
+        ],
+        "title": "reply_to_feedbackArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "reply_to_feedbackDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "start_live_review",
+      "description": "Request this session's trusted host hook; does not disconnect other collaborators.",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "deck_id": {
+            "default": "",
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "title": "start_live_reviewArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "start_live_reviewDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "remove_slide",
+      "description": "Remove a slide the human asked to delete, preserving it for recovery.\n\nUse expected_hash from get_slide. Reuse request_id to safely retry the same removal.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "slide_id": {
+            "title": "Slide Id",
+            "type": "string"
+          },
+          "expected_hash": {
+            "title": "Expected Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "default": "",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "slide_id",
+          "expected_hash"
+        ],
+        "title": "remove_slideArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "remove_slideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": true
+      }
+    }
+  ]
+}

@@ -199,3 +199,18 @@ The November 2026 audit compared main commit `dc4dbbf` with token-efficiency com
 For this scripted sequence, including call parameter JSON and one tool catalog but excluding the diagnostic full-context read, combined exchange size fell from 476,744 to 175,749 bytes (63.1%). Hashes add a small request cost that is included in this total. The tool catalog grew from 73,838 to 77,190 bytes (4.5%) because the safe controls and inclusion metadata are advertised. Full-detail context and first feedback reads remain complete; their metadata adds a small cost. Slide revision receipts were already compact and stayed at 780 bytes. Do not translate these byte reductions directly into token or billing percentages: tokenization, host selection of content copies and caching differ.
 
 Run the development benchmark with `uv run --no-sync python -m scripts.measure_agent_io --phase after`. It starts a temporary local server and collection and emits aggregate counts under `test-results/`; it never reads a user's collection. To reproduce the baseline, change to a neutral directory (outside both checkouts), then invoke the candidate benchmark script by absolute path with the baseline checkout on `PYTHONPATH` and `--phase before --output /path/to/before.json`. Use an environment with the project's locked dependencies and verify that `artifact_studio.__file__` resolves inside the baseline checkout, so you do not accidentally benchmark the candidate twice. Use equal-length checkout paths for strict byte comparisons. The real MCP integration test also records compact/full result sizes and checks that text and structured results agree.
+
+### Hosted design reference upload
+
+The [hosted design workflow exercise](performance/hosted-design-authoring.json)
+completed 13 tool calls (11 successful, two expected scope denials) with 5,215
+request JSON bytes and 12,554 response JSON bytes excluding image base64. It
+created and edited a reusable design, captured its example, attached a small
+PowerPoint source, and checked ordinary deck editing. A separate 2,401,219-byte
+PowerPoint source went directly through the bounded file upload endpoint; those
+bytes were never echoed through MCP or chat. The returned receipt lists only the
+uploaded source, even when the design already has other references. These are
+transport measurements, not model-token or billing measurements. Use the
+[file uploader](DESIGN-PACKS.md#hosted-agents-and-original-powerpoint-sources) for
+binary sources to keep base64 out of model context; the 1 MiB inline tool is an
+optional path for small inputs.

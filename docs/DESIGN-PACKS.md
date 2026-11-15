@@ -98,3 +98,37 @@ Visually review every slide at presentation size with fresh reviewers for readab
 ## Separate repositories
 
 The application repo should contain only code, documentation, tests and the neutral viewer runtime. Keep design packs and user presentations in a separate private repo. Never place a brand master, proprietary font or client deck inside the application tree. Adding a new design must not require changing app code.
+
+## Hosted agents and original PowerPoint sources
+
+Private reusable designs require the owner's **workspace-wide** agent connection.
+Project/artifact connections and invited collaborators cannot access this library.
+After `create_design_pack`, its `folder_id` works with the ordinary
+`get_presentation_outline`, `get_slide`, `add_slide`, `revise_slide`, and capture tools.
+Keep using the returned concurrency hashes; examples remain private and do not
+appear as ordinary project artifacts. HTML, CSS, SVG and JavaScript composition
+remain unrestricted within the existing authoring contract.
+
+Prefer the file uploader for original sources, including PowerPoint `.pptx`/`.potx`:
+
+```sh
+python -m artifact_studio.designs.upload \
+  --url https://studio.example.com \
+  --design-id fictional-orbit \
+  --file ./Fictional-master.pptx
+```
+
+Run it from an environment with Artifact Studio installed. Supply the same
+workspace agent token through `ARTIFACT_STUDIO_AGENT_TOKEN`, configured outside
+chat. The helper accepts only an explicit HTTPS origin and never follows
+redirects. It uploads the file directly, without putting base64 into model context,
+and prints only the saved reference's metadata. `--sha256` can pin the reviewed
+file contents. Files must be non-empty regular files up to 25 MB; symbolic links
+are rejected. PowerPoint containers receive the same macro, archive and package
+validation as browser uploads and remain inert original sources.
+
+`attach_design_reference(design_id, name, data_base64)` is also exposed through
+hosted MCP for sources up to **1 MiB**. The shared MCP request limit stays 2 MiB.
+Larger files use the helper's separately bounded upload route; no browser is
+needed. Read saved metadata with `get_design_context` and selected file pages with
+`read_design_reference`. Upload retries deduplicate by filename and content hash.

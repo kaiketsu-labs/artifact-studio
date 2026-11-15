@@ -17,6 +17,8 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
+from .designs.hosted import AGENT_REFERENCE_PATH, MAX_REFERENCE_BYTES, owner_design_store
+from .designs.library import DesignLibrary
 from .designs.transfer import MAX_DESIGN_ZIP
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
 from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
@@ -199,7 +201,10 @@ class MultiplayerAuth:
             if path.startswith("/_preview/"):
                 await reject(404, "Not found")
                 return
-            agent_path = not self.shared_shell and path in {"/mcp", "/mcp/", "/api/review/hooks"}
+            agent_path = not self.shared_shell and (
+                path in {"/mcp", "/mcp/", "/api/review/hooks"}
+                or AGENT_REFERENCE_PATH.fullmatch(path) is not None
+            )
             origins = headers.getlist("origin")
             if (agent_path and origins) or (
                 method not in {"GET", "HEAD"}
@@ -307,10 +312,31 @@ class MultiplayerAuth:
             if self.shared_shell and host == self.host and method == "POST"
             else None
         )
+        agent_upload = (
+            AGENT_REFERENCE_PATH.fullmatch(path)
+            if not self.shared_shell and host == self.host and method == "POST"
+            else None
+        )
+        if agent_upload:
+            actor = cast(Actor, scope["state"]["actor"])
+            design_id = agent_upload.group(1)
+
+            def authorize_reference() -> None:
+                with owner_design_store(self.sharing, actor) as store:
+                    _ = DesignLibrary(store).get(design_id)
+
+            try:
+                await run_in_threadpool(authorize_reference)
+            except AccessDenied, FileNotFoundError, ValueError:
+                await reject(404, "Not found")
+                return
+            upload_limit = MAX_REFERENCE_BYTES
         if upload_limit is not None:
             actor = cast(Actor, scope["state"]["actor"])
             workspace = cast(str, scope["state"].get("editor_workspace", "default"))
-            if not await run_in_threadpool(self.sharing.owner, actor, workspace):
+            if not agent_upload and not await run_in_threadpool(
+                self.sharing.owner, actor, workspace
+            ):
                 await reject(404, "Not found")
                 return
             if self.owner_upload_slot.locked():
