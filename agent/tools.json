@@ -583,38 +583,6 @@
       }
     },
     {
-      "name": "list_presentations",
-      "description": "List editable Artifact Studio decks; older collection presentations remain references.",
-      "input_schema": {
-        "properties": {},
-        "title": "list_presentationsArguments",
-        "type": "object"
-      },
-      "output_schema": {
-        "properties": {
-          "result": {
-            "items": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "title": "Result",
-            "type": "array"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "title": "list_presentationsOutput",
-        "type": "object"
-      },
-      "annotations": {
-        "read_only_hint": true,
-        "destructive_hint": false
-      }
-    },
-    {
       "name": "get_presentation",
       "description": "Read a full deck; omit unchanged rules only with their explicitly retained hash.",
       "input_schema": {
@@ -4061,7 +4029,7 @@
     },
     {
       "name": "capture_contact_sheet",
-      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect slide_ids or page through the deck; up to 24 frames per sheet, in deck order.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\n",
+      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect up to 500 distinct slide_ids or page through the deck; 1–24 frames per sheet,\nin deck order. offset must be nonnegative.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -4070,11 +4038,14 @@
           },
           "offset": {
             "default": 0,
+            "minimum": 0,
             "title": "Offset",
             "type": "integer"
           },
           "limit": {
             "default": 24,
+            "maximum": 24,
+            "minimum": 1,
             "title": "Limit",
             "type": "integer"
           },
@@ -4084,6 +4055,8 @@
                 "items": {
                   "type": "string"
                 },
+                "maxItems": 500,
+                "minItems": 1,
                 "type": "array"
               },
               {
@@ -4538,76 +4511,21 @@
       }
     },
     {
-      "name": "list_designs",
-      "description": "Discover selectable brands. Read get_working_context with the chosen design_id.",
-      "input_schema": {
-        "properties": {},
-        "title": "list_designsArguments",
-        "type": "object"
-      },
-      "output_schema": {
-        "$defs": {
-          "DesignView": {
-            "additionalProperties": false,
-            "description": "A validated design with its canonical collection folder.",
-            "properties": {
-              "id": {
-                "pattern": "^[a-z0-9][a-z0-9-]{0,79}$",
-                "title": "Id",
-                "type": "string"
-              },
-              "name": {
-                "maxLength": 80,
-                "minLength": 1,
-                "title": "Name",
-                "type": "string"
-              },
-              "description": {
-                "maxLength": 250,
-                "minLength": 1,
-                "title": "Description",
-                "type": "string"
-              },
-              "folder_id": {
-                "title": "Folder Id",
-                "type": "string"
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "description",
-              "folder_id"
-            ],
-            "title": "DesignView",
-            "type": "object"
-          }
-        },
-        "properties": {
-          "result": {
-            "items": {
-              "$ref": "#/$defs/DesignView"
-            },
-            "title": "Result",
-            "type": "array"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "title": "list_designsOutput",
-        "type": "object"
-      },
-      "annotations": {
-        "read_only_hint": true,
-        "destructive_hint": false
-      }
-    },
-    {
       "name": "list_design_contexts",
       "description": "Discover reusable slide packs and file-based design references separately from work.\nUse get_design_context to inspect original files, guidance and assets. File collections\ncan guide any artifact; they are not registered slide templates.\n",
       "input_schema": {
-        "properties": {},
+        "properties": {
+          "kind": {
+            "default": "all",
+            "enum": [
+              "all",
+              "slide_pack",
+              "references"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
         "title": "list_design_contextsArguments",
         "type": "object"
       },
@@ -5191,176 +5109,21 @@
     },
     {
       "name": "read_design_requests",
-      "description": "Read the design-library chat, including links and local attachment paths. Handle queued\nrequests, reply in the chat, and register the reference-based design when ready.\n",
+      "description": "Read the design-library chat; wait_seconds=0 returns immediately, up to 25 waits.\nIncludes links and local attachment paths. Handle queued\nrequests, reply in the chat, and register the reference-based design when ready.\n",
       "input_schema": {
         "properties": {
           "after_event_id": {
             "default": 0,
             "title": "After Event Id",
+            "type": "integer"
+          },
+          "wait_seconds": {
+            "default": 0,
+            "title": "Wait Seconds",
             "type": "integer"
           }
         },
         "title": "read_design_requestsArguments",
-        "type": "object"
-      },
-      "output_schema": {
-        "$defs": {
-          "DesignFile": {
-            "additionalProperties": false,
-            "description": "A durable attachment available to local authoring agents.",
-            "properties": {
-              "name": {
-                "title": "Name",
-                "type": "string"
-              },
-              "path": {
-                "title": "Path",
-                "type": "string"
-              },
-              "size": {
-                "title": "Size",
-                "type": "integer"
-              },
-              "sha256": {
-                "title": "Sha256",
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "path",
-              "size",
-              "sha256"
-            ],
-            "title": "DesignFile",
-            "type": "object"
-          },
-          "DesignMessage": {
-            "additionalProperties": false,
-            "description": "A design request or agent response in the shared design-library conversation.",
-            "properties": {
-              "event_id": {
-                "title": "Event Id",
-                "type": "integer"
-              },
-              "author": {
-                "enum": [
-                  "user",
-                  "agent"
-                ],
-                "title": "Author",
-                "type": "string"
-              },
-              "message": {
-                "title": "Message",
-                "type": "string"
-              },
-              "created_at": {
-                "title": "Created At",
-                "type": "string"
-              },
-              "files": {
-                "items": {
-                  "$ref": "#/$defs/DesignFile"
-                },
-                "title": "Files",
-                "type": "array"
-              },
-              "reply_to": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Reply To"
-              },
-              "status": {
-                "default": "queued",
-                "enum": [
-                  "queued",
-                  "working",
-                  "needs_input",
-                  "ready"
-                ],
-                "title": "Status",
-                "type": "string"
-              },
-              "design_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Design Id"
-              }
-            },
-            "required": [
-              "event_id",
-              "author",
-              "message",
-              "created_at"
-            ],
-            "title": "DesignMessage",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "description": "Design chat history and actual agent availability.",
-        "properties": {
-          "messages": {
-            "items": {
-              "$ref": "#/$defs/DesignMessage"
-            },
-            "title": "Messages",
-            "type": "array"
-          },
-          "next_cursor": {
-            "title": "Next Cursor",
-            "type": "integer"
-          },
-          "agent_waiting": {
-            "title": "Agent Waiting",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "messages",
-          "next_cursor",
-          "agent_waiting"
-        ],
-        "title": "DesignInbox",
-        "type": "object"
-      },
-      "annotations": {
-        "read_only_hint": true,
-        "destructive_hint": false
-      }
-    },
-    {
-      "name": "wait_for_design_requests",
-      "description": "Wait for a design-library message or file handoff without keeping an MCP session.",
-      "input_schema": {
-        "properties": {
-          "after_event_id": {
-            "default": 0,
-            "title": "After Event Id",
-            "type": "integer"
-          },
-          "timeout_seconds": {
-            "default": 25,
-            "title": "Timeout Seconds",
-            "type": "integer"
-          }
-        },
-        "title": "wait_for_design_requestsArguments",
         "type": "object"
       },
       "output_schema": {
@@ -5667,7 +5430,7 @@
     },
     {
       "name": "update_presentation_context",
-      "description": "Save purpose, context, sources, data date and continuation notes in the deck README.",
+      "description": "Save the deck README: mode=\"replace\" replaces it; \"append\" adds a continuation note.\nUse its current context_hash; exact append retries are idempotent.",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -5680,6 +5443,15 @@
           },
           "expected_hash": {
             "title": "Expected Hash",
+            "type": "string"
+          },
+          "mode": {
+            "default": "replace",
+            "enum": [
+              "replace",
+              "append"
+            ],
+            "title": "Mode",
             "type": "string"
           }
         },
@@ -5702,50 +5474,6 @@
           "result"
         ],
         "title": "update_presentation_contextOutput",
-        "type": "object"
-      },
-      "annotations": {
-        "read_only_hint": false,
-        "destructive_hint": false
-      }
-    },
-    {
-      "name": "append_presentation_context",
-      "description": "Append a concise continuation note without retransmitting the existing README.\nThe expected_hash prevents overwrites; retrying the same append is idempotent.\nKeep current context concise rather than accumulating repeated status logs.\n",
-      "input_schema": {
-        "properties": {
-          "deck_id": {
-            "title": "Deck Id",
-            "type": "string"
-          },
-          "markdown": {
-            "title": "Markdown",
-            "type": "string"
-          },
-          "expected_hash": {
-            "title": "Expected Hash",
-            "type": "string"
-          }
-        },
-        "required": [
-          "deck_id",
-          "markdown",
-          "expected_hash"
-        ],
-        "title": "append_presentation_contextArguments",
-        "type": "object"
-      },
-      "output_schema": {
-        "properties": {
-          "result": {
-            "title": "Result",
-            "type": "string"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "title": "append_presentation_contextOutput",
         "type": "object"
       },
       "annotations": {
@@ -7681,7 +7409,7 @@
     },
     {
       "name": "read_feedback",
-      "description": "Read released feedback; carry next_cursor forward. Batch privacy is unchanged.\nPass known_rules_hash only while retaining those rules: unchanged text is omitted,\nbut changed rules are always returned in full with a new rules_hash.\nknown_design_requests_hash omits only retained queued requests; it does not acknowledge work.\n",
+      "description": "Read released feedback; carry next_cursor forward. wait_seconds=0 returns immediately;\npositive values wait up to 25 seconds. Batch privacy is unchanged.\nPass known_rules_hash only while retaining those rules: unchanged text is omitted,\nbut changed rules are always returned in full with a new rules_hash.\nknown_design_requests_hash omits only retained queued requests; it does not acknowledge work.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -7702,6 +7430,11 @@
             "default": "",
             "title": "Known Design Requests Hash",
             "type": "string"
+          },
+          "wait_seconds": {
+            "default": 0,
+            "title": "Wait Seconds",
+            "type": "integer"
           }
         },
         "required": [
@@ -8400,745 +8133,27 @@
       }
     },
     {
-      "name": "wait_for_feedback",
-      "description": "Wait up to 25 seconds for released feedback or changed queued design requests.\nknown_design_requests_hash skips an unchanged retained queue, not new or removed requests.\nOmit retention hashes after context loss. No request or feedback is acknowledged by a hash.\n",
-      "input_schema": {
-        "properties": {
-          "deck_id": {
-            "title": "Deck Id",
-            "type": "string"
-          },
-          "after_delivery_id": {
-            "default": 0,
-            "title": "After Delivery Id",
-            "type": "integer"
-          },
-          "timeout_seconds": {
-            "default": 25,
-            "title": "Timeout Seconds",
-            "type": "integer"
-          },
-          "known_rules_hash": {
-            "default": "",
-            "title": "Known Rules Hash",
-            "type": "string"
-          },
-          "known_design_requests_hash": {
-            "default": "",
-            "title": "Known Design Requests Hash",
-            "type": "string"
-          }
-        },
-        "required": [
-          "deck_id"
-        ],
-        "title": "wait_for_feedbackArguments",
-        "type": "object"
-      },
-      "output_schema": {
-        "$defs": {
-          "DesignFile": {
-            "additionalProperties": false,
-            "description": "A durable attachment available to local authoring agents.",
-            "properties": {
-              "name": {
-                "title": "Name",
-                "type": "string"
-              },
-              "path": {
-                "title": "Path",
-                "type": "string"
-              },
-              "size": {
-                "title": "Size",
-                "type": "integer"
-              },
-              "sha256": {
-                "title": "Sha256",
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "path",
-              "size",
-              "sha256"
-            ],
-            "title": "DesignFile",
-            "type": "object"
-          },
-          "DesignMessage": {
-            "additionalProperties": false,
-            "description": "A design request or agent response in the shared design-library conversation.",
-            "properties": {
-              "event_id": {
-                "title": "Event Id",
-                "type": "integer"
-              },
-              "author": {
-                "enum": [
-                  "user",
-                  "agent"
-                ],
-                "title": "Author",
-                "type": "string"
-              },
-              "message": {
-                "title": "Message",
-                "type": "string"
-              },
-              "created_at": {
-                "title": "Created At",
-                "type": "string"
-              },
-              "files": {
-                "items": {
-                  "$ref": "#/$defs/DesignFile"
-                },
-                "title": "Files",
-                "type": "array"
-              },
-              "reply_to": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Reply To"
-              },
-              "status": {
-                "default": "queued",
-                "enum": [
-                  "queued",
-                  "working",
-                  "needs_input",
-                  "ready"
-                ],
-                "title": "Status",
-                "type": "string"
-              },
-              "design_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Design Id"
-              }
-            },
-            "required": [
-              "event_id",
-              "author",
-              "message",
-              "created_at"
-            ],
-            "title": "DesignMessage",
-            "type": "object"
-          },
-          "EditIntent": {
-            "additionalProperties": false,
-            "description": "A pending element edit whose target and revision live in its feedback envelope.",
-            "properties": {
-              "action": {
-                "enum": [
-                  "move",
-                  "rotate",
-                  "transform",
-                  "delete",
-                  "replace_text",
-                  "style",
-                  "update"
-                ],
-                "title": "Action",
-                "type": "string"
-              },
-              "values": {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "string"
-                    }
-                  ]
-                },
-                "maxProperties": 20,
-                "title": "Values",
-                "type": "object"
-              }
-            },
-            "required": [
-              "action"
-            ],
-            "title": "EditIntent",
-            "type": "object"
-          },
-          "ElementGroupTarget": {
-            "additionalProperties": false,
-            "description": "A flat collection of original element snapshots from one reviewed slide version.",
-            "properties": {
-              "kind": {
-                "const": "group",
-                "default": "group",
-                "title": "Kind",
-                "type": "string"
-              },
-              "label": {
-                "maxLength": 200,
-                "title": "Label",
-                "type": "string"
-              },
-              "elements": {
-                "items": {
-                  "$ref": "#/$defs/ElementTarget"
-                },
-                "maxItems": 100,
-                "minItems": 1,
-                "title": "Elements",
-                "type": "array"
-              }
-            },
-            "required": [
-              "label",
-              "elements"
-            ],
-            "title": "ElementGroupTarget",
-            "type": "object"
-          },
-          "ElementTarget": {
-            "additionalProperties": false,
-            "description": "An element snapshot anchored to the slide version the human reviewed.",
-            "properties": {
-              "selector": {
-                "maxLength": 2000,
-                "title": "Selector",
-                "type": "string"
-              },
-              "label": {
-                "maxLength": 200,
-                "title": "Label",
-                "type": "string"
-              },
-              "quote": {
-                "default": "",
-                "maxLength": 2000,
-                "title": "Quote",
-                "type": "string"
-              },
-              "html": {
-                "default": "",
-                "maxLength": 15000,
-                "title": "Html",
-                "type": "string"
-              },
-              "x": {
-                "maximum": 1,
-                "minimum": 0,
-                "title": "X",
-                "type": "number"
-              },
-              "y": {
-                "maximum": 1,
-                "minimum": 0,
-                "title": "Y",
-                "type": "number"
-              },
-              "width": {
-                "maximum": 1,
-                "minimum": 0,
-                "title": "Width",
-                "type": "number"
-              },
-              "height": {
-                "maximum": 1,
-                "minimum": 0,
-                "title": "Height",
-                "type": "number"
-              }
-            },
-            "required": [
-              "selector",
-              "label",
-              "x",
-              "y",
-              "width",
-              "height"
-            ],
-            "title": "ElementTarget",
-            "type": "object"
-          },
-          "Feedback": {
-            "additionalProperties": false,
-            "description": "A durable human comment or agent reply with immutable revision context.",
-            "properties": {
-              "event_id": {
-                "title": "Event Id",
-                "type": "integer"
-              },
-              "slide_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Slide Id"
-              },
-              "author": {
-                "enum": [
-                  "user",
-                  "agent"
-                ],
-                "title": "Author",
-                "type": "string"
-              },
-              "message": {
-                "title": "Message",
-                "type": "string"
-              },
-              "created_at": {
-                "title": "Created At",
-                "type": "string"
-              },
-              "content_hash": {
-                "title": "Content Hash",
-                "type": "string"
-              },
-              "reply_to": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Reply To"
-              },
-              "target": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/SlideTarget"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null
-              },
-              "released": {
-                "default": true,
-                "title": "Released",
-                "type": "boolean"
-              },
-              "delivery_id": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Delivery Id"
-              },
-              "batch_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Batch Id"
-              },
-              "scope": {
-                "default": "slide",
-                "enum": [
-                  "slide",
-                  "presentation"
-                ],
-                "title": "Scope",
-                "type": "string"
-              },
-              "context_slide_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Context Slide Id"
-              },
-              "files": {
-                "items": {
-                  "$ref": "#/$defs/FeedbackFile"
-                },
-                "title": "Files",
-                "type": "array"
-              },
-              "edit_intent": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/EditIntent"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null
-              },
-              "question": {
-                "anyOf": [
-                  {
-                    "$ref": "#/$defs/QuestionPrompt"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null
-              },
-              "design_set_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Design Set Id"
-              },
-              "design_option_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Design Option Id"
-              },
-              "design_option_name": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Design Option Name"
-              },
-              "element_set_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Element Set Id"
-              },
-              "element_option_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Element Option Id"
-              },
-              "element_option_name": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Element Option Name"
-              },
-              "element_context_hash": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "default": null,
-                "title": "Element Context Hash"
-              }
-            },
-            "required": [
-              "event_id",
-              "slide_id",
-              "author",
-              "message",
-              "created_at",
-              "content_hash"
-            ],
-            "title": "Feedback",
-            "type": "object"
-          },
-          "FeedbackFile": {
-            "additionalProperties": false,
-            "description": "A private review reference with a local path and inert download endpoint.",
-            "properties": {
-              "name": {
-                "title": "Name",
-                "type": "string"
-              },
-              "path": {
-                "title": "Path",
-                "type": "string"
-              },
-              "size": {
-                "title": "Size",
-                "type": "integer"
-              },
-              "sha256": {
-                "title": "Sha256",
-                "type": "string"
-              },
-              "download_url": {
-                "default": "",
-                "title": "Download Url",
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "path",
-              "size",
-              "sha256"
-            ],
-            "title": "FeedbackFile",
-            "type": "object"
-          },
-          "QuestionPrompt": {
-            "additionalProperties": false,
-            "description": "An immutable set of suggested answers; a written answer is always available.",
-            "properties": {
-              "options": {
-                "items": {
-                  "maxLength": 160,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "maxItems": 6,
-                "title": "Options",
-                "type": "array"
-              },
-              "cancelled": {
-                "default": false,
-                "title": "Cancelled",
-                "type": "boolean"
-              },
-              "key": {
-                "default": "",
-                "pattern": "^(?:[a-f0-9]{32})?$",
-                "title": "Key",
-                "type": "string"
-              }
-            },
-            "title": "QuestionPrompt",
-            "type": "object"
-          },
-          "SlideTarget": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/ElementTarget"
-              },
-              {
-                "$ref": "#/$defs/ElementGroupTarget"
-              }
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "description": "Released feedback in delivery order, including batches released after newer comments.",
-        "properties": {
-          "events": {
-            "items": {
-              "$ref": "#/$defs/Feedback"
-            },
-            "title": "Events",
-            "type": "array"
-          },
-          "next_cursor": {
-            "title": "Next Cursor",
-            "type": "integer"
-          },
-          "mode": {
-            "enum": [
-              "live",
-              "batch"
-            ],
-            "title": "Mode",
-            "type": "string"
-          },
-          "authoring_instructions": {
-            "default": "",
-            "title": "Authoring Instructions",
-            "type": "string"
-          },
-          "learned_preferences": {
-            "default": "",
-            "title": "Learned Preferences",
-            "type": "string"
-          },
-          "design_requests": {
-            "items": {
-              "$ref": "#/$defs/DesignMessage"
-            },
-            "title": "Design Requests",
-            "type": "array"
-          },
-          "rules_hash": {
-            "default": "",
-            "title": "Rules Hash",
-            "type": "string"
-          },
-          "rules_included": {
-            "default": true,
-            "title": "Rules Included",
-            "type": "boolean"
-          },
-          "design_requests_hash": {
-            "default": "",
-            "title": "Design Requests Hash",
-            "type": "string"
-          },
-          "design_requests_included": {
-            "default": true,
-            "title": "Design Requests Included",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "events",
-          "next_cursor",
-          "mode"
-        ],
-        "title": "FeedbackFeed",
-        "type": "object"
-      },
-      "annotations": {
-        "read_only_hint": true,
-        "destructive_hint": false
-      }
-    },
-    {
       "name": "reply_to_feedback",
-      "description": "Post a brief agent message on a slide; omit event_id for an opening message.\nSupply event_id to reply to a comment. Never use human-feedback endpoints for agent text.\n",
+      "description": "Post an agent reply; omit slide_id for general presentation instructions.\nOmit event_id for an opening message. Never use human-feedback endpoints for agent text.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
             "title": "Deck Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
             "type": "string"
           },
           "slide_id": {
+            "default": "",
             "title": "Slide Id",
             "type": "string"
           },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "request_id": {
-            "title": "Request Id",
-            "type": "string"
-          },
-          "event_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "title": "Event Id"
-          }
-        },
-        "required": [
-          "deck_id",
-          "slide_id",
-          "message",
-          "request_id"
-        ],
-        "title": "reply_to_feedbackArguments",
-        "type": "object"
-      },
-      "output_schema": {
-        "properties": {
-          "result": {
-            "title": "Result",
-            "type": "string"
-          }
-        },
-        "required": [
-          "result"
-        ],
-        "title": "reply_to_feedbackOutput",
-        "type": "object"
-      },
-      "annotations": {
-        "read_only_hint": false,
-        "destructive_hint": false
-      }
-    },
-    {
-      "name": "reply_to_presentation_feedback",
-      "description": "Reply to general instructions such as creating, moving or restructuring slides.\nInfer the requested scope from the message; context_slide_id is a viewing hint, not a target.\nOmit event_id for an opening agent message; never post through human-feedback endpoints.\n",
-      "input_schema": {
-        "properties": {
-          "deck_id": {
-            "title": "Deck Id",
-            "type": "string"
-          },
-          "message": {
-            "title": "Message",
-            "type": "string"
-          },
-          "request_id": {
-            "title": "Request Id",
-            "type": "string"
-          },
           "event_id": {
             "anyOf": [
               {
@@ -9157,7 +8172,7 @@
           "message",
           "request_id"
         ],
-        "title": "reply_to_presentation_feedbackArguments",
+        "title": "_reply_to_feedback_toolArguments",
         "type": "object"
       },
       "output_schema": {
@@ -9170,7 +8185,7 @@
         "required": [
           "result"
         ],
-        "title": "reply_to_presentation_feedbackOutput",
+        "title": "_reply_to_feedback_toolOutput",
         "type": "object"
       },
       "annotations": {
@@ -9782,12 +8797,17 @@
     },
     {
       "name": "list_artifacts",
-      "description": "Discover work and review status. Use list_designs for reusable designs.",
+      "description": "Discover work and review status; filter kind=\"presentation\" for decks.",
       "input_schema": {
         "properties": {
           "project_id": {
             "default": "",
             "title": "Project Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "",
+            "title": "Kind",
             "type": "string"
           }
         },

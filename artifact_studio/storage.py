@@ -1039,7 +1039,8 @@ class Store:
             if (
                 reply_to is not None
                 and db.execute(
-                    "SELECT id FROM feedback WHERE id=? AND deck=? AND slide=?",
+                    "SELECT id FROM feedback WHERE id=? AND deck=? AND slide=?"
+                    + (" AND released=1" if author == "agent" else ""),
                     (reply_to, deck_id, stored_slide_id),
                 ).fetchone()
                 is None
@@ -1220,7 +1221,10 @@ class Store:
         ):
             if design.id == design_id:
                 return design
-        raise ValueError(f"Unknown design '{design_id}'. Call list_designs to choose a design.")
+        raise ValueError(
+            f"Unknown design '{design_id}'. "
+            'Call list_design_contexts(kind="slide_pack") to choose a design.'
+        )
 
     def register_design(self, folder_id: str, manifest: DesignManifest) -> DesignView:
         """Validate and register an agent-prepared design without replacing an existing brand."""

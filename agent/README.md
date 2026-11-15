@@ -22,6 +22,26 @@ Agents in a [shared hosted workspace](../docs/MULTIPLAYER.md#author-presentation
 
 The running server's MCP initialization and `tools/list` responses are authoritative for the connected process. A checkout can be newer than that process. The host controls which discovered tools are exposed; connecting MCP does not automatically load skill bodies.
 
+The local catalogue advertises 66 tools. Six earlier names remain callable for
+existing clients but are omitted from discovery:
+
+| Compatibility name | Current call |
+| --- | --- |
+| `list_presentations` | `list_artifacts(kind="presentation")` |
+| `list_designs` | `list_design_contexts(kind="slide_pack")` |
+| `wait_for_feedback` | `read_feedback(wait_seconds=25)` |
+| `wait_for_design_requests` | `read_design_requests(wait_seconds=25)` |
+| `reply_to_presentation_feedback` | `reply_to_feedback` without `slide_id` |
+| `append_presentation_context` | `update_presentation_context(mode="append")` |
+
+Reads return immediately by default; waiting is bounded to 25 seconds. Context
+updates default to replacement, and append mode keeps the existing conflict and
+exact-retry checks. Filtered discovery retains IDs but can return richer metadata
+than the older lists. Existing aliases retain their original response contracts.
+Hosted and Copilot scopes have their own catalogues and feedback semantics;
+use their schemas rather than substituting local arguments. These changes do not
+restrict authored HTML, CSS, SVG, JavaScript, layouts or interactive behavior.
+
 The opt-in Microsoft Copilot gateway has its own smaller tool surface and explicit project/workspace scope. It does not expose local filesystem imports, approvals, settings, repository sync or local review hooks. Its live `tools/list` is authoritative; `tools.json` describes the ordinary local MCP server. [Connection and verification](../docs/MICROSOFT-COPILOT.md).
 
 ## Context delivery
@@ -38,7 +58,7 @@ The opt-in Microsoft Copilot gateway has its own smaller tool surface and explic
 | `get_presentation_outline` / `get_presentation` / `get_slide` | Existing deck, outline or slide reads, with their respective context and discussion options. |
 | `get_presentation_theme` / `update_presentation_theme` | Deck-specific author CSS with managed viewer styles and conflict hashes. |
 | `list_presentation_assets` / `import_presentation_asset` | Deck asset inventory, download staging directory and bounded source copies without binary echoes. |
-| `read_feedback` / `wait_for_feedback` | Existing presentation feedback, questions, attachments and delivery cursors. |
+| `read_feedback` (`wait_seconds` optional) | Existing presentation feedback, questions, attachments and delivery cursors. |
 | `publish_slide_designs` / `get_slide_designs` / `get_slide_design` / `capture_slide_design` | Publish whole-slide alternatives without changing the chosen slide, then read decisions, immutable source or frozen preview pixels. Only the human chooses. Proposal feedback retains its option ID and source hash. |
 | `publish_element_alternatives` / `get_element_alternatives` / `get_element_alternative` / `capture_element_alternative` | Publish options for a static headline, text or graphic with an existing unique HTML id. Read immutable fragments and exact retained full-slide contexts; only the human decides. Element feedback carries the option id, fragment source hash and preview context hash. |
 | `get_authoring_guide(topic=...)` | A relevant detailed guide, as listed below. |
@@ -54,6 +74,12 @@ context for the current task, not authorization to edit its original source.
 `known_rules_hash` omits rules only when the caller retains the matching content. That hash covers workspace rules and learned preferences together. `known_guide_hash` and guide `known_hash` suppress exact retained guide content. For a deck opened through `artifact_id`, use `known_presentation_guide_hash` for the separate guide in `presentation_context`. Omit retention hashes after context loss. `include_discovery=False` is the default and skips unrelated design discovery while retaining the selected design and scoped related-artifact pointers. [Token behavior](../docs/TOKEN-EFFICIENCY.md).
 
 MCP context returns `sources` once. Its compact `receipt` references that list through `receipt_sources="sources"`; the full receipt remains saved for the UI's context inspector. Returned pointers describe available files, not proof that their contents were read.
+
+For local source already authored and reviewed in files, the
+[file-input CLI](../docs/FILE-CLIENT.md) submits JSON through these same tools and
+returns compact receipts. It preserves arbitrary HTML/CSS/SVG/JavaScript and
+normal revision guards. It is loopback-only; use the connected remote MCP tools
+for hosted work. Neither a file receipt nor an outline replaces pixel review.
 
 The browser's **Agent context** inspector shows available sources and the latest recorded delivery. “Available”, “returned” and “omitted because retained” describe server behavior. The inspector cannot prove model retention, private reasoning, or reads through unrelated tools.
 

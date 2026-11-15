@@ -18,6 +18,7 @@ from pydantic import Field
 
 from .agent_io import deck_receipt, guide_fields, presentation_sizing, rule_fields
 from .artifacts import LEGACY_PROJECT, ArtifactStore
+from .copilot_capture import MAX_CLOUD_CONTACT_SLIDES
 from .copilot_tools import (
     MAX_READ_BYTES,
     READ,
@@ -103,7 +104,7 @@ class MultiplayerTools:
             else:
                 yield store
 
-    def catalog(self, actor: Actor, scope: Scope) -> dict[str, object]:
+    def catalog(self, actor: Actor, scope: Scope, kind: str = "") -> dict[str, object]:
         with self.sharing.locked():
             self.sharing.require(actor, scope)
             store = self.sharing.store(scope.workspace)
@@ -123,6 +124,7 @@ class MultiplayerTools:
                         "content_hash": item.content_hash,
                     }
                     for item in visible
+                    if not kind or item.kind == kind
                 ],
                 "projects": [
                     {"id": item.id, "title": item.title}
@@ -184,10 +186,10 @@ class MultiplayerTools:
                 )
             return result
 
-    def list_artifacts(self, ctx: Ctx) -> dict[str, object]:
+    def list_artifacts(self, ctx: Ctx, kind: str = "") -> dict[str, object]:
         """List only artifacts and projects available to this particular agent connection."""
         actor = self.actor(ctx)
-        return self.catalog(actor, self.scope(actor))
+        return self.catalog(actor, self.scope(actor), kind)
 
     @contextmanager
     def design_store(self, ctx: Ctx) -> Generator[Store]:
@@ -201,10 +203,16 @@ class MultiplayerTools:
         with self.sharing.guard(actor, scope, "edit") as store:
             yield store
 
-    def list_design_contexts(self, ctx: Ctx) -> list[dict[str, object]]:
+    def list_design_contexts(
+        self, ctx: Ctx, kind: Literal["all", "slide_pack", "references"] = "all"
+    ) -> list[dict[str, object]]:
         """Discover reusable packs and references with the owner's workspace connection."""
         with self.design_store(ctx) as store:
-            return [item.model_dump() for item in DesignLibrary(store).list()]
+            return [
+                item.model_dump()
+                for item in DesignLibrary(store).list()
+                if kind == "all" or item.kind == kind
+            ]
 
     def get_design_context(self, ctx: Ctx, design_id: str) -> dict[str, object]:
         """List current design references and source hashes without server filesystem paths."""
@@ -839,11 +847,18 @@ class MultiplayerTools:
             )
 
     def update_presentation_context(
-        self, ctx: Ctx, deck_id: str, markdown: str, expected_hash: str
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        markdown: str,
+        expected_hash: str,
+        mode: Literal["replace", "append"] = "replace",
     ) -> str:
         """Replace the deck brief using context_hash from get_presentation_outline."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id, "edit") as store:
+            if mode == "append":
+                return store.append_context(deck_id, markdown, expected_hash)
             return store.update_context(deck_id, markdown, expected_hash)
 
     def append_presentation_context(
@@ -913,11 +928,12 @@ class MultiplayerTools:
         self,
         ctx: Ctx,
         deck_id: str,
-        offset: int = 0,
-        limit: int = 8,
-        slide_ids: tuple[str, ...] = (),
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=MAX_CLOUD_CONTACT_SLIDES)] = MAX_CLOUD_CONTACT_SLIDES,
+        slide_ids: Annotated[tuple[str, ...], Field(max_length=100)] = (),
     ) -> CallToolResult:
-        """Render a scoped draft overview; use capture_slide for full-size detail."""
+        """Render 1–8 completed slides per scoped draft page; offset must be nonnegative.
+        Select up to 100 distinct slide IDs; use capture_slide for full-size detail."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True).capture_contact_sheet(

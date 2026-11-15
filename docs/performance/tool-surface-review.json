@@ -1,0 +1,5111 @@
+{
+  "scope": "Sanitized fictional aggregate evidence only; no raw feedback, private notes, tokens, or authored source. Experiments have different boundaries and must not be added as provider usage.",
+  "static_skills": {
+    "measured_at": "2026-11-15T08:47:54.113461+00:00",
+    "scope": "Static repository skill files, including frontmatter; linked files are optional and not evidence they were loaded. Runtime traces recorded separately.",
+    "baseline_commit": "68af28d58344775390a73f36667afe894196080c",
+    "skills": [
+      {
+        "skill": "artifact-studio-learn",
+        "path": ".agents/skills/artifact-studio-learn/SKILL.md",
+        "body_utf8_bytes_before": 7095,
+        "body_utf8_bytes_after": 7257,
+        "body_whitespace_words_after": 1000,
+        "sha256_after": "0c711beaf0cf1bfc8ae8c5d02bdd503d96da6457744b2b316bdd9197f6b3a2c9",
+        "direct_linked_guides": [],
+        "executed_in_this_run": false,
+        "provider_token_usage": null,
+        "token_estimate": null
+      },
+      {
+        "skill": "multi-person-workflow-review",
+        "path": ".agents/skills/multi-person-workflow-review/SKILL.md",
+        "body_utf8_bytes_before": 7621,
+        "body_utf8_bytes_after": 8246,
+        "body_whitespace_words_after": 1108,
+        "sha256_after": "53368bee83317aa7979d5294f8fa6987cfda3fd8e0b227e130573cd211b94349",
+        "direct_linked_guides": [
+          {
+            "path": ".agents/skills/multi-person-workflow-review/references/roles.md",
+            "utf8_bytes": 5884
+          },
+          {
+            "path": ".agents/skills/multi-person-workflow-review/references/measurement.md",
+            "utf8_bytes": 7443
+          },
+          {
+            "path": ".agents/skills/multi-person-workflow-review/references/browser-workflow.md",
+            "utf8_bytes": 7109
+          },
+          {
+            "path": ".agents/skills/multi-person-workflow-review/references/measurement.md",
+            "utf8_bytes": 7443
+          }
+        ],
+        "executed_in_this_run": true,
+        "provider_token_usage": null,
+        "token_estimate": null
+      },
+      {
+        "skill": "setup",
+        "path": ".agents/skills/setup/SKILL.md",
+        "body_utf8_bytes_before": 3718,
+        "body_utf8_bytes_after": 3718,
+        "body_whitespace_words_after": 514,
+        "sha256_after": "400a2e7334d0e884f5b413cab46b6c45b9fb9a27a9da4372fe76a9a83cee922c",
+        "direct_linked_guides": [
+          {
+            "path": "docs/HOSTED-AGENT-HOOKS.md",
+            "utf8_bytes": 8706
+          },
+          {
+            "path": "docs/GETTING-STARTED.md",
+            "utf8_bytes": 45344
+          },
+          {
+            "path": "docs/DOCKER.md",
+            "utf8_bytes": 7644
+          },
+          {
+            "path": "docs/GETTING-STARTED.md",
+            "utf8_bytes": 45344
+          },
+          {
+            "path": "docs/MACOS.md",
+            "utf8_bytes": 10566
+          },
+          {
+            "path": "docs/LIVE-REVIEW.md",
+            "utf8_bytes": 11173
+          }
+        ],
+        "executed_in_this_run": false,
+        "provider_token_usage": null,
+        "token_estimate": null
+      }
+    ],
+    "limitations": [
+      "No provider usage interface available for coordinator or delegated agents.",
+      "No legitimate installed tokenizer resource established. UTF-8 bytes and whitespace words are not token counts.",
+      "setup and artifact-studio-learn were inspected, not executed against personal installations/preferences.",
+      "Initial authoring, image processing, model outputs and retained contexts are not measured by static files."
+    ],
+    "updated_at": "2026-11-15T09:08:25.233967+00:00"
+  },
+  "matched_local_source": {
+    "run_id": "matched",
+    "experiment": "matched source comparison, local MCP tool surface",
+    "environment": {
+      "python": "3.14.8",
+      "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+      "mcp": "2.3.0",
+      "browser": null,
+      "mode": "local HTTP MCP",
+      "concurrency": "one worker/server at a time; shared runner otherwise uncontrolled"
+    },
+    "scenario": {
+      "warmups_per_source": 1,
+      "repeats": 3,
+      "fixture": {
+        "seed": "tool-surface-v1",
+        "released": "RELEASED_FICTIONAL_REVIEW_71b03",
+        "withheld": "WITHHELD_FICTIONAL_REVIEW_71b03",
+        "design_message": "Fictional design request ready to read.",
+        "continuation": "Fictional continuation: retain the original notes and hidden slide.",
+        "reply": "Agent acknowledged the released general request.",
+        "replacement": "# Fictional current context\n\nWhole-document replacement verified.\n"
+      },
+      "fixture_seed_sha256": "ae6697c9bd3b4be465e075451fe235338bd20050707134f624974b9e3c1153e5",
+      "setup": "test-only Store fixture writes; not autonomous human/persona UI actions",
+      "script_sha256": "9077431a8acc1d178b7476cc3d2cdbb62afcf4860ce362f5bc2be7bde8f2239c"
+    },
+    "measurement_scope": {
+      "http_bodies": "actual UTF-8 bytes; headers/framing excluded",
+      "catalog": "compact JSON result with schemas; measured separately from operations",
+      "input_schemas": "sum of compact inputSchema JSON only; subset of catalog",
+      "results": "compact MCP result JSON; overlaps response text and actual HTTP body",
+      "timing": "workflow timer includes learning and excludes setup, initialization and discovery; session timer includes initialization/discovery; summed HTTP times are separate",
+      "idle_wait": "zero intentional waiting; released messages already queued",
+      "tokens": "unavailable, never inferred from bytes"
+    },
+    "provider_usage": {
+      "provider": null,
+      "model": null,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_tokens": null,
+      "reasoning_tokens": null,
+      "reason": "No model provider calls or usage interface in this scripted benchmark."
+    },
+    "token_estimates": null,
+    "summary": {
+      "baseline": {
+        "tool_count": {
+          "observations": [
+            72,
+            72,
+            72
+          ],
+          "median": 72,
+          "range": [
+            72,
+            72
+          ]
+        },
+        "catalog_compact_json_utf8_bytes": {
+          "observations": [
+            147956,
+            147956,
+            147956
+          ],
+          "median": 147956,
+          "range": [
+            147956,
+            147956
+          ]
+        },
+        "input_schemas_compact_json_utf8_bytes": {
+          "observations": [
+            31325,
+            31325,
+            31325
+          ],
+          "median": 31325,
+          "range": [
+            31325,
+            31325
+          ]
+        },
+        "operation_request_http_body_utf8_bytes": {
+          "observations": [
+            3091,
+            3091,
+            3091
+          ],
+          "median": 3091,
+          "range": [
+            3091,
+            3091
+          ]
+        },
+        "operation_request_parameters_compact_json_utf8_bytes": {
+          "observations": [
+            2108,
+            2108,
+            2108
+          ],
+          "median": 2108,
+          "range": [
+            2108,
+            2108
+          ]
+        },
+        "operation_response_http_body_utf8_bytes": {
+          "observations": [
+            45611,
+            45611,
+            45611
+          ],
+          "median": 45611,
+          "range": [
+            45611,
+            45611
+          ]
+        },
+        "operation_response_text_utf8_bytes": {
+          "observations": [
+            22421,
+            22421,
+            22421
+          ],
+          "median": 22421,
+          "range": [
+            22421,
+            22421
+          ]
+        },
+        "operation_response_mcp_result_compact_json_utf8_bytes": {
+          "observations": [
+            45126,
+            45126,
+            45126
+          ],
+          "median": 45126,
+          "range": [
+            45126,
+            45126
+          ]
+        },
+        "operation_image_base64_bytes": {
+          "observations": [
+            0,
+            0,
+            0
+          ],
+          "median": 0,
+          "range": [
+            0,
+            0
+          ]
+        },
+        "operation_image_decoded_bytes": {
+          "observations": [
+            0,
+            0,
+            0
+          ],
+          "median": 0,
+          "range": [
+            0,
+            0
+          ]
+        },
+        "workflow_elapsed_ms": {
+          "observations": [
+            295.017,
+            541.843,
+            285.666
+          ],
+          "median": 295.017,
+          "range": [
+            285.666,
+            541.843
+          ]
+        },
+        "learning": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": {
+              "observations": [
+                143,
+                143,
+                143
+              ],
+              "median": 143,
+              "range": [
+                143,
+                143
+              ]
+            },
+            "request_parameters_compact_json_utf8_bytes": {
+              "observations": [
+                76,
+                76,
+                76
+              ],
+              "median": 76,
+              "range": [
+                76,
+                76
+              ]
+            },
+            "response_http_body_utf8_bytes": {
+              "observations": [
+                14767,
+                14767,
+                14767
+              ],
+              "median": 14767,
+              "range": [
+                14767,
+                14767
+              ]
+            },
+            "response_text_utf8_bytes": {
+              "observations": [
+                7469,
+                7469,
+                7469
+              ],
+              "median": 7469,
+              "range": [
+                7469,
+                7469
+              ]
+            },
+            "response_mcp_result_compact_json_utf8_bytes": {
+              "observations": [
+                14733,
+                14733,
+                14733
+              ],
+              "median": 14733,
+              "range": [
+                14733,
+                14733
+              ]
+            },
+            "image_base64_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            },
+            "image_decoded_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            }
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": {
+              "observations": [
+                176,
+                176,
+                176
+              ],
+              "median": 176,
+              "range": [
+                176,
+                176
+              ]
+            },
+            "request_parameters_compact_json_utf8_bytes": {
+              "observations": [
+                107,
+                107,
+                107
+              ],
+              "median": 107,
+              "range": [
+                107,
+                107
+              ]
+            },
+            "response_http_body_utf8_bytes": {
+              "observations": [
+                10575,
+                10575,
+                10575
+              ],
+              "median": 10575,
+              "range": [
+                10575,
+                10575
+              ]
+            },
+            "response_text_utf8_bytes": {
+              "observations": [
+                5256,
+                5256,
+                5256
+              ],
+              "median": 5256,
+              "range": [
+                5256,
+                5256
+              ]
+            },
+            "response_mcp_result_compact_json_utf8_bytes": {
+              "observations": [
+                10541,
+                10541,
+                10541
+              ],
+              "median": 10541,
+              "range": [
+                10541,
+                10541
+              ]
+            },
+            "image_base64_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            },
+            "image_decoded_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            }
+          }
+        }
+      },
+      "candidate": {
+        "tool_count": {
+          "observations": [
+            66,
+            66,
+            66
+          ],
+          "median": 66,
+          "range": [
+            66,
+            66
+          ]
+        },
+        "catalog_compact_json_utf8_bytes": {
+          "observations": [
+            135270,
+            135270,
+            135270
+          ],
+          "median": 135270,
+          "range": [
+            135270,
+            135270
+          ]
+        },
+        "input_schemas_compact_json_utf8_bytes": {
+          "observations": [
+            30300,
+            30300,
+            30300
+          ],
+          "median": 30300,
+          "range": [
+            30300,
+            30300
+          ]
+        },
+        "operation_request_http_body_utf8_bytes": {
+          "observations": [
+            3151,
+            3151,
+            3151
+          ],
+          "median": 3151,
+          "range": [
+            3151,
+            3151
+          ]
+        },
+        "operation_request_parameters_compact_json_utf8_bytes": {
+          "observations": [
+            2160,
+            2160,
+            2160
+          ],
+          "median": 2160,
+          "range": [
+            2160,
+            2160
+          ]
+        },
+        "operation_response_http_body_utf8_bytes": {
+          "observations": [
+            46294,
+            46294,
+            46294
+          ],
+          "median": 46294,
+          "range": [
+            46294,
+            46294
+          ]
+        },
+        "operation_response_text_utf8_bytes": {
+          "observations": [
+            22768,
+            22768,
+            22768
+          ],
+          "median": 22768,
+          "range": [
+            22768,
+            22768
+          ]
+        },
+        "operation_response_mcp_result_compact_json_utf8_bytes": {
+          "observations": [
+            45809,
+            45809,
+            45809
+          ],
+          "median": 45809,
+          "range": [
+            45809,
+            45809
+          ]
+        },
+        "operation_image_base64_bytes": {
+          "observations": [
+            0,
+            0,
+            0
+          ],
+          "median": 0,
+          "range": [
+            0,
+            0
+          ]
+        },
+        "operation_image_decoded_bytes": {
+          "observations": [
+            0,
+            0,
+            0
+          ],
+          "median": 0,
+          "range": [
+            0,
+            0
+          ]
+        },
+        "workflow_elapsed_ms": {
+          "observations": [
+            312.328,
+            396.429,
+            322.583
+          ],
+          "median": 322.583,
+          "range": [
+            312.328,
+            396.429
+          ]
+        },
+        "learning": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": {
+              "observations": [
+                143,
+                143,
+                143
+              ],
+              "median": 143,
+              "range": [
+                143,
+                143
+              ]
+            },
+            "request_parameters_compact_json_utf8_bytes": {
+              "observations": [
+                76,
+                76,
+                76
+              ],
+              "median": 76,
+              "range": [
+                76,
+                76
+              ]
+            },
+            "response_http_body_utf8_bytes": {
+              "observations": [
+                14767,
+                14767,
+                14767
+              ],
+              "median": 14767,
+              "range": [
+                14767,
+                14767
+              ]
+            },
+            "response_text_utf8_bytes": {
+              "observations": [
+                7469,
+                7469,
+                7469
+              ],
+              "median": 7469,
+              "range": [
+                7469,
+                7469
+              ]
+            },
+            "response_mcp_result_compact_json_utf8_bytes": {
+              "observations": [
+                14733,
+                14733,
+                14733
+              ],
+              "median": 14733,
+              "range": [
+                14733,
+                14733
+              ]
+            },
+            "image_base64_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            },
+            "image_decoded_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            }
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": {
+              "observations": [
+                176,
+                176,
+                176
+              ],
+              "median": 176,
+              "range": [
+                176,
+                176
+              ]
+            },
+            "request_parameters_compact_json_utf8_bytes": {
+              "observations": [
+                107,
+                107,
+                107
+              ],
+              "median": 107,
+              "range": [
+                107,
+                107
+              ]
+            },
+            "response_http_body_utf8_bytes": {
+              "observations": [
+                10575,
+                10575,
+                10575
+              ],
+              "median": 10575,
+              "range": [
+                10575,
+                10575
+              ]
+            },
+            "response_text_utf8_bytes": {
+              "observations": [
+                5256,
+                5256,
+                5256
+              ],
+              "median": 5256,
+              "range": [
+                5256,
+                5256
+              ]
+            },
+            "response_mcp_result_compact_json_utf8_bytes": {
+              "observations": [
+                10541,
+                10541,
+                10541
+              ],
+              "median": 10541,
+              "range": [
+                10541,
+                10541
+              ]
+            },
+            "image_base64_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            },
+            "image_decoded_bytes": {
+              "observations": [
+                0,
+                0,
+                0
+              ],
+              "median": 0,
+              "range": [
+                0,
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    "correctness": {
+      "all_individual_checks_passed": true,
+      "identical_fixture_and_final_semantic_fingerprints": true
+    },
+    "limitations": [
+      "No autonomous persona or browser/visual test",
+      "Local tools only; no hosted grant coverage",
+      "Ready-message waits only; delayed delivery is outside this workload",
+      "Three pairs on shared runner support descriptive median/range only",
+      "No provider usage, tokenizer estimates or billing claims"
+    ],
+    "trials": [
+      {
+        "variant": "baseline",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 2544.236,
+        "workflow_elapsed_ms": 295.017,
+        "session_elapsed_ms": 435.715,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 72,
+          "tool_names": [
+            "add_slide",
+            "append_presentation_context",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_designs",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_presentations",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "reply_to_presentation_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "wait_for_design_requests",
+            "wait_for_feedback",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 147956,
+          "input_schemas_compact_json_utf8_bytes": 31325,
+          "catalog_sha256": "bc8d40e9dcfa0a870b1187ab92381bc7f0de51d6bcad0ffaf7b346160099eb79"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 415.632,
+          "request_http_body_utf8_bytes": 3720,
+          "request_parameters_compact_json_utf8_bytes": 2412,
+          "response_http_body_utf8_bytes": 221729,
+          "response_text_utf8_bytes": 35146,
+          "response_mcp_result_compact_json_utf8_bytes": 221108,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 112.719,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2786,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2752,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 23.897,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 147990,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 147956,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 210.197,
+            "request_http_body_utf8_bytes": 2782,
+            "request_parameters_compact_json_utf8_bytes": 1937,
+            "response_http_body_utf8_bytes": 22785,
+            "response_text_utf8_bytes": 10908,
+            "response_mcp_result_compact_json_utf8_bytes": 22370,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 40.394,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 28.425,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "trial-1-baseline",
+        "pair": 1,
+        "position": 1,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "loaded_source_sha256": "64fe58a9fb91e72c2e4bfbb004a14340f49d2b750eb5510c26a6f2550657d464"
+        }
+      },
+      {
+        "variant": "candidate",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 2644.83,
+        "workflow_elapsed_ms": 312.328,
+        "session_elapsed_ms": 469.315,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 66,
+          "tool_names": [
+            "add_slide",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 135270,
+          "input_schemas_compact_json_utf8_bytes": 30300,
+          "catalog_sha256": "8dab5ced5107bc56483d73c502166f903cc87fe104d2914e2ab8cd1edbae6173"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 448.386,
+          "request_http_body_utf8_bytes": 3780,
+          "request_parameters_compact_json_utf8_bytes": 2464,
+          "response_http_body_utf8_bytes": 209748,
+          "response_text_utf8_bytes": 35493,
+          "response_mcp_result_compact_json_utf8_bytes": 209127,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 33.51,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 36.922,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 135304,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 135270,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 116.621,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2808,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2774,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 217.218,
+            "request_http_body_utf8_bytes": 2842,
+            "request_parameters_compact_json_utf8_bytes": 1989,
+            "response_http_body_utf8_bytes": 23468,
+            "response_text_utf8_bytes": 11255,
+            "response_mcp_result_compact_json_utf8_bytes": 23053,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 44.115,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "design discovery filters slide packs",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "trial-1-candidate",
+        "pair": 1,
+        "position": 2,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "4da8d6b9fde703aabaf38ba64697a4d33d294062af6ea82e7381217f3fff4300",
+          "loaded_source_sha256": "34508f8bb67778f7f1774c9030e6b4867b88d566d4b22f0e8ef6f081bf4f85da"
+        }
+      },
+      {
+        "variant": "candidate",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 2411.305,
+        "workflow_elapsed_ms": 396.429,
+        "session_elapsed_ms": 549.638,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 66,
+          "tool_names": [
+            "add_slide",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 135270,
+          "input_schemas_compact_json_utf8_bytes": 30300,
+          "catalog_sha256": "8dab5ced5107bc56483d73c502166f903cc87fe104d2914e2ab8cd1edbae6173"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 517.742,
+          "request_http_body_utf8_bytes": 3780,
+          "request_parameters_compact_json_utf8_bytes": 2464,
+          "response_http_body_utf8_bytes": 209748,
+          "response_text_utf8_bytes": 35493,
+          "response_mcp_result_compact_json_utf8_bytes": 209127,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 287.982,
+            "request_http_body_utf8_bytes": 2842,
+            "request_parameters_compact_json_utf8_bytes": 1989,
+            "response_http_body_utf8_bytes": 23468,
+            "response_text_utf8_bytes": 11255,
+            "response_mcp_result_compact_json_utf8_bytes": 23053,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 39.439,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 48.115,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 34.3,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 135304,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 135270,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 107.906,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2808,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2774,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "design discovery filters slide packs",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "trial-2-candidate",
+        "pair": 2,
+        "position": 1,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "4da8d6b9fde703aabaf38ba64697a4d33d294062af6ea82e7381217f3fff4300",
+          "loaded_source_sha256": "34508f8bb67778f7f1774c9030e6b4867b88d566d4b22f0e8ef6f081bf4f85da"
+        }
+      },
+      {
+        "variant": "baseline",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 5098.663,
+        "workflow_elapsed_ms": 541.843,
+        "session_elapsed_ms": 823.011,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 72,
+          "tool_names": [
+            "add_slide",
+            "append_presentation_context",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_designs",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_presentations",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "reply_to_presentation_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "wait_for_design_requests",
+            "wait_for_feedback",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 147956,
+          "input_schemas_compact_json_utf8_bytes": 31325,
+          "catalog_sha256": "bc8d40e9dcfa0a870b1187ab92381bc7f0de51d6bcad0ffaf7b346160099eb79"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 782.915,
+          "request_http_body_utf8_bytes": 3720,
+          "request_parameters_compact_json_utf8_bytes": 2412,
+          "response_http_body_utf8_bytes": 221729,
+          "response_text_utf8_bytes": 35146,
+          "response_mcp_result_compact_json_utf8_bytes": 221108,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 51.566,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 423.278,
+            "request_http_body_utf8_bytes": 2782,
+            "request_parameters_compact_json_utf8_bytes": 1937,
+            "response_http_body_utf8_bytes": 22785,
+            "response_text_utf8_bytes": 10908,
+            "response_mcp_result_compact_json_utf8_bytes": 22370,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 38.455,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 67.716,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 147990,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 147956,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 201.9,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2786,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2752,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "trial-2-baseline",
+        "pair": 2,
+        "position": 2,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "loaded_source_sha256": "64fe58a9fb91e72c2e4bfbb004a14340f49d2b750eb5510c26a6f2550657d464"
+        }
+      },
+      {
+        "variant": "baseline",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 3731.773,
+        "workflow_elapsed_ms": 285.666,
+        "session_elapsed_ms": 457.63,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 72,
+          "tool_names": [
+            "add_slide",
+            "append_presentation_context",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_designs",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_presentations",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "reply_to_presentation_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "wait_for_design_requests",
+            "wait_for_feedback",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 147956,
+          "input_schemas_compact_json_utf8_bytes": 31325,
+          "catalog_sha256": "bc8d40e9dcfa0a870b1187ab92381bc7f0de51d6bcad0ffaf7b346160099eb79"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 438.823,
+          "request_http_body_utf8_bytes": 3720,
+          "request_parameters_compact_json_utf8_bytes": 2412,
+          "response_http_body_utf8_bytes": 221729,
+          "response_text_utf8_bytes": 35146,
+          "response_mcp_result_compact_json_utf8_bytes": 221108,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 27.063,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 41.413,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 32.349,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 147990,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 147956,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 135.324,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2786,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2752,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 202.674,
+            "request_http_body_utf8_bytes": 2782,
+            "request_parameters_compact_json_utf8_bytes": 1937,
+            "response_http_body_utf8_bytes": 22785,
+            "response_text_utf8_bytes": 10908,
+            "response_mcp_result_compact_json_utf8_bytes": 22370,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "trial-3-baseline",
+        "pair": 3,
+        "position": 1,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "loaded_source_sha256": "64fe58a9fb91e72c2e4bfbb004a14340f49d2b750eb5510c26a6f2550657d464"
+        }
+      },
+      {
+        "variant": "candidate",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 2595.554,
+        "workflow_elapsed_ms": 322.583,
+        "session_elapsed_ms": 452.622,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 66,
+          "tool_names": [
+            "add_slide",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 135270,
+          "input_schemas_compact_json_utf8_bytes": 30300,
+          "catalog_sha256": "8dab5ced5107bc56483d73c502166f903cc87fe104d2914e2ab8cd1edbae6173"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 429.328,
+          "request_http_body_utf8_bytes": 3780,
+          "request_parameters_compact_json_utf8_bytes": 2464,
+          "response_http_body_utf8_bytes": 209748,
+          "response_text_utf8_bytes": 35493,
+          "response_mcp_result_compact_json_utf8_bytes": 209127,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 27.782,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 135304,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 135270,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 96.893,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2808,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2774,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 40.601,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 222.653,
+            "request_http_body_utf8_bytes": 2842,
+            "request_parameters_compact_json_utf8_bytes": 1989,
+            "response_http_body_utf8_bytes": 23468,
+            "response_text_utf8_bytes": 11255,
+            "response_mcp_result_compact_json_utf8_bytes": 23053,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 41.399,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "design discovery filters slide packs",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "trial-3-candidate",
+        "pair": 3,
+        "position": 2,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "4da8d6b9fde703aabaf38ba64697a4d33d294062af6ea82e7381217f3fff4300",
+          "loaded_source_sha256": "34508f8bb67778f7f1774c9030e6b4867b88d566d4b22f0e8ef6f081bf4f85da"
+        }
+      }
+    ],
+    "warmups": [
+      {
+        "variant": "baseline",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 3124.769,
+        "workflow_elapsed_ms": 337.527,
+        "session_elapsed_ms": 762.923,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 72,
+          "tool_names": [
+            "add_slide",
+            "append_presentation_context",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_designs",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_presentations",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "reply_to_presentation_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "wait_for_design_requests",
+            "wait_for_feedback",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 147956,
+          "input_schemas_compact_json_utf8_bytes": 31325,
+          "catalog_sha256": "bc8d40e9dcfa0a870b1187ab92381bc7f0de51d6bcad0ffaf7b346160099eb79"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 734.056,
+          "request_http_body_utf8_bytes": 3720,
+          "request_parameters_compact_json_utf8_bytes": 2412,
+          "response_http_body_utf8_bytes": 221729,
+          "response_text_utf8_bytes": 35146,
+          "response_mcp_result_compact_json_utf8_bytes": 221108,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 40.817,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 240.275,
+            "request_http_body_utf8_bytes": 2782,
+            "request_parameters_compact_json_utf8_bytes": 1937,
+            "response_http_body_utf8_bytes": 22785,
+            "response_text_utf8_bytes": 10908,
+            "response_mcp_result_compact_json_utf8_bytes": 22370,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 96.36,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 147990,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 147956,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 39.244,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 317.36,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2786,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2752,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "warmup-1-baseline",
+        "pair": 1,
+        "position": 1,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "loaded_source_sha256": "64fe58a9fb91e72c2e4bfbb004a14340f49d2b750eb5510c26a6f2550657d464"
+        }
+      },
+      {
+        "variant": "candidate",
+        "fixture_content_sha256": "b7aa09233c1c9f80789c9abbebbe692a71a0fcdc95bdee3e54f56cab59037c69",
+        "setup_elapsed_ms": 2254.956,
+        "workflow_elapsed_ms": 431.878,
+        "session_elapsed_ms": 580.014,
+        "idle_wait_ms": 0,
+        "catalog": {
+          "tool_count": 66,
+          "tool_names": [
+            "add_slide",
+            "ask_slide_question",
+            "cancel_slide_question",
+            "capture_artifact",
+            "capture_contact_sheet",
+            "capture_element_alternative",
+            "capture_slide",
+            "capture_slide_design",
+            "check_slide_text",
+            "create_design_pack",
+            "create_presentation",
+            "create_project",
+            "get_artifact",
+            "get_authoring_guide",
+            "get_capture_status",
+            "get_deleted_slides",
+            "get_design_assets",
+            "get_design_context",
+            "get_design_file",
+            "get_element_alternative",
+            "get_element_alternatives",
+            "get_live_review_status",
+            "get_presentation",
+            "get_presentation_design_sync",
+            "get_presentation_outline",
+            "get_presentation_theme",
+            "get_slide",
+            "get_slide_design",
+            "get_slide_designs",
+            "get_slide_questions",
+            "get_working_context",
+            "import_design_asset",
+            "import_presentation_asset",
+            "list_artifacts",
+            "list_design_contexts",
+            "list_libraries",
+            "list_library_files",
+            "list_presentation_assets",
+            "list_projects",
+            "prepare_interactive_html",
+            "publish_element_alternatives",
+            "publish_slide_designs",
+            "read_artifact_feedback",
+            "read_artifact_files",
+            "read_design_requests",
+            "read_feedback",
+            "read_library_file",
+            "refresh_library",
+            "register_artifact",
+            "register_design",
+            "register_library",
+            "remove_slide",
+            "reorder_slides",
+            "reply_to_artifact_feedback",
+            "reply_to_design_request",
+            "reply_to_feedback",
+            "revise_artifact",
+            "revise_slide",
+            "set_default_design",
+            "set_presentation_sections",
+            "start_live_review",
+            "sync_presentation_design",
+            "sync_presentations",
+            "update_presentation_context",
+            "update_presentation_theme",
+            "write_design_file"
+          ],
+          "catalog_compact_json_utf8_bytes": 135270,
+          "input_schemas_compact_json_utf8_bytes": 30300,
+          "catalog_sha256": "8dab5ced5107bc56483d73c502166f903cc87fe104d2914e2ab8cd1edbae6173"
+        },
+        "learning_read_comparison": {
+          "get_presentation": {
+            "request_http_body_utf8_bytes": 143,
+            "request_parameters_compact_json_utf8_bytes": 76,
+            "response_http_body_utf8_bytes": 14767,
+            "response_text_utf8_bytes": 7469,
+            "response_mcp_result_compact_json_utf8_bytes": 14733,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "get_presentation_outline": {
+            "request_http_body_utf8_bytes": 176,
+            "request_parameters_compact_json_utf8_bytes": 107,
+            "response_http_body_utf8_bytes": 10575,
+            "response_text_utf8_bytes": 5256,
+            "response_mcp_result_compact_json_utf8_bytes": 10541,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "transport": {
+          "http_exchanges": 19,
+          "jsonrpc_requests": 18,
+          "tool_calls": 16,
+          "method_counts": {
+            "initialize": 1,
+            "notifications/initialized": 1,
+            "tools/list": 1,
+            "tools/call": 16
+          },
+          "tool_errors": 2,
+          "jsonrpc_errors": 0,
+          "transport_errors": 0,
+          "expected_tool_errors": 2,
+          "summed_http_elapsed_ms": 553.661,
+          "request_http_body_utf8_bytes": 3780,
+          "request_parameters_compact_json_utf8_bytes": 2464,
+          "response_http_body_utf8_bytes": 209748,
+          "response_text_utf8_bytes": 35493,
+          "response_mcp_result_compact_json_utf8_bytes": 209127,
+          "image_base64_bytes": 0,
+          "image_decoded_bytes": 0
+        },
+        "phases": {
+          "discovery": {
+            "http_exchanges": 1,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "tools/list": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 42.927,
+            "request_http_body_utf8_bytes": 65,
+            "request_parameters_compact_json_utf8_bytes": 2,
+            "response_http_body_utf8_bytes": 135304,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 135270,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "verification": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 41.599,
+            "request_http_body_utf8_bytes": 309,
+            "request_parameters_compact_json_utf8_bytes": 171,
+            "response_http_body_utf8_bytes": 22826,
+            "response_text_utf8_bytes": 11513,
+            "response_mcp_result_compact_json_utf8_bytes": 22756,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "initialization": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 1,
+            "tool_calls": 0,
+            "method_counts": {
+              "initialize": 1,
+              "notifications/initialized": 1
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 100.283,
+            "request_http_body_utf8_bytes": 245,
+            "request_parameters_compact_json_utf8_bytes": 119,
+            "response_http_body_utf8_bytes": 2808,
+            "response_text_utf8_bytes": 0,
+            "response_mcp_result_compact_json_utf8_bytes": 2774,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "workflow": {
+            "http_exchanges": 12,
+            "jsonrpc_requests": 12,
+            "tool_calls": 12,
+            "method_counts": {
+              "tools/call": 12
+            },
+            "tool_errors": 2,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 2,
+            "summed_http_elapsed_ms": 314.369,
+            "request_http_body_utf8_bytes": 2842,
+            "request_parameters_compact_json_utf8_bytes": 1989,
+            "response_http_body_utf8_bytes": 23468,
+            "response_text_utf8_bytes": 11255,
+            "response_mcp_result_compact_json_utf8_bytes": 23053,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          },
+          "learning": {
+            "http_exchanges": 2,
+            "jsonrpc_requests": 2,
+            "tool_calls": 2,
+            "method_counts": {
+              "tools/call": 2
+            },
+            "tool_errors": 0,
+            "jsonrpc_errors": 0,
+            "transport_errors": 0,
+            "expected_tool_errors": 0,
+            "summed_http_elapsed_ms": 54.483,
+            "request_http_body_utf8_bytes": 319,
+            "request_parameters_compact_json_utf8_bytes": 183,
+            "response_http_body_utf8_bytes": 25342,
+            "response_text_utf8_bytes": 12725,
+            "response_mcp_result_compact_json_utf8_bytes": 25274,
+            "image_base64_bytes": 0,
+            "image_decoded_bytes": 0
+          }
+        },
+        "correctness": [
+          {
+            "name": "exact advertised tool count",
+            "passed": true
+          },
+          {
+            "name": "compatibility aliases advertised only on baseline",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_presentations: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "presentation discovery preserves every editable ID/title",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "discover_designs: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "design discovery preserves selectable ID/name/folder",
+            "passed": true
+          },
+          {
+            "name": "design discovery filters slide packs",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "learning_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "read_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "read_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "learning outline preserves full context and concurrency hash",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_released_feedback: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "released feedback delivered with original anchor",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "wait_design_message: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "ready design message delivered once",
+            "passed": true
+          },
+          {
+            "name": "general_reply: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "general_reply_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "general reply is agent-authored, anchored, and retry-idempotent",
+            "passed": true
+          },
+          {
+            "name": "append_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "append_context_retry: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "append exact retry preserves receipt and one addition",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_append_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "stale_whole_write_rejected: conflict explained",
+            "passed": true
+          },
+          {
+            "name": "rejected stale writes leave context intact",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "fresh_context: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "current_whole_write: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_full_presentation: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "whole-write default still replaces complete context",
+            "passed": true
+          },
+          {
+            "name": "original content, notes, hidden state and revision anchors preserved",
+            "passed": true
+          },
+          {
+            "name": "speaker note marker preserved",
+            "passed": true
+          },
+          {
+            "name": "hidden slide remains hidden",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: expected tool status",
+            "passed": true
+          },
+          {
+            "name": "verify_feedback_cursor: withheld feedback remains private",
+            "passed": true
+          },
+          {
+            "name": "feedback cursor yields no duplicate released comment",
+            "passed": true
+          },
+          {
+            "name": "withheld comment remains unreleased in storage",
+            "passed": true
+          },
+          {
+            "name": "waiting lease cleared after ready feedback",
+            "passed": true
+          },
+          {
+            "name": "application source unchanged during worker",
+            "passed": true
+          }
+        ],
+        "final_state_sha256": "492071c689e80dbd500a4d7b7dae58891e527a3b8941789c3c9ffec88b2d2cfb",
+        "run_id": "warmup-1-candidate",
+        "pair": 1,
+        "position": 2,
+        "source": {
+          "commit": "68af28d58344775390a73f36667afe894196080c",
+          "tracked_diff_sha256": "8228affa4149ba976190774490355332b698de4428bb0d66e6e80eada90ae215",
+          "loaded_source_sha256": "34508f8bb67778f7f1774c9030e6b4867b88d566d4b22f0e8ef6f081bf4f85da"
+        }
+      }
+    ]
+  },
+  "autonomous_hosted_baseline_editor": {
+    "run_id": "2026-11-15-tool-surface",
+    "role": "editing-agent",
+    "experiment": "autonomous-baseline-authoring-review",
+    "source": {
+      "baseline_commit": "68af28d58344775390a73f36667afe894196080c"
+    },
+    "scenario": {
+      "deck_id": "2026-11-01-fictional-multiplayer",
+      "fictional": true,
+      "slides": 12,
+      "sections": 3,
+      "hidden_slide_ids": [
+        "appendix"
+      ]
+    },
+    "measurement_scope": "This editor\u2019s actual RecordedPeer HTTP MCP calls only; coordinator and browser personas excluded. Phases prefixed editor-.",
+    "provider_usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "model": null,
+      "reason": "No supported provider/harness usage metadata was exposed to this role."
+    },
+    "token_estimates": null,
+    "transport": {
+      "rpc_calls": 73,
+      "tool_calls": 70,
+      "initializations": 1,
+      "catalogue_discoveries": 1,
+      "catalogue_tools": 52,
+      "transport_errors": 0,
+      "jsonrpc_errors": 0,
+      "tool_errors": 3,
+      "summed_rpc_elapsed_ms": 30075.465,
+      "byte_totals": {
+        "image_base64_utf8_bytes": 1668508,
+        "image_decoded_bytes": 1251372,
+        "request_http_body_utf8_bytes": 62768,
+        "request_parameters_utf8_bytes": 58616,
+        "response_http_body_utf8_bytes": 1984434,
+        "response_mcp_json_utf8_bytes": 1981924,
+        "response_nonimage_json_utf8_bytes": 312854,
+        "response_text_utf8_bytes": 139229
+      },
+      "method_counts": {
+        "initialize": 1,
+        "notifications/initialized": 1,
+        "tools/list": 1,
+        "tools/call": 70
+      },
+      "tool_counts": {
+        "get_working_context": 1,
+        "get_authoring_guide": 1,
+        "read_feedback": 5,
+        "get_slide": 6,
+        "get_presentation_theme": 1,
+        "list_presentation_assets": 1,
+        "get_design_context": 1,
+        "claim_feedback": 4,
+        "update_presentation_theme": 1,
+        "update_presentation_context": 1,
+        "set_slide_activity": 2,
+        "revise_slide": 7,
+        "add_slide": 10,
+        "capture_slide": 10,
+        "reply_to_feedback": 4,
+        "get_presentation_outline": 11,
+        "set_presentation_sections": 1,
+        "capture_contact_sheet": 3
+      },
+      "phases": {
+        "editor-brief": {
+          "rpc_calls": 2,
+          "summed_rpc_elapsed_ms": 59.279,
+          "tool_errors": 0
+        },
+        "editor-discovery": {
+          "rpc_calls": 11,
+          "summed_rpc_elapsed_ms": 270.957,
+          "tool_errors": 1
+        },
+        "editor-full-authoring": {
+          "rpc_calls": 21,
+          "summed_rpc_elapsed_ms": 1098.896,
+          "tool_errors": 0
+        },
+        "editor-full-capture": {
+          "rpc_calls": 7,
+          "summed_rpc_elapsed_ms": 15987.747,
+          "tool_errors": 1
+        },
+        "editor-full-handoff": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 212.194,
+          "tool_errors": 0
+        },
+        "editor-full-verification": {
+          "rpc_calls": 1,
+          "summed_rpc_elapsed_ms": 103.804,
+          "tool_errors": 0
+        },
+        "editor-human-draft-revision": {
+          "rpc_calls": 2,
+          "summed_rpc_elapsed_ms": 66.981,
+          "tool_errors": 0
+        },
+        "editor-review": {
+          "rpc_calls": 6,
+          "summed_rpc_elapsed_ms": 224.461,
+          "tool_errors": 0
+        },
+        "editor-sample-authoring": {
+          "rpc_calls": 7,
+          "summed_rpc_elapsed_ms": 263.859,
+          "tool_errors": 0
+        },
+        "editor-sample-build-capture": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 6047.622,
+          "tool_errors": 0
+        },
+        "editor-sample-capture": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 5440.291,
+          "tool_errors": 0
+        },
+        "editor-sample-handoff": {
+          "rpc_calls": 2,
+          "summed_rpc_elapsed_ms": 48.588,
+          "tool_errors": 0
+        },
+        "editor-stale-conflict": {
+          "rpc_calls": 1,
+          "summed_rpc_elapsed_ms": 55.138,
+          "tool_errors": 1
+        },
+        "editor-stale-guard": {
+          "rpc_calls": 1,
+          "summed_rpc_elapsed_ms": 34.283,
+          "tool_errors": 0
+        },
+        "editor-stale-recovery": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 161.365,
+          "tool_errors": 0
+        }
+      },
+      "overlap_notice": "Response text, image base64 and complete serialized response sizes overlap; do not add them. Bytes are not tokens."
+    },
+    "timing": {
+      "first_editor_event_utc": "2026-11-15T08:39:02.044022+00:00",
+      "draft_handoff_utc": "2026-11-15T08:54:30.081252+00:00",
+      "sample_wait_started_utc": "2026-11-15T08:45:29.912823+00:00",
+      "sample_resumed_utc": "2026-11-15T08:46:57.861725+00:00",
+      "interpretation": "Event wall time includes model work, tools, review waits and coordination; summed RPC duration is not user-task elapsed time. Final-review wait continues."
+    },
+    "correctness": [
+      {
+        "check": "twelve_slides_three_sections_hidden_appendix",
+        "status": "pass",
+        "evidence": "final-outline.json"
+      },
+      {
+        "check": "real_sample_inspected_before_expansion",
+        "status": "pass",
+        "evidence": "sample-checkpoint.md"
+      },
+      {
+        "check": "stale_editor_guard_rejected",
+        "status": "pass",
+        "evidence": "stale-cover-conflict.json"
+      },
+      {
+        "check": "entire_owner_note_preserved",
+        "status": "pass",
+        "evidence": "cover-note-preservation.json"
+      },
+      {
+        "check": "editable_svg_and_larger_release_rule",
+        "status": "pass",
+        "evidence": "workflow-corrected-1.png; full-payloads.json"
+      },
+      {
+        "check": "build_initial_midpoint_final_pixels",
+        "status": "pass",
+        "evidence": "evidence-stage0-1.png; evidence-stage1-mid-1.png; evidence-stage1-end-1.png"
+      },
+      {
+        "check": "actual_present_enter",
+        "status": "owner-reported-pass",
+        "evidence": "continuation-feedback.json"
+      },
+      {
+        "check": "all_slide_layouts_inspected",
+        "status": "pass",
+        "evidence": "full-deck-sheet-1-1.png; full-deck-sheet-2-1.png"
+      },
+      {
+        "check": "actual_ui_export_and_hidden_navigation",
+        "status": "pending-owner"
+      },
+      {
+        "check": "version_specific_approval",
+        "status": "human-only-pending"
+      },
+      {
+        "check": "library_title_renamed",
+        "status": "unavailable-scoped-tool",
+        "evidence": "final-outline.json"
+      }
+    ],
+    "errors": [
+      {
+        "type": "scope-discoverability-fixture",
+        "tool": "get_design_context",
+        "count": 1,
+        "description": "Referenced design is not granted to artifact-scoped connection; honored denial."
+      },
+      {
+        "type": "intentional-concurrency-conflict",
+        "tool": "revise_slide",
+        "count": 1,
+        "description": "Held old guard rejected after owner note; fresh read and focused HTML merge preserved note."
+      },
+      {
+        "type": "schema-runtime-constraint-mismatch",
+        "tool": "capture_contact_sheet",
+        "count": 1,
+        "description": "Schema lacks maximum; runtime rejects limit=12. Captured pages of 8 and 4."
+      }
+    ],
+    "limitations": [
+      "One autonomous observation, not a controlled performance or token comparison.",
+      "Capture metadata reports runtime_matches_deck=false; real UI Present/export remains separate.",
+      "Narrow fitted preview readability concern came from accessible Shared context; editor did not drive human browser.",
+      "No production code edits, no Store/API source bypass, no human/private draft inspection.",
+      "No JavaScript interaction was needed by this composition; arbitrary HTML/CSS/inline SVG and built-in animation remained freely authored."
+    ],
+    "payload_sha256": {
+      "sample-payloads.json": "cfc9dd19cdb92da474f2bb9b7a0f5e09d30d51caed2059ea9e700c7e5e75752a",
+      "full-payloads.json": "9d86b96357619a990b10171c6c765d247eef555881dc53600f70b825ca27e1eb",
+      "theme-proposed.css": "4eaaa448219f171b4d708c1c48541aad7395b5dfed68f19c64f45fc1136b8a05",
+      "brief-proposed.md": "6111fcaef33ba523f7300672a16b8b2fe487b75ae87660cfd3a57b59ce3eccf1"
+    },
+    "evidence": [
+      "events.jsonl",
+      "../calls.jsonl",
+      "sample-checkpoint.md",
+      "final-outline.json",
+      "full-deck-sheet-1-1.png",
+      "full-deck-sheet-2-1.png",
+      "workflow-corrected-1.png",
+      "risks-full-1.png",
+      "gates-full-1.png",
+      "decision-full-1.png"
+    ]
+  },
+  "cli_experiment": {
+    "fictional_fixture": true,
+    "payload": {
+      "authored_html_bytes": 7204,
+      "interactive_html_bytes": 156,
+      "notes_bytes": 57,
+      "input_file_bytes": 9109,
+      "prepared_file_bytes": 9261,
+      "inline_tool_arguments_bytes": 9121,
+      "inline_receipt_bytes": 302
+    },
+    "stages": [
+      {
+        "stage": "describe",
+        "exit_code": 0,
+        "stdout_bytes": 253,
+        "stderr_bytes": 0,
+        "rpc_methods": [],
+        "tool_calls": [],
+        "initializations": 0
+      },
+      {
+        "stage": "prepare",
+        "exit_code": 0,
+        "stdout_bytes": 3793,
+        "stderr_bytes": 0,
+        "rpc_methods": [
+          "initialize",
+          "notifications/initialized",
+          "tools/call"
+        ],
+        "tool_calls": [
+          "get_presentation_outline"
+        ],
+        "initializations": 1
+      },
+      {
+        "stage": "execute-verify",
+        "exit_code": 0,
+        "stdout_bytes": 3850,
+        "stderr_bytes": 0,
+        "rpc_methods": [
+          "initialize",
+          "notifications/initialized",
+          "tools/call",
+          "tools/call"
+        ],
+        "tool_calls": [
+          "revise_slide",
+          "get_presentation_outline"
+        ],
+        "initializations": 1
+      },
+      {
+        "stage": "prepare-retained-rules",
+        "exit_code": 0,
+        "stdout_bytes": 569,
+        "stderr_bytes": 0,
+        "rpc_methods": [
+          "initialize",
+          "notifications/initialized",
+          "tools/call"
+        ],
+        "tool_calls": [
+          "get_presentation_outline"
+        ],
+        "initializations": 1
+      },
+      {
+        "stage": "execute-verify-retained-rules",
+        "exit_code": 0,
+        "stdout_bytes": 621,
+        "stderr_bytes": 0,
+        "rpc_methods": [
+          "initialize",
+          "notifications/initialized",
+          "tools/call",
+          "tools/call"
+        ],
+        "tool_calls": [
+          "revise_slide",
+          "get_presentation_outline"
+        ],
+        "initializations": 1
+      },
+      {
+        "stage": "intentional-stale",
+        "exit_code": 1,
+        "stdout_bytes": 147,
+        "stderr_bytes": 0,
+        "rpc_methods": [
+          "initialize",
+          "notifications/initialized",
+          "tools/call"
+        ],
+        "tool_calls": [
+          "revise_slide"
+        ],
+        "initializations": 1
+      }
+    ],
+    "invariants": {
+      "custom_svg_retained": true,
+      "custom_css_retained": true,
+      "interactive_js_exact": true,
+      "notes_exact": true,
+      "verified": true,
+      "stale_rejected": true,
+      "notes_unchanged_after_stale": true
+    },
+    "comparison": "Interface bytes, not billed tokens. Source must initially be authored in either flow. CLI shifts subsequent transport to local files; ordinary inline comparison uses the identical prepared write arguments and successful receipt, not a second write."
+  },
+  "provider_usage": null,
+  "token_estimates": null,
+  "visual_evidence": {
+    "scope": "1600x900 real audience captures, fictional authored content; no new templates or app chrome changes",
+    "files": [
+      "tool-surface-review/custom-cover.png",
+      "tool-surface-review/workflow-before-review.png",
+      "tool-surface-review/workflow-after-review.png",
+      "tool-surface-review/candidate-workspace.png"
+    ]
+  },
+  "fresh_local_agent": {
+    "scope": "Independent tool discoverability task; recorded request/result objects only. Notifications and shell/browser context are not fully instrumented; not comparable to the full hosted authoring trace.",
+    "model": "gpt-6.1-terra",
+    "discovered_tools": 66,
+    "method_counts": {
+      "initialize": 3,
+      "tools/list": 1,
+      "tools/call": 14
+    },
+    "tool_counts": {
+      "get_working_context": 2,
+      "list_artifacts": 1,
+      "list_design_contexts": 1,
+      "get_presentation_outline": 1,
+      "read_feedback": 2,
+      "update_presentation_context": 1,
+      "reply_to_feedback": 1,
+      "get_slide": 1,
+      "get_authoring_guide": 2,
+      "get_capture_status": 1,
+      "revise_slide": 1
+    },
+    "transport_errors": 1,
+    "tool_errors": 0,
+    "initialization_note": "One sandbox-denied attempt; two initialized processes after accidental stdin closure; one catalogue read reused.",
+    "results": [
+      "Canonical discovery, general reply, bounded read and append found without old tool-name hints.",
+      "Custom HTML/CSS/SVG and interactive HTML/JavaScript saved with original notes/metadata.",
+      "Existing live client selected over file CLI for a small payload."
+    ],
+    "limitations": [
+      "Local bundled browser missing; no visual verification claimed by this agent.",
+      "Hosted browser personas and captures supply separate visual checks.",
+      "No provider usage or token estimates available."
+    ],
+    "provider_usage": null,
+    "token_estimates": null
+  },
+  "autonomous_hosted_candidate_editor": {
+    "run_id": "2026-11-15-tool-surface",
+    "role": "editing-agent",
+    "experiment": "candidate-reviewed-source-reproduction",
+    "source": {
+      "base_commit": "68af28d58344775390a73f36667afe894196080c",
+      "loaded_source_fingerprint_before_final_error_guidance": "bc2faab9c6a76d65c3b681338a90fe4d7e317e6a90c6e2090d8e06b3c9629495",
+      "note": "Autonomous fixture started after corrected capture bounds; final canonical unknown-design error wording was subsequently checked in the matched source benchmark. That unused error path does not change these exercised operations."
+    },
+    "scenario": {
+      "deck_id": "2026-11-01-fictional-multiplayer",
+      "fictional": true,
+      "slides": 12,
+      "sections": 3,
+      "hidden_slide_ids": [
+        "appendix"
+      ],
+      "payload_origin": "Own baseline authored payloads, reauthored through live scoped MCP; no canonical state/history copied."
+    },
+    "measurement_scope": "Candidate editor-* RecordedPeer MCP phases only; coordinator preflight and browser persona calls excluded.",
+    "provider_usage": {
+      "input_tokens": null,
+      "output_tokens": null,
+      "cached_tokens": null,
+      "reasoning_tokens": null,
+      "model": null,
+      "reason": "No supported provider/harness usage metadata exposed to this role."
+    },
+    "token_estimates": null,
+    "transport": {
+      "rpc_calls": 82,
+      "tool_calls": 79,
+      "initializations": 1,
+      "catalogue_discoveries": 1,
+      "catalogue_tools": 51,
+      "tool_errors": 1,
+      "transport_errors": 0,
+      "jsonrpc_errors": 0,
+      "capture_invalid_limit_errors": 0,
+      "summed_rpc_elapsed_ms": 33195.515,
+      "byte_totals": {
+        "image_base64_utf8_bytes": 1668508,
+        "image_decoded_bytes": 1251372,
+        "request_http_body_utf8_bytes": 59640,
+        "request_parameters_utf8_bytes": 54975,
+        "response_http_body_utf8_bytes": 2057922,
+        "response_mcp_json_utf8_bytes": 2055097,
+        "response_nonimage_json_utf8_bytes": 386027,
+        "response_text_utf8_bytes": 174220
+      },
+      "tool_counts": {
+        "get_working_context": 1,
+        "get_authoring_guide": 1,
+        "read_feedback": 5,
+        "get_slide": 18,
+        "get_presentation_theme": 1,
+        "list_presentation_assets": 1,
+        "claim_feedback": 3,
+        "get_presentation_outline": 13,
+        "update_presentation_context": 2,
+        "update_presentation_theme": 1,
+        "set_slide_activity": 2,
+        "revise_slide": 5,
+        "add_slide": 10,
+        "capture_slide": 10,
+        "reply_to_feedback": 3,
+        "set_presentation_sections": 1,
+        "capture_contact_sheet": 2
+      },
+      "phases": {
+        "editor-brief": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 146.879,
+          "tool_errors": 0
+        },
+        "editor-build-verification": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 6424.064,
+          "tool_errors": 0
+        },
+        "editor-context-append": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 81.326,
+          "tool_errors": 0
+        },
+        "editor-discovery": {
+          "rpc_calls": 10,
+          "summed_rpc_elapsed_ms": 266.31,
+          "tool_errors": 0
+        },
+        "editor-final-feedback-check": {
+          "rpc_calls": 1,
+          "summed_rpc_elapsed_ms": 19.099,
+          "tool_errors": 0
+        },
+        "editor-full-authoring": {
+          "rpc_calls": 20,
+          "summed_rpc_elapsed_ms": 1020.105,
+          "tool_errors": 0
+        },
+        "editor-full-capture": {
+          "rpc_calls": 6,
+          "summed_rpc_elapsed_ms": 16215.187,
+          "tool_errors": 0
+        },
+        "editor-full-handoff": {
+          "rpc_calls": 2,
+          "summed_rpc_elapsed_ms": 61.406,
+          "tool_errors": 0
+        },
+        "editor-full-source-verification": {
+          "rpc_calls": 13,
+          "summed_rpc_elapsed_ms": 536.727,
+          "tool_errors": 0
+        },
+        "editor-human-draft-revision": {
+          "rpc_calls": 2,
+          "summed_rpc_elapsed_ms": 286.95,
+          "tool_errors": 0
+        },
+        "editor-review": {
+          "rpc_calls": 4,
+          "summed_rpc_elapsed_ms": 119.362,
+          "tool_errors": 0
+        },
+        "editor-sample-authoring": {
+          "rpc_calls": 5,
+          "summed_rpc_elapsed_ms": 251.258,
+          "tool_errors": 0
+        },
+        "editor-sample-capture": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 7193.48,
+          "tool_errors": 0
+        },
+        "editor-sample-handoff": {
+          "rpc_calls": 2,
+          "summed_rpc_elapsed_ms": 66.217,
+          "tool_errors": 0
+        },
+        "editor-stale-conflict": {
+          "rpc_calls": 1,
+          "summed_rpc_elapsed_ms": 130.415,
+          "tool_errors": 1
+        },
+        "editor-stale-guard": {
+          "rpc_calls": 1,
+          "summed_rpc_elapsed_ms": 45.406,
+          "tool_errors": 0
+        },
+        "editor-stale-recovery": {
+          "rpc_calls": 3,
+          "summed_rpc_elapsed_ms": 331.324,
+          "tool_errors": 0
+        }
+      }
+    },
+    "timing": {
+      "first_editor_event_utc": "2026-11-15T08:58:28.764381+00:00",
+      "sample_wait_started_utc": "2026-11-15T09:01:22.453561+00:00",
+      "sample_full_continuation_resumed_utc": "2026-11-15T09:07:49.941033+00:00",
+      "full_handoff_utc": "2026-11-15T09:10:11.779962+00:00",
+      "interpretation": "Wall time includes source reuse, coordination and review waits. Summed RPC time is not user task elapsed time."
+    },
+    "correctness": [
+      {
+        "check": "canonical_context_append",
+        "status": "pass",
+        "evidence": "context-append-verification.json"
+      },
+      {
+        "check": "exact_append_retry_original_guard_no_duplicate",
+        "status": "pass",
+        "evidence": "context-append-exact-retry.json"
+      },
+      {
+        "check": "advertised_contact_sheet_bound_used",
+        "status": "pass",
+        "value": 8,
+        "invalid_requests": 0,
+        "evidence": "../tool-schemas.json; full-deck-sheet-1.json; full-deck-sheet-2.json"
+      },
+      {
+        "check": "twelve_sources_notes_visibility_match",
+        "status": "pass",
+        "evidence": "source-verification.json"
+      },
+      {
+        "check": "three_sections_hidden_appendix",
+        "status": "pass",
+        "evidence": "final-outline.json"
+      },
+      {
+        "check": "stale_cover_rejected_and_full_note_preserved",
+        "status": "pass",
+        "evidence": "stale-cover-conflict.json; cover-note-preservation.json"
+      },
+      {
+        "check": "actual_present_enter",
+        "status": "owner-reported-pass",
+        "evidence": "continuation-and-recovered-feedback.json"
+      },
+      {
+        "check": "stale_human_draft_recovery",
+        "status": "coordinator-reported-pass",
+        "description": "Proactive stale UI disabled Send; explicit Review \u2192 Use this version \u2192 Send succeeded. No forced 409 required. Editor received only final released request5."
+      },
+      {
+        "check": "sample_and_full_captures_inspected",
+        "status": "pass",
+        "evidence": "events.jsonl"
+      },
+      {
+        "check": "build_initial_midpoint_final",
+        "status": "pass",
+        "evidence": "evidence-stage0-1.png; evidence-stage1-mid-1.png; evidence-stage1-end-1.png"
+      },
+      {
+        "check": "pending_assigned_feedback_completed",
+        "status": "pass",
+        "evidence": "final-pending-feedback.json"
+      },
+      {
+        "check": "final_ui_export_approval",
+        "status": "pending-human-review"
+      },
+      {
+        "check": "library_title_renamed",
+        "status": "unavailable-scoped-tool"
+      }
+    ],
+    "limitations": [
+      "This rerun reused reviewed source and prior learning; it is not comparable to first-draft baseline as a token, speed or cost experiment.",
+      "Candidate adds all-slide source verification and append/idempotency checks; autonomous call workloads differ.",
+      "Provider tokens and costs are unavailable. Bytes are not tokens; serialized text/images overlap.",
+      "Capture metadata reports runtime_matches_deck=false; exact legacy runtime, native app and physical displays are not certified by trusted capture.",
+      "Narrow fitted view remains a small overview; owner/reviewer UI evidence is separate."
+    ],
+    "evidence": [
+      "events.jsonl",
+      "../calls.jsonl",
+      "source-verification.json",
+      "final-outline.json",
+      "full-deck-sheet-1-1.png",
+      "full-deck-sheet-2-1.png",
+      "workflow-corrected-1.png",
+      "risks-full-1.png",
+      "gates-full-1.png",
+      "decision-full-1.png"
+    ],
+    "payload_sha256": {
+      "sample-payloads.json": "cfc9dd19cdb92da474f2bb9b7a0f5e09d30d51caed2059ea9e700c7e5e75752a",
+      "full-payloads.json": "9d86b96357619a990b10171c6c765d247eef555881dc53600f70b825ca27e1eb",
+      "theme-proposed.css": "4eaaa448219f171b4d708c1c48541aad7395b5dfed68f19c64f45fc1136b8a05",
+      "brief-append-proposed.md": "e3732710935479df3809d98113255efb47db14a8e3071ad8ac5aa647791a7828",
+      "workflow-final-proposed.html": "8729e9e19f4d46a7949e8a72699cacc4bae82c7a4885d933c8fe1abc3e895da7"
+    }
+  },
+  "human_persona_outcomes": {
+    "owner_model": "gpt-6.1-terra",
+    "reviewer_model": "gpt-6.1-terra",
+    "baseline": {
+      "slides_inspected_and_approved": 12,
+      "sections": 3,
+      "hidden_slides": 1,
+      "audience_pdf_pages": 11,
+      "owner_note_preserved": true,
+      "present_enter_build": true,
+      "stale_editor_conflict_recovered": true,
+      "stale_human_draft": "HTTP409 followed by explicit review, use current, send"
+    },
+    "candidate": {
+      "slides_inspected_and_approved": 12,
+      "sections": 3,
+      "hidden_slides": 1,
+      "audience_pdf_pages": 11,
+      "owner_note_preserved": true,
+      "present_enter_build": true,
+      "stale_editor_conflict_recovered": true,
+      "stale_human_draft": "Proactive stale warning disabled Send; explicit review, use current, send",
+      "incidental_note_revisions": "Owner initially edited evidence after Present transition, restored note content, then saved cover; logged operator mistake"
+    },
+    "reviewer": "Final desktop workflow/risk/gate views match reviewed correction; narrow fitted view remains small. Ordinary Shared comment persists.",
+    "limits": [
+      "Browser print emulation, not native print dialog",
+      "Buffered SSE fixture transport; no reliable live refresh coverage",
+      "No exhaustive UI revocation/account-management study"
+    ],
+    "browser_contexts_closed": true
+  },
+  "verification": {
+    "affected_pytest_passed": 99,
+    "affected_pytest_skipped": 6,
+    "ruff": "passed",
+    "format": "passed",
+    "strict_types": "passed",
+    "astra_security_review": "approved; canonical and hidden agent replies reject withheld events",
+    "free_design_source": "custom HTML/CSS/SVG and interactive JavaScript retained; rendered hosted samples and actual Present/Enter reviewed"
+  },
+  "completed_at": "2026-11-15T09:13:56.720561+00:00"
+}

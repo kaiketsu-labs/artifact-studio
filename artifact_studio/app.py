@@ -20,7 +20,7 @@ from urllib.parse import quote, urlencode
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver import Context
 from mcp.server.mcpserver import Image as MCPImage
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
@@ -140,7 +140,15 @@ from .slide_designs import (
 )
 from .storage import ConflictError, Store, digest
 from .text_review import check_slide_text as review_captured_text
-from .visuals import CaptureOptions, VisualResult, capture, capture_queue_status, capture_snapshot
+from .tool_server import ToolServer
+from .visuals import (
+    MAX_CONTACT_SLIDES,
+    CaptureOptions,
+    VisualResult,
+    capture,
+    capture_queue_status,
+    capture_snapshot,
+)
 
 PROJECT = Path(__file__).resolve().parent.parent
 deployment = DeploymentConfig.from_env()
@@ -150,7 +158,7 @@ COLLECTION = Path(
 )
 DATABASE = Path(os.environ.get("ARTIFACT_STUDIO_DATABASE", str(PROJECT / ".state/review.sqlite3")))
 store = Store(COLLECTION, DATABASE)
-mcp = MCPServer[None](
+mcp = ToolServer[None](
     "Artifact Studio",
     version=__version__,
     instructions=(PROJECT / "agent/bootstrap.md").read_text(),
@@ -985,14 +993,15 @@ def capture_slide(
 @tool_errors
 def capture_contact_sheet(
     deck_id: str,
-    offset: int = 0,
-    limit: int = 24,
-    slide_ids: list[str] | None = None,
+    offset: Annotated[int, Field(ge=0)] = 0,
+    limit: Annotated[int, Field(ge=1, le=MAX_CONTACT_SLIDES)] = MAX_CONTACT_SLIDES,
+    slide_ids: Annotated[list[str], Field(min_length=1, max_length=500)] | None = None,
     resolution: Literal["full", "draft"] = "draft",
 ) -> CallToolResult:
     """Inspect a paginated overview of completed slides, including hidden slides.
 
-    Select slide_ids or page through the deck; up to 24 frames per sheet, in deck order.
+    Select up to 500 distinct slide_ids or page through the deck; 1–24 frames per sheet,
+    in deck order. offset must be nonnegative.
     Draft frames are 800x450; resolution="full" uses 1600x900. Returns image pixels,
     local frame paths, version hashes and next_offset. Concurrent captures queue.
     Use capture_slide for chart detail and reveal steps; a contact sheet alone is
@@ -1085,12 +1094,14 @@ def list_designs() -> list[DesignView]:
 
 @mcp.tool(annotations=READ)
 @tool_errors
-def list_design_contexts() -> list[DesignItem]:
+def list_design_contexts(
+    kind: Literal["all", "slide_pack", "references"] = "all",
+) -> list[DesignItem]:
     """Discover reusable slide packs and file-based design references separately from work.
     Use get_design_context to inspect original files, guidance and assets. File collections
     can guide any artifact; they are not registered slide templates.
     """
-    return DesignLibrary(store).list()
+    return [item for item in DesignLibrary(store).list() if kind == "all" or item.kind == kind]
 
 
 @mcp.tool(annotations=READ)
@@ -1180,11 +1191,24 @@ def sync_presentation_design(
 
 
 @mcp.tool(annotations=READ)
-def read_design_requests(after_event_id: int = 0) -> DesignInbox:
-    """Read the design-library chat, including links and local attachment paths. Handle queued
+def read_design_requests(after_event_id: int = 0, wait_seconds: int = 0) -> DesignInbox:
+    """Read the design-library chat; wait_seconds=0 returns immediately, up to 25 waits.
+    Includes links and local attachment paths. Handle queued
     requests, reply in the chat, and register the reference-based design when ready.
     """
-    return store.design_inbox(after_event_id)
+    timeout = min(25, max(0, wait_seconds))
+    if not timeout:
+        return store.design_inbox(after_event_id)
+    store.mark_design_wait(timeout + 2)
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            inbox = store.design_inbox(after_event_id)
+            if inbox.messages or time.monotonic() >= deadline:
+                return inbox
+            time.sleep(0.25)
+    finally:
+        store.mark_design_wait()
 
 
 @mcp.tool(annotations=READ)
@@ -1222,8 +1246,16 @@ def reply_to_design_request(
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
-def update_presentation_context(deck_id: str, markdown: str, expected_hash: str) -> str:
-    """Save purpose, context, sources, data date and continuation notes in the deck README."""
+def update_presentation_context(
+    deck_id: str,
+    markdown: str,
+    expected_hash: str,
+    mode: Literal["replace", "append"] = "replace",
+) -> str:
+    """Save the deck README: mode="replace" replaces it; "append" adds a continuation note.
+    Use its current context_hash; exact append retries are idempotent."""
+    if mode == "append":
+        return store.append_context(deck_id, markdown, expected_hash)
     return store.update_context(deck_id, markdown, expected_hash)
 
 
@@ -1393,18 +1425,39 @@ def read_feedback(
     after_delivery_id: int = 0,
     known_rules_hash: str = "",
     known_design_requests_hash: str = "",
+    wait_seconds: int = 0,
 ) -> FeedbackFeed:
-    """Read released feedback; carry next_cursor forward. Batch privacy is unchanged.
+    """Read released feedback; carry next_cursor forward. wait_seconds=0 returns immediately;
+    positive values wait up to 25 seconds. Batch privacy is unchanged.
     Pass known_rules_hash only while retaining those rules: unchanged text is omitted,
     but changed rules are always returned in full with a new rules_hash.
     known_design_requests_hash omits only retained queued requests; it does not acknowledge work.
     """
-    store.mark_agent_check(deck_id)
-    return feedback_response(
-        store.feedback_feed(deck_id, after_delivery_id),
-        known_rules_hash,
-        known_design_requests_hash,
-    )
+    timeout = min(25, max(0, wait_seconds))
+    store.mark_agent_check(deck_id, timeout + 2 if timeout else 0)
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            response = feedback_response(
+                store.feedback_feed(deck_id, after_delivery_id),
+                known_rules_hash,
+                known_design_requests_hash,
+            )
+            requests_changed = bool(
+                known_design_requests_hash
+                and response.design_requests_hash != known_design_requests_hash
+            )
+            if (
+                response.events
+                or response.design_requests
+                or requests_changed
+                or time.monotonic() >= deadline
+            ):
+                return response
+            time.sleep(0.25)
+    finally:
+        if timeout:
+            store.mark_agent_check(deck_id)
 
 
 @mcp.tool(annotations=WRITE)
@@ -1497,24 +1550,45 @@ async def wait_for_feedback(
         await asyncio.to_thread(store.mark_agent_check, deck_id)
 
 
-@mcp.tool(annotations=WRITE)
 @tool_errors
 def reply_to_feedback(
-    deck_id: str, slide_id: str, message: str, request_id: str, event_id: int | None = None
+    deck_id: str,
+    slide_id: str,
+    message: str,
+    request_id: str,
+    event_id: int | None = None,
 ) -> str:
-    """Post a brief agent message on a slide; omit event_id for an opening message.
+    """Post a brief agent message; omit slide_id for the whole presentation.
+    Omit event_id for an opening message.
     Supply event_id to reply to a comment. Never use human-feedback endpoints for agent text.
     """
-    slide = store.locate(store.read(deck_id), slide_id)
+    slide = store.locate(store.read(deck_id), slide_id) if slide_id else None
     return store.add_feedback(
         deck_id,
-        slide_id,
+        slide_id or None,
         message,
-        store.content_hash(deck_id, slide),
+        store.content_hash(deck_id, slide) if slide else "",
         request_id,
         reply_to=event_id,
         author="agent",
     )
+
+
+@tool_errors
+def _reply_to_feedback_tool(
+    deck_id: str,
+    message: str,
+    request_id: str,
+    slide_id: str = "",
+    event_id: int | None = None,
+) -> str:
+    """Post an agent reply; omit slide_id for general presentation instructions.
+    Omit event_id for an opening message. Never use human-feedback endpoints for agent text.
+    """
+    return reply_to_feedback(deck_id, slide_id, message, request_id, event_id)
+
+
+mcp.add_tool(_reply_to_feedback_tool, name="reply_to_feedback", annotations=WRITE)
 
 
 @mcp.tool(annotations=WRITE)
@@ -1603,7 +1677,7 @@ register_artifact_tools(mcp, lambda: store)
 if deployment.mode == "hosted":
     from .copilot_tools import BOOTSTRAP, register_tools
 
-    transport_mcp = MCPServer[None](
+    transport_mcp = ToolServer[None](
         "Artifact Studio Hosted", version=__version__, instructions=BOOTSTRAP
     )
     register_tools(transport_mcp, store, "", True, hosted_hooks=True)

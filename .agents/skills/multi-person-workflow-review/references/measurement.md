@@ -35,6 +35,14 @@ Unavailable fields are `null` with a reason, never zero or invented estimates.
 A named tokenizer may estimate text usage if legitimately available. Label its
 name/version and input scope; do not call the estimate billed usage. Do not turn
 UTF-8 byte counts into token counts or infer model cost from transport savings.
+
+For a per-skill analysis, separate the skill's metadata/body, the references
+actually opened, tool catalogues, source/result text, images and delegated work.
+Measure each skill file's bytes or named-tokenizer estimate as static load cost;
+it is not the cost of executing the skill. List unexecuted skills explicitly.
+Attribute each MCP record to a participant and phase. Keep coordinator preflight
+and synthetic benchmarks out of the autonomous editor's totals, and do not infer
+an agent's document reads from links that were merely present in its prompt.
 Text and complete serialized MCP result sizes overlap; do not add them. Likewise,
 image base64 is already included in serialized JSON. Price comparisons require
 actual usage categories and dated prices for the exact provider/model.
@@ -61,6 +69,16 @@ and report all observations, median and range. Do not choose the fastest run or
 claim a reliable percentile from a tiny sample. Report single runs as observations.
 Reset disposable fixtures between trials; verify the same final content, notes,
 hidden-slide state, revision behavior and access boundaries on both sides.
+
+Studio already has a [file-input CLI](../../../../docs/FILE-CLIENT.md). Test it
+before proposing another authoring interface: prepared JSON can contain arbitrary
+HTML/CSS/SVG/JavaScript and uses the same tools and guards. It saves repeated
+source transmission only when files stay outside model-visible output; initial
+authoring and actual visual inspection still cost context. Batch independent,
+already-reviewed writes and stop on errors. Do not combine dependent writes or
+refresh stale hashes to manufacture a smaller or successful trace. The local
+client accepts loopback HTTP only; a hosted simulation must use its authorized
+remote MCP connection. Keep that limitation explicit rather than bypass it.
 
 The existing scripted policy benchmark can supplement the autonomous run:
 

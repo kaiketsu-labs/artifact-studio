@@ -20,6 +20,7 @@ from .visuals import (
 )
 
 PROJECT = Path(__file__).resolve().parents[1]
+MAX_CLOUD_CONTACT_SLIDES = 8
 
 
 def audience_clone(store: Store, deck_id: str, destination: Path) -> Store:
@@ -119,13 +120,13 @@ def capture_cloud_contact_sheet(
     store: Store,
     deck_id: str,
     offset: int = 0,
-    limit: int = 8,
+    limit: int = MAX_CLOUD_CONTACT_SLIDES,
     slide_ids: list[str] | None = None,
 ) -> CallToolResult:
     """Render a bounded draft overview with original revision tokens and no host paths."""
     if offset < 0:
         raise ValueError("Use offset >= 0.")
-    if not 1 <= limit <= 8:
+    if not 1 <= limit <= MAX_CLOUD_CONTACT_SLIDES:
         raise ValueError("Remote contact sheets allow 1–8 slides per page.")
     if slide_ids is not None and (
         not 1 <= len(slide_ids) <= 100 or len(set(slide_ids)) != len(slide_ids)

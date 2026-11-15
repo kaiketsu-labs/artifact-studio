@@ -85,6 +85,15 @@ agents drive the same browser page concurrently. If a tool only controls one
 desktop, serialize desktop ownership while retaining separate sessions, and use
 the editor's MCP activity for the concurrent-edit checkpoint. State that limit.
 
+At a barrier with no independent work remaining, send one readiness record and
+end the participant's turn while retaining its browser/client where the host
+supports that. The coordinator resumes it with a follow-up task after the other
+participant completes. Do not generate repeated waiting messages or model-driven
+poll loops; record necessary waits separately from task activity. For shell-based
+interactive clients, establish that stdin and the process survive between host
+calls before initializing MCP. An accidental EOF/restart is a harness cost, not
+a product requirement to reload the catalogue.
+
 For another artifact type, replace slide-specific tasks with its real authoring,
 selection, capture and download flow. Retain the independent identities, guarded
 concurrent edit, feedback delivery and recovery checks.

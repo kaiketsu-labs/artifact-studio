@@ -772,3 +772,26 @@ def test_official_sdk_over_real_loopback_http(gateway: GatewayFixture) -> None:
                 await asyncio.wait_for(serving, timeout=5)
 
     asyncio.run(connect())
+
+
+def test_connected_contact_sheet_schema_matches_remote_renderer_bounds(
+    gateway: GatewayFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Remote discovery guides pagination and invalid calls never enter the renderer."""
+    from artifact_studio import copilot_tools
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        raise AssertionError("Invalid capture arguments reached the renderer")
+
+    monkeypatch.setattr(copilot_tools, "capture_cloud_contact_sheet", forbidden)
+    listed = [object_value(item) for item in list_value(rpc(gateway.client, "tools/list")["tools"])]
+    tool = next(item for item in listed if item["name"] == "capture_contact_sheet")
+    properties = object_value(object_value(tool["inputSchema"])["properties"])
+    assert object_value(properties["limit"])["maximum"] == 8
+    assert object_value(properties["limit"])["minimum"] == 1
+    assert object_value(properties["offset"])["minimum"] == 0
+    assert object_value(properties["slide_ids"])["maxItems"] == 100
+    for invalid in ({"limit": 12}, {"limit": 0}, {"offset": -1}):
+        result = call(gateway.client, "capture_contact_sheet", {"deck_id": DECK, **invalid})
+        assert result["isError"] is True
+        assert "Invalid capture arguments reached" not in json.dumps(result)
