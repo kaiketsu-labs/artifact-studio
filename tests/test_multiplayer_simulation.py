@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 import httpx
+import pytest
 from mcp.types import LATEST_PROTOCOL_VERSION, CallToolResult, TextContent
 
 from artifact_studio.multiplayer_access import Sharing
@@ -507,6 +508,117 @@ def test_structural_proposal_decision_is_scoped_and_single_winner(tmp_path: Path
             assert events[0]["channel"] == "shared"
             assert "Please proceed" in events[0]["message"]
             assert owner.get(base).json()["slide_ids"] == ids
+
+
+@pytest.mark.parametrize("reviewer", ["owner", "alice"])
+def test_structural_decision_reaches_originating_agent_without_collaborator_opt_in(
+    tmp_path: Path, reviewer: str
+) -> None:
+    """Only a response to the agent's own proposal bypasses new-request consent."""
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        connection = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "artifact", "resource": app.deck_id, "name": "Fictional assistant"},
+        ).json()
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}/structure-proposals"
+        setting = (
+            f"/api/workspaces/default/artifacts/{app.deck_id}/agents/{connection['id']}"
+            "/collaborator-requests"
+        )
+        with closing((peer := Peer(app, connection["token"])).client):
+            before = owner.get(base).json()
+            proposal = peer.value(
+                "publish_structure_proposal",
+                deck_id=app.deck_id,
+                summary="Review order",
+                base_slide_ids=before["slide_ids"],
+                base_sections_hash=before["sections_hash"],
+                proposed_slide_ids=list(reversed(before["slide_ids"])),
+                request_id="deterministic-proposal",
+            )
+            response = {"owner": owner, "alice": alice}[reviewer].post(
+                f"{base}/{proposal['id']}/decision",
+                json={
+                    "decision": "accept",
+                    "message": "Proceed",
+                    "request_id": "decision",
+                    "expected_slide_ids": before["slide_ids"],
+                    "expected_sections_hash": before["sections_hash"],
+                },
+            )
+            assert response.status_code == 200
+            assert owner.get(setting).json()["mode"] == "off"
+            events = cast(
+                list[dict[str, object]],
+                peer.value("read_feedback", artifact_id=app.deck_id)["events"],
+            )
+            assert len(events) == 1
+            assert owner.post(setting, json={"mode": "direct"}).is_success
+            assert owner.post(setting, json={"mode": "off"}).is_success
+            events = cast(
+                list[dict[str, object]],
+                peer.value("read_feedback", artifact_id=app.deck_id)["events"],
+            )
+            assert len(events) == 1
+            hook = peer.client.post(
+                "/api/review/hooks",
+                json={
+                    "harness": "claude-code",
+                    "session_id": "fictional-session",
+                    "event": "PostToolUse",
+                    "artifact_id": app.deck_id,
+                    "passive": True,
+                },
+            )
+            assert hook.json()["feedback_available"]
+            claim = peer.value(
+                "claim_feedback",
+                artifact_id=app.deck_id,
+                event_id=events[0]["id"],
+                session_id="fictional-session",
+            )
+            if reviewer == "alice":
+                access = owner.get(
+                    "/api/workspaces/default/access",
+                    params={"kind": "artifact", "resource": app.deck_id},
+                ).json()
+                grant_id = next(
+                    entry["id"] for entry in access["grants"] if entry["role"] == "edit"
+                )
+                assert owner.post(
+                    f"/api/workspaces/default/access/{grant_id}/revoke",
+                    json={"kind": "artifact", "resource": app.deck_id},
+                ).is_success
+                assert peer.value("read_feedback", artifact_id=app.deck_id)["events"] == []
+                assert peer.call(
+                    "claim_feedback",
+                    artifact_id=app.deck_id,
+                    event_id=events[0]["id"],
+                    session_id="fictional-session",
+                ).is_error
+                assert peer.call(
+                    "reply_to_feedback",
+                    artifact_id=app.deck_id,
+                    event_id=events[0]["id"],
+                    claim=claim["claim"],
+                    message="Done",
+                    request_id="reply-after-revoke",
+                ).is_error
+            else:
+                peer.value(
+                    "reply_to_feedback",
+                    artifact_id=app.deck_id,
+                    event_id=events[0]["id"],
+                    claim=claim["claim"],
+                    message="Done",
+                    request_id="decision-reply",
+                )
+                assert peer.value("read_feedback", artifact_id=app.deck_id)["events"] == []
 
 
 def test_structural_proposal_validator_rechecks_access_and_detects_decisions(

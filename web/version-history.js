@@ -9,23 +9,24 @@
     doc.body.append(dialog);
     const $=selector=>dialog.querySelector(selector);let target=null,items=[],counts=new Map(),next=null,selected=null,expected='',epoch=0,busy=false,opener=null,openedLocation='',restoreCompleted=false,loadBusy=false,restoreRequest=null,includeAll=false;
     const date=value=>value?new Intl.DateTimeFormat(undefined,{dateStyle:'medium',timeStyle:'short'}).format(new Date(value)):'Earlier save';
-    const thumbnails=new Map();let thumbnailObserver=null,thumbnailQueue=[],thumbnailBusy=false,thumbnailEpoch=0;
-    function clearThumbnails(){thumbnailEpoch++;thumbnailObserver?.disconnect();thumbnailQueue=[];for(const value of thumbnails.values())if(value)root.URL.revokeObjectURL(value);thumbnails.clear();}
+    const thumbnails=new Map();let thumbnailObserver=null,thumbnailQueue=[],thumbnailBusy=false,thumbnailEpoch=0,thumbnailRequest=null;
+    function clearThumbnails(){thumbnailRequest?.abort();thumbnailEpoch++;thumbnailObserver?.disconnect();thumbnailQueue=[];for(const value of thumbnails.values())if(value)root.URL.revokeObjectURL(value);thumbnails.clear();}
     function paintThumbnail(id){
       const image=$('.version-list').querySelector(`[data-history-thumbnail="${CSS.escape(id)}"]`);if(!image||image.dataset.visible!=='true'||!thumbnails.has(id))return;
       const url=thumbnails.get(id),tile=image.parentElement;tile.classList.toggle('is-ready',!!url);tile.classList.toggle('is-unavailable',!url);
       if(url){image.src=url;thumbnails.delete(id);thumbnails.set(id,url);}else tile.querySelector('.version-thumb-state').innerHTML=icon('image')+'<span>Preview unavailable</span>';
     }
     async function loadThumbnails(){
-      if(thumbnailBusy)return;thumbnailBusy=true;
-      try{while(thumbnailQueue.length&&dialog.open){
+      if(thumbnailBusy||doc.hidden)return;thumbnailBusy=true;
+      try{while(thumbnailQueue.length&&dialog.open&&!doc.hidden){
         const id=thumbnailQueue.shift();if(thumbnails.has(id)){paintThumbnail(id);continue;}
-        const current=thumbnailEpoch,path=target.path;let url=null;
-        try{const response=await root.fetch(studioPath(`${path}/thumbnail?version_id=${encodeURIComponent(id)}`));if(!response.ok)throw Error('Thumbnail unavailable');url=root.URL.createObjectURL(await response.blob());}catch{}
-        if(current!==thumbnailEpoch){if(url)root.URL.revokeObjectURL(url);continue;}
+        const current=thumbnailEpoch,path=target.path,controller=new AbortController();thumbnailRequest=controller;let url=null;
+        try{const response=await root.fetch(studioPath(`${path}/thumbnail?version_id=${encodeURIComponent(id)}`),{signal:controller.signal});if(!response.ok)throw Error('Thumbnail unavailable');url=root.URL.createObjectURL(await response.blob());}catch{}
+        if(thumbnailRequest===controller)thumbnailRequest=null;
+        if(controller.signal.aborted||current!==thumbnailEpoch){if(url)root.URL.revokeObjectURL(url);continue;}
         thumbnails.set(id,url);paintThumbnail(id);
         while(thumbnails.size>64){const oldest=thumbnails.keys().next().value,previous=thumbnails.get(oldest);if(previous)root.URL.revokeObjectURL(previous);thumbnails.delete(oldest);}
-      }}finally{thumbnailBusy=false;}
+      }}finally{thumbnailBusy=false;if(thumbnailQueue.length&&dialog.open&&!doc.hidden)void loadThumbnails();}
     }
     function observeThumbnails(){
       thumbnailObserver?.disconnect();thumbnailQueue=[];
@@ -84,6 +85,7 @@
     $('.version-actions select').addEventListener('change',()=>{if(busy)return;clearThumbnails();includeAll=$('.version-actions select').value==='all';epoch++;items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-filter-help').textContent='';$('.version-restore').disabled=true;$('.version-confirm').hidden=true;void load();});
     $('.version-list').addEventListener('keydown',event=>{if(busy||!event.target.closest('[data-version]')||!['ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();const visible=[...dialog.querySelectorAll('.version-list [data-version]')].filter(button=>button.getClientRects().length),index=visible.indexOf(event.target.closest('[data-version]')),next=visible[index+(event.key==='ArrowDown'?1:-1)];if(next)select(items.find(item=>item.version_id===next.dataset.version));});
     dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();else if(!$('.version-confirm').hidden){event.preventDefault();cancelRestore();}});
+    doc.addEventListener('visibilitychange',()=>{if(!dialog.open)return;if(doc.hidden){thumbnailRequest?.abort();thumbnailQueue=[];}else observeThumbnails();});
     dialog.addEventListener('close',()=>{epoch++;loadBusy=false;clearThumbnails();$('.version-preview').replaceChildren();restoreFocus();});
     return {open(value){if(busy)return;epoch++;clearThumbnails();target={...value,path:value.kind==='slide'?`/api/decks/${encodeURIComponent(value.deckId)}/slides/${encodeURIComponent(value.slideId)}/history`:`/api/artifacts/${encodeURIComponent(value.artifactId)}/history`};includeAll=false;$('.version-actions select').value='content';items=[];counts=new Map();expected='';next=null;selected=null;loadBusy=false;$('.version-list').replaceChildren();$('.version-preview').replaceChildren();$('.version-filter-help').textContent='';$('.version-error').textContent='';$('.version-confirm').hidden=true;$('.version-subtitle').textContent=value.title;$('.version-restore').disabled=true;$('.version-restore').hidden=!!value.readOnly;opener=doc.activeElement;openedLocation=root.location.href;restoreCompleted=false;dialog.showModal();onOpened(dialog,target);void load();}};
   }

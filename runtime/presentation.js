@@ -332,6 +332,7 @@
   let revealed=0,mode=direct?'single':'preview',active=direct,blackout=false,laser=false;
   let audienceWindow=null,screenDetails=null,selectedScreen=null,noteTimer,lastWheel=0,lastPointer=0;
   let filmSignature='',stageSignature='',notesSlide=null;
+  const thumbnailSignatures=new WeakMap();
   let presenterVoice=null,presenterVoiceLoading=null,notesGeneration=0;
   const noteVoiceHandles=new Map();
   const slideSources=new WeakMap(),interactiveInstances=new Map(),interactiveStates=new Map();
@@ -349,6 +350,7 @@
   /** Size newly visible canvases before popup focus can delay resize delivery. */
   function fitCanvas(element){const {width,height}=element.getBoundingClientRect();element.style.setProperty('--slide-scale',String(Math.min(width/1600,height/900)));}
   const canvasObserver=new ResizeObserver(entries=>{for(const entry of entries)fitCanvas(entry.target);});
+  for(const slot of document.querySelectorAll('.stage-slot'))canvasObserver.observe(slot);
   const pointer=document.createElement('div');pointer.className='laser-pointer';pointer.hidden=true;$('stage').append(pointer);
   for(const [id,icon,label,show] of [
     ['previous','left','Previous slide',false],['next','right','Next slide',false],['notes-button','notes','Notes',false],['sources-button','sources','Sources',false],['present-button','present','Present',true],['audience-fullscreen','fullscreen','Fullscreen',false],
@@ -442,12 +444,31 @@
     if(!slideAnimations.has(element))slideAnimations.set(element,new BuildAnimations(slide,{reducedMotion:()=>!!motionPreference?.matches}));
     slideAnimations.get(element).update(revealed,{build});
   }
+  /** Hidden previews must not run a second copy of an interactive slide. */
+  function clearSlide(element){
+    interactiveInstances.get(element)?.dispose();interactiveInstances.delete(element);
+    slideAnimations.get(element)?.dispose();slideAnimations.delete(element);
+    slideSources.delete(element);element.replaceChildren();
+  }
+  /** Build thumbnail markup only when its presenter strip or overview is opened. */
+  function renderThumbnails(container){
+    const signature=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
+    if(thumbnailSignatures.get(container)===signature)return;
+    thumbnailSignatures.set(container,signature);
+    for(const slot of container.querySelectorAll('.film-slide'))canvasObserver.unobserve(slot);
+    container.innerHTML=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide"><div class="runtime-slide-canvas">${slide.html}</div></div><span>${index+1}</span></button>`).join('');
+    for(const slot of container.querySelectorAll('.film-slide'))canvasObserver.observe(slot);
+  }
   /** Preserve note input and thumbnail DOM while changing only slide-dependent content. */
   function render(){
     const hidden=active?deck.slides.map(slide=>slide.hidden):[],counts=deck.slides.map(slide=>slide.interactive_html?0:buildCount(slide.html));
     const ahead=nextBuildState(current,counts[current],1,counts,hidden).current;
-    const signature=`${current}/${revealed}/${emptyShow}/${ahead}/${deck.slides[current]?.html}/${deck.slides[current]?.interactive_html}`;
-    if(signature!==stageSignature){putSlide($('stage'),emptyShow?-1:current);putSlide($('presenter-current'),emptyShow?-1:current);putSlide($('presenter-next'),!emptyShow&&ahead!==current?ahead:-1,false);stageSignature=signature;}
+    const signature=`${mode}/${current}/${revealed}/${emptyShow}/${ahead}/${deck.slides[current]?.html}/${deck.slides[current]?.interactive_html}`;
+    if(signature!==stageSignature){
+      if(mode==='presenter'){clearSlide($('stage'));putSlide($('presenter-current'),emptyShow?-1:current);putSlide($('presenter-next'),!emptyShow&&ahead!==current?ahead:-1,false);}
+      else{clearSlide($('presenter-current'));clearSlide($('presenter-next'));putSlide($('stage'),emptyShow?-1:current);}
+      stageSignature=signature;
+    }
     $('stage').classList.toggle('blacked-out',blackout);document.body.classList.toggle('blackout',blackout);
     const count=emptyShow?`0 / ${shownIndices(deck.slides).length}`:`${current+1} / ${deck.slides.length}`;for(const id of ['counter','presenter-counter','single-counter'])$(id).textContent=count;
     if(!isAudience){const announcement=emptyShow?'No slides to present.':`Slide ${current+1} of ${deck.slides.length}: ${deck.slides[current].title}`;if($('slide-announcement').textContent!==announcement)$('slide-announcement').textContent=announcement;}
@@ -462,9 +483,9 @@
     if(mode==='presenter')void loadPresenterVoice();else noteVoiceHandles.get('presenter-notes')?.cancel();
     for(const id of ['blackout-button','single-blackout'])$(id).setAttribute('aria-pressed',String(blackout));
     $('laser-button').setAttribute('aria-pressed',String(laser));
-    const film=JSON.stringify(deck.slides.map(({id,title,html,hidden})=>[id,title,html,hidden]));
-    if(film!==filmSignature){filmSignature=film;canvasObserver.disconnect();const thumbs=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide"><div class="runtime-slide-canvas">${slide.html}</div></div><span>${index+1}</span></button>`).join('');$('presenter-filmstrip').innerHTML=thumbs;$('all-slides-grid').innerHTML=thumbs;for(const slot of document.querySelectorAll('.stage-slot,.film-slide'))canvasObserver.observe(slot);const shown=shownIndices(deck.slides);$('dots').style.setProperty('--slide-count',Math.max(1,shown.length));$('dots').innerHTML=shown.map((index,position)=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${position+1} / ${shown.length} · ${escape(deck.slides[index].title)}" data-index="${index}"></button>`).join('');}
-    $('presenter-filmstrip').querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));
+    const film=JSON.stringify(deck.slides.map(({id,title,hidden})=>[id,title,hidden]));
+    if(film!==filmSignature){filmSignature=film;const shown=shownIndices(deck.slides);$('dots').style.setProperty('--slide-count',Math.max(1,shown.length));$('dots').innerHTML=shown.map((index,position)=>`<button aria-label="Slide ${index+1}: ${escape(deck.slides[index].title)}" title="${position+1} / ${shown.length} · ${escape(deck.slides[index].title)}" data-index="${index}"></button>`).join('');}
+    if(mode==='presenter'){renderThumbnails($('presenter-filmstrip'));$('presenter-filmstrip').querySelectorAll('[data-index]').forEach(button=>button.setAttribute('aria-current',String(Number(button.dataset.index)===current)));}
     updateProgressRail($('dots'),current);
     history.replaceState(null,'',`${location.pathname}${location.search}${emptyShow?'':`#${deck.slides[current].id}`}`);
     iconButton($('present-button'),'present',active?'End':'Present',true);
@@ -565,7 +586,7 @@
   }
   function selectIndex(event){const button=event.target.closest('[data-index]');if(button)navigate('goto',Number(button.dataset.index));}
   let overviewReturnFocus=null;
-  function showAllSlides(){if(isAudience){channel?.postMessage({kind:'overview'});return;}overviewReturnFocus=document.activeElement;overview.showModal();overview.querySelector(`[data-index="${current}"]`)?.focus();}
+  function showAllSlides(){if(isAudience){channel?.postMessage({kind:'overview'});return;}overviewReturnFocus=document.activeElement;renderThumbnails($('all-slides-grid'));overview.showModal();overview.querySelector(`[data-index="${current}"]`)?.focus();}
   overview.addEventListener('close',()=>{if(overviewReturnFocus?.isConnected&&overviewReturnFocus.getClientRects().length)overviewReturnFocus.focus();overviewReturnFocus=null;});
   $('all-slides-button').addEventListener('click',showAllSlides);$('close-all-slides').addEventListener('click',()=>overview.close());
   $('all-slides-grid').addEventListener('click',event=>{if(!event.target.closest('[data-index]'))return;selectIndex(event);overview.close();});
