@@ -21,9 +21,9 @@
     if(previous&&previous!==scope)await clear();
     localStorage.setItem(ACTIVE,scope);
   }
-  function activation(registration){
-    if(registration.active)return Promise.resolve();
-    const worker=registration.installing||registration.waiting;
+  function activation(registration,scriptURL){
+    const worker=[registration.installing,registration.waiting,registration.active]
+      .find(candidate=>candidate?.scriptURL===scriptURL);
     if(!worker)return Promise.reject(Error('Offline shell is unavailable.'));
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{worker.removeEventListener('statechange',changed);reject(Error('Offline shell did not become ready.'));},15000);
@@ -31,15 +31,18 @@
       worker.addEventListener('statechange',changed);changed();
     });
   }
-  async function save(sessionPromise,deck,sessionPath,workspace,{refresh=false}={}){
+  async function save(sessionPromise,deck,sessionPath,workspace){
     const started=generation();
     const session=await sessionPromise;check(started);
     if(!valid(session.cache_scope)||localStorage.getItem(ACTIVE)!==session.cache_scope)throw Error('Offline saving is unavailable for this session.');
-    const registration=await navigator.serviceWorker.register('/web/offline-worker.js',{scope:'/web/'});check(started);
-    await activation(registration);check(started);
+    // Store signed receipts only after the shell that can deliver them has activated.
+    const scriptURL=new URL('/web/offline-worker.js?receipts=2',location.origin).href;
+    const registration=await navigator.serviceWorker.register(scriptURL,{scope:'/web/'});check(started);
+    await activation(registration,scriptURL);check(started);
     if(!/^(default|[a-f0-9]{24})$/.test(workspace))throw Error('Invalid workspace.');
     const endpoint='/api/workspaces/'+encodeURIComponent(workspace)+'/artifacts/'+encodeURIComponent(deck.id)+'/offline-snapshot';
-    const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slides:deck.slides.map(item=>({slide_id:item.id,content_hash:item.content_hash,expected_hash:item.expected_hash,channel:'shared'}))})});check(started);
+    const slides=deck.slides.map(item=>({slide_id:item.id,content_hash:item.content_hash,expected_hash:item.expected_hash,channel:'shared'}));
+    const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({receipt_version:2,slides})});check(started);
     if(!response.ok||response.redirected){if(response.status===401||response.redirected)block(null);else if(response.status===403||response.status===404)block(deck.id);throw Error('Could not save this presentation for offline use.');}
     const snapshotResult=await response.json();check(started);
     if(snapshotResult?.cache_scope!==session.cache_scope){if(valid(snapshotResult?.cache_scope))await bind(snapshotResult.cache_scope);throw Error('The signed-in account changed.');}
@@ -47,7 +50,7 @@
     if(!receipts||deck.slides.some(item=>typeof receipts[item.id]!=='string'))throw Error('Offline save was incomplete.');
     const snapshot={id:deck.id,title:deck.title,workspace,theme:snapshotResult.theme||'',assets:snapshotResult.assets||{},slides:deck.slides.map(item=>({id:item.id,title:item.title,html:item.html,interactive_html:item.interactive_html||'',content_hash:item.content_hash,expected_hash:item.expected_hash,receipt:receipts[item.id]}))};
     const store=OfflineStore.create({enabled:true,scope:session.cache_scope});
-    try{if(refresh)await store.refresh(deck.id,snapshot);else await store.save(deck.id,snapshot);}finally{store.close();}
+    try{await store.save(deck.id,snapshot);}finally{store.close();}
     check(started);
     let entries=[];try{entries=JSON.parse(localStorage.getItem(INDEX)||'[]');if(!Array.isArray(entries))entries=[];}catch{}
     entries=entries.filter(item=>item.scope!==session.cache_scope||item.deck!==deck.id);
