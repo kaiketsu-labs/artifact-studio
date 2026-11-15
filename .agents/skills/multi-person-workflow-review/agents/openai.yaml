@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi-person workflow review"
+  short_description: "Simulate users, review friction, fix and rerun"
+  default_prompt: "Use $multi-person-workflow-review to test Artifact Studio with independent owner, reviewer and editing agents, investigate workarounds and usage, fix confirmed issues in scope, and rerun the workflow."
