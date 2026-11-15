@@ -1,0 +1,58 @@
+{
+  "method": "one filesystem warmup; alternating pairs; fresh process per sample",
+  "python": "3.14.8",
+  "pairs": 5,
+  "revisions": {
+    "baseline": "9db104542af0778dfb70115fc552765d12a68391",
+    "candidate": "a94d5127cd92e9bef6a85052790a7a1f63d131b9"
+  },
+  "source_fingerprints": {
+    "baseline": "1e9efc15badb3b380b8858d724927d3f8d6106549bf799ddadbf2111bf092ba5",
+    "candidate": "98d58630effb68e4b94b55ecb9938fc5d24741d61d8f9458cd0c364313fc763f"
+  },
+  "import_ms": {
+    "baseline": {
+      "samples": [
+        864.4644679989142,
+        939.9250840033346,
+        870.381725999323,
+        561.3453539990587,
+        517.9094759987493
+      ],
+      "median": 864.4644679989142
+    },
+    "candidate": {
+      "samples": [
+        964.6185050005442,
+        869.9797420013056,
+        892.4039419980545,
+        1798.1628670022474,
+        1143.3626729995012
+      ],
+      "median": 964.6185050005442
+    }
+  },
+  "browser_assets": [
+    {
+      "historical": "presentation-launcher.js",
+      "canonical": "launcher.js",
+      "bytes": 6546,
+      "sha256": "324492620e6aabfa47283cfd182c6fe1ebe53b7ca9eb719764bbf12f88e5d083"
+    },
+    {
+      "historical": "presentation-warmup.js",
+      "canonical": "warmup.js",
+      "bytes": 3592,
+      "sha256": "bb8896613030fefabde73444c63c27aac634db0f7c71666f3710551fe1f571d6"
+    },
+    {
+      "historical": "presentations.js",
+      "canonical": "library-actions.js",
+      "bytes": 3891,
+      "sha256": "d4e1a6ab16f478a29c20452e7d485a2623fe9858b9011d558cb445c8103e22ef"
+    }
+  ],
+  "browser_requests_before": 3,
+  "browser_requests_after": 3,
+  "catalogue_identical": true
+}
