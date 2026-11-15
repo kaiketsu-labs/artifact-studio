@@ -72,6 +72,13 @@ A filesystem write and its operation record are not one atomic transaction. If s
 
 Without `--verify`, a file can contain other explicitly authorized text-result tools, including `append_presentation_context` or `get_presentation_outline`. Large read results still consume model context if printed; prefer the ordinary compact reads.
 
+Local captures can also use `"return_image": false` in their arguments. The tool
+still renders and saves the image, while this client receives its paths, capture
+identity and version metadata without an image block. Use the returned capture ID
+for later text checks or inspect the saved file with a permitted image tool.
+Metadata alone does not constitute visual review. Default inline-image responses
+remain intended for the host's visual tools. [Capture delivery](VISUAL-REVIEW.md#scope-and-storage).
+
 For a positioned `add_slide`, keep `after_slide_id` and/or `section_id` at the top level of its arguments. Preparation supplies omitted `request_id`, `expected_slide_ids` and `expected_sections_hash`; callers may also supply explicit reviewed values. A named section alone appends within that group; an empty `after_slide_id` inserts at the start of the group or deck. Order and section membership change in the same canonical file write. Missing or stale structural guards fail before preparing embedded assets. Exact retries retain the original acknowledgement and never reposition a later move. `--verify` compares source and visual hashes; inspect a fresh outline separately to verify current order and section membership.
 
 ## When connected tools are missing

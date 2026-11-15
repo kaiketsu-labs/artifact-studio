@@ -58,10 +58,13 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
         elapsed_ms: int = 0,
         full_page: bool = False,
         revision: int | None = None,
+        return_image: bool = True,
     ) -> CallToolResult:
         """Inspect an actual rendered artifact image with exact revision and viewport metadata.
         Authored JavaScript runs in a fresh offline sandbox. elapsed_ms samples animations;
         use the browser for user-driven interaction states. For decks use capture_slide.
+        return_image=False returns saved paths/metadata without inline pixels for local automation.
+        Inspect the saved image separately before claiming a visual review.
         """
         store = get_store()
         result = capture_artifact_image(
@@ -74,13 +77,13 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
             full_page=full_page,
             revision=revision,
         )
-        return CallToolResult(
-            content=[
-                TextContent(type="text", text=result.model_dump_json()),
-                MCPImage(path=result.path).to_image_content(),
-            ],
+        response = CallToolResult(
+            content=[TextContent(type="text", text=result.model_dump_json())],
             structured_content=result.model_dump(),
         )
+        if return_image:
+            response.content.append(MCPImage(path=result.path).to_image_content())
+        return response
 
     @mcp.tool(annotations=read)
     @tool_errors
