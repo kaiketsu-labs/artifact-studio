@@ -242,3 +242,63 @@ def test_local_workspace_download_preview_and_files_only_restore(
     assert ArtifactStore(live_app.store).get_artifact(item.id).title == item.title
     assert page.url == live_app.url + "/"
     recovery.get_by_role("button", name="Close recovery").click()
+
+
+def test_history_thumbnail_pauses_while_hidden_and_retries_on_return(
+    live_app: RunningApp, page: Page, tmp_path: Path, artifacts: Path
+) -> None:
+    """A hidden history stops its in-flight preview and loads it on return."""
+    registry, item, _, _, _ = register(live_app, tmp_path)
+    registry.revise_artifact(
+        item.id,
+        [ArtifactFileInput(path="index.html", text="<h1>Fictional revision</h1>")],
+        item.content_hash,
+        "history-pause-revise",
+    )
+    page.add_init_script("""(() => {
+      const original = window.fetch;
+      window.historyThumbnailRequests = [];
+      window.fetch = (url, options) => {
+        if (String(url).includes('/history/thumbnail?')) {
+          const request = {aborted: false};
+          window.historyThumbnailRequests.push(request);
+          options?.signal?.addEventListener('abort', () => request.aborted = true);
+          return new Promise((resolve, reject) => {
+            options?.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError')));
+            const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8A" +
+              "AwMCAO+/aX0AAAAASUVORK5CYII=";
+            request.release = () => resolve(new Response(
+              Uint8Array.from(atob(png), c => c.charCodeAt(0)),
+              {headers: {"Content-Type": "image/png"}}));
+          });
+        }
+        return original(url, options);
+      };
+    })()""")
+    page.goto(f"{live_app.url}/?artifact={item.id}")
+    page.get_by_role("button", name="Version history", exact=True).click()
+    page.wait_for_function("window.historyThumbnailRequests.length === 1")
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'hidden', {configurable: true, value: true});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    page.wait_for_function("window.historyThumbnailRequests[0].aborted")
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'hidden', {configurable: true, value: false});
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    page.wait_for_function("window.historyThumbnailRequests.length === 2")
+    page.evaluate("window.historyThumbnailRequests[1].release()")
+    thumbnail = page.locator("dialog.version-history [data-history-thumbnail]").first
+    expect(thumbnail).to_have_js_property("naturalWidth", 1)
+    page.get_by_role("button", name="Close version history").click()
+    page.get_by_role("button", name="Version history", exact=True).click()
+    page.wait_for_function("window.historyThumbnailRequests.length === 3")
+    page.get_by_role("button", name="Close version history").click()
+    page.wait_for_function("window.historyThumbnailRequests[2].aborted")
+    page.get_by_role("button", name="Version history", exact=True).click()
+    page.wait_for_function("window.historyThumbnailRequests.length === 4")
+    page.evaluate("window.historyThumbnailRequests[3].release()")
+    thumbnail = page.locator("dialog.version-history [data-history-thumbnail]").first
+    expect(thumbnail).to_have_js_property("naturalWidth", 1)

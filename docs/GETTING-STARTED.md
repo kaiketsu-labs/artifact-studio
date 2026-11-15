@@ -159,6 +159,11 @@ blank screen. The first rendered slide becomes usable without waiting for every
 document asset to finish loading. Press **Enter** or click the slide to advance
 one animation step, then the next visible slide. **Escape** returns to editing.
 
+Presentation startup builds the visible slide first; the overview and presenter
+thumbnails are prepared when you open them. In the local editor, a small optional
+runtime warmup runs during idle time and yields to editing. See the
+[startup measurements and resource limits](performance/presentation-startup.md).
+
 | Action | Mac | Windows/Linux |
 | --- | --- | --- |
 | New presentation | ⌘N | Ctrl+N |

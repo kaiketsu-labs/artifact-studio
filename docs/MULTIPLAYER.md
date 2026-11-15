@@ -385,7 +385,7 @@ validates the presentation in the same read before serving the passive file.
 
 An agent with edit access can call `publish_structure_proposal` with the current slide IDs and sections hash from the outline, the proposed IDs, and a short summary. Provide titles for proposed IDs that are absent from Studio. The proposal appears in the presentation conversation under **Review slide structure** for people with edit access.
 
-Compare the two orders and the slides listed on only one side. Choose **Keep current order**, **Request changes**, or **Accept proposal**, and optionally add a message. Studio records the decision and delivers it to the proposing agent in Shared. The agent can then reread the outline and use the existing guarded slide operations to carry out the decision.
+Compare the two orders and the slides listed on only one side. Choose **Keep current order**, **Request changes**, or **Accept proposal**, and optionally add a message. Studio records the decision and delivers it to the proposing agent in Shared. The agent can then reread the outline and use the existing guarded slide operations to carry out the decision. A decision on the agent’s own proposal is delivered even when collaborator requests are off; the reviewer and agent must still have edit access.
 
 Other editors can continue working while the comparison is open. Studio checks the reviewed slide IDs and section structure when sending a decision. If the proposal's base has changed, request an updated proposal before accepting. A second reviewer sees the recorded decision after reopening the comparison.
 

@@ -182,6 +182,9 @@ installed entrypoints, exported presentations and test coverage.
 
 The application version comes from [`pyproject.toml`](pyproject.toml); a version file alone does not prove a published release. Follow the platform's update guide and [release process](docs/RELEASING.md).
 
+[Presentation startup measurements](docs/performance/presentation-startup.md) document
+the lazy viewer, bounded idle warmup, and a reproducible browser benchmark.
+
 ## Token usage and workflow benchmark
 
 ![Pixel chart: scoped and retained reads reduced measured response text by 65.5%; actual token counts were unavailable.](docs/assets/agents-token-usage.png)

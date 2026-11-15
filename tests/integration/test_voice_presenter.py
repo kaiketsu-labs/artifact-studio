@@ -95,7 +95,9 @@ def test_audience_and_portable_exports_never_load_workspace_voice_assets(
         _ = exported.write_text(audience_html(live_app.store, DECK_ID))
         _ = page.goto(exported.as_uri())
         page.locator("#show-presenter").click()
-    expect(page.locator("#stage h1")).to_have_text("Review together")
+    visible_slide = "#stage h1" if destination == "audience" else "#presenter-current h1"
+    expect(page.locator(visible_slide)).to_be_visible()
+    expect(page.locator(visible_slide)).to_have_text("Review together")
     expect(page.locator(".voice-input-button")).to_have_count(0)
     assert not any("/web/voice-input" in url for url in requested)
     assert int(str(page.evaluate("window.__speech.sessions.length"))) == 0

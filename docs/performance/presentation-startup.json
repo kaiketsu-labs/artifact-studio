@@ -1,0 +1,96 @@
+{
+  "browser_version": "155.0.8059.79",
+  "baseline_runtime_sha256": "2adc3c2f423499519c01e7a71b7c8b99186764dbf5eedcdb55a50747b6fd09da",
+  "candidate_runtime_sha256": "1c57b27568440f0cf8a34379c68e20182eceda0a760e0dabd3c85809f8122475",
+  "method": "Fresh contexts; both runtime scripts intercepted and fulfilled from local bytes; 40 fictional slides, 38 with local SVGs; 1440x900 viewport.",
+  "baseline": {
+    "median_first_slide_ms": 459.4,
+    "runs": [
+      {
+        "first_slide_ms": 567.7,
+        "viewer_body_descendants": 11632,
+        "initial_requests": 44,
+        "initial_fixture_image_requests": 38,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 304.1,
+        "viewer_body_descendants": 11632,
+        "initial_requests": 44,
+        "initial_fixture_image_requests": 38,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 454.1,
+        "viewer_body_descendants": 11632,
+        "initial_requests": 44,
+        "initial_fixture_image_requests": 38,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 459.4,
+        "viewer_body_descendants": 11632,
+        "initial_requests": 44,
+        "initial_fixture_image_requests": 38,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 948.3,
+        "viewer_body_descendants": 11632,
+        "initial_requests": 44,
+        "initial_fixture_image_requests": 38,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      }
+    ]
+  },
+  "candidate": {
+    "median_first_slide_ms": 307.4,
+    "runs": [
+      {
+        "first_slide_ms": 340.1,
+        "viewer_body_descendants": 190,
+        "initial_requests": 6,
+        "initial_fixture_image_requests": 0,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 307.4,
+        "viewer_body_descendants": 190,
+        "initial_requests": 6,
+        "initial_fixture_image_requests": 0,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 278.2,
+        "viewer_body_descendants": 190,
+        "initial_requests": 6,
+        "initial_fixture_image_requests": 0,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 261.5,
+        "viewer_body_descendants": 190,
+        "initial_requests": 6,
+        "initial_fixture_image_requests": 0,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      },
+      {
+        "first_slide_ms": 376.0,
+        "viewer_body_descendants": 190,
+        "initial_requests": 6,
+        "initial_fixture_image_requests": 0,
+        "next_slide_title": "Present with confidence",
+        "overview_count": 40
+      }
+    ]
+  }
+}

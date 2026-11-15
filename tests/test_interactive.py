@@ -242,11 +242,9 @@ document.getElementById('state').textContent=value;window.artifactStudio.emitSta
             current = page.frame_locator("#stage > .runtime-slide-canvas > iframe").frame_locator(
                 "iframe"
             )
-            private = page.frame_locator(
-                "#presenter-current > .runtime-slide-canvas > iframe"
-            ).frame_locator("iframe")
             current.locator("#increment").click()
-            private.locator("#state").get_by_text("1", exact=True).wait_for(state="attached")
+            current.locator("#state").get_by_text("1", exact=True).wait_for()
+            assert page.locator("#presenter-current iframe").count() == 0
             audience = page.context.new_page()
             audience.route("https://fiction.invalid/**", document)
             audience.goto("https://fiction.invalid/export?channel=fictional-state-check&audience=1")
