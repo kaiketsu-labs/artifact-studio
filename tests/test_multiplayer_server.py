@@ -2,7 +2,9 @@
 
 import json
 import re
+import sqlite3
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from typing import cast
 from urllib.parse import urlsplit
@@ -51,6 +53,68 @@ def agent(client: httpx.Client, artifact: str) -> str:
     )
     assert response.status_code == 200, response.text
     return cast(str, response.json()["token"])
+
+
+@pytest.mark.parametrize(
+    ("enabled", "legacy"),
+    [(False, False), (False, True), (True, False)],
+    ids=["disabled-empty", "disabled-legacy", "enabled"],
+)
+def test_hosted_offline_storage_waits_for_eligible_request(
+    tmp_path: Path, enabled: bool, legacy: bool
+) -> None:
+    """Keep inactive receipt storage untouched for hosts and granted collaborators."""
+    root = tmp_path / "server"
+    state = root / "sharing" / "sharing.sqlite3"
+    if legacy:
+        state.parent.mkdir(parents=True)
+        with closing(sqlite3.connect(state)) as database, database:
+            _ = database.execute(
+                "CREATE TABLE offline_receipts (token_hash TEXT PRIMARY KEY, namespace TEXT,"
+                "person TEXT, workspace TEXT, deck TEXT, slide TEXT, content_hash TEXT,"
+                "expected_hash TEXT, source TEXT, channel TEXT, aggregate_hash TEXT)"
+            )
+            _ = database.execute(
+                "INSERT INTO offline_receipts (token_hash,source) VALUES (?,?)",
+                ("fixture", "original receipt source"),
+            )
+    with (
+        running_multiplayer_app(
+            root, tmp_path / "server.log", unified=True, offline_fixture=enabled
+        ) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as guest,
+        closing(sqlite3.connect(state)) as database,
+    ):
+        accept(guest, grant(owner, "alice", app.deck_id))
+        assert owner.get("/api/session").is_success
+        assert guest.get(f"/api/decks/{app.deck_id}").is_success
+        schema = "SELECT type FROM sqlite_master WHERE name='offline_receipts'"
+        unchanged = ("table",) if legacy else None
+        assert database.execute(schema).fetchone() == unchanged
+        original = app.store.view(app.deck_id).slides[0]
+        data = {
+            "slides": [
+                {
+                    "slide_id": original.id,
+                    "content_hash": original.content_hash,
+                    "expected_hash": original.expected_hash,
+                }
+            ]
+        }
+        endpoint = f"/api/workspaces/default/artifacts/{app.deck_id}/offline-snapshot"
+        for client in (owner, guest):
+            response = client.post(endpoint, json=data)
+            assert response.status_code == (200 if enabled else 404), response.text
+            if enabled:
+                assert response.json()["receipts"][original.id]
+        if enabled:
+            assert database.execute(schema).fetchone() is not None
+        else:
+            assert database.execute(schema).fetchone() == unchanged
+            if legacy:
+                row = database.execute("SELECT token_hash,source FROM offline_receipts").fetchone()
+                assert row == ("fixture", "original receipt source")
 
 
 def test_deck_presence_checks_current_access_and_tab(tmp_path: Path) -> None:
