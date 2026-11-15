@@ -34,7 +34,7 @@ them in GitHub.
 
 The change adds no network request, dependency, background poll, or model call.
 The [asset measurement](report-handoff.json) compares `2141f0f` with the change:
-JavaScript grows by 1,393 bytes (400 bytes with gzip), CSS by 440 bytes (82 with
+JavaScript grows by 1,413 bytes (407 bytes with gzip), CSS by 440 bytes (82 with
 gzip). These are byte counts, not a measured page-load or provider-token claim.
 
 ```sh

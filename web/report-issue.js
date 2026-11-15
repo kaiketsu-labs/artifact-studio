@@ -32,7 +32,7 @@
         <figure hidden><img alt="Screenshot preview">
           <figcaption><button type="button" data-copy hidden>${icon('copy')}<span>Copy screenshot</span></button><a download="artifact-studio-issue.png">${icon('download')}<span>Save screenshot</span></a>
             <button type="button" data-remove aria-label="Remove screenshot" title="Remove screenshot">${icon('trash')}</button></figcaption>
-          <p data-attachment-help>Save the image, then choose it in the Screenshot field on GitHub. It has not been uploaded.</p>
+          <p data-attachment-help>Save the image, then choose it in the Screenshot field on GitHub. Studio has not uploaded this image.</p>
         </figure>
       </fieldset>
       <footer class="studio-report-footer">
@@ -62,7 +62,7 @@
   const canCopy = typeof clipboard?.write === 'function' && typeof root.ClipboardItem === 'function';
   copy.hidden = !canCopy;
   if (canCopy) dialog.querySelector('[data-attachment-help]').textContent =
-    'Paste the screenshot into “What happened?” on GitHub, or add the saved file in the Screenshot field. It has not been uploaded.';
+    'Paste the screenshot into “What happened?” on GitHub, or add the saved file in the Screenshot field. Studio has not uploaded this image.';
   const figure = dialog.querySelector('figure');
   const preview = figure.querySelector('img');
   const save = figure.querySelector('a');
