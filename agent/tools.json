@@ -8124,6 +8124,35 @@
       }
     },
     {
+      "name": "stop_live_review",
+      "description": "Pause only this host session when finished reviewing; preserve queued feedback.\n\nSelect a target, or omit both IDs to stop this session's current review/design inbox.\nRequires the updated trusted PostToolUse hook; resume explicitly with start_live_review.\nDo not stop merely because a turn finished while continued feedback is expected.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "default": "",
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
+          }
+        },
+        "title": "stop_live_reviewArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "stop_live_reviewDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "get_live_review_status",
       "description": "Check a target's active host hook lease without starting or renewing review.\n\nSelect artifact_id or deck_id; omit both for the design inbox.\nA connected reviewer can belong to another host session.\n",
       "input_schema": {

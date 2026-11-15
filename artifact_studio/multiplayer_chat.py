@@ -12,6 +12,7 @@ from urllib.parse import quote
 
 from pydantic import Field
 
+from . import review_controls
 from .artifact_models import ArtifactTarget
 from .artifacts import ArtifactStore
 from .designs.elements import ElementAlternatives
@@ -79,6 +80,7 @@ class Conversations:
     def __init__(self, sharing: Sharing) -> None:
         self.sharing = sharing
         with sharing.locked(), sharing.connect() as db:
+            db.executescript(review_controls.SCHEMA)
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS conversations (
                   id INTEGER PRIMARY KEY AUTOINCREMENT, workspace TEXT NOT NULL,
@@ -890,15 +892,33 @@ class Conversations:
         ).fetchall()
         return any(self._request_is_current(db, scope, actor, row) for row in pending)
 
+    def request_review_control(
+        self, actor: Actor, scope: Scope, action: review_controls.Action
+    ) -> str:
+        """Issue a credential-bound receipt; only the native hook knows its host session."""
+        with self.sharing.guard(actor, scope, "edit"), self.sharing.connect() as db:
+            return review_controls.issue(db, actor.agent, action, scope.resource)
+
     def hook(self, actor: Actor, body: ReviewHookInput) -> dict[str, object]:
         """Check assigned feedback and track leases for active host listeners."""
         with self.sharing.locked(), self.sharing.connect() as db:
             connection = self.sharing.agent_record(actor)
             workspace = cast(str, connection["workspace"])
+            session = checksum(body.harness + ":" + body.session_id)
             if body.passive:
                 scope = Scope(workspace, "artifact", body.artifact_id or body.deck_id or "")
                 self.sharing.require(actor, scope, "edit")
-                available = self._has_pending(db, actor, scope)
+                if body.start_review and not review_controls.apply(
+                    db, actor.agent, session, "start", scope.resource, body.review_control
+                ):
+                    return {
+                        "listening": False,
+                        "feedback_available": False,
+                        "reason": review_controls.RETRY,
+                    }
+                available = not review_controls.paused(
+                    db, actor.agent, session
+                ) and self._has_pending(db, actor, scope)
                 return {
                     "listening": False,
                     "feedback_available": available,
@@ -909,7 +929,6 @@ class Conversations:
                         else ""
                     ),
                 }
-            session = checksum(body.harness + ":" + body.session_id)
             existing = db.execute(
                 "SELECT artifact,expires FROM multiplayer_hooks WHERE agent=? AND session=?",
                 (actor.agent, session),
@@ -919,13 +938,54 @@ class Conversations:
                 or body.deck_id
                 or (cast(str, existing["artifact"]) if existing else "")
             )
+            if body.event == "StopReview":
+                scope = Scope(workspace, "artifact", artifact)
+                self.sharing.require(actor, scope, "edit")
+                mismatch = bool(existing and existing["artifact"] != artifact)
+                if not review_controls.apply(
+                    db,
+                    actor.agent,
+                    session,
+                    "stop",
+                    artifact,
+                    body.review_control,
+                    preserve_pause=mismatch,
+                ):
+                    return {
+                        "listening": False,
+                        "feedback_available": False,
+                        "reason": review_controls.RETRY,
+                    }
+                if mismatch:
+                    return {
+                        "listening": existing["expires"] > time.time(),
+                        "feedback_available": False,
+                        "reason": (
+                            "The session changed targets; its current review was left unchanged."
+                        ),
+                    }
+                db.execute(
+                    "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,0)",
+                    (actor.agent, session, workspace, artifact),
+                )
+                return {
+                    "listening": False,
+                    "feedback_available": False,
+                    "reason": (
+                        "Live review stopped for this session. "
+                        "Explicitly start_live_review to resume."
+                    ),
+                }
             if body.event in {"SessionEnd", "Interrupt", "StopFailure"}:
                 db.execute(
                     "INSERT OR REPLACE INTO multiplayer_hooks VALUES (?,?,?,?,0)",
                     (actor.agent, session, connection["workspace"], artifact),
                 )
                 return {"listening": False, "feedback_available": False, "reason": "Session ended"}
-            if existing and existing["expires"] == 0 and not body.start_review:
+            if not body.start_review and (
+                (existing and existing["expires"] == 0)
+                or review_controls.paused(db, actor.agent, session)
+            ):
                 return {"listening": False, "feedback_available": False, "reason": "Review paused"}
             if not existing and not (body.start_review or body.auto_start):
                 return {
@@ -941,6 +1001,14 @@ class Conversations:
                 }
             scope = Scope(workspace, "artifact", artifact)
             self.sharing.require(actor, scope, "edit")
+            if body.start_review and not review_controls.apply(
+                db, actor.agent, session, "start", artifact, body.review_control
+            ):
+                return {
+                    "listening": False,
+                    "feedback_available": False,
+                    "reason": review_controls.RETRY,
+                }
             now = time.time()
             if not existing or existing["artifact"] != artifact or existing["expires"] <= now + 60:
                 db.execute(

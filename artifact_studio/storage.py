@@ -45,6 +45,7 @@ from .models import (
     SlideTarget,
     SlideView,
 )
+from .review_controls import SCHEMA as REVIEW_CONTROL_SCHEMA
 from .slide_css import declarations, stylesheet
 
 DATA = re.compile(r'(<script id="deck-data" type="application/json">)(.*?)(</script>)', re.S)
@@ -184,6 +185,7 @@ class Store:
         self.database = database
         database.parent.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
+            db.executescript(REVIEW_CONTROL_SCHEMA)
             db.executescript("""
                 CREATE TABLE IF NOT EXISTS design_archives (folder TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS workspace_settings (

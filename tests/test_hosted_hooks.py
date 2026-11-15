@@ -191,6 +191,45 @@ def test_hosted_hook_lifecycle_is_scoped_to_verified_service(tmp_path: Path) -> 
             assert client.post(route, json={**body, "start_review": True}, headers=agent).json()[
                 "listening"
             ]
+            requested = client.post(
+                "/mcp",
+                headers=protocol,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 4,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "stop_live_review",
+                        "arguments": {"artifact_id": artifact.id},
+                    },
+                },
+            )
+            requested.raise_for_status()
+            response = requested.json()["result"]
+            assert not response.get("isError")
+            receipt = response.get("structuredContent") or json.loads(
+                response["content"][0]["text"]
+            )
+            assert receipt["status"] == "awaiting_host_hook"
+            normalized = hook_client.normalize(
+                "codex",
+                "PostToolUse",
+                "artifact-studio",
+                {
+                    "session_id": "same-session",
+                    "tool_name": "mcp__artifact_studio__stop_live_review",
+                    "tool_input": {"artifact_id": artifact.id},
+                    "tool_response": receipt,
+                },
+            )
+            # The same native session name under another service credential cannot stop this one.
+            assert not client.post(route, json=normalized, headers=other).json()["listening"]
+            assert Reviews(app.store).connection(artifact.id)["review_connected"]
+            assert "stopped" in client.post(route, json=normalized, headers=agent).json()["reason"]
+            assert not client.post(route, json=body, headers=agent).json()["listening"]
+            assert not client.post(
+                route, json={**body, "start_review": True}, headers=agent
+            ).json()["listening"]
             client.post(route, json=stop, headers=agent).raise_for_status()
             assert not Reviews(app.store).connection(artifact.id)["review_connected"]
 

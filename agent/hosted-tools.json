@@ -2521,6 +2521,35 @@
       }
     },
     {
+      "name": "stop_live_review",
+      "description": "Pause only this native host session when finished; preserve collaborators and feedback.\n\nRequires an updated trusted PostToolUse hook. Explicit start_live_review resumes review.\n",
+      "input_schema": {
+        "properties": {
+          "artifact_id": {
+            "default": "",
+            "title": "Artifact Id",
+            "type": "string"
+          },
+          "deck_id": {
+            "default": "",
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "title": "stop_live_reviewArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "stop_live_reviewDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "remove_slide",
       "description": "Remove a slide the human asked to delete, preserving it for recovery.\n\nUse expected_hash from get_slide. Reuse request_id to safely retry the same removal.\n",
       "input_schema": {
