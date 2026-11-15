@@ -86,6 +86,16 @@ The gateway exposes a smaller tool set than the local agent connection:
 
 There is no shell, arbitrary host-file import, approval control, workspace-settings access or automatic local review hook. File requests are limited to 2 MiB; read files in smaller groups when needed. New artifact creation needs an existing shared project.
 
+`read_feedback(wait_seconds=25)` can wait for released feedback without blocking
+ordinary tools. The optional gateway admits four feedback waits separately from
+its four ordinary HTTP requests. Additional waits receive HTTP 429 and should
+retry later; ordinary reads and writes retain their own capacity. Polls recheck
+project scope, run in a separate bounded worker pool, and sleep asynchronously.
+Closing the waiting HTTP connection or reaching the request deadline cancels the
+wait. The existing 2 MiB body limit, 90-second default request deadline and
+25-second maximum feedback wait still apply. These budgets are specific to the
+optional gateway; the unified multiplayer routes are unchanged.
+
 Use `read_feedback_attachment(artifact_id, event_id, file_index)` for a released chat attachment. Pass the destination presentation ID as `artifact_id` for presentation chat. File indices start at zero. The reader returns up to 16 KiB of text by default, with a byte `next_offset` for another page; `null` means complete. A slide reference's first page includes `section_offsets`: jump to `section_offsets.slide` to skip embedded fonts and read its markup. These are navigation hints from the saved source; ambiguous markers are omitted. Set `encoding="base64"` for binary files, and request at most 64 KiB per call. The reader verifies the saved size and hash. Previously saved unsent messages remain private. A saved slide reference preserves the selected description, theme and assets without granting access to the source presentation's other content.
 
 Slide captures use the trusted viewer with `theme.css` and regular files under `assets/`. Private notes, review history and README files are excluded. Custom viewer changes or assets outside that convention require a local check. Capture metadata states that limitation; a screenshot does not verify physical screen placement or presenter controls.
