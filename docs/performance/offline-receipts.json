@@ -28,5 +28,21 @@
     "request_p95_ms": 48.223,
     "total_seconds": 11.061,
     "timing_scope": "All attempts including quota failures; one local run, no warmup."
+  },
+  "signed": {
+    "source_commit": "1860c54dd4ba247878b212dfc4cd692b68b66b41",
+    "source_dirty": true,
+    "requests": 600,
+    "receipt_version": 2,
+    "succeeded": 600,
+    "quota_failures": 0,
+    "first_failed_request": null,
+    "retained_sources": 0,
+    "receipt_aliases": 0,
+    "retained_source_bytes": 0,
+    "request_median_ms": 21.448,
+    "request_p95_ms": 63.505,
+    "total_seconds": 15.671,
+    "timing_scope": "All attempts including quota failures; one local run, no warmup."
   }
 }

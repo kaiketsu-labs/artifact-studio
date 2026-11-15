@@ -137,6 +137,25 @@ def test_legacy_quota_is_reclaimed_without_invalidating_any_token(tmp_path: Path
                 for token in old_tokens
             ],
         )
+    # A failure after source normalization must roll the whole upgrade back.
+    with sharing.connect() as db:
+        db.execute("CREATE TABLE offline_signing_key (id INTEGER PRIMARY KEY, key BLOB NOT NULL)")
+        db.execute("INSERT INTO offline_signing_key VALUES (1,?)", (b"invalid",))
+    with pytest.raises(RuntimeError, match="Invalid offline receipt signing key"):
+        OfflineDelivery(sharing)
+    with sharing.connect() as db:
+        assert (
+            db.execute("SELECT type FROM sqlite_master WHERE name='offline_receipts'").fetchone()[0]
+            == "table"
+        )
+        assert db.execute("SELECT COUNT(*) FROM offline_receipts").fetchone()[0] == 500
+        assert (
+            db.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='offline_receipt_sources'"
+            ).fetchone()
+            is None
+        )
+        db.execute("UPDATE offline_signing_key SET key=? WHERE id=1", (b"f" * 32,))
     delivery = OfflineDelivery(sharing)
     with sharing.connect() as db:
         assert db.execute("SELECT COUNT(*) FROM offline_receipt_sources").fetchone()[0] == 1

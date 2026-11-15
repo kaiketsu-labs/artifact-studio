@@ -18,6 +18,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--requests", type=int, default=600)
+    parser.add_argument("--receipt-version", type=int, choices=(1, 2), default=1)
     args = parser.parse_args()
     source = args.source.resolve()
     if not 1 <= args.requests <= 10_000:
@@ -48,7 +49,12 @@ def main() -> None:
         for index in range(args.requests):
             started = time.perf_counter()
             try:
-                _ = delivery.issue_snapshot(owner, scope, "benchmark-identity", [request])
+                if args.receipt_version == 2:
+                    _ = delivery.issue_snapshot(
+                        owner, scope, "benchmark-identity", [request], receipt_version=2
+                    )
+                else:
+                    _ = delivery.issue_snapshot(owner, scope, "benchmark-identity", [request])
             except ValueError as error:
                 if "receipt storage is full" not in str(error):
                     raise
@@ -79,12 +85,13 @@ def main() -> None:
                     "source_commit": revision,
                     "source_dirty": dirty,
                     "requests": args.requests,
+                    "receipt_version": args.receipt_version,
                     "succeeded": args.requests - failures,
                     "quota_failures": failures,
                     "first_failed_request": first_failure,
                     "retained_sources": count,
                     "receipt_aliases": aliases,
-                    "retained_source_bytes": size,
+                    "retained_source_bytes": size or 0,
                     "request_median_ms": round(statistics.median(elapsed), 3),
                     "request_p95_ms": round(sorted(elapsed)[int(len(elapsed) * 0.95) - 1], 3),
                     "total_seconds": round(sum(elapsed) / 1000, 3),
