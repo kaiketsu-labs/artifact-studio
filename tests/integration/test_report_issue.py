@@ -214,6 +214,26 @@ def test_report_keeps_a_draft_link_and_image_when_clipboard_or_popup_is_blocked(
     expect(dialog.locator("[data-draft-link]")).not_to_have_attribute("href", re.compile(".+"))
     dialog.get_by_role("button", name="Copy screenshot and open GitHub draft").click()
     expect(link).to_have_attribute("href", re.compile(r"report-details=Redacted\+report$"))
+    expect(dialog.get_by_role("region", name="Finish your report")).to_contain_text(
+        "Studio cannot attach the image for you"
+    )
+    # Sign-in or a blocked popup must not make dismissing the panel destroy the image.
+    dialog.get_by_role("button", name="Close report").click()
+    page.get_by_role("button", name="Report an issue", exact=True).click()
+    expect(dialog.get_by_role("textbox", name="Title")).to_have_value("Fictional report")
+    expect(dialog.get_by_role("textbox", name="What happened?")).to_have_value("Redacted report")
+    expect(dialog.get_by_role("img", name="Screenshot preview")).to_be_visible()
+    expect(link).to_be_visible()
+    with page.expect_download() as saved:
+        dialog.get_by_role("link", name="Save screenshot").click()
+    assert saved.value.suggested_filename == "artifact-studio-issue.png"
+    dialog.get_by_role("button", name="Discard draft").click()
+    expect(dialog).to_be_hidden()
+    page.get_by_role("button", name="Report an issue", exact=True).click()
+    expect(dialog.get_by_role("textbox", name="Title")).to_have_value("")
+    expect(dialog.get_by_role("textbox", name="What happened?")).to_have_value("")
+    expect(dialog.get_by_role("img", name="Screenshot preview")).to_be_hidden()
+    expect(link).to_be_hidden()
 
 
 def test_report_opens_empty_github_form_when_prefill_is_too_large(
