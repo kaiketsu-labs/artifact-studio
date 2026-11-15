@@ -15,9 +15,9 @@ Agents in a [shared hosted workspace](../docs/MULTIPLAYER.md#author-presentation
 | Local presentation MCP handlers | [artifact_studio/app.py](../artifact_studio/app.py) |
 | Shared hosted MCP handlers | [artifact_studio/multiplayer_tools.py](../artifact_studio/multiplayer_tools.py) |
 | Parameter and result models | [artifact_studio/artifact_models.py](../artifact_studio/artifact_models.py) and [artifact_studio/models.py](../artifact_studio/models.py) |
-| Generated tool catalogue | [tools.json](tools.json), generated from registered runtime tools; never hand-maintained |
+| Generated tool catalogues | [tools.json](tools.json) for local tools and [hosted-tools.json](hosted-tools.json) for shared hosted tools; generated from registered handlers, never hand-maintained |
 | Guidance receipts | [artifact_studio/artifact_context.py](../artifact_studio/artifact_context.py) and [artifact_studio/agent_io.py](../artifact_studio/agent_io.py) |
-| Project navigation, retained versions and workspace recovery | [artifact_studio/project_tree.py](../artifact_studio/project_tree.py), [artifact_studio/version_history.py](../artifact_studio/version_history.py) and [artifact_studio/workspace_recovery.py](../artifact_studio/workspace_recovery.py); their browser controls are HTTP interfaces, not additional MCP tools |
+| Project navigation, retained versions and workspace recovery | [artifact_studio/project_tree.py](../artifact_studio/project_tree.py), [artifact_studio/version_history.py](../artifact_studio/version_history.py) and [artifact_studio/workspace_recovery.py](../artifact_studio/workspace_recovery.py); project/folder MCP tools reuse the native navigation controller; version/recovery browser controls remain HTTP interfaces |
 | Host-invoked workflows | [.agents/skills/](../.agents/skills/) |
 
 The running server's MCP initialization and `tools/list` responses are authoritative for the connected process. A checkout can be newer than that process. The host controls which discovered tools are exposed; connecting MCP does not automatically load skill bodies.
@@ -52,6 +52,7 @@ The opt-in Microsoft Copilot gateway has its own smaller tool surface and explic
 | `list_projects` / `list_artifacts` | Discovery metadata and review destinations; artifact source bodies are not loaded. |
 | `get_working_context(project_id=..., artifact_id=...)` | Applicable workspace rules, secondary learned preferences, project brief, selected artifact metadata/context, the artifact guide and related-artifact pointers. A recorded receipt identifies returned sources, scopes and hashes. |
 | `get_working_context(deck_id=...)` | Existing presentation startup, that deck's design guidance and reference pointers. Selecting a legacy deck through `artifact_id` also returns its presentation context. |
+| `create_project` / `get_project_tree` / `create_project_folder` / `move_project_to_folder` | Create projects and organize private folders with current tree hashes; hosted access requires the owner’s workspace-wide connection. |
 | `get_artifact` | Current manifest, entrypoint, file inventory, version and review status. Released discussion is optional. |
 | `read_artifact_files` | Only explicitly requested files, optionally from a retained revision. Binary content uses base64. |
 | `read_artifact_feedback` | Released human messages with original targets, revision, attachments and a delivery cursor. Older saved messages remain private until explicitly sent. |

@@ -8893,6 +8893,96 @@
       }
     },
     {
+      "name": "get_project_tree",
+      "description": "Read folder IDs, project references and the current tree_hash without project briefs.",
+      "input_schema": {
+        "properties": {},
+        "title": "get_project_treeArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "get_project_treeDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "create_project_folder",
+      "description": "Create a navigation folder using current tree_hash; an empty parent_id selects root.",
+      "input_schema": {
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "expected_tree_hash": {
+            "title": "Expected Tree Hash",
+            "type": "string"
+          },
+          "parent_id": {
+            "default": "",
+            "title": "Parent Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "expected_tree_hash"
+        ],
+        "title": "create_project_folderArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "create_project_folderDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "move_project_to_folder",
+      "description": "Place a project in a folder using current tree_hash; an empty folder_id selects root.",
+      "input_schema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "expected_tree_hash": {
+            "title": "Expected Tree Hash",
+            "type": "string"
+          },
+          "folder_id": {
+            "default": "",
+            "title": "Folder Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "expected_tree_hash"
+        ],
+        "title": "move_project_to_folderArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "move_project_to_folderDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "get_artifact",
       "description": "Read a file manifest and current revision; discussion excludes withheld Batch drafts.",
       "input_schema": {

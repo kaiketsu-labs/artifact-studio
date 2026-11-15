@@ -12,6 +12,7 @@ from .agent_io import rule_fields
 from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView
 from .artifacts import ArtifactStore
+from .project_tree import ProjectTree
 from .storage import Store
 
 
@@ -113,7 +114,31 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
     @tool_errors
     def create_project(title: str, context: str = "") -> dict[str, object]:
         """Create a shared brief for related artifacts without imposing a brand or template."""
-        return ArtifactStore(get_store()).create_project(title, context).model_dump()
+        store = get_store()
+        project = ArtifactStore(store).create_project(title, context)
+        return {**project.model_dump(), "tree_hash": ProjectTree(store).view().content_hash}
+
+    @mcp.tool(annotations=read)
+    @tool_errors
+    def get_project_tree() -> dict[str, object]:
+        """Read folder IDs, project references and the current tree_hash without project briefs."""
+        return ProjectTree(get_store()).agent_view()
+
+    @mcp.tool(annotations=write)
+    @tool_errors
+    def create_project_folder(
+        title: str, expected_tree_hash: str, parent_id: str = ""
+    ) -> dict[str, object]:
+        """Create a navigation folder using current tree_hash; an empty parent_id selects root."""
+        return ProjectTree(get_store()).create_folder(title, expected_tree_hash, parent_id)
+
+    @mcp.tool(annotations=write)
+    @tool_errors
+    def move_project_to_folder(
+        project_id: str, expected_tree_hash: str, folder_id: str = ""
+    ) -> dict[str, object]:
+        """Place a project in a folder using current tree_hash; an empty folder_id selects root."""
+        return ProjectTree(get_store()).move_project(project_id, expected_tree_hash, folder_id)
 
     @mcp.tool(annotations=read)
     @tool_errors

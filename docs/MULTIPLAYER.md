@@ -476,3 +476,31 @@ cannot access the private reusable library. See [hosted design authoring](DESIGN
 for the small-file MCP tool and the direct file uploader for sources up to 50 MB.
 The [hosted MCP catalogue](../agent/hosted-tools.json) is generated from registered
 hosted tools; load individual schemas on demand rather than both catalogues at startup.
+
+## Create projects and sidebar folders through MCP
+
+A workspace owner's workspace-wide connection can create projects and organize
+private sidebar folders without opening a browser. Use this sequence:
+
+1. `get_project_tree()` returns folder/project IDs, titles, parent IDs and `tree_hash`.
+2. `create_project_folder(title, expected_tree_hash, parent_id="")` creates a folder;
+   an empty parent selects the root. Its receipt includes the new ID and tree hash.
+3. `create_project(title, context="")` creates the project and optional brief.
+   Keep its returned ID and **new** `tree_hash`, because creation changes navigation.
+4. `move_project_to_folder(project_id, expected_tree_hash, folder_id="")` places
+   that project under the selected folder. An empty folder moves it to the root.
+5. Pass the project ID to `create_presentation` or `create_artifact`, then author freely.
+
+Always use the latest receipt's hash for folder creation and moves. A conflict
+requires reading the current tree and reconciling the intended organization.
+Project creation has no request-ID deduplication: if its response is lost, discover
+projects before retrying, so an uncertain outcome does not create duplicates.
+Navigation receipts describe the operation's committed revision; a later editor
+can make that hash obsolete but cannot replace its folder identity.
+
+Folders are private navigation only; moving a project changes neither its stored
+source paths nor its grants. Project/artifact-scoped connections and invited
+workspace editors cannot create projects or read/change private folders. An agent
+owned by someone else can organize that person's own workspace only. Current
+revocation, Host and Origin checks continue to apply. No server paths or project
+brief contents are returned in hosted creation/navigation receipts.
