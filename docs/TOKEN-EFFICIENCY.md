@@ -221,3 +221,15 @@ bytes; the saved file matched the original bytes and SHA-256. The source bytes
 stayed outside model messages. Design sources now share the importer's 50 MB
 per-file limit (50 MB per upload batch), while inline MCP inputs and paged reads
 remain 1 MiB. This measures transport rather than claiming billed-token savings.
+
+### Project creation without browser setup
+
+The [hosted project authoring exercise](performance/hosted-project-authoring.json)
+completed owner folder → project → placement → presentation → slide read/edit in
+seven MCP calls. Each mutation returned the current tree hash, so the agent
+needed no second tree read between creating the folder and placing the project.
+Discovery includes project titles and folder parents without project briefs;
+hosted creation receipts omit source paths and full briefs. The independent run
+also checked two denied project-scope creation requests and a successful scoped
+presentation create/read. Its JSON byte measurements are recorded separately
+from billed tokens; no browser workaround or fixed presentation template was needed.

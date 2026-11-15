@@ -53,6 +53,7 @@ from .multiplayer_access import (
 from .multiplayer_chat import Channel, Conversations
 from .multiplayer_http import IMPORT_DISK_RESERVE
 from .presentation_files import PresentationFiles
+from .project_tree import ProjectTree
 from .sections import Sections, section_layout
 from .slide_actions import SlideActions
 from .storage import Store
@@ -207,6 +208,62 @@ class MultiplayerTools:
         """List only artifacts and projects available to this particular agent connection."""
         actor = self.actor(ctx)
         return self.catalog(actor, self.scope(actor), kind)
+
+    @contextmanager
+    def project_owner_store(self, ctx: Ctx) -> Generator[Store]:
+        """Match the native sidebar: only the owner's workspace-wide agent may organize projects."""
+        actor = self.actor(ctx)
+        scope = self.scope(actor)
+        if scope.kind != "workspace":
+            raise AccessDenied
+        with self.sharing.guard(actor, scope, "edit") as store:
+            self.sharing.manage(Actor(actor.person), scope)
+            yield store
+
+    def get_project_tree(self, ctx: Ctx) -> dict[str, object]:
+        """Read private folder IDs and tree_hash with an owner workspace token."""
+        with self.project_owner_store(ctx) as store:
+            return ProjectTree(store).agent_view()
+
+    def create_project(
+        self,
+        ctx: Ctx,
+        title: Annotated[str, Field(min_length=1, max_length=200)],
+        context: Annotated[str, Field(max_length=100_000)] = "",
+    ) -> dict[str, object]:
+        """Create a project/brief in the owned workspace; returns its ID and current tree_hash.
+        No request-ID deduplication: after a lost response, discover projects before retrying.
+        """
+        with self.project_owner_store(ctx) as store:
+            item = ArtifactStore(store).create_project(title, context)
+            return {
+                "id": item.id,
+                "title": item.title,
+                "context_hash": item.context_hash,
+                "tree_hash": ProjectTree(store).view().content_hash,
+            }
+
+    def create_project_folder(
+        self,
+        ctx: Ctx,
+        title: Annotated[str, Field(min_length=1, max_length=200)],
+        expected_tree_hash: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")],
+        parent_id: str = "",
+    ) -> dict[str, object]:
+        """Create a private folder using current tree_hash; an empty parent_id selects root."""
+        with self.project_owner_store(ctx) as store:
+            return ProjectTree(store).create_folder(title, expected_tree_hash, parent_id)
+
+    def move_project_to_folder(
+        self,
+        ctx: Ctx,
+        project_id: str,
+        expected_tree_hash: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")],
+        folder_id: str = "",
+    ) -> dict[str, object]:
+        """Place a project in a private folder using tree_hash; empty=root. No grant changes."""
+        with self.project_owner_store(ctx) as store:
+            return ProjectTree(store).move_project(project_id, expected_tree_hash, folder_id)
 
     @contextmanager
     def design_store(self, ctx: Ctx) -> Generator[Store]:
@@ -1145,6 +1202,7 @@ class MultiplayerTools:
     def register(self, server: MCPServer[None]) -> None:
         reads = (
             self.get_working_context,
+            self.get_project_tree,
             self.list_artifacts,
             self.list_design_contexts,
             self.get_design_context,
@@ -1176,6 +1234,9 @@ class MultiplayerTools:
             self.get_live_review_status,
         )
         writes = (
+            self.create_project,
+            self.create_project_folder,
+            self.move_project_to_folder,
             self.revise_artifact,
             self.create_artifact,
             self.create_design_pack,
