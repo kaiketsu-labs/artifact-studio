@@ -13,7 +13,7 @@ from PIL import ImageFont
 from playwright.sync_api import Route, expect, sync_playwright
 
 from artifact_studio.artifacts import ArtifactStore
-from artifact_studio.models import SlidePatch
+from artifact_studio.models import SlidePatch, SlideView
 from artifact_studio.storage import Store
 from tests.integration.multiplayer_fixture import (
     WORKSPACE,
@@ -47,39 +47,54 @@ def test_hosted_offline_edit_conflict_and_revocation(tmp_path: Path) -> None:
         try:
             with routed_multiplayer_context(browser, app, "alice") as context:
                 page = context.new_page()
-                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#next")
                 page.get_by_role("button", name="Menu", exact=True).click()
                 page.get_by_role("button", name="Save offline", exact=True).click()
                 expect(page.locator("#toast")).to_contain_text("Saved on this device")
+                page.get_by_role("button", name="Menu", exact=True).click()
+                saved_link = page.get_by_role("link", name="Saved presentations", exact=True)
+                expect(saved_link).to_have_attribute(
+                    "href", f"{WORKSPACE}/web/offline.html#deck={app.deck_id}&slide=next"
+                )
                 context.set_offline(True)
-                page.goto(f"{WORKSPACE}/web/offline.html")
+                context.route("**/api/**", lambda route: route.abort())
+                saved_link.click()
                 expect(page.get_by_role("status")).to_have_text("Available on this device.")
+                expect(page.get_by_role("combobox", name="Slide", exact=True)).to_have_value("next")
                 page.frame_locator("#preview").get_by_role("heading", level=1).click()
                 page.get_by_role("button", name="Edit text", exact=True).click()
                 page.get_by_role("textbox", name="Text", exact=True).fill("Fictional offline edit")
                 page.get_by_role("button", name="Save visual edit for later", exact=True).click()
                 expect(page.locator("#outbox li")).to_have_count(1)
-                cover = app.store.view(app.deck_id).slides[0]
+
+                def saved_slide() -> SlideView:
+                    """Read the fixture's selected slide independently of presentation order."""
+                    return next(
+                        item for item in app.store.view(app.deck_id).slides if item.id == "next"
+                    )
+
+                slide = saved_slide()
                 _ = app.store.revise_view(
                     app.deck_id,
-                    cover.id,
-                    cover.expected_hash,
+                    slide.id,
+                    slide.expected_hash,
                     "fictional-online-offline-race",
                     SlidePatch(html="<h1>Fictional concurrent edit</h1>"),
                 )
                 context.set_offline(False)
+                context.unroute("**/api/**")
                 page.get_by_role("button", name="Reconnect and review").click()
                 expect(page.get_by_role("heading", name="Choose a version")).to_be_visible()
                 expect(page.locator("#conflict-current")).to_contain_text(
                     "Fictional concurrent edit"
                 )
                 expect(page.locator("#conflict-draft")).to_contain_text("Fictional offline edit")
-                assert "Fictional concurrent edit" in app.store.view(app.deck_id).slides[0].html
+                assert "Fictional concurrent edit" in saved_slide().html
                 page.get_by_role("button", name="Use my offline edit").click()
                 expect(page.get_by_role("status")).to_have_text(
                     "All saved changes have been delivered."
                 )
-                assert "Fictional offline edit" in app.store.view(app.deck_id).slides[0].html
+                assert "Fictional offline edit" in saved_slide().html
                 context.set_offline(True)
                 page.get_by_role("textbox", name="Shared comment", exact=True).fill(
                     "My fictional revocation draft"
@@ -108,6 +123,69 @@ def test_hosted_offline_edit_conflict_and_revocation(tmp_path: Path) -> None:
                     .json()
                     == []
                 )
+        finally:
+            browser.close()
+
+
+def test_saved_bookmarks_recover_when_a_deck_is_unknown_or_revoked(tmp_path: Path) -> None:
+    """Keep unavailable decks blank and verify access before reopening another saved deck."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app", tmp_path / "server.log", unified=True, offline_fixture=True
+        ) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        other = "2026-11-02-fictional-second-deck"
+        _ = app.store.create(other, "Second fictional deck", "test-brand")
+        for deck in (app.deck_id, other):
+            accept(alice, grant(owner, "alice", deck))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                for deck in (app.deck_id, other):
+                    page.goto(f"{WORKSPACE}/?deck={deck}#cover")
+                    page.get_by_role("button", name="Menu", exact=True).click()
+                    page.get_by_role("button", name="Save offline", exact=True).click()
+                    expect(page.locator("#toast")).to_contain_text("Saved on this device")
+                offline = f"{WORKSPACE}/web/offline.html"
+                page.goto(f"{offline}#deck=missing&slide=cover")
+                status = page.get_by_role("status")
+                source = page.get_by_role("textbox", name="Slide HTML", exact=True)
+                reopen = page.get_by_role("link", name="Open saved presentations", exact=True)
+                expect(status).to_contain_text("Save this presentation")
+                expect(source).to_have_value("")
+                reopen.click()
+                expect(status).to_have_text("Available on this device.")
+
+                with page.expect_response(f"**/api/decks/{other}") as response:
+                    page.goto(f"{offline}#deck={other}&slide=cover")
+                assert response.value.ok
+                expect(status).to_have_text("Available on this device.")
+                expect(page.get_by_role("combobox", name="Presentation")).to_have_value("1")
+
+                scope = {"kind": "artifact", "resource": app.deck_id}
+                records = owner.get(
+                    "/api/workspaces/default/access", params=scope
+                ).raise_for_status()
+                grant_id = records.json()["grants"][0]["id"]
+                _ = owner.post(
+                    f"/api/workspaces/default/access/{grant_id}/revoke", json=scope
+                ).raise_for_status()
+                with page.expect_response(f"**/api/decks/{app.deck_id}") as response:
+                    page.goto(f"{offline}#deck={app.deck_id}&slide=cover")
+                assert response.value.status == 404
+                expect(status).to_contain_text("This presentation is unavailable")
+                expect(source).to_have_value("")
+                assert page.locator("#preview").get_attribute("srcdoc") is None
+                with page.expect_response(f"**/api/decks/{other}") as response:
+                    reopen.click()
+                assert response.value.ok
+                expect(status).to_have_text("Available on this device.")
+                expect(page).to_have_url(f"{offline}#deck={other}&slide=cover")
+                expect(page.get_by_role("option", name="Fictional team deck")).to_have_count(0)
         finally:
             browser.close()
 
