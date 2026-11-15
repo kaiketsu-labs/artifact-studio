@@ -4,6 +4,7 @@ const state = {session: null, workspace: '', project: '', artifact: '', slide: '
   current: null, generation: 0, messages: [], accessScope: null, accessWorkspace: '', outgoing: new Map(), recipients: new Map(), hasEarlier: false};
 const roleNames = {view: 'Can view', comment: 'Can comment', edit: 'Can edit'};
 const node = (tag, text, className) => {const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n;};
+const chatThreads = window.StudioChatTimeline.create();
 let noticeTimer;
 function notice(text) { $('notice').textContent = text; $('notice').hidden = false; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { $('notice').hidden = true; }, 7000); }
 async function api(path, body) {
@@ -162,6 +163,7 @@ function renderMessages() {
   const list = $('messages'); const atEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 70;
   const signature = JSON.stringify(state.messages);
   if (list.dataset.signature !== signature) {
+    const threadFocus = chatThreads.capture(list);
     list.dataset.signature = signature;
     list.replaceChildren(...window.StudioChatTimeline.render(state.messages, message => message.created * 1000, message => {
       const mine = message.author === state.session.person;
@@ -183,6 +185,10 @@ function renderMessages() {
       if (message.assigned && !message.completed) row.append(node('span', message.released ? 'Requested' : 'Saved privately · not sent', 'subtle small'));
       return row;
     }, day => node('p', day, 'chat-day')));
+    chatThreads.mount(list, state.messages, {
+      context: [state.session.person, state.workspace, state.artifact, state.channel].join(':'), focus: threadFocus,
+      name: message => message.author !== message.person ? state.current.agents.find(agent => agent.id === message.author)?.name || 'Agent' : message.author === state.session.person ? 'You' : message.author_name
+    });
     if (!state.messages.length) list.append(node('p', state.channel === 'shared' ? 'Talk with your collaborators here. Choose an agent when you want a change.' : 'A private conversation with your agents. Changes they make are visible to everyone.', 'empty-chat'));
     if (atEnd) list.scrollTop = list.scrollHeight;
   }

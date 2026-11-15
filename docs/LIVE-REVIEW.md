@@ -52,6 +52,13 @@ Use **End review** in the artifact conversation header, or **Menu → Agent conn
 
 **Send** submits each new comment immediately for every artifact type. **Copy conversation** copies visible conversation text without sending it. Earlier saved messages remain private until **Send saved messages**; hooks never silently release them. A closed or unavailable agent can read saved feedback when resumed.
 
+Agent replies with a stored parent appear in an expandable thread below that
+message. Threads start expanded, preserve your collapse choice during refreshes,
+and count new replies while collapsed. The quoted message links to the exact
+original. Copy conversation includes collapsed replies. A parent outside the
+currently visible conversation is never fetched or inferred from similar text;
+its reply remains visible on its own.
+
 ## Agent behavior
 
 Read `read_feedback(deck_id, after_delivery_id=...)` for presentations or `read_artifact_feedback(artifact_id=..., after_delivery_id=...)` for general artifacts before revising. Carry `next_cursor` forward. Only successful feedback-feed reads acknowledge delivery; a presentation snapshot and a wake-up notification do not. This avoids skipping a batch released during another read. Read design requests using their separate `next_cursor`, acknowledge work with `reply_to_design_request(status="working")`, and reply when complete.

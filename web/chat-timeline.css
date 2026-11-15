@@ -15,3 +15,54 @@
   flex: 1;
   border-top: 1px solid var(--line, var(--hub-line, currentColor));
 }
+
+.chat-thread, .chat-thread-replies {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+.chat-thread { align-self: stretch; flex-shrink: 0; }
+.chat-replies { min-width: 0; }
+.chat-replies > .chat-replies-toggle {
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 2px;
+  color: var(--blue, var(--hub-blue, var(--accent, #365e9c)));
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.chat-replies-toggle:focus-visible, .chat-reply-origin:focus-visible,
+[data-chat-message]:focus-visible {
+  outline: 2px solid var(--blue, var(--hub-blue, var(--accent, #365e9c)));
+  outline-offset: 3px;
+}
+.chat-thread-new { margin-left: 7px; font-size: 10px; font-weight: 650; }
+.chat-thread-attention { margin-left: 7px; color: var(--subtle, var(--hub-muted, var(--muted, inherit))); font-size: 10px; font-weight: 400; }
+.chat-thread-replies {
+  margin: 6px 0 2px 7px;
+  padding-left: 12px;
+  border-left: 2px solid var(--line, var(--hub-line, #dce3ed));
+}
+.chat-thread-replies > :is(.comment, .hub-message, .message) { max-width: 100%; margin-bottom: 0; }
+button.chat-reply-origin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  margin: 2px 0 8px;
+  border: 0;
+  border-left: 2px solid var(--blue, var(--hub-blue, var(--accent, #365e9c)));
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.chat-reply-label { font-size: 10px; font-weight: 600; color: var(--subtle, var(--hub-muted, var(--muted, inherit))); }
+.chat-reply-excerpt { font-size: 12px; line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }

@@ -93,11 +93,13 @@ For a shared hosted workspace, use its [scoped agent connection](docs/MULTIPLAYE
 
 ![Pixel illustration of a fictional shared conversation and an explicit agent request scoped to the selected chart and version.](docs/assets/agents-collaboration.png)
 
-Shared conversations let people discuss the work; **Ask agent** marks a message as an explicit agent request. A private thread keeps personal agent discussion separate. See [collaboration controls](docs/MULTIPLAYER.md).
+Shared conversations let people discuss the work; **Ask agent** marks a message as an explicit agent request. A private conversation keeps personal agent discussion separate. See [collaboration controls](docs/MULTIPLAYER.md).
 
 ### Automatic feedback
 
 With loaded Codex/Claude Code lifecycle hooks, selecting or working on an artifact attaches its review session. **Send** delivers a new message and attachments; the agent can continue in the open chat for presentations, HTML, Markdown, images and other files. Older saved messages require **Send saved messages**. **Copy conversation** copies displayed text without delivering it.
+
+Replies appear beneath the original message. Use the reply count to collapse or expand a thread; new replies are counted while it stays collapsed. Select a reply's quote to jump to its original message. Copy conversation includes replies in collapsed threads.
 
 Follow the [hook setup and native trust/reload steps](docs/LIVE-REVIEW.md). The editor's **Menu → Agent connection → Automatic feedback → Copy setup prompt** prepares the instructions. The connection status shows availability; **End review** stops listening. Keep the server and agent chat open: an MCP connection cannot start a closed chat.
 
@@ -105,10 +107,12 @@ Follow the [hook setup and native trust/reload steps](docs/LIVE-REVIEW.md). The 
 
 ![Pixel workflow: brief, draft, rendered check, human review and approval, with revisions returning to the draft.](docs/assets/agents-loop.png)
 
-1. **Start with a brief.** Create a project, import files or a folder, or have the agent register an authored bundle. Studio keeps an owned copy and preserves the originals. Add optional design references through **Designs → Add design**; agents must open the reference files to use them.
+1. **Start with a brief.** Create a project, import files or a folder, or have the agent register an authored bundle. Workspace-owner agents can create projects and sidebar folders through MCP. Studio keeps an owned copy and preserves the originals. Add optional design references through **Designs → Add design**.
 2. **Point to the change.** Select slide objects, HTML elements, document text or image regions. Hold Cmd, Ctrl or Shift to combine targets. Write feedback, attach files, dictate with [voice input](docs/VOICE-INPUT.md), or type `@` to attach a saved [project, artifact or slide reference](docs/CHAT-REFERENCES.md).
 3. **Review the revision.** Feedback retains its original version and targets. Direct edit controls preview changes locally; **Send edit** asks the agent to apply them. **Auto-update** shows incoming revisions while retaining drafts; it can be turned off. Agents capture rendered output and inspect interactions before handing work back.
 4. **Choose and approve.** Compare whole-slide designs or element alternatives, keep the direction you want, and approve the exact reviewed version. Later revisions need review again. History retains earlier saves and design decisions; restore creates a new save.
+
+For design guidance, start with written rules, theme tokens and example slides; inspect original references when needed. Design references accept files up to **50 MB**, with a **50 MB combined batch limit**. The authenticated [file client](docs/FILE-CLIENT.md#hosted-design-reference-files) transfers larger originals without putting binary content into model responses. Attaching a source does not mean it has been inspected or converted.
 
 The [getting-started guide](docs/GETTING-STARTED.md) covers imports, organization, editing and troubleshooting. [Keyboard controls](docs/KEYBOARD-CONTROLS.md) document multiselection, context menus, undo/redo and selected-object image exports. [Design references](docs/DESIGN-PACKS.md), [interactive authoring](docs/INTERACTIVE-HTML.md) and [slide alternatives](docs/SLIDE-DESIGNS.md) cover deeper composition workflows.
 

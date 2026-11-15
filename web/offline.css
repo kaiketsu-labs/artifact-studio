@@ -7,6 +7,7 @@
 .preview-panel .section-heading label{max-width:70%;font-size:11px;color:var(--muted)}
 .preview-panel select{display:block}
 #offline-properties{--surface:var(--panel);--selected:var(--soft)}
+#offline-list{display:inline-flex;align-items:center;min-height:38px;margin:0 8px 12px 0;color:var(--blue);font-weight:600}
 .offline-object-tools{display:grid;gap:8px;min-width:180px}
 .offline-object-tools [role=group]{display:flex;gap:4px}
 .offline-object-tools input{width:64px;margin:0 4px}

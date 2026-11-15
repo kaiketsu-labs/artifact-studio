@@ -13,6 +13,7 @@
   document.documentElement.toggleAttribute('data-native-conversation',nativeChat);
   const nativeConversation=window.StudioNativeConversation;
   const scopedChat=nativeConversation.create({api});
+  const chatThreads=window.StudioChatTimeline.create();
   const collaborationChat=nativeChat?scopedChat:null;
   let conversation=null,conversationDeck='',conversationRead=0,conversationChannel='shared',unreadMentions=[];
   let legacyWorkflow=null;
@@ -139,6 +140,8 @@
   function proposalPreviewChanged(proposal){
     if(draftUncertain())return;
     if(!deck||!selectedId)return;
+    // A refresh of the inactive controller must not clear the other visible proposal.
+    proposal=proposal||liveProposalContext();
     const previous=feedbackDraft();
     if(!previous?.feedback?.trim()&&!previous?.target&&!chatComposer.hasFiles()&&JSON.stringify(proposalReference(previous))!==JSON.stringify(proposal)){
       feedbackDrafts.set(chatKey(),{...previous,feedback:previous?.feedback||'',target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,element_option_id:proposal?.element_option_id,element_option_name:proposal?.element_option_name,element_context_hash:proposal?.element_context_hash,request_id:crypto.randomUUID()});
@@ -901,10 +904,11 @@
     const signature=JSON.stringify([item.content_hash,comments]),list=$('feedback-list'),changedContext=commentsKey!==key();
     if(!changedContext&&signature===commentsSignature)return;
     const pendingQuestions=window.SlideQuestions.pending(comments).length,questionStatus=$('chat-question-status');questionStatus.hidden=!pendingQuestions;iconButton(questionStatus,'question',`${pendingQuestions} question${pendingQuestions===1?'':'s'} awaiting your answer`,false);
-    const focused=slideQuestions.captureFocus(list);
+    const focused=slideQuestions.captureFocus(list),threadFocus=chatThreads.capture(list);
     const atEnd=list.scrollHeight-list.scrollTop-list.clientHeight<35;
     commentsKey=key();commentsSignature=signature;
     list.innerHTML=window.StudioChatTimeline.render(comments,comment=>comment.created_at,comment=>comment.question&&comment.author==='agent'?slideQuestions.render(comment,comments,deck.id,item.id,item.content_hash):`<article class="comment ${comment.author}${comment.mentioned?' mentioned':''}${comment.agentRequest?' is-agent-request':''}" data-comment-id="${comment.event_id}"${comment.collaborator?' data-collaborator':''}><div class="comment-header">${chatAvatar(comment.author,!!comment.reply_to,comment.name)}${comment.agentRequest?nativeConversation.agentBadge(comment.agentRecipient,escape):''}${comment.scoped&&!nativeChat?'<small class="shared-message-label">Shared</small>':''}<time>${escape(new Date(comment.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}))}</time></div>${comment.target?`<button type="button" class="comment-target" data-event="${comment.event_id}" title="${escape(comment.target.quote)}">↖ ${escape(comment.target.label)}</button>`:''}<div class="chat-markdown">${window.SlideChatMarkdown.render(comment.author==='user'&&comment.target?(window.MultiElementEdits.readableMessage(comment.message)||comment.message):comment.message)}${comment.edit_summary?.length?`<p class="chat-edit-summary">${escape(comment.edit_summary.join('\n'))}</p>`:window.ElementProperties.summary(comment.edit_intent).map(value=>`<span class="element-edit-summary">${escape(value)}</span>`).join('')}${comment.original_request?`<details class="chat-edit-details"><summary>Exact request</summary><pre>${escape(comment.original_request)}</pre></details>`:''}</div>${slideDesignOptions?.card(comment)||''}${elementAlternatives?.card(comment)||''}${comment.element_option_id?`<span class="comment-design-context">Option · ${escape(comment.element_option_name||'Saved alternative')}</span>`:''}${comment.design_option_id?`<span class="comment-design-context">Design · ${escape(comment.design_option_name||'Saved alternative')}</span>`:''}${chatComposer.sentFiles(comment)}${!comment.released?'<span class="comment-pending">Not sent</span>':''}${comment.scope!=='presentation'&&!comment.design_option_id&&!comment.design_set_id&&!comment.element_option_id&&!comment.element_set_id&&((comment.scoped&&comment.target&&!comment.content_hash)||(comment.content_hash&&comment.content_hash!==item.content_hash))?`<span class="old-version">${comment.scoped&&comment.target&&!comment.content_hash?'Original version unavailable':'Earlier version'}</span>`:''}</article>`,day=>`<p class="chat-day">${escape(day)}</p>`).join('');
+    chatThreads.mount(list,comments,{context:`${studioHome}:${conversation?.person||'local'}:${key()}:${conversationChannel}`,focus:threadFocus});
     slideQuestions.mount(list,comments,deck.id,item.id);slideDesignOptions?.mountCards();elementAlternatives?.mountCards();
     if(changedContext&&pendingQuestions){list.querySelector('[data-question-state="open"]')?.scrollIntoView({block:'nearest'});}else if(changedContext||atEnd)list.scrollTop=list.scrollHeight;
     slideQuestions.restoreFocus(list,focused);
@@ -1476,7 +1480,16 @@
   workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor.state().dirty||groupEditor.state().busy||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   if(!sharedEditor)api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   const offlineButton=$('offline-save'),offlineSignout=$('offline-signout');
-  function syncOfflineSave(){$('offline-save').disabled=!deck||switchingDeck||offlineSaving;}
+  function syncOfflineSave(){
+    offlineButton.disabled=!deck||switchingDeck||offlineSaving;
+    const saved = new URL('/web/offline.html', location.origin);
+    if (deck) {
+      const selection = new URLSearchParams({deck: deck.id});
+      if (slide()) selection.set('slide', selectedId);
+      saved.hash = selection.toString();
+    }
+    $('offline-open').href = saved.href;
+  }
   window.ArtifactSession.get().then(async session=>{
     await OfflineClient.bind(session.cache_scope);
     if(session.cache_scope&&'serviceWorker' in navigator){offlineButton.hidden=false;offlineSignout.hidden=false;$('offline-open').hidden=false;}
@@ -1484,7 +1497,7 @@
   offlineButton.addEventListener('click',async()=>{
     if(!deck||switchingDeck||offlineSaving)return;
     offlineSaving=true;syncOfflineSave();
-    try{await OfflineClient.save(window.ArtifactSession.get({refresh:true}),deck,studioPath('/api/session'),window.ArtifactSession.workspace);toast('Saved on this device. Open /web/offline.html to use it offline.');}
+    try{await OfflineClient.save(window.ArtifactSession.get({refresh:true}),deck,studioPath('/api/session'),window.ArtifactSession.workspace);toast('Saved on this device. Open Saved presentations from the menu.');}
     catch(error){toast(error.message,true);}finally{offlineSaving=false;syncOfflineSave();}
   });
   offlineSignout.addEventListener('click',async()=>{
