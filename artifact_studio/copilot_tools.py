@@ -10,6 +10,7 @@ import os
 import shutil
 import stat
 import threading
+import time
 from collections.abc import Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
@@ -26,7 +27,11 @@ from .agent_io import deck_receipt, rule_fields, slide_receipt
 from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView, ProjectView
 from .artifacts import LEGACY_PROJECT, ArtifactStore, relative_path, write_tree
-from .copilot_capture import capture_cloud_contact_sheet, capture_cloud_slide
+from .copilot_capture import (
+    MAX_CLOUD_CONTACT_SLIDES,
+    capture_cloud_contact_sheet,
+    capture_cloud_slide,
+)
 from .element_alternatives import ElementAlternatives, ElementInput
 from .hook_bundle import client_files
 from .models import DesignFile, Slide, SlidePatch
@@ -324,14 +329,19 @@ class ScopedTools:
         )
         return [public_object(item.model_dump(exclude={"context"})) for item in projects]
 
-    def list_artifacts(self, project_id: str = "") -> list[dict[str, object]]:
+    def list_artifacts(self, project_id: str = "", kind: str = "") -> list[dict[str, object]]:
         """List scoped artifact IDs and current revisions without loading their source bodies."""
         project_ids = (
             [project_id or self.project_id]
             if project_id or self.project_id
             else [item.id for item in self.artifacts.list_projects()]
         )
-        return [self.metadata(item) for selected in project_ids for item in self.catalog(selected)]
+        return [
+            self.metadata(item)
+            for selected in project_ids
+            for item in self.catalog(selected)
+            if not kind or item.kind == kind
+        ]
 
     def get_working_context(
         self, artifact_id: str = "", project_id: str = "", known_rules_hash: str = ""
@@ -873,9 +883,21 @@ class ScopedTools:
             self.store.reorder(deck_id, slide_ids, expected_slide_ids=expected_slide_ids)
         ).model_dump()
 
-    def read_feedback(self, deck_id: Identifier, after_delivery_id: int = 0) -> dict[str, object]:
-        """Read released deck requests without the shared design inbox or withheld attachments."""
-        _ = self.deck(deck_id)
+    def read_feedback(
+        self, deck_id: Identifier, after_delivery_id: int = 0, wait_seconds: int = 0
+    ) -> dict[str, object]:
+        """Read released deck requests; wait_seconds=0 returns immediately, up to 25 waits.
+        Excludes the shared design inbox and withheld attachments.
+        """
+        deadline = time.monotonic() + min(25, max(0, wait_seconds))
+        while True:
+            _ = self.deck(deck_id)
+            result = self._released_feedback(deck_id, after_delivery_id)
+            if result["events"] or time.monotonic() >= deadline:
+                return result
+            time.sleep(0.25)
+
+    def _released_feedback(self, deck_id: str, after_delivery_id: int) -> dict[str, object]:
         events = [
             item
             for item in self.store.comments(deck_id)
@@ -968,9 +990,9 @@ class ScopedTools:
     def capture_contact_sheet(
         self,
         deck_id: Identifier,
-        offset: int = 0,
-        limit: int = 8,
-        slide_ids: tuple[str, ...] = (),
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=MAX_CLOUD_CONTACT_SLIDES)] = MAX_CLOUD_CONTACT_SLIDES,
+        slide_ids: Annotated[tuple[str, ...], Field(max_length=100)] = (),
     ) -> CallToolResult:
         """Inspect up to eight completed slides in one draft image; use capture_slide for detail."""
         _ = self.deck(deck_id)

@@ -15,6 +15,13 @@ do not restart the browser after every tool call. Close owned contexts/processes
 at completion. Two tabs in a shared context share storage and are not independent
 personas. Never attach these fictional users to an unrelated signed-in profile.
 
+Preflight the browser transport as well as the page. A forwarding helper based on
+`route.fetch()` buffers responses and can time out on server-sent event streams.
+Do not diagnose that as product latency. If the fixture cannot forward a live
+stream, record the limitation and any visible reloads, and omit claims about live
+updates. A persistent synchronous Playwright session also needs locator waits or
+short event-loop pumping between interactive commands to finish routed requests.
+
 If turbo-browser tools are already exposed, `tabs_batch` with named
 `isolatedContext` values can provide this separation. Otherwise use the host's
 equivalent contexts. Inspect its live schemas and verify identity through the
@@ -28,6 +35,10 @@ entire HTML document. Request bounds or frame details only when needed. Use a
 small initial output budget, for example 4,000 characters, but treat truncation
 as missing evidence: narrow the query or explicitly inspect the remaining area.
 Never infer an absent control from a truncated result.
+
+After navigation or leaving Present, verify the visible selected slide title and
+editor state before changing notes or sending a target-specific request. A click
+during a view transition is not evidence that the intended selection completed.
 
 Keep screenshot pixels for visual judgments: text snapshots cannot establish
 layout, clipping, typography, animation or contrast. Save full diagnostics and

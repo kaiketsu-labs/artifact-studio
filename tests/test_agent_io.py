@@ -8,6 +8,7 @@ from typing import Literal, cast
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult
 
 from artifact_studio import app as service
 from artifact_studio.models import (
@@ -141,13 +142,23 @@ def test_outline_keeps_order_and_tokens_without_source_or_history(store: Store) 
 def test_targeted_slide_read_omits_only_interactive_body(store: Store) -> None:
     """Large embedded dependencies stay optional without weakening guards or erasing source."""
     before = store.read(TEMPLATE_ID).slides[0]
-    interactive = "<style>/*" + "embedded-font-data-" * 30_000 + "*/</style><p>Exact text</p>"
+    authored = (
+        '<article class="slide"><style>.freeform{display:grid;transform:rotate(2deg)}</style>'
+        '<svg viewBox="0 0 20 20"><path d="M0 0L20 20"/></svg>'
+        '<div class="freeform" data-custom="preserve">Authored freely</div></article>'
+    )
+    interactive = (
+        "<style>/*"
+        + "embedded-font-data-" * 30_000
+        + "*/</style><svg><circle r='7'/></svg><p>Exact text</p>"
+        + "<script>window.fictionalCustomComposition = () => ({x: 7});</script>"
+    )
     _ = store.revise(
         TEMPLATE_ID,
         before.id,
         digest(before.model_dump_json()),
         "large-interactive-fixture",
-        SlidePatch(interactive_html=interactive, notes="Human speaker note"),
+        SlidePatch(html=authored, interactive_html=interactive, notes="Human speaker note"),
     )
     full = service.get_slide(TEMPLATE_ID, "cover")
     _ = store.add_feedback(
@@ -179,6 +190,10 @@ def test_targeted_slide_read_omits_only_interactive_body(store: Store) -> None:
         SlidePatch(title="Updated title"),
     )
     current = service.get_slide(TEMPLATE_ID, "cover")
+    assert current.html == full.html
+    assert ".freeform{display:grid;transform:rotate(2deg)}" in current.html
+    assert '<svg viewBox="0 0 20 20"><path d="M0 0L20 20"/></svg>' in current.html
+    assert 'data-custom="preserve"' in current.html
     assert current.interactive_html == interactive and current.interactive_html_included
     assert current.notes == "Human speaker note"
     with pytest.raises(ToolError, match="changed"):
@@ -629,3 +644,104 @@ def test_context_append_retries_do_not_duplicate_or_overwrite(store: Store) -> N
         )
     with pytest.raises(ValueError, match="nonempty"):
         store.append_context(TEMPLATE_ID, "  ", result)
+
+
+def test_consolidated_catalog_keeps_aliases_callable(store: Store) -> None:
+    from artifact_studio.tool_server import COMPATIBILITY_ALIASES
+
+    _ = store.post_design_request(
+        DesignRequestInput(message="Fictional design handoff", request_id="alias-handoff")
+    )
+    names = {tool.name for tool in asyncio.run(service.mcp.list_tools())}
+    assert not names & COMPATIBILITY_ALIASES
+    for name, arguments in (
+        ("list_presentations", {}),
+        ("list_designs", {}),
+        ("wait_for_feedback", {"deck_id": TEMPLATE_ID, "timeout_seconds": 0}),
+        ("wait_for_design_requests", {"timeout_seconds": 0}),
+        (
+            "append_presentation_context",
+            {
+                "deck_id": TEMPLATE_ID,
+                "markdown": "Alias continuation.",
+                "expected_hash": store.view(TEMPLATE_ID).context_hash,
+            },
+        ),
+        (
+            "reply_to_presentation_feedback",
+            {"deck_id": TEMPLATE_ID, "message": "Agent opening", "request_id": "opening-test"},
+        ),
+    ):
+        result = asyncio.run(service.mcp.call_tool(name, arguments))
+        assert isinstance(result, CallToolResult) and not result.is_error
+    tools = {tool.name: tool for tool in asyncio.run(service.mcp.list_tools())}
+    assert "wait_seconds" in tools["read_feedback"].input_schema["properties"]
+    assert "mode" in tools["update_presentation_context"].input_schema["properties"]
+    assert set(tools["reply_to_feedback"].input_schema["required"]) == {
+        "deck_id",
+        "message",
+        "request_id",
+    }
+    assert service.list_design_contexts(kind="references") == []
+    assert all(
+        item.kind == "slide_pack" for item in service.list_design_contexts(kind="slide_pack")
+    )
+
+
+def test_consolidated_context_append_preserves_retry_and_conflict(store: Store) -> None:
+    original = store.view(TEMPLATE_ID)
+    result = service.update_presentation_context(
+        TEMPLATE_ID, "Continuation via canonical tool.", original.context_hash, mode="append"
+    )
+    assert (
+        service.update_presentation_context(
+            TEMPLATE_ID, "Continuation via canonical tool.", original.context_hash, mode="append"
+        )
+        == result
+    )
+    assert store.view(TEMPLATE_ID).context_markdown.count("Continuation via canonical tool.") == 1
+    with pytest.raises(ToolError, match="context changed"):
+        service.update_presentation_context(
+            TEMPLATE_ID, "Different continuation.", original.context_hash, mode="append"
+        )
+    with pytest.raises(ToolError, match="context changed"):
+        service.update_presentation_context(TEMPLATE_ID, "Replace stale.", original.context_hash)
+
+
+def test_consolidated_read_waits_for_released_feedback_only(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with store.connect() as db:
+        _ = store.append_feedback(db, TEMPLATE_ID, "cover", "user", "Withheld", "", released=False)
+    sleeps: list[float] = []
+
+    def release_during_wait(seconds: float) -> None:
+        sleeps.append(seconds)
+        with store.connect() as db:
+            _ = store.append_feedback(
+                db, TEMPLATE_ID, "cover", "user", "Released", "", released=True
+            )
+
+    monkeypatch.setattr(service.time, "sleep", release_during_wait)
+    assert service.read_feedback(TEMPLATE_ID, wait_seconds=-1).events == []
+    result = service.read_feedback(TEMPLATE_ID, wait_seconds=1)
+    assert sleeps == [0.25]
+    assert [event.message for event in result.events] == ["Released"]
+    service.reply_to_feedback(TEMPLATE_ID, "", message="General reply", request_id="general-test")
+    assert store.comments(TEMPLATE_ID)[-1].slide_id is None
+
+
+@pytest.mark.parametrize("slide_id", ["", "cover"])
+def test_agent_replies_cannot_reference_withheld_feedback(store: Store, slide_id: str) -> None:
+    with store.connect() as db:
+        event = store.append_feedback(
+            db, TEMPLATE_ID, slide_id, "user", "Private draft", "", released=False
+        )
+    with pytest.raises(ToolError, match="same presentation context"):
+        service.reply_to_feedback(TEMPLATE_ID, slide_id, "Agent reply", "held-reply", int(event))
+    if not slide_id:
+        with pytest.raises(ToolError, match="same presentation context"):
+            service.reply_to_presentation_feedback(
+                TEMPLATE_ID, "Agent reply", "held-alias", int(event)
+            )
+    assert len(store.comments(TEMPLATE_ID)) == 1

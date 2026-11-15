@@ -32,6 +32,11 @@ setup separately from product interactions.
 Record the source commit (and dirty-file fingerprints), scenario, fixture,
 environment, browser, agent models, baseline and acceptance criteria before
 starting. Save local evidence under `test-results/workflow-review/<run-id>/`.
+Identify the connected tool surface: local, hosted or Copilot. Their catalogues
+and permissions differ; a hosted simulation cannot establish local-tool coverage.
+For tool changes, supplement the personas with a matched transport check of the
+affected surface. Preserve arbitrary HTML/CSS/SVG/JavaScript authoring; measure
+interface simplification without restricting the agent's design choices.
 Use [roles and checkpoints](references/roles.md) for delegation prompts and
 [measurement and report](references/measurement.md) for instrumentation.
 Before browser work, read [efficient browser observation](references/browser-workflow.md)
@@ -63,6 +68,9 @@ The coordinator provisions fixtures, instruments boundaries and coordinates
 checkpoints. It does not secretly complete a persona's task. Participants should
 use Studio's normal conversation for task feedback. Coordinator messages may
 schedule races or report blockers without relaying private product content.
+Before delegation, verify that each role can reach the fixture, that captures
+render, and that the selected design is accessible within the editor's grant.
+An inaccessible reference pointer is not permission to bypass that grant.
 
 ## Exercise the real workflow
 
