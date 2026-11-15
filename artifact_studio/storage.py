@@ -12,7 +12,7 @@ import tempfile
 import time
 import uuid
 from collections import defaultdict
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from contextlib import ExitStack, contextmanager, suppress
 from datetime import UTC, datetime
 from html import escape
@@ -151,7 +151,9 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def decode_attachments(files: list[FileInput]) -> list[tuple[str, bytes]]:
+def decode_attachments(
+    files: Sequence[FileInput], *, max_file_bytes: int = 25_000_000
+) -> list[tuple[str, bytes]]:
     """Validate shared attachment limits before writing any local files."""
     if len(files) > 5:
         raise ValueError("Choose up to 5 attachments.")
@@ -164,8 +166,8 @@ def decode_attachments(files: list[FileInput]) -> list[tuple[str, bytes]]:
             data = base64.b64decode(file.data_base64, validate=True)
         except (binascii.Error, ValueError) as error:
             raise ValueError("The attachment could not be read. Attach it again.") from error
-        if len(data) > 25_000_000:
-            raise ValueError("Keep each attachment at or below 25 MB.")
+        if len(data) > max_file_bytes:
+            raise ValueError(f"Keep each attachment at or below {max_file_bytes / 1_000_000:g} MB.")
         decoded.append((name, data))
     if sum(len(data) for _, data in decoded) > 50_000_000:
         raise ValueError("Keep the combined attachments at or below 50 MB.")
@@ -239,10 +241,10 @@ class Store:
             from .version_history import install_slide_history
 
             install_slide_history(db)
-            from .slide_designs import install_designs
+            from .designs.slides import install_designs
 
             install_designs(db)
-            from .element_alternatives import install_element_alternatives
+            from .designs.elements import install_element_alternatives
 
             install_element_alternatives(db)
             columns = {row[1] for row in db.execute("PRAGMA table_info(feedback)")}
@@ -384,10 +386,10 @@ class Store:
         from .slide_actions import recover_pending
 
         recover_pending(self, db, deck_id)
-        from .slide_designs import recover_design_decisions
+        from .designs.slides import recover_design_decisions
 
         recover_design_decisions(self, db, deck_id)
-        from .element_alternatives import recover_element_decisions
+        from .designs.elements import recover_element_decisions
 
         recover_element_decisions(self, db, deck_id)
 
@@ -612,9 +614,9 @@ class Store:
 
     def view(self, deck_id: str, *, include_pending: bool = True) -> DeckView:
         """Return a review-ready snapshot of a presentation."""
-        from .element_alternatives import element_badges
+        from .designs.elements import element_badges
+        from .designs.slides import design_badges
         from .sections import sections_hash
-        from .slide_designs import design_badges
 
         deck = self.read(deck_id)
         context_file = self.folder(deck_id) / "README.md"
@@ -1354,7 +1356,7 @@ class Store:
                 raise ValueError(
                     "Add a design from a PPTX, URL or reference before creating slides."
                 )
-            from .design_authoring import blank_presentation, design_files, record_design_baseline
+            from .designs.authoring import blank_presentation, design_files, record_design_baseline
             from .presentation_files import ordinary_file
 
             design = self.design(design_id, include_archived=not scoped) if design_id else None

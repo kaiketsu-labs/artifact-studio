@@ -21,7 +21,7 @@ from urllib.parse import quote
 from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactView
 from .artifacts import ArtifactStore
-from .design_thumbnails import design_thumbnail
+from .designs.thumbnails import design_thumbnail
 from .hosted_policy import deck_asset_path
 from .projects import RootSettings
 from .renderer_health import (

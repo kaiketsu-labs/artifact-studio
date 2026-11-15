@@ -183,7 +183,7 @@
             <input type="file" id="design-library-input" multiple hidden>
             <ul id="design-library-pending"></ul>
           </div>
-          <small class="design-upload-limits">Up to 5 files · 25 MB each / 50 MB total</small>
+          <small class="design-upload-limits">Up to 5 files · 50 MB each / 50 MB total</small>
         </section>
         ${creating?`<details class="design-description-disclosure"><summary>Add a description <small>· optional</small></summary><textarea name="description" aria-label="Description" maxlength="2000" placeholder="What defines this design?"></textarea></details>`:''}
         <p id="design-library-error" class="hub-compose-error" role="alert"></p>
@@ -204,12 +204,13 @@
     function addFiles(files){
       if(busy||!doc.getElementById('design-library-form'))return;
       const next=[...pending,...files];
-      if(next.length>5||next.some(file=>file.size>25000000)||next.reduce((n,file)=>n+file.size,0)>50000000){doc.getElementById('design-library-error').textContent='Up to 5 files, 25 MB each and 50 MB total.';return;}
+      if(next.length>5){doc.getElementById('design-library-error').textContent='Choose up to 5 files.';return;}
+      if(next.some(file=>file.size>50000000)||next.reduce((n,file)=>n+file.size,0)>50000000){doc.getElementById('design-library-error').textContent='This selection exceeds the 50 MB limit. Choose smaller files.';return;}
       pending=next;doc.getElementById('design-library-error').textContent='';renderPending();
     }
     function useDialog(){
       const link=new URL(studioHome(),root.location.origin);link.searchParams.set('view','designs');link.searchParams.set('design',selected.id);
-      const message=`Use “${selected.name}” from my Artifact Studio design library as visual reference for my next task. Inspect its current references first and flag anything you cannot read.
+      const message=`Use “${selected.name}” from my Artifact Studio design library as visual reference for my next task. Start with its written guidance, theme and example slides. Inspect original reference files where needed, and flag anything you cannot inspect.
 
 ${link}${scoped?`\n\nUse a connection scoped to this workspace. Read get_design_context for design “${selected.id}” and open its references with read_design_reference.`:''}`;
       const share=root.ArtifactSharing.canShare({title:selected.name,text:message})?control('share-message','Share…','share','aria-label="Share message" title="Share this message using apps on your device"'):'';

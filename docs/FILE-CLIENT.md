@@ -94,3 +94,21 @@ For a positioned `add_slide`, keep `after_slide_id` and/or `section_id` at the t
 Refreshing server code does not prove an existing chat has rediscovered the tool catalogue. Check the callable tools in the **agent host**, not just the server response. Current Artifact Studio includes `get_presentation_outline`, `update_presentation_context`, `get_authoring_guide` and retained-rule hash arguments. If they are absent, use the host's supported MCP connection refresh controls and recheck; do not add duplicate implementations.
 
 OpenAI's [app-server documentation](https://learn.chatgpt.com/docs/app-server) describes `config/mcpServer/reload` as queuing a refresh for loaded chats. The [MCP setup guide](https://learn.chatgpt.com/docs/extend/mcp) also documents host restart controls. Those are host operations; this client does not modify Codex configuration or refresh its in-memory tools.
+
+## Hosted design reference files
+
+The reviewed-call client above remains loopback-only. For binary design references
+on an authenticated hosted workspace, use
+`python -m artifact_studio.designs.upload --url https://studio.example.com --design-id fictional-orbit --file ./master.pptx`.
+Set `ARTIFACT_STUDIO_AGENT_TOKEN` in the agent environment outside chat. The helper
+sends up to 50 MB directly from the file and returns one metadata receipt, keeping
+the source bytes and credential out of model messages. See
+[design source uploads](DESIGN-PACKS.md#hosted-agents-and-original-powerpoint-sources)
+for ownership, validation and optional SHA-256 guards.
+
+To inspect an original design source locally, use `python -m
+artifact_studio.designs.download` with the source's inventoried `--path` and
+`--sha256`, an explicit `--output`, and the same HTTPS origin/environment token.
+It streams and verifies up to 50 MB, refuses to overwrite the output, and prints
+only a filename/size/hash receipt. Read compact design guidance and selected
+examples first; download the original source only when needed.

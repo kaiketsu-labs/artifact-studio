@@ -71,9 +71,11 @@ def attachment_page(
     offset: int,
     max_bytes: int,
     encoding: Literal["utf-8", "base64"],
+    *,
+    max_file_bytes: int = 25_000_000,
 ) -> dict[str, object]:
     """Verify an immutable attachment before returning a bounded, inert source page."""
-    if not 0 <= offset <= file.size <= 25_000_000:
+    if not 0 <= offset <= file.size <= max_file_bytes:
         raise ValueError("Attachment offset or size is out of range.")
     if not path.is_relative_to(boundary):
         raise ValueError("Attachment is outside its private storage.")
@@ -224,7 +226,13 @@ class ScopedTools:
     """Authorize current project membership before every source read or mutation."""
 
     def __init__(
-        self, store: Store, project_id: str, whole_workspace: bool, *, hosted_hooks: bool = False
+        self,
+        store: Store,
+        project_id: str,
+        whole_workspace: bool,
+        *,
+        hosted_hooks: bool = False,
+        design_example: str = "",
     ) -> None:
         """Keep gateway scope independent from the local application's global store."""
         self.store = store
@@ -232,6 +240,7 @@ class ScopedTools:
         self.project_id = project_id
         self.whole_workspace = whole_workspace
         self.hosted_hooks = hosted_hooks
+        self.design_example = design_example
         if not whole_workspace:
             self.project(project_id)
 
@@ -283,8 +292,17 @@ class ScopedTools:
             raise ValueError("Legacy presentation bundles are private; use the slide tools.")
         return item
 
-    def deck(self, deck_id: str) -> ArtifactView:
-        """Authorize a legacy deck through its current artifact project membership."""
+    def deck(self, deck_id: str) -> ArtifactView | None:
+        """Authorize an artifact, or the exact example already guarded by its hosted owner."""
+        if (
+            self.whole_workspace
+            and deck_id == self.design_example
+            and (self.store.folder(deck_id) / "design.json").is_file()
+            and any(item.folder_id == deck_id for item in self.store.designs())
+        ):
+            if (self.store.root / deck_id).is_symlink():
+                raise ValueError("Design example is unavailable.")
+            return None
         item = self.artifact(deck_id)
         if item.legacy_deck_id != deck_id:
             raise ValueError("Use the artifact tools for this item.")

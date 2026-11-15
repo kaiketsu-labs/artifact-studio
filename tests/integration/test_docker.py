@@ -96,7 +96,13 @@ def test_image_has_runtime_without_private_build_context(container: Container) -
     health.raise_for_status()
     assert health.json()["service"] == "artifact-studio"
     assert health.json()["status"] == "ready"
-    for path in ("/", "/web/hub.js", "/runtime/presentation.js"):
+    for path in (
+        "/",
+        "/web/hub.js",
+        "/runtime/presentation.js",
+        "/web/presentation/launcher.js",
+        "/web/presentation-launcher.js",
+    ):
         response = container.http.get(path)
         assert response.status_code == 200 and len(response.content) > 100
     assert container.http.get("/api/app-info").json()["update_check"] == "disabled"

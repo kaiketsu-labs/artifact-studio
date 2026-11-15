@@ -7,7 +7,7 @@ from typing import Literal
 
 from .agent_io import guide_fields, rule_fields
 from .artifacts import ArtifactStore
-from .design_library import DesignLibrary
+from .designs.library import DesignLibrary
 from .storage import Store, digest
 
 PROJECT = Path(__file__).resolve().parent.parent

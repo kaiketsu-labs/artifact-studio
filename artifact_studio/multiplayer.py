@@ -10,6 +10,7 @@ import secrets
 import time
 from collections.abc import AsyncGenerator
 from contextlib import AsyncExitStack, asynccontextmanager
+from functools import cache
 from pathlib import Path
 from typing import Annotated, Literal, cast
 from urllib.parse import quote
@@ -28,8 +29,9 @@ from .artifacts import ArtifactStore
 from .authentication import AuthProvider, Principal, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
-from .design_preview import hosted_slide_thumbnail
-from .design_thumbnails import raster_thumbnail
+from .designs.hosted import reference_routes
+from .designs.preview import hosted_slide_thumbnail
+from .designs.thumbnails import raster_thumbnail
 from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
@@ -45,7 +47,7 @@ from .multiplayer_access import (
     workspace_editor_path,
 )
 from .multiplayer_chat import Channel, ChatProposal, CollaboratorRequestMode, Conversations
-from .multiplayer_http import MultiplayerAuth
+from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .offline_delivery import (
     OfflineCommentInput,
@@ -180,7 +182,6 @@ def create_app(
     if landing_enabled and admission is None:
         raise ValueError("Invitation landing requires the configured admission provisioner.")
     chat = Conversations(hub)
-    offline_delivery = OfflineDelivery(hub)
     presence = DeckPresence(hub)
     structure = StructureProposals(hub)
     mcp = ToolServer[None](
@@ -220,6 +221,7 @@ def create_app(
         openapi_url=None,
     )
     app.state.sharing, app.state.chat = hub, chat
+    app.include_router(reference_routes(hub, disk_reserve=IMPORT_DISK_RESERVE))
     app.add_middleware(
         MultiplayerAuth,
         config=config,
@@ -672,23 +674,29 @@ def create_app(
         chat.read_mention(actor_of(request), Scope(workspace, "artifact", artifact), event)
         return {"ok": True}
 
-    def offline_namespace(request: Request, workspace: str) -> str:
+    @cache
+    def offline_delivery() -> OfflineDelivery:
+        """Initialize offline storage only after checking feature access."""
+        return OfflineDelivery(hub)
+
+    def offline_context(request: Request, workspace: str) -> tuple[str, OfflineDelivery]:
+        """Open offline storage for a verified human using the enabled feature."""
         principal = getattr(request.state, "authenticated_principal", None)
         namespace = cache_scope(
             config, principal if isinstance(principal, Principal) else None, workspace
         )
         if namespace is None:
             raise AccessDenied
-        return namespace
+        return namespace, offline_delivery()
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-snapshot")
     def offline_snapshot(
         request: Request, workspace: str, artifact: str, body: OfflineSnapshotInput
     ) -> dict[str, object]:
-        namespace = offline_namespace(request, workspace)
+        namespace, delivery = offline_context(request, workspace)
         return {
             "cache_scope": namespace,
-            **offline_delivery.issue_snapshot(
+            **delivery.issue_snapshot(
                 actor_of(request),
                 Scope(workspace, "artifact", artifact),
                 namespace,
@@ -701,10 +709,11 @@ def create_app(
     def offline_receipt(
         request: Request, workspace: str, artifact: str, body: OfflineReceiptInput
     ) -> dict[str, str]:
-        receipt = offline_delivery.issue(
+        namespace, delivery = offline_context(request, workspace)
+        receipt = delivery.issue(
             actor_of(request),
             Scope(workspace, "artifact", artifact),
-            offline_namespace(request, workspace),
+            namespace,
             body.slide_id,
             body.content_hash,
             body.expected_hash,
@@ -716,10 +725,11 @@ def create_app(
     def offline_edit(
         request: Request, workspace: str, artifact: str, body: OfflineEditInput
     ) -> dict[str, object]:
-        return offline_delivery.edit(
+        namespace, delivery = offline_context(request, workspace)
+        return delivery.edit(
             actor_of(request),
             Scope(workspace, "artifact", artifact),
-            offline_namespace(request, workspace),
+            namespace,
             body.receipt,
             body.request_id,
             body.html,
@@ -731,10 +741,11 @@ def create_app(
     def offline_comment(
         request: Request, workspace: str, artifact: str, body: OfflineCommentInput
     ) -> dict[str, object]:
-        return offline_delivery.comment(
+        namespace, delivery = offline_context(request, workspace)
+        return delivery.comment(
             actor_of(request),
             Scope(workspace, "artifact", artifact),
-            offline_namespace(request, workspace),
+            namespace,
             body.receipt,
             body.request_id,
             body.message,

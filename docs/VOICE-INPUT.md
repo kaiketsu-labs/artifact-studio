@@ -32,3 +32,28 @@ Hosted presenter dictation uses the updated shared runtime. Existing design/deck
 Voice adds no MCP tools, transcription endpoints or audio/base64 fields to agent feedback. Each submitted section is an ordinary text comment with its original context. No model-token or billing saving is inferred from this feature.
 
 The stalled-provider recovery from PR #143 was incorporated in #148. The simulated provider tests do not replace a real microphone check; the latter remains open for supported browsers and devices.
+
+## Real-device acceptance
+
+Issue [#159](https://github.com/kaiketsu-labs/artifact-studio/issues/159) requires a
+physical microphone and the browser's real speech provider. Record the app commit,
+OS, browser/version, microphone, speech language and permission state. Use a
+fictional deck and artifact, and keep the recording/transcript out of public
+reports unless it was deliberately prepared for publication.
+
+Run each scenario in both presentation and artifact chat:
+
+| Scenario | Expected result |
+| --- | --- |
+| Dictate a short sentence, stop, then edit the draft | Confirmed text remains editable; nothing is sent automatically. |
+| Deny microphone permission with an existing typed draft | Recording stops, an actionable message appears, and the typed draft remains. |
+| Allow permission in browser settings, then start again | A new explicit recording succeeds without reloading or losing the draft. |
+| Disconnect or select an unavailable microphone | The UI releases the recording state and preserves confirmed/typed text. |
+| Make the speech service unreachable using the browser's normal offline control | Recording reports failure or times out; no automatic retry loop or send occurs. |
+| Reconnect the device/network, then start and stop again | Another explicit recording works and can be reviewed before sending. |
+
+An unsupported browser should leave typing available and explain that keyboard
+dictation can be used. A successful synthetic `SpeechRecognition` event test does
+not establish device permissions, microphone accuracy or service availability.
+The cloud environment checked on 2026-11-15 has no `/dev/snd`; the synthetic voice
+test files passed there, but physical-device acceptance remains unverified.

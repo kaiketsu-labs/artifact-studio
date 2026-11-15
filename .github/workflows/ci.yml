@@ -196,6 +196,8 @@ jobs:
               tests/integration/test_hosted_browser.py
               tests/integration/test_native_sharing.py
               tests/integration/test_design_references.py
+              tests/integration/test_large_design_references.py
+              tests/test_hosted_design_authoring.py
               tests/test_scoped_presentation_creation.py
               tests/integration/test_presentation_authoring.py
               tests/test_multiplayer_browser_owner.py

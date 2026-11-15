@@ -51,18 +51,27 @@ from .autosync import AutoSync, SyncStatus
 from .chat_references import chat_reference_routes
 from .deck_edit_api import DeckID, SlideID, deck_edit_routes
 from .deployment import DeploymentConfig
-from .design_authoring import DesignAuthoring
-from .design_library import DesignDetail, DesignItem, DesignLibrary
-from .design_preview import hosted_design_preview, hosted_slide_thumbnail
-from .design_references import DesignReferences
-from .element_alternative_api import element_alternative_routes
-from .element_alternatives import (
+from .designs.authoring import DesignAuthoring
+from .designs.element_api import element_alternative_routes
+from .designs.elements import (
     ElementAlternatives,
     ElementCapture,
     ElementInput,
     ElementPage,
     ElementSet,
     ElementSource,
+)
+from .designs.library import DesignDetail, DesignItem, DesignLibrary
+from .designs.preview import hosted_design_preview, hosted_slide_thumbnail
+from .designs.references import DesignReferences
+from .designs.slide_api import design_routes
+from .designs.slides import (
+    DesignCapture,
+    DesignInput,
+    DesignPage,
+    DesignSet,
+    DesignSource,
+    SlideDesigns,
 )
 from .events import deck_events
 from .favorites import favorite_routes
@@ -129,15 +138,6 @@ from .review import ReviewHookInput, ReviewHookReply, Reviews
 from .sections import Sections, section_layout
 from .security_check import SecurityReport, security_report
 from .share_api import sharing_routes
-from .slide_design_api import design_routes
-from .slide_designs import (
-    DesignCapture,
-    DesignInput,
-    DesignPage,
-    DesignSet,
-    DesignSource,
-    SlideDesigns,
-)
 from .storage import ConflictError, Store, digest
 from .text_review import check_slide_text as review_captured_text
 from .tool_server import ToolServer
@@ -149,6 +149,7 @@ from .visuals import (
     capture_queue_status,
     capture_snapshot,
 )
+from .web_assets import StudioWebFiles
 
 PROJECT = Path(__file__).resolve().parent.parent
 deployment = DeploymentConfig.from_env()
@@ -2423,7 +2424,7 @@ app.include_router(recovery_routes(lambda: store))
 
 
 app.mount("/runtime", StaticFiles(directory=PROJECT / "runtime"), name="runtime")
-app.mount("/web", StaticFiles(directory=PROJECT / "web"), name="web")
+app.mount("/web", StudioWebFiles(directory=PROJECT / "web"), name="web")
 if deployment.mode == "hosted":
     app.include_router(hosted_presenter_router(lambda: store, deployment.public_url))
     app.include_router(scoped_deck_routes(lambda: store))

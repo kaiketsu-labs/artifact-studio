@@ -1,0 +1,96 @@
+{
+  "issue": 221,
+  "method": "Independent Terra exercise against actual hosted MCP SDK in a disposable fictional workspace",
+  "tool_calls": 11,
+  "successful_calls": 9,
+  "expected_denials": 2,
+  "request_json_bytes": 1566,
+  "response_json_bytes": 7156,
+  "owner_creation_edit_calls": 7,
+  "extra_tree_reads_after_initial_discovery": 0,
+  "browser_workaround_required": false,
+  "notes": [
+    "Requests measure compact {name,arguments} JSON, excluding JSON-RPC envelope.",
+    "Responses measure SDK CallToolResult model_dump including text and structured copies.",
+    "These are transport-byte measurements, not billed tokens or a before/after savings claim."
+  ],
+  "calls": [
+    {
+      "tool": "get_project_tree",
+      "request_json_bytes": 42,
+      "response_json_bytes": 797,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "create_project_folder",
+      "request_json_bytes": 163,
+      "response_json_bytes": 453,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "create_project",
+      "request_json_bytes": 105,
+      "response_json_bytes": 575,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "move_project_to_folder",
+      "request_json_bytes": 213,
+      "response_json_bytes": 448,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "create_presentation",
+      "request_json_bytes": 172,
+      "response_json_bytes": 717,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "get_slide",
+      "request_json_bytes": 89,
+      "response_json_bytes": 1155,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "revise_slide",
+      "request_json_bytes": 304,
+      "response_json_bytes": 796,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "create_project_folder",
+      "request_json_bytes": 151,
+      "response_json_bytes": 169,
+      "expected_denial": true,
+      "is_error": true
+    },
+    {
+      "tool": "create_project",
+      "request_json_bytes": 56,
+      "response_json_bytes": 162,
+      "expected_denial": true,
+      "is_error": true
+    },
+    {
+      "tool": "create_presentation",
+      "request_json_bytes": 181,
+      "response_json_bytes": 725,
+      "expected_denial": false,
+      "is_error": false
+    },
+    {
+      "tool": "get_slide",
+      "request_json_bytes": 90,
+      "response_json_bytes": 1159,
+      "expected_denial": false,
+      "is_error": false
+    }
+  ]
+}

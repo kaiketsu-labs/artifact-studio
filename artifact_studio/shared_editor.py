@@ -33,11 +33,13 @@ from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .authentication import AuthProvider, Principal
 from .deck_edit_api import deck_edit_routes
 from .deployment import DeploymentConfig
-from .design_library import DesignLibrary
-from .design_library_api import design_library_routes
-from .design_preview import hosted_design_preview
-from .element_alternative_api import element_alternative_routes
-from .element_alternatives import element_badges
+from .designs.element_api import element_alternative_routes
+from .designs.elements import element_badges
+from .designs.library import DesignLibrary
+from .designs.library_api import design_library_routes
+from .designs.preview import hosted_design_preview
+from .designs.slide_api import design_routes
+from .designs.slides import design_badges
 from .favorites import Favorites, favorite_routes
 from .history_api import history_routes
 from .hosted_policy import passive_deck_asset_response
@@ -59,10 +61,9 @@ from .project_tree import ProjectTree, TreeChange, TreeView
 from .renderer_health import RendererBusy
 from .sections import sections_hash
 from .share_api import ShareInput, ShareWorkspace, sharing_routes
-from .slide_design_api import design_routes
-from .slide_designs import design_badges
 from .storage import ConflictError, Store, digest
 from .version_authors import revision_author
+from .web_assets import web_asset_name
 
 PROJECT = Path(__file__).resolve().parents[1]
 SHARED_PROJECT = "shared-with-me"
@@ -213,7 +214,6 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     """Build the guest surface without mounting any whole-workspace API."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, redirect_slashes=False)
     snapshot_epoch = secrets.token_hex(16)
-    offline_delivery = OfflineDelivery(hub)
     app.add_middleware(
         MultiplayerAuth, config=config, provider=provider, sharing=hub, shared_shell=True
     )
@@ -276,7 +276,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     @app.get("/runtime/{path:path}")
     def studio_asset(request: Request, path: str) -> FileResponse:
         root = PROJECT / ("web" if request.url.path.startswith("/web/") else "runtime")
-        asset = (root / path).resolve()
+        asset = (root / (web_asset_name(path) if root.name == "web" else path)).resolve()
         if (
             not asset.is_relative_to(root)
             or (asset.suffix.lower() not in ASSET_SUFFIXES and path != "offline.html")
@@ -509,23 +509,29 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             ):
                 yield store
 
-    def offline_namespace(request: Request) -> str:
+    @cache
+    def offline_delivery() -> OfflineDelivery:
+        """Initialize offline storage only after checking feature access."""
+        return OfflineDelivery(hub)
+
+    def offline_context(request: Request) -> tuple[str, OfflineDelivery]:
+        """Open offline storage for a verified human using the enabled feature."""
         principal = getattr(request.state, "verified_guest", None)
         namespace = cache_scope(
             config, principal if isinstance(principal, Principal) else None, workspace_of(request)
         )
         if namespace is None:
             raise AccessDenied
-        return namespace
+        return namespace, offline_delivery()
 
     @app.post("/api/decks/{deck_id}/offline-snapshot")
     def offline_snapshot(
         request: Request, deck_id: str, body: OfflineSnapshotInput
     ) -> dict[str, object]:
-        namespace = offline_namespace(request)
+        namespace, delivery = offline_context(request)
         return {
             "cache_scope": namespace,
-            **offline_delivery.issue_snapshot(
+            **delivery.issue_snapshot(
                 actor_of(request),
                 artifact_scope(request, deck_id),
                 namespace,
@@ -538,10 +544,11 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def offline_receipt(
         request: Request, deck_id: str, body: OfflineReceiptInput
     ) -> dict[str, str]:
-        receipt = offline_delivery.issue(
+        namespace, delivery = offline_context(request)
+        receipt = delivery.issue(
             actor_of(request),
             artifact_scope(request, deck_id),
-            offline_namespace(request),
+            namespace,
             body.slide_id,
             body.content_hash,
             body.expected_hash,
@@ -551,10 +558,11 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
 
     @app.post("/api/decks/{deck_id}/offline-edits")
     def offline_edit(request: Request, deck_id: str, body: OfflineEditInput) -> dict[str, object]:
-        return offline_delivery.edit(
+        namespace, delivery = offline_context(request)
+        return delivery.edit(
             actor_of(request),
             artifact_scope(request, deck_id),
-            offline_namespace(request),
+            namespace,
             body.receipt,
             body.request_id,
             body.html,
@@ -566,10 +574,11 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     def offline_comment(
         request: Request, deck_id: str, body: OfflineCommentInput
     ) -> dict[str, object]:
-        return offline_delivery.comment(
+        namespace, delivery = offline_context(request)
+        return delivery.comment(
             actor_of(request),
             artifact_scope(request, deck_id),
-            offline_namespace(request),
+            namespace,
             body.receipt,
             body.request_id,
             body.message,
