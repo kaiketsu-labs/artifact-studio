@@ -8,7 +8,7 @@ Open **Designs → Add design**, give it a name, then drop reference files into 
 
 Use **Use with agent → Copy message**, then paste into your connected agent's chat. The message identifies this design and asks the agent to inspect its current references before proposing changes. A blocked clipboard leaves the message selected for manual copying. Add files or a description before using an empty collection. This handoff does not send a message or change any project automatically.
 
-**Add files** adds references, file trash icons remove attachments from future context, and file names download the originals. Uploads accept up to five files per batch, 25 MB each and 50 MB total. Removing an attachment cannot erase content an agent already read.
+**Add files** adds references, file trash icons remove attachments from future context, and file names download the originals. Uploads accept up to five files per batch, 50 MB each and 50 MB total. Removing an attachment cannot erase content an agent already read.
 
 Images and saved PowerPoint covers appear as thumbnails. Click a thumbnail to enlarge it; the file name still downloads the original. Raster previews use a bounded, upright first frame. PowerPoint previews use the file's embedded cover rather than rendering its slides. Missing or unsupported previews fall back to colored file-type icons.
 
@@ -40,7 +40,7 @@ The VS Code-style source editor includes line numbers, syntax highlighting, brac
 
 For a pack already in a GitHub repo, connect that repo using **Menu → Storage and backup**, or ask the agent to register it as a reference library. The agent refreshes the repo, inspects its files and copies the chosen pack into your local collection before registering it. Registering a library alone does not install its designs or upload your files.
 
-To add a PowerPoint source to an existing design, use **New presentation → Manage references** or **Menu → Design references**. Attach any file type, such as PowerPoint, PDF, images, documents or data: up to five per batch, 25 MB each and 50 MB total. Downloads are inert; attaching a file does not prove the agent can inspect its format. They are shared by presentations using that design and give the agent reference material; attaching a file does not automatically apply its template or slides. An upload also queues a design inbox notice for an active agent with trusted, loaded review hooks. Ask the agent to inspect the source and preserve the branding while composing appropriate layouts. If the design pack is missing, restore or register it before attaching a reference.
+To add a PowerPoint source to an existing design, use **New presentation → Manage references** or **Menu → Design references**. Attach any file type, such as PowerPoint, PDF, images, documents or data: up to five per batch, 50 MB each and 50 MB total. Downloads are inert; attaching a file does not prove the agent can inspect its format. They are shared by presentations using that design and give the agent reference material; attaching a file does not automatically apply its template or slides. An upload also queues a design inbox notice for an active agent with trusted, loaded review hooks. Ask the agent to inspect the source and preserve the branding while composing appropriate layouts. If the design pack is missing, restore or register it before attaching a reference.
 
 ## Agent contract
 
@@ -123,7 +123,7 @@ workspace agent token through `ARTIFACT_STUDIO_AGENT_TOKEN`, configured outside
 chat. The helper accepts only an explicit HTTPS origin and never follows
 redirects. It uploads the file directly, without putting base64 into model context,
 and prints only the saved reference's metadata. `--sha256` can pin the reviewed
-file contents. Files must be non-empty regular files up to 25 MB; symbolic links
+file contents. Files must be non-empty regular files up to 50 MB; symbolic links
 are rejected. PowerPoint containers receive the same macro, archive and package
 validation as browser uploads and remain inert original sources.
 
@@ -132,3 +132,34 @@ hosted MCP for sources up to **1 MiB**. The shared MCP request limit stays 2 MiB
 Larger files use the helper's separately bounded upload route; no browser is
 needed. Read saved metadata with `get_design_context` and selected file pages with
 `read_design_reference`. Upload retries deduplicate by filename and content hash.
+
+### Inspect compact design guidance before original binaries
+
+Start with the design's `PREFERENCES.md`, concise `README.md`, author theme CSS,
+and a few relevant example slides. Load individual files with `get_design_file`
+and slide tools, and reuse their returned hashes. A generic bundled agent guide
+or a full original PowerPoint is not needed for every turn. Keep the original
+PowerPoint for provenance and inspect it on demand when the brief or examples
+leave an unanswered visual question. Attaching it does not automatically convert
+its layouts into a theme or presentation.
+
+Use `get_design_context` for the saved source's `path` and `sha256`, then download
+only that file directly to the agent's working directory:
+
+```sh
+python -m artifact_studio.designs.download \
+  --url https://studio.example.com \
+  --design-id fictional-orbit \
+  --path reference/uploads/SOURCE_HASH/Fictional-master.pptx \
+  --sha256 SOURCE_HASH \
+  --output ./Fictional-master.pptx
+```
+
+Use the actual path/hash from the inventory, and the same environment token as
+upload. The helper verifies HTTPS, the 50 MB limit and SHA-256, then publishes a
+complete local file without overwriting an existing output. Cancellation or a
+partial/mismatched download leaves no output file. Its result contains only the
+filename, size and hash; original bytes stay out of chat. `read_design_reference`
+remains available for bounded pages up to 1 MiB, including files larger than
+25 MB. Design import, original upload, file download and reference paging all
+support files up to 50 MB; chat and brief attachment limits stay at 25 MB.

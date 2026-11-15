@@ -17,7 +17,12 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
-from .designs.hosted import AGENT_REFERENCE_PATH, MAX_REFERENCE_BYTES, owner_design_store
+from .designs.hosted import (
+    AGENT_DESIGN_FILE_PATH,
+    AGENT_REFERENCE_PATH,
+    MAX_REFERENCE_BYTES,
+    owner_design_store,
+)
 from .designs.library import DesignLibrary
 from .designs.transfer import MAX_DESIGN_ZIP
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
@@ -78,6 +83,7 @@ class MultiplayerAuth:
         self.preview_slots = asyncio.Semaphore(4)
         self.chat_upload_slot = asyncio.Semaphore(1)
         self.chat_download_slots = asyncio.Semaphore(2)
+        self.design_download_slots = asyncio.Semaphore(2)
         self.owner_upload_slot = asyncio.Semaphore(1)
         self._last_busy_log: dict[tuple[str, str], float] = {}
 
@@ -204,6 +210,7 @@ class MultiplayerAuth:
             agent_path = not self.shared_shell and (
                 path in {"/mcp", "/mcp/", "/api/review/hooks"}
                 or AGENT_REFERENCE_PATH.fullmatch(path) is not None
+                or AGENT_DESIGN_FILE_PATH.fullmatch(path) is not None
             )
             origins = headers.getlist("origin")
             if (agent_path and origins) or (
@@ -359,6 +366,8 @@ class MultiplayerAuth:
             if chat_write is not None
             else ("chat_download", self.chat_download_slots)
             if _CHAT_FILE.fullmatch(path)
+            else ("design_download", self.design_download_slots)
+            if AGENT_DESIGN_FILE_PATH.fullmatch(path)
             else ("review_hook", self.hook_slots)
             if path == "/api/review/hooks"
             else ("agent", self.agent_slots)

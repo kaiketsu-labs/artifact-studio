@@ -97,7 +97,7 @@ def test_rejects_symlinks_large_file_and_hash_mismatch(
     with pytest.raises(ValueError, match="SHA-256 guard"):
         upload.upload("https://example.com", "fictional", source, "0" * 64)
     monkeypatch.setattr(upload, "MAX_FILE", 3)
-    with pytest.raises(ValueError, match="25 MB"):
+    with pytest.raises(ValueError, match="50 MB"):
         upload.upload("https://example.com", "fictional", source)
 
 

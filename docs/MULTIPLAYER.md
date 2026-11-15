@@ -473,6 +473,6 @@ A workspace owner's workspace-wide agent connection can create a design, edit an
 capture its example slides, and attach original PowerPoint sources without browser
 interaction. Project and artifact connections retain their existing scope and
 cannot access the private reusable library. See [hosted design authoring](DESIGN-PACKS.md#hosted-agents-and-original-powerpoint-sources)
-for the small-file MCP tool and the direct file uploader for sources up to 25 MB.
+for the small-file MCP tool and the direct file uploader for sources up to 50 MB.
 The [hosted MCP catalogue](../agent/hosted-tools.json) is generated from registered
 hosted tools; load individual schemas on demand rather than both catalogues at startup.

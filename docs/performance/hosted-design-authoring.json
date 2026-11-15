@@ -14,7 +14,8 @@
     "Byte counts are JSON transport estimates, not billed tokens. Responses may contain both text and structured copies.",
     "Image base64 and transport headers are excluded.",
     "The direct binary upload is outside MCP and never echoed into model context; its bytes are reported separately.",
-    "The fixture is original fictional content; no production credentials or sources were used."
+    "The fixture is original fictional content; no production credentials or sources were used.",
+    "Request samples measure compact {name,arguments} JSON, excluding the JSON-RPC envelope. Response samples include SDK model fields, text/structured copies and an image placeholder instead of image base64."
   ],
   "calls": [
     {
@@ -95,5 +96,22 @@
       "response_json_bytes_excluding_image_base64": 171,
       "error": true
     }
-  ]
+  ],
+  "large_reference_followup": {
+    "method": "Independent file-backed upload/download through certificate-verified HTTPS to the real unified hosted endpoint",
+    "source_bytes": 33921225,
+    "upload_receipt_json_bytes": 473,
+    "download_receipt_json_bytes": 113,
+    "original_bytes_in_model_messages": 0,
+    "download_sha256_and_bytes_match": true,
+    "limits": {
+      "design_file_bytes": 50000000,
+      "design_batch_bytes": 50000000,
+      "mcp_inline_bytes": 1048576,
+      "mcp_page_bytes": 1048576,
+      "mcp_request_bytes": 2097152,
+      "ordinary_chat_file_bytes": 25000000
+    },
+    "notes": "No full-source base64 in MCP; transport bytes are not billed-token measurements."
+  }
 }

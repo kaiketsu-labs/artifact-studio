@@ -124,7 +124,7 @@
     },
     {
       "name": "read_design_reference",
-      "description": "Read a bounded page of an inventoried file from a private design.",
+      "description": "Read up to 1 MiB from an inventoried private design file (up to 50 MB total).\nPrefer compact guidance and examples first. For original binaries use\npython -m artifact_studio.designs.download with the inventoried path/hash.\n",
       "input_schema": {
         "properties": {
           "design_id": {
@@ -1330,7 +1330,7 @@
     },
     {
       "name": "attach_design_reference",
-      "description": "Attach an original source up to 1 MiB; returns metadata only. For files up to 25 MB,\nuse python -m artifact_studio.designs.upload with --url, --design-id and --file;\nsupply ARTIFACT_STUDIO_AGENT_TOKEN through the environment, never chat arguments.\n",
+      "description": "Attach an original source up to 1 MiB; returns metadata only. For files up to 50 MB,\nuse python -m artifact_studio.designs.upload with --url, --design-id and --file;\nsupply ARTIFACT_STUDIO_AGENT_TOKEN through the environment, never chat arguments.\n",
       "input_schema": {
         "properties": {
           "design_id": {

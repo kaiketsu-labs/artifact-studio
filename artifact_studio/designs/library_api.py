@@ -3,7 +3,7 @@
 import asyncio
 import errno
 import tempfile
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from shutil import disk_usage
@@ -50,7 +50,7 @@ def design_library_routes(
     transfer_slot = BoundedSemaphore()
 
     @contextmanager
-    def write_access(request: Request, files: list[FileInput]) -> Generator[Store]:
+    def write_access(request: Request, files: Sequence[FileInput]) -> Generator[Store]:
         """Budget the destination filesystem under the same ownership lock as the write."""
         with access(request) as store:
             if disk_reserve:

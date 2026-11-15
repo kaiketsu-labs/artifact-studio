@@ -12,7 +12,7 @@ import tempfile
 import time
 import uuid
 from collections import defaultdict
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Sequence
 from contextlib import ExitStack, contextmanager, suppress
 from datetime import UTC, datetime
 from html import escape
@@ -151,7 +151,9 @@ def digest(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def decode_attachments(files: list[FileInput]) -> list[tuple[str, bytes]]:
+def decode_attachments(
+    files: Sequence[FileInput], *, max_file_bytes: int = 25_000_000
+) -> list[tuple[str, bytes]]:
     """Validate shared attachment limits before writing any local files."""
     if len(files) > 5:
         raise ValueError("Choose up to 5 attachments.")
@@ -164,8 +166,8 @@ def decode_attachments(files: list[FileInput]) -> list[tuple[str, bytes]]:
             data = base64.b64decode(file.data_base64, validate=True)
         except (binascii.Error, ValueError) as error:
             raise ValueError("The attachment could not be read. Attach it again.") from error
-        if len(data) > 25_000_000:
-            raise ValueError("Keep each attachment at or below 25 MB.")
+        if len(data) > max_file_bytes:
+            raise ValueError(f"Keep each attachment at or below {max_file_bytes / 1_000_000:g} MB.")
         decoded.append((name, data))
     if sum(len(data) for _, data in decoded) > 50_000_000:
         raise ValueError("Keep the combined attachments at or below 50 MB.")

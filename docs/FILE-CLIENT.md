@@ -101,7 +101,14 @@ The reviewed-call client above remains loopback-only. For binary design referenc
 on an authenticated hosted workspace, use
 `python -m artifact_studio.designs.upload --url https://studio.example.com --design-id fictional-orbit --file ./master.pptx`.
 Set `ARTIFACT_STUDIO_AGENT_TOKEN` in the agent environment outside chat. The helper
-sends up to 25 MB directly from the file and returns one metadata receipt, keeping
+sends up to 50 MB directly from the file and returns one metadata receipt, keeping
 the source bytes and credential out of model messages. See
 [design source uploads](DESIGN-PACKS.md#hosted-agents-and-original-powerpoint-sources)
 for ownership, validation and optional SHA-256 guards.
+
+To inspect an original design source locally, use `python -m
+artifact_studio.designs.download` with the source's inventoried `--path` and
+`--sha256`, an explicit `--output`, and the same HTTPS origin/environment token.
+It streams and verifies up to 50 MB, refuses to overwrite the output, and prints
+only a filename/size/hash receipt. Read compact design guidance and selected
+examples first; download the original source only when needed.

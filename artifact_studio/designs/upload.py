@@ -15,7 +15,7 @@ from urllib.request import Request, build_opener
 
 from ..local_http import NoRedirect, validate_hook_url
 
-MAX_FILE = 25_000_000
+MAX_FILE = 50_000_000
 MAX_RECEIPT = 1_048_576
 
 
@@ -29,7 +29,7 @@ def read_file(path: Path) -> bytes:
         if not stat.S_ISREG(before.st_mode):
             raise ValueError("Choose a regular file, not a symlink or directory.")
         if before.st_size > MAX_FILE:
-            raise ValueError("Keep the file at or below 25 MB.")
+            raise ValueError("Keep the file at or below 50 MB.")
         fd = os.open(
             path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
         )
@@ -42,7 +42,7 @@ def read_file(path: Path) -> bytes:
             data = source.read(MAX_FILE + 1)
             after = os.fstat(source.fileno())
         if len(data) > MAX_FILE:
-            raise ValueError("Keep the file at or below 25 MB.")
+            raise ValueError("Keep the file at or below 50 MB.")
         if (
             opened.st_size != len(data)
             or opened.st_size != after.st_size

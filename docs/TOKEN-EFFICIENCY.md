@@ -214,3 +214,10 @@ transport measurements, not model-token or billing measurements. Use the
 [file uploader](DESIGN-PACKS.md#hosted-agents-and-original-powerpoint-sources) for
 binary sources to keep base64 out of model context; the 1 MiB inline tool is an
 optional path for small inputs.
+
+A follow-up verified HTTPS file round trip used a 33,921,225-byte fictional
+PowerPoint. Its upload receipt was 473 JSON bytes and download receipt 113 JSON
+bytes; the saved file matched the original bytes and SHA-256. The source bytes
+stayed outside model messages. Design sources now share the importer's 50 MB
+per-file limit (50 MB per upload batch), while inline MCP inputs and paged reads
+remain 1 MiB. This measures transport rather than claiming billed-token savings.

@@ -71,9 +71,11 @@ def attachment_page(
     offset: int,
     max_bytes: int,
     encoding: Literal["utf-8", "base64"],
+    *,
+    max_file_bytes: int = 25_000_000,
 ) -> dict[str, object]:
     """Verify an immutable attachment before returning a bounded, inert source page."""
-    if not 0 <= offset <= file.size <= 25_000_000:
+    if not 0 <= offset <= file.size <= max_file_bytes:
         raise ValueError("Attachment offset or size is out of range.")
     if not path.is_relative_to(boundary):
         raise ValueError("Attachment is outside its private storage.")

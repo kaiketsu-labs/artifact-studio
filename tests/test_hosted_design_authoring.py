@@ -263,9 +263,9 @@ def test_binary_reference_upload_is_bounded_owner_only_and_preserves_bytes(tmp_p
         asyncio.run(create())
         output = io.BytesIO(powerpoint_source("Fictional large master"))
         with ZipFile(output, "a", compression=ZIP_STORED) as archive:
-            archive.writestr("ppt/media/fictional.bin", b"fictional-source" * 150_000)
+            archive.writestr("ppt/media/fictional.bin", b"fictional-source" * 2_120_000)
         data = output.getvalue()
-        assert len(data) > 2 * 1024 * 1024
+        assert 31_800_000 < len(data) < 50_000_000
         route = "/api/agent/designs/binary-orbit/references"
         headers = {
             "host": "studio.example.test",
@@ -337,12 +337,67 @@ def test_binary_reference_upload_is_bounded_owner_only_and_preserves_bytes(tmp_p
             assert client.post(route, params={"name": "empty.pptx"}, content=b"").status_code == 413
             assert (
                 client.post(
-                    route, params={"name": "large.bin"}, content=b"x" * 25_000_001
+                    route, params={"name": "large.bin"}, content=b"x" * 50_000_001
                 ).status_code
                 == 413
             )
             download = owner.get(receipt["references"][0]["url"])
             assert download.content == data
+            reference = receipt["references"][0]
+            query = {"path": reference["path"], "sha256": reference["sha256"]}
+            file_route = "/api/agent/designs/binary-orbit/files"
+            original = client.get(file_route, params=query)
+            assert original.status_code == 200, original.text[:100]
+            assert original.headers["content-type"] == "application/octet-stream"
+            assert original.content == data
+            assert client.get(file_route, params={**query, "sha256": "0" * 64}).status_code == 409
+            assert client.get(file_route, params={**query, "path": "../private"}).status_code == 404
+            for denied in (project, guest):
+                assert (
+                    client.get(
+                        file_route,
+                        params=query,
+                        headers={"authorization": "Bearer " + denied["token"]},
+                    ).status_code
+                    == 404
+                )
+            assert (
+                client.get(
+                    file_route, params=query, headers={"authorization": "Bearer invalid"}
+                ).status_code
+                == 401
+            )
+            assert (
+                client.get(
+                    file_route, params=query, headers={"origin": "https://studio.example.test"}
+                ).status_code
+                == 403
+            )
+            assert (
+                client.get(
+                    file_route, params=query, headers={"host": "wrong.example.test"}
+                ).status_code
+                == 400
+            )
+
+            async def read_large_source_page() -> None:
+                async with peer(app, own["token"]) as session:
+                    page = value(
+                        await session.call_tool(
+                            "read_design_reference",
+                            {
+                                "design_id": "binary-orbit",
+                                "path": reference["path"],
+                                "offset": len(data) - 100,
+                                "max_bytes": 100,
+                                "encoding": "base64",
+                            },
+                        )
+                    )
+                    assert base64.b64decode(cast(str, page["data_base64"])) == data[-100:]
+                    assert len(str(page)) < 1000
+
+            asyncio.run(read_large_source_page())
             assert client.post("/mcp", content=b"x" * (2 * 1024 * 1024 + 1)).status_code == 413
 
             def revoked_stream() -> Generator[bytes]:
@@ -389,3 +444,51 @@ def test_owner_captures_new_design_example_through_hosted_sdk(tmp_path: Path) ->
                 (tmp_path / "fictional-example.png").write_bytes(base64.b64decode(image.data))
 
         asyncio.run(exercise())
+
+
+def test_reference_only_collection_accepts_mcp_and_binary_uploads(tmp_path: Path) -> None:
+    """The same owner upload contract works for source collections without example slides."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app", tmp_path / "server.log", unified=True, startup_timeout=45
+        ) as app,
+        human(app, "owner") as owner,
+    ):
+        own = connection(owner)
+        created = owner.post("/api/design-library", json={"name": "Fictional source collection"})
+        created.raise_for_status()
+        design_id = created.json()["id"]
+
+        async def attach() -> None:
+            async with peer(app, own["token"]) as session:
+                receipt = value(
+                    await session.call_tool(
+                        "attach_design_reference",
+                        {
+                            "design_id": design_id,
+                            "name": "Guidance.txt",
+                            "data_base64": base64.b64encode(b"Fictional brand guidance").decode(),
+                        },
+                    )
+                )
+                references = cast(list[dict[str, object]], receipt["references"])
+                assert len(references) == 1 and references[0]["name"] == "Guidance.txt"
+
+        asyncio.run(attach())
+        data = powerpoint_source("Fictional original source")
+        receipt = httpx.post(
+            app.url + f"/api/agent/designs/{design_id}/references",
+            params={"name": "Fictional.pptx"},
+            content=data,
+            headers={
+                "host": "studio.example.test",
+                "authorization": "Bearer " + own["token"],
+                "content-type": "application/octet-stream",
+            },
+        )
+        assert receipt.status_code == 200, receipt.text
+        reference = receipt.json()["references"]
+        assert len(reference) == 1 and reference[0]["sha256"] == hashlib.sha256(data).hexdigest()
+        assert owner.get(reference[0]["url"]).content == data
+        detail = owner.get(f"/api/design-library/{design_id}").json()
+        assert {item["name"] for item in detail["files"]} >= {"Guidance.txt", "Fictional.pptx"}

@@ -33,8 +33,9 @@ from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
 from .designs.authoring import DesignAuthoring
 from .designs.elements import ElementAlternatives, ElementInput
 from .designs.hosted import owner_design_store, reference_receipt
+from .designs.inputs import MAX_REFERENCE_BYTES
 from .designs.library import DesignLibrary
-from .designs.references import DesignReferences, ReferenceInput
+from .designs.references import ReferenceInput
 from .designs.slides import DesignInput, SlideDesigns
 from .hosted_policy import public_deck_asset
 from .interactive import prepare_document
@@ -239,14 +240,17 @@ class MultiplayerTools:
         max_bytes: int = 65536,
         encoding: Literal["utf-8", "base64"] = "utf-8",
     ) -> dict[str, object]:
-        """Read a bounded page of an inventoried file from a private design."""
+        """Read up to 1 MiB from an inventoried private design file (up to 50 MB total).
+        Prefer compact guidance and examples first. For original binaries use
+        python -m artifact_studio.designs.download with the inventoried path/hash.
+        """
         if not 4 <= max_bytes <= MAX_READ_BYTES:
             raise ValueError("Read 4–1048576 bytes per design file page.")
         with self.design_store(ctx) as store:
             target = DesignLibrary(store).file(design_id, path)
             size = target.stat().st_size
-            if size > 25_000_000:
-                raise ValueError("Files above 25 MB are available from the Designs download.")
+            if size > MAX_REFERENCE_BYTES:
+                raise ValueError("Files above 50 MB are available from the Designs download.")
             metadata = DesignFile(name=target.name, path=path, size=size, sha256=file_hash(target))
             return attachment_page(
                 target,
@@ -255,6 +259,7 @@ class MultiplayerTools:
                 offset,
                 max_bytes,
                 encoding,
+                max_file_bytes=MAX_REFERENCE_BYTES,
             )
 
     def create_design_pack(
@@ -273,7 +278,7 @@ class MultiplayerTools:
         name: Annotated[str, Field(min_length=1, max_length=250)],
         data_base64: Annotated[str, Field(max_length=1_398_104)],
     ) -> dict[str, object]:
-        """Attach an original source up to 1 MiB; returns metadata only. For files up to 25 MB,
+        """Attach an original source up to 1 MiB; returns metadata only. For files up to 50 MB,
         use python -m artifact_studio.designs.upload with --url, --design-id and --file;
         supply ARTIFACT_STUDIO_AGENT_TOKEN through the environment, never chat arguments.
         """
@@ -286,10 +291,10 @@ class MultiplayerTools:
                 )
             if disk_usage(store.root).free < IMPORT_DISK_RESERVE + 3 * len(data_base64):
                 raise ValueError("Not enough workspace storage for this reference.")
-            files = DesignReferences(store).attach(
+            files = DesignLibrary(store).attach(
                 design_id, ReferenceInput(files=[FileInput(name=name, data_base64=data_base64)])
             )
-            return reference_receipt(design_id, name, data, files)
+            return reference_receipt(design_id, name, data, files.files)
 
     def get_design_file(self, ctx: Ctx, design_id: str, path: str) -> dict[str, object]:
         """Read one author-editable design text file and its current hash."""
@@ -374,11 +379,18 @@ class MultiplayerTools:
                     "read/edit/capture tools. Use get_design_file/write_design_file for guidance "
                     "and theme. Prefer python -m artifact_studio.designs.upload "
                     "--url <HTTPS-origin> "
-                    "--design-id <id> --file <local-file> for original references up to 25 MB, "
+                    "--design-id <id> --file <local-file> for original references up to 50 MB, "
                     "with ARTIFACT_STUDIO_AGENT_TOKEN supplied in the environment, never chat. "
                     "This sends file bytes directly and returns a compact receipt. The inline "
                     "attach_design_reference alternative accepts at most 1 MiB; read stored "
                     "metadata with get_design_context and content with read_design_reference. "
+                    "Start with selected PREFERENCES.md, concise README, author CSS and relevant "
+                    "example slides; reuse hashes. Do not reread generic guides or original "
+                    "PowerPoint sources each turn. Download an original only when needed using "
+                    "python -m artifact_studio.designs.download --url <HTTPS-origin> --design-id "
+                    "<id> --path <inventoried-path> --sha256 <source-hash> --output <local-file>. "
+                    "The same environment token authorizes this bounded 50 MB file transfer; "
+                    "it prints only a filename/size/hash receipt and refuses to overwrite files. "
                     "Use arbitrary HTML/CSS/SVG/JavaScript inside the existing file contract. "
                     "Read only assigned requests with read_feedback. Claim with claim_feedback "
                     "before acting. Reply with reply_to_feedback using the claim and a stable "
