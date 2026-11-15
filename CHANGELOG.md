@@ -1,5 +1,57 @@
 # Changelog
 
+## [0.9.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.8.1...v0.9.0) (2026-11-15)
+
+
+### Features
+
+* **agents:** create projects and private navigation folders ([b90b167](https://github.com/kaiketsu-labs/artifact-studio/commit/b90b167c96d6c1315ffb44579f47de3d3a377c7b))
+* **agents:** create projects and private navigation folders ([1bad61f](https://github.com/kaiketsu-labs/artifact-studio/commit/1bad61f10f7ae17a0e00e6e549ebf202c1354e4e))
+* **agents:** finish review sessions and preserve project creation context ([3092da0](https://github.com/kaiketsu-labs/artifact-studio/commit/3092da013c52b1f3d7333a16a3633ebffc717c15))
+* **agents:** stop live review through session-scoped hooks ([7afa9c6](https://github.com/kaiketsu-labs/artifact-studio/commit/7afa9c66f77bc21a8610e9b0bf8d869ec331013e))
+* **chat:** add reply threads and preserve offline review context ([b7625ec](https://github.com/kaiketsu-labs/artifact-studio/commit/b7625ec356b9000a4f5130b81b23176be6098c3b))
+* **chat:** group linked replies in persistent expandable threads ([e5782d2](https://github.com/kaiketsu-labs/artifact-studio/commit/e5782d23462a1aa278c782d1c85754bcf5075729))
+* **mcp:** consolidate tools and validate agent workflows ([#205](https://github.com/kaiketsu-labs/artifact-studio/issues/205)) ([2141f0f](https://github.com/kaiketsu-labs/artifact-studio/commit/2141f0f96dc87e6b2a343634c2806cece4cc7cd4))
+* **mcp:** support saved capture responses without inline images ([#204](https://github.com/kaiketsu-labs/artifact-studio/issues/204)) ([d242d4a](https://github.com/kaiketsu-labs/artifact-studio/commit/d242d4a757e97ec65fe30033260f22f6a279ef9d))
+
+
+### Bug Fixes
+
+* **build:** include the design package in the Docker context ([1a05e92](https://github.com/kaiketsu-labs/artifact-studio/commit/1a05e92f782af97e38332c4c791aa303a262b11e))
+* complete offline recovery and hosted design workflows ([7d20943](https://github.com/kaiketsu-labs/artifact-studio/commit/7d20943a028a1c3496d0bd21140b262a9ec326fb))
+* **copilot:** isolate and cancel idle feedback waits ([82e1a4c](https://github.com/kaiketsu-labs/artifact-studio/commit/82e1a4c1876aa47a5ed8e7bbe7edaa20961da89e))
+* **copilot:** isolate and cancel idle feedback waits ([#212](https://github.com/kaiketsu-labs/artifact-studio/issues/212)) ([6dd26d6](https://github.com/kaiketsu-labs/artifact-studio/commit/6dd26d6c05aebab12ab181ff7060e6d80011c0d4))
+* **designs:** align source transfers with the 50 MB import limit ([cb0193f](https://github.com/kaiketsu-labs/artifact-studio/commit/cb0193fb9e510c8eee30dd6ea478978bd724dfb8))
+* **hosted:** author private designs and attach source references ([e0be350](https://github.com/kaiketsu-labs/artifact-studio/commit/e0be35010e9bf523b8382dde544723032e899d78))
+* **offline:** avoid exhausting snapshot receipt storage ([d4f2e4c](https://github.com/kaiketsu-labs/artifact-studio/commit/d4f2e4cef822de47c8f7d7ef89216ac1eb229437))
+* **offline:** avoid exhausting snapshot receipt storage ([474b2dd](https://github.com/kaiketsu-labs/artifact-studio/commit/474b2dda6d377354116a88da21aa6081c966ac10))
+* **offline:** avoid exhausting snapshot receipt storage ([#210](https://github.com/kaiketsu-labs/artifact-studio/issues/210)) ([fe0895e](https://github.com/kaiketsu-labs/artifact-studio/commit/fe0895ef3aa3372b510880566e6d33f545f40c01))
+* **offline:** initialize receipt storage on demand ([a2f7f14](https://github.com/kaiketsu-labs/artifact-studio/commit/a2f7f1409b77201cb212b2b9b409667d7661991b))
+* **offline:** initialize receipt storage on demand ([#223](https://github.com/kaiketsu-labs/artifact-studio/issues/223)) ([4b26955](https://github.com/kaiketsu-labs/artifact-studio/commit/4b26955fbb8284696e3596a7f1a7d181f4c289ea))
+* **offline:** resume the selected presentation and slide ([e0324ea](https://github.com/kaiketsu-labs/artifact-studio/commit/e0324eaa8d89b3f79626958fcdc8efae3e0f192e))
+* **offline:** reuse receipts and normalize retained snapshots ([b780c01](https://github.com/kaiketsu-labs/artifact-studio/commit/b780c01b6985acbb19aa49dd46e848093ade2652))
+* **projects:** bind folder receipts to the requested tree baseline ([d6e873f](https://github.com/kaiketsu-labs/artifact-studio/commit/d6e873fa34d51b8c24a13a6dc754724de9ccf5c1))
+* **projects:** preserve selection during presentation creation ([cd91e86](https://github.com/kaiketsu-labs/artifact-studio/commit/cd91e860f3f2c9873c69dc1bba2a4ba96f96c0bb))
+* **reports:** clarify Studio cannot observe external uploads ([eb7b867](https://github.com/kaiketsu-labs/artifact-studio/commit/eb7b867b8013a5cdbaf0fb6d3cad56932aacf4b2))
+* **reports:** preserve screenshot drafts through GitHub handoff ([ef90895](https://github.com/kaiketsu-labs/artifact-studio/commit/ef908958d969a364bc6d29c8a5ada7e27925df04))
+* **reports:** preserve screenshot drafts through GitHub handoff ([#214](https://github.com/kaiketsu-labs/artifact-studio/issues/214)) ([f6cc9d9](https://github.com/kaiketsu-labs/artifact-studio/commit/f6cc9d9d2683f48e1b0e03ea3df575ec12c6cc6a))
+* **review:** preserve proposal anchors through rail refreshes ([c9ea04b](https://github.com/kaiketsu-labs/artifact-studio/commit/c9ea04b4f7e9712f4e1536d0da11e02545abfe66))
+* **review:** preserve proposal anchors through rail refreshes ([6cf0592](https://github.com/kaiketsu-labs/artifact-studio/commit/6cf05928ba39ba7407245376ca44cf553a1050cc))
+
+
+### Performance Improvements
+
+* **ci:** balance browser suites and reuse locked caches ([4bfcb09](https://github.com/kaiketsu-labs/artifact-studio/commit/4bfcb094f1d2e49ad104f6ae40381f7484116553))
+
+
+### Documentation
+
+* **agents:** explain session-scoped review disconnect ([a6535d4](https://github.com/kaiketsu-labs/artifact-studio/commit/a6535d494292ec39581f3dfb2cf622804a079ada))
+* explain guidance-first designs and project authoring ([0aff1f1](https://github.com/kaiketsu-labs/artifact-studio/commit/0aff1f17a97ab53d7064f55edb58799b127e0809))
+* record feature-folder compatibility and benchmark evidence ([fb9c22b](https://github.com/kaiketsu-labs/artifact-studio/commit/fb9c22b7747961b5f8720f068e6a10d87f167eac))
+* **sync:** record inconclusive anonymous metadata probe ([3999afb](https://github.com/kaiketsu-labs/artifact-studio/commit/3999afbe65ad0a267c172793452d1d3e1c808708))
+* **sync:** record successful private GitHub acceptance ([fc9c3c6](https://github.com/kaiketsu-labs/artifact-studio/commit/fc9c3c6ebcc14fd3a50050ed6ad7c1de1857bf27))
+
 ## [0.8.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.8.0...v0.8.1) (2026-11-15)
 
 
