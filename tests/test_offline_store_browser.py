@@ -29,6 +29,17 @@ def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
             ),
         )
         page.goto("https://offline.example.test/")
+        page.evaluate("""() => new Promise((resolve,reject)=>{
+          const request=indexedDB.open('artifact-studio-offline-v1',1);
+          request.onupgradeneeded=()=>{
+            const decks=request.result.createObjectStore('decks',{keyPath:'key'});
+            decks.add({key:'@epoch',value:'legacy-epoch'});
+            decks.add({key:'a'.repeat(64)+':legacy',snapshot:{title:'Legacy'},
+              outbox:[{kind:'comment',body:'Old queued draft'}]});
+          };
+          request.onerror=()=>reject(request.error);
+          request.onsuccess=()=>{request.result.close();resolve();};
+        })""")
         page.add_script_tag(path=script)
         other_page = context.new_page()
         other_page.route(
@@ -48,6 +59,12 @@ def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
           catch{noBroadcast=true;}
           const first=OfflineStore.create({enabled:true,scope:a});
           const second=OfflineStore.create({enabled:true,scope:b});
+          const legacy=await first.drafts('legacy');
+          const oldTabRejected=await new Promise((resolve,reject)=>{
+            const request=indexedDB.open('artifact-studio-offline-v1',1);
+            request.onerror=()=>resolve(request.error.name==='VersionError');
+            request.onsuccess=()=>{request.result.close();reject(Error('Old database opened'));};
+          });
           await first.save('deck',{title:'Fictional'});
           const operation={id:'operation-1',slide_id:'slide',anchor:'original-hash',
             kind:'comment',body:'Draft',token:'must-not-be-stored'};
@@ -57,8 +74,20 @@ def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
           const reopened=OfflineStore.create({enabled:true,scope:a});
           const persisted=await reopened.read('deck');reopened.close();
           const own=await first.read('deck'),other=await second.read('deck');
-          let overwrite=false;
-          try{await first.save('deck',{title:'Replacement'});}catch{overwrite=true;}
+          let overwrite='';
+          try{await first.save('deck',{title:'Replacement'});}catch(error){overwrite=error.message;}
+          const receipt='v2.'+'f'.repeat(360),replacement='v2.'+'e'.repeat(360);
+          const original={id:'slide',html:'Original source',receipt};
+          await first.save('editable',{title:'Original',slides:[original]});
+          await first.save('editable',{
+            title:'Online refresh',slides:[{...original,receipt:replacement}]});
+          const refreshed=await first.read('editable');
+          const edit={id:'edit-1',slide_id:'slide',anchor:'original-hash',
+            kind:'edit',body:'Draft',receipt,base_html:'Untrusted caller source'};
+          let staleMessage='';
+          try{await first.queue('editable',edit);}catch(error){staleMessage=error.message;}
+          await first.queue('editable',{...edit,receipt:replacement});
+          const signed=(await first.read('editable')).outbox;
           let release;
           const delayed={open(...args){
             const request=indexedDB.open(...args);
@@ -79,11 +108,14 @@ def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
           let closed=false;try{await second.read('deck');}catch{closed=true;}
           const fresh=OfflineStore.create({enabled:true,scope:a});
           const after=await fresh.read('deck');fresh.close();
-          return {denied,noBroadcast,own,persisted,collision,other:other??null,
-            overwrite,closed,blocked,after:after??null};
+          return {denied,noBroadcast,legacy,oldTabRejected,own,persisted,collision,
+            other:other??null,overwrite,closed,blocked,after:after??null,refreshed,staleMessage,signed};
         }""")
         assert result["denied"] and result["noBroadcast"]
-        assert result["overwrite"] and result["closed"] and result["blocked"]
+        assert result["oldTabRejected"]
+        assert result["legacy"] == [{"kind": "comment", "body": "Old queued draft"}]
+        assert "review your queued changes" in result["overwrite"]
+        assert result["closed"] and result["blocked"]
         assert result["other"] is None and result["after"] is None
         assert other_page.evaluate("saved.read('deck').then(()=>false,()=>true)")
         assert result["collision"] and result["persisted"] == result["own"]
@@ -94,6 +126,20 @@ def test_offline_store_partitions_retries_and_cross_tab_purge() -> None:
                 "anchor": "original-hash",
                 "kind": "comment",
                 "body": "Draft",
+            }
+        ]
+        assert result["refreshed"]["snapshot"]["title"] == "Online refresh"
+        assert result["refreshed"]["outbox"] == []
+        assert "refreshed in another tab" in result["staleMessage"]
+        assert result["signed"] == [
+            {
+                "id": "edit-1",
+                "slide_id": "slide",
+                "anchor": "original-hash",
+                "kind": "edit",
+                "body": "Draft",
+                "receipt": "v2." + "e" * 360,
+                "base_html": "Original source",
             }
         ]
         browser.close()

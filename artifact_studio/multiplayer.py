@@ -693,6 +693,7 @@ def create_app(
                 Scope(workspace, "artifact", artifact),
                 namespace,
                 body.slides,
+                receipt_version=body.receipt_version,
             ),
         }
 
@@ -723,6 +724,7 @@ def create_app(
             body.request_id,
             body.html,
             body.overwrite_expected,
+            body.base_html,
         )
 
     @app.post("/api/workspaces/{workspace}/artifacts/{artifact}/offline-comments")

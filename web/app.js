@@ -75,6 +75,7 @@
   let deploymentMode=null;
   let deck=null, slideSections=null, selectedId=null, pendingDeck=null, selectedElement=null, hoverElement=null, toastTimer;
   let deckValidator=null;
+  let offlineSaving=false;
   const deckPresence=window.StudioDeckPresence.create({button:$('deck-presence'),panel:$('deck-viewers'),rail:$('slides'),session:window.ArtifactSession});
   const canEditShared=()=>!sharedEditor||deck?.access_role==='edit';
   const structureReview=window.StructureReview.create({api,readResponse:readStructureReview,escape,button:$('structure-review-trigger'),dialog:$('structure-review-dialog'),identity:()=>conversation?.person || ''});
@@ -494,7 +495,7 @@
     $('use-draft-version').hidden=state.uncertain||!state.safe||!state.reviewed;
     $('use-draft-version').disabled=locked;
   }
-  function updateComposer(){const uncertain=draftUncertain();renderDraftRecovery();slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;$('version-history').disabled=!slide()||switchingDeck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy(),feedbackLocked=!deck||switchingDeck||feedbackSending||!commentAllowed();elementEditor.sync();$('feedback-text').disabled=feedbackLocked;$('feedback-text').readOnly=uncertain;const agentToggle=$('chat-ask-agent'),agent=ownChatAgent(),recipient=$('chat-recipient');const pressed=!!recipient.value&&recipient.value===agent?.id;agentToggle.hidden=!nativeChat||conversationChannel!=='shared'||(!agent&&!pressed);agentToggle.disabled=feedbackLocked||mutating||uncertain;$('chat-recipient-label').hidden=!nativeChat||conversationChannel!=='shared'||conversation?.access?.role!=='edit';recipient.disabled=feedbackLocked||mutating||uncertain;renderRecipient();const recipientUnavailable=!uncertain&&recipient.value&&!sharedAgents().some(agent=>agent.id===recipient.value);nativeConversation.setAgentToggle(agentToggle,pressed,agent);if(nativeChat&&commentAllowed())$('feedback-text').placeholder=conversationChannel==='private'?'Private message to your agent…':recipient.value?'Ask agent · shared with others…':'Message collaborators…';$('clear-target').disabled=feedbackSending||mutating||uncertain;$('select-parent').disabled=feedbackSending||mutating||uncertain;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating||uncertain;$('send-feedback').disabled=feedbackLocked||mutating||recipientUnavailable||recoveryState().stale||reviewingDraft||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:feedbackLocked||mutating||uncertain});$('reference-slides').disabled=feedbackLocked||mutating||uncertain;for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
+  function updateComposer(){syncOfflineSave();const uncertain=draftUncertain();renderDraftRecovery();slideSections?.sync(pendingDeck||deck);$('fullscreen-button').disabled=!deck;$('version-history').disabled=!slide()||switchingDeck;const mutating=visibilityBusy||slideActions.isBusy()||!!slideSections?.isBusy()||!!slideDesignOptions?.isBusy()||!!elementAlternatives?.isBusy(),feedbackLocked=!deck||switchingDeck||feedbackSending||!commentAllowed();elementEditor.sync();$('feedback-text').disabled=feedbackLocked;$('feedback-text').readOnly=uncertain;const agentToggle=$('chat-ask-agent'),agent=ownChatAgent(),recipient=$('chat-recipient');const pressed=!!recipient.value&&recipient.value===agent?.id;agentToggle.hidden=!nativeChat||conversationChannel!=='shared'||(!agent&&!pressed);agentToggle.disabled=feedbackLocked||mutating||uncertain;$('chat-recipient-label').hidden=!nativeChat||conversationChannel!=='shared'||conversation?.access?.role!=='edit';recipient.disabled=feedbackLocked||mutating||uncertain;renderRecipient();const recipientUnavailable=!uncertain&&recipient.value&&!sharedAgents().some(agent=>agent.id===recipient.value);nativeConversation.setAgentToggle(agentToggle,pressed,agent);if(nativeChat&&commentAllowed())$('feedback-text').placeholder=conversationChannel==='private'?'Private message to your agent…':recipient.value?'Ask agent · shared with others…':'Message collaborators…';$('clear-target').disabled=feedbackSending||mutating||uncertain;$('select-parent').disabled=feedbackSending||mutating||uncertain;for(const button of $('target-members').querySelectorAll('button'))button.disabled=feedbackSending||mutating||uncertain;$('send-feedback').disabled=feedbackLocked||mutating||recipientUnavailable||recoveryState().stale||reviewingDraft||voice?.isActive()||(!$('feedback-text').value.trim()&&!chatComposer.hasFiles()&&!voiceFeedback?.segments().some(item=>item.message.trim()));chatComposer.sync({disabled:feedbackLocked||mutating||uncertain});$('reference-slides').disabled=feedbackLocked||mutating||uncertain;for(const id of ['project-button','new-button'])$(id).disabled=mutating;presentationActions.update(feedbackSending||switchingDeck||mutating);deckPicker?.sync();sorter?.sync();}
 
 
 
@@ -1475,14 +1476,16 @@
   workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor.state().dirty||groupEditor.state().busy||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   if(!sharedEditor)api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   const offlineButton=$('offline-save'),offlineSignout=$('offline-signout');
+  function syncOfflineSave(){$('offline-save').disabled=!deck||switchingDeck||offlineSaving;}
   window.ArtifactSession.get().then(async session=>{
     await OfflineClient.bind(session.cache_scope);
     if(session.cache_scope&&'serviceWorker' in navigator){offlineButton.hidden=false;offlineSignout.hidden=false;$('offline-open').hidden=false;}
   }).catch(()=>{});
   offlineButton.addEventListener('click',async()=>{
-    if(!deck)return;offlineButton.disabled=true;
+    if(!deck||switchingDeck||offlineSaving)return;
+    offlineSaving=true;syncOfflineSave();
     try{await OfflineClient.save(window.ArtifactSession.get({refresh:true}),deck,studioPath('/api/session'),window.ArtifactSession.workspace);toast('Saved on this device. Open /web/offline.html to use it offline.');}
-    catch(error){toast(error.message,true);}finally{offlineButton.disabled=false;}
+    catch(error){toast(error.message,true);}finally{offlineSaving=false;syncOfflineSave();}
   });
   offlineSignout.addEventListener('click',async()=>{
     offlineSignout.disabled=true;
