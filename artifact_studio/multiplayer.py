@@ -28,8 +28,8 @@ from .artifacts import ArtifactStore
 from .authentication import AuthProvider, Principal, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
-from .design_preview import hosted_slide_thumbnail
-from .design_thumbnails import raster_thumbnail
+from .designs.preview import hosted_slide_thumbnail
+from .designs.thumbnails import raster_thumbnail
 from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response

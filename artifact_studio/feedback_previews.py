@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi.responses import Response
 
-from .design_thumbnails import design_thumbnail
+from .designs.thumbnails import design_thumbnail
 from .models import FeedbackFile
 
 
