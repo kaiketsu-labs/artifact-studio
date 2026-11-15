@@ -11,12 +11,113 @@ from typing import cast
 import pytest
 from playwright.sync_api import Error, Frame, Page, Route, expect, sync_playwright
 
+from artifact_studio.models import SlidePatch
+from tests.integration.multiplayer_fixture import (
+    WORKSPACE,
+    routed_multiplayer_context,
+    running_multiplayer_app,
+)
+from tests.test_multiplayer_server import accept, grant, human
+
 pytestmark = [
     pytest.mark.browser,
     pytest.mark.skipif(
         os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
     ),
 ]
+
+
+def test_hosted_repeat_save_keeps_another_devices_queued_changes(tmp_path: Path) -> None:
+    """Check the signed save and delivery flow across two browsers for one fictional user."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app", tmp_path / "server.log", unified=True, offline_fixture=True
+        ) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        original = app.store.view(app.deck_id).slides[0]
+        browser = playwright.chromium.launch(
+            executable_path=os.environ.get("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+        )
+        deck_url = f"{WORKSPACE}/?deck={app.deck_id}#cover"
+
+        def save_offline(page: Page) -> str:
+            """Open the actual editor menu and capture the server-issued cover receipt."""
+            page.get_by_role("button", name="Menu", exact=True).click()
+            with page.expect_response("**/offline-snapshot") as response:
+                page.get_by_role("button", name="Save offline", exact=True).click()
+            assert response.value.ok
+            return cast(str, response.value.json()["receipts"]["cover"])
+
+        try:
+            with (
+                routed_multiplayer_context(browser, app, "alice") as first,
+                routed_multiplayer_context(browser, app, "alice") as second,
+            ):
+                page = first.new_page()
+                page.goto(deck_url)
+                token = save_offline(page)
+                expect(page.locator("#toast")).to_contain_text("Saved on this device")
+                assert token.startswith("v2.") and save_offline(page) == token
+                expect(page.locator("#toast")).to_contain_text("Saved on this device")
+
+                first.set_offline(True)
+                page.goto(f"{WORKSPACE}/web/offline.html")
+                expect(page.get_by_role("status")).to_have_text("Available on this device.")
+                page.get_by_role("textbox", name="Slide HTML", exact=True).fill(
+                    "<h1>Fictional offline update</h1>"
+                )
+                page.locator("#save-edit").click()
+                page.get_by_role("textbox", name="Shared comment", exact=True).fill(
+                    "Comment from the original offline copy"
+                )
+                page.get_by_role("button", name="Save shared comment for later").click()
+                expect(page.locator("#outbox li")).to_have_count(2)
+
+                _ = app.store.revise_view(
+                    app.deck_id,
+                    original.id,
+                    original.expected_hash,
+                    "fictional-second-device-revision",
+                    SlidePatch(html="<h1>Fictional online update</h1>"),
+                )
+                other = second.new_page()
+                other.goto(deck_url)
+                latest = save_offline(other)
+                assert latest != token
+                expect(other.locator("#toast")).to_contain_text("Saved on this device")
+
+                first.set_offline(False)
+                same_device = first.new_page()
+                same_device.goto(deck_url)
+                assert save_offline(same_device) == latest
+                expect(same_device.locator("#toast")).to_contain_text("review your queued changes")
+                same_device.close()
+                expect(page.locator("#outbox li")).to_have_count(2)
+
+                page.get_by_role("button", name="Reconnect and review").click()
+                expect(page.locator("#conflict-base")).to_have_text(original.html)
+                expect(page.locator("#conflict-current")).to_contain_text("Fictional online update")
+                expect(page.locator("#conflict-draft")).to_contain_text("Fictional offline update")
+                page.get_by_role("button", name="Use my offline edit").click()
+                expect(page.get_by_role("status")).to_have_text(
+                    "All saved changes have been delivered."
+                )
+                expect(page.locator("#outbox li")).to_have_count(0)
+                assert (
+                    app.store.view(app.deck_id).slides[0].html
+                    == "<h1>Fictional offline update</h1>"
+                )
+                messages = owner.get(f"/api/workspaces/default/artifacts/{app.deck_id}/chat")
+                assert messages.is_success
+                comment = messages.json()[0]
+                assert comment["message"] == "Comment from the original offline copy"
+                assert comment["slide_content_hash"] == original.content_hash
+        finally:
+            browser.close()
 
 
 def visible_preview(page: Page, text: str) -> Frame:
@@ -50,14 +151,18 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             context = browser.new_context()
             page = context.new_page()
             origin = f"http://127.0.0.1:{server.server_port}"
-            page.route(
-                "**/offline-snapshot",
-                lambda route: route.fulfill(
+            base_html = '<h1>Original</h1>\r\n<img src="assets/test.svg">'
+            receipt = "v2." + "f" * 360
+            saves: list[dict[str, object]] = []
+
+            def snapshot_response(route: Route) -> None:
+                saves.append(cast(dict[str, object], route.request.post_data_json))
+                route.fulfill(
                     status=200,
                     content_type="application/json",
                     json={
                         "cache_scope": "a" * 64,
-                        "receipts": {"cover": "fictional-receipt"},
+                        "receipts": {"cover": receipt},
                         "theme": "h1 { color: rgb(12, 34, 56); }",
                         "assets": {
                             "assets/test.svg": "data:image/svg+xml;base64,"
@@ -65,18 +170,27 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                             "IHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+"
                         },
                     },
-                ),
-            )
+                )
+
+            page.route("**/offline-snapshot", snapshot_response)
             page.goto(origin + "/web/offline.html")
-            page.evaluate("""async () => {
-              const scope='a'.repeat(64);
-              await OfflineClient.bind(scope);
-              await OfflineClient.save(Promise.resolve({cache_scope:scope}),
-                {id:'deck',title:'Fictional',slides:[
-                  {id:'cover',title:'Cover',html:'<h1>Original</h1><img src="assets/test.svg">',
-                   content_hash:'hash-original',expected_hash:'source-original'}
-                ]},'/api/session','default');
-            }""")
+            page.evaluate(
+                """async baseHtml => {
+                  const scope='a'.repeat(64);
+                  await OfflineClient.bind(scope);
+                  const deck={id:'deck',title:'Fictional',slides:[
+                    {id:'cover',title:'Cover',html:baseHtml,
+                     content_hash:'hash-original',expected_hash:'source-original'}
+                  ]};
+                  await OfflineClient.save(Promise.resolve({cache_scope:scope}),
+                    deck,'/api/session','default');
+                  await OfflineClient.save(Promise.resolve({cache_scope:scope}),
+                    deck,'/api/session','default');
+                }""",
+                base_html,
+            )
+            assert len(saves) == 2 and saves[0] == saves[1]
+            assert saves[0]["receipt_version"] == 2
             page.route(
                 "**/api/session",
                 lambda route: route.fulfill(
@@ -219,7 +333,9 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
             assert [row["kind"] for row in result] == ["edit", "comment"]
             assert all(row["anchor"] == "hash-original" for row in result)
             assert all(row["expected_hash"] == "source-original" for row in result)
-            assert all(row["receipt"] == "fictional-receipt" for row in result)
+            assert all(row["receipt"] == receipt for row in result)
+            assert result[0]["base_html"] == base_html
+            assert "base_html" not in result[1]
             assert [row["body"] for row in result] == ["<h1>Offline edit</h1>", "Fictional comment"]
             page.reload()
             page.wait_for_function(
@@ -278,7 +394,8 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
                 calls["edit"] += 1
                 request = cast(dict[str, object], route.request.post_data_json)
                 assert request["html"] == "<h1>Offline edit</h1>"
-                assert request["receipt"] == "fictional-receipt"
+                assert request["receipt"] == receipt
+                assert request["base_html"] == base_html
                 if calls["edit"] == 1:
                     route.fulfill(
                         status=200,
@@ -307,6 +424,9 @@ def test_saved_shell_opens_and_queues_while_offline() -> None:
 
             def comment_response(route: Route) -> None:
                 calls["comment"] += 1
+                request = cast(dict[str, object], route.request.post_data_json)
+                assert request["receipt"] == receipt
+                assert "base_html" not in request
                 route.fulfill(status=503 if calls["comment"] == 1 else 200, json={})
 
             page.route("**/offline-edits", edit_response)
