@@ -4589,11 +4589,15 @@
       },
       {
         "check": "actual_ui_export_and_hidden_navigation",
-        "status": "pending-owner"
+        "status": "owner-verified-pass",
+        "editor_status_at_handoff": "pending-owner",
+        "final_verification_reference": "human_persona_outcomes.baseline"
       },
       {
         "check": "version_specific_approval",
-        "status": "human-only-pending"
+        "status": "owner-verified-pass",
+        "editor_status_at_handoff": "human-only-pending",
+        "final_verification_reference": "human_persona_outcomes.baseline"
       },
       {
         "check": "library_title_renamed",
@@ -5032,7 +5036,9 @@
       },
       {
         "check": "final_ui_export_approval",
-        "status": "pending-human-review"
+        "status": "owner-verified-pass",
+        "editor_status_at_handoff": "pending-human-review",
+        "final_verification_reference": "human_persona_outcomes.candidate"
       },
       {
         "check": "library_title_renamed",
