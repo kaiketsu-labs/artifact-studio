@@ -32,6 +32,86 @@ pytestmark = [
 ]
 
 
+def test_hosted_offline_edit_conflict_and_revocation(tmp_path: Path) -> None:
+    """Use real hosted application routes for save, conflict resolution and grant revocation."""
+    with (
+        running_multiplayer_app(
+            tmp_path / "app", tmp_path / "server.log", unified=True, offline_fixture=True
+        ) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        sync_playwright() as playwright,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        browser = playwright.chromium.launch()
+        try:
+            with routed_multiplayer_context(browser, app, "alice") as context:
+                page = context.new_page()
+                page.goto(f"{WORKSPACE}/?deck={app.deck_id}#cover")
+                page.get_by_role("button", name="Menu", exact=True).click()
+                page.get_by_role("button", name="Save offline", exact=True).click()
+                expect(page.locator("#toast")).to_contain_text("Saved on this device")
+                context.set_offline(True)
+                page.goto(f"{WORKSPACE}/web/offline.html")
+                expect(page.get_by_role("status")).to_have_text("Available on this device.")
+                page.frame_locator("#preview").get_by_role("heading", level=1).click()
+                page.get_by_role("button", name="Edit text", exact=True).click()
+                page.get_by_role("textbox", name="Text", exact=True).fill("Fictional offline edit")
+                page.get_by_role("button", name="Save visual edit for later", exact=True).click()
+                expect(page.locator("#outbox li")).to_have_count(1)
+                cover = app.store.view(app.deck_id).slides[0]
+                _ = app.store.revise_view(
+                    app.deck_id,
+                    cover.id,
+                    cover.expected_hash,
+                    "fictional-online-offline-race",
+                    SlidePatch(html="<h1>Fictional concurrent edit</h1>"),
+                )
+                context.set_offline(False)
+                page.get_by_role("button", name="Reconnect and review").click()
+                expect(page.get_by_role("heading", name="Choose a version")).to_be_visible()
+                expect(page.locator("#conflict-current")).to_contain_text(
+                    "Fictional concurrent edit"
+                )
+                expect(page.locator("#conflict-draft")).to_contain_text("Fictional offline edit")
+                assert "Fictional concurrent edit" in app.store.view(app.deck_id).slides[0].html
+                page.get_by_role("button", name="Use my offline edit").click()
+                expect(page.get_by_role("status")).to_have_text(
+                    "All saved changes have been delivered."
+                )
+                assert "Fictional offline edit" in app.store.view(app.deck_id).slides[0].html
+                context.set_offline(True)
+                page.get_by_role("textbox", name="Shared comment", exact=True).fill(
+                    "My fictional revocation draft"
+                )
+                page.get_by_role("button", name="Save shared comment for later").click()
+                expect(page.locator("#outbox li")).to_have_count(1)
+                scope = {"kind": "artifact", "resource": app.deck_id}
+                record = owner.get(
+                    "/api/workspaces/default/access", params=scope
+                ).raise_for_status()
+                grant_id = record.json()["grants"][0]["id"]
+                _ = owner.post(
+                    f"/api/workspaces/default/access/{grant_id}/revoke", json=scope
+                ).raise_for_status()
+                context.set_offline(False)
+                page.get_by_role("button", name="Reconnect and review").click()
+                expect(page.get_by_role("status")).to_contain_text("Access changed")
+                expect(page.get_by_role("textbox", name="Slide HTML", exact=True)).to_have_value("")
+                page.get_by_role("button", name="Recover my saved drafts").click()
+                expect(page.get_by_label("Shared comment 1")).to_have_value(
+                    "My fictional revocation draft"
+                )
+                assert (
+                    owner.get(f"/api/workspaces/default/artifacts/{app.deck_id}/chat")
+                    .raise_for_status()
+                    .json()
+                    == []
+                )
+        finally:
+            browser.close()
+
+
 @pytest.mark.parametrize("presentation", [True, False], ids=["presentation", "artifact"])
 def test_editor_requests_show_readable_changes_and_keep_exact_agent_payload(
     tmp_path: Path, presentation: bool
@@ -1413,10 +1493,10 @@ def test_isolated_workspace_uses_native_creation_sharing_and_editor(tmp_path: Pa
                         "Finish your current draft or edit before switching workspaces."
                     )
                     page.keyboard.press("Escape")
+                    expect(page.get_by_role("dialog", name="About Artifact Studio")).to_be_hidden()
                     expect(page.locator("#feedback-text")).to_have_value("Unsent draft")
                     composer = page.locator("#feedback-text")
-                    composer.press("ControlOrMeta+a")
-                    composer.press("Backspace")
+                    composer.fill("")
                     expect(composer).to_have_value("")
                     page.locator("#workspace-menu-button").click()
                     page.locator("[data-app-about]").click()
