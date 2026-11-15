@@ -25,6 +25,9 @@ The complete target tree below is still a plan; only the folders described in
 resources for moved modules; it is independent of collection and state paths.
 The standalone `runtime/`, public ASGI/process entrypoints, copied presentation
 runtime, agent contract, test locations and CI selection stay unchanged.
+The Docker context explicitly allows Python files in `artifact_studio/designs/`;
+when introducing another package, extend that allowlist rather than admitting
+arbitrary workspace content to the image build.
 
 ## What needs to improve
 

@@ -52,5 +52,7 @@ workspace asset handling retains its existing authentication and path checks.
 
 All 1,708 preexisting pytest test IDs remain discoverable, with 15 new compatibility
 cases. Existing Node tests still run through the unchanged `tests/*.cjs` selection.
-The source distribution's recursive Docker copies include the feature folders.
+The Docker context's explicit allowlist includes Python files in the design
+package, and recursive source copies preserve the feature folders. Existing
+private/state exclusions remain intact.
 No native macOS build or physical display behavior is inferred from these checks.
