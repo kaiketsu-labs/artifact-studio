@@ -36,6 +36,7 @@ INBOX_TOOLS = {
     "read_design_requests",
     "wait_for_design_requests",
     "start_live_review",
+    "stop_live_review",
 }
 AUTO_REVIEW_TOOLS = {
     "get_working_context",
@@ -375,6 +376,16 @@ def normalize(
     arguments = _object(payload.get("tool_input"))
     if tool == "start_live_review":
         message["start_review"] = True
+    if tool in {"start_live_review", "stop_live_review"}:
+        control = response.get("review_control")
+        if control is not None:
+            if not isinstance(control, str) or not re.fullmatch(r"[a-f0-9]{64}", control):
+                return {}
+            message["review_control"] = control
+        if tool == "stop_live_review":
+            if control is None or response.get("status") != "awaiting_host_hook":
+                return {}
+            message["event"] = "StopReview"
     deck = arguments.get("deck_id")
     artifact = arguments.get("artifact_id")
     if tool == "get_working_context" and not deck:
@@ -459,7 +470,7 @@ def handle_event(
     message = normalize(harness, event, server_name, payload)
     if not message:
         return {}
-    if passive:
+    if passive and message.get("event") != "StopReview":
         name = payload.get("tool_name")
         if (
             harness != "claude-code"
@@ -491,7 +502,11 @@ def handle_event(
         failures = 0
         reason = result.get("reason")
         if event == "PostToolUse" and isinstance(reason, str) and reason:
-            if passive and result.get("feedback_available") is not True:
+            if (
+                message.get("passive")
+                and not message.get("start_review")
+                and result.get("feedback_available") is not True
+            ):
                 return {}
             return {
                 "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": reason}

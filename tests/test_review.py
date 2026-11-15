@@ -386,3 +386,219 @@ def test_http_contract_and_disconnect(store: Store, monkeypatch: pytest.MonkeyPa
         ).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize("target", [DECK, ""])
+def test_explicit_stop_is_pending_until_native_hook_and_resumes_in_order(
+    store: Store, monkeypatch: pytest.MonkeyPatch, target: str
+) -> None:
+    from artifact_studio.hook_client import normalize
+
+    monkeypatch.setattr(service, "store", store)
+    reviews = Reviews(store)
+    initial = ReviewHookInput(
+        harness="codex",
+        session_id="own",
+        event="PostToolUse",
+        deck_id=target,
+        auto_start=True,
+        start_review=not bool(target),
+    )
+    assert reviews.bind(initial).listening
+    older_start = service.start_live_review(target)
+    requested = service.stop_live_review(target)
+    assert requested["status"] == "awaiting_host_hook"
+    assert reviews.connection(target)["review_connected"]
+    normalized = normalize(
+        "codex",
+        "PostToolUse",
+        "artifact-studio",
+        {
+            "session_id": "own",
+            "tool_name": "mcp__artifact_studio__stop_live_review",
+            "tool_input": {"deck_id": target},
+            "tool_response": requested,
+        },
+    )
+    stop = ReviewHookInput.model_validate(normalized)
+    assert stop.event == "StopReview"
+    assert "stopped" in asyncio.run(reviews.handle(stop)).reason
+    assert not reviews.connection(target)["review_connected"]
+    # Ordinary authoring and status calls do not resume, even when selecting another target.
+    assert not reviews.bind(initial.model_copy(update={"start_review": False})).listening
+    assert not reviews.bind(
+        initial.model_copy(update={"deck_id": DECK, "start_review": False})
+    ).listening
+    assert service.get_live_review_status(target)["status"] == "unavailable"
+    legacy = initial.model_copy(update={"start_review": True})
+    assert not reviews.bind(legacy).listening
+    assert not reviews.bind(
+        legacy.model_copy(update={"review_control": older_start["review_control"]})
+    ).listening
+    fresh = service.start_live_review(target)
+    assert reviews.bind(
+        legacy.model_copy(update={"review_control": fresh["review_control"]})
+    ).listening
+    # Reordered old stops and duplicate controls cannot disconnect resumed work.
+    assert "superseded" in reviews.stop(stop).reason
+    assert reviews.connection(target)["review_connected"]
+
+
+def test_stop_before_bind_survives_restart_and_never_stops_another_session(store: Store) -> None:
+    reviews = Reviews(store)
+    old = reviews.request_control("start", DECK)
+    stop = ReviewHookInput(
+        harness="codex",
+        session_id="not-bound",
+        event="StopReview",
+        deck_id=DECK,
+        review_control=reviews.request_control("stop", DECK),
+    )
+    assert "stopped" in reviews.stop(stop).reason
+    reviews = Reviews(Store(store.root, store.database))
+    start = stop.model_copy(
+        update={"event": "PostToolUse", "start_review": True, "review_control": old}
+    )
+    assert not reviews.bind(start).listening
+    assert not reviews.bind(
+        start.model_copy(update={"start_review": False, "auto_start": True})
+    ).listening
+    another = start.model_copy(update={"session_id": "collaborator", "review_control": None})
+    assert reviews.bind(another).listening
+    assert (
+        "stopped"
+        in reviews.stop(
+            stop.model_copy(
+                update={
+                    "review_control": reviews.request_control("stop", DECK),
+                }
+            )
+        ).reason
+    )
+    assert reviews.connection(DECK)["review_session"] == "collaborator"
+    with store.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM feedback").fetchone()[0] == 0
+
+
+def test_mismatched_stop_preserves_current_target_and_fences_older_start(store: Store) -> None:
+    reviews = Reviews(store)
+    second = "2026-11-15-second-review"
+    _ = store.create(second, "Second review")
+    body = ReviewHookInput(
+        harness="codex", session_id="moving", event="PostToolUse", deck_id=second, start_review=True
+    )
+    assert reviews.bind(body).listening
+    old = reviews.request_control("start", DECK)
+    stopped = reviews.stop(
+        body.model_copy(
+            update={
+                "event": "StopReview",
+                "deck_id": DECK,
+                "review_control": reviews.request_control("stop", DECK),
+            }
+        )
+    )
+    assert stopped.listening and "left unchanged" in stopped.reason
+    assert not reviews.bind(
+        body.model_copy(update={"deck_id": DECK, "review_control": old})
+    ).listening
+    assert reviews.connection(second)["review_connected"]
+    # Omission intentionally means the calling session's current target, including the inbox.
+    assert not reviews.stop(
+        body.model_copy(
+            update={
+                "event": "StopReview",
+                "deck_id": None,
+                "review_control": reviews.request_control("stop"),
+            }
+        )
+    ).listening
+    assert not reviews.connection(second)["review_connected"]
+
+
+def test_stop_cancels_inflight_poll_without_acknowledging_feedback(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    reviews = Reviews(store)
+    body = ReviewHookInput(
+        harness="claude-code",
+        session_id="waiting",
+        event="PostToolUse",
+        deck_id=DECK,
+        auto_start=True,
+    )
+    assert reviews.bind(body).listening
+    comment(store, "Unreleased fictional private draft", released=False)
+    first_poll, let_finish = threading.Event(), threading.Event()
+    pending = reviews.pending
+
+    def delayed_poll(request: ReviewHookInput):
+        result = pending(request)
+        if not first_poll.is_set():
+            first_poll.set()
+            assert let_finish.wait(3)
+        return result
+
+    monkeypatch.setattr(reviews, "pending", delayed_poll)
+
+    async def scenario() -> None:
+        waiter = asyncio.create_task(reviews.handle(body.model_copy(update={"event": "Stop"})))
+        assert await asyncio.to_thread(first_poll.wait, 3)
+        stopped = await reviews.handle(
+            body.model_copy(
+                update={
+                    "event": "StopReview",
+                    "review_control": reviews.request_control("stop", DECK),
+                }
+            )
+        )
+        assert not stopped.listening
+        let_finish.set()
+        assert not (await asyncio.wait_for(waiter, 2)).listening
+
+    asyncio.run(scenario())
+    with store.connect() as db:
+        assert db.execute("SELECT expires_at,enabled FROM review_sessions").fetchone()[:] == (0, 0)
+        assert db.execute("SELECT message,released FROM feedback").fetchone()[:] == (
+            "Unreleased fictional private draft",
+            0,
+        )
+    assert store.feedback_feed(DECK).events == []
+
+
+def test_control_receipts_are_bounded_per_owner_and_expired_controls_do_not_stop(
+    store: Store,
+) -> None:
+    from artifact_studio import review_controls
+
+    reviews = Reviews(store)
+    body = ReviewHookInput(
+        harness="codex", session_id="bounded", event="PostToolUse", deck_id=DECK, auto_start=True
+    )
+    assert reviews.bind(body).listening
+    old = reviews.request_control("stop", DECK)
+    with store.connect() as db:
+        independent = review_controls.issue(db, "another-credential", "stop", DECK)
+        for _ in range(256):
+            _ = review_controls.issue(db, "", "start", DECK)
+        assert (
+            db.execute("SELECT COUNT(*) FROM review_control_requests WHERE owner='' ").fetchone()[0]
+            == 256
+        )
+        assert db.execute(
+            "SELECT 1 FROM review_control_requests WHERE token=?", (independent,)
+        ).fetchone()
+    assert (
+        "expired"
+        in reviews.stop(
+            body.model_copy(
+                update={
+                    "event": "StopReview",
+                    "review_control": old,
+                }
+            )
+        ).reason
+    )
+    assert reviews.connection(DECK)["review_connected"]

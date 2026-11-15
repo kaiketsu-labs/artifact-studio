@@ -6,6 +6,7 @@ from typing import Literal, Self, cast
 
 from pydantic import Field, model_validator
 
+from . import review_controls
 from .artifacts import ArtifactStore
 from .models import StrictModel
 from .storage import Store
@@ -16,7 +17,7 @@ class ReviewHookInput(StrictModel):
 
     harness: Literal["codex", "claude-code"]
     session_id: str = Field(pattern=r"^[A-Za-z0-9:_-]{1,180}$")
-    event: Literal["PostToolUse", "Stop", "SessionEnd", "Interrupt", "StopFailure"]
+    event: Literal["PostToolUse", "Stop", "StopReview", "SessionEnd", "Interrupt", "StopFailure"]
     deck_id: str | None = None
     artifact_id: str | None = None
     seen_cursor: int | None = Field(default=None, ge=0)
@@ -24,6 +25,7 @@ class ReviewHookInput(StrictModel):
     start_review: bool = False
     auto_start: bool = False
     passive: bool = False
+    review_control: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
 
     @model_validator(mode="after")
     def one_target(self) -> Self:
@@ -95,6 +97,52 @@ class Reviews:
                 "UPDATE review_sessions SET enabled=0,expires_at=0 WHERE deck=?", (deck_id,)
             )
 
+    def request_control(
+        self, action: review_controls.Action, deck_id: str = "", artifact_id: str = ""
+    ) -> str:
+        """Validate the target and issue a receipt for the caller's later native host hook."""
+        target = self.target(deck_id, artifact_id)
+        with self.store.connect() as db:
+            return review_controls.issue(
+                db, "", action, target if target or action == "start" else None
+            )
+
+    def stop(self, body: ReviewHookInput) -> ReviewHookReply:
+        """Pause only this native session; never take another session's target-wide connection."""
+        target = self.target(body.deck_id or "", body.artifact_id or "") or None
+        with self.store.connect() as db:
+            _ = db.execute("BEGIN IMMEDIATE")
+            own = db.execute(
+                "SELECT deck,enabled,expires_at FROM review_sessions "
+                "WHERE harness=? AND session_id=?",
+                (body.harness, body.session_id),
+            ).fetchone()
+            mismatch = bool(target and own and own["deck"] != target)
+            if not review_controls.apply(
+                db,
+                body.harness,
+                body.session_id,
+                "stop",
+                target,
+                body.review_control,
+                receipt_owner="",
+                preserve_pause=mismatch,
+            ):
+                return ReviewHookReply(reason=review_controls.RETRY)
+            if mismatch:
+                return ReviewHookReply(
+                    listening=bool(own["enabled"] and own["expires_at"] > time.time()),
+                    reason="The session changed targets; its current review was left unchanged.",
+                )
+            _ = db.execute(
+                "UPDATE review_sessions SET expires_at=0,enabled=0 "
+                "WHERE harness=? AND session_id=?",
+                (body.harness, body.session_id),
+            )
+        return ReviewHookReply(
+            reason="Live review stopped for this session. Explicitly start_live_review to resume."
+        )
+
     def bind(self, body: ReviewHookInput) -> ReviewHookReply:
         """Associate a successful workspace tool call with the host's review chat."""
         deck_id = self.target(body.deck_id or "", body.artifact_id or "")
@@ -106,6 +154,8 @@ class Reviews:
                 "SELECT * FROM review_sessions WHERE harness=? AND session_id=?",
                 (body.harness, body.session_id),
             ).fetchone()
+            if review_controls.paused(db, body.harness, body.session_id) and not body.start_review:
+                return ReviewHookReply()
             automatic = (
                 body.auto_start
                 and bool(deck_id)
@@ -132,6 +182,16 @@ class Reviews:
                     reason="This artifact already has a live reviewer." if body.start_review else ""
                 )
             if body.start_review:
+                if not review_controls.apply(
+                    db,
+                    body.harness,
+                    body.session_id,
+                    "start",
+                    deck_id,
+                    body.review_control,
+                    receipt_owner="",
+                ):
+                    return ReviewHookReply(reason=review_controls.RETRY)
                 _ = db.execute(
                     "DELETE FROM review_pauses WHERE harness=? AND session_id=? AND target=?",
                     (body.harness, body.session_id, deck_id),
@@ -244,6 +304,8 @@ class Reviews:
         """Long-poll a stop hook without spending model requests on each polling interval."""
         if body.passive:
             return ReviewHookReply()
+        if body.event == "StopReview":
+            return await asyncio.to_thread(self.stop, body)
         if body.event == "PostToolUse":
             return await asyncio.to_thread(self.bind, body)
         if body.event != "Stop":
