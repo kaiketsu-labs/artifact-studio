@@ -163,5 +163,15 @@
     "No live identity-provider/browser test",
     "GitHub denied-credential behavior not exercised",
     "Not a production throughput benchmark"
-  ]
+  ],
+  "anonymous_metadata_probe": {
+    "client_authorization_header": false,
+    "netrc_used": false,
+    "configured_proxy_retained": true,
+    "tls_verification": true,
+    "observed_status": 200,
+    "response_is_private_fixture": true,
+    "authenticated_control_status": 200,
+    "conclusion": "Inconclusive: the managed network path returned private metadata without client-supplied authorization; it is not a demonstrably anonymous GitHub transport. No denied-credential or unauthenticated-push claim."
+  }
 }
