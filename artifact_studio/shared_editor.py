@@ -530,6 +530,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 artifact_scope(request, deck_id),
                 namespace,
                 body.slides,
+                receipt_version=body.receipt_version,
             ),
         }
 
@@ -558,6 +559,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             body.request_id,
             body.html,
             body.overwrite_expected,
+            body.base_html,
         )
 
     @app.post("/api/decks/{deck_id}/offline-comments")

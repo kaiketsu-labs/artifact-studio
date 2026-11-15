@@ -2,8 +2,10 @@
 ((root)=>{
   'use strict';
   const NAME='artifact-studio-offline-v1',CHANNEL='artifact-studio-offline-purge-v1',EPOCH='@epoch';
+  const VERSION=2;
   const validScope=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
   const validId=value=>typeof value==='string'&&value.length>0&&value.length<=200;
+  const validReceipt=value=>typeof value==='string'&&value.length>0&&value.length<=1024;
   function create({enabled=false,scope,indexedDB=root.indexedDB,BroadcastChannel=root.BroadcastChannel,storage=root.localStorage}={}){
     if(!enabled||!validScope(scope)||!BroadcastChannel||!storage)throw new Error('Offline storage is not enabled for this identity.');
     const marker='artifact-studio-offline-generation-v1';
@@ -15,10 +17,15 @@
     function fence(){generation++;for(const tx of pending){try{tx.abort();}catch{}}}
     if(channel)channel.onmessage=event=>{if(event.data==='purge'){fence();closed=true;}};
     function open(){return new Promise((resolve,reject)=>{
-      const request=indexedDB.open(NAME,1);
-      request.onupgradeneeded=()=>{const store=request.result.createObjectStore('decks',{keyPath:'key'});store.add({key:EPOCH,value:crypto.randomUUID()});};
+      const request=indexedDB.open(NAME,VERSION);
+      let blocked=false;
+      // Prevent older tabs from silently dropping signed receipts while keeping their drafts.
+      request.onupgradeneeded=event=>{
+        if(event.oldVersion===0){const store=request.result.createObjectStore('decks',{keyPath:'key'});store.add({key:EPOCH,value:crypto.randomUUID()});}
+      };
+      request.onblocked=()=>{blocked=true;reject(new Error('Close older Saved presentations tabs before retrying.'));};
       request.onerror=()=>reject(request.error);
-      request.onsuccess=()=>resolve(request.result);
+      request.onsuccess=()=>{if(blocked)request.result.close();else resolve(request.result);};
     });}
     const ready=(async()=>{
       const observed=generation,db=await open();
@@ -43,7 +50,16 @@
     async function save(deck,snapshot){
       if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot))throw new Error('Invalid snapshot.');
       const deckKey=key(deck);
-      await transaction('readwrite',(store,tx)=>{const get=store.get(deckKey);get.onsuccess=()=>{if(get.result){tx.abort();return;}store.add({key:deckKey,snapshot:structuredClone(snapshot),outbox:[]});};return get;});
+      let pendingChanges=false;
+      await transaction('readwrite',store=>{
+        const get=store.get(deckKey);
+        get.onsuccess=()=>{
+          pendingChanges=!!get.result?.outbox.length;
+          if(!pendingChanges)store.put({key:deckKey,snapshot:structuredClone(snapshot),outbox:[]});
+        };
+        return get;
+      });
+      if(pendingChanges)throw new Error('Open Saved presentations and review your queued changes before saving a new copy.');
     }
     async function read(deck){return transaction('readonly',store=>store.get(key(deck)));}
     async function drafts(deck){
@@ -55,14 +71,28 @@
       // Never store caller objects, which may contain authentication material.
       const entry={id:operation.id,slide_id:operation.slide_id,anchor:operation.anchor,kind:operation.kind,body:operation.body};
       if(validId(operation.expected_hash))entry.expected_hash=operation.expected_hash;
-      if(validId(operation.receipt))entry.receipt=operation.receipt;
-      await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{const record=get.result;if(!record){tx.abort();return;}const prior=record.outbox.find(item=>item.id===entry.id);if(prior&&JSON.stringify(prior)!==JSON.stringify(entry)){tx.abort();return;}if(!prior)record.outbox.push(entry);store.put(record);};return get;});
-    }
-    async function refresh(deck,snapshot){
-      await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{
-        const record=get.result;if(!record||record.outbox.length){tx.abort();return;}
-        record.snapshot=structuredClone(snapshot);store.put(record);
-      };return get;});
+      if(validReceipt(operation.receipt))entry.receipt=operation.receipt;
+      let staleSnapshot=false;
+      await transaction('readwrite',(store,tx)=>{
+        const get=store.get(key(deck));
+        get.onsuccess=()=>{
+          const record=get.result;
+          if(!record){tx.abort();return;}
+          const prior=record.outbox.find(item=>item.id===entry.id);
+          if(entry.receipt?.startsWith('v2.')){
+            const original=prior??record.snapshot.slides.find(item=>item.id===entry.slide_id);
+            const baseHtml=prior?prior.base_html:original?.html;
+            if(original?.receipt!==entry.receipt||entry.kind==='edit'&&typeof baseHtml!=='string'){
+              staleSnapshot=true;return;
+            }
+            if(entry.kind==='edit')entry.base_html=baseHtml;
+          }
+          if(prior&&JSON.stringify(prior)!==JSON.stringify(entry)){tx.abort();return;}
+          if(!prior){record.outbox.push(entry);store.put(record);}
+        };
+        return get;
+      });
+      if(staleSnapshot)throw new Error('The saved presentation was refreshed in another tab. Copy your changes before reloading.');
     }
     async function update(deck,id,choice,confirmed=null){
       await transaction('readwrite',(store,tx)=>{const get=store.get(key(deck));get.onsuccess=()=>{
@@ -86,7 +116,7 @@
       finally{db.close();closed=true;channel?.close();}
     }
     function close(){fence();closed=true;channel?.close();}
-    return {save,read,drafts,queue,update,refresh,purge,close};
+    return {save,read,drafts,queue,update,purge,close};
   }
   if(typeof module!=='undefined')module.exports={create};else root.OfflineStore={create};
 })(typeof window==='undefined'?globalThis:window);
