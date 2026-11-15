@@ -17,7 +17,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
-from .design_transfer import MAX_DESIGN_ZIP
+from .designs.transfer import MAX_DESIGN_ZIP
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
 from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
 from .multiplayer_access import Scope as GrantScope

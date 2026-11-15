@@ -1,7 +1,30 @@
 # Repository structure and migration plan
 
-This is a proposed organization and a map of the current code. It does not change
-runtime paths or imply that the folders below already exist.
+This is a map of implemented feature folders and the remaining migration plan.
+The complete target tree below is still a plan; only the folders described in
+**Implemented feature folders** have moved.
+
+## Implemented feature folders
+
+- [`artifact_studio/designs/`](../artifact_studio/designs/): reusable libraries,
+  references, authoring, transfer, previews/thumbnails, whole-slide proposals,
+  element alternatives, and their HTTP adapters. Production imports use the
+  feature package. Historical `design_*`, `slide_design*` and
+  `element_alternative*` modules are small compatibility aliases to the same live
+  module objects, preserving existing imports and monkeypatches. Keep those
+  aliases until a separately announced compatibility change; add new behavior in
+  the feature package, never in the adapters.
+- [`web/presentation/`](../web/presentation/): audience launch/fullscreen,
+  bounded idle warmup, and presentation archive/restore controls. The editor
+  loads canonical paths. Exact historical JavaScript URLs are served from the
+  same files through [`web_assets.py`](../artifact_studio/web_assets.py), without
+  redirects or symlinks. Presentation styles remain in the editor's existing
+  stylesheet to preserve cached-page behavior and avoid another CSS request.
+
+`PROJECT_ROOT` in `artifact_studio/__init__.py` identifies shipped repository
+resources for moved modules; it is independent of collection and state paths.
+The standalone `runtime/`, public ASGI/process entrypoints, copied presentation
+runtime, agent contract, test locations and CI selection stay unchanged.
 
 ## What needs to improve
 
@@ -91,7 +114,7 @@ initialization. Grouping it under the browser editor would obscure that boundary
 | --- | --- | --- |
 | Presentations | Slide content, ordering, visibility, sections and edit contracts | `models.py`, `slide_actions.py`, `sections.py`, `questions.py`, `structure_proposals.py` |
 | Artifacts | Non-slide artifacts, project membership and immutable revision bundles | `artifact_models.py`, `artifacts.py`, `project_tree.py`, `version_history.py` |
-| Designs | Reusable design context and reviewable design alternatives | `design_library.py`, `design_references.py`, `slide_designs.py`, `element_alternatives.py` |
+| Designs | Reusable design context and reviewable design alternatives | `designs/library.py`, `designs/references.py`, `designs/slides.py`, `designs/elements.py`; `designs/*_api.py` for HTTP binding |
 | Collaboration | Membership, grants, conversations, proposal responses and presence | `multiplayer_access.py`, `multiplayer_chat.py`, `deck_presence.py`, `offline_delivery.py` |
 | Rendering | Isolated execution, captures, previews, public exports and resource budgets | `visuals.py`, `renderer_health.py`, `interactive.py`, embedding/export portions of `projects.py` |
 | Agents | Tool registration and transport-specific responses | registration in `app.py`, `artifact_tools.py`, `multiplayer_tools.py`, `review.py`, `agent_io.py` |
@@ -143,9 +166,10 @@ timers belong to that lifecycle, preserving the existing resource limits.
    commands and relative resource paths. Keep intentional compatibility launchers
    for commands used by installations or integrations, with a removal policy.
 
-The first implementation PR should be one extraction from `app.py`, not a bulk
-rename of all 96 modules. A separate frontend PR can group presentation helpers.
-These provide small examples before migrating more coupled features.
+Design services and presentation helpers now provide the first feature-folder
+examples. Registration extraction from `app.py` and the more coupled storage,
+sync and collaboration domains remain separate follow-up work. Do not interpret
+the target tree as authorization for a bulk rename of every remaining module.
 
 ## Compatibility checks for every move
 

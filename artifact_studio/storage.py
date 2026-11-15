@@ -239,10 +239,10 @@ class Store:
             from .version_history import install_slide_history
 
             install_slide_history(db)
-            from .slide_designs import install_designs
+            from .designs.slides import install_designs
 
             install_designs(db)
-            from .element_alternatives import install_element_alternatives
+            from .designs.elements import install_element_alternatives
 
             install_element_alternatives(db)
             columns = {row[1] for row in db.execute("PRAGMA table_info(feedback)")}
@@ -384,10 +384,10 @@ class Store:
         from .slide_actions import recover_pending
 
         recover_pending(self, db, deck_id)
-        from .slide_designs import recover_design_decisions
+        from .designs.slides import recover_design_decisions
 
         recover_design_decisions(self, db, deck_id)
-        from .element_alternatives import recover_element_decisions
+        from .designs.elements import recover_element_decisions
 
         recover_element_decisions(self, db, deck_id)
 
@@ -612,9 +612,9 @@ class Store:
 
     def view(self, deck_id: str, *, include_pending: bool = True) -> DeckView:
         """Return a review-ready snapshot of a presentation."""
-        from .element_alternatives import element_badges
+        from .designs.elements import element_badges
+        from .designs.slides import design_badges
         from .sections import sections_hash
-        from .slide_designs import design_badges
 
         deck = self.read(deck_id)
         context_file = self.folder(deck_id) / "README.md"
@@ -1354,7 +1354,7 @@ class Store:
                 raise ValueError(
                     "Add a design from a PPTX, URL or reference before creating slides."
                 )
-            from .design_authoring import blank_presentation, design_files, record_design_baseline
+            from .designs.authoring import blank_presentation, design_files, record_design_baseline
             from .presentation_files import ordinary_file
 
             design = self.design(design_id, include_archived=not scoped) if design_id else None

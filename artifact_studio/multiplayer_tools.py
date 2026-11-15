@@ -30,9 +30,10 @@ from .copilot_tools import (
     remote_tool,
 )
 from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
-from .design_authoring import DesignAuthoring
-from .design_library import DesignLibrary
-from .element_alternatives import ElementAlternatives, ElementInput
+from .designs.authoring import DesignAuthoring
+from .designs.elements import ElementAlternatives, ElementInput
+from .designs.library import DesignLibrary
+from .designs.slides import DesignInput, SlideDesigns
 from .hosted_policy import public_deck_asset
 from .interactive import prepare_document
 from .libraries import file_hash
@@ -51,7 +52,6 @@ from .multiplayer_http import IMPORT_DISK_RESERVE
 from .presentation_files import PresentationFiles
 from .sections import Sections, section_layout
 from .slide_actions import SlideActions
-from .slide_designs import DesignInput, SlideDesigns
 from .storage import Store
 from .structure_proposals import StructureProposals
 from .version_authors import revision_author

@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {create}=require('../web/presentation-launcher.js');
+const {create}=require('../web/presentation/launcher.js');
 
 /** Model fullscreen events and frame messages without granting synthetic activation. */
 function fixture({unsupported=false,reject=false,prepare=null,onError=()=>{}}={}){
