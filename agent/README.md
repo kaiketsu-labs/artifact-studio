@@ -99,8 +99,15 @@ The UI's version history offers **Content changes** and **All saves**; filtering
 | --- | --- | --- |
 | `setup` | Reuse or configure a local installation and agent connection | [SKILL.md](../.agents/skills/setup/SKILL.md) |
 | `artifact-studio-learn` | Learn scoped preferences from authorized transcripts and released feedback | [SKILL.md](../.agents/skills/artifact-studio-learn/SKILL.md) |
+| `multi-person-workflow-review` | Simulate independent users and an editing agent, measure friction/usage, fix and rerun | [SKILL.md](../.agents/skills/multi-person-workflow-review/SKILL.md) |
 
 The Claude `/setup` wrapper is [.claude/commands/setup.md](../.claude/commands/setup.md). Skills do not schedule or run themselves.
+
+For a multi-person test, invoke `$multi-person-workflow-review` in a host that
+loads repository skills, or use the Claude
+[/multi-person-workflow-review wrapper](../.claude/commands/multi-person-workflow-review.md).
+The host needs independent agent delegation, browser control and a real Studio
+connection. Loading MCP alone does not load the skill or create simulated users.
 
 ## Personal sources and state
 
