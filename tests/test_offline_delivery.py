@@ -1,17 +1,173 @@
 """Receipt and optimistic edit checks with fictional collaborators."""
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from sqlite3 import connect
 from typing import cast
 
 import pytest
 
 from artifact_studio.artifacts import ArtifactStore
 from artifact_studio.authentication import Principal
-from artifact_studio.models import SlidePatch
+from artifact_studio.models import SlidePatch, SlideView
 from artifact_studio.multiplayer_access import AccessDenied, Scope, Sharing
 from artifact_studio.offline_delivery import OfflineDelivery, OfflineReceiptInput
 from artifact_studio.storage import ConflictError, Store
 from tests.design_factory import TEMPLATE_ID, make_design
+
+
+def test_signed_snapshots_preserve_old_device_drafts_without_allocating_receipts(
+    tmp_path: Path,
+) -> None:
+    """Retry an old anchor through refresh, restart and changed permissions."""
+    collection = tmp_path / "collection"
+    make_design(collection / TEMPLATE_ID)
+    store = Store(collection, tmp_path / "state" / "review.sqlite3")
+    sharing = Sharing(tmp_path / "sharing", store, "owner@example.test")
+    owner = sharing.human(Principal("owner", "owner@example.test"))
+    guest = sharing.human(Principal("guest", "guest@example.test"))
+    deck = "2026-11-15-signed-offline"
+    store.create(deck, "Fictional", "test-brand")
+    scope = Scope("default", "artifact", deck)
+    invite = sharing.invite(owner, scope, "guest@example.test", "edit")
+    _ = sharing.accept(guest, invite["token"])
+    delivery = OfflineDelivery(sharing)
+    original = store.view(deck).slides[0]
+    legacy = delivery.issue(
+        guest,
+        scope,
+        "fictional",
+        original.id,
+        original.content_hash,
+        original.expected_hash,
+        "shared",
+    )
+
+    def snapshot(slide: SlideView) -> str:
+        request = OfflineReceiptInput(
+            slide_id=slide.id, content_hash=slide.content_hash, expected_hash=slide.expected_hash
+        )
+        result = delivery.issue_snapshot(guest, scope, "fictional", [request], receipt_version=2)
+        return cast(dict[str, str], result["receipts"])[slide.id]
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        receipts = set(pool.map(snapshot, [original] * 501))
+    assert len(receipts) == 1
+    receipt = receipts.pop()
+    assert receipt.startswith("v2.")
+    with sharing.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM offline_receipts").fetchone()[0] == 1
+
+    _ = store.revise(
+        deck,
+        original.id,
+        original.expected_hash,
+        "offline-online-001",
+        SlidePatch(html="<h1>New</h1>"),
+    )
+    current = store.view(deck).slides[0]
+    assert snapshot(current) != receipt
+    restored = Sharing(tmp_path / "restored-sharing", store, "owner@example.test")
+    with sharing.connect() as db, connect(restored.database) as backup:
+        _ = db.executemany(
+            "INSERT INTO offline_edits VALUES (?,?,?,?,?,?)",
+            [
+                ("legacy-done", "old", "payload", "expected", "completed source", "{}"),
+                ("legacy-pending", "old", "payload", "expected", "pending source", ""),
+            ],
+        )
+        db.commit()
+        db.backup(backup)
+    reopened = OfflineDelivery(restored)
+    with restored.connect() as db:
+        states = db.execute(
+            "SELECT before_source,result FROM offline_edits ORDER BY operation"
+        ).fetchall()
+    assert [tuple(row) for row in states] == [("", "{}"), ("pending source", "")]
+    draft = "<h1>Old device draft</h1>"
+    for invalid in (receipt + "=", receipt[:-3] + "!!!"):
+        with pytest.raises(AccessDenied):
+            _ = reopened.edit(
+                guest,
+                scope,
+                "fictional",
+                invalid,
+                "offline-edit-001",
+                draft,
+                base_html=original.html,
+            )
+    with pytest.raises(AccessDenied):
+        _ = reopened.edit(
+            guest, scope, "fictional", receipt, "offline-edit-001", draft, base_html=current.html
+        )
+    with pytest.raises(AccessDenied):
+        _ = reopened.edit(guest, scope, "fictional", receipt, "offline-edit-001", draft)
+    with pytest.raises(AccessDenied):
+        _ = reopened.comment(
+            owner, scope, "fictional", receipt, "offline-comment-001", "Other", "shared"
+        )
+    with pytest.raises(AccessDenied):
+        _ = reopened.comment(
+            guest, scope, "different", receipt, "offline-comment-001", "Other", "shared"
+        )
+    with pytest.raises(AccessDenied):
+        _ = reopened.comment(
+            guest, scope, "fictional", receipt, "offline-comment-001", "Other", "private"
+        )
+    conflict = reopened.edit(
+        guest, scope, "fictional", receipt, "offline-edit-001", draft, base_html=original.html
+    )
+    assert conflict["status"] == "conflict"
+    assert conflict["base"] == original.html and conflict["current"] == current.html
+    for token, request_id in ((receipt, "offline-comment-001"), (legacy, "offline-comment-002")):
+        assert reopened.comment(
+            guest, scope, "fictional", token, request_id, "Old anchor", "shared"
+        )["id"]
+    applied = reopened.edit(
+        guest,
+        scope,
+        "fictional",
+        receipt,
+        "offline-edit-001",
+        draft,
+        current.expected_hash,
+        base_html=original.html,
+    )
+    assert applied["status"] == "applied"
+    assert (
+        reopened.edit(
+            guest,
+            scope,
+            "fictional",
+            receipt,
+            "offline-edit-001",
+            draft,
+            current.expected_hash,
+            base_html=original.html,
+        )
+        == applied
+    )
+    with restored.connect() as db:
+        assert (
+            db.execute(
+                "SELECT before_source FROM offline_edits WHERE operation=?",
+                (restored.request_id(guest, "offline-edit-001"),),
+            ).fetchone()[0]
+            == ""
+        )
+    grants = cast(list[dict[str, str]], restored.access(owner, scope)["grants"])
+    restored.revoke(owner, scope, grants[0]["id"])
+    with pytest.raises(AccessDenied):
+        _ = reopened.edit(
+            guest,
+            scope,
+            "fictional",
+            receipt,
+            "offline-edit-001",
+            draft,
+            current.expected_hash,
+            base_html=original.html,
+        )
 
 
 def test_receipts_guard_conflicts_retries_and_revocation(tmp_path: Path) -> None:
@@ -188,8 +344,6 @@ def test_receipts_guard_conflicts_retries_and_revocation(tmp_path: Path) -> None
 
 
 def test_simultaneous_edits_preserve_the_losing_draft(tmp_path: Path) -> None:
-    from concurrent.futures import ThreadPoolExecutor
-
     collection = tmp_path / "collection"
     make_design(collection / TEMPLATE_ID)
     store = Store(collection, tmp_path / "state" / "review.sqlite3")

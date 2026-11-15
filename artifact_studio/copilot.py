@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import hmac
+import json
 import os
 import re
 import secrets
@@ -13,6 +14,7 @@ from typing import cast
 
 import uvicorn
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import TypeAdapter, ValidationError
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -23,6 +25,29 @@ from .tool_server import ToolServer
 
 KEY_HEADER = "X-Artifact-Studio-Key"
 MAX_REQUEST_BYTES = 2 * 1024 * 1024
+_WAIT_SECONDS = TypeAdapter(int)
+
+
+def _feedback_wait(body: bytes) -> bool:
+    """Classify the SDK's accepted integer forms without dispatching untrusted JSON."""
+    try:
+        value: object = json.loads(body)
+        if not isinstance(value, dict):
+            return False
+        request = cast(dict[str, object], value)
+        params = request.get("params")
+        if request.get("method") != "tools/call" or not isinstance(params, dict):
+            return False
+        params = cast(dict[str, object], params)
+        arguments = params.get("arguments", {})
+        if params.get("name") != "read_feedback" or not isinstance(arguments, dict):
+            return False
+        return (
+            _WAIT_SECONDS.validate_python(cast(dict[str, object], arguments).get("wait_seconds", 0))
+            > 0
+        )
+    except ValueError, ValidationError, RecursionError:
+        return False
 
 
 @dataclass(frozen=True)
@@ -39,6 +64,7 @@ class GatewayConfig:
     port: int = 8798
     max_request_bytes: int = MAX_REQUEST_BYTES
     max_concurrent_requests: int = 4
+    max_concurrent_waits: int = 4
     request_timeout_seconds: float = 90
 
     def __post_init__(self) -> None:
@@ -57,6 +83,8 @@ class GatewayConfig:
             raise ValueError("Request limit must be between 1024 bytes and 2 MiB.")
         if not 1 <= self.max_concurrent_requests <= 8:
             raise ValueError("Allow between one and eight concurrent requests.")
+        if not 1 <= self.max_concurrent_waits <= 8:
+            raise ValueError("Allow between one and eight concurrent feedback waits.")
         if not 1 <= self.request_timeout_seconds <= 120:
             raise ValueError("Request timeout must be between one and 120 seconds.")
 
@@ -89,10 +117,12 @@ class GatewayBoundary:
     config: GatewayConfig
     key: bytes = field(repr=False)
     slots: asyncio.Semaphore = field(init=False, repr=False)
+    wait_slots: asyncio.Semaphore = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Allocate an independent request budget for this gateway instance."""
         self.slots = asyncio.Semaphore(self.config.max_concurrent_requests)
+        self.wait_slots = asyncio.Semaphore(self.config.max_concurrent_waits)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Reject browser requests, other routes, unknown hosts and incorrect credentials."""
@@ -109,8 +139,7 @@ class GatewayBoundary:
                 scope, receive, send
             )
             return
-        async with self.slots:
-            await self._bounded_request(scope, receive, send)
+        await self._bounded_request(scope, receive, send)
 
     def _rejection(self, scope: Scope, headers: Headers) -> tuple[int, str]:
         """Produce fixed responses without echoing secrets or caller-controlled text."""
@@ -147,41 +176,90 @@ class GatewayBoundary:
 
         try:
             async with asyncio.timeout(self.config.request_timeout_seconds):
-                body = bytearray()
-                while True:
-                    message = await receive()
-                    if message["type"] == "http.disconnect":
+                async with self.slots:
+                    body = bytearray()
+                    while True:
+                        message = await receive()
+                        if message["type"] == "http.disconnect":
+                            return
+                        body.extend(cast(bytes, message.get("body", b"")))
+                        if len(body) > self.config.max_request_bytes:
+                            await JSONResponse(
+                                {"error": "Request body exceeds the gateway limit."}, 413
+                            )(scope, receive, send)
+                            return
+                        if not message.get("more_body", False):
+                            break
+                    waiting = _feedback_wait(bytes(body))
+                    if not waiting:
+                        await self._serve(scope, receive, tracked_send, bytes(body))
                         return
-                    body.extend(cast(bytes, message.get("body", b"")))
-                    if len(body) > self.config.max_request_bytes:
-                        await JSONResponse(
-                            {"error": "Request body exceeds the gateway limit."}, 413
-                        )(scope, receive, send)
-                        return
-                    if not message.get("more_body", False):
-                        break
-                consumed = False
-
-                async def replay() -> Message:
-                    """Deliver the bounded request exactly once, then relay disconnect events."""
-                    nonlocal consumed
-                    if consumed:
-                        return await receive()
-                    consumed = True
-                    return {"type": "http.request", "body": bytes(body), "more_body": False}
-
-                safe_scope = dict(scope)
-                safe_scope["headers"] = [
-                    (name, value)
-                    for name, value in scope["headers"]
-                    if name.lower() not in {KEY_HEADER.lower().encode(), b"authorization"}
-                ]
-                await self.app(safe_scope, replay, tracked_send)
+                if self.wait_slots.locked():
+                    await JSONResponse(
+                        {"error": "Feedback wait capacity is full; retry shortly."}, 429
+                    )(scope, receive, send)
+                    return
+                async with self.wait_slots:
+                    await self._serve(
+                        scope, receive, tracked_send, bytes(body), watch_disconnect=True
+                    )
         except TimeoutError:
             if not started:
                 await JSONResponse({"error": "Gateway request timed out."}, 504)(
                     scope, receive, send
                 )
+
+    async def _serve(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        body: bytes,
+        *,
+        watch_disconnect: bool = False,
+    ) -> None:
+        """Replay a bounded body; cancel idle work when the owning HTTP client leaves."""
+        consumed = False
+        disconnected = asyncio.Event()
+
+        async def replay() -> Message:
+            nonlocal consumed
+            if not consumed:
+                consumed = True
+                return {"type": "http.request", "body": body, "more_body": False}
+            if watch_disconnect:
+                await disconnected.wait()
+                return {"type": "http.disconnect"}
+            return await receive()
+
+        safe_scope = dict(scope)
+        safe_scope["headers"] = [
+            (name, value)
+            for name, value in scope["headers"]
+            if name.lower() not in {KEY_HEADER.lower().encode(), b"authorization"}
+        ]
+        if not watch_disconnect:
+            await self.app(safe_scope, replay, send)
+            return
+
+        async def watch() -> None:
+            while (await receive())["type"] != "http.disconnect":
+                pass
+            disconnected.set()
+
+        async def serve() -> None:
+            await self.app(safe_scope, replay, send)
+
+        serving = asyncio.create_task(serve())
+        monitoring = asyncio.create_task(watch())
+        try:
+            done, _ = await asyncio.wait((serving, monitoring), return_when=asyncio.FIRST_COMPLETED)
+            if serving in done:
+                await serving
+        finally:
+            monitoring.cancel()
+            serving.cancel()
+            await asyncio.gather(monitoring, serving, return_exceptions=True)
 
 
 def create_gateway(config: GatewayConfig, *, store: Store | None = None) -> GatewayBoundary:
@@ -189,7 +267,9 @@ def create_gateway(config: GatewayConfig, *, store: Store | None = None) -> Gate
     key = read_key(config.key_file)
     selected_store = store or Store(config.collection, config.database)
     server = ToolServer[None]("Artifact Studio Copilot", instructions=BOOTSTRAP)
-    register_tools(server, selected_store, config.project_id, config.whole_workspace)
+    register_tools(
+        server, selected_store, config.project_id, config.whole_workspace, cancellable_waits=True
+    )
     application = server.streamable_http_app(
         stateless_http=True,
         json_response=True,

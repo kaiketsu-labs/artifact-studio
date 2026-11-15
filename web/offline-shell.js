@@ -45,6 +45,10 @@
   window.addEventListener('storage',event=>{if(event.key==='artifact-studio-offline-generation-v1')forget();else if(event.key?.startsWith('artifact-studio-offline-blocked-v1:')&&event.newValue){forget();offerRecovery();}});
   function option(value,label){const item=document.createElement('option');item.value=value;item.textContent=label;return item;}
   function selectedSlide(){return record?.snapshot.slides.find(item=>item.id===$('slides').value);}
+  function renderSlides(selected=''){
+    $('slides').replaceChildren(...record.snapshot.slides.map(item=>option(item.id,item.title)));
+    if(record.snapshot.slides.some(item=>item.id===selected))$('slides').value=selected;
+  }
   function previewDocument(source,frame){
     const assets=Object.entries(record?.snapshot.assets||{}).sort((a,b)=>b[0].length-a[0].length);
     function inlineAssets(value){
@@ -100,7 +104,7 @@
         localStorage.removeItem(identityBlocked);localStorage.removeItem(blocked);priorIdentityBlock=null;priorBlock=null;
       }else if(localStorage.getItem(identityBlocked)||localStorage.getItem(blocked))throw Error('Reconnect and verify access to open this presentation. Your drafts remain on this device.');
       if(localStorage.getItem(ACTIVE)!==entry.scope||localStorage.getItem('artifact-studio-offline-generation-v1')!==generation)throw Error('The saved session changed.');
-      const activeStore=OfflineStore.create({enabled:true,scope:entry.scope});store=activeStore;const loaded=await activeStore.read(entry.deck);checkBlocks();if(localStorage.getItem('artifact-studio-offline-generation-v1')!==generation){forget();throw Error('The saved session changed.');}record=loaded;if(!record)throw Error('Saved presentation unavailable.');if(!$('decks').options.length)entries.forEach((item,index)=>$('decks').append(option(String(index),item.title||'Saved presentation')));$('slides').replaceChildren(...record.snapshot.slides.map(item=>option(item.id,item.title)));slide();renderQueue();message('Available on this device.');}catch(error){if(selected!==selection)return;offerRecovery();message(error.message);}
+      const activeStore=OfflineStore.create({enabled:true,scope:entry.scope});store=activeStore;const loaded=await activeStore.read(entry.deck);checkBlocks();if(localStorage.getItem('artifact-studio-offline-generation-v1')!==generation){forget();throw Error('The saved session changed.');}record=loaded;if(!record)throw Error('Saved presentation unavailable.');if(!$('decks').options.length)entries.forEach((item,index)=>$('decks').append(option(String(index),item.title||'Saved presentation')));renderSlides();slide();renderQueue();message('Available on this device.');}catch(error){if(selected!==selection)return;offerRecovery();message(error.message);}
   }
   async function queue(kind){
     const item=selectedSlide(),body=$(kind==='edit'?'source':'comment').value,own=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1'),deck=record?.snapshot.id,activeStore=store;
@@ -123,8 +127,8 @@
           const freshResponse=await fetch(entry.session.replace(/api\/session$/,'api/decks/'+encodeURIComponent(deck)),{cache:'no-store',signal:signal(5000)});check();
           if(!freshResponse.ok||freshResponse.redirected){if(freshResponse.status===401||freshResponse.redirected)OfflineClient.blockIdentity();else if(freshResponse.status===403||freshResponse.status===404)OfflineClient.blockDeck(deck);if(freshResponse.status===401||freshResponse.status===403||freshResponse.status===404||freshResponse.redirected){forget();offerRecovery();message('Changes delivered; reconnect to refresh the saved presentation.');return;}throw Error('Changes delivered; reconnect to refresh the saved presentation.');}
           const fresh=await freshResponse.json();check();
-          await OfflineClient.save(Promise.resolve({cache_scope:scope}),fresh,entry.session,record.snapshot.workspace,{refresh:true});check();
-          const updated=await activeStore.read(deck);check();record=updated;renderQueue();slide();message('All saved changes have been delivered.');break;
+          await OfflineClient.save(Promise.resolve({cache_scope:scope}),fresh,entry.session,record.snapshot.workspace);check();
+          const updated=await activeStore.read(deck);check();record=updated;renderSlides(activeSlide);renderQueue();slide();message('All saved changes have been delivered.');break;
         }
         const sessionResponse=await fetch(entry.session,{cache:'no-store',signal:signal(5000)});check();
         if(sessionResponse.status===401||sessionResponse.status===403||sessionResponse.redirected||sessionResponse.ok&&!(sessionResponse.headers.get('content-type')||'').includes('application/json')){OfflineClient.blockIdentity();forget();offerRecovery();message('Sign in again. Your drafts remain on this device.');return;}
@@ -134,6 +138,7 @@
         if(!access.ok||access.redirected){if(access.status===401||access.redirected)OfflineClient.blockIdentity();else if(access.status>=400&&access.status<500)OfflineClient.blockDeck(deck);if(access.status>=400&&access.status<500||access.redirected){forget();offerRecovery();message('Access changed. Your drafts remain on this device.');return;}throw Error('Access could not be verified. Your drafts remain on this device.');}
         if(!item.receipt)throw Error('This draft needs an original receipt and remains on this device.');
         const body=item.kind==='edit'?{receipt:item.receipt,request_id:item.id,html:item.body,overwrite_expected:item.overwrite_expected||''}:{receipt:item.receipt,request_id:item.id,message:item.body,channel:'shared'};
+        if(item.kind==='edit'&&typeof item.base_html==='string')body.base_html=item.base_html;
         const response=await fetch(endpoint+(item.kind==='edit'?'/offline-edits':'/offline-comments'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:signal(15000)});check();
         if(!response.ok||response.redirected){if(response.status===401||response.redirected)OfflineClient.blockIdentity();else if(response.status===403||response.status===404)OfflineClient.blockDeck(deck);if(response.status===401||response.status===403||response.status===404||response.redirected){forget();offerRecovery();message('Delivery paused. Your drafts remain on this device.');return;}throw Error('Delivery paused. Your drafts remain on this device.');}
         const result=await response.json();check();
