@@ -34,6 +34,8 @@ environment, browser, agent models, baseline and acceptance criteria before
 starting. Save local evidence under `test-results/workflow-review/<run-id>/`.
 Use [roles and checkpoints](references/roles.md) for delegation prompts and
 [measurement and report](references/measurement.md) for instrumentation.
+Before browser work, read [efficient browser observation](references/browser-workflow.md)
+for short action batches, focused snapshots and isolated session reuse.
 
 ## Delegate distinct participants
 

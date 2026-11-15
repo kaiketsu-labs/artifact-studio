@@ -106,6 +106,9 @@ The Claude `/setup` wrapper is [.claude/commands/setup.md](../.claude/commands/s
 For a multi-person test, invoke `$multi-person-workflow-review` in a host that
 loads repository skills, or use the Claude
 [/multi-person-workflow-review wrapper](../.claude/commands/multi-person-workflow-review.md).
+Its [browser guide](../.agents/skills/multi-person-workflow-review/references/browser-workflow.md)
+applies short action batches, focused snapshots and independent session reuse,
+with explicit limits for delta snapshots and visual fidelity.
 The host needs independent agent delegation, browser control and a real Studio
 connection. Loading MCP alone does not load the skill or create simulated users.
 
