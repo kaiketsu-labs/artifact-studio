@@ -220,8 +220,11 @@ def test_owner_creates_deck_for_a_project_scoped_agent(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     os.environ.get("ARTIFACT_STUDIO_BROWSER_TESTS") != "1", reason="Opt-in browser journeys"
 )
-def test_new_presentation_uses_native_dialog_and_editor(tmp_path: Path) -> None:
-    """Use the workspace Tools menu and verify the styled cover and attached brief."""
+@pytest.mark.parametrize("fail_then_retry", [False, True])
+def test_new_presentation_uses_native_dialog_and_editor(
+    tmp_path: Path, fail_then_retry: bool
+) -> None:
+    """Preserve the selected project while reopening creation before the library loads."""
     root = tmp_path / "server"
     with (
         running_multiplayer_app(
@@ -249,16 +252,56 @@ def test_new_presentation_uses_native_dialog_and_editor(tmp_path: Path) -> None:
                 dialog = page.get_by_role("dialog", name="New presentation")
                 expect(dialog.get_by_role("textbox", name="Title")).to_be_focused()
                 expect(dialog.locator(".design-fieldset")).to_be_hidden()
+                page.add_init_script("""(() => {
+                    const query = new URLSearchParams(location.search);
+                    if (query.has('editor') || query.has('deck')) return;
+                    const fetch = window.fetch.bind(window);
+                    window.pendingLibrary = [];
+                    window.fetch = async (...args) => {
+                        const response = await fetch(...args);
+                        if (!new URL(args[0], location.href).pathname.endsWith('/api/hub'))
+                            return response;
+                        return new Promise(resolve => {
+                            window.pendingLibrary.push(fail => {
+                                delete document.documentElement.dataset.libraryPending;
+                                resolve(fail ? new Response(
+                                    '{"detail":"Fictional temporary library outage"}',
+                                    {status:503, headers:{'Content-Type':'application/json'}}
+                                ) : response);
+                            });
+                            document.documentElement.dataset.libraryPending = 'true';
+                        });
+                    };
+                })();""")
                 dialog.get_by_role("button", name="Close").click()
                 expect(page).to_have_url(project_url)
+                expect(page.locator("html")).to_have_attribute("data-library-pending", "true")
                 page.get_by_role("button", name="Menu", exact=True).click()
                 page.get_by_role("menuitem", name="New presentation", exact=True).click()
+                if fail_then_retry:
+                    _ = page.evaluate("window.pendingLibrary.shift()(true)")
+                    expect(
+                        page.get_by_role("heading", name="The library could not be loaded")
+                    ).to_be_visible()
+                    expect(page).to_have_url(project_url)
+                    page.get_by_role("button", name="Menu", exact=True).click()
+                    page.get_by_role("button", name="Try again", exact=True).click()
+                    expect(page.locator("html")).to_have_attribute("data-library-pending", "true")
+                    page.get_by_role("button", name="Menu", exact=True).click()
+                    page.get_by_role("menuitem", name="New presentation", exact=True).click()
+                _ = page.evaluate("window.pendingLibrary.shift()(false)")
                 dialog.get_by_role("textbox", name="Title").fill("Fictional deck")
                 dialog.get_by_role("textbox", name="Brief").fill("A brief for the project agent.")
                 dialog.locator("#brief-file-input").set_input_files(
                     {"name": "reference.txt", "mimeType": "text/plain", "buffer": b"fictional"}
                 )
-                dialog.locator("#create-button").click()
+                with page.expect_request(
+                    lambda request: request.method == "POST" and request.url.endswith("/api/decks")
+                ) as creation:
+                    dialog.locator("#create-button").click()
+                creation_body = creation.value.post_data_json
+                assert isinstance(creation_body, dict)
+                assert creation_body["project_id"] == project_id
                 expect(dialog).to_be_hidden()
                 expect(page).to_have_url(re.compile(home + r"\?deck=.*fictional-deck#cover$"))
                 preview = page.frame_locator("#preview").get_by_role(

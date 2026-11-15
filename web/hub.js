@@ -339,8 +339,9 @@
     if(sharedEditor&&selectedProject(project)&&project!=='shared-with-me')url.searchParams.set('project',project);
     return url.href;
   }
-  function newPresentation(project=state.project){
-    if(artifactEditor.finish())root.location.href=presentationCreationUrl(project);
+  async function newPresentation(project){
+    if(!await initialLibrary)return;
+    if(artifactEditor.finish())root.location.href=presentationCreationUrl(project ?? state.project);
   }
   if(sharedEditor)doc.querySelector('[data-new-presentation]').addEventListener('click',event=>{
     event.preventDefault();newPresentation();
@@ -921,6 +922,21 @@
     const [data]=await Promise.all([api('/api/hub'),root.FavoriteSlides.refresh()]);state.projects=data.projects || [];state.projectTree=data.project_tree || {nodes:state.projects.map(project=>({id:project.id,kind:'project',parent_id:null})),content_hash:''};state.artifacts=(data.artifacts || []).map(item=>({...item,starred:root.FavoriteSlides.has('artifact',item.id)}));state.designs=data.designs || [];
     if(!['all','designs'].includes(state.project) && !state.projects.some(project=>project.id===state.project) && !state.projectTree.nodes.some(node=>'folder:'+node.id===state.project))state.project='all';
   }
+  async function loadInitialLibrary() {
+    try{
+      await loadRegistry();
+      const query=new URL(root.location.href).searchParams,id=query.get('artifact'),project=query.get('project');
+      if(state.projects.some(item=>item.id===project)||state.projectTree.nodes.some(node=>'folder:'+node.id===project))state.project=project;
+      if(query.get('view')==='designs')state.project='designs';
+      if(query.get('design'))await openDesign(query.get('design'),false);
+      else if(id)await openArtifact(id,false);
+      else library();
+      return true;
+    }catch(error){
+      content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;
+      toast(error.message,true);return false;
+    }
+  }
   function updateHistory(id) {const url=new URL(root.location.href);id?url.searchParams.set('artifact',id):url.searchParams.delete('artifact');url.searchParams.delete('deck');url.searchParams.delete('design');state.project==='designs'?url.searchParams.set('view','designs'):url.searchParams.delete('view');!id&&!['all','designs'].includes(state.project)?url.searchParams.set('project',state.project):url.searchParams.delete('project');root.history.pushState({},'',url);}
   async function openArtifact(id,push=true) {
     if(!resetEditor())return;coverLoader.clear();closeTreeMenu();workspacePanels.exitView();
@@ -1105,7 +1121,7 @@
     if(name==='clean-view'){if(!artifactEditor.finish())return;state.selecting=false;syncSelection();workspacePanels.enterView();return;}
     if(name==='auto-update'){previewUpdates.set(!previewUpdates.enabled);return;}
     if(name==='home')return home();
-    if(name==='retry-library'){await loadRegistry();return library();}
+    if(name==='retry-library'){initialLibrary=loadInitialLibrary();return initialLibrary;}
     if(name==='new-project')return projectDialog();
     if(name==='project-add')return projectTreeMenu(node);
     if(name==='import')return importDialog();
@@ -1402,7 +1418,7 @@
   const libraryControls=root.SlideLibraries.init({api,toast,escape,currentDeck:()=>null});
   if(new URL(root.location.href).searchParams.get('settings')==='backup')void libraryControls.open();
   headerIcons();
-  loadRegistry().then(()=>{const query=new URL(root.location.href).searchParams;const id=query.get('artifact');const project=query.get('project');if(state.projects.some(item=>item.id===project)||state.projectTree.nodes.some(node=>'folder:'+node.id===project))state.project=project;if(query.get('view')==='designs')state.project='designs';return query.get('design')?openDesign(query.get('design'),false):id?openArtifact(id,false):library();}).catch(error=>{content.innerHTML=`<main class="hub-empty">${icon('info')}<h2>The library could not be loaded</h2><p>${escape(error.message)}</p>${button('retry-library','Try again','refresh')}</main>`;toast(error.message,true);});
+  let initialLibrary=loadInitialLibrary();
   setInterval(refresh,12000);
   setInterval(()=>{if(state.active&&state.detail&&!doc.hidden&&(nativeChat||root.StudioInvitation?.available))void refreshArtifactReview(state.active);},3500);
 })(typeof window==='undefined'?{}:window);
