@@ -139,6 +139,8 @@
   function proposalPreviewChanged(proposal){
     if(draftUncertain())return;
     if(!deck||!selectedId)return;
+    // A refresh of the inactive controller must not clear the other visible proposal.
+    proposal=proposal||liveProposalContext();
     const previous=feedbackDraft();
     if(!previous?.feedback?.trim()&&!previous?.target&&!chatComposer.hasFiles()&&JSON.stringify(proposalReference(previous))!==JSON.stringify(proposal)){
       feedbackDrafts.set(chatKey(),{...previous,feedback:previous?.feedback||'',target:null,slide_id:selectedId,context_slide_id:selectedId,content_hash:proposal?.content_hash||slide().content_hash,design_option_id:proposal?.design_option_id,design_option_name:proposal?.design_option_name,element_option_id:proposal?.element_option_id,element_option_name:proposal?.element_option_name,element_context_hash:proposal?.element_context_hash,request_id:crypto.randomUUID()});
@@ -1476,7 +1478,16 @@
   workspaceMenu=window.SlideWorkspaceMenu.create({doc:document,view:window,projects:projectFiles,present:fromBeginning=>presentationLauncher.start({fromBeginning}),blocked:()=>presentationLauncher.isOpen()||elementEditor.isEditing()||elementEditor.isBusy()||groupEditor.state().dirty||groupEditor.state().busy||feedbackSending||switchingDeck||visibilityBusy||slideActions.isBusy()||presentationActions.isBusy()});
   if(!sharedEditor)api('/api/instructions').then(()=>$('instructions-button').hidden=false).catch(()=>{});
   const offlineButton=$('offline-save'),offlineSignout=$('offline-signout');
-  function syncOfflineSave(){$('offline-save').disabled=!deck||switchingDeck||offlineSaving;}
+  function syncOfflineSave(){
+    offlineButton.disabled=!deck||switchingDeck||offlineSaving;
+    const saved = new URL('/web/offline.html', location.origin);
+    if (deck) {
+      const selection = new URLSearchParams({deck: deck.id});
+      if (slide()) selection.set('slide', selectedId);
+      saved.hash = selection.toString();
+    }
+    $('offline-open').href = saved.href;
+  }
   window.ArtifactSession.get().then(async session=>{
     await OfflineClient.bind(session.cache_scope);
     if(session.cache_scope&&'serviceWorker' in navigator){offlineButton.hidden=false;offlineSignout.hidden=false;$('offline-open').hidden=false;}
@@ -1484,7 +1495,7 @@
   offlineButton.addEventListener('click',async()=>{
     if(!deck||switchingDeck||offlineSaving)return;
     offlineSaving=true;syncOfflineSave();
-    try{await OfflineClient.save(window.ArtifactSession.get({refresh:true}),deck,studioPath('/api/session'),window.ArtifactSession.workspace);toast('Saved on this device. Open /web/offline.html to use it offline.');}
+    try{await OfflineClient.save(window.ArtifactSession.get({refresh:true}),deck,studioPath('/api/session'),window.ArtifactSession.workspace);toast('Saved on this device. Open Saved presentations from the menu.');}
     catch(error){toast(error.message,true);}finally{offlineSaving=false;syncOfflineSave();}
   });
   offlineSignout.addEventListener('click',async()=>{

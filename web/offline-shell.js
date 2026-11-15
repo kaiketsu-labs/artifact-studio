@@ -6,16 +6,27 @@
   let activeDeck='',activeSlide='';
   const visual=OfflineVisualEdit.create({picker:$('edit-object'),container:$('offline-properties'),
     source:$('source'),onSource:preview,onSave:()=>queue('edit'),onStatus:message});
-  try{const active=localStorage.getItem(ACTIVE);entries=JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===active&&/^[a-f0-9]{64}$/.test(item.scope)&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session));}catch{}
+  function savedEntries(scope=localStorage.getItem(ACTIVE)){
+    try{return JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===scope&&/^[a-f0-9]{64}$/.test(item.scope)&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session));}catch{return [];}
+  }
+  const blockKey=(scope,deck)=>'artifact-studio-offline-blocked-v1:'+scope+':'+(deck ? encodeURIComponent(deck) : '*');
+  const deckBlocked=item=>!!localStorage.getItem(blockKey(item.scope,item.deck));
+  const selectionRequest=()=>new URLSearchParams(location.hash.slice(1));
   function message(text){$('status').textContent=text;}
   function clearFrame(id){const old=$(id);if(!old)return;if(id==='preview')visual.reset();const next=old.cloneNode(false);next.removeAttribute('srcdoc');old.replaceWith(next);}
   function renderFrame(id,source){const old=$(id);if(!old)return;const next=old.cloneNode(false);next.srcdoc=previewDocument(source,old);old.replaceWith(next);}
   function closeRecovery(){$('recovery').hidden=true;$('recovery-list').replaceChildren();}
   function recoveryEntries(){
     const scope=localStorage.getItem(ACTIVE);if(!/^[a-f0-9]{64}$/.test(scope||''))return [];
-    try{return JSON.parse(localStorage.getItem(INDEX)||'[]').filter(item=>item.scope===scope&&typeof item.deck==='string'&&/^\/(?:workspaces\/[a-f0-9]{24}\/)?api\/session$/.test(item.session)&&(localStorage.getItem('artifact-studio-offline-blocked-v1:'+scope+':*')||localStorage.getItem('artifact-studio-offline-blocked-v1:'+scope+':'+encodeURIComponent(item.deck))));}catch{return [];}
+    return savedEntries(scope).filter(item=>localStorage.getItem(blockKey(scope))||deckBlocked(item));
   }
-  function offerRecovery(){$('recover-drafts').hidden=!recoveryEntries().length;}
+  function offerRecovery(){
+    $('recover-drafts').hidden=!recoveryEntries().length;
+    const deck=selectionRequest().get('deck');
+    const scope=localStorage.getItem(ACTIVE);
+    $('offline-list').hidden=!deck||!!localStorage.getItem(blockKey(scope))||
+      !savedEntries(scope).some(item=>item.deck!==deck&&!deckBlocked(item));
+  }
   async function recoverDrafts(){
     const own=selection,scope=localStorage.getItem(ACTIVE),generation=localStorage.getItem('artifact-studio-offline-generation-v1'),candidates=recoveryEntries();
     const check=()=>{if(selection!==own||scope!==localStorage.getItem(ACTIVE)||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))throw Error('The saved session changed.');};
@@ -39,7 +50,7 @@
     }catch(error){closeRecovery();message(error.message);}finally{$('recover-drafts').disabled=false;}
   }
   function resetConflict(){conflict=null;$('conflict').hidden=true;for(const id of ['conflict-base','conflict-current','conflict-draft'])$(id).textContent='';for(const id of ['conflict-base-preview','conflict-current-preview','conflict-draft-preview'])clearFrame(id);}
-  function forget(){selection++;closeRecovery();$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;activeDeck=activeSlide='';$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
+  function forget(){selection++;closeRecovery();$('offline-list').hidden=true;$('recover-drafts').hidden=true;deliveryController?.abort();store?.close();store=null;entries=[];record=null;activeDeck=activeSlide='';$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;$('decks').replaceChildren();$('slides').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('outbox').replaceChildren();resetConflict();message('Saved data cleared.');}
   const purgeChannel=new BroadcastChannel('artifact-studio-offline-purge-v1');
   purgeChannel.onmessage=event=>{if(event.data==='purge')forget();};
   window.addEventListener('storage',event=>{if(event.key==='artifact-studio-offline-generation-v1')forget();else if(event.key?.startsWith('artifact-studio-offline-blocked-v1:')&&event.newValue){forget();offerRecovery();}});
@@ -75,16 +86,22 @@
   }
   function effective(item){return record?.outbox.filter(value=>value.kind==='edit'&&value.slide_id===item?.id).at(-1)?.body||item?.html||'';}
   const hasUnsaved=()=>!!record&&($('source').value!==effective(record.snapshot.slides.find(item=>item.id===activeSlide))||!!$('comment').value.trim());
-  function slide(){const item=selectedSlide();activeDeck=$('decks').value;activeSlide=item?.id||'';$('source').value=effective(item);$('comment').value='';const disabled=syncing||!item?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;preview();}
+  function syncLocation(){
+    if(!record)return;
+    const context=new URLSearchParams({deck:record.snapshot.id});
+    if(activeSlide)context.set('slide',activeSlide);
+    if(location.hash.slice(1)!==context.toString())history.replaceState(null,'','#'+context);
+  }
+  function slide(){const item=selectedSlide();activeDeck=$('decks').value;activeSlide=item?.id||'';$('source').value=effective(item);$('comment').value='';const disabled=syncing||!item?.receipt;$('source').disabled=disabled;$('comment').disabled=disabled;$('save-edit').disabled=disabled;$('save-comment').disabled=disabled;preview();syncLocation();}
   function renderQueue(){
     $('outbox').replaceChildren(...(record?.outbox||[]).map(item=>{const row=document.createElement('li');const label=document.createElement('strong');label.textContent=(item.kind==='edit'?'Edit':'Shared comment')+' · '+(record.snapshot.slides.find(slide=>slide.id===item.slide_id)?.title||item.slide_id);const text=document.createElement('pre');text.textContent=item.body;const remove=document.createElement('button');remove.type='button';remove.textContent='Remove saved change';remove.disabled=syncing;remove.addEventListener('click',async()=>{const own=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1'),deck=record.snapshot.id,activeStore=store;try{await activeStore.update(deck,item.id,null);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;const updated=await activeStore.read(deck);if(own!==selection||generation!==localStorage.getItem('artifact-studio-offline-generation-v1'))return;record=updated;renderQueue();slide();}catch(error){message(error.message);}});row.append(label,text,remove);return row;}));
   }
-  async function select(){
+  async function select(index=Number($('decks').value),initialSlide=''){
     if($('decks').value!==activeDeck&&hasUnsaved()){$('decks').value=activeDeck;message('Save or discard your current changes before switching presentations.');return;}
     activeDeck=$('decks').value;
-    const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('outbox').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[Number($('decks').value)];
+    const selected=++selection;deliveryController?.abort();resetConflict();store?.close();store=null;record=null;$('outbox').replaceChildren();$('source').value='';$('comment').value='';clearFrame('preview');$('source').disabled=true;$('comment').disabled=true;$('save-edit').disabled=true;$('save-comment').disabled=true;const generation=localStorage.getItem('artifact-studio-offline-generation-v1');const entry=entries[index];
     if(!entry){message('No saved presentations on this device.');return;}
-    const blocked='artifact-studio-offline-blocked-v1:'+entry.scope+':'+encodeURIComponent(entry.deck),identityBlocked='artifact-studio-offline-blocked-v1:'+entry.scope+':*';
+    const blocked=blockKey(entry.scope,entry.deck),identityBlocked=blockKey(entry.scope);
     let priorBlock=localStorage.getItem(blocked),priorIdentityBlock=localStorage.getItem(identityBlocked);
     const checkBlocks=()=>{if(selection!==selected||localStorage.getItem(blocked)!==priorBlock||localStorage.getItem(identityBlocked)!==priorIdentityBlock)throw Error('Access changed. Reconnect and verify again.');};
     try{
@@ -104,7 +121,11 @@
         localStorage.removeItem(identityBlocked);localStorage.removeItem(blocked);priorIdentityBlock=null;priorBlock=null;
       }else if(localStorage.getItem(identityBlocked)||localStorage.getItem(blocked))throw Error('Reconnect and verify access to open this presentation. Your drafts remain on this device.');
       if(localStorage.getItem(ACTIVE)!==entry.scope||localStorage.getItem('artifact-studio-offline-generation-v1')!==generation)throw Error('The saved session changed.');
-      const activeStore=OfflineStore.create({enabled:true,scope:entry.scope});store=activeStore;const loaded=await activeStore.read(entry.deck);checkBlocks();if(localStorage.getItem('artifact-studio-offline-generation-v1')!==generation){forget();throw Error('The saved session changed.');}record=loaded;if(!record)throw Error('Saved presentation unavailable.');if(!$('decks').options.length)entries.forEach((item,index)=>$('decks').append(option(String(index),item.title||'Saved presentation')));renderSlides();slide();renderQueue();message('Available on this device.');}catch(error){if(selected!==selection)return;offerRecovery();message(error.message);}
+      const activeStore=OfflineStore.create({enabled:true,scope:entry.scope});store=activeStore;const loaded=await activeStore.read(entry.deck);checkBlocks();if(localStorage.getItem('artifact-studio-offline-generation-v1')!==generation){forget();throw Error('The saved session changed.');}record=loaded;if(!record)throw Error('Saved presentation unavailable.');
+      $('decks').replaceChildren(...entries.flatMap((item,position)=>
+        deckBlocked(item)?[]:[option(String(position),item.title||'Saved presentation')]));
+      $('decks').value=String(index);
+      renderSlides(initialSlide);slide();renderQueue();message('Available on this device.');}catch(error){if(selected!==selection)return;offerRecovery();message(error.message);}
   }
   async function queue(kind){
     const item=selectedSlide(),body=$(kind==='edit'?'source':'comment').value,own=selection,generation=localStorage.getItem('artifact-studio-offline-generation-v1'),deck=record?.snapshot.id,activeStore=store;
@@ -159,7 +180,7 @@
     if(record)visual.resize();
     if(conflict)for(const name of ['base','current','draft']){renderFrame('conflict-'+name+'-preview',$('conflict-'+name).textContent);}
   });
-  $('decks').addEventListener('change',select);
+  $('decks').addEventListener('change',()=>select());
   $('slides').addEventListener('change',()=>{
     if(hasUnsaved()){$('slides').value=activeSlide;message('Save or discard your current changes before switching slides.');return;}
     slide();
@@ -170,5 +191,22 @@
   });
   $('save-edit').addEventListener('click',()=>queue('edit'));$('save-comment').addEventListener('click',()=>queue('comment'));
   $('clear').addEventListener('click',async()=>{try{await OfflineClient.clear();forget();}catch(error){message(error.message);}});
-  void select();
+  function openRequested(){
+    if(hasUnsaved()){
+      syncLocation();message('Save or discard your current changes before switching presentations.');return;
+    }
+    closeRecovery();
+    $('recover-drafts').hidden=true;
+    $('offline-list').hidden=true;
+    entries=savedEntries();
+    const requested=selectionRequest(),deck=requested.get('deck');
+    const savedIndex=entries.findIndex(item=>item.deck===deck);
+    if(deck&&savedIndex<0){
+      forget();message('Save this presentation on this device to open it offline.');offerRecovery();return;
+    }
+    const firstAvailable=entries.findIndex(item=>!deckBlocked(item));
+    void select(deck?savedIndex:Math.max(0,firstAvailable),deck?requested.get('slide')||'':'');
+  }
+  window.addEventListener('hashchange',openRequested);
+  openRequested();
 })();
