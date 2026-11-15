@@ -161,3 +161,53 @@ def test_rejected_contact_sheets_never_clone_assets(
         _ = copilot_capture.capture_cloud_contact_sheet(store, DECK, offset=-1)
     with pytest.raises(ValueError, match="queue is full"):
         _ = copilot_capture.capture_cloud_contact_sheet(store, DECK)
+
+
+@pytest.mark.parametrize(
+    "surface,maximum,selection_max",
+    [("local", 24, 500), ("copilot", 8, 100), ("multiplayer", 8, 100)],
+)
+def test_contact_sheet_sdk_schema_rejects_invalid_pages_before_rendering(
+    store: Store, monkeypatch: pytest.MonkeyPatch, surface: str, maximum: int, selection_max: int
+) -> None:
+    """The connected SDK catalog advertises and enforces the renderer's actual bounds."""
+    import asyncio
+
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    from artifact_studio import app as local
+    from artifact_studio import copilot_tools
+    from artifact_studio.multiplayer_tools import MultiplayerTools
+    from artifact_studio.tool_server import ToolServer
+
+    def forbidden(*args: object, **kwargs: object) -> object:
+        raise AssertionError("Invalid MCP arguments must not reach capture or scope resolution")
+
+    monkeypatch.setattr(local, "capture", forbidden)
+    monkeypatch.setattr(copilot_tools, "capture_cloud_contact_sheet", forbidden)
+    monkeypatch.setattr(MultiplayerTools, "actor", forbidden)
+    if surface == "local":
+        server = local.mcp
+    else:
+        server = ToolServer[None]("Fictional capture bounds")
+        if surface == "copilot":
+            server.add_tool(ScopedTools(store, "legacy-presentations", False).capture_contact_sheet)
+        else:
+            # Validation must reject the call before any actor, scope or renderer is accessed.
+            multiplayer = object.__new__(MultiplayerTools)
+            server.add_tool(multiplayer.capture_contact_sheet)
+    tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
+    schema = json.dumps(tools["capture_contact_sheet"].input_schema)
+    assert f'"maximum": {maximum}' in schema
+    assert '"minimum": 0' in schema and '"minimum": 1' in schema
+    assert f'"maxItems": {selection_max}' in schema
+    for arguments in (
+        {"limit": maximum + 1},
+        {"limit": 0},
+        {"offset": -1},
+        {"slide_ids": [f"slide-{index}" for index in range(selection_max + 1)]},
+    ):
+        with pytest.raises(ToolError):
+            _ = asyncio.run(
+                server.call_tool("capture_contact_sheet", {"deck_id": DECK, **arguments})
+            )

@@ -17,7 +17,6 @@ from urllib.parse import quote
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
@@ -66,6 +65,7 @@ from .renderer_health import RendererBusy
 from .review import ReviewHookInput
 from .storage import ConflictError, Store
 from .structure_proposals import StructureDecision, StructureProposals
+from .tool_server import ToolServer
 from .visuals import ScopedDeckEmbedder
 
 # The separator is outside the ordinary ticket alphabet.
@@ -183,7 +183,7 @@ def create_app(
     offline_delivery = OfflineDelivery(hub)
     presence = DeckPresence(hub)
     structure = StructureProposals(hub)
-    mcp = MCPServer[None](
+    mcp = ToolServer[None](
         "Artifact Studio Multiplayer",
         version=__version__,
         instructions=(

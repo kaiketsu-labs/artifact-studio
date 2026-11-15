@@ -2,6 +2,18 @@
 
 MCP is stateless at the transport level. Agents can still retain context between calls: sending the same guide, slide history or encoded image on every request is unnecessary.
 
+## Tool surface and skill usage · 15 November 2026
+
+The [tool-surface study](performance/tool-surface-review.md) records a new
+three-person authoring run, per-skill static context, CLI behavior and a matched
+local benchmark. The catalogue advertises 66 tools, with six historical names
+still callable; its compact JSON is 8.57% smaller. Operation responses grew
+slightly, and provider tokens are unknown. Consolidation preserves arbitrary
+source composition and all existing conflict, capture and review boundaries.
+Use the [canonical calls](../agent/README.md), an outline with context for
+preference/brief reads, and the existing [file-input CLI](FILE-CLIENT.md) for large
+already-reviewed local source. Do not equate smaller transport with billed savings.
+
 ## Current workflow benchmark · 14 November 2026
 
 The [repeatable presentation benchmark](performance/PRESENTATION-WORKFLOW.md) compares redundant and scoped read policies on the same current application, with identical edits, feedback and a concurrent human notes change. Both must reject the stale write, reread source, preserve notes and validate the final result. Its [raw report](performance/presentation-workflow.json) records per-call bytes/timing, repeated trials, environment and source fingerprints. This measures tool traffic; it does not measure provider billing or autonomous model speed. Optional named tokenizer estimates are supported, but the recorded run could not download the encoding resource and therefore contains no token estimates.
@@ -51,10 +63,10 @@ Draft capture frames have 360,000 pixels instead of 1,440,000 (75% fewer), prese
 | Edit one slide | `get_slide`, then `revise_slide` with only changed fields. |
 | Create or reorder | `create_presentation` / `reorder_slides` return deck identity and ordered `slide_ids`, without slide source. |
 | Automatic review | Loaded hooks attach on selected artifact/presentation context or authoring calls, without a separate start call. Read live_review only for setup; use `start_live_review` with the selected ID to resume after End review. |
-| Continue reviewing | `read_feedback`/`wait_for_feedback` with `after_delivery_id=next_cursor`. |
+| Continue reviewing | `read_feedback` with `after_delivery_id=next_cursor`. |
 | Read general artifact feedback | `read_artifact_feedback` with its own `after_delivery_id=next_cursor`; loaded lifecycle hooks attach to selected artifacts and send only the needed read call and cursor. |
 | Edit an owned artifact | `get_artifact`, then `read_artifact_files` for relevant paths and `revise_artifact` for changed files with an expected revision/hash and unique request ID. |
-| Add continuation context | `append_presentation_context` with a short Markdown addition and current `context_hash`. |
+| Add continuation context | `update_presentation_context(mode="append")` with a short Markdown addition and current `context_hash`. |
 
 Read the full brief and relevant `brief_files` attachments before authoring. Attachment metadata remains available in the outline. Compact responses do not replace source inspection, factual checks or visual review. `get_presentation` still returns the complete presentation; `get_working_context(detail="full")` returns the expanded guides and inventory.
 
@@ -68,7 +80,7 @@ An agent already knows the source it just submitted. Echoing that source and the
 
 ## Retain rules explicitly
 
-An initial working-context, presentation, outline or feedback read returns complete primary/secondary rules plus `rules_hash`. Subsequent `get_working_context`, `get_presentation`, `get_presentation_outline`, `read_feedback` and `wait_for_feedback` calls may send that `known_rules_hash` **only while the agent retains those exact rules**. The same hash is reusable across these tools and presentations in the workspace. An exact match sets `rules_included=false` and returns empty `authoring_instructions`/`learned_preferences` fields instead of repeating their text. Presentation briefs, slide content and other requested fields are still returned normally. A different hash always delivers the new rules in full. Omit the hash after compaction, restart or loss of context until the rules have been read again. Primary instructions are never summarized or truncated.
+An initial working-context, presentation, outline or feedback read returns complete primary/secondary rules plus `rules_hash`. Subsequent `get_working_context`, `get_presentation`, `get_presentation_outline`, `read_feedback` calls may send that `known_rules_hash` **only while the agent retains those exact rules**. The same hash is reusable across these tools and presentations in the workspace. An exact match sets `rules_included=false` and returns empty `authoring_instructions`/`learned_preferences` fields instead of repeating their text. Presentation briefs, slide content and other requested fields are still returned normally. A different hash always delivers the new rules in full. Omit the hash after compaction, restart or loss of context until the rules have been read again. Primary instructions are never summarized or truncated.
 
 Delivery cursors still govern released feedback; unchanged-rule omission never releases Batch comments or unsent drafts. Design preferences remain available in working context and its full variant.
 
@@ -83,7 +95,7 @@ visual-review guidance and origin metadata remain available where applicable.
 The [hosted rerun](performance/workflow-iteration.md) caught and fixed workflow
 and live-review topics previously accepting this argument without using it.
 
-`include_discovery=False` is the default: unrelated presentation, design and library lists are omitted and `discovery_included=false`. The selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages remain. Use `list_presentations`, `list_design_contexts` or `list_libraries` when discovering new work, or explicitly pass `include_discovery=True` for the previous lists. This default applies to compact and full startup, including artifact/project context.
+`include_discovery=False` is the default: unrelated presentation, design and library lists are omitted and `discovery_included=false`. The selected design and its source references, full brand preferences, complete rules (unless explicitly retained), and queued user inbox messages remain. Use `list_artifacts(kind="presentation")`, `list_design_contexts` or `list_libraries` when discovering new work, or explicitly pass `include_discovery=True` for the previous lists. This default applies to compact and full startup, including artifact/project context.
 
 This also applies to general artifact/project and reference-only context. Related artifacts within the selected project remain as short pointers. For a presentation selected with `artifact_id`, the outer artifact guide and nested presentation guide are distinct: retain `guide_hash` with `known_guide_hash`, and `presentation_context.guide_hash` with `known_presentation_guide_hash`. A missing, unknown or changed hash returns the corresponding complete guide.
 
