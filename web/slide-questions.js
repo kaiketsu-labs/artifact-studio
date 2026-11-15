@@ -7,6 +7,13 @@
   function pending(events){return events.filter(item=>item.author==='agent'&&item.question&&status(item,events)==='open');}
   function create({api,escape,svg,avatar,onRefresh,deliveryMode=()=>'live'}){
     const drafts=new Map(),busy=new Set(),errors=new Map(),handlers=new Map();let storage;
+    let currentList;
+    const keepFocusedAnswerVisible=()=>root.requestAnimationFrame(()=>{
+      const response=currentList?.ownerDocument.activeElement?.closest('.question-response');
+      if(response&&currentList.contains(response))response.scrollIntoView({block:'nearest'});
+    });
+    root.addEventListener?.('resize',keepFocusedAnswerVisible);
+    root.visualViewport?.addEventListener('resize',keepFocusedAnswerVisible);
     try{storage=root.localStorage;const saved=JSON.parse(storage.getItem(storageKey)||'{}');for(const [key,value] of Object.entries(saved)){if(value&&typeof value.text==='string'&&value.text.length<=10000&&(value.choice===null||(Number.isInteger(value.choice)&&value.choice>=0&&value.choice<6)))drafts.set(key,{text:value.text,choice:value.choice,request_id:typeof value.request_id==='string'&&/^[a-zA-Z0-9-]{8,100}$/.test(value.request_id)?value.request_id:crypto.randomUUID()});}}catch{}
     const key=(deckId,slideId,id)=>`${deckId}/${slideId}/${id}`;
     function persist(){try{storage?.setItem(storageKey,JSON.stringify(Object.fromEntries(drafts)));}catch{}}
@@ -29,6 +36,7 @@
     }
     function updateDelivery(list){const mode=deliveryMode();for(const button of list.querySelectorAll('.question-send')){if(button.dataset.deliveryMode===mode)continue;const batch=mode==='batch',label=batch?'Add answer to batch':'Send answer';button.dataset.deliveryMode=mode;button.setAttribute('aria-label',label);button.title=label;button.innerHTML=svg(batch?'batch':'send');}}
     function mount(list,events,deckId,slideId){
+      currentList=list;
       handlers.clear();
       for(const card of list.querySelectorAll('[data-question-id]')){
         const question=events.find(item=>item.event_id===Number(card.dataset.questionId));if(!question)continue;
@@ -53,7 +61,7 @@
     }
     function captureFocus(list){const active=list.ownerDocument.activeElement,card=active?.closest('[data-question-id]');if(!card)return null;return {id:card.dataset.questionId,tag:active.tagName,choice:active.value,start:active.selectionStart,end:active.selectionEnd};}
     function restoreFocus(list,saved){if(!saved)return;const card=list.querySelector(`[data-question-id="${saved.id}"]`);if(!card)return;const target=saved.tag==='TEXTAREA'?card.querySelector('textarea'):saved.tag==='INPUT'?card.querySelector(`input[value="${saved.choice}"]`):null;(target||card.querySelector('.question-prompt'))?.focus({preventScroll:true});if(target?.tagName==='TEXTAREA'&&saved.start!==null)target.setSelectionRange(saved.start,saved.end);}
-    function jump(list){const card=list.querySelector('[data-question-state="open"]');if(card){card.scrollIntoView({block:'nearest'});card.querySelector('.question-prompt').focus({preventScroll:true});}}
+    function jump(list){const card=list.querySelector('[data-question-state="open"]');if(card){const thread=card.closest('.chat-replies');if(thread)thread.open=true;card.scrollIntoView({block:'nearest'});card.querySelector('.question-prompt').focus({preventScroll:true});}}
     function exportDrafts(deckId){return Object.fromEntries([...drafts].filter(([name,value])=>name.startsWith(deckId+'/')&&(value.text||value.choice!==null)).map(([name,value])=>[name.split('/')[2],{slide_id:name.split('/')[1],text:value.text,choice:value.choice}]));}
     function importDrafts(deckId,values){for(const [id,value] of Object.entries(values||{}))drafts.set(key(deckId,value.slide_id,id),{text:value.text,choice:value.choice,request_id:crypto.randomUUID()});persist();}
     return {render,mount,captureFocus,restoreFocus,jump,updateDelivery,exportDrafts,importDrafts,hasDrafts:()=>[...drafts.values()].some(value=>!!value.text||value.choice!==null)};

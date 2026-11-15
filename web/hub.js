@@ -136,6 +136,7 @@
   const exports = {filterArtifacts,sortArtifacts,artifactType,validSort,filterDesigns,kindOf,groupTargets,selectTargets,bundlePath,renderDocument,encodePath,feedbackTarget,filePath,exportFile,validVoiceSegment,appendVoiceSegment};
   if (typeof module !== 'undefined' && module.exports) { module.exports=exports; return; }
 
+  const chatThreads=root.StudioChatTimeline.create();
   const doc=root.document, content=doc.getElementById('hub-content'), dialog=doc.getElementById('hub-dialog');
   const sharedEditor=doc.documentElement.hasAttribute('data-shared-editor');
   const canManageWorkspace=()=>!sharedEditor||doc.documentElement.hasAttribute('data-workspace-owner');
@@ -471,7 +472,7 @@
     const info=await scopedChat.read(id,{channel});
     if(channelOf(id)!==channel||(channelVersions.get(id)||0)!==version)throw new Error('Conversation changed.');
     const scoped=info.messages.map(message=>({
-      id:-message.id,author:message.author===message.person?'user':'agent',
+      id:-message.id,reply_to:message.reply_to?-message.reply_to:null,author:message.author===message.person?'user':'agent',
       name:message.author===message.person?(message.person===info.person?'You':message.author_name):(info.agents.find(agent=>agent.id===message.author)?.name||'Agent'),
       collaborator:message.author===message.person&&message.person!==info.person,agentRequest:nativeConversation.agentRequest(message),
       ...nativeConversation.displayEdit(message),created_at:new Date(message.created*1000).toISOString(),
@@ -665,6 +666,9 @@
     return root.StudioChatTimeline.render(item.feedback||[],message=>message.created_at,
       message=>messageMarkup(message,item),day=>`<p class="chat-day">${escape(day)}</p>`).join('');
   }
+  function mountThreads(item,focus) {
+    chatThreads.mount(doc.getElementById('hub-thread'),item.feedback||[],{context:`${studioPath('')}:${item.collaboration?.person||'local'}:${item.id}:${channelOf(item.id)}`,focus});
+  }
   function deliveryMarkup(item) {
     const count=pendingCount(item),earlier=collaborationChat&&channelOf(item.id)==='private'?(item.feedback||[]).filter(message=>!message.scoped&&message.author==='user'&&message.released===false).length:0;
     return `<div class="hub-delivery" ${count||earlier?'':'hidden'}>${count?button('release',`Send saved messages for this artifact · ${count}`,'send',`class="hub-release" ${canComment(item)?'':'disabled'}`):''}${earlier?button('release-legacy',`Send earlier saved messages for this artifact · ${earlier}`,'send','class="hub-release"'):''}</div>`;
@@ -696,10 +700,11 @@
     elementMenuEpoch++;elementMenu.close();
     void voice.stop();
     properties?.destroy();
-    const item=state.detail;
+    const item=state.detail,threadFocus=chatThreads.capture(doc.getElementById('hub-thread'));
     content.innerHTML=`<div class="hub-layout">${sidebar(true)}<main class="hub-workspace"><section class="hub-edit-area" aria-label="Artifact preview"><nav class="hub-crumbs" aria-label="Breadcrumb">${button('home','','grid','aria-label="Back to library" title="Back to library"')}${icon('right')}<button type="button" data-project="${escape(item.project_id)}">${escape(item.project_title || projectTitle(item.project_id))}</button>${icon('right')}<span>${escape(kinds[kindOf(item)].singular)}</span></nav><header class="hub-edit-heading"><div><h1>${escape(item.title)}</h1><div class="hub-version"><span>Version ${escape(item.revision || 1)}</span>${status(item)}</div></div>${button('approve',item.status==='approved'?'Approved':'Approve','check',`class="hub-approve ${item.status==='approved'?'is-approved':''}" ${item.status==='approved'?'disabled':''} title="Approve the displayed version"`)}</header><div id="hub-new-revision" ${state.newRevision?'':'hidden'}>${button('reload','Open updated version','updated','class="hub-approval-note"')}</div>${viewerToolbar(item)}<div id="hub-element-properties" hidden></div><div id="hub-viewer">${viewer(item)}</div>${item.external_dependencies?.length?'<p class="hub-approval-note">External dependencies are mutable. Approval records the local files and does not freeze remote content.</p>':''}<details class="hub-files"><summary>${icon('folder')}Sources & files<span class="hub-count">${fileRecords(item).length}</span></summary>${fileList(item)}<p class="hub-source-hash" title="Content hash">${escape(item.content_hash)}</p><div class="hub-source-links">${button('context','Agent context','code')}${button('move','Move to project','folder')}</div>${item.source_path?`<p class="hub-muted" style="overflow-wrap:anywhere;margin-top:12px">${escape(item.source_path)}</p>`:''}</details></section><aside id="hub-chat" class="hub-chat" aria-label="Artifact conversation">${chatMarkup(item)}</aside></main></div>`;
     doc.title=`${item.title} · Artifact Studio`;
     properties=root.ElementProperties.create({container:doc.getElementById('hub-element-properties'),getVoice:()=>voice,getAnchor:()=>root.ElementProperties.frameAnchor(inspectorRect,doc.getElementById('hub-html-preview')),onPreview:values=>artifactEditor.preview(values),onSend:async()=>{const panel=properties,id=state.active,loading=state.loading,generation=panel.selectionGeneration(),mode=state.detail.mode;if(!await panel.stopVoice()){toast('Recording ended without sending. Review your edit before sending.');return;}if(properties!==panel || state.active!==id || state.loading!==loading || panel.selectionGeneration()!==generation)return;if(state.detail.mode!==mode){toast('Feedback mode changed. Review the current setting before sending.');return false;}return artifactEditor.send(mode);},onCancel:()=>{properties?.cancelVoice();artifactEditor.cancel();}});
+    mountThreads(item,threadFocus);
     inspectorSelector=null;bindViewer();syncSelection();bindVoiceFeedback();lockComposer();workspacePanels.refresh();mountSharing();root.StudioAbout?.mountServerVersion();quickAccess.decorateProjects();
   }
   /** Update review status for the displayed snapshot without replacing the preview. */
@@ -739,7 +744,7 @@
     if(feedbackChanged){
       const thread=doc.getElementById('hub-thread'),atBottom=thread && thread.scrollHeight-thread.scrollTop-thread.clientHeight<50;
       item.feedback=detail.feedback;
-      if(thread){thread.innerHTML=threadMarkup(item);if(atBottom)thread.scrollTop=thread.scrollHeight;}
+      if(thread){const focused=chatThreads.capture(thread);thread.innerHTML=threadMarkup(item);mountThreads(item,focused);if(atBottom)thread.scrollTop=thread.scrollHeight;}
     }
     if(deliveryChanged || feedbackChanged){
       const end=doc.getElementById('hub-end-review');if(end)end.hidden=item.delivery?.live_available!==true;
@@ -765,7 +770,8 @@
   }
   function renderChat() {
     const node=doc.getElementById('hub-chat');if(!node || !state.detail)return;
-    void voice.stop();node.innerHTML=chatMarkup(state.detail);bindVoiceFeedback();const thread=doc.getElementById('hub-thread');thread.scrollTop=thread.scrollHeight;lockComposer();
+    const threadFocus=chatThreads.capture(doc.getElementById('hub-thread'));
+    void voice.stop();node.innerHTML=chatMarkup(state.detail);mountThreads(state.detail,threadFocus);bindVoiceFeedback();const thread=doc.getElementById('hub-thread');thread.scrollTop=thread.scrollHeight;lockComposer();
   }
   function lockComposer() {
     for(const control of doc.querySelectorAll('#hub-feedback-form button,#hub-feedback-form textarea,#hub-feedback-form input'))if(!control.closest('.voice-input-controls'))control.disabled=sending.has(state.active)||!canComment(state.detail);
