@@ -91,11 +91,20 @@ harness deliberately retains the fictional local workspace for failure analysis.
   check with 536,870,912 bytes and 32,768 inodes. The image used the repository's
   pinned Python/uv bases and locked runtime dependencies. A host-trusted CA bundle
   was supplied as a build secret; TLS verification stayed enabled.
-- Creating the planned new private GitHub fixture failed with HTTP 403,
-  `Resource not accessible by integration`, at `POST /user/repos`. No repository
-  or external fixture content was created. The live GitHub acceptance therefore
-  remains **unverified**, and #163 must stay open until a permitted run succeeds.
+- **Live private GitHub acceptance passed all 18 checkpoints** using a new empty
+  fixture repository supplied by the maintainer. Source commit `3dc5743` ran in
+  the non-root container with the same production mount check, runtime-only
+  credentials and TLS verification. The container needed its configured proxy
+  hostname mapped to the host-resolved proxy address; proxy routing was retained.
+- Private notes/context and unreleased review survived every checkpoint.
+  Non-owner status, configuration and sync calls were denied. Real GitHub writes
+  verified independent merges, all four conflict classes, recovery after a
+  successful interrupted push, and rejection of a second editor's stale push.
+- The [redacted per-checkpoint results](performance/github-sync-acceptance.json)
+  record 33.737 seconds across the timed sync calls. This sum excludes container
+  startup, preflight, peer edits and separate remote preservation checks; it is
+  not the total harness duration or a production throughput measurement.
 
-The local tests and container preflight do not substitute for that missing live
-run. A maintainer-created empty private fixture with the marker and branch above
-can be used once the runtime identity has write access to it.
+This completes the dedicated private-repository acceptance for this fixture.
+It does not establish live identity-provider/browser behavior, permissions for a
+separate denied GitHub credential, or physical microphone support (#159).
