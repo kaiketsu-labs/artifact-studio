@@ -108,3 +108,8 @@ harness deliberately retains the fictional local workspace for failure analysis.
 This completes the dedicated private-repository acceptance for this fixture.
 It does not establish live identity-provider/browser behavior, permissions for a
 separate denied GitHub credential, or physical microphone support (#159).
+An additional read-only metadata probe sent no client `Authorization` header and
+used no netrc, while retaining the configured proxy and TLS verification. That
+managed network path still returned the private fixture with HTTP 200, as did the
+authenticated control. It therefore did not establish anonymous access denial;
+no unauthenticated push was attempted.
