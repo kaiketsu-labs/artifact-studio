@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.9.0...v0.10.0) (2026-11-15)
+
+
+### Features
+
+* **chat:** connect replies and add inline thread conversations ([bef3364](https://github.com/kaiketsu-labs/artifact-studio/commit/bef3364ab34fc03265b35f9406326f7e7796ff71))
+
 ## [0.9.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.8.1...v0.9.0) (2026-11-15)
 
 
