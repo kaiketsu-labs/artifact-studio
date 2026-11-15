@@ -46,6 +46,8 @@ MAX_READ_BYTES = 1024 * 1024
 MAX_RESULT_BYTES = 4 * 1024 * 1024
 _REMOTE_WORKERS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="studio-remote")
 _REMOTE_WORK_SLOTS = threading.BoundedSemaphore(4)
+_REMOTE_POLL_WORKERS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="studio-remote-poll")
+_REMOTE_POLL_SLOTS = threading.BoundedSemaphore(8)
 Text = Annotated[str, Field(max_length=1_500_000)]
 Identifier = Annotated[str, Field(min_length=1, max_length=100)]
 RequestID = Annotated[str, Field(min_length=8, max_length=100)]
@@ -172,21 +174,26 @@ def public_object(value: dict[str, object]) -> dict[str, object]:
     return cast(dict[str, object], public_value(value))
 
 
-def remote_tool[**P, T](function: Callable[P, T]) -> Callable[P, Coroutine[object, object, T]]:
+def remote_tool[**P, T](
+    function: Callable[P, T],
+    *,
+    workers: ThreadPoolExecutor = _REMOTE_WORKERS,
+    slots: threading.BoundedSemaphore = _REMOTE_WORK_SLOTS,
+) -> Callable[P, Coroutine[object, object, T]]:
     """Run synchronous storage off the event loop and suppress filesystem error details."""
 
     @wraps(function)
     async def call(*args: P.args, **kwargs: P.kwargs) -> T:
         """Translate expected failures without exposing credentials or local paths."""
         try:
-            if not _REMOTE_WORK_SLOTS.acquire(blocking=False):
+            if not slots.acquire(blocking=False):
                 raise ToolError("Agent workspace is busy. Retry shortly.")
             try:
-                future = _REMOTE_WORKERS.submit(function, *args, **kwargs)
+                future = workers.submit(function, *args, **kwargs)
             except BaseException:
-                _REMOTE_WORK_SLOTS.release()
+                slots.release()
                 raise
-            future.add_done_callback(lambda _future: _REMOTE_WORK_SLOTS.release())
+            future.add_done_callback(lambda _future: slots.release())
             result = await asyncio.wrap_future(future)
             if (
                 not isinstance(result, CallToolResult)
@@ -891,11 +898,15 @@ class ScopedTools:
         """
         deadline = time.monotonic() + min(25, max(0, wait_seconds))
         while True:
-            _ = self.deck(deck_id)
-            result = self._released_feedback(deck_id, after_delivery_id)
+            result = self.feedback_poll(deck_id, after_delivery_id)
             if result["events"] or time.monotonic() >= deadline:
                 return result
             time.sleep(0.25)
+
+    def feedback_poll(self, deck_id: str, after_delivery_id: int) -> dict[str, object]:
+        """Reauthorize each individual poll before reading released feedback."""
+        _ = self.deck(deck_id)
+        return self._released_feedback(deck_id, after_delivery_id)
 
     def _released_feedback(self, deck_id: str, after_delivery_id: int) -> dict[str, object]:
         events = [
@@ -1010,6 +1021,7 @@ def register_tools(
     whole_workspace: bool,
     *,
     hosted_hooks: bool = False,
+    cancellable_waits: bool = False,
 ) -> None:
     """Register an explicit allowlist; local MCP registrations are never imported or modified."""
     scoped = ScopedTools(store, project_id, whole_workspace, hosted_hooks=hosted_hooks)
@@ -1054,6 +1066,28 @@ def register_tools(
         )
         writes += (scoped.start_live_review,)
     for function in reads:
+        if cancellable_waits and function == scoped.read_feedback:
+            continue
         server.add_tool(remote_tool(cast(Callable[..., object], function)), annotations=READ)
+    if cancellable_waits:
+        # Only the optional gateway opts in. The unified hosted route retains its
+        # existing worker/admission behavior. Sleeping waits consume no worker.
+        poll = remote_tool(
+            scoped.feedback_poll, workers=_REMOTE_POLL_WORKERS, slots=_REMOTE_POLL_SLOTS
+        )
+
+        @wraps(scoped.read_feedback)
+        async def read_feedback(
+            deck_id: Identifier, after_delivery_id: int = 0, wait_seconds: int = 0
+        ) -> dict[str, object]:
+            deadline = time.monotonic() + min(25, max(0, wait_seconds))
+            while True:
+                result = await poll(deck_id, after_delivery_id)
+                remaining = deadline - time.monotonic()
+                if result["events"] or remaining <= 0:
+                    return result
+                await asyncio.sleep(min(0.25, remaining))
+
+        server.add_tool(read_feedback, annotations=READ)
     for function in writes:
         server.add_tool(remote_tool(cast(Callable[..., object], function)), annotations=WRITE)
