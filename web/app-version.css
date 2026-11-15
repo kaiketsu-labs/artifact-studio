@@ -248,6 +248,12 @@ dialog.studio-report .studio-report-footer button[type=submit] {
 }
 dialog.studio-report .studio-report-footer button[type=submit]:hover { background: #204bb2; }
 .studio-report-capturing { opacity: 0; pointer-events: none; }
+.studio-report-handoff { border-top: 1px solid var(--report-line); padding-top: 12px; font-size: 13px; }
+.studio-report-handoff ol { margin: 8px 0; padding-left: 20px; }
+.studio-report-handoff li + li { margin-top: 6px; }
+.studio-report-draft-actions { display: flex; align-items: center; gap: 12px; }
+.studio-report-draft-actions small { color: var(--report-muted); line-height: 1.45; }
+.studio-report-draft-actions button { flex: none; }
 @media (max-width: 420px) {
   dialog.studio-report .studio-report-footer button[type=submit] { width: 100%; }
 }

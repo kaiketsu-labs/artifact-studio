@@ -1,7 +1,9 @@
 """Loopback HTTPS edge and fictional IdP; browsers execute real cross-origin 302s."""
 
 import json
+import secrets
 from datetime import UTC, datetime, timedelta
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPSServer
 from pathlib import Path
 from typing import cast
@@ -47,12 +49,17 @@ def certificate(directory: Path) -> tuple[str, str]:
 
 
 class FictionalEdge(ThreadingHTTPSServer):
-    def __init__(self, client: TestClient, identity: str, directory: Path) -> None:
+    def __init__(
+        self, client: TestClient, identity: str, directory: Path, *, cookie_session: bool = False
+    ) -> None:
         self.client, self.identity = client, identity
         self.logged_in = False
         self.requests: list[str] = []
         self.tokens: list[str] = []
         self.redirects: list[tuple[str, str]] = []
+        self.cookie_session = cookie_session
+        self.session = secrets.token_urlsafe(32)
+        self.observations: list[tuple[str, bool, int]] = []
         cert, key = certificate(directory)
         super().__init__(("127.0.0.1", 0), EdgeHandler, certfile=cert, keyfile=key)
 
@@ -76,6 +83,15 @@ class EdgeHandler(BaseHTTPRequestHandler):
         self.respond()
 
     def reply(self, status: int, body: bytes = b"", headers: dict[str, str] | None = None) -> None:
+        edge = cast(FictionalEdge, self.server)
+        # Synthetic edge diagnostics intentionally retain neither URLs nor cookie values.
+        edge.observations.append(
+            (
+                self.headers.get("Host", ""),
+                "CF_Authorization=" in self.headers.get("Cookie", ""),
+                status,
+            )
+        )
         self.send_response(status)
         for name, value in (headers or {}).items():
             if name.lower() not in {"content-length", "content-encoding", "transfer-encoding"}:
@@ -92,7 +108,16 @@ class EdgeHandler(BaseHTTPRequestHandler):
             self.reply(400)
             return
         url = f"https://{host}{self.path}"
-        edge.requests.append(url)
+        edge.requests.append(
+            f"https://{host}/_preview/[redacted]"
+            if edge.cookie_session and self.path.startswith("/_preview/")
+            else url
+        )
+        cookies = SimpleCookie(self.headers.get("Cookie", ""))
+        session = cookies.get("CF_Authorization")
+        authenticated = edge.logged_in and (
+            not edge.cookie_session or session is not None and session.value == edge.session
+        )
         destination = ""
         if host == "login.example.test":
             if self.command != "GET":
@@ -100,7 +125,9 @@ class EdgeHandler(BaseHTTPRequestHandler):
                 return
             if self.path == "/complete":
                 edge.logged_in = True
-                destination = ORIGIN + "/invitation"
+                destination = ORIGIN + (
+                    "/fixture-login-complete" if edge.cookie_session else "/invitation"
+                )
             elif self.path == "/sign-in":
                 self.reply(
                     200,
@@ -112,14 +139,30 @@ class EdgeHandler(BaseHTTPRequestHandler):
             else:
                 self.reply(404)
                 return
-        elif not edge.logged_in and host == "studio.example.test" and self.path == "/invitation":
+        elif (
+            edge.cookie_session
+            and edge.logged_in
+            and host == "studio.example.test"
+            and self.path == "/fixture-login-complete"
+        ):
+            self.reply(
+                302,
+                headers={
+                    "Location": ORIGIN + "/invitation",
+                    "Set-Cookie": (
+                        f"CF_Authorization={edge.session}; Path=/; Secure; HttpOnly; SameSite=Lax"
+                    ),
+                },
+            )
+            return
+        elif not authenticated and host == "studio.example.test" and self.path == "/invitation":
             destination = LOGIN + "/sign-in"
         if destination:
             edge.redirects.append((url, destination))
             self.reply(302, headers={"Location": destination})
             return
         headers = dict(self.headers.items())
-        if edge.logged_in:
+        if authenticated and (not edge.cookie_session or host == "studio.example.test"):
             headers["X-Fixture-Auth"] = edge.identity
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
         if self.command == "POST" and self.path == "/api/invitations/accept":
