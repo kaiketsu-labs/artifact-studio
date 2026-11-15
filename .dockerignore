@@ -6,6 +6,9 @@
 !artifact_studio/
 artifact_studio/*
 !artifact_studio/*.py
+!artifact_studio/designs/
+artifact_studio/designs/*
+!artifact_studio/designs/*.py
 !web/
 !web/**
 !runtime/

@@ -1,0 +1,177 @@
+{
+  "date": "2026-11-15",
+  "source_commit": "3dc5743",
+  "implementation_base_commit": "4f39112855731ae34f956a6b87c5d99ec2d890e3",
+  "fixture": "dedicated private GitHub repository; fictional three-slide presentation",
+  "source": "scripts/verify_github_sync.py",
+  "execution": {
+    "uid": 1000,
+    "read_only_root": true,
+    "capabilities_dropped": "ALL",
+    "no_new_privileges": true,
+    "staging_bytes": 536870912,
+    "staging_inodes": 32768,
+    "staging_flags": [
+      "rw",
+      "noexec",
+      "nosuid",
+      "nodev"
+    ],
+    "staging_mode": "0700",
+    "proxy": "configured proxy; container hostname mapped to host-resolved proxy address",
+    "tls_verification": true,
+    "authentication": "runtime environment only"
+  },
+  "passed_checkpoints": 18,
+  "non_owner_denied": true,
+  "private_state_preserved": true,
+  "timed_sync_calls_seconds": 33.737,
+  "timing_scope": "Sum of individual sync calls and local private-state assertions; excludes container startup, preflight, peer edits and separate remote preservation checks. Not total harness wall time or a production throughput benchmark.",
+  "scenarios": [
+    {
+      "scenario": "initial_upload",
+      "action": "upload",
+      "seconds": 3.601,
+      "changed_files": []
+    },
+    {
+      "scenario": "unchanged",
+      "action": "unchanged",
+      "seconds": 1.8093,
+      "changed_files": []
+    },
+    {
+      "scenario": "independent_merge",
+      "action": "merge",
+      "seconds": 2.7469,
+      "changed_files": []
+    },
+    {
+      "scenario": "content_conflict",
+      "action": "conflict",
+      "seconds": 1.2779,
+      "changed_files": [
+        "slides/cover.json"
+      ]
+    },
+    {
+      "scenario": "choose_remote_content",
+      "action": "download",
+      "seconds": 1.5912,
+      "changed_files": [
+        "slides/cover.json"
+      ]
+    },
+    {
+      "scenario": "order_conflict",
+      "action": "conflict",
+      "seconds": 1.4323,
+      "changed_files": [
+        "presentation.json"
+      ]
+    },
+    {
+      "scenario": "choose_local_order",
+      "action": "upload",
+      "seconds": 2.3577,
+      "changed_files": [
+        "presentation.json"
+      ]
+    },
+    {
+      "scenario": "slide_delete_edit_conflict",
+      "action": "conflict",
+      "seconds": 1.5043,
+      "changed_files": [
+        "presentation.json",
+        "slides/second.json"
+      ]
+    },
+    {
+      "scenario": "keep_local_slide",
+      "action": "upload",
+      "seconds": 2.347,
+      "changed_files": [
+        "presentation.json",
+        "slides/second.json"
+      ]
+    },
+    {
+      "scenario": "asset_delete_edit_conflict",
+      "action": "conflict",
+      "seconds": 1.5908,
+      "changed_files": [
+        "assets/example.txt"
+      ]
+    },
+    {
+      "scenario": "accept_asset_deletion",
+      "action": "download",
+      "seconds": 1.1832,
+      "changed_files": [
+        "assets/example.txt"
+      ]
+    },
+    {
+      "scenario": "interrupted_after_successful_push",
+      "action": "blocked",
+      "seconds": 2.4039,
+      "changed_files": []
+    },
+    {
+      "scenario": "restart_after_push",
+      "action": "merge",
+      "seconds": 1.0544,
+      "changed_files": []
+    },
+    {
+      "scenario": "restart_unchanged",
+      "action": "unchanged",
+      "seconds": 1.3609,
+      "changed_files": []
+    },
+    {
+      "scenario": "competing_push_rejected",
+      "action": "blocked",
+      "seconds": 4.2195,
+      "changed_files": []
+    },
+    {
+      "scenario": "competing_edit_conflict",
+      "action": "conflict",
+      "seconds": 0.9803,
+      "changed_files": [
+        "slides/cover.json"
+      ]
+    },
+    {
+      "scenario": "retain_competing_edit",
+      "action": "download",
+      "seconds": 1.1792,
+      "changed_files": [
+        "slides/cover.json"
+      ]
+    },
+    {
+      "scenario": "final_unchanged",
+      "action": "unchanged",
+      "seconds": 1.0972,
+      "changed_files": []
+    }
+  ],
+  "limits": [
+    "No live identity-provider/browser test",
+    "GitHub denied-credential behavior not exercised",
+    "Not a production throughput benchmark"
+  ],
+  "anonymous_metadata_probe": {
+    "client_authorization_header": false,
+    "netrc_used": false,
+    "configured_proxy_retained": true,
+    "tls_verification": true,
+    "observed_status": 200,
+    "response_is_private_fixture": true,
+    "authenticated_control_status": 200,
+    "conclusion": "Inconclusive: the managed network path returned private metadata without client-supplied authorization; it is not a demonstrably anonymous GitHub transport. No denied-credential or unauthenticated-push claim."
+  }
+}

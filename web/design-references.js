@@ -12,7 +12,7 @@
     attach.addEventListener('click',()=>input.click());help.addEventListener('click',()=>{const content=$('reference-help');content.hidden=!content.hidden;help.setAttribute('aria-expanded',String(!content.hidden));});
     function validation(files){
       if(files.length>5)return 'Choose up to 5 files.';
-      if(files.some(file=>file.size>25_000_000)||files.reduce((sum,file)=>sum+file.size,0)>50_000_000)return 'Keep each file at or below 25 MB and the total at or below 50 MB.';
+      if(files.some(file=>file.size>50_000_000)||files.reduce((sum,file)=>sum+file.size,0)>50_000_000)return 'Keep each file and the combined selection at or below 50 MB.';
       return '';
     }
     function render(id){

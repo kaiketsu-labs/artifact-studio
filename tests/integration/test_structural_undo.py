@@ -94,6 +94,9 @@ def test_restore_retry_reuses_operation_after_lost_response(
         expect(page.locator(".slide-thumb").first).to_have_attribute("data-id", "next")
         page.keyboard.press("Delete")
         expect(page.locator('.slide-thumb[data-id="next"]')).to_have_count(0)
+        # A refresh may expose the committed deletion before its action finishes.
+        # Start the lost-restore-response scenario only once undo is available.
+        expect(page.locator("#slides")).to_have_attribute("aria-busy", "false")
         page.route("**/restore-slides", lose_response)
         page.keyboard.press("Control+z")
         expect(page.get_by_role("button", name="Retry", exact=True)).to_be_visible()

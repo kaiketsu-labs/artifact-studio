@@ -17,6 +17,7 @@ from .artifacts import ArtifactStore
 from .models import Slide, SlidePatch, StrictModel
 from .multiplayer_access import AccessDenied, Actor, Scope, Sharing
 from .multiplayer_chat import Conversations
+from .offline_receipts import ReceiptSource, initialize, retain
 from .storage import ConflictError, Store, digest
 from .version_authors import revision_author
 from .version_history import capture_slide_version
@@ -96,23 +97,25 @@ class OfflineDelivery:
     def __init__(self, sharing: Sharing) -> None:
         self.sharing = sharing
         with sharing.locked(), sharing.connect() as db:
-            db.executescript("""
-                CREATE TABLE IF NOT EXISTS offline_receipts (
-                  token_hash TEXT PRIMARY KEY, namespace TEXT NOT NULL, person TEXT NOT NULL,
-                  workspace TEXT NOT NULL, deck TEXT NOT NULL, slide TEXT NOT NULL,
-                  content_hash TEXT NOT NULL, expected_hash TEXT NOT NULL,
-                  source TEXT NOT NULL, channel TEXT NOT NULL, aggregate_hash TEXT NOT NULL);
-                CREATE TABLE IF NOT EXISTS offline_edits (
-                  operation TEXT PRIMARY KEY, receipt TEXT NOT NULL, payload TEXT NOT NULL,
-                  expected_hash TEXT NOT NULL, before_source TEXT NOT NULL,
-                  result TEXT NOT NULL DEFAULT '');
-                CREATE TABLE IF NOT EXISTS offline_edit_owners (
-                  operation TEXT PRIMARY KEY, owner_key TEXT NOT NULL);
-                CREATE INDEX IF NOT EXISTS offline_edit_owner_key
-                  ON offline_edit_owners(owner_key);
-                CREATE TABLE IF NOT EXISTS offline_signing_key (
-                  id INTEGER PRIMARY KEY CHECK(id=1), key BLOB NOT NULL);
-            """)
+            initialize(db)
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS offline_edits ("
+                "operation TEXT PRIMARY KEY, receipt TEXT NOT NULL, payload TEXT NOT NULL,"
+                "expected_hash TEXT NOT NULL, before_source TEXT NOT NULL,"
+                "result TEXT NOT NULL DEFAULT '')"
+            )
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS offline_edit_owners ("
+                "operation TEXT PRIMARY KEY, owner_key TEXT NOT NULL)"
+            )
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS offline_edit_owner_key "
+                "ON offline_edit_owners(owner_key)"
+            )
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS offline_signing_key ("
+                "id INTEGER PRIMARY KEY CHECK(id=1), key BLOB NOT NULL)"
+            )
             _ = db.execute(
                 "UPDATE offline_edits SET before_source='' WHERE result!='' AND before_source!=''"
             )
@@ -187,32 +190,23 @@ class OfflineDelivery:
                 ensure_ascii=False,
             )
             with self.sharing.connect() as db:
-                count, size = db.execute(
-                    "SELECT COUNT(*),COALESCE(SUM(length(CAST(source AS BLOB))),0) "
-                    "FROM offline_receipts WHERE namespace=? AND person=?",
-                    (namespace, actor.person),
-                ).fetchone()
-                if count >= 500 or size + len(source.encode()) > 20_000_000:
-                    raise ValueError("Offline receipt storage is full.")
-                token = secrets.token_urlsafe(32)
-                token_hash = hashlib.sha256(token.encode()).hexdigest()
-                _ = db.execute(
-                    "INSERT INTO offline_receipts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    (
-                        token_hash,
-                        namespace,
-                        actor.person,
-                        scope.workspace,
-                        scope.resource,
-                        slide_id,
-                        content_hash,
-                        expected_hash,
-                        source,
-                        channel,
-                        artifact.content_hash,
-                    ),
-                )
-            return token
+                return retain(
+                    db,
+                    [
+                        ReceiptSource(
+                            namespace,
+                            actor.person,
+                            scope.workspace,
+                            scope.resource,
+                            slide_id,
+                            content_hash,
+                            expected_hash,
+                            source,
+                            channel,
+                            artifact.content_hash,
+                        )
+                    ],
+                )[0]
 
     def issue_snapshot(
         self,
@@ -232,7 +226,7 @@ class OfflineDelivery:
                 raise AccessDenied
             deck = store.read(scope.resource)
             theme, assets = _preview_assets(store, scope.resource)
-            entries: list[tuple[OfflineReceiptInput, str, str, str]] = []
+            entries: list[ReceiptSource] = []
             receipts: dict[str, str] = {}
             binding = self._binding(actor, scope, namespace)
             for item in slides:
@@ -261,42 +255,28 @@ class OfflineDelivery:
                     ),
                     ensure_ascii=False,
                 )
-                token = secrets.token_urlsafe(32)
-                entries.append((item, source, token, hashlib.sha256(token.encode()).hexdigest()))
+                entries.append(
+                    ReceiptSource(
+                        namespace,
+                        actor.person,
+                        scope.workspace,
+                        scope.resource,
+                        item.slide_id,
+                        item.content_hash,
+                        item.expected_hash,
+                        source,
+                        item.channel,
+                        artifact.content_hash,
+                    )
+                )
             if receipt_version == 2:
                 return {"receipts": receipts, "theme": theme, "assets": assets}
             with self.sharing.connect() as db:
-                count, size = db.execute(
-                    "SELECT COUNT(*),COALESCE(SUM(length(CAST(source AS BLOB))),0) "
-                    "FROM offline_receipts WHERE namespace=? AND person=?",
-                    (namespace, actor.person),
-                ).fetchone()
-                if (
-                    count + len(entries) > 500
-                    or size + sum(len(source.encode()) for _, source, _, _ in entries) > 20_000_000
-                ):
-                    raise ValueError("Offline receipt storage is full.")
-                _ = db.executemany(
-                    "INSERT INTO offline_receipts VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    [
-                        (
-                            token_hash,
-                            namespace,
-                            actor.person,
-                            scope.workspace,
-                            scope.resource,
-                            item.slide_id,
-                            item.content_hash,
-                            item.expected_hash,
-                            source,
-                            item.channel,
-                            artifact.content_hash,
-                        )
-                        for item, source, _, token_hash in entries
-                    ],
-                )
+                tokens = retain(db, entries)
             return {
-                "receipts": {item.slide_id: token for item, _, token, _ in entries},
+                "receipts": {
+                    item.slide_id: token for item, token in zip(slides, tokens, strict=True)
+                },
                 "theme": theme,
                 "assets": assets,
             }

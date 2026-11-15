@@ -9,6 +9,7 @@ from starlette.responses import JSONResponse, RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .deployment import DeploymentConfig
+from .designs.hosted import AGENT_DESIGN_FILE_PATH, AGENT_REFERENCE_PATH
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH
 from .multiplayer import create_app as create_collaboration
 from .multiplayer_access import AccessDenied, Sharing, workspace_editor_path
@@ -108,17 +109,23 @@ class UnifiedStudio:
             if path == "/together":
                 await RedirectResponse("/")(scope, receive, send)
                 return
-        if path in {
-            LANDING_PATH,
-            CONTINUE_PATH,
-            "/api/together/session",
-            "/api/workspaces",
-            "/api/invitations/accept",
-            "/api/review/hooks",
-            "/web/multiplayer.js",
-            "/web/multiplayer.css",
-            "/mcp",
-        } or path.startswith(("/api/workspaces/", "/api/agents/", "/mcp/")):
+        if (
+            path
+            in {
+                LANDING_PATH,
+                CONTINUE_PATH,
+                "/api/together/session",
+                "/api/workspaces",
+                "/api/invitations/accept",
+                "/api/review/hooks",
+                "/web/multiplayer.js",
+                "/web/multiplayer.css",
+                "/mcp",
+            }
+            or path.startswith(("/api/workspaces/", "/api/agents/", "/mcp/"))
+            or AGENT_REFERENCE_PATH.fullmatch(path)
+            or AGENT_DESIGN_FILE_PATH.fullmatch(path)
+        ):
             scope.setdefault("state", {})["unified_studio"] = True
             await self.collaboration(scope, receive, send)
         else:

@@ -14,11 +14,11 @@ from pydantic import Field
 
 from .artifact_models import ArtifactTarget
 from .artifacts import ArtifactStore
-from .element_alternatives import ElementAlternatives
+from .designs.elements import ElementAlternatives
+from .designs.slides import SlideDesigns
 from .models import FileInput, StrictModel
 from .multiplayer_access import LEVEL, AccessDenied, Actor, Scope, Sharing, checksum
 from .review import ReviewHookInput
-from .slide_designs import SlideDesigns
 from .storage import ConflictError, Store, decode_attachments
 
 Channel = Literal["shared", "private"]
