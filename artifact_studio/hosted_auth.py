@@ -13,7 +13,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
-from .design_transfer import MAX_DESIGN_ZIP
+from .designs.transfer import MAX_DESIGN_ZIP
 from .request_diagnostics import RequestDiagnostics
 
 

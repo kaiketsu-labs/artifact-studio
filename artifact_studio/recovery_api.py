@@ -38,11 +38,13 @@ CANDIDATE_SECONDS = 3600
 class ArchiveDownload(FileResponse):
     """Clean private scratch even when a range request or disconnected client aborts delivery."""
 
-    def __init__(self, path: Path, cleanup: Callable[[], None]) -> None:
+    def __init__(
+        self, path: Path, cleanup: Callable[[], None], *, media_type: str = "application/zip"
+    ) -> None:
         """Retain only the file path and an unconditional cleanup callback."""
         super().__init__(
             path,
-            media_type="application/zip",
+            media_type=media_type,
             filename=path.name,
             headers={"Cache-Control": "no-store"},
         )

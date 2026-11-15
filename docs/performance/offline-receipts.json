@@ -1,0 +1,48 @@
+{
+  "baseline": {
+    "source_commit": "9db104542af0778dfb70115fc552765d12a68391",
+    "source_dirty": false,
+    "requests": 600,
+    "succeeded": 500,
+    "quota_failures": 100,
+    "first_failed_request": 501,
+    "retained_sources": 500,
+    "receipt_aliases": 500,
+    "retained_source_bytes": 146000,
+    "request_median_ms": 35.024,
+    "request_p95_ms": 93.214,
+    "total_seconds": 25.713,
+    "timing_scope": "All attempts including quota failures; one local run, no warmup."
+  },
+  "candidate": {
+    "source_commit": "2141f0f96dc87e6b2a343634c2806cece4cc7cd4",
+    "source_dirty": true,
+    "requests": 600,
+    "succeeded": 600,
+    "quota_failures": 0,
+    "first_failed_request": null,
+    "retained_sources": 1,
+    "receipt_aliases": 1,
+    "retained_source_bytes": 292,
+    "request_median_ms": 12.577,
+    "request_p95_ms": 48.223,
+    "total_seconds": 11.061,
+    "timing_scope": "All attempts including quota failures; one local run, no warmup."
+  },
+  "signed": {
+    "source_commit": "1860c54dd4ba247878b212dfc4cd692b68b66b41",
+    "source_dirty": true,
+    "requests": 600,
+    "receipt_version": 2,
+    "succeeded": 600,
+    "quota_failures": 0,
+    "first_failed_request": null,
+    "retained_sources": 0,
+    "receipt_aliases": 0,
+    "retained_source_bytes": 0,
+    "request_median_ms": 21.448,
+    "request_p95_ms": 63.505,
+    "total_seconds": 15.671,
+    "timing_scope": "All attempts including quota failures; one local run, no warmup."
+  }
+}

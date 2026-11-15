@@ -29,8 +29,9 @@ from .artifacts import ArtifactStore
 from .authentication import AuthProvider, Principal, load_auth_provider
 from .deck_presence import DeckPresence, DeckViewer, PresenceInput
 from .deployment import DeploymentConfig
-from .design_preview import hosted_slide_thumbnail
-from .design_thumbnails import raster_thumbnail
+from .designs.hosted import reference_routes
+from .designs.preview import hosted_slide_thumbnail
+from .designs.thumbnails import raster_thumbnail
 from .grant_recovery import preview_staged_grants, restore_staged_grants
 from .hosted_preview import verified_file_response
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
@@ -46,7 +47,7 @@ from .multiplayer_access import (
     workspace_editor_path,
 )
 from .multiplayer_chat import Channel, ChatProposal, CollaboratorRequestMode, Conversations
-from .multiplayer_http import MultiplayerAuth
+from .multiplayer_http import IMPORT_DISK_RESERVE, MultiplayerAuth
 from .multiplayer_tools import MultiplayerTools
 from .offline_delivery import (
     OfflineCommentInput,
@@ -220,6 +221,7 @@ def create_app(
         openapi_url=None,
     )
     app.state.sharing, app.state.chat = hub, chat
+    app.include_router(reference_routes(hub, disk_reserve=IMPORT_DISK_RESERVE))
     app.add_middleware(
         MultiplayerAuth,
         config=config,

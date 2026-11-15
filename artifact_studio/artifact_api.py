@@ -18,8 +18,8 @@ from .artifact_context import artifact_context
 from .artifact_models import ArtifactFeedback, ArtifactFeedbackInput, ArtifactView, ProjectView
 from .artifact_preview import artifact_file_headers, preview_document, preview_headers
 from .artifacts import ArtifactStore, relative_path
-from .design_library import DesignLibrary
-from .design_library_api import design_library_routes
+from .designs.library import DesignLibrary
+from .designs.library_api import design_library_routes
 from .feedback_previews import feedback_image_response
 from .hub_previews import cover_metadata, render_library_cover, request_cover
 from .models import FeedbackWorkflow, ModeInput, SlideSeenInput, StrictModel

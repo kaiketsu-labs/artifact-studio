@@ -33,11 +33,13 @@ from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .authentication import AuthProvider, Principal
 from .deck_edit_api import deck_edit_routes
 from .deployment import DeploymentConfig
-from .design_library import DesignLibrary
-from .design_library_api import design_library_routes
-from .design_preview import hosted_design_preview
-from .element_alternative_api import element_alternative_routes
-from .element_alternatives import element_badges
+from .designs.element_api import element_alternative_routes
+from .designs.elements import element_badges
+from .designs.library import DesignLibrary
+from .designs.library_api import design_library_routes
+from .designs.preview import hosted_design_preview
+from .designs.slide_api import design_routes
+from .designs.slides import design_badges
 from .favorites import Favorites, favorite_routes
 from .history_api import history_routes
 from .hosted_policy import passive_deck_asset_response
@@ -59,10 +61,9 @@ from .project_tree import ProjectTree, TreeChange, TreeView
 from .renderer_health import RendererBusy
 from .sections import sections_hash
 from .share_api import ShareInput, ShareWorkspace, sharing_routes
-from .slide_design_api import design_routes
-from .slide_designs import design_badges
 from .storage import ConflictError, Store, digest
 from .version_authors import revision_author
+from .web_assets import web_asset_name
 
 PROJECT = Path(__file__).resolve().parents[1]
 SHARED_PROJECT = "shared-with-me"
@@ -275,7 +276,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     @app.get("/runtime/{path:path}")
     def studio_asset(request: Request, path: str) -> FileResponse:
         root = PROJECT / ("web" if request.url.path.startswith("/web/") else "runtime")
-        asset = (root / path).resolve()
+        asset = (root / (web_asset_name(path) if root.name == "web" else path)).resolve()
         if (
             not asset.is_relative_to(root)
             or (asset.suffix.lower() not in ASSET_SUFFIXES and path != "offline.html")
