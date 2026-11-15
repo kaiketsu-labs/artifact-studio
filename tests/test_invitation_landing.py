@@ -1,6 +1,7 @@
 """Real browser handoff through a fictional edge login; no provider/account calls."""
 
 import json
+import logging
 import os
 import time
 from collections.abc import Generator
@@ -65,17 +66,23 @@ class Journey:
     requests: list[str]
     tokens: list[str]
     redirects: list[tuple[str, str]]
+    observations: list[tuple[str, bool, int]]
 
 
 @contextmanager
 def browser_journey(
-    app: FastAPI, *, identity: str = "alice", width: int = 1100, dark: bool = False
+    app: FastAPI,
+    *,
+    identity: str = "alice",
+    width: int = 1100,
+    dark: bool = False,
+    cookie_session: bool = False,
 ) -> Generator[Journey]:
     with (
         TestClient(app, base_url=ORIGIN) as client,
         TemporaryDirectory(prefix="invitation-https-") as directory,
         sync_playwright() as playwright,
-        FictionalEdge(client, identity, Path(directory)) as edge,
+        FictionalEdge(client, identity, Path(directory), cookie_session=cookie_session) as edge,
         ExitStack() as cleanup,
     ):
         server = Thread(target=edge.serve_forever, daemon=True)
@@ -94,7 +101,7 @@ def browser_journey(
         )
         cleanup.callback(context.close)
         page = context.new_page()
-        yield Journey(page, edge.requests, edge.tokens, edge.redirects)
+        yield Journey(page, edge.requests, edge.tokens, edge.redirects, edge.observations)
 
 
 def test_exact_public_stub_and_all_other_auth_boundaries(
@@ -139,6 +146,100 @@ def test_exact_public_stub_and_all_other_auth_boundaries(
     with TestClient(disabled, base_url=ORIGIN) as client:
         assert client.get("/_invitation").status_code == 401
         assert client.get("/invitation", headers={"X-Fixture-Auth": "owner"}).status_code == 404
+
+
+def test_simulated_host_only_login_recovery_and_preview_cookie_isolation(
+    setup: Fixture, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Exercise actual browser cookie rules, not a configured Cloudflare account."""
+    sharing, owner, _, _, artifact, _, _ = setup
+    app = application(setup, monkeypatch)
+    invitation = sharing.invite(owner, artifact, "alice@example.test", "view")
+    caplog.set_level(logging.INFO, logger="artifact_studio.hosted.requests")
+    with browser_journey(app, cookie_session=True) as journey:
+        page = journey.page
+        page.goto(ORIGIN + "/_invitation#invite=" + invitation["token"])
+        page.get_by_role("button", name="Continue to sign in").click()
+        expect(page).to_have_url(LOGIN + "/sign-in")
+        page.get_by_role("link", name="Sign in", exact=True).click()
+        expect(page.locator("#account")).to_have_text("Signed in as alice@example.test")
+        first = page.context.cookies(ORIGIN)
+        cookie = next(item for item in first if item.get("name") == "CF_Authorization")
+        assert cookie.get("domain") == "studio.example.test"
+        assert cookie.get("secure") and cookie.get("httpOnly") and cookie.get("sameSite") == "Lax"
+        value = cookie.get("value")
+        assert value is not None
+        assert "CF_Authorization" not in page.evaluate("document.cookie")
+
+        # Model a lost browser credential and a recovered sign-in as the same
+        # verified account. This is not a FIDO/passkey or provider recovery test.
+        page.context.clear_cookies()
+        page.reload()
+        expect(page).to_have_url(LOGIN + "/sign-in")
+        page.get_by_role("link", name="Sign in", exact=True).click()
+        expect(page.locator("#account")).to_have_text("Signed in as alice@example.test")
+        assert (
+            json.loads(page.evaluate("key=>sessionStorage.getItem(key)", KEY))["token"]
+            == invitation["token"]
+        )
+        page.get_by_role("button", name="Join", exact=True).click()
+        expect(page).to_have_url(ORIGIN + "/?artifact=" + artifact.resource)
+        frame = page.frame_locator("#preview")
+        expect(frame.get_by_text("Fictional source", exact=True)).to_be_visible()
+        root = frame.locator("script[data-artifact-root]").get_attribute("data-artifact-root")
+        assert root is not None and root.startswith("https://preview.example.test/_preview/")
+        # Use browser navigation for the cookie-policy probe. Workspace CSP
+        # intentionally prohibits arbitrary cross-origin fetches from the shell.
+        probe = page.context.new_page()
+        response = probe.goto(
+            "https://preview.example.test/_preview/fictional-cookie-probe/web/artifact-bridge.js"
+        )
+        assert response is not None and response.status == 404
+        preview = [item for item in journey.observations if item[0] == "preview.example.test"]
+        assert preview and all(not item[1] for item in preview)
+        assert any(item[2] == 200 for item in preview)
+        assert any(
+            host == "studio.example.test" and present for host, present, _ in journey.observations
+        )
+        assert all(
+            not present for host, present, _ in journey.observations if host == "login.example.test"
+        )
+        assert all(
+            "/_preview/" not in url or url.endswith("/[redacted]") for url in journey.requests
+        )
+
+        # Negative control: a parent-domain cookie demonstrably reaches the
+        # preview sibling. The test would detect the deployment misconfiguration.
+        page.context.add_cookies(
+            [
+                {
+                    "name": "CF_Authorization",
+                    "value": value,
+                    "domain": ".example.test",
+                    "path": "/",
+                    "httpOnly": True,
+                    "secure": True,
+                    "sameSite": "Lax",
+                }
+            ]
+        )
+        before = len(journey.observations)
+        probe.reload()
+        assert any(
+            host == "preview.example.test" and present
+            for host, present, _ in journey.observations[before:]
+        )
+
+        diagnostic_text = "\n".join(
+            record.getMessage()
+            for record in caplog.records
+            if record.name == "artifact_studio.hosted.requests"
+        )
+        assert "kind=preview" in diagnostic_text and "kind=workspace" in diagnostic_text
+        assert value not in diagnostic_text
+        assert invitation["token"] not in diagnostic_text
+        assert root not in diagnostic_text and "alice@example.test" not in diagnostic_text
+        probe.close()
 
 
 @pytest.mark.parametrize("width,dark,kind", [(1100, False, "artifact"), (320, True, "project")])
