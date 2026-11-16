@@ -336,11 +336,12 @@
     return {mode:'live',pending:conversation?.draftCount||0,agent_waiting:ownChatAgent()?.status==='listening'};
   }
   const chatChannels=['shared','private'];
+  const chatPanelOpen=()=>!document.querySelector('.workspace').classList.contains('panels-right-closed')&&!document.body.classList.contains('workspace-clean-view');
   function renderChatTabs(){
     if(!nativeChat||!deck)return;
     const seen=seenChat.get(deck.id);
     const incoming=conversation?.incomingCursors||{};
-    const open=!document.querySelector('.workspace').classList.contains('panels-right-closed')&&!document.body.classList.contains('workspace-clean-view');
+    const open=chatPanelOpen();
     const coversUnanchored=selectedId===deck.slides[0]?.id;
     if(seen&&open){
       const shown=seen[conversationChannel];
@@ -400,6 +401,15 @@
     renderComments(slide());
     if(collaborationChat){deck.workflow=conversationWorkflow();renderWorkflow();updateComposer();}
     return true;
+  }
+  /** Check the visible chat independently of slide updates and editing activity. */
+  async function checkActiveChat(id){
+    if(switchingDeck||isLoading||deck?.id!==id||conversationDeck!==id||!conversation||!chatPanelOpen())return;
+    const channel=conversationChannel,read=conversationRead;
+    if(!await scopedChat.hasUpdates(id,channel,conversation.historyCursor))return;
+    if(!document.hidden&&deck?.id===id&&conversationChannel===channel&&conversationRead===read&&chatPanelOpen()){
+      await refreshConversation(id);
+    }
   }
   function currentComments(item){
     const original=window.SlideConversations.forSlide(deck,item.id);
@@ -541,7 +551,7 @@
       renderRail();renderChangeStatus();
     }catch(error){toast(error.message,true);}
   }
-  const updates=window.SlideUpdates.create({refresh,workflow:refreshWorkflow,...(sharedEditor?{createSource:null}:{}),onError:error=>{if(sharedEditor&&error.status===404){location.replace(studioHome);return;}toast(error.message,true);}});
+  const updates=window.SlideUpdates.create({refresh,workflow:refreshWorkflow,checkChat:collaborationChat?checkActiveChat:null,...(sharedEditor?{createSource:null}:{}),onError:error=>{if(sharedEditor&&error.status===404){location.replace(studioHome);return;}toast(error.message,true);}});
   function watchDeck(id){updates.watch(id);deckPresence.select(id,id?selectedId:null);if(!sharedEditor&&recentDeck!==id){recentDeck=id;void quickAccess.visit({artifact_id:id});}}
   /** Refresh time-limited agent availability without reloading slides or discussion history. */
   async function refreshWorkflow(id){

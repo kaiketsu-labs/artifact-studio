@@ -53,3 +53,26 @@ test('slow availability calls do not overlap and failure falls back to a snapsho
   updates.watch('deck');const first=updates.poll();await updates.poll();assert.equal(count,1);
   release();await first;assert.equal(refreshes,1);updates.stop();
 });
+
+test('visible chat checks serialize independently and leave the normal refresh available',async()=>{
+  const timers=new Map(), calls=[];
+  const document={hidden:false,addEventListener(){},removeEventListener(){}};
+  let finishChat;
+  const updates=create({document,createSource:null,refresh:async()=>calls.push('deck'),
+    workflow:async()=>{},checkChat:id=>new Promise(resolve=>{calls.push(id);finishChat=resolve;}),
+    repeat:(fn,delay)=>{timers.set(delay,fn);return delay;},cancelRepeat:delay=>timers.delete(delay)});
+  const tick=timers.get(750);
+  tick();
+  assert.deepEqual(calls,[]);
+  updates.watch('shared-deck');
+  document.hidden=true;tick();
+  assert.deepEqual(calls,[]);
+  document.hidden=false;tick();tick();
+  assert.deepEqual(calls,['shared-deck']);
+  await updates.poll();
+  assert.deepEqual(calls,['shared-deck','deck']);
+  finishChat();
+  await Promise.resolve();
+  updates.stop();
+  assert.equal(timers.size,0);
+});
