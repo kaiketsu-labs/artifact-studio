@@ -165,10 +165,9 @@
         if (audience) label.firstChild.textContent = audience;
         label.append(input);
         const controls = element('div', 'chat-thread-compose-actions');
-        const hint = element('span', 'chat-thread-compose-hint', 'Shift+Enter for a new line');
         const cancel = element('button', 'chat-thread-cancel', 'Close'); cancel.type = 'button';
         const send = element('button', 'chat-thread-send', 'Send reply'); send.type = 'submit';
-        controls.append(hint, cancel, send);
+        controls.append(cancel, send);
         const error = element('p', 'chat-thread-error'); error.setAttribute('role', 'alert');
         form.append(error, label, controls);
         (body || wrapper).append(form);
