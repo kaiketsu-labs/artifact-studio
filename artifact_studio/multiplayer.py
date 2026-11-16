@@ -657,6 +657,21 @@ def create_app(
             actor_of(request), Scope(workspace, "artifact", artifact), channel, before
         )
 
+    @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/chat/updates")
+    def chat_updates(
+        request: Request,
+        workspace: str,
+        artifact: str,
+        channel: Channel = "shared",
+        after: int = Query(ge=0, le=2**63 - 1),
+    ) -> dict[str, bool]:
+        """Tell the active editor whether it should fetch updated history."""
+        return {
+            "changed": chat.has_updates(
+                actor_of(request), Scope(workspace, "artifact", artifact), channel, after
+            )
+        }
+
     @app.get("/api/workspaces/{workspace}/artifacts/{artifact}/contacts")
     def chat_contacts(request: Request, workspace: str, artifact: str) -> list[dict[str, str]]:
         """Suggest only current collaborators for mentions."""

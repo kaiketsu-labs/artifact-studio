@@ -337,6 +337,25 @@ class Conversations:
                 for row in reversed(rows)
             ]
 
+    def has_updates(self, actor: Actor, scope: Scope, channel: Channel, after: int) -> bool:
+        """Check for newer messages visible to this person without materializing history."""
+        if actor.agent:
+            raise AccessDenied
+        with (
+            self.sharing.guard_presentation_snapshot(actor, scope.workspace, scope.resource),
+            self.sharing.connect() as db,
+        ):
+            return (
+                db.execute(
+                    "SELECT 1 FROM conversations c JOIN chat_delivery d ON d.message=c.id "
+                    "WHERE c.workspace=? AND c.artifact=? AND c.channel=? AND d.id>? "
+                    "AND (c.channel='shared' OR c.person=?) "
+                    "AND (c.released=1 OR c.person=?) LIMIT 1",
+                    (scope.workspace, scope.resource, channel, after, actor.person, actor.person),
+                ).fetchone()
+                is not None
+            )
+
     def _restrict_shared_agent(
         self, actor: Actor, scope: Scope, store: Store, db: sqlite3.Connection, channel: Channel
     ) -> bool:

@@ -362,6 +362,57 @@ def test_http_grants_preview_revoke_and_legacy_denial(tmp_path: Path) -> None:
         assert alice.get(file_path, headers={"host": "preview.example.test"}).status_code == 404
 
 
+def test_hosted_chat_updates_follow_channel_and_current_grant(tmp_path: Path) -> None:
+    """Signal only chat a human can already read, including a newly released comment."""
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id, "view"))
+        base = f"/api/workspaces/default/artifacts/{app.deck_id}"
+        chat, updates = base + "/chat", base + "/chat/updates"
+        assert bob.get(updates, params={"after": 0}).status_code == 404
+        assert alice.get(updates, params={"after": 0}).raise_for_status().json() == {
+            "changed": False
+        }
+        assert alice.get(updates, params={"after": -1}).status_code == 422
+        owner.post(
+            chat,
+            json={"channel": "private", "message": "Private note", "request_id": "private-fixture"},
+        ).raise_for_status()
+        owner.post(
+            chat,
+            json={"message": "Queued draft", "request_id": "queued-fixture", "released": False},
+        ).raise_for_status()
+        assert alice.get(updates, params={"after": 0}).raise_for_status().json() == {
+            "changed": False
+        }
+        assert alice.get(
+            updates, params={"after": 0, "channel": "private"}
+        ).raise_for_status().json() == {"changed": False}
+        draft_history = owner.get(chat).raise_for_status().json()
+        draft_cursor = draft_history[-1]["cursor"]
+        owner.post(base + "/release", json={}).raise_for_status()
+        assert alice.get(updates, params={"after": draft_cursor}).raise_for_status().json() == {
+            "changed": True
+        }
+        history = alice.get(chat).raise_for_status().json()
+        assert [item["message"] for item in history] == ["Queued draft"]
+        assert alice.get(
+            updates, params={"after": history[-1]["cursor"]}
+        ).raise_for_status().json() == {"changed": False}
+        scope = {"kind": "artifact", "resource": app.deck_id}
+        grant_id = owner.get("/api/workspaces/default/access", params=scope).json()["grants"][0][
+            "id"
+        ]
+        owner.post(
+            f"/api/workspaces/default/access/{grant_id}/revoke", json=scope
+        ).raise_for_status()
+        assert alice.get(updates, params={"after": 0}).status_code == 404
+
+
 @pytest.mark.parametrize("unified", [False, True], ids=["standalone", "unified"])
 def test_real_mcp_scope_and_stale_revision(tmp_path: Path, unified: bool) -> None:
     with (
