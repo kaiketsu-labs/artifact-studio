@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.10.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.0...v0.10.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **chat:** remove thread shortcut hint ([#236](https://github.com/kaiketsu-labs/artifact-studio/issues/236)) ([4877bc0](https://github.com/kaiketsu-labs/artifact-studio/commit/4877bc0d28dea100df03218738123a3f0dcf1151))
+* **deps:** bump the python-compatible group with 4 updates ([#237](https://github.com/kaiketsu-labs/artifact-studio/issues/237)) ([41ce63a](https://github.com/kaiketsu-labs/artifact-studio/commit/41ce63a6a778b8e4cf76c98aac0e42e16e050646))
+
 ## [0.10.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.9.0...v0.10.0) (2026-11-15)
 
 
