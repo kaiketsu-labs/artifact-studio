@@ -145,7 +145,6 @@
   line-height: 1.5;
 }
 .chat-thread-compose-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
-.chat-thread-compose-hint { margin-right: auto; color: var(--thread-muted); font-size: 10px; line-height: 1.5; }
 .chat-thread button.chat-thread-cancel, .chat-thread button.chat-thread-send {
   min-height: 29px;
   padding: 4px 7px;
@@ -168,7 +167,6 @@
   .chat-thread .chat-replies { margin-left: 6px; padding-left: 10px; }
   .chat-thread button.chat-thread-reply, .chat-thread > .chat-thread-compose { margin-left: 18px; }
   .chat-thread .chat-thread-input { font-size: 16px; }
-  .chat-thread-compose-hint { flex-basis: 100%; }
 }
 /* A threaded root spans the branch so its connector starts beneath the message. */
 .chat-thread:has(> .chat-replies) > :is(.comment, .hub-message) { align-self: stretch; max-width: 100%; }
