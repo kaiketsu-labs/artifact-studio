@@ -15,7 +15,6 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
-from pydantic import Field
 
 from . import __version__
 from .app_info import build_revision
@@ -69,12 +68,6 @@ PROJECT = Path(__file__).resolve().parents[1]
 SHARED_PROJECT = "shared-with-me"
 ASSET_SUFFIXES = {".css", ".js", ".svg", ".png", ".woff", ".woff2"}
 LEVEL_ROLE: dict[int, Role] = {1: "view", 2: "comment", 3: "edit"}
-
-
-class WorkspacePresentationInput(CreateInput):
-    """Create a presentation in a project owned by the current workspace."""
-
-    project_id: str = Field(default=LEGACY_PROJECT, min_length=1, max_length=100)
 
 
 def actor_of(request: Request) -> Actor:
@@ -435,7 +428,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
             ]
 
     @app.post("/api/decks")
-    def new_presentation(request: Request, body: WorkspacePresentationInput) -> dict[str, str]:
+    def new_presentation(request: Request, body: CreateInput) -> dict[str, str]:
         """Create the native presentation and its project membership in the owned workspace."""
         actor, workspace = actor_of(request), workspace_of(request)
         with hub.locked():

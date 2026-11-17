@@ -336,14 +336,15 @@
   function presentationCreationUrl(project){
     const url=new URL(studioHome,root.location.href);
     url.search=new URLSearchParams({editor:'1',new:'1'});
-    if(sharedEditor&&selectedProject(project)&&project!=='shared-with-me')url.searchParams.set('project',project);
+    if(selectedProject(project)&&project!=='shared-with-me')url.searchParams.set('project',project);
     return url.href;
   }
   async function newPresentation(project){
     if(!await initialLibrary)return;
     if(artifactEditor.finish())root.location.href=presentationCreationUrl(project ?? state.project);
   }
-  if(sharedEditor)doc.querySelector('[data-new-presentation]').addEventListener('click',event=>{
+  doc.querySelector('[data-new-presentation]').addEventListener('click',event=>{
+    if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     event.preventDefault();newPresentation();
   });
   function creationCommands(project=state.project,parent=selectedFolder()){
@@ -603,7 +604,11 @@
   function cards() {
     if(state.project==='designs')return designCards();
     const items=filteredArtifacts();
-    if(!items.length)return `<div class="hub-empty">${icon(state.search?'eye':'folder')}<h2>${state.search || state.kind!=='all'?'No matching artifacts':state.project==='all'?'A place for your work':'This project is ready'}</h2><p>${state.search || state.kind!=='all'?'Try another search or format.':'Import a page, document, image, presentation or a bundle of files.'}</p>${state.search || state.kind!=='all'?'':`<div class="hub-empty-actions">${button('import','Import files','upload','class="hub-primary"')}</div>`}</div>`;
+    if(!items.length){
+      const filtered=!!state.search||state.kind!=='all';
+      const hint=filtered?'Try another search or format.':canManageWorkspace()?'Use Import to add files.':'';
+      return `<div class="hub-empty">${icon(filtered?'eye':'folder')}<h2>${filtered?'No matching artifacts':'No artifacts yet'}</h2>${hint?`<p>${hint}</p>`:''}</div>`;
+    }
     if(libraryView==='list')return artifactList(items);
     const card=item=>{
       const statusId='artifact-status-'+item.id;
@@ -620,7 +625,7 @@
   }
   function library() {
     deferredLibraryRefresh=false;
-    if(sharedEditor)doc.querySelector('[data-new-presentation]').href=presentationCreationUrl(state.project);
+    doc.querySelector('[data-new-presentation]').href=presentationCreationUrl(state.project);
     if(!initialProjectRecorded){initialProjectRecorded=true;if(!sharedEditor&&selectedProject(state.project))void quickAccess.visit({project_id:state.project});}
     void voice.stop();
     properties?.destroy();properties=null;

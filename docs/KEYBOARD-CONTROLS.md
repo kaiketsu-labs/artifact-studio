@@ -11,8 +11,8 @@ These shortcuts apply in the presentation editor, outside text entry and modal d
 | Action | Mac | Windows/Linux |
 | --- | --- | --- |
 | New presentation | ⌘N | Ctrl+N |
-| Import a presentation archive | ⌘O | Ctrl+O |
-| Save a copy… (editable archive) | ⌘S | Ctrl+S |
+| Import editable copy… | ⌘O | Ctrl+O |
+| Download editable copy | ⌘S | Ctrl+S |
 | Export presentation… / choose format | ⇧⌘S | Ctrl+Shift+S |
 | Present from current slide | ⌘Return | Shift+F5 |
 | Present from beginning | ⇧⌘Return or F5 | F5 |

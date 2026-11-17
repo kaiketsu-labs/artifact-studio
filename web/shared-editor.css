@@ -3,7 +3,7 @@
   [data-action="context"],
   #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
   #deck-design-references, #instructions-button, #storage-status,
-  #libraries-button, #removed-presentations,
+  #removed-presentations,
   #remove-presentation,
   #toggle-design-chat
 ) {
@@ -13,7 +13,7 @@
   [data-action="new-project"], [data-action="import"],
   [data-action="project-add"], [data-action="move"], .hub-card-move,
   [data-action="history"],
-  [data-new-presentation], #new-button, #new-project-option,
+  [data-new-presentation], #new-button, #new-presentation-option,
   [data-project="designs"], [data-design-action], #selected-design-references
 ) {
   display: none !important;

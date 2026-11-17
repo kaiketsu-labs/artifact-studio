@@ -421,3 +421,35 @@ def test_clean_view_clears_selection_and_edge_drag_restores_width(
     page.get_by_role("button", name="Open sidebar").click()
     reopened = sidebar.bounding_box()
     assert reopened is not None and abs(reopened["width"] - original["width"]) < 2
+
+
+def test_empty_project_uses_one_import_and_creates_presentations_in_place(
+    live_app: RunningApp, page: Page
+) -> None:
+    """Keep the selected project for both Library creation paths."""
+    registry = ArtifactStore(live_app.store)
+    project = registry.create_project("Fictional project for presentations")
+    page.goto(f"{live_app.url}/?project={project.id}")
+    expect(page.get_by_role("heading", name="No artifacts yet")).to_be_visible()
+    import_action = page.get_by_role("button", name="Import", exact=True)
+    expect(import_action).to_have_count(1)
+    import_action.click()
+    expect(page.locator('#hub-import-form select[name="project_id"]')).to_have_value(project.id)
+    page.get_by_role("button", name="Cancel", exact=True).click()
+
+    page.locator("#hub-tools-button").press("Enter")
+    page.get_by_role("menuitem", name="New presentation", exact=True).press("Enter")
+    dialog = page.get_by_role("dialog", name="New presentation", exact=True)
+    expect(dialog).to_be_visible()
+    dialog.get_by_label("Title", exact=True).fill("Fictional project roadmap")
+    dialog.get_by_label("Brief", exact=True).fill("Outline a fictional project milestone.")
+    with page.expect_response(
+        lambda response: response.url.endswith("/api/decks") and response.request.method == "POST"
+    ) as created:
+        dialog.get_by_role("button", name="Create presentation", exact=True).click()
+    assert created.value.ok
+    deck_id = str(created.value.json()["id"])
+    expect(dialog).to_be_hidden()
+    assert registry.presentation_project(deck_id) == project.id
+    page.goto(f"{live_app.url}/?project={project.id}")
+    expect(page.locator(f'[data-artifact="{deck_id}"]')).to_be_visible()

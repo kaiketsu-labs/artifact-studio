@@ -174,9 +174,9 @@ def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: 
     dialog = page.get_by_role("dialog", name="Export presentation", exact=True)
     assert dialog.locator(".file-choice").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == ["Export HTML", "Export PDF", "Save a copy…", "Import presentation"]
+    ) == ["Export HTML", "Export PDF", "Download editable copy"]
     expect(dialog.locator("#save-project")).to_contain_text(
-        "Editable .artifact-studio.zip · Slides, notes & feedback"
+        ".artifact-studio.zip · Slides, notes & feedback"
     )
     expect(dialog).to_contain_text("HTML and PDF omit private notes and feedback.")
     page.keyboard.press("Escape")
@@ -192,10 +192,11 @@ def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: 
             b"Carry these notes to the next workspace" in archive.read(name) for name in sources
         )
     assert live_app.store.read(DECK_ID).slides[0].notes == "Carry these notes to the next workspace"
-    page.get_by_role("button", name="Menu", exact=True).click()
-    page.get_by_role("menuitem", name="Import presentation", exact=True).click()
-    page.locator("#project-file").set_input_files(downloaded.value.path())
-    expect(page.locator("#project-dialog")).not_to_be_visible()
+    page.locator("#deck-switcher").focus()
+    with page.expect_file_chooser() as importer:
+        page.keyboard.press("ControlOrMeta+o")
+    importer.value.set_files(downloaded.value.path())
+    expect(page.locator("#toast")).to_have_text("Presentation imported.")
     expect(page.get_by_label("Speaker notes", exact=True)).to_have_value(
         "Carry these notes to the next workspace"
     )

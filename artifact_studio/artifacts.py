@@ -40,7 +40,13 @@ TEXT_TYPES = {".html", ".htm", ".css", ".js", ".mjs", ".svg", ".md", ".json"}
 
 
 def write_legacy_project(db: sqlite3.Connection, deck_id: str, project_id: str) -> None:
-    """Record presentation membership in the caller's transaction."""
+    """Record membership in an existing project in the caller's transaction."""
+    if (
+        project_id != LEGACY_PROJECT
+        and db.execute("SELECT 1 FROM artifact_projects WHERE id=?", (project_id,)).fetchone()
+        is None
+    ):
+        raise FileNotFoundError("Project does not exist.")
     _ = db.execute(
         "INSERT INTO artifact_legacy_projects VALUES (?,?) ON CONFLICT(artifact_id) "
         "DO UPDATE SET project_id=excluded.project_id",

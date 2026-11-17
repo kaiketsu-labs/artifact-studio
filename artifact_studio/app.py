@@ -45,7 +45,7 @@ from .app_info import AppInfo, UpdatePreferences
 from .artifact_api import artifact_routes
 from .artifact_context import artifact_context
 from .artifact_tools import register_artifact_tools
-from .artifacts import ArtifactStore
+from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .authentication import Principal, load_auth_provider
 from .autosync import AutoSync, SyncStatus
 from .chat_references import chat_reference_routes
@@ -2112,7 +2112,10 @@ def audience_headers() -> dict[str, str]:
 @app.post("/api/decks")
 def create_deck(body: CreateInput) -> Deck:
     """Start a local presentation in the visual language selected by the human."""
-    return store.create(body.deck_id, body.title, body.design_id, body.brief, body.files)
+    project_id = "" if body.project_id == LEGACY_PROJECT else body.project_id
+    return store.create(
+        body.deck_id, body.title, body.design_id, body.brief, body.files, project_id=project_id
+    )
 
 
 @app.get("/api/decks/{deck_id}/brief-files/{file_index}")

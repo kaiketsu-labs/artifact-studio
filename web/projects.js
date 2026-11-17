@@ -8,8 +8,7 @@ window.SlideProjects={
       ['project-button','external','Export presentation…',true],['close-project','close','Close',false]
     ])button($(id),icon,label,show);
     for(const [id,icon,label,detail,format] of [
-      ['save-project','save','Save a copy…','Editable .artifact-studio.zip · Slides, notes & feedback','project'],
-      ['open-project','folder','Import presentation','.artifact-studio.zip','open'],
+      ['save-project','save','Download editable copy','.artifact-studio.zip · Slides, notes & feedback','project'],
       ['export-html','code','HTML','Images & animations','html'],
       ['export-pdf','pdf','PDF','Print or save as PDF','pdf']
     ]){
@@ -18,7 +17,7 @@ window.SlideProjects={
       control.setAttribute('aria-label',id.startsWith('export-')?`Export ${label}`:label);control.setAttribute('aria-describedby',`${id}-detail`);
     }
     let busy=false;
-    function update(){const deck=read(),empty=!deck,context=$('project-context');context.textContent=deck?.title||'';context.title=context.textContent;context.hidden=empty;for(const id of ['save-project','export-html','export-pdf'])$(id).disabled=busy||empty;$('open-project').disabled=busy;$('project-file').disabled=busy;}
+    function update(){const deck=read(),empty=!deck,context=$('project-context');context.textContent=deck?.title||'';context.title=context.textContent;context.hidden=empty;for(const id of ['project-button','save-project','export-html','export-pdf'])$(id).disabled=busy||empty;$('project-file').disabled=busy;}
     function download(blob,name){const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
     async function responseData(response){if(response.ok)return response;const error=await response.json();throw new Error(typeof error.detail==='string'?error.detail:'Could not open the project.');}
     $('project-button').addEventListener('click',()=>{update();$('project-error').textContent='';dialog.showModal();});
@@ -29,13 +28,12 @@ window.SlideProjects={
       catch(error){$('project-error').textContent=error.message;}
       finally{busy=false;update();}
     });
-    $('open-project').addEventListener('click',()=>$('project-file').click());
     $('project-file').addEventListener('change',async event=>{
       const file=event.target.files[0];if(!file||busy)return;
-      if(file.size>100*1024*1024){$('project-error').textContent='Choose a project file below 100 MB.';event.target.value='';return;}
-      busy=true;update();$('project-error').textContent='';
-      try{await capture();const response=await responseData(await fetch(studioPath('/api/projects/open'),{method:'POST',headers:{'Content-Type':'application/zip'},body:file}));const opened=await response.json();await restore(opened);dialog.close();toast('Project opened.');}
-      catch(error){$('project-error').textContent=error.message;}
+      if(file.size>100*1024*1024){toast('Choose an editable copy below 100 MB.',true);event.target.value='';return;}
+      busy=true;update();
+      try{await capture();const response=await responseData(await fetch(studioPath('/api/projects/open'),{method:'POST',headers:{'Content-Type':'application/zip'},body:file}));const opened=await response.json();await restore(opened);toast('Presentation imported.');}
+      catch(error){toast(error.message,true);}
       finally{busy=false;update();event.target.value='';}
     });
     $('export-html').addEventListener('click',async()=>{
@@ -45,7 +43,8 @@ window.SlideProjects={
       finally{busy=false;update();}
     });
     $('export-pdf').addEventListener('click',()=>{const deck=read();if(!deck)return;window.open(`/api/decks/${encodeURIComponent(deck.id)}/exports/pdf?preview=1`,'_blank','noopener');dialog.close();});
-    function run(id){update();$('project-error').textContent='';if($(id).disabled)return;dialog.showModal();$(id).click();}
-    return {update,save:()=>run('save-project'),open:()=>run('open-project')};
+    function save(){update();if($('save-project').disabled)return;$('project-error').textContent='';dialog.showModal();$('save-project').click();}
+    function open(){if(!busy)$('project-file').click();}
+    return {update,save,open};
   }
 };

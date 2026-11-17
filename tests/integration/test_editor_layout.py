@@ -54,7 +54,7 @@ def test_chat_remains_reachable_and_preserves_editor(
     tools = page.locator(".view-controls").bounding_box()
     assert navigation is not None and tools is not None
     assert navigation["x"] + navigation["width"] <= tools["x"]
-    for selector in ("#fit-view", "#fullscreen-button"):
+    for selector in ("#fit-view", "#present-link"):
         control = page.locator(selector).bounding_box()
         assert control is not None
         assert control["x"] >= 0 and control["x"] + control["width"] <= width

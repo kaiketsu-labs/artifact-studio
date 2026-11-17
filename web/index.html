@@ -118,13 +118,11 @@
     <div id="workspace-menu" class="workspace-menu" popover role="menu" aria-label="Artifact Studio">
       <div role="group" aria-label="Files">
         <button id="new-button" type="button" role="menuitem" tabindex="-1" aria-label="New presentation"></button>
-        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Import presentation"></button>
-        <button id="menu-save-project" type="button" role="menuitem" tabindex="-1" aria-label="Save a copy…" disabled></button>
-        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Export presentation…"></button>
+        <button id="menu-open-project" type="button" role="menuitem" tabindex="-1" aria-label="Import editable copy…"></button>
+        <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Export presentation…" disabled></button>
       </div>
       <div role="separator"></div>
       <div role="group" aria-label="Workspace">
-        <button id="libraries-button" type="button" role="menuitem" tabindex="-1" aria-label="Storage and backup"></button>
         <button id="deck-design-references" type="button" role="menuitem" tabindex="-1" aria-label="Design references"></button>
         <button id="instructions-button" type="button" role="menuitem" tabindex="-1" aria-label="Instructions" hidden></button>
         <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Agent connection"></button>
@@ -142,8 +140,8 @@
     <a class="artifact-library-back" href="/" aria-label="Back to all artifacts" title="All artifacts"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 5-7 7 7 7M3 12h18"/></svg><span>All artifacts</span></a>
     <div id="artifact-rail-header" hidden></div>
     <div class="rail-heading">
-      <div class="deck-picker-row"><select id="deck-picker" hidden aria-hidden="true" tabindex="-1"></select><button id="deck-switcher" class="deck-picker-trigger" type="button" aria-label="Choose project" aria-haspopup="menu" aria-expanded="false" aria-controls="deck-menu"><span>Projects</span></button><h1 id="sorter-presentation-title"></h1><button id="remove-presentation" type="button" aria-label="Remove presentation from list" disabled></button></div>
-      <div id="deck-menu" class="deck-menu" popover role="menu" aria-label="Projects"><div id="deck-menu-options" class="deck-menu-options" role="none"></div><div class="deck-menu-footer" role="none"><button id="new-project-option" type="button" role="menuitem" tabindex="-1"></button></div></div>
+      <div class="deck-picker-row"><select id="deck-picker" hidden aria-hidden="true" tabindex="-1"></select><button id="deck-switcher" class="deck-picker-trigger" type="button" aria-label="Choose presentation" aria-haspopup="menu" aria-expanded="false" aria-controls="deck-menu"><span>Presentations</span></button><h1 id="sorter-presentation-title"></h1><button id="remove-presentation" type="button" aria-label="Remove presentation from list" disabled></button></div>
+      <div id="deck-menu" class="deck-menu" popover role="menu" aria-label="Presentations"><div id="deck-menu-options" class="deck-menu-options" role="none"></div><div class="deck-menu-footer" role="none"><button id="new-presentation-option" type="button" role="menuitem" tabindex="-1"></button></div></div>
       <div class="progress-label"><span id="progress-text" role="img"></span><div class="rail-actions"><button id="deleted-slides" type="button" aria-label="Deleted slides" disabled></button><button id="removed-presentations" type="button" aria-label="Removed presentations" hidden></button><button id="add-section" type="button" aria-label="Add section" disabled></button><button id="add-slide" type="button" aria-label="New slide" disabled></button></div></div>
       <div class="progress-track"><i id="progress-bar"></i></div>
     </div>
@@ -243,7 +241,6 @@
     <button id="zoom-in" type="button" aria-label="Zoom in"></button>
     <output id="zoom-value" for="view-zoom">100%</output>
     <button id="fit-view" type="button" aria-label="Fit slide"></button>
-    <button id="fullscreen-button" type="button" aria-label="Present fullscreen" disabled></button>
   </div>
 </footer>
 <div id="section-menu" class="section-menu" popover role="menu" aria-label="Section options">
@@ -321,10 +318,10 @@
   <p class="project-group-detail">HTML and PDF omit private notes and feedback.</p>
   <div class="project-actions"><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
   <h3 class="project-group-label">Editable copy</h3>
-  <div class="project-actions"><button id="save-project" type="button"></button><button id="open-project" type="button"></button></div>
-  <input id="project-file" type="file" accept=".artifact-studio.zip,.zip" hidden>
+  <div class="project-actions"><button id="save-project" type="button"></button></div>
   <p id="project-error" class="inline-error" role="alert"></p>
 </dialog>
+<input id="project-file" type="file" accept=".artifact-studio.zip,.zip" hidden>
 <dialog id="instructions-dialog">
   <form id="instructions-form">
     <header><h2>Workspace rules</h2><div><button id="reload-instructions" type="button" aria-label="Reload saved instructions"></button><button id="close-instructions" type="button" aria-label="Close"></button></div></header>
