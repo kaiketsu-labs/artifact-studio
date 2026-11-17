@@ -53,6 +53,9 @@ existing browser jobs.
 `tests/conftest.py` isolates each worker's default collection, database and explicit
 artifact directory by run ID and worker ID before application imports. Existing
 per-test temporary stores, servers and browser contexts remain isolated too.
+Integration modules share one Playwright browser process per worker. Each test
+creates its own contexts, and teardown closes any contexts left after a failure.
+The module boundary releases the synchronous driver before independent renderer tests.
 Do not increase the worker count without checking runner CPU and memory limits.
 
 Browser cache keys follow the installed Playwright browser manifest, architecture

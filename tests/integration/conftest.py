@@ -27,9 +27,9 @@ def live_app(tmp_path: Path, artifacts: Path) -> Iterator[RunningApp]:
         yield app
 
 
-@pytest.fixture
-def browser() -> Iterator[Browser]:
-    """Close Playwright's event loop per test so renderer tests can start their own."""
+@pytest.fixture(scope="module")
+def browser_process() -> Iterator[Browser]:
+    """Reuse process startup within a module and release the driver before renderer suites."""
     with sync_playwright() as renderer:
         engine = os.environ.get("ARTIFACT_STUDIO_TEST_BROWSER", "chromium")
         browser = {"chromium": renderer.chromium, "firefox": renderer.firefox}[engine].launch()
@@ -37,6 +37,16 @@ def browser() -> Iterator[Browser]:
             yield browser
         finally:
             browser.close()
+
+
+@pytest.fixture
+def browser(browser_process: Browser) -> Iterator[Browser]:
+    """Give each test a clean context boundary, including after a failed assertion."""
+    try:
+        yield browser_process
+    finally:
+        for context in browser_process.contexts:
+            context.close()
 
 
 @pytest.fixture
