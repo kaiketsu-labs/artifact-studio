@@ -172,7 +172,7 @@ jobs:
               tests/integration/test_presentation_warmup.py
               tests/integration/test_favorites.py
               tests/integration/test_hosted_presenter_browser.py
-              tests/test_artifact_bridge.py
+              tests/integration/test_artifact_bridge.py
           - suite: runtime-1
             browsers: chromium
             browser_cache: chromium
