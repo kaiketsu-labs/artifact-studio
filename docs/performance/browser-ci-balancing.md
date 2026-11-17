@@ -7,18 +7,16 @@ at `3df2ca4` spent 8m12s in `editor` and 8m36s in `runtime-1`, versus
 4m34s in `runtime-2` and 5m05s in `runtime-3`.
 
 The six-job matrix introduced at that point divided the first two suites across two jobs each.
-All 94 test-file selections present after adding reply-thread coverage are
-preserved exactly once. Existing suite names remain, and the Firefox checks
-still run in `runtime-1`. Every job retains two pytest workers, failure
-diagnostics and the existing aggregate safety gate.
+It retained all 94 file selections, two workers per job and failure diagnostics.
+At the time, Firefox ran after Chromium in `runtime-1`.
 
 Browser jobs share the locked Python dependency cache. Playwright caches are
 separate for Chromium and Chromium/Firefox, keyed by operating system,
 architecture and the pinned browser manifest. Exact-version legacy cache
 fallbacks ease migration; a fallback still runs the pinned-browser installer.
 
-This trades two additional runner setups for a shorter parallel critical path;
-it is not a claim of lower total runner minutes. Compare job durations in the
+That split traded two additional runner setups for a shorter parallel critical path;
+it was not a claim of lower total runner minutes. Compare job durations in the
 final integration and release CI runs to measure the result. Those runs include
 new reply-thread tests, so the earlier timings are an operational baseline,
 not a controlled benchmark of identical application code.
@@ -56,3 +54,24 @@ Vincent Koc's [CI audit](https://vincent.build/openclaw-ci-cost-reduction/)
 describes separate OpenClaw changes that [packed short jobs](https://github.com/openclaw/openclaw/pull/95649)
 and [added jobs to balance a long tail](https://github.com/openclaw/openclaw/pull/104472).
 The appropriate job count here depends on this project's hosted timings.
+
+### Verification
+
+Pytest collection found all 640 prior Chromium cases plus the five additional
+cases, with no duplicate node IDs in the Chromium matrix. Firefox still runs
+the presentation display module separately. On a six-case renderer module,
+sharing the browser process reduced a local invocation from 11.06 to 8.11
+seconds. A separate isolation probe left a page and cookie in an open context
+and verified that the next test saw neither.
+
+The platform selection job only needs file names. A full-history sparse checkout
+of its script and a regular clone returned the same 36 changed paths at
+`4c5d16d`. Local Git object storage was 884 KiB versus 58,024 KiB. Both sides
+of renames participate in platform selection. Replaying the selector on the
+previous 100 first-parent changes broadened platform coverage on seven and
+removed no previously selected platform in that sample. A scratch Docker build
+confirmed that nested documentation is excluded from the shipped build context.
+
+The protected check is **Dependency safety**. Manual dispatch exercises every
+platform and can repeat the benchmark. The [CI audit PR](https://github.com/kaiketsu-labs/artifact-studio/pull/245)
+records the hosted control, candidate results and any failed trials.

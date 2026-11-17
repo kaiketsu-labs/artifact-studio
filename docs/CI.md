@@ -29,7 +29,10 @@ changes. It exercises real diagnostic-file rotation and live subprocess output w
 Swift 6, then builds/signs a disposable native controller and runs native icon rendering.
 Unrelated changes do not start an additional macOS runner.
 
-Explicit CI dispatch and unknown change history run both platform suites. The
+Explicit CI dispatch, unknown change history and unrecognized paths run both
+platform suites. The scope job checks out only its script and compares both
+sides of renames. The shared native icon selects both platforms. Nested docs
+are outside the Docker build context and still receive all core checks. The
 always-reported **Dependency safety** gate rejects failed, cancelled and missing
 checks, and permits platform skips only when the scope job explicitly excluded
 that platform. Quality checks rebuild and compare the committed offline editor
