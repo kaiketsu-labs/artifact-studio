@@ -33,7 +33,7 @@ The references above were read from their canonical public source repositories.
 | Observed problem | Resulting behavior |
 | --- | --- |
 | HTML/PDF exports were hidden behind the vague “Presentation files” command. | **Export presentation…** opens the existing exports with HTML/PDF first. Editable archive operations form a separate section. |
-| “Save presentation” downloaded an archive and said “Project saved,” suggesting it saved ongoing edits or a project container. | **Save a copy…** identifies the editable archive, its notes and feedback, and confirms that the copy downloaded. The existing shortcut and archive behavior remain available. |
+| “Save presentation” downloaded an archive and said “Project saved,” suggesting it saved ongoing edits or a project container. | **Download editable copy** identifies the editable archive, its notes and feedback, and confirms that the copy downloaded. The existing shortcut and archive behavior remain available. |
 | The Library destination “Presentation tools” did not describe where it navigated. | **Presentation editor** names the actual destination. Existing capabilities and direct Present action remain available. |
 | Hover and keyboard focus could make an unselected agent icon look selected. | Only selection gives the icon its active color; a separate underline identifies keyboard focus. The icon has no enclosing border or backplate. |
 | An agent-addressed Shared message used the same “Message your agent” wording as a private conversation. | The addressed Shared composer explicitly says **shared with others**. The private composer explicitly says **Private message**. Routing and permissions are unchanged. |

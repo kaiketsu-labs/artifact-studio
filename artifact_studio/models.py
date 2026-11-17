@@ -539,6 +539,7 @@ class CreateInput(StrictModel):
     design_id: str = ""
     brief: str = Field(default="", max_length=10_000)
     files: list[FileInput] = Field(default_factory=list, max_length=5)
+    project_id: str = Field(default="legacy-presentations", min_length=1, max_length=100)
 
 
 class DesignRequestInput(StrictModel):

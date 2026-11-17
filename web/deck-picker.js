@@ -1,30 +1,30 @@
-/* Project selection reuses the canonical selector and existing creation flow. */
+/* Presentation selection reuses the canonical selector and existing creation flow. */
 window.SlideDeckPicker={
   create({select,button,panel,list,createButton,onCreate,onOpen=()=>{},blocked=()=>false}){
     const {svg,button:iconButton}=window.SlideIcons;
     let signature='',query='',queryTimer=null;
-    const rows=()=>[...panel.querySelectorAll('[role^=menuitem]')].filter(row=>!row.disabled);
+    const rows=()=>[...panel.querySelectorAll('[role^=menuitem]')].filter(row=>!row.disabled&&row.getClientRects().length);
     const open=()=>panel.matches(':popover-open');
-    iconButton(createButton,'plus','New project',true);
+    iconButton(createButton,'plus','New presentation',true);
     function sync(){
       const items=[...select.options],selected=items[select.selectedIndex],busy=blocked()||select.disabled&&items.length>0;
       button.disabled=!!busy;createButton.disabled=!!busy;
-      const title=selected?.textContent||'Projects';
-      button.querySelector('span').textContent=title;button.title=title;button.setAttribute('aria-label',selected?`Choose project: ${title}`:'Choose project');
+      const title=selected?.textContent||'Presentations';
+      button.querySelector('span').textContent=title;button.title=title;button.setAttribute('aria-label',selected?`Choose presentation: ${title}`:'Choose presentation');
       const next=JSON.stringify(items.map(item=>[item.value,item.textContent]));
       if(signature!==next){
-        const focused=panel.contains(document.activeElement)?document.activeElement.dataset.projectId:null;
+        const focused=panel.contains(document.activeElement)?document.activeElement.dataset.deckId:null;
         signature=next;
         list.replaceChildren(...items.map(item=>{
-          const row=document.createElement('button');row.type='button';row.setAttribute('role','menuitemradio');row.tabIndex=-1;row.dataset.projectId=item.value;row.title=item.textContent;
+          const row=document.createElement('button');row.type='button';row.setAttribute('role','menuitemradio');row.tabIndex=-1;row.dataset.deckId=item.value;row.title=item.textContent;
           row.innerHTML=svg('presentation');
           const name=document.createElement('span');name.className='deck-menu-name';name.textContent=item.textContent;
           const check=document.createElement('span');check.className='deck-menu-check';check.setAttribute('aria-hidden','true');check.innerHTML=svg('check');
           row.append(name,check);return row;
         }));
-        if(focused&&open())[...list.children].find(row=>row.dataset.projectId===focused)?.focus();
+        if(focused&&open())[...list.children].find(row=>row.dataset.deckId===focused)?.focus();
       }
-      for(const row of list.children){row.disabled=!!busy;const checked=row.dataset.projectId===selected?.value;row.setAttribute('aria-checked',String(checked));row.querySelector('.deck-menu-check').style.visibility=checked?'visible':'hidden';}
+      for(const row of list.children){row.disabled=!!busy;const checked=row.dataset.deckId===selected?.value;row.setAttribute('aria-checked',String(checked));row.querySelector('.deck-menu-check').style.visibility=checked?'visible':'hidden';}
       if(busy&&open())panel.hidePopover();
     }
     function position(){
@@ -39,8 +39,8 @@ window.SlideDeckPicker={
     button.addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();show(event.key==='ArrowUp');}});
     panel.addEventListener('toggle',()=>{button.setAttribute('aria-expanded',String(open()));if(!open()){query='';clearTimeout(queryTimer);}});
     panel.addEventListener('click',event=>{
-      const row=event.target.closest('[data-project-id]');if(!row||row.disabled)return;
-      const id=row.dataset.projectId;close(true);if(select.value===id)return;
+      const row=event.target.closest('[data-deck-id]');if(!row||row.disabled)return;
+      const id=row.dataset.deckId;close(true);if(select.value===id)return;
       select.value=id;select.dispatchEvent(new Event('change',{bubbles:true}));
     });
     createButton.addEventListener('click',()=>{if(createButton.disabled)return;close();onCreate();});

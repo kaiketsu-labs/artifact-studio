@@ -57,7 +57,6 @@
   }
   function init({api,toast,escape,currentDeck,onNotesError=()=>{},beforeSaveWorkspace=async()=>true}){
     const $=id=>document.getElementById(id),{svg,button}=window.SlideIcons;
-    button($('libraries-button'),'folder','Storage and backup',true);
     button($('close-libraries'),'close','Close');button($('add-library'),'plus','Connect library');
     $('add-library').removeAttribute('title');
     let busy=false,revision=0,libraries=null,statuses=[],fullStatuses=[],localState='saved',unavailable=false,polling=false;
@@ -163,7 +162,7 @@
       $('library-dialog').showModal();$('library-error').textContent='';syncOption();
       try{await refresh();working(busy);}catch(error){$('library-error').textContent=error.message;}
     }
-    $('libraries-button').addEventListener('click',()=>void open());$('storage-status').addEventListener('click',()=>void open());
+    $('storage-status').addEventListener('click',()=>void open());
     $('close-libraries').addEventListener('click',()=>$('library-dialog').close());
     $('library-location').addEventListener('input',syncOption);
     $('library-list').addEventListener('input',event=>{

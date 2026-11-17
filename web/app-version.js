@@ -109,7 +109,7 @@
           entry.querySelector('span').textContent=label;
           entry.setAttribute('aria-label',label);
         }
-        doc.querySelectorAll('[data-local-only], #storage-status, #libraries-button, a[href="/web/copilot-setup.html"]').forEach(node=>{node.hidden=true;});
+        doc.querySelectorAll('[data-local-only], #storage-status, a[href="/web/copilot-setup.html"]').forEach(node=>{node.hidden=true;});
         dialog.querySelector('.app-nightly-option').hidden=true;dialog.querySelector('#app-nightly-help').hidden=true;dialog.querySelector('.app-about-status').hidden=true;
       }
       if(session.capabilities?.automatic_feedback===false)doc.querySelectorAll('[data-automatic-feedback]').forEach(node=>{node.hidden=true;});

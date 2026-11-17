@@ -25,13 +25,13 @@ function fixture({unsupported=false,reject=false,prepare=null,onError=()=>{}}={}
   };
   if(!unsupported)doc.documentElement.requestFullscreen=()=>{};
   doc.exitFullscreen=async()=>{doc.fullscreenElement=null;handlers.fullscreenchange();};
-  const button=new Element('a'),fullscreenButton=new Element('button'),sibling=new Element('main');sibling.inert=true;doc.body.children.push(sibling);
-  const launcher=create({button,additionalButtons:[fullscreenButton],doc,view,prepare,onError,onReturn:id=>{returned=id;},onUnavailable:()=>unavailable++});
+  const button=new Element('a'),sibling=new Element('main');sibling.inert=true;doc.body.children.push(sibling);
+  const launcher=create({button,doc,view,prepare,onError,onReturn:id=>{returned=id;},onUnavailable:()=>unavailable++});
   const click=(extra={})=>button.handlers.click({button:0,preventDefault(){},...extra});
   const layer=()=>doc.body.children.at(-1),frame=()=>layer().child;
   const loading=()=>layer().children[1];
   const message=(data,extra={})=>handlers.message({source:frame().contentWindow,origin:view.location.origin,data:{type:'artifact-studio:presentation',...data},...extra});
-  return {doc,handlers,launcher,button,fullscreenButton,sibling,order,messages,classes,click,layer,frame,loading,message,returned:()=>returned,unavailable:()=>unavailable};
+  return {doc,handlers,launcher,button,sibling,order,messages,classes,click,layer,frame,loading,message,returned:()=>returned,unavailable:()=>unavailable};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 
@@ -137,12 +137,6 @@ test('foreign windows cannot close the show and modified clicks retain normal li
   const check=fixture();check.click({metaKey:true});assert.equal(check.launcher.isOpen(),false);
   check.click();check.message({action:'end'},{origin:'https://other.example'});
   check.message({action:'end'},{source:{}});assert.equal(check.launcher.isOpen(),true);
-});
-test('the bottom-right fullscreen trigger shares the launch path and receives return focus',async()=>{
-  const check=fixture();check.fullscreenButton.handlers.click({button:0,preventDefault(){}});
-  assert.deepEqual(check.order,['fullscreen','navigate']);
-  check.message({action:'end'});await settle();
-  assert.equal(check.fullscreenButton.focused,true);assert.equal(check.button.focused,undefined);
 });
 test('keyboard starts preserve fullscreen activation and choose beginning or current slide',()=>{
   for(const fromBeginning of [false,true]){

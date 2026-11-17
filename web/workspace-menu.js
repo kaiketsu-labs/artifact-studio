@@ -23,10 +23,9 @@
     const mac=/Mac|iPhone|iPad/.test(view.navigator.platform),primary=mac?'⌘':'Ctrl+',shift=mac?'⇧':'Shift+';
     const iconButton=view.SlideIcons.button;
     iconButton(button,'menu','Menu');button.title='Menu (F10)';
-    iconButton($('menu-open-project'),'folder','Import presentation',true);
-    iconButton($('menu-save-project'),'save','Save a copy…',true);
-    $('menu-save-project').title='Download an editable .artifact-studio.zip copy, including notes and feedback.';
-    for(const [id,key,shifted] of [['new-button','N',false],['menu-open-project','O',false],['menu-save-project','S',false],['project-button','S',true]]){
+    iconButton($('menu-open-project'),'folder','Import editable copy…',true);
+    $('menu-open-project').title='Import an editable .artifact-studio.zip presentation';
+    for(const [id,key,shifted] of [['new-button','N',false],['menu-open-project','O',false],['save-project','S',false],['project-button','S',true]]){
       const control=$(id);control.dataset.shortcut=(mac?(shifted?shift:'')+primary:primary+(shifted?shift:''))+key;
       control.setAttribute('aria-keyshortcuts',`${mac?'Meta':'Control'}+${shifted?'Shift+':''}${key}`);
     }
@@ -35,7 +34,7 @@
     let query='',queryTimer;
     const open=()=>panel.matches(':popover-open');
     const rows=()=>[...panel.querySelectorAll('[role="menuitem"]')].filter(row=>!row.hidden&&!row.disabled&&row.closest('[popover]')===panel);
-    function sync(){projects.update();$('menu-save-project').disabled=blocked()||$('save-project').disabled;$('menu-open-project').disabled=blocked()||$('open-project').disabled;}
+    function sync(){projects.update();$('menu-open-project').disabled=blocked()||$('project-file').disabled;}
     function position(){const rect=button.getBoundingClientRect();panel.style.left=`${Math.max(8,Math.min(rect.right-panel.offsetWidth,view.innerWidth-panel.offsetWidth-8))}px`;panel.style.top=`${Math.max(8,Math.min(rect.bottom+8,view.innerHeight-panel.offsetHeight-8))}px`;}
     function close(focus=false){if(open())panel.hidePopover();if(focus)button.focus();}
     function show(last=false){sync();panel.showPopover();position();(last?rows().at(-1):rows()[0])?.focus();}
@@ -44,7 +43,6 @@
     panel.addEventListener('toggle',()=>{button.setAttribute('aria-expanded',String(open()));if(!open()){query='';clearTimeout(queryTimer);}});
     panel.addEventListener('click',event=>{const row=event.target.closest('[role="menuitem"]');if(row&&!row.disabled&&!row.hasAttribute('aria-haspopup')&&row.closest('[popover]')===panel)close(true);},true);
     $('menu-open-project').addEventListener('click',()=>projects.open());
-    $('menu-save-project').addEventListener('click',()=>projects.save());
     panel.addEventListener('keydown',event=>{
       event.stopPropagation();
       if(event.key==='Escape'){event.preventDefault();close(true);return;}
@@ -62,13 +60,15 @@
       const action=shortcut(event,{mac,editing:!!event.target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"])'),modal:!!doc.querySelector('dialog[open]')});
       if(!action||blocked())return;
       sync();
-      const control=({'new':$('new-button'),open:$('menu-open-project'),save:$('menu-save-project'),files:$('project-button'),'present-first':$('present-link'),'present-current':$('present-link')})[action];
+      const control=({'new':$('new-button'),open:$('menu-open-project'),save:$('save-project'),files:$('project-button'),'present-first':$('present-link'),'present-current':$('present-link')})[action];
       if(control&&(control.disabled||control.getAttribute('aria-disabled')==='true'||control.hidden))return;
       event.preventDefault();
       event.stopPropagation();
       if(action==='menu'){open()?close(true):show();return;}
       close(true);
-      if(action.startsWith('present-'))present(action==='present-first');else control.click();
+      if(action.startsWith('present-'))present(action==='present-first');
+      else if(action==='save')projects.save();
+      else control.click();
     }
     const bound=new WeakSet();
     function bindDocument(target){if(bound.has(target))return;bound.add(target);target.addEventListener('keydown',handleShortcut,true);}

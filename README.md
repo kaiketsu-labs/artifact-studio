@@ -130,7 +130,7 @@ The [collaboration study](docs/performance/presentation-workflow-study.md) recor
 
 **Share** exports an artifact or a project ZIP. Presentations support **HTML** and **PDF**; PPTX/POTX files are design references and PPTX export is not available. Self-contained HTML preserves local assets and animations. Multi-file HTML artifacts retain their bundle in a ZIP. Audience exports omit private review chats and speaker notes. PDF includes hidden slides by default; uncheck **Include hidden slides** in Share or the PDF print preview to export only visible slides.
 
-Use **Save file**, the device's native share sheet when supported, or the supported Mac Outlook handoff. Nothing is sent automatically. **Save a copy… / Import presentation** is a separate portable editing archive that includes private review state. A shared project ZIP is not a restorable workspace. [Sharing and export details](docs/PROJECTS.md#share-an-artifact-or-project).
+Use **Save file**, the device's native share sheet when supported, or the supported Mac Outlook handoff. Nothing is sent automatically. **Download editable copy / Import editable copy…** is a separate portable editing archive that includes private review state. A shared project ZIP is not a restorable workspace. [Sharing and export details](docs/PROJECTS.md#share-an-artifact-or-project).
 
 ## Storage and recovery
 

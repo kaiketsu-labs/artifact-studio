@@ -2,7 +2,7 @@
 ((root)=>{
   'use strict';
   /** Own native fullscreen and return to the unchanged editor after the show. */
-  function create({button,additionalButtons=[],onReturn=()=>{},onUnavailable=()=>{},prepare=null,onError=()=>{},doc=document,view=window}){
+  function create({button,onReturn=()=>{},onUnavailable=()=>{},prepare=null,onError=()=>{},doc=document,view=window}){
     let session=null;
     const currentFullscreen=()=>doc.fullscreenElement||doc.webkitFullscreenElement;
     const supported=()=>!!(doc.documentElement.requestFullscreen||doc.documentElement.webkitRequestFullscreen);
@@ -78,7 +78,7 @@
     });
     doc.addEventListener('fullscreenchange',changed);doc.addEventListener('webkitfullscreenchange',changed);
     doc.addEventListener('keydown',event=>{if(session&&!session.visible&&event.key==='Escape'){event.preventDefault();void close();}});
-    for(const trigger of [button,...additionalButtons])trigger.addEventListener('click',event=>open(event,trigger));
+    button.addEventListener('click',event=>open(event,button));
     return {isOpen:()=>!!session,start({fromBeginning=false}={}){const href=button.getAttribute('href');if(!href)return;const url=new URL(href,view.location.href);if(fromBeginning)url.hash='';open({button:0,preventDefault(){}},button,url.href);}};
   }
   const api={create};if(typeof module!=='undefined')module.exports=api;else root.SlidePresentationLauncher=api;

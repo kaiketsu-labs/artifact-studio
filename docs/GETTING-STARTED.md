@@ -70,7 +70,7 @@ The library shows all existing artifacts. Use project filters, format tabs and s
 
 ![Artifact Studio with fictional projects and rendered preview cards.](assets/artifact-hub.png)
 
-Choose **New project** to save a title and optional shared brief. Choose **Import**, select the project, and add files or a folder. **Open first** selects the entrypoint; type detection chooses a viewer. Browser import currently accepts up to 1,000 files and 100 MB at once. Sources can include arbitrary HTML, CSS, JavaScript, SVG, images, fonts, data and native files. Importing never executes build or installation scripts.
+Choose **New project** to save a title and optional shared brief. Open a project before choosing **Menu → New presentation** to create the presentation there. Choose **Import**, select the project, and add files or a folder. **Open first** selects the entrypoint; type detection chooses a viewer. Browser import currently accepts up to 1,000 files and 100 MB at once. Sources can include arbitrary HTML, CSS, JavaScript, SVG, images, fonts, data and native files. Importing never executes build or installation scripts.
 
 An agent can instead author files using its preferred tools, then call `register_artifact` with the project ID, local source path and entrypoint. The hub creates an owned copy and preserves the original. Subsequent `revise_artifact` calls publish changed files with an expected revision/hash and an idempotency request ID.
 
@@ -167,8 +167,8 @@ runtime warmup runs during idle time and yields to editing. See the
 | Action | Mac | Windows/Linux |
 | --- | --- | --- |
 | New presentation | ⌘N | Ctrl+N |
-| Import presentation | ⌘O | Ctrl+O |
-| Save a copy… | ⌘S | Ctrl+S |
+| Import editable copy… | ⌘O | Ctrl+O |
+| Download editable copy | ⌘S | Ctrl+S |
 | Export presentation… / choose format | ⇧⌘S | Ctrl+Shift+S |
 | Present from current slide | ⌘Return | Shift+F5 |
 | Present from beginning | ⇧⌘Return or F5 | F5 |
@@ -224,7 +224,7 @@ Open each deck in its own browser tab and use a separate agent chat with that de
 
 The native server creates its collection in `~/Documents/Artifacts` and its review state in `.state/` inside the checkout on first launch. Set other paths through the Mac installer or the Terminal environment. [Mac configuration](MACOS.md#existing-workspaces-and-updates) · [Terminal configuration](#run-from-terminal)
 
-In the presentation editor, use **Menu → Export presentation…** for **HTML** and **PDF** audience exports. Its separate **Editable copy** section offers **Save a copy…** and **Import presentation** for `.artifact-studio.zip` archives. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides by default; uncheck **Include hidden slides** to omit them. [Formats, restoration and limits](PROJECTS.md).
+In the presentation editor, use **Menu → Export presentation…** for **HTML** and **PDF** audience exports. Choose **Download editable copy** there to save an editable archive. Use **Menu → Import editable copy…** to open `.artifact-studio.zip` archives. These are presentation formats. Presentation project files retain private history and unfinished drafts; HTML/PDF are audience exports without private notes or chat. PDF includes hidden slides by default; uncheck **Include hidden slides** to omit them. [Formats, restoration and limits](PROJECTS.md).
 
 For the whole workspace, open the storage icon and choose **Save workspace**. This archive includes collection sources, retained artifact revisions, saved review history, approvals and app-owned private attachments. Browser-only unfinished edits remain separate. To keep full archives on GitHub, expand **Full workspace backups** beside a connected private repository and check **Back up full workspace**. Set an interval of **1–720 hours** and keep **1–100 backups**, then choose **Save backup settings**. Defaults are daily and seven backups. The first backup starts when enabled; later backups run while the Studio server is open, with one missed run caught up after reopening. The section also offers **Back up full workspace now** and shows the last result, next time and errors. [Schedule and retention](REPOSITORY-SYNC.md#scheduled-full-workspace-backups).
 
@@ -248,7 +248,7 @@ Back up **both the collection and the state folder**. If you override `ARTIFACT_
 
 ## Optional reference libraries and private sync
 
-From **… → Presentation editor**, open **Menu → Storage and backup**. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
+Select **Storage and backup** in the Library or presentation editor header. Add a local folder or GitHub repository URL so the agent can inspect earlier decks, original masters and custom assets. Repository contents are reference data, not agent instructions. Connecting a library does not install its designs automatically.
 
 ### Switch projects quickly
 
