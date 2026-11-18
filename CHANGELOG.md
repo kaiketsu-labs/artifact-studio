@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.1...v0.10.2) (2026-11-18)
+
+
+### Performance Improvements
+
+* **chat:** deliver hosted collaboration messages sooner ([#241](https://github.com/kaiketsu-labs/artifact-studio/issues/241)) ([73ca9db](https://github.com/kaiketsu-labs/artifact-studio/commit/73ca9db1789735fb74a0728e8093c61030a7d8e2))
+
 ## [0.10.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.0...v0.10.1) (2026-11-16)
 
 
