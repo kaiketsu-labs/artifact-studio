@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import Browser, expect
 
+from artifact_studio.designs.slides import DesignInput, SlideDesigns
 from artifact_studio.models import AgentContext
 from tests.design_factory import TEMPLATE_ID, make_design
 from tests.integration.hosted_fixture import WORKSPACE, routed_hosted_context, running_hosted_app
@@ -108,3 +109,60 @@ def test_hosted_presenter_ignores_authored_shell_and_isolates_interactive_code(
             page.screenshot(path=str(artifacts / "hosted-presenter-isolation.png"))
             denied = page.goto(f"{WORKSPACE}/decks/{TEMPLATE_ID}/index.html")
             assert denied is not None and denied.status == 404
+
+
+def test_hosted_interactive_alternative_runs_in_presenter_and_audience(
+    browser: Browser, tmp_path: Path, artifacts: Path
+) -> None:
+    with running_hosted_app(tmp_path / "server", artifacts / "server.log") as app:
+        make_design(app.store.root / TEMPLATE_ID)
+        slide = app.store.read(TEMPLATE_ID).slides[0]
+        designs = SlideDesigns(app.store, scoped=True)
+        _ = designs.publish(
+            TEMPLATE_ID,
+            slide.id,
+            app.store.content_hash(TEMPLATE_ID, slide),
+            "present-interactive-alternative-fixture",
+            [
+                DesignInput(
+                    name="Interactive alternative",
+                    html='<article class="slide"><h1>Motion diagram</h1></article>',
+                    interactive_html="""<button id="replay">Replay diagram</button>
+                    <script>
+                    const button = document.querySelector('#replay');
+                    if (window.artifactStudio.context.mode === 'presentation') {
+                        button.onclick = () => { button.textContent = 'Playing'; };
+                    }
+                    </script>""",
+                )
+            ],
+        )
+        with routed_hosted_context(browser, app) as context:
+            page = context.new_page()
+            page.add_init_script("delete window.getScreenDetails;")
+            page.goto(f"{WORKSPACE}/?deck={TEMPLATE_ID}&editor=true")
+            choice = page.get_by_role("tab", name="Interactive alternative", exact=True)
+            choice.click()
+            expect(choice).to_have_attribute("aria-selected", "true")
+            page.get_by_role("link", name="Present", exact=True).click()
+            viewer = page.frame_locator('iframe[title="Presentation"]')
+            interactive = viewer.frame_locator(
+                '#stage iframe[title="Interactive slide"]'
+            ).frame_locator("iframe")
+            interactive.get_by_role("button", name="Replay diagram").click()
+            expect(interactive.locator("#replay")).to_have_text("Playing")
+
+            with page.expect_popup() as opened:
+                viewer.get_by_role("button", name="Presenter view", exact=True).click()
+            audience = opened.value
+            interactive = audience.frame_locator(
+                '#stage iframe[title="Interactive slide"]'
+            ).frame_locator("iframe")
+            interactive.get_by_role("button", name="Replay diagram").click()
+            expect(interactive.locator("#replay")).to_have_text("Playing")
+            viewer.get_by_role("button", name="End", exact=True).click()
+            expect(page.locator('iframe[title="Presentation"]')).to_have_count(0)
+            expect(choice).to_have_attribute("aria-selected", "true")
+            assert audience.is_closed()
+            assert app.store.read(TEMPLATE_ID).slides[0] == slide
+            assert not designs.list(TEMPLATE_ID, slide.id).decisions

@@ -56,6 +56,73 @@ def history_chrome_thumbnail(page: Page) -> None:
     )
 
 
+def test_present_plays_the_selected_design_without_choosing_it(
+    live_app: RunningApp, page: Page
+) -> None:
+    theme = live_app.store.folder(DECK_ID) / "theme.css"
+    original_theme = theme.read_text()
+    _ = theme.write_text(
+        original_theme + "\n@keyframes fixture-fade {from{opacity:.2}to{opacity:1}}\n"
+        "#motion-title:hover {color:rgb(17, 95, 142)}\n"
+    )
+    current = live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")
+    _ = live_app.call(
+        "publish_slide_designs",
+        deck_id=DECK_ID,
+        slide_id="cover",
+        expected_content_hash=current["content_hash"],
+        request_id="present-design-fixture",
+        options=[
+            {"name": "Plain", "html": markup("A different proposal")},
+            {
+                "name": "Animated",
+                "html": (
+                    '<article class="slide"><h1 id="motion-title" '
+                    'style="animation:fixture-fade 4s linear">'
+                    'Motion direction</h1><p data-build="1">Reveal this line</p></article>'
+                ),
+            },
+        ],
+    )
+    # The option should still use its frozen theme after the deck changes.
+    _ = theme.write_text(original_theme)
+
+    page.goto(f"{live_app.url}/?deck={DECK_ID}")
+    page.get_by_role("tab", name="Plain", exact=True).click()
+    page.get_by_role("button", name="Compare", exact=True).click()
+    page.get_by_label("Right design", exact=True).select_option(label="Animated")
+    page.get_by_role("button", name="Close design comparison", exact=True).click()
+    editor_option = page.get_by_role("tab", name="Animated", exact=True)
+    expect(editor_option).to_have_attribute("aria-selected", "true")
+    present = page.get_by_role("link", name="Present", exact=True)
+    present.click()
+    viewer = page.frame_locator('iframe[title="Presentation"]')
+    stage = viewer.frame_locator("#stage iframe")
+    title = stage.locator("h1")
+    expect(title).to_have_text("Motion direction")
+    expect(title).to_be_visible()
+    time = "node => node.getAnimations().find(item => item.playState === 'running')?.currentTime"
+    first = title.evaluate(time)
+    assert first is not None
+    page.wait_for_timeout(200)
+    second = title.evaluate(time)
+    assert second is not None and second > first
+    build = stage.locator("[data-build='1']")
+    expect(build).to_have_class("unrevealed")
+    title.hover()
+    expect(title).to_have_css("color", "rgb(17, 95, 142)")
+    title.click()
+    expect(build).not_to_have_class("unrevealed")
+    page.keyboard.press("Enter")
+    expect(viewer.locator("#stage h1")).to_have_text("Present with confidence")
+    expect(viewer.locator("#stage")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(present).to_be_focused()
+    expect(editor_option).to_have_attribute("aria-selected", "true")
+    assert live_app.call("get_slide", deck_id=DECK_ID, slide_id="cover")["html"] == current["html"]
+    assert not SlideDesigns(live_app.store).list(DECK_ID, "cover").decisions
+
+
 def test_design_publication_preview_feedback_keep_reload_history_and_undo(
     live_app: RunningApp,
     page: Page,

@@ -73,6 +73,17 @@ def test_alternative_motion_replays_without_deciding(page: Page, live_app: Runni
     page.goto(f"{live_app.url}/?deck={DECK_ID}")
     open_group(page, group)
     option(page, group, 1).click()
+    present = page.get_by_role("link", name="Present", exact=True)
+    present.click()
+    viewer = page.frame_locator('iframe[title="Presentation"]')
+    presented = viewer.frame_locator("#stage iframe").locator("#headline")
+    expect(presented).to_be_visible()
+    expect(presented).to_have_text("A stronger story, every review.")
+    page.keyboard.press("Escape")
+    expect(present).to_be_focused()
+    expect(option(page, group, 1)).to_have_attribute("aria-selected", "true")
+    assert not posts
+
     play = page.get_by_role("button", name="Play animations", exact=True)
     expect(play).to_be_enabled()
     play.click()
