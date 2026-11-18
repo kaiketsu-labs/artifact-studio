@@ -5,17 +5,16 @@ adjusted as OOXML to use explicit supported styles and installed fonts. The gard
 deck contains native text boxes, a table, and a chart with an embedded workbook.
 """
 
-import base64
 import io
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-FIXTURE = Path(__file__).parent / "fixtures" / "fictional-garden.pptx.base64"
+FIXTURE = Path(__file__).parent / "fixtures" / "fictional-garden.pptx"
 
 
 def fictional_powerpoint() -> bytes:
     """Return an independent copy of the two-slide Garden presentation."""
-    return base64.b64decode(FIXTURE.read_bytes())
+    return FIXTURE.read_bytes()
 
 
 def corrupt_powerpoint() -> bytes:
@@ -40,4 +39,4 @@ def unsupported_powerpoint() -> bytes:
 
 def fictional_layers_powerpoint() -> bytes:
     """Return a 4:3 slide with grouped, overlapping shapes and a PNG picture."""
-    return base64.b64decode((FIXTURE.parent / "fictional-layers.pptx.base64").read_bytes())
+    return (FIXTURE.parent / "fictional-layers.pptx").read_bytes()

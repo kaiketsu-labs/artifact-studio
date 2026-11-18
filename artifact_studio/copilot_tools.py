@@ -528,6 +528,25 @@ class ScopedTools:
         )
         return self.metadata(item)
 
+    def import_powerpoint(
+        self,
+        project_id: Identifier,
+        title: Annotated[str, Field(min_length=1, max_length=160)],
+        data_base64: Annotated[str, Field(max_length=2 * 1024 * 1024)],
+        request_id: RequestID,
+    ) -> dict[str, object]:
+        """Import an encoded PowerPoint within the gateway request limit; returns a compact receipt.
+
+        Use a stable request_id for exact retries, then read slides with the presentation tools.
+        """
+        from .powerpoint import import_powerpoint
+
+        _ = self.project(project_id)
+        operation = digest("copilot-powerpoint:" + request_id)
+        return deck_receipt(
+            import_powerpoint(self.store, project_id, title, data_base64, operation)
+        ).model_dump(mode="json")
+
     def create_artifact(
         self,
         project_id: Identifier,
@@ -1079,6 +1098,7 @@ def register_tools(
     )
     writes: tuple[Callable[..., object], ...] = (
         scoped.create_artifact,
+        scoped.import_powerpoint,
         scoped.revise_artifact,
         scoped.reply_to_artifact_feedback,
         scoped.revise_slide,

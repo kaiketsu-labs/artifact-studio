@@ -407,7 +407,7 @@ def _chart(
             f'<span data-chart-value="{html.escape(raw_value, quote=True)}" '
             f'aria-label="Chart value {html.escape(raw_value, quote=True)}" '
             f'style="position:absolute;z-index:1;bottom:10%;width:40%;'
-            f'height:{value / maximum * 70:.4f}%;opacity:0">'
+            f'height:{value / maximum * 70:.4f}%;min-height:8px;opacity:0">'
             f"{html.escape(raw_value)}</span>"
         )
         result.append(

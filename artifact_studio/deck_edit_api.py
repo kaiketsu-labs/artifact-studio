@@ -11,6 +11,7 @@ from .models import (
     ApprovalInput,
     NotesInput,
     SectionLayoutInput,
+    Slide,
     SlideActionInput,
     SlideOrderUpdateInput,
     SlidePatch,
@@ -63,16 +64,20 @@ def deck_edit_routes(
         """Save an imported text leaf with the same access and revision guards as other edits."""
         from .powerpoint.edit import edit_pptx_text, synchronized_title
 
-        with access(request, deck_id, "edit") as store:
-            slide = store.locate(store.read(deck_id), slide_id)
+        def derive(slide: Slide) -> SlidePatch:
             updated = edit_pptx_text(slide.html, body.path, body.text)
-            title = synchronized_title(slide.html, updated, body.path, slide.title)
-            store.revise(
+            return SlidePatch(
+                html=updated, title=synchronized_title(slide.html, updated, body.path, slide.title)
+            )
+
+        with access(request, deck_id, "edit") as store:
+            store.revise_derived(
                 deck_id,
                 slide_id,
                 body.expected_hash,
                 body.request_id,
-                SlidePatch(html=updated, title=title),
+                "imported-text:" + body.model_dump_json(exclude={"request_id", "expected_hash"}),
+                derive,
             )
         return {"saved": True}
 
@@ -83,11 +88,20 @@ def deck_edit_routes(
         """Save one imported shape transform with revision and access checks."""
         from .powerpoint.edit import transform_pptx_object
 
+        def derive(slide: Slide) -> SlidePatch:
+            return SlidePatch(
+                html=transform_pptx_object(slide.html, body.index, body.dx, body.dy, body.rotation)
+            )
+
         with access(request, deck_id, "edit") as store:
-            slide = store.locate(store.read(deck_id), slide_id)
-            updated = transform_pptx_object(slide.html, body.index, body.dx, body.dy, body.rotation)
-            store.revise(
-                deck_id, slide_id, body.expected_hash, body.request_id, SlidePatch(html=updated)
+            store.revise_derived(
+                deck_id,
+                slide_id,
+                body.expected_hash,
+                body.request_id,
+                "imported-transform:"
+                + body.model_dump_json(exclude={"request_id", "expected_hash"}),
+                derive,
             )
         return {"saved": True}
 

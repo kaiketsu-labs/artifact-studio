@@ -38,6 +38,8 @@ def test_imported_text_revision_and_stale_guard(
     saved = Store(store.root, store.database).view(TEMPLATE_ID).slides[0]
     assert saved.html == markup.replace("Old", "New &amp; safe")
     assert saved.revision == imported.revision + 1
+    assert client.post(endpoint, json=body).status_code == 200
+    assert client.post(endpoint, json={**body, "text": "Different"}).status_code == 409
     assert (
         client.post(
             endpoint, json={**body, "request_id": "human-edit-2", "text": "Stale"}
@@ -96,4 +98,7 @@ def test_imported_shape_transform_revision_and_group_rejection(
     assert "transform:rotate(10deg) scale(-1,1) rotate(30deg);" in saved.html
     assert "<span>Keep me</span>" in saved.html
     assert saved.revision == imported.revision + 1
+    assert client.post(endpoint, json=body).status_code == 200
+    assert store.view(TEMPLATE_ID).slides[0].html == saved.html
+    assert client.post(endpoint, json={**body, "dx": 0.2}).status_code == 409
     assert client.post(endpoint, json={**body, "request_id": "transform-2"}).status_code == 409

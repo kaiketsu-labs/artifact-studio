@@ -771,6 +771,26 @@ class Store:
             )
         return result
 
+    def revise_derived(
+        self,
+        deck_id: str,
+        slide_id: str,
+        expected_hash: str,
+        request_id: str,
+        identity: str,
+        derive: Callable[[Slide], SlidePatch],
+    ) -> Slide:
+        """Replay a stable edit request before deriving its patch from the anchored slide."""
+        return self._revise(
+            deck_id,
+            slide_id,
+            expected_hash,
+            request_id,
+            SlidePatch(),
+            derived_identity=identity,
+            derive=derive,
+        )
+
     def _revise(
         self,
         deck_id: str,
@@ -780,13 +800,19 @@ class Store:
         patch: SlidePatch,
         *,
         prepare_interactive: Callable[[str], str] | None = None,
+        derived_identity: str | None = None,
+        derive: Callable[[Slide], SlidePatch] | None = None,
     ) -> Slide:
         """Share the locked write/replay path with source-only and receipt-aware callers."""
         from .version_history import capture_slide_version
 
         if not 8 <= len(request_id) <= 100:
             raise ValueError("Use a unique request_id of 8–100 characters.")
-        payload = slide_id + expected_hash + patch.model_dump_json()
+        payload = (
+            slide_id + expected_hash + patch.model_dump_json()
+            if derived_identity is None
+            else json.dumps(["derived-slide-edit", slide_id, expected_hash, derived_identity])
+        )
         if prepare_interactive is not None:
             payload += ":embed-interactive-assets"
         payload_hash = digest(payload)
@@ -806,6 +832,8 @@ class Store:
             slide = self.locate(deck, slide_id)
             if digest(slide.model_dump_json()) != expected_hash:
                 raise ConflictError("Slide changed. Read it again and merge your revision.")
+            if derive is not None:
+                patch = derive(slide)
             if prepare_interactive is not None and patch.interactive_html:
                 patch = patch.model_copy(
                     update={"interactive_html": prepare_interactive(patch.interactive_html)}

@@ -143,6 +143,7 @@ def test_initialization_catalog_flat_schemas_and_bootstrap(gateway: GatewayFixtu
     assert {
         "get_working_context",
         "create_artifact",
+        "import_powerpoint",
         "revise_artifact",
         "get_slide",
         "revise_slide",
@@ -797,3 +798,44 @@ def test_connected_contact_sheet_schema_matches_remote_renderer_bounds(
         result = call(gateway.client, "capture_contact_sheet", {"deck_id": DECK, **invalid})
         assert result["isError"] is True
         assert "Invalid capture arguments reached" not in json.dumps(result)
+
+
+def test_powerpoint_import_respects_gateway_scope_and_retries(gateway: GatewayFixture) -> None:
+    """An authenticated gateway imports only into its project and preserves retry identity."""
+    import base64
+
+    from tests.pptx_fixture import fictional_powerpoint
+
+    args: dict[str, object] = {
+        "project_id": gateway.selected.project_id,
+        "title": "Fictional garden",
+        "data_base64": base64.b64encode(fictional_powerpoint()).decode(),
+        "request_id": "fictional-copilot-import",
+    }
+    denied = call(
+        gateway.client, "import_powerpoint", args | {"project_id": gateway.unrelated.project_id}
+    )
+    assert denied.get("isError") is True
+    created = object_value(data(call(gateway.client, "import_powerpoint", args)))
+    assert len(json.dumps(created)) < 4096
+    assert data(call(gateway.client, "import_powerpoint", args)) == created
+    assert (
+        call(gateway.client, "import_powerpoint", args | {"title": "Different"}).get("isError")
+        is True
+    )
+    deck_id = cast(str, created["id"])
+    assert (
+        ArtifactStore(gateway.store).get_artifact(deck_id).project_id == gateway.selected.project_id
+    )
+    assert "Harbor Garden" in gateway.store.view(deck_id).slides[0].html
+    response = gateway.client.post(
+        "/mcp",
+        headers={KEY_HEADER: "wrong"},
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "import_powerpoint", "arguments": args},
+        },
+    )
+    assert response.status_code == 401

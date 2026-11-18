@@ -81,10 +81,10 @@ The gateway exposes a smaller tool set than the local agent connection:
 | Context | Shared project brief, workspace rules, scoped artifact catalog and released feedback |
 | Chat references | Read saved attachments from released messages in the shared project, including slides chosen from other presentations |
 | Files | Create and revise owned HTML, CSS, SVG, JavaScript, Markdown and media from inline file contents |
-| Presentations | Read, revise, add and reorder existing slides with current revision checks |
+| Presentations | Import a base64-encoded PowerPoint into an allowed project; read, revise, add and reorder slides with current revision checks |
 | Visual review | Owned artifact screenshots; audience-only slide captures at the completed state or a selected reveal step |
 
-There is no shell, arbitrary host-file import, approval control, workspace-settings access or automatic local review hook. File requests are limited to 2 MiB; read files in smaller groups when needed. New artifact creation needs an existing shared project.
+There is no shell, arbitrary host-file import, approval control, workspace-settings access or automatic local review hook. Requests are limited to 2 MiB in total, including base64 encoding and the MCP envelope. PowerPoint imports must fit in a single request; larger files need another authorized import path. Read files in smaller groups when needed. New artifact creation needs an existing shared project.
 
 `read_feedback(wait_seconds=25)` can wait for released feedback without blocking
 ordinary tools. The optional gateway admits four feedback waits separately from
