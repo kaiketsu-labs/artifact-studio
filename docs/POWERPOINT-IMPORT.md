@@ -17,7 +17,7 @@ For supplemental measurements, the table reports mean absolute RGB difference on
 | Fixture | Editor mean / changed pixels | Presenter mean / changed pixels |
 | --- | --- | --- |
 | Garden slide 1 | 1.524 / 1.50% | 1.423 / 1.20% |
-| Garden slide 2 | 4.099 / 3.61% | 3.979 / 3.01% |
+| Garden slide 2 | 3.898 / 3.42% | 3.917 / 2.95% |
 | Layers slide 1 | 1.151 / 1.25% | 1.742 / 1.82% |
 
 Side-by-side evidence: [garden slide 1](screenshots/powerpoint-garden-1-comparison.png), [garden slide 2](screenshots/powerpoint-garden-2-comparison.png), and [layers slide](screenshots/powerpoint-layers-1-comparison.png). Each image shows LibreOffice, Studio editor, and Studio presenter from left to right.
