@@ -147,7 +147,7 @@
     }
     function setState(next){
       const showObjects=next.objectDraft && !state.objectDraft;
-      state={...state,...next};actions.hidden=!state.dirty;container.classList.toggle('ep-dirty',!!state.dirty);
+      state={...state,...next};save.setAttribute('aria-label',state.saveLabel||saveLabel);save.title=state.saveLabel||saveLabel;actions.hidden=!state.dirty;container.classList.toggle('ep-dirty',!!state.dirty);
       for(const control of container.querySelectorAll('.ep-formatting button,.ep-formatting input,.ep-actions button,.ep-text-panel textarea,.ep-alignment-panel button'))control.disabled=!!(state.disabled||state.busy);
       const objects=container.querySelector('[data-panel=objects]');
       if(objects){

@@ -1052,7 +1052,9 @@
     doc.getElementById('hub-import-list').innerHTML=files.map((file,index)=>`<li>${escape(names[index])} · ${sizeLabel(file.size)}</li>`).join('');
     const entry=doc.getElementById('hub-entrypoint');entry.innerHTML=names.map(name=>`<option value="${escape(name)}">${escape(name)}</option>`).join('');
     entry.value=names.find(name=>/(^|\/)index\.html?$/i.test(name)) || names.find(name=>/\.(md|markdown|html?|svg|png|jpe?g|webp|gif)$/i.test(name)) || names[0] || '';
-    doc.getElementById('hub-entrypoint-field').hidden=!files.length;
+    const powerpoint=files.length===1 && /\.pptx$/i.test(names[0]);
+    doc.getElementById('hub-entrypoint-field').hidden=!files.length || powerpoint;
+    dialog.querySelector('button[type=submit]').textContent=powerpoint?'Import presentation':'Import artifact';
     const title=dialog.querySelector('[name=title]');if(!title.value && files.length)title.value=(files[0].webkitRelativePath?.split('/')[0] || files[0].name.replace(/\.[^.]+$/,'')).replace(/[-_]/g,' ');
   }
   async function encodeFiles(files,usePaths=false) {
@@ -1315,7 +1317,7 @@
           else throw reason;
         }finally{select.disabled=false;}
       }
-    })().catch(reason=>{error.textContent=reason.message;submit.textContent=form.id==='hub-import-form'?'Import artifact':submit.textContent;}).finally(()=>{submit.disabled=false;});
+    })().catch(reason=>{error.textContent=reason.message;if(form.id==='hub-import-form')submit.textContent=importFiles.length===1 && /\.pptx$/i.test(importFiles[0].name)?'Import presentation':'Import artifact';}).finally(()=>{submit.disabled=false;});
   });
   content.addEventListener('error',event=>{if(event.target.matches?.('[data-preview-image]'))coverLoader.imageFailed(event.target);},true);
   content.addEventListener('click',event=>{

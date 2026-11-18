@@ -33,6 +33,8 @@ from .request_diagnostics import RequestDiagnostics
 _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
 _CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
 _REQUEST_LIMIT = 2 * 1024 * 1024
+_AGENT_POWERPOINT = re.compile(r"/api/agent/projects/([a-zA-Z0-9_-]+)/powerpoint")
+_AGENT_POWERPOINT_LIMIT = 66_766_668
 _CHAT_LIMIT = 68 * 1024 * 1024
 _OWNER_UPLOAD_LIMITS = {
     "/api/artifacts/import": 140 * 1024 * 1024,
@@ -211,6 +213,7 @@ class MultiplayerAuth:
                 path in {"/mcp", "/mcp/", "/api/review/hooks"}
                 or AGENT_REFERENCE_PATH.fullmatch(path) is not None
                 or AGENT_DESIGN_FILE_PATH.fullmatch(path) is not None
+                or _AGENT_POWERPOINT.fullmatch(path) is not None
             )
             origins = headers.getlist("origin")
             if (agent_path and origins) or (
@@ -338,11 +341,30 @@ class MultiplayerAuth:
                 await reject(404, "Not found")
                 return
             upload_limit = MAX_REFERENCE_BYTES
+        powerpoint_upload = (
+            _AGENT_POWERPOINT.fullmatch(path)
+            if not self.shared_shell and host == self.host and method == "POST"
+            else None
+        )
+        if powerpoint_upload:
+            actor = cast(Actor, scope["state"]["actor"])
+            record = self.sharing.agent_record(actor)
+            project_scope = GrantScope(
+                str(record["workspace"]), "project", powerpoint_upload.group(1)
+            )
+            try:
+                await run_in_threadpool(self.sharing.require, actor, project_scope, "edit")
+            except AccessDenied, FileNotFoundError, ValueError:
+                await reject(404, "Not found")
+                return
+            upload_limit = _AGENT_POWERPOINT_LIMIT
         if upload_limit is not None:
             actor = cast(Actor, scope["state"]["actor"])
             workspace = cast(str, scope["state"].get("editor_workspace", "default"))
-            if not agent_upload and not await run_in_threadpool(
-                self.sharing.owner, actor, workspace
+            if (
+                not agent_upload
+                and not powerpoint_upload
+                and not await run_in_threadpool(self.sharing.owner, actor, workspace)
             ):
                 await reject(404, "Not found")
                 return

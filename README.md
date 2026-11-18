@@ -118,6 +118,8 @@ The [getting-started guide](docs/GETTING-STARTED.md) covers imports, organizatio
 
 ### Presentations
 
+Open a project and choose **Import** to convert a supported PowerPoint deck into editable slides. Connected agents can use **`import_powerpoint`** in local and hosted Studio. The [PowerPoint import guide](docs/POWERPOINT-IMPORT.md) lists supported objects, known differences, and visual comparisons.
+
 Use sections, the slide sorter, hidden slides, multi-slide moves and per-slide discussion to shape a deck. Speaker notes save automatically; failed saves keep a browser draft and conflicting edits offer review. **Present** opens the audience slide. **Presenter view** keeps current/next slides, notes, clock and timer private in a separate control window. External display placement and fullscreen depend on browser support.
 
 Right-click a slide thumbnail and choose **Copy → Copy as image** to copy the rendered slide as PNG. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost.

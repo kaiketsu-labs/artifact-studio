@@ -1078,6 +1078,24 @@ def check_slide_text(
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
+def import_powerpoint(
+    project_id: str,
+    title: str,
+    data_base64: Annotated[str, Field(max_length=66_666_668)],
+    request_id: Annotated[str, Field(min_length=8, max_length=100)],
+) -> DeckReceipt:
+    """Import a PowerPoint into a project as an editable presentation.
+
+    Supply the base64-encoded PPTX and a stable request_id for exact-payload retries.
+    Returns a compact receipt; inspect slides with get_presentation_outline and get_slide.
+    """
+    from .powerpoint import import_powerpoint as import_deck
+
+    return deck_receipt(import_deck(store, project_id, title, data_base64, request_id))
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
 def create_presentation(
     deck_id: NewDeckID,
     title: str,
@@ -1734,7 +1752,12 @@ if deployment.mode == "hosted":
     )
 else:
     transport_mcp = mcp
-    mcp_app = mcp.streamable_http_app(stateless_http=True, json_response=True, host="127.0.0.1")
+    mcp_app = mcp.streamable_http_app(
+        stateless_http=True,
+        json_response=True,
+        host="127.0.0.1",
+        max_request_body_size=66_766_668,
+    )
 
 
 @asynccontextmanager

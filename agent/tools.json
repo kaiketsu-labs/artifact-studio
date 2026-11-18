@@ -4178,6 +4178,78 @@
       }
     },
     {
+      "name": "import_powerpoint",
+      "description": "Import a PowerPoint into a project as an editable presentation.\n\nSupply the base64-encoded PPTX and a stable request_id for exact-payload retries.\nReturns a compact receipt; inspect slides with get_presentation_outline and get_slide.\n",
+      "input_schema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "data_base64": {
+            "maxLength": 66666668,
+            "title": "Data Base64",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "title",
+          "data_base64",
+          "request_id"
+        ],
+        "title": "import_powerpointArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": false,
+        "description": "Confirm creation or ordering without echoing every slide's source.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "design_id": {
+            "title": "Design Id",
+            "type": "string"
+          },
+          "slide_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Slide Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "design_id",
+          "slide_ids"
+        ],
+        "title": "DeckReceipt",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "create_presentation",
       "description": "Create a branded cover and save the supplied brief as context and agent-authored feedback.\nRead that brief before drafting the full story; choose the slide count to fit the content.\nReturns deck identity and slide IDs; include_content=True returns the full cover source.\ndeck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).\nThe compact receipt includes workspace_url and private-field-free audience_url for review.\nSupply a unique request_id (8–100 characters) for exact-payload retries. A recorded\nretry returns the original creation snapshot, not current content; read the deck to resume.\nIf an ID already exists without a matching receipt, read and reconcile ownership first.\n",
       "input_schema": {

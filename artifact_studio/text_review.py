@@ -57,7 +57,12 @@ def capture_frame(output_root: Path, deck_id: str, slide_id: str, capture_id: st
     if len(frames) != 1:
         raise ValueError("Choose one slide included in this capture.")
     frame = frames[0]
-    if manifest.resolution != "full" or (frame.width, frame.height) != (1600, 900):
+    if (
+        manifest.resolution != "full"
+        or frame.width != 1600
+        or not 160 <= frame.height <= 6400
+        or (frame.width, frame.height) != (frame.viewport_width, frame.viewport_height)
+    ):
         raise ValueError("Use a full-resolution capture for text review.")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", frame.slide_id) or frame.slide_number < 1:
         raise ValueError("Invalid capture frame identity.")
@@ -150,8 +155,9 @@ def recognize(image: bytes, language: str) -> list[dict[str, object]]:
         )
     try:
         with Image.open(io.BytesIO(image)) as source:
-            if source.format != "PNG" or source.size != (1600, 900):
-                raise ValueError("Text review requires a 1600x900 PNG capture.")
+            width, height = source.size
+            if source.format != "PNG" or width != 1600 or not 160 <= height <= 6400:
+                raise ValueError("Text review requires a full-resolution PNG capture.")
             source.verify()
     except (UnidentifiedImageError, OSError) as error:
         raise ValueError("The captured image is not a valid PNG.") from error
@@ -175,7 +181,7 @@ def recognize(image: bytes, language: str) -> list[dict[str, object]]:
         if result.returncode:
             raise ValueError("OCR failed. Check Tesseract and its installed language data.")
         tsv = read_bounded(output.with_suffix(".tsv"), MAX_TSV_BYTES).decode("utf-8")
-    return parse_words(tsv, 1600, 900)
+    return parse_words(tsv, width, height)
 
 
 def differences(
@@ -258,6 +264,12 @@ def check_slide_text(
     image = read_bounded(Path(frame.path), MAX_IMAGE_BYTES)
     if hashlib.sha256(image).hexdigest() != frame.image_sha256:
         raise ValueError("The captured image changed; create a new capture before text review.")
+    try:
+        with Image.open(io.BytesIO(image)) as source:
+            if source.size != (frame.width, frame.height):
+                raise ValueError("The captured image dimensions do not match its manifest.")
+    except (UnidentifiedImageError, OSError) as error:
+        raise ValueError("The captured image is not a valid PNG.") from error
     if shutil.which("tesseract") is None:
         return {
             **result,
