@@ -100,10 +100,47 @@ test('scope runs platform checks for dependency and gating changes; unknown hist
   assert.deepEqual(scope(['web/vendor/codemirror.js']), {docker: true, macos: false});
   assert.deepEqual(scope(['Dockerfile']), {docker: true, macos: false});
   assert.deepEqual(scope(['macos/ArtifactStudio.swift']), {docker: false, macos: true});
+  assert.deepEqual(scope(['web/brand/mark.png']), {docker: true, macos: true});
+  assert.deepEqual(scope(['compose.hosted.yaml']), {docker: true, macos: false});
+  assert.deepEqual(scope(['docs/performance/report.md']), {docker: false, macos: false});
+  assert.deepEqual(scope(['docs/GETTING-STARTED.md']), {docker: true, macos: false});
+  assert.deepEqual(scope(['docs/performance/report.md', 'future-build.config']), {docker: true, macos: true});
+  assert.deepEqual(scope(['tests/integration/conftest.py']), {docker: true, macos: true});
 });
 
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-dependency-checks-'));
 after(() => fs.rmSync(temporary, {recursive: true, force: true}));
+
+test('scope preserves both owners across a rename and broadens a missing base', () => {
+  const cwd = fs.mkdtempSync(path.join(temporary, 'scope-'));
+  function git(...args) {
+    const result = spawnSync('git', args, {cwd, encoding: 'utf8'});
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  }
+  function selected(base) {
+    const output = path.join(cwd, 'scope-output');
+    fs.writeFileSync(output, '');
+    const result = spawnSync(process.execPath, [path.join(root, 'scripts/ci/scope.cjs')], {
+      cwd, env: {...process.env, BASE_SHA: base, GITHUB_OUTPUT: output}, encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return fs.readFileSync(output, 'utf8');
+  }
+  git('init', '--quiet');
+  fs.mkdirSync(path.join(cwd, 'macos'));
+  fs.mkdirSync(path.join(cwd, 'web'));
+  fs.writeFileSync(path.join(cwd, 'macos', 'asset'), 'fixture');
+  git('add', 'macos/asset');
+  const commit = () => git('-c', 'user.name=Fixture', '-c', 'user.email=ci@example.invalid', 'commit', '--quiet', '-m', 'fixture');
+  commit();
+  const old = git('rev-parse', 'HEAD');
+  git('mv', 'macos/asset', 'web/asset');
+  commit();
+  assert.equal(selected(old), 'docker=true\nmacos=true\n');
+  assert.equal(selected('f'.repeat(40)), 'docker=true\nmacos=true\n');
+});
+
 function generated() {
   const directory = fs.mkdtempSync(path.join(temporary, 'generated-'));
   for (const name of BUNDLES) fs.writeFileSync(path.join(directory, name), `fictional ${name}`);

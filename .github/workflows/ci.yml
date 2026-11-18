@@ -30,6 +30,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          sparse-checkout: /scripts/ci/scope.cjs
+          sparse-checkout-cone-mode: false
           persist-credentials: false
       - id: scope
         env:
@@ -152,8 +154,8 @@ jobs:
               tests/integration/test_rail_previews.py
               tests/integration/test_section_refresh_efficiency.py
           - suite: editor-2
-            browsers: chromium
-            browser_cache: chromium
+            browsers: chromium firefox
+            browser_cache: chromium-firefox
             tests: >-
               tests/integration/test_element_commands.py
               tests/integration/test_group_object_commands.py
@@ -170,26 +172,15 @@ jobs:
               tests/integration/test_presentation_start.py
               tests/integration/test_presentation_lazy.py
               tests/integration/test_presentation_warmup.py
-          - suite: runtime-1
-            browsers: chromium firefox
-            browser_cache: chromium-firefox
-            tests: >-
-              tests/test_unified_browser.py
-              tests/test_invitation_landing.py
-              tests/integration/test_artifact_workspace.py
               tests/integration/test_favorites.py
-              tests/integration/test_hub_context_menus.py
-              tests/integration/test_version_recovery.py
-              tests/test_multiplayer_browser_responsive.py
-              tests/test_scoped_owner_import.py
-              tests/integration/test_object_selection.py
               tests/integration/test_hosted_presenter_browser.py
-              tests/integration/test_artifact_sorting.py
-              tests/test_multiplayer_browser_collaborator.py
-          - suite: runtime-4
+              tests/integration/test_artifact_bridge.py
+          - suite: runtime-1
             browsers: chromium
             browser_cache: chromium
             tests: >-
+              tests/test_unified_browser.py
+              tests/integration/test_artifact_workspace.py
               tests/test_visuals.py
               tests/integration/test_audit_followups.py
               tests/integration/test_library_previews.py
@@ -219,6 +210,14 @@ jobs:
               tests/test_presentation_authoring.py
               tests/integration/test_element_properties.py
               tests/test_element_alternative_tools.py
+              tests/test_multiplayer_browser_responsive.py
+              tests/integration/test_hub_context_menus.py
+              tests/test_invitation_landing.py
+              tests/integration/test_artifact_sorting.py
+              tests/integration/test_version_recovery.py
+              tests/integration/test_object_selection.py
+              tests/test_multiplayer_server.py::test_five_identities_and_saturated_live_renderer_have_correlated_responses
+              tests/test_sharing_scope_boundaries.py::test_two_editors_share_notes_in_the_regular_studio
           - suite: runtime-3
             browsers: chromium
             browser_cache: chromium
@@ -246,6 +245,10 @@ jobs:
               tests/integration/test_artifact_downloads.py
               tests/test_element_rotation_dom.py
               tests/test_sharing_renderer.py
+              tests/test_scoped_owner_import.py
+              tests/test_multiplayer_browser_collaborator.py
+              tests/test_artifact_preview.py::test_isolated_capture_executes_local_modules_and_blocks_outside_requests
+              tests/test_copilot.py::test_actual_capture_images_cross_the_authenticated_mcp_transport
     env:
       ARTIFACT_STUDIO_BROWSER_TESTS: "1"
       ARTIFACT_STUDIO_RENDER_TESTS: "1"
@@ -290,7 +293,7 @@ jobs:
           --junitxml=test-results/browser-${{ matrix.suite }}.xml
       - name: Firefox presentation journeys
         if: >-
-          !cancelled() && matrix.suite == 'runtime-1' &&
+          !cancelled() && matrix.browsers == 'chromium firefox' &&
           (success() || steps.browser_tests.outcome == 'failure')
         env:
           ARTIFACT_STUDIO_TEST_BROWSER: firefox

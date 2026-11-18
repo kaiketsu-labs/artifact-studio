@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
-from playwright.sync_api import Browser, Page, expect, sync_playwright
+from playwright.sync_api import Browser, Page, expect
 
 from artifact_studio.agent_client import Invocation
 from artifact_studio.artifacts import ArtifactStore
@@ -293,7 +293,7 @@ def test_focused_question_stays_visible_when_chat_height_shrinks(
 
 @pytest.mark.parametrize("surface", ["presentation", "artifact", "together"])
 def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
-    tmp_path: Path, surface: str
+    tmp_path: Path, surface: str, browser: Browser
 ) -> None:
     with (
         running_multiplayer_app(
@@ -304,7 +304,6 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
         ) as app,
         human(app, "owner") as owner,
         human(app, "alice") as alice,
-        sync_playwright() as playwright,
     ):
         artifact = app.deck_id if surface == "presentation" else app.artifact_id
         accept(alice, grant(owner, "alice", artifact))
@@ -366,131 +365,123 @@ def test_hosted_two_people_agent_threads_do_not_cross_private_channels(
                     else "PRIVATE REPLY SENTINEL",
                     request_id=f"thread-reply-{event['id']}",
                 )
-        browser = playwright.chromium.launch()
-        try:
-            shared_replies = 1
-            for identity in ("owner", "alice"):
-                with routed_multiplayer_context(browser, app, identity) as context:
-                    page = context.new_page()
+        shared_replies = 1
+        for identity in ("owner", "alice"):
+            with routed_multiplayer_context(browser, app, identity) as context:
+                page = context.new_page()
+                if surface == "presentation":
+                    path, list_selector = (
+                        f"/?deck={artifact}#cover",
+                        "#feedback-list",
+                    )
+                elif surface == "artifact":
+                    path, list_selector = (
+                        f"/?artifact={artifact}",
+                        "#hub-thread",
+                    )
+                else:
+                    path, list_selector = (
+                        f"/?workspace=default&artifact={artifact}",
+                        "#messages",
+                    )
+                page.goto(WORKSPACE + path)
+                thread = page.locator(list_selector + " .chat-replies")
+                expect(thread).to_have_count(1)
+                expect(thread).to_have_attribute("open", "")
+                expect(thread).to_contain_text("Shared response")
+                expect(page.locator(list_selector)).not_to_contain_text("PRIVATE")
+                expect(thread.locator(".chat-reply-origin, .chat-reply-excerpt")).to_have_count(0)
+                main_selector = {
+                    "presentation": "#feedback-text",
+                    "artifact": "#hub-feedback-text",
+                    "together": "#message",
+                }[surface]
+                main = page.locator(main_selector)
+                main.fill(f"Unsent main draft for {identity}.")
+                root = page.locator(list_selector + " .chat-thread").filter(
+                    has_text="Shared response"
+                )
+                expect(root.locator(":scope > article")).to_contain_text("Public launch request")
+                root.locator(".chat-thread-reply").click()
+                expect(root.locator(".chat-thread-compose-label")).to_contain_text(
+                    "Reply to Fictional launch agent"
+                    if identity == "owner"
+                    else "Shared conversation"
+                )
+                inline_message = f"Human {identity} reply on {surface}."
+                root.locator(".chat-thread-input").fill(inline_message)
+                with page.expect_response(
+                    lambda response: (
+                        response.request.method == "POST" and response.url.endswith("/chat")
+                    )
+                ) as sent:
+                    root.get_by_role("button", name="Send reply", exact=True).click()
+                payload = cast(dict[str, object], sent.value.request.post_data_json)
+                assert payload["reply_to"] == parents["shared"]["id"]
+                assert payload["channel"] == "shared"
+                assert payload["assigned"] == (connection["id"] if identity == "owner" else "")
+                assert sent.value.ok
+                saved = cast(dict[str, object], sent.value.json())
+                assert saved["target"] == parents["shared"]["target"]
+                expect(thread).to_contain_text(inline_message)
+                shared_replies += 1
+                expect(thread.locator("summary")).to_contain_text(f"{shared_replies} replies")
+                expect(main).to_have_value(f"Unsent main draft for {identity}.")
+                root.locator(".chat-thread-input").fill(f"Unsent thread draft for {identity}.")
+                # Identical human text must not cause the other user's request to be grouped.
+                expect(
+                    page.locator(list_selector + " > .chat-thread > article").filter(
+                        has_text="Public launch request"
+                    )
+                ).to_have_count(2)
+                thread.locator("summary").click()
+                alice.post(
+                    endpoint + "/chat",
+                    json={
+                        "message": "Another visible comment",
+                        "request_id": f"poll-{surface}-{identity}",
+                    },
+                ).raise_for_status()
+                expect(page.locator(list_selector)).to_contain_text(
+                    "Another visible comment", timeout=20000
+                )
+                expect(thread).not_to_have_attribute("open", "")
+
+                def switch(channel: str, page: Page = page) -> None:
                     if surface == "presentation":
-                        path, list_selector = (
-                            f"/?deck={artifact}#cover",
-                            "#feedback-list",
-                        )
+                        page.locator(f"#chat-tab-{channel}").click()
                     elif surface == "artifact":
-                        path, list_selector = (
-                            f"/?artifact={artifact}",
-                            "#hub-thread",
-                        )
+                        page.locator("#hub-shared-channel").select_option(channel)
                     else:
-                        path, list_selector = (
-                            f"/?workspace=default&artifact={artifact}",
-                            "#messages",
-                        )
-                    page.goto(WORKSPACE + path)
-                    thread = page.locator(list_selector + " .chat-replies")
-                    expect(thread).to_have_count(1)
+                        page.locator(f'[data-channel="{channel}"]').click()
+
+                if surface == "artifact":
+                    # Artifact chat keeps its existing main-draft switch guard.
+                    switch("private")
+                    expect(page.locator("#hub-shared-channel")).to_have_value("shared")
+                    expect(main).to_have_value(f"Unsent main draft for {identity}.")
+                    main.fill("")
+                switch("private")
+                if identity == "owner":
                     expect(thread).to_have_attribute("open", "")
-                    expect(thread).to_contain_text("Shared response")
-                    expect(page.locator(list_selector)).not_to_contain_text("PRIVATE")
+                    expect(thread).to_contain_text("PRIVATE REPLY SENTINEL")
+                    expect(page.locator(list_selector + " .chat-thread > article")).to_contain_text(
+                        ["PRIVATE THREAD SENTINEL"]
+                    )
                     expect(thread.locator(".chat-reply-origin, .chat-reply-excerpt")).to_have_count(
                         0
                     )
-                    main_selector = {
-                        "presentation": "#feedback-text",
-                        "artifact": "#hub-feedback-text",
-                        "together": "#message",
-                    }[surface]
-                    main = page.locator(main_selector)
-                    main.fill(f"Unsent main draft for {identity}.")
-                    root = page.locator(list_selector + " .chat-thread").filter(
-                        has_text="Shared response"
-                    )
-                    expect(root.locator(":scope > article")).to_contain_text(
-                        "Public launch request"
-                    )
-                    root.locator(".chat-thread-reply").click()
-                    expect(root.locator(".chat-thread-compose-label")).to_contain_text(
-                        "Reply to Fictional launch agent"
-                        if identity == "owner"
-                        else "Shared conversation"
-                    )
-                    inline_message = f"Human {identity} reply on {surface}."
-                    root.locator(".chat-thread-input").fill(inline_message)
-                    with page.expect_response(
-                        lambda response: (
-                            response.request.method == "POST" and response.url.endswith("/chat")
-                        )
-                    ) as sent:
-                        root.get_by_role("button", name="Send reply", exact=True).click()
-                    payload = cast(dict[str, object], sent.value.request.post_data_json)
-                    assert payload["reply_to"] == parents["shared"]["id"]
-                    assert payload["channel"] == "shared"
-                    assert payload["assigned"] == (connection["id"] if identity == "owner" else "")
-                    assert sent.value.ok
-                    saved = cast(dict[str, object], sent.value.json())
-                    assert saved["target"] == parents["shared"]["target"]
-                    expect(thread).to_contain_text(inline_message)
-                    shared_replies += 1
-                    expect(thread.locator("summary")).to_contain_text(f"{shared_replies} replies")
-                    expect(main).to_have_value(f"Unsent main draft for {identity}.")
-                    root.locator(".chat-thread-input").fill(f"Unsent thread draft for {identity}.")
-                    # Identical human text must not cause the other user's request to be grouped.
-                    expect(
-                        page.locator(list_selector + " > .chat-thread > article").filter(
-                            has_text="Public launch request"
-                        )
-                    ).to_have_count(2)
-                    thread.locator("summary").click()
-                    alice.post(
-                        endpoint + "/chat",
-                        json={
-                            "message": "Another visible comment",
-                            "request_id": f"poll-{surface}-{identity}",
-                        },
-                    ).raise_for_status()
-                    expect(page.locator(list_selector)).to_contain_text(
-                        "Another visible comment", timeout=20000
-                    )
-                    expect(thread).not_to_have_attribute("open", "")
-
-                    def switch(channel: str, page: Page = page) -> None:
-                        if surface == "presentation":
-                            page.locator(f"#chat-tab-{channel}").click()
-                        elif surface == "artifact":
-                            page.locator("#hub-shared-channel").select_option(channel)
-                        else:
-                            page.locator(f'[data-channel="{channel}"]').click()
-
-                    if surface == "artifact":
-                        # Artifact chat keeps its existing main-draft switch guard.
-                        switch("private")
-                        expect(page.locator("#hub-shared-channel")).to_have_value("shared")
-                        expect(main).to_have_value(f"Unsent main draft for {identity}.")
-                        main.fill("")
-                    switch("private")
-                    if identity == "owner":
-                        expect(thread).to_have_attribute("open", "")
-                        expect(thread).to_contain_text("PRIVATE REPLY SENTINEL")
-                        expect(
-                            page.locator(list_selector + " .chat-thread > article")
-                        ).to_contain_text(["PRIVATE THREAD SENTINEL"])
-                        expect(
-                            thread.locator(".chat-reply-origin, .chat-reply-excerpt")
-                        ).to_have_count(0)
-                    else:
-                        expect(thread).to_have_count(0)
-                        expect(page.locator(list_selector)).not_to_contain_text("PRIVATE")
-                    expect(page.locator(list_selector)).not_to_contain_text("Shared response")
-                    switch("shared")
-                    expect(thread.locator("summary")).to_contain_text(f"{shared_replies} replies")
-                    expect(thread).not_to_have_attribute("open", "")
-                    thread.locator("summary").click()
-                    expect(root.locator(".chat-thread-input")).to_have_value(
-                        f"Unsent thread draft for {identity}."
-                    )
-                    expect(main).to_have_value(
-                        "" if surface == "artifact" else f"Unsent main draft for {identity}."
-                    )
-        finally:
-            browser.close()
+                else:
+                    expect(thread).to_have_count(0)
+                    expect(page.locator(list_selector)).not_to_contain_text("PRIVATE")
+                expect(page.locator(list_selector)).not_to_contain_text("Shared response")
+                switch("shared")
+                expect(thread.locator("summary")).to_contain_text(f"{shared_replies} replies")
+                expect(thread).not_to_have_attribute("open", "")
+                thread.locator("summary").click()
+                expect(root.locator(".chat-thread-input")).to_have_value(
+                    f"Unsent thread draft for {identity}."
+                )
+                expect(main).to_have_value(
+                    "" if surface == "artifact" else f"Unsent main draft for {identity}."
+                )
