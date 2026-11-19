@@ -6,7 +6,21 @@ The supported subset includes horizontal text with available installed fonts, ru
 
 Unsupported examples include slide animations and transitions, text autofit, bullets, vertical text, text effects, unsupported colors and fonts, dashed outlines and many shape effects, merged table cells, and unsupported chart types or chart formatting. Import errors identify the slide and object where possible. Simplify the source or install the required fonts and try again. Exact feature support depends on the source object's properties; the list above is not exhaustive.
 
-## Reference comparison
+## Microsoft PowerPoint reference comparison
+
+On 19 November 2026, the three-slide Field Trial deck was imported through the project dialog. Each editor and presenter slide was captured in Chromium at 1920 × 1080 with Arial installed. The independent reference images were supplied with the source deck and identified in its manifest as exports from PowerPoint for Mac 16.115.1.
+
+| Slide | What was inspected | Editor mean RGB difference / pixels over threshold | Presenter mean RGB difference / pixels over threshold |
+| --- | --- | --- | --- |
+| 1 | Master accent and title placement | 1.47 / 1.28% | 1.83 / 1.51% |
+| 2 | Formatted table and two-series clustered column chart | 2.15 / 2.11% | 2.12 / 2.35% |
+| 3 | Cropped picture and wrapped text | 0.80 / 0.70% | 0.89 / 0.85% |
+
+Mean difference is the mean absolute channel difference on a 0–255 scale. A pixel counts as over threshold when any RGB channel differs by more than 16. Small text offsets, line weights and legend placement remain visible. The embedded photo crop and master accent align closely. Editing a chart value from 24 to 29, then saving and reopening, produced a bar at 72.5% of the fixed 0–40 axis in the presenter.
+
+A separate dashboard deck was rejected before any project changes. The import dialog identified the percent-stacked horizontal chart, two theme-styled tables, a hidden object and text autofit. These input files and reference images are kept outside the repository. The 4:3 fixture below has a LibreOffice reference only.
+
+## LibreOffice reference comparison
 
 On 18 November 2026, both slides of the fictional [Garden presentation](../tests/fixtures/fictional-garden.pptx) and the single 4:3 slide of [Layers presentation](../tests/fixtures/fictional-layers.pptx) were independently opened with LibreOfficeDev 26.8.0.0.alpha0 and exported to PDF. The same fixtures were imported in Studio and cropped from the editor and presenter in Chromium. PDF pages were rendered at the exact dimensions of each crop for measurements; the side-by-side images below are resized for display. LibreOffice is an independent implementation, **not Microsoft PowerPoint**. No Microsoft PowerPoint reference rendering was available for either fixture.
 

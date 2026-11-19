@@ -62,20 +62,88 @@ def _table(table: ET.Element, width: int, fonts: dict[str, str], colors: dict[st
             if len(runs) > 1 or len(cell.findall(f"{A}txBody/{A}p")) > 1:
                 raise ValueError("mixed formatting or multiple table paragraphs are unsupported")
             props = cell.find(f"{A}tcPr")
-            if props is not None and (
-                props.attrib or any(child.tag != f"{A}solidFill" for child in props)
-            ):
-                raise ValueError("custom table cell borders, margins or alignment are unsupported")
-            style = (
-                "border:1px solid #000;padding:0.5cqw 1cqw;"
-                "vertical-align:top;overflow-wrap:anywhere"
-            )
+            style = "border:1px solid #000;padding:0.5cqw 1cqw;vertical-align:top"
+            if props is not None:
+                if set(props.attrib) - {"marL", "marR", "marT", "marB", "anchor"} or any(
+                    child.tag not in {f"{A}solidFill", f"{A}lnL", f"{A}lnR", f"{A}lnT", f"{A}lnB"}
+                    for child in props
+                ):
+                    raise ValueError("unsupported table cell properties")
+                for attr, side in (
+                    ("marL", "left"),
+                    ("marR", "right"),
+                    ("marT", "top"),
+                    ("marB", "bottom"),
+                ):
+                    if (margin := props.get(attr)) is not None:
+                        if not margin.isdecimal():
+                            raise ValueError("invalid table cell margin")
+                        style += f";padding-{side}:{int(margin) / width * 100:.6f}cqw"
+                anchor = props.get("anchor", "t")
+                if anchor not in {"t", "ctr", "b"}:
+                    raise ValueError("unsupported table cell alignment")
+                style += ";vertical-align:" + {"t": "top", "ctr": "middle", "b": "bottom"}[anchor]
+                for tag, side in (
+                    ("lnL", "left"),
+                    ("lnR", "right"),
+                    ("lnT", "top"),
+                    ("lnB", "bottom"),
+                ):
+                    line = props.find(f"{A}{tag}")
+                    if line is None:
+                        continue
+                    dash = line.find(f"{A}prstDash")
+                    if (
+                        set(line.attrib) - {"w", "cap", "cmpd", "algn"}
+                        or line.get("cap", "flat") != "flat"
+                        or line.get("cmpd", "sng") != "sng"
+                        or line.get("algn", "ctr") != "ctr"
+                        or any(
+                            child.tag
+                            not in {
+                                f"{A}solidFill",
+                                f"{A}prstDash",
+                                f"{A}round",
+                                f"{A}headEnd",
+                                f"{A}tailEnd",
+                            }
+                            for child in line
+                        )
+                        or any(
+                            end.get("type", "none") != "none"
+                            for end in (line.findall(f"{A}headEnd") + line.findall(f"{A}tailEnd"))
+                        )
+                        or (dash is not None and dash.get("val") != "solid")
+                    ):
+                        raise ValueError("unsupported table cell border")
+                    line_width = line.get("w", "")
+                    fill = line.find(f"{A}solidFill")
+                    if not line_width.isdecimal() or fill is None:
+                        raise ValueError("invalid table cell border")
+                    style += (
+                        f";border-{side}:{int(line_width) / width * 100:.6f}cqw "
+                        f"solid {color(fill, colors)}"
+                    )
+            paragraph = cell.find(f"{A}txBody/{A}p/{A}pPr")
+            if paragraph is not None:
+                if (
+                    set(paragraph.attrib) - {"indent", "marL", "algn"}
+                    or paragraph.get("indent", "0") != "0"
+                    or paragraph.get("marL", "0") != "0"
+                    or any(child.tag != f"{A}buNone" for child in paragraph)
+                ):
+                    raise ValueError("unsupported table paragraph styling")
+                align = paragraph.get("algn", "l")
+                if align not in {"l", "ctr", "r"}:
+                    raise ValueError("unsupported table paragraph alignment")
+                style += ";text-align:" + {"l": "left", "ctr": "center", "r": "right"}[align]
             run = cell.find(f"{A}txBody/{A}p/{A}r/{A}rPr")
             if text and run is None:
                 raise ValueError("table text requires explicit font styling")
             if run is not None:
                 if set(run.attrib) - {"sz", "b", "i", "lang", "dirty"} or any(
-                    child.tag not in {f"{A}solidFill", f"{A}latin"} for child in run
+                    child.tag not in {f"{A}solidFill", f"{A}latin", f"{A}ea", f"{A}cs"}
+                    for child in run
                 ):
                     raise ValueError("unsupported table text styling")
                 size = run.get("sz", "")
@@ -86,6 +154,11 @@ def _table(table: ET.Element, width: int, fonts: dict[str, str], colors: dict[st
                 if font_node is None or not font_node.get("typeface"):
                     raise ValueError("table text requires an explicit font family")
                 family = font_node.get("typeface", "")
+                if any(
+                    node.get("typeface") != family
+                    for node in (run.findall(f"{A}ea") + run.findall(f"{A}cs"))
+                ):
+                    raise ValueError("mixed script table fonts are unsupported")
                 style += f";font-family:{html.escape(font(family, fonts), quote=True)}"
                 if run.get("b") == "1":
                     style += ";font-weight:bold"
@@ -150,15 +223,17 @@ def _xml(data: bytes) -> ET.Element:
 
 def _workbook_values(data: bytes, formula: str) -> list[str]:
     """Read a simple contiguous chart range from an embedded XLSX workbook."""
-    match = re.fullmatch(r"(?:'([^']+)'|([^'!]+))!\$?([A-Z]+)\$?(\d+):\$?([A-Z]+)\$?(\d+)", formula)
+    match = re.fullmatch(
+        r"(?:'([^']+)'|([^'!]+))!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?", formula
+    )
     if not match:
         raise ValueError("unsupported chart workbook range")
     sheet_name = match.group(1) or match.group(2)
     col1, row1, col2, row2 = (
         match.group(3),
         int(match.group(4)),
-        match.group(5),
-        int(match.group(6)),
+        match.group(5) or match.group(3),
+        int(match.group(6) or match.group(4)),
     )
     if col1 != col2 or row1 < 1 or row2 < row1 or row2 - row1 > 10000:
         raise ValueError("unsupported chart workbook range")
@@ -256,6 +331,7 @@ def _chart(
     colors: dict[str, str],
     fonts: dict[str, str],
     width: int,
+    height: int | None = None,
 ) -> str:
     root = _xml(data)
     plot = root.find(f".//{C}plotArea")
@@ -265,14 +341,22 @@ def _chart(
     if len(kinds) != 1 or kinds[0].tag != f"{C}barChart":
         raise ValueError("unsupported chart type")
     chart = kinds[0]
-    if chart.find(f"{C}barDir") is None or chart.find(f"{C}barDir").get("val") != "col":  # type: ignore[union-attr]
+    direction = chart.find(f"{C}barDir")
+    if direction is None or direction.get("val") != "col":
+        grouping = chart.find(f"{C}grouping")
+        if direction is not None and direction.get("val") == "bar":
+            if grouping is not None and grouping.get("val") == "percentStacked":
+                raise ValueError("100% stacked horizontal bar charts are unsupported")
+            raise ValueError("horizontal bar charts are unsupported")
         raise ValueError("unsupported chart direction")
     grouping = chart.find(f"{C}grouping")
     if grouping is not None and grouping.get("val") not in ("clustered", "standard"):
         raise ValueError("unsupported chart grouping")
     series = chart.findall(f"{C}ser")
     if len(series) != 1:
-        raise ValueError("only single-series charts are supported")
+        from artifact_studio.powerpoint.clustered_chart import clustered_chart
+
+        return clustered_chart(root, part, read_part, resolve, width, height or width, fonts)
     labels = _points(series[0].find(f"{C}cat"))
     raw = _points(series[0].find(f"{C}val"))
     if not labels or len(labels) != len(raw):
@@ -449,6 +533,13 @@ def graphic(
             raise ValueError("missing chart relationship")
         chart_part = resolve(part, relationship)
         return _chart(
-            read_part(chart_part), chart_part, read_part, resolve, colors or {}, fonts or {}, width
+            read_part(chart_part),
+            chart_part,
+            read_part,
+            resolve,
+            colors or {},
+            fonts or {},
+            width,
+            height,
         )
     raise ValueError("unsupported graphic frame")

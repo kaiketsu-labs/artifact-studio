@@ -100,7 +100,7 @@ class Painter:
     defaults: list[ET.Element]
     master: ET.Element
     assets: dict[str, bytes]
-    object_ids: set[str] = field(default_factory=set)
+    object_counts: dict[str, int] = field(default_factory=dict)
     titles: list[str] = field(default_factory=list)
     labels: list[str] = field(default_factory=list)
 
@@ -179,8 +179,10 @@ class Painter:
                 im.verify()
         filename = hashlib.sha256(image).hexdigest() + "." + fmt
         self.assets[filename] = image
-        stretch = required(fill, f"{A}stretch/{A}fillRect")
-        if any(int(v) for v in stretch.attrib.values()):
+        stretch = required(fill, A + "stretch")
+        check_children(stretch, {"fillRect"})
+        rect = stretch.find(A + "fillRect")
+        if rect is not None and any(int(v) for v in rect.attrib.values()):
             raise ValueError("Picture fill offsets are unsupported.")
         crop = fill.find(A + "srcRect")
         left, top, right, bottom = [
@@ -224,9 +226,11 @@ class Painter:
                 raise ValueError("Hidden objects are unsupported.")
             sid = int(nv.attrib["id"])
             key = f"pptx-{layer}-{sid}"
-            if key in self.object_ids:
-                raise ValueError("Duplicate object ID.")
-            self.object_ids.add(key)
+            occurrence = self.object_counts.get(key, 0) + 1
+            self.object_counts[key] = occurrence
+            if occurrence > 1:
+                # Some PowerPoint-readable producers reuse IDs for different object types.
+                key = f"{key}-{occurrence}"
             for e in shape.iter():
                 if local(e) in {
                     "videoFile",
@@ -326,7 +330,15 @@ class Painter:
                         css += (
                             f"background-color:{self.color(theme_fill, self.color(fill_ref)[1:])};"
                         )
-                line = first(props, A + "ln")
+                # An empty a:ln contributes no override to the inherited outline.
+                line = next(
+                    (
+                        ln
+                        for prop in props
+                        if (ln := prop.find(A + "ln")) is not None and (len(ln) or ln.attrib)
+                    ),
+                    None,
+                )
                 line_ref = style.find(A + "lnRef") if style is not None else None
                 if line is None and line_ref is not None:
                     line = self.theme_style(line_ref, "lnStyleLst")
@@ -378,7 +390,6 @@ class Painter:
                     if text and layer == "slide":
                         (self.titles if title else self.labels).append(text)
                         title_marker = f' data-pptx-title="{"title" if title else "fallback"}"'
-            key = f"pptx-{layer}-{sid}"
             group_marker = ' data-pptx-group="true"' if group else ""
             return (
                 f'<div id="{key}" data-element-id="{key}" '
@@ -462,6 +473,7 @@ def compile_slides(pkg: Package) -> tuple[list[Slide], dict[str, bytes]]:
             )
             trees = [required(layer, f"{P}cSld/{P}spTree") for layer in layers]
             objects: list[str] = []
+            rejected: list[str] = []
             for source, tree, label in (
                 (master_part, trees[2], "master"),
                 (layout_part, trees[1], "layout"),
@@ -496,9 +508,21 @@ def compile_slides(pkg: Package) -> tuple[list[Slide], dict[str, bytes]]:
                         match = inherited(chain[-1] if chain else shape, trees[2], master=True)
                         if match is not None:
                             chain.append(match)
-                    objects.append(
-                        paint.draw(shape, chain, source, label, Canvas(0, 0, width, height, width))
+                    try:
+                        objects.append(
+                            paint.draw(
+                                shape, chain, source, label, Canvas(0, 0, width, height, width)
+                            )
+                        )
+                    except ValueError as exc:
+                        rejected.append(str(exc))
+            if rejected:
+                failures.extend(f"Slide {i}, {reason}" for reason in rejected[:12])
+                if len(rejected) > 12:
+                    failures.append(
+                        f"Slide {i} has {len(rejected) - 12} additional unsupported objects."
                     )
+                continue
             background = paint.background(layers)
             markup = (
                 f'<article class="slide" data-pptx-width="{width}" data-pptx-height="{height}" '

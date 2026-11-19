@@ -102,3 +102,31 @@ def test_imported_shape_transform_revision_and_group_rejection(
     assert store.view(TEMPLATE_ID).slides[0].html == saved.html
     assert client.post(endpoint, json={**body, "dx": 0.2}).status_code == 409
     assert client.post(endpoint, json={**body, "request_id": "transform-2"}).status_code == 409
+
+
+def test_clustered_value_edit_preserves_other_bars_and_fixed_scale() -> None:
+    from artifact_studio.powerpoint.edit import edit_pptx_text
+
+    def group(value: int, height: str) -> str:
+        return (
+            '<div data-chart-fixed-max="40">'
+            f'<div data-chart-bar="" style="height:{height}%"></div>'
+            f'<span data-chart-value="{value}" aria-label="Chart value {value}" '
+            f'style="height:{height}%">{value}</span></div>'
+        )
+
+    def slide(first_group: str) -> str:
+        return (
+            '<article data-pptx-width="100" data-pptx-height="50">'
+            '<div data-pptx-chart="column" data-chart-max="40">'
+            + first_group
+            + group(32, "80")
+            + "</div></article>"
+        )
+
+    source = slide(group(24, "60"))
+    target = [0, 0, 1]
+    for value, height in ((29, "72.5000"), (0, "0.0000")):
+        assert edit_pptx_text(source, target, str(value)) == slide(group(value, height))
+    with pytest.raises(ValueError, match="fixed axis"):
+        edit_pptx_text(source, target, "41")

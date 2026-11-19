@@ -74,6 +74,22 @@ class Tree(HTMLParser):
         self.current = self.current.parent or self.root
 
 
+def _resized_bar(source: str, bar: Node, percentage: float) -> tuple[int, int, str]:
+    tag = source[bar.start : bar.content]
+    result, count = re.subn(r"(?<![\w-])height:[0-9.]+%", f"height:{percentage:.4f}%", tag, count=1)
+    if count != 1:
+        raise ValueError("Unsupported chart bar geometry.")
+    return bar.start, bar.content, result
+
+
+def _value_tag(tag: str, text: str) -> str:
+    label = html.escape(text, quote=True)
+    tag = re.sub(r'data-chart-value="[^"]*"', lambda _: f'data-chart-value="{label}"', tag, count=1)
+    return re.sub(
+        r'aria-label="[^"]*"', lambda _: f'aria-label="Chart value {label}"', tag, count=1
+    )
+
+
 def edit_pptx_text(source: str, path: list[int], text: str) -> str:
     """Replace one leaf and update a chart's bars, preserving all other source bytes."""
     tree = Tree(source)
@@ -109,79 +125,72 @@ def edit_pptx_text(source: str, path: list[int], text: str) -> str:
             raise ValueError("Chart values must be finite nonnegative numbers.") from exc
         if not math.isfinite(value) or number < 0 or (number != 0 and not 1e-300 <= value <= 1e300):
             raise ValueError("Chart values must be zero or between 1e-300 and 1e300.")
-        chart = node.parent.parent if node.parent else None
-        if chart is None or chart.attrs.get("data-pptx-chart") != "column":
-            raise ValueError("Unsupported chart structure.")
-        values: list[float] = []
-        bars: list[Node] = []
-        for group in chart.children:
-            if "data-chart-tick" in group.attrs or "data-chart-title" in group.attrs:
-                continue
-            value_nodes = [child for child in group.children if "data-chart-value" in child.attrs]
-            bar_nodes = [child for child in group.children if "data-chart-bar" in child.attrs]
-            if len(value_nodes) != 1 or len(bar_nodes) != 1:
+        group = node.parent
+        if group is not None and "data-chart-fixed-max" in group.attrs:
+            maximum = float(group.attrs["data-chart-fixed-max"] or "0")
+            if not math.isfinite(maximum) or maximum <= 0 or value > maximum:
+                raise ValueError("Chart value exceeds the fixed axis range.")
+            bars = [child for child in group.children if "data-chart-bar" in child.attrs]
+            if len(bars) != 1 or len(group.children) != 2:
                 raise ValueError("Unsupported chart structure.")
-            values.append(
-                value
-                if value_nodes[0] is node
-                else float(value_nodes[0].attrs["data-chart-value"] or "")
-            )
-            bars.append(bar_nodes[0])
-        if any(not math.isfinite(v) or v < 0 or (v and not 1e-300 <= v <= 1e300) for v in values):
-            raise ValueError("Chart values must be zero or between 1e-300 and 1e300.")
-        maximum = max(values) or 1
-        magnitude = 10 ** math.floor(math.log10(maximum))
-        maximum = math.ceil(maximum / magnitude) * magnitude
-        chart_tag = source[chart.start : chart.content]
-        updated, count = re.subn(
-            r'data-chart-max="[^"]*"', f'data-chart-max="{maximum:g}"', chart_tag, count=1
-        )
-        if count != 1:
-            raise ValueError("Unsupported chart structure.")
-        edits.append((chart.start, chart.content, updated))
-        for tick in chart.children:
-            if "data-chart-tick" in tick.attrs:
-                ratio = float(tick.attrs["data-chart-tick"] or "")
-                if not 0 <= ratio <= 1 or len(tick.children) != 1:
+            percent = 100 * (value / maximum)
+            edits.append(_resized_bar(source, bars[0], percent))
+            start, end, tag = _resized_bar(source, node, percent)
+            edits.append((start, end, _value_tag(tag, text)))
+        else:
+            chart = node.parent.parent if node.parent else None
+            if chart is None or chart.attrs.get("data-pptx-chart") != "column":
+                raise ValueError("Unsupported chart structure.")
+            values: list[float] = []
+            bars: list[Node] = []
+            for group in chart.children:
+                if "data-chart-tick" in group.attrs or "data-chart-title" in group.attrs:
+                    continue
+                value_nodes = [
+                    child for child in group.children if "data-chart-value" in child.attrs
+                ]
+                bar_nodes = [child for child in group.children if "data-chart-bar" in child.attrs]
+                if len(value_nodes) != 1 or len(bar_nodes) != 1:
                     raise ValueError("Unsupported chart structure.")
-                label = tick.children[0]
-                if label.children or not label.end:
-                    raise ValueError("Unsupported chart structure.")
-                edits.append((label.content, label.end, f"{maximum * ratio:g}"))
-        for bar, number in zip(bars, values, strict=True):
-            start_tag = source[bar.start : bar.content]
+                values.append(
+                    value
+                    if value_nodes[0] is node
+                    else float(value_nodes[0].attrs["data-chart-value"] or "")
+                )
+                bars.append(bar_nodes[0])
+            if any(
+                not math.isfinite(v) or v < 0 or (v and not 1e-300 <= v <= 1e300) for v in values
+            ):
+                raise ValueError("Chart values must be zero or between 1e-300 and 1e300.")
+            maximum = max(values) or 1
+            magnitude = 10 ** math.floor(math.log10(maximum))
+            maximum = math.ceil(maximum / magnitude) * magnitude
+            chart_tag = source[chart.start : chart.content]
             updated, count = re.subn(
-                r"height:[0-9.]+%", f"height:{number / maximum * 70:.4f}%", start_tag, count=1
+                r'data-chart-max="[^"]*"', f'data-chart-max="{maximum:g}"', chart_tag, count=1
             )
             if count != 1:
                 raise ValueError("Unsupported chart structure.")
-            edits.append((bar.start, bar.content, updated))
-            if bar.parent is None:
-                raise ValueError("Unsupported chart structure.")
-            value_node = next(
-                child for child in bar.parent.children if "data-chart-value" in child.attrs
-            )
-            value_tag = source[value_node.start : value_node.content]
-            if value_node is node:
-                value_tag = re.sub(
-                    r'data-chart-value="[^"]*"',
-                    'data-chart-value="' + html.escape(text, quote=True) + '"',
-                    value_tag,
-                    count=1,
+            edits.append((chart.start, chart.content, updated))
+            for tick in chart.children:
+                if "data-chart-tick" in tick.attrs:
+                    ratio = float(tick.attrs["data-chart-tick"] or "")
+                    if not 0 <= ratio <= 1 or len(tick.children) != 1:
+                        raise ValueError("Unsupported chart structure.")
+                    label = tick.children[0]
+                    if label.children or not label.end:
+                        raise ValueError("Unsupported chart structure.")
+                    edits.append((label.content, label.end, f"{maximum * ratio:g}"))
+            for bar, number in zip(bars, values, strict=True):
+                percent = number / maximum * 70
+                edits.append(_resized_bar(source, bar, percent))
+                if bar.parent is None:
+                    raise ValueError("Unsupported chart structure.")
+                value_node = next(
+                    child for child in bar.parent.children if "data-chart-value" in child.attrs
                 )
-            if value_node is node:
-                value_tag = re.sub(
-                    r'aria-label="[^"]*"',
-                    'aria-label="Chart value ' + html.escape(text, quote=True) + '"',
-                    value_tag,
-                    count=1,
-                )
-            value_tag, count = re.subn(
-                r"height:[0-9.]+%", f"height:{number / maximum * 70:.4f}%", value_tag, count=1
-            )
-            if count != 1:
-                raise ValueError("Unsupported chart structure.")
-            edits.append((value_node.start, value_node.content, value_tag))
+                start, end, tag = _resized_bar(source, value_node, percent)
+                edits.append((start, end, _value_tag(tag, text) if value_node is node else tag))
     for start, end, value in sorted(edits, reverse=True):
         source = source[:start] + value + source[end:]
     return source

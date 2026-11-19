@@ -98,3 +98,43 @@ def test_simultaneous_import_retries_and_original_media(tmp_path: Path) -> None:
     with pytest.raises(ConflictError):
         _ = import_powerpoint(store, project.id, "Layers", encoded, "shared-key")
     assert hub.get_artifact(first.id).project_id == other.id
+
+
+def test_visible_objects_survive_empty_outline_duplicate_id_and_default_stretch() -> None:
+    from artifact_studio.powerpoint.importer import compile_slides
+    from artifact_studio.powerpoint.package import Package
+
+    package = Package(fictional_layers_powerpoint())
+    with package.archive:
+        slide = package.xml("ppt/slides/slide1.xml")
+        picture = next(slide.iter(P + "pic"))
+        stretch = next(picture.iter(A + "stretch"))
+        stretch.clear()
+        shape = next(slide.iter(P + "sp"))
+        props = next(shape.iter(P + "spPr"))
+        for line in props.findall(A + "ln"):
+            props.remove(line)
+        _ = ET.SubElement(props, A + "ln")
+        shared_id = next(shape.iter(P + "cNvPr")).attrib["id"]
+        next(picture.iter(P + "cNvPr")).set("id", shared_id)
+        slides, images = compile_slides(package)
+    assert f'id="pptx-slide-{shared_id}"' in slides[0].html
+    assert f'id="pptx-slide-{shared_id}-2"' in slides[0].html
+    assert len(images) == 1
+
+
+def test_distinct_unsupported_objects_are_reported_together() -> None:
+    from artifact_studio.powerpoint.importer import compile_slides
+    from artifact_studio.powerpoint.package import Package
+
+    package = Package(fictional_powerpoint())
+    with package.archive:
+        for name, shape in enumerate(package.xml("ppt/slides/slide2.xml").iter(P + "graphicFrame")):
+            props = next(shape.iter(P + "cNvPr"))
+            props.set("name", f"Fictional object {name}")
+            props.set("hidden", "1")
+        with pytest.raises(ValueError) as result:
+            compile_slides(package)
+    assert all(
+        f"Slide 2, Fictional object {i}: Hidden objects" in str(result.value) for i in (0, 1)
+    )
