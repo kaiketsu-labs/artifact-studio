@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.3...v0.11.0) (2026-11-19)
+
+
+### Features
+
+* import and export editable PowerPoint presentations ([#247](https://github.com/kaiketsu-labs/artifact-studio/issues/247)) ([c85ac98](https://github.com/kaiketsu-labs/artifact-studio/commit/c85ac9824bc5ca09a16ef6b37c506f6bf1d271a7))
+
+
+### Bug Fixes
+
+* **deps:** bump astral-sh/uv from 0.13.8 to 0.13.9 ([#246](https://github.com/kaiketsu-labs/artifact-studio/issues/246)) ([7ecba84](https://github.com/kaiketsu-labs/artifact-studio/commit/7ecba840d0a3825edf0f0e3d7f0cbdc18f453235))
+
 ## [0.10.3](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.2...v0.10.3) (2026-11-19)
 
 
