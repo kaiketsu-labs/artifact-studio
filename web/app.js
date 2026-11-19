@@ -101,7 +101,13 @@
   const key=()=>`${deck?.id}/${selectedId}`;
   const chatKey=()=>conversationChannel==='private'&&nativeChat?`${key()}/private`:key();
   const slide=()=>deck?.slides.find(item=>item.id===selectedId);
-  const presentationLauncher=window.SlidePresentationLauncher.create({button:$('present-link'),prepare:async()=>{presentationWarmup.cancel();retainDraft();if(!await noteAutosave.flushAll(deck.id+'/'))throw new Error('Some notes have not saved. Retry or review them before presenting.');},onError:message=>toast(message,true),onReturn:id=>{void resumeAfterPresentation(id);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Artifact Studio in Chrome or Firefox.',true)});
+  const presentationLauncher=window.SlidePresentationLauncher.create({button:$('present-link'),getAlternative:presentationAlternative,prepare:async()=>{
+    presentationWarmup.cancel();
+    if(slideDesignOptions?.isBusy()||elementAlternatives?.isBusy())throw new Error('Wait for the design choice to finish saving before presenting.');
+    if(animationPreview.isPlaying())animationPreview.stop();
+    retainDraft();
+    if(!await noteAutosave.flushAll(deck.id+'/'))throw new Error('Some notes have not saved. Retry or review them before presenting.');
+  },onError:message=>toast(message,true),onReturn:(id,preview)=>{void resumeAfterPresentation(id,preview);},onUnavailable:()=>toast('Fullscreen unavailable in this browser. Open Artifact Studio in Chrome or Firefox.',true)});
   const presentationWarmup=window.SlidePresentationWarmup.create({canWarm:()=>!isLoading&&!switchingDeck&&!previewBusy()&&!feedbackSending&&!visibilityBusy&&!copyingSlideImage&&!voice?.isActive()&&!presentationLauncher.isOpen()});
   const starting=()=>deck?.slides.length===1&&slide()?.id==='cover'&&slide()?.revision===1&&['Template draft. Replace with your presentation content.','Your brief is saved. Ready for the first draft.','Tell your agent who this is for and what it should say.'].includes(slide()?.agent.summary);
   const needsBrief=()=>starting()&&!deck.feedback?.length&&!slide()?.feedback?.length;
@@ -125,6 +131,12 @@
     return value?.design_option_id?{design_option_id:value.design_option_id,design_option_name:value.design_option_name,content_hash:value.content_hash}:null;
   }
   function liveProposalContext(){return elementAlternatives?.feedbackContext()||slideDesignOptions?.feedbackContext();}
+  function presentationAlternative(){
+    const option=liveProposalContext();
+    if(option?.element_option_id)return [selectedId,option.element_option_id,option.element_context_hash].join('/');
+    if(option?.design_option_id)return [selectedId,option.design_option_id].join('/');
+    return null;
+  }
   function feedbackDesignContext(){
     const saved=feedbackDraft();
     const pinned=!!(saved?.feedback?.trim()||saved?.target||chatComposer?.hasFiles());
@@ -1250,7 +1262,7 @@
       if(Object.keys(pending).length)localStorage.setItem(storageKey,JSON.stringify(pending));else localStorage.removeItem(storageKey);
     }catch{}
   }
-  async function resumeAfterPresentation(id){await refresh();recoverPresenterNotes();if(deck?.slides.some(item=>item.id===id))await choose(id);}
+  async function resumeAfterPresentation(id,preview){await refresh();recoverPresenterNotes();if(!preview&&!liveProposalContext()&&deck?.slides.some(item=>item.id===id))await choose(id);}
   $('review-notes').addEventListener('click',async()=>{
     const name=key(),[deckId,id]=name.split('/');
     try{

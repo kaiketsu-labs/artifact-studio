@@ -12,7 +12,9 @@ The chosen design uses a heavier gold border and check icon. A blue outline mark
 
 [Hover previews](screenshots/slide-designs-hover.png) · [Compare](screenshots/slide-designs-compare.png) · [Narrow comparison](screenshots/slide-designs-mobile.png) · [Dark appearance](screenshots/slide-designs-dark.png)
 
-**Dismiss suggestions** and **Keep current** retain the existing slide and approval, remove the unreviewed indicator, and preserve the alternatives in History. Undo immediately restores the unreviewed set. **Use this design** adopts the proposal and returns the slide to review. Both actions collapse the options, simplify the chat card and retain Undo. Present and export always use the chosen slide.
+Select an alternative and click **Present** to see it in the slideshow with its saved theme, assets and animation. Advance through numbered builds as usual. **Escape** returns to the preview so you can compare another option. **Present from beginning** and exports use the saved deck.
+
+**Dismiss suggestions** and **Keep current** retain the existing slide and approval, remove the unreviewed indicator, and preserve the alternatives in History. Undo immediately restores the unreviewed set. **Use this design** adopts the proposal and returns the slide to review. Both actions collapse the options, simplify the chat card and retain Undo.
 
 After a decision, the thumbnail count appears on hover/focus and remains directly accessible on touch devices. **Version history → Design decisions & saved alternatives** retains the decision and proposals behind a collapsed section. Load earlier history to retrieve older publication groups. Opening one previews it for another explicit decision. Cancelling or revisiting the slide keeps a completed choice quiet.
 
@@ -70,7 +72,7 @@ Use `publish_element_alternatives` for useful alternatives to one existing stati
 
 The browser shows complete headline/body wording and visual graphic cards. Click or tap through several options while the chooser stays open; clicking outside or closing the chooser keeps the last clicked option. Hovering another card does not replace that choice. Hover alone stays temporary, and **Escape** cancels without saving. A saved choice changes only its target, preserves unrelated content and speaker notes, and returns the changed slide to review. **Undo** restores the previous choice. **Dismiss suggestions** and **Keep current** retain the chosen source and approval and remove the unreviewed indicator. Saved options remain in History; opening an older preview alone does not adopt it. Side-by-side comparison retains its explicit choice buttons so either side can be chosen.
 
-For a current element option with CSS animation or numbered builds, **Play animations** above the canvas replays the selected option without saving it. Switching options stops playback. **Escape** first stops playback; pressing it again cancels the choice. Earlier-context saved previews remain still, with playback disabled so they cannot play the current slide by mistake.
+**Present** rehearses the selected element option in the full slide, including saved earlier contexts. It keeps the choice pending. For a current element option with CSS animation or numbered builds, **Play animations** above the canvas replays it inline. Switching options stops inline playback. **Escape** first stops playback; pressing it again cancels the choice.
 
 Known disjoint element decisions can produce a new full-slide context around an unchanged saved fragment; the earlier context remains readable by hash. If a target, parent design or shared resources changed incompatibly, the saved group is labelled as earlier context and adoption is blocked. Ask for refreshed options rather than applying a retained fragment to another design. A refresh request does not overwrite an unsent chat draft.
 
