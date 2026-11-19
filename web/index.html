@@ -315,10 +315,10 @@
   <header><h2 id="project-dialog-title">Export presentation</h2><button id="close-project" type="button" aria-label="Close"></button></header>
   <p id="project-context" class="project-context" hidden></p>
   <h3 class="project-group-label">Audience exports</h3>
-  <p class="project-group-detail">HTML and PDF omit private notes and feedback.</p>
-  <div class="project-actions"><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
-  <h3 class="project-group-label">Editable copy</h3>
-  <div class="project-actions"><button id="save-project" type="button"></button></div>
+  <p class="project-group-detail">Audience files omit private notes and feedback.</p>
+  <div class="project-actions audience-formats"><button id="export-pptx" type="button"></button><button id="export-html" type="button"></button><button id="export-pdf" type="button"></button></div>
+  <h3 class="project-group-label project-private">Editable copy</h3>
+  <div class="project-actions project-private"><button id="save-project" type="button"></button></div>
   <p id="project-error" class="inline-error" role="alert"></p>
 </dialog>
 <input id="project-file" type="file" accept=".artifact-studio.zip,.zip" hidden>
@@ -382,7 +382,7 @@
   <header><h2 id="design-references-title">Design references</h2><div class="reference-header-actions"><button id="reference-help-button" type="button" aria-label="About reference files" aria-expanded="false" aria-controls="reference-help"></button><button type="button" id="close-design-references" aria-label="Close"></button></div></header>
   <p id="design-references-name"></p>
   <p>Shared by presentations using this design. References do not change slides automatically. Removing deletes the stored file; earlier conversations are unchanged.</p>
-  <div id="reference-help" hidden><p>Your agent can inspect these sources; attaching one does not apply a template or change slides. References stay local unless workspace GitHub sync is enabled. Audience exports exclude them; PowerPoint export is unavailable.</p><p>Removal excludes the source from future reference context. An agent may already have read it; use a new agent chat without that conversation’s history. Existing slides, exports and old chats are unchanged.</p></div>
+  <div id="reference-help" hidden><p>Your agent can inspect these sources; attaching one does not apply a template or change slides. References stay local unless workspace GitHub sync is enabled. Audience exports exclude these references.</p><p>Removal excludes the source from future reference context. An agent may already have read it; use a new agent chat without that conversation’s history. Existing slides, exports and old chats are unchanged.</p></div>
   <div id="design-reference-list" aria-live="polite"></div>
   <button id="retry-design-references" type="button" hidden>Retry loading references</button>
   <label class="sr-only" for="design-reference-input">Add reference files</label>

@@ -1,7 +1,8 @@
 /* The existing editor chrome with actions limited to the shared resource. */
 [data-shared-editor] :is(
   [data-action="context"],
-  #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu [aria-label="Files"],
+  #hub-tools-menu a[href*="editor="]:not([data-new-presentation]), #workspace-menu #new-button, #menu-open-project,
+  #project-dialog .project-private, #export-html, #export-pdf,
   #deck-design-references, #instructions-button, #storage-status,
   #removed-presentations,
   #remove-presentation,

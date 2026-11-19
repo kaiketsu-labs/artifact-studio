@@ -7,6 +7,7 @@ import re
 from contextlib import closing
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlsplit
 from zipfile import ZipFile
 
@@ -1023,3 +1024,88 @@ def test_hosted_agents_author_native_decks_with_their_existing_grants(tmp_path: 
                 request_id="restore-detail",
             )["added_ids"] == ["detail"]
             assert editor.get(recovery).raise_for_status().json() == []
+
+
+def test_project_agent_powerpoint_download_follows_project_access(tmp_path: Path) -> None:
+    """Use the scoped transfer route and verify that its link carries no access credential."""
+    import base64
+
+    from tests.pptx_fixture import fictional_powerpoint
+
+    with (
+        running_multiplayer_app(tmp_path / "app", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        httpx.Client(
+            base_url=app.url, headers={"host": "studio.example.test"}, timeout=30
+        ) as remote,
+    ):
+        accept(alice, grant(owner, "alice", app.project_id, "edit", "project"))
+        connection = (
+            alice.post(
+                "/api/workspaces/default/agents",
+                json={"kind": "project", "resource": app.project_id, "name": "Fictional agent"},
+            )
+            .raise_for_status()
+            .json()
+        )
+        authenticated = {"authorization": f"Bearer {connection['token']}"}
+        deck_id = (
+            remote.post(
+                f"/api/agent/projects/{app.project_id}/powerpoint",
+                headers=authenticated,
+                json={
+                    "title": "Fictional garden",
+                    "data_base64": base64.b64encode(fictional_powerpoint()).decode(),
+                    "request_id": "fictional-unified-export",
+                },
+            )
+            .raise_for_status()
+            .json()["id"]
+        )
+
+        def discover() -> dict[str, object]:
+            result = (
+                remote.post(
+                    "/mcp",
+                    headers={**authenticated, "accept": "application/json, text/event-stream"},
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "tools/call",
+                        "params": {"name": "export_powerpoint", "arguments": {"deck_id": deck_id}},
+                    },
+                )
+                .raise_for_status()
+                .json()["result"]
+            )
+            assert isinstance(result, dict)
+            return cast(dict[str, object], result)
+
+        result = discover()
+        download_path = f"/api/agent/decks/{deck_id}/exports/pptx"
+        assert result["structuredContent"] == {
+            "deck_id": deck_id,
+            "filename": f"{deck_id}.pptx",
+            "download_url": f"{WORKSPACE}{download_path}",
+        }
+        assert remote.get(download_path).status_code == 401
+        assert alice.get(download_path).status_code == 403
+        assert (
+            remote.get(download_path, headers={**authenticated, "origin": WORKSPACE}).status_code
+            == 403
+        )
+        response = remote.get(download_path, headers=authenticated).raise_for_status()
+        assert response.headers["content-type"].endswith(".presentation")
+        assert response.headers["content-disposition"].endswith(f'"{deck_id}.pptx"')
+        with ZipFile(BytesIO(response.content)) as powerpoint:
+            assert "ppt/presentation.xml" in powerpoint.namelist()
+
+        destination = ArtifactStore(app.store).create_project("Fictional private project")
+        _ = ArtifactStore(app.store).set_artifact_project(deck_id, destination.id)
+        assert remote.get(download_path, headers=authenticated).status_code == 404
+        assert discover().get("isError") is True
+
+        _ = ArtifactStore(app.store).set_artifact_project(deck_id, app.project_id)
+        alice.post(f"/api/agents/{connection['id']}/revoke").raise_for_status()
+        assert remote.get(download_path, headers=authenticated).status_code == 401

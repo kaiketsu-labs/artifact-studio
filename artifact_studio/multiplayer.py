@@ -102,6 +102,12 @@ class AgentInput(ScopeInput):
     name: str = Field(min_length=1, max_length=80)
 
 
+class PowerPointUpload(StrictModel):
+    title: str = Field(min_length=1, max_length=160)
+    data_base64: str = Field(max_length=66_666_668)
+    request_id: str = Field(min_length=8, max_length=100)
+
+
 class SharedHistoryInput(StrictModel):
     """Set the history permission for a single agent."""
 
@@ -518,6 +524,49 @@ def create_app(
     ) -> dict[str, bool]:
         hub.revoke(actor_of(request), Scope(workspace, body.kind, body.resource), identifier)
         return {"ok": True}
+
+    @app.post("/api/agent/projects/{project_id}/powerpoint")
+    def agent_import_powerpoint(
+        request: Request, project_id: str, body: PowerPointUpload
+    ) -> dict[str, object]:
+        """Import a staged PowerPoint for a project-scoped agent."""
+        from .agent_io import deck_receipt
+        from .powerpoint import import_powerpoint
+        from .version_authors import revision_author
+
+        actor = actor_of(request)
+        record = hub.agent_record(actor)
+        scope = Scope(str(record["workspace"]), "project", project_id)
+        with (
+            hub.guard(actor, scope, "edit") as store,
+            revision_author(str(record["name"]) + " · agent"),
+        ):
+            return deck_receipt(
+                import_powerpoint(
+                    store,
+                    project_id,
+                    body.title,
+                    body.data_base64,
+                    hub.request_id(actor, body.request_id),
+                )
+            ).model_dump(mode="json")
+
+    @app.get("/api/agent/decks/{deck_id}/exports/pptx")
+    def agent_export_powerpoint(request: Request, deck_id: str) -> Response:
+        """Download current presentation bytes with the agent's existing bearer grant."""
+        from .powerpoint.agent_export import presentation_project
+        from .powerpoint.download import powerpoint_bytes, powerpoint_response
+
+        actor = actor_of(request)
+        record = hub.agent_record(actor)
+        scope = Scope(str(record["workspace"]), "artifact", deck_id)
+        with hub.guard(actor, scope) as store:
+            project = presentation_project(store, deck_id)
+        data = powerpoint_bytes(store, deck_id)
+        with hub.guard(actor, scope):
+            if presentation_project(store, deck_id) != project:
+                raise AccessDenied
+        return powerpoint_response(data, deck_id)
 
     @app.post("/api/workspaces/{workspace}/agents")
     def connect_agent(request: Request, workspace: str, body: AgentInput) -> dict[str, str]:

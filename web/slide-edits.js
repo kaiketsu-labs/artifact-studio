@@ -36,7 +36,7 @@
   /** Describe an exact placement while leaving layout implementation to the agent. */
   function moveMessage(position){return `Move to ${(position.x*100).toFixed(2)}% from the left and ${(position.y*100).toFixed(2)}% from the top.`;}
   /** Preview edits locally and submit their original element/version as ordinary feedback. */
-  function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,properties=null,anchor,onSend,onChange,onError,getFeedbackMode=()=>undefined,deliveryStatus=()=> 'released',blocked=()=>false}){
+  function create({tools,editButton,moveButton,alignButton,alignMenu,commitButton,cancelButton,sentBadge,selectionBox=null,deleteButton=null,rotationInput=null,properties=null,anchor,onSend,onChange,onError,getFeedbackMode=()=>undefined,deliveryStatus=()=> 'released',blocked=()=>false,directText=()=>false,directShape=()=>false}){
     let element=null,original=null,textEditing=false,dragEnabled=true,drag=null,doc=null,busy=false,suppressClick=false,sent=false,keyboardMove=null,submission=null,positionPreview=null,rotationPreview=0,pendingDelete=false,rotationDrag=null,propertyValues={},propertyBaseline={};
     const requests=new Map();
     const history=root.ElementCommands?.history()||{record(){},clear(){},undo(){},redo(){},canUndo:()=>false,canRedo:()=>false};
@@ -59,7 +59,7 @@
 
     let textVoice=null,textGeneration=0;
     function cancelTextVoice(){textGeneration++;textVoice?.cancel();if(textVoice)textVoice.controls.hidden=true;}
-    const canText=()=>!!element&&element.namespaceURI==='http://www.w3.org/1999/xhtml'&&/^(H[1-6]|P|SPAN|LI|DIV|LABEL)$/.test(element.tagName)&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol')&&!!element.textContent.trim();
+    const canText=()=>!!element&&element.namespaceURI==='http://www.w3.org/1999/xhtml'&&/^(H[1-6]|P|SPAN|LI|DIV|LABEL|TD|TH)$/.test(element.tagName)&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol')&&!!element.textContent.trim();
     const canPropertyText=()=>!!element&&!element.querySelector('div,p,h1,h2,h3,h4,h5,h6,li,svg,img,video,button,input,textarea,table,ul,ol,text,tspan')&&!!element.textContent?.trim();
     const propertyDraft=()=>Object.keys(propertyValues).length>0;
     const canMove=()=>!!element&&(element.namespaceURI==='http://www.w3.org/1999/xhtml'||element.tagName.toLowerCase()==='svg');
@@ -71,9 +71,10 @@
       tools.hidden=!element;editButton.hidden=textEditing||draftGeometry;moveButton.hidden=textEditing||pendingDelete;commitButton.hidden=!textEditing&&!draftGeometry;cancelButton.hidden=!textEditing&&!draftGeometry;
       alignButton.hidden=textEditing||pendingDelete;alignButton.disabled=busy||blocked()||editingProperties||!canMove();
       if(!element||alignButton.hidden||alignButton.disabled)closeAlign();
+      editButton.setAttribute('aria-label',directText()?'Edit imported text':'Edit text on slide');editButton.title=directText()?'Edit and save imported text':'Edit text on slide';
       editButton.disabled=busy||blocked()||!canText();moveButton.disabled=busy||blocked()||editingProperties||!canMove();commitButton.disabled=busy||blocked();cancelButton.disabled=busy||blocked();
       moveButton.setAttribute('aria-pressed',String(dragEnabled));moveButton.title=canMove()?'Drag selected element · arrow keys to position':'Select the surrounding group to move it';
-      const commitLabel=pendingDelete?'Send deletion request':keyboardMove?'Send element change':'Send text change';
+      const commitLabel=pendingDelete?'Send deletion request':keyboardMove?(directShape()?'Save shape change':'Send element change'):directText()?'Save text change':'Send text change';
       commitButton.setAttribute('aria-label',commitLabel);commitButton.title=commitLabel;
       if(deleteButton){deleteButton.hidden=textEditing||!!keyboardMove||pendingDelete;deleteButton.disabled=busy||blocked()||editingProperties||!element;}
       if(rotationInput){rotationInput.closest('label').hidden=textEditing||pendingDelete;rotationInput.disabled=busy||blocked()||editingProperties||!canMove();if(rotationInput!==rotationInput.ownerDocument.activeElement)rotationInput.value=String(keyboardMove?.rotation??rotationPreview);}
@@ -84,7 +85,7 @@
       sentBadge.hidden=(!sent&&!draft)||busy;
       if(sentBadge.dataset.state!==status){sentBadge.dataset.state=status;sentBadge.title=label;sentBadge.setAttribute('aria-label',label);sentBadge.innerHTML=root.SlideIcons.svg(({draft:'edit',queued:'batch',released:'send',answered:'notes'})[status]||'send');const text=document.createElement('span');text.className='sr-only';text.textContent=label;sentBadge.append(text);}
       tools.classList.toggle('has-suggestion',!!(sent||draft));
-      properties?.setState({dirty:editingProperties,busy,sent,disabled:blocked()||draftGeometry||textEditing,objectDraft:draftGeometry||textEditing});
+      properties?.setState({saveLabel:directText()&&Object.keys(propertyValues).length===1&&'text' in propertyValues?'Save text change':'Send edit',dirty:editingProperties,busy,sent,disabled:blocked()||draftGeometry||textEditing,objectDraft:draftGeometry||textEditing});
       if(element)onChange(element);
     }
     function remember(){
@@ -172,14 +173,15 @@
         if(position){const rect=element.getBoundingClientRect(),actual={x:(rect.left-keyboardMove.canvas.left)/keyboardMove.canvas.width,y:(rect.top-keyboardMove.canvas.top)/keyboardMove.canvas.height};Object.assign(values,{x:actual.x,y:actual.y,position_reference:'visual_top_left'});parts.push(moveMessage(actual));}
         if(rotation){Object.assign(values,{rotation_degrees:rotation,rotation_reference:'original_element_local',rotation_origin:'existing_transform_origin'});parts.push(`Rotate ${rotation}° clockwise from original.`);}
         if(!parts.length){cancel();return true;}
+        if(directShape())values.direct_transform={dx:keyboardMove.dx/keyboardMove.canvas.width,dy:keyboardMove.dy/keyboardMove.canvas.height,rotation};
         const action=position&&rotation?'transform':rotation?'rotate':'move';
-        if(await send(parts.join(' '),original.anchor,editIntent(action,values),expectedMode)){keyboardMove=null;sent=true;update();return true;}return false;
+        if(await send(parts.join(' '),original.anchor,editIntent(action,values),expectedMode)){keyboardMove=null;sent=!submission?.direct;if(submission?.direct)original=null;update();return true;}return false;
       }
       if(propertyDraft()&&original){
         const values={...propertyValues};
         if('text' in values&&(!values.text.trim()||values.text.length>9000)){onError('Keep replacement text between 1 and 9,000 characters.');return false;}
         const hasText='text' in values,hasStyle=Object.keys(values).some(key=>key!=='text'),action=hasText?(hasStyle?'update':'replace_text'):'style';
-        if(await send('Update element properties.',original.anchor,editIntent(action,values),expectedMode)){propertyValues={};sent=true;inspect();update();return true;}return false;
+        if(await send('Update element properties.',original.anchor,editIntent(action,values),expectedMode)){propertyValues={};sent=!submission?.direct;if(submission?.direct)original=null;inspect();update();return true;}return false;
       }
       if(!textEditing||!original)return true;
       const edited=element,value=element.innerText??element.textContent,captured=original.anchor;
@@ -188,8 +190,9 @@
       if(value.length>9000){onError('Keep the replacement under 9,000 characters.');return false;}
       if(await send('Replace text.',captured,editIntent('replace_text',{text:value}),expectedMode)){
         if(element!==edited||!original)return true;
-        textEditing=false;sent=true;
+        textEditing=false;sent=!submission?.direct;
         if(original.editable===null)element.removeAttribute('contenteditable');else element.setAttribute('contenteditable',original.editable);
+        if(submission?.direct)original=null;
         element.style.cursor='grab';update();return true;
       }
       return false;

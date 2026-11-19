@@ -174,11 +174,11 @@ def test_immediate_project_save_includes_the_latest_notes(page: Page, live_app: 
     dialog = page.get_by_role("dialog", name="Export presentation", exact=True)
     assert dialog.locator(".file-choice").evaluate_all(
         "buttons => buttons.map(button => button.getAttribute('aria-label'))"
-    ) == ["Export HTML", "Export PDF", "Download editable copy"]
+    ) == ["Export PowerPoint", "Export HTML", "Export PDF", "Download editable copy"]
     expect(dialog.locator("#save-project")).to_contain_text(
         ".artifact-studio.zip · Slides, notes & feedback"
     )
-    expect(dialog).to_contain_text("HTML and PDF omit private notes and feedback.")
+    expect(dialog).to_contain_text("Audience files omit private notes and feedback.")
     page.keyboard.press("Escape")
     page.get_by_label("Speaker notes", exact=True).fill("Carry these notes to the next workspace")
     with page.expect_download() as downloaded:

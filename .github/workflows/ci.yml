@@ -157,6 +157,7 @@ jobs:
             browsers: chromium firefox
             browser_cache: chromium-firefox
             tests: >-
+              tests/integration/test_powerpoint_graphics_edit.py
               tests/integration/test_element_commands.py
               tests/integration/test_group_object_commands.py
               tests/integration/test_slide_context_menus.py
@@ -187,6 +188,8 @@ jobs:
               tests/test_hub_cover_rendering.py
               tests/test_text_review.py
               tests/test_copilot_capture.py
+              tests/test_powerpoint_dom_export.py
+              tests/test_powerpoint_combine.py::test_four_by_three_import_with_new_studio_slide
           - suite: runtime-2
             browsers: chromium
             browser_cache: chromium
@@ -231,6 +234,7 @@ jobs:
               tests/integration/test_large_design_references.py
               tests/test_hosted_design_authoring.py
               tests/test_scoped_presentation_creation.py
+              tests/integration/test_powerpoint_import.py
               tests/integration/test_presentation_authoring.py
               tests/test_multiplayer_browser_owner.py
               tests/test_draft_recovery_browser.py
@@ -246,6 +250,8 @@ jobs:
               tests/test_element_rotation_dom.py
               tests/test_sharing_renderer.py
               tests/test_scoped_owner_import.py
+              tests/test_powerpoint_hosted_browser.py
+              tests/test_powerpoint_shape_browser.py
               tests/test_multiplayer_browser_collaborator.py
               tests/test_artifact_preview.py::test_isolated_capture_executes_local_modules_and_blocks_outside_requests
               tests/test_copilot.py::test_actual_capture_images_cross_the_authenticated_mcp_transport

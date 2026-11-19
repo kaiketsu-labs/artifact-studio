@@ -654,6 +654,16 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
                 file.path, filename=file.name, media_type="application/octet-stream"
             )
 
+    @app.get("/api/decks/{deck_id}/exports/pptx")
+    def download_pptx(request: Request, deck_id: str) -> Response:
+        from .powerpoint.download import powerpoint_bytes, powerpoint_response
+
+        with deck_access(request, deck_id, "view") as store:
+            source = store
+        data = powerpoint_bytes(source, deck_id)
+        with deck_access(request, deck_id, "view"):
+            return powerpoint_response(data, deck_id)
+
     @app.get("/api/decks/{deck_id}/workflow")
     def workflow(request: Request, deck_id: str) -> FeedbackWorkflow:
         with deck_access(request, deck_id, "view"):

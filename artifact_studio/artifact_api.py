@@ -98,6 +98,17 @@ def import_upload(
     artifacts: ArtifactStore, body: ArtifactImport, *, staging_root: Path | None = None
 ) -> ArtifactView:
     """Validate all uploaded paths and bytes before registering a durable owned copy."""
+    if (
+        len(body.files) == 1
+        and body.files[0].name.lower().endswith(".pptx")
+        and body.kind == "auto"
+    ):
+        from .powerpoint import import_powerpoint
+
+        file = body.files[0]
+        _ = relative_path(file.name)
+        deck = import_powerpoint(artifacts.store, body.project_id, body.title, file.data_base64)
+        return artifacts.get_artifact(deck.id)
     paths: set[str] = set()
     total = 0
     with tempfile.TemporaryDirectory(prefix="artifact-import-", dir=staging_root) as temporary:

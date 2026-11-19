@@ -570,3 +570,188 @@ def test_five_identities_and_saturated_live_renderer_have_correlated_responses(
         assert len({result[1] for result in results}) == 5
         log = logs.read_text()
         assert f"id={results[0][1]} outcome=renderer_saturation" in log
+
+
+def test_project_agent_imports_and_edits_powerpoint(tmp_path: Path) -> None:
+    """Project grants and connection scopes apply to PowerPoint imports over MCP."""
+    import base64
+
+    from tests.pptx_fixture import fictional_powerpoint
+
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log") as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as viewer,
+        httpx.Client(base_url=app.url, headers={"host": "studio.example.test"}, timeout=30) as mcp,
+    ):
+        accept(editor, grant(owner, "alice", app.project_id, "edit", "project"))
+        accept(viewer, grant(owner, "bob", app.project_id, "view", "project"))
+
+        def token(client: httpx.Client) -> str:
+            response = client.post(
+                "/api/workspaces/default/agents",
+                json={"kind": "project", "resource": app.project_id, "name": "Fictional agent"},
+            )
+            assert response.status_code == 200, response.text
+            return cast(str, response.json()["token"])
+
+        editor_token, viewer_token = token(editor), token(viewer)
+
+        def invoke(auth: str, name: str, arguments: dict[str, object]) -> dict[str, object]:
+            response = mcp.post(
+                "/mcp",
+                headers={
+                    "authorization": "Bearer " + auth,
+                    "accept": "application/json, text/event-stream",
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": name, "arguments": arguments},
+                },
+            )
+            assert response.status_code == 200, response.text
+            return cast(dict[str, object], response.json()["result"])
+
+        arguments: dict[str, object] = {
+            "project_id": app.project_id,
+            "title": "Harbor Garden",
+            "data_base64": base64.b64encode(fictional_powerpoint()).decode(),
+            "request_id": "fictional-import-1",
+        }
+        assert invoke(viewer_token, "import_powerpoint", arguments).get("isError")
+        assert invoke(
+            editor_token, "import_powerpoint", {**arguments, "project_id": "missing-project"}
+        ).get("isError")
+        first = invoke(editor_token, "import_powerpoint", arguments)
+        assert not first.get("isError"), first
+        retry = invoke(editor_token, "import_powerpoint", arguments)
+        assert not retry.get("isError"), retry
+        assert first == retry
+        deck = cast(dict[str, object], first["structuredContent"])
+        deck_id = cast(str, deck["id"])
+        another = invoke(token(editor), "import_powerpoint", arguments)
+        assert not another.get("isError"), another
+        assert cast(dict[str, object], another["structuredContent"])["id"] != deck_id
+        slide = app.store.view(deck_id).slides[0]
+        edit = invoke(
+            editor_token,
+            "revise_slide",
+            {
+                "deck_id": deck_id,
+                "slide_id": slide.id,
+                "expected_hash": slide.expected_hash,
+                "request_id": "fictional-slide-edit",
+                "patch_json": json.dumps(
+                    {
+                        "html": slide.html.replace(
+                            "A fictional neighborhood growing plan", "An edited garden plan"
+                        )
+                    }
+                ),
+            },
+        )
+        assert not edit.get("isError"), edit
+        assert "An edited garden plan" in app.store.view(deck_id).slides[0].html
+
+
+def test_large_mcp_bodies_are_limited_to_powerpoint_import(tmp_path: Path) -> None:
+    import base64
+    import io
+    import zipfile
+
+    from tests.pptx_fixture import fictional_powerpoint
+
+    source = io.BytesIO(fictional_powerpoint())
+    with zipfile.ZipFile(source, "a", compression=zipfile.ZIP_STORED) as package:
+        package.writestr("fictional-padding.bin", b"x" * (2 * 1024 * 1024))
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log") as app,
+        human(app, "owner") as owner,
+        human(app, "bob") as viewer,
+        httpx.Client(base_url=app.url, headers={"host": "studio.example.test"}, timeout=30) as mcp,
+    ):
+        response = owner.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "project", "resource": app.project_id, "name": "Large import agent"},
+        )
+        assert response.status_code == 200
+        headers = {
+            "authorization": "Bearer " + response.json()["token"],
+            "accept": "application/json, text/event-stream",
+        }
+        args = {
+            "project_id": app.project_id,
+            "title": "Large fictional fixture",
+            "request_id": "large-import-test",
+            "data_base64": base64.b64encode(source.getvalue()).decode(),
+        }
+        request = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "import_powerpoint", "arguments": args},
+        }
+        assert mcp.post("/mcp", headers=headers, json=request).status_code == 413
+        accept(viewer, grant(owner, "bob", app.project_id, "view", "project"))
+        viewer_response = viewer.post(
+            "/api/workspaces/default/agents",
+            json={"kind": "project", "resource": app.project_id, "name": "Viewer"},
+        )
+        assert viewer_response.status_code == 200
+        viewer_headers = {"authorization": "Bearer " + viewer_response.json()["token"]}
+        endpoint = f"/api/agent/projects/{app.project_id}/powerpoint"
+        body = {key: args[key] for key in ("title", "request_id", "data_base64")}
+        assert mcp.post(endpoint, json=body).status_code == 401
+        assert mcp.post(endpoint, headers=viewer_headers, json=body).status_code == 404
+        assert (
+            mcp.post(
+                "/api/agent/projects/missing-project/powerpoint", headers=headers, json=body
+            ).status_code
+            == 404
+        )
+        imported = mcp.post(endpoint, headers=headers, json=body)
+        assert imported.status_code == 200, imported.text
+        assert len(imported.content) < 4096
+        assert mcp.post(endpoint, headers=headers, json=body).json() == imported.json()
+
+
+def test_shared_imported_shape_transform_requires_edit_access(tmp_path: Path) -> None:
+    """Only owners and editors can persist an imported shape transform."""
+    from artifact_studio.models import SlidePatch
+
+    with (
+        running_multiplayer_app(tmp_path / "server", tmp_path / "server.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as editor,
+        human(app, "bob") as viewer,
+    ):
+        accept(editor, grant(owner, "alice", app.deck_id, role="edit"))
+        accept(viewer, grant(owner, "bob", app.deck_id, role="view"))
+        first = app.store.view(app.deck_id).slides[0]
+        markup = (
+            '<article class="slide" data-pptx-width="100" data-pptx-height="50">'
+            '<div data-pptx-object="Shape" style="left:10%;top:20%;width:30%;height:40%;">'
+            "<span>Shape</span></div></article>"
+        )
+        app.store.revise(
+            app.deck_id, first.id, first.expected_hash, "shape-fixture", SlidePatch(html=markup)
+        )
+        current = app.store.view(app.deck_id).slides[0]
+        endpoint = f"/api/decks/{app.deck_id}/slides/{first.id}/imported-transform"
+        body = {
+            "expected_hash": current.expected_hash,
+            "request_id": "shape-change",
+            "index": 0,
+            "dx": 0.1,
+            "dy": 0,
+            "rotation": 15,
+        }
+        assert viewer.post(endpoint, json=body).status_code == 404
+        response = editor.post(endpoint, json=body)
+        assert response.status_code == 200, response.text
+        saved = app.store.view(app.deck_id).slides[0]
+        assert "left:20%" in saved.html and "rotate(15deg)" in saved.html
+        assert owner.get(f"/api/decks/{app.deck_id}").json()["slides"][0]["html"] == saved.html

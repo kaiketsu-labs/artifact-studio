@@ -1,6 +1,7 @@
 """OCR candidates preserve capture integrity, version identity and uncertainty."""
 
 import hashlib
+import io
 import shutil
 import subprocess
 from pathlib import Path
@@ -274,3 +275,55 @@ def test_real_ocr_detects_controlled_glyph_changes(
         result = check(captured)
         assert result["status"] == status and result["stale"] is False
         assert result["human_review_required"] is True
+
+
+@pytest.mark.skipif(shutil.which("tesseract") is None, reason="Optional local OCR engine")
+def test_ocr_reads_text_at_bottom_of_standard_slide() -> None:
+    """OCR uses the 4:3 image height when validating recognized word coordinates."""
+    font_path = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+    if not font_path.is_file():
+        pytest.skip("Fictional OCR fixture needs DejaVu Sans")
+    image = Image.new("RGB", (1600, 1200), "white")
+    ImageDraw.Draw(image).text(
+        (80, 1050), "BOTTOM", font=ImageFont.truetype(str(font_path), 76), fill="black"
+    )
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    words = text_review.recognize(output.getvalue(), "eng")
+    assert any(word["text"] == "BOTTOM" for word in words)
+
+
+def test_text_review_accepts_full_resolution_standard_capture(
+    captured: tuple[Store, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 4:3 full capture is eligible for the same version-anchored OCR review."""
+    store, _, path = captured
+    deck = store.read("2026-11-04-text-check")
+    store.revise(
+        deck.id,
+        "cover",
+        digest(deck.slides[0].model_dump_json()),
+        "standard-slide",
+        SlidePatch(
+            html='<article class="slide" data-pptx-width="4" data-pptx-height="3">'
+            f"<h1>{EXPECTED}</h1></article>"
+        ),
+    )
+    frame = snapshot(store, deck.id, store.read(deck.id).slides[0], 1, CaptureOptions()).frame
+    Image.new("RGB", (1600, 1200), "white").save(path)
+    frame.path = str(path)
+    frame.image_sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest_path = path.parent / "manifest.json"
+    manifest = VisualResult.model_validate_json(manifest_path.read_text())
+    manifest.frames = [frame]
+    manifest_path.write_text(manifest.model_dump_json())
+    monkeypatch.setattr(text_review.shutil, "which", installed_engine)
+
+    def bottom_text(_image: bytes, _language: str) -> list[dict[str, object]]:
+        return [
+            {"text": token, "confidence": 99, "box": [0, 1100, 20, 20]}
+            for token in EXPECTED.split()
+        ]
+
+    monkeypatch.setattr(text_review, "recognize", bottom_text)
+    assert check(captured)["status"] == "no_mismatch_detected"

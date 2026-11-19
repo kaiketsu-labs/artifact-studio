@@ -236,8 +236,8 @@ def presentation_capabilities() -> dict[str, object]:
         "presentation_canvas": "16:9",
         "sizing": presentation_sizing(),
         "powerpoint_reference_input": True,
-        "powerpoint_export": False,
-        "audience_exports": ["HTML", "PDF"],
+        "powerpoint_export": True,
+        "audience_exports": ["HTML", "PDF", "PowerPoint"],
         "editable_project_export": True,
         "custom_html_css_javascript": True,
         "static_fallback_field": "html",
@@ -1078,6 +1078,39 @@ def check_slide_text(
 
 @mcp.tool(annotations=WRITE)
 @tool_errors
+def import_powerpoint(
+    project_id: str,
+    title: str,
+    data_base64: Annotated[str, Field(max_length=66_666_668)],
+    request_id: Annotated[str, Field(min_length=8, max_length=100)],
+) -> DeckReceipt:
+    """Import a PowerPoint into a project as an editable presentation.
+
+    Supply the base64-encoded PPTX and a stable request_id for exact-payload retries.
+    Returns a compact receipt; inspect slides with get_presentation_outline and get_slide.
+    """
+    from .powerpoint import import_powerpoint as import_deck
+
+    return deck_receipt(import_deck(store, project_id, title, data_base64, request_id))
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def export_powerpoint(deck_id: DeckID, ctx: Context[None, Request] | None = None) -> dict[str, str]:
+    """Get a PowerPoint download URL for the current presentation.
+
+    Download the binary with an HTTP file client. The tool returns only metadata.
+    """
+    from .powerpoint.agent_export import export_receipt, presentation_project
+
+    request = ctx.request_context.request if ctx else None
+    origin = str(request.base_url).rstrip("/") if request else ""
+    _ = presentation_project(store, deck_id)
+    return export_receipt(deck_id, origin)
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
 def create_presentation(
     deck_id: NewDeckID,
     title: str,
@@ -1721,7 +1754,9 @@ if deployment.mode == "hosted":
     transport_mcp = ToolServer[None](
         "Artifact Studio Hosted", version=__version__, instructions=BOOTSTRAP
     )
-    register_tools(transport_mcp, store, "", True, hosted_hooks=True)
+    register_tools(
+        transport_mcp, store, "", True, hosted_hooks=True, powerpoint_origin=deployment.public_url
+    )
     mcp_app = transport_mcp.streamable_http_app(
         stateless_http=True,
         json_response=True,
@@ -1734,7 +1769,12 @@ if deployment.mode == "hosted":
     )
 else:
     transport_mcp = mcp
-    mcp_app = mcp.streamable_http_app(stateless_http=True, json_response=True, host="127.0.0.1")
+    mcp_app = mcp.streamable_http_app(
+        stateless_http=True,
+        json_response=True,
+        host="127.0.0.1",
+        max_request_body_size=66_766_668,
+    )
 
 
 @asynccontextmanager
@@ -2086,6 +2126,25 @@ def presentation_runtime(deck_id: DeckID, request: Request) -> Response:
 def audience_preview(deck_id: DeckID) -> HTMLResponse:
     """View the sanitized offline audience document inline, without notes or review state."""
     return HTMLResponse(audience_html(store, deck_id), headers=audience_headers())
+
+
+@app.get("/api/decks/{deck_id}/exports/pptx")
+def download_pptx(deck_id: DeckID) -> Response:
+    """Download the visible slides as editable PowerPoint objects."""
+    from .powerpoint.download import powerpoint_bytes, powerpoint_response
+
+    return powerpoint_response(powerpoint_bytes(store, deck_id), deck_id)
+
+
+if deployment.mode == "hosted":
+
+    @app.get("/api/agent/decks/{deck_id}/exports/pptx")
+    def agent_download_pptx(deck_id: DeckID) -> Response:
+        """Export a real presentation for the service-authenticated MCP connection."""
+        from .powerpoint.agent_export import presentation_project
+
+        _ = presentation_project(store, deck_id)
+        return download_pptx(deck_id)
 
 
 @app.get("/api/decks/{deck_id}/exports/pdf")

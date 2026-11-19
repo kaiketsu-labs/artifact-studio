@@ -541,6 +541,52 @@ class MultiplayerTools:
                 context,
             )
 
+    def import_powerpoint(
+        self,
+        ctx: Ctx,
+        project_id: str,
+        title: str,
+        data_base64: Annotated[str, Field(max_length=66_666_668)],
+        request_id: RequestID,
+    ) -> dict[str, object]:
+        """Import a base64-encoded PPTX into an editable shared project.
+
+        Reuse request_id with the same payload to safely retry an import. Hosted MCP requests
+        are limited to 2 MiB; for larger files use scripts/import_powerpoint_mcp.py.
+        """
+        from .powerpoint import import_powerpoint as import_deck
+
+        actor = self.actor(ctx)
+        if not project_id:
+            raise ValueError("A project_id is required.")
+        scope = self.scope(actor, project=project_id)
+        with self.sharing.guard(actor, scope, "edit") as store:
+            if disk_usage(store.root).free < IMPORT_DISK_RESERVE + 3 * len(data_base64):
+                raise ValueError("Not enough workspace storage for this presentation.")
+            name = str(self.sharing.agent_record(actor)["name"])
+            with revision_author(name + " · agent"):
+                return deck_receipt(
+                    import_deck(
+                        store,
+                        project_id,
+                        title,
+                        data_base64,
+                        self.sharing.request_id(actor, request_id),
+                    )
+                ).model_dump(mode="json")
+
+    def export_powerpoint(self, ctx: Ctx, deck_id: str) -> dict[str, str]:
+        """Get a PowerPoint download URL for the current presentation.
+
+        Save the binary with an HTTP file client using the same Studio Bearer token.
+        """
+        from .powerpoint.agent_export import export_receipt, presentation_project
+
+        actor = self.actor(ctx)
+        with self.sharing.guard(actor, self.scope(actor, deck_id)) as store:
+            _ = presentation_project(store, deck_id)
+            return export_receipt(deck_id, self.public_url, agent_endpoint=True)
+
     def create_presentation(
         self,
         ctx: Ctx,
@@ -1239,6 +1285,7 @@ class MultiplayerTools:
             self.get_artifact,
             self.read_artifact_files,
             self.get_presentation_outline,
+            self.export_powerpoint,
             self.read_presentation_brief_file,
             self.get_slide,
             self.get_slide_designs,
@@ -1272,6 +1319,7 @@ class MultiplayerTools:
             self.set_slide_activity,
             self.add_slide,
             self.create_presentation,
+            self.import_powerpoint,
             self.reorder_slides,
             self.publish_structure_proposal,
             self.set_presentation_sections,
