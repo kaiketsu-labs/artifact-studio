@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 from playwright.sync_api import expect, sync_playwright
@@ -85,6 +86,20 @@ def test_hosted_import_shared_project(tmp_path: Path) -> None:
                         )
                     ).to_be_visible()
                     expect(shared.locator("html")).to_have_attribute("data-shared-role", "view")
+                    shared.get_by_role("button", name="Menu", exact=True).click()
+                    shared.get_by_role("menuitem", name="Export presentation…").click()
+                    with shared.expect_download() as transfer:
+                        shared.get_by_role("button", name="Export PowerPoint", exact=True).click()
+                    archive = transfer.value.path()
+                    assert archive is not None and transfer.value.suggested_filename.endswith(
+                        ".pptx"
+                    )
+                    with ZipFile(archive) as pptx:
+                        drawing = pptx.read("ppt/slides/slide1.xml")
+                        assert b"Harbor Garden revised" in drawing
+                        assert not any(
+                            name.startswith("ppt/notesSlides/") for name in pptx.namelist()
+                        )
                     status = shared.evaluate(
                         """async ({url, body}) => (await fetch(url, {
                         method: 'POST', headers: {'Content-Type': 'application/json'},

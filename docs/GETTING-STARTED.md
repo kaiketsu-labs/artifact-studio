@@ -2,7 +2,7 @@
 
 Create and review related artifacts with an existing AI agent. The home page is the **Library**: a visual library of presentations, HTML pages, Markdown documents, images and other files, grouped by project. Each artifact opens with its own preview and conversation. Agents connect through **stateless Streamable HTTP MCP**; local files and review history persist between connections.
 
-General artifacts need no design pack or fixed template. The viewer supports authored HTML/CSS/JavaScript bundles, safe Markdown rendering and images at their original proportions. **Design packs and example presentations are not bundled.** For presentations, add a design from a PPTX, website, PDF or reference images. PowerPoint files can also be imported as editable HTML presentations when they use supported features; see [PowerPoint import](POWERPOINT-IMPORT.md) for scope and limitations. The app does not export PPTX.
+General artifacts need no design pack or fixed template. The viewer supports authored HTML/CSS/JavaScript bundles, safe Markdown rendering and images at their original proportions. **Design packs and example presentations are not bundled.** For presentations, add a design from a PPTX, website, PDF or reference images. PowerPoint files can also be imported as editable HTML presentations when they use supported features; see [PowerPoint import](POWERPOINT-IMPORT.md) for scope and limitations. Use **Menu → Export presentation → PowerPoint** to download an editable .pptx for supported content.
 
 ## Install
 

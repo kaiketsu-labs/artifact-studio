@@ -52,6 +52,7 @@
 :root[data-theme=dark] :is(.file-choice-copy strong,.library-description strong){color:var(--ink)}
 :root[data-theme=dark] .file-choice{background:var(--surface)}
 :root[data-theme=dark] .file-choice-icon{color:#a5c4ff;background:#2b3d5a}
+:root[data-theme=dark] .file-choice[data-format=pptx] .file-choice-icon{color:#ffb699;background:#4e332b}
 :root[data-theme=dark] .file-choice[data-format=html] .file-choice-icon{color:#edbd8f;background:#493629}
 :root[data-theme=dark] .file-choice[data-format=pdf] .file-choice-icon{color:#efa9b4;background:#482f39}
 :root[data-theme=dark] .file-choice:hover:not(:disabled){background:var(--raised);border-color:#6881a3}
