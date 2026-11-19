@@ -539,7 +539,9 @@
   function applyLayout(saved){for(const snapshot of [deck,pendingDeck]){if(!snapshot)continue;const lookup=new Map(snapshot.slides.map(item=>[item.id,item]));if(lookup.size===saved.slide_ids.length&&saved.slide_ids.every(id=>lookup.has(id)))snapshot.slides=saved.slide_ids.map(id=>lookup.get(id));snapshot.sections=saved.sections;snapshot.sections_hash=saved.sections_hash;}}
   let previousRatioSource;
   function setSlideRatio(snapshot){
-    const html=snapshot?.slides[0]?.html||'';
+    const canvasSource=snapshot?.id?.startsWith('pptx-')
+      ? snapshot.slides.find(slide=>slide.html?.includes('data-pptx-width=')) : snapshot?.slides[0];
+    const html=canvasSource?.html||'';
     if(html===previousRatioSource)return;
     previousRatioSource=html;
     const probe=document.createElement('template');probe.innerHTML=html;

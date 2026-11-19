@@ -308,7 +308,9 @@
   if(!document.getElementById('slideshow-styles')){const runtimeStyles=document.createElement('link');runtimeStyles.rel='stylesheet';runtimeStyles.href=new URL('slideshow.css',document.currentScript?.src||location.href).href;document.head.append(runtimeStyles);}
 
   const deck=JSON.parse(document.getElementById('deck-data').textContent);
-  const dimensionProbe=document.createElement('template');dimensionProbe.innerHTML=deck.slides[0]?.html||'';
+  const canvasSource=deck.id?.startsWith('pptx-')
+    ? deck.slides.find(slide=>slide.html?.includes('data-pptx-width=')) : deck.slides[0];
+  const dimensionProbe=document.createElement('template');dimensionProbe.innerHTML=canvasSource?.html||'';
   const dimensionSlide=dimensionProbe.content.querySelector('.slide[data-pptx-width][data-pptx-height]');
   const pptxWidth=Number(dimensionSlide?.dataset.pptxWidth),pptxHeight=Number(dimensionSlide?.dataset.pptxHeight);
   const canvasHeight=Number.isFinite(pptxWidth)&&Number.isFinite(pptxHeight)&&pptxWidth>0&&pptxHeight>0&&pptxHeight/pptxWidth>=.1&&pptxHeight/pptxWidth<=4?1600*pptxHeight/pptxWidth:900;

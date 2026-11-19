@@ -188,6 +188,8 @@ jobs:
               tests/test_hub_cover_rendering.py
               tests/test_text_review.py
               tests/test_copilot_capture.py
+              tests/test_powerpoint_dom_export.py
+              tests/test_powerpoint_combine.py::test_four_by_three_import_with_new_studio_slide
           - suite: runtime-2
             browsers: chromium
             browser_cache: chromium
