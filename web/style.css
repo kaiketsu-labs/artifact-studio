@@ -2,6 +2,7 @@
 *{box-sizing:border-box}
 body{margin:0}
 body.is-presenting{overflow:hidden}
+.is-presenting :is(.ea-panel,.ea-scope-menu,.sd-peek){visibility:hidden}
 .workspace-presentation{position:fixed;inset:0;z-index:1000;background:#000}
 .presentation-loading{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;color:#f4f6fb;font:16px/1.5 system-ui;text-align:center}
 .presentation-loading::before{content:'';width:28px;height:28px;border:3px solid #ffffff30;border-top-color:#a9bdff;border-radius:50%;animation:presentation-loading-spin 1s linear infinite}
