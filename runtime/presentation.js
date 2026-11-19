@@ -297,42 +297,17 @@
     view.addEventListener('message',receive);frame.srcdoc=interactiveDocument(content,{...options,token});element.append(frame);
     return {frame,ready,updateState:state=>frame.contentWindow?.postMessage({type:'interactive-apply-state',token,state},'*'),dispose:()=>{view.clearTimeout(timeout);view.removeEventListener('message',receive);frame.remove();for(const {child,inert,aria,visibility} of fallback){child.inert=inert;if(aria===null)child.removeAttribute('aria-hidden');else child.setAttribute('aria-hidden',aria);child.style.visibility=visibility;}if(!settled){settled=true;settle.reject(new Error('Interactive preview was closed.'));}}};
   }
-  /** Read the same immutable option and resources as the editor, without running capture scripts. */
+  /** Load Studio-only rendering code alongside the exact immutable preview. */
   async function loadAlternative(reference,deck,workspacePrefix,workspaceDeck){
     const id=/^([a-z0-9][a-z0-9-]{0,79})\/([a-f0-9]{32})(?:\/([a-f0-9]{64}))?$/.exec(reference);
     if(!id||!workspaceDeck||!deck.slides.some(slide=>slide.id===id[1]))throw new Error('Invalid alternative.');
     const [,slideId,option,context]=id,kind=context?'element-alternatives':'designs';
     const path=`${workspacePrefix}/api/decks/${encodeURIComponent(workspaceDeck)}/slides/${slideId}/${kind}/${option}/preview`;
-    const response=await fetch(path+(context?`?context_hash=${context}`:''),{redirect:'error'});
-    if(!response.ok)throw new Error('Alternative unavailable.');
-    const source=await response.text(),template=document.createElement('template');
-    // Template content is inert. Only the stage, frozen styles and interactive data are reused.
-    template.innerHTML=source;
-    const stage=template.content.querySelector('main#capture-stage'),theme=template.content.querySelector('style');
-    const data=template.content.querySelector('script#interactive-data[type="application/json"]');
-    if(!stage?.querySelector('.slide')||!theme||!data)throw new Error('Invalid alternative preview.');
-    const interactive=JSON.parse(data.textContent);
-    if(typeof interactive!=='string')throw new Error('Invalid interactive content.');
-    const root=source.match(/^<!doctype html>(<html\b[^>]*>)/i)?.[1]||'<html>';
-    return {slideId,stage:stage.outerHTML,theme:theme.outerHTML,root,interactive,steps:interactive?0:buildCount(stage.innerHTML)};
-  }
-  /** Keep the frozen theme and embedded assets isolated from all other slides. */
-  function alternativeFrame(alternative,live=false){
-    const frame=document.createElement('iframe');
-    frame.setAttribute('sandbox','allow-same-origin');frame.tabIndex=-1;frame.title='Alternative slide';
-    frame.style='position:absolute;inset:0;width:100%;height:100%;border:0';
-    if(!live){frame.setAttribute('aria-hidden','true');frame.style.pointerEvents='none';}
-    const policy="default-src 'none'; img-src data: blob:; font-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
-    frame.srcdoc=`<!doctype html>${alternative.root}<head><meta charset="utf-8">
-      <meta http-equiv="Content-Security-Policy" content="${policy}">${alternative.theme}
-      <style>
-        html,body{margin:0;width:1600px;height:900px;overflow:hidden}
-        #capture-stage{position:relative;width:1600px;height:900px;container-type:inline-size;box-shadow:none}
-        #capture-stage>.slide{position:relative;width:100%;height:100%;box-sizing:border-box;overflow:hidden}
-      </style><style id="pause-alternative">
-        .slide,.slide *,.slide::before,.slide::after,.slide *::before,.slide *::after{animation-play-state:paused!important}
-      </style></head><body>${alternative.stage}</body></html>`;
-    return frame;
+    const [{readAlternative},response]=await Promise.all([
+      import('/runtime/alternative.js'),
+      fetch(path+(context?`?context_hash=${context}`:''),{redirect:'error'}),
+    ]);
+    return readAlternative(response,slideId,buildCount);
   }
   if(typeof module!=='undefined')module.exports={interactiveDocument,interactiveMessage,PresentationClock,nextState,nextBuildState,buildCount,shownIndices,updateProgressRail,startIndex,duration,keyAction,animationTime,animationStep,countDecimals,counterOptions,growthClip,BuildAnimations};
   if(typeof document==='undefined')return;
@@ -356,7 +331,7 @@
   const workspaceRoute=location.pathname.match(/^(\/workspaces\/[0-9a-f]{24})?\/decks\/([^/]+)\//);
   const workspacePrefix=workspaceRoute?.[1]||'',workspaceDeck=workspaceRoute?.[2];
   let alternative=null;
-  if(query.has('alternative')){
+  if(workspaceDeck&&document.documentElement.dataset.export!=='audience'&&query.has('alternative')){
     try{alternative=await loadAlternative(query.get('alternative'),deck,workspacePrefix,workspaceDeck);}
     catch{
       $('message').textContent='Couldn’t load this alternative. Reopen it in the editor and try Present again.';
@@ -491,7 +466,7 @@
       clearSlide(element);element.innerHTML=`<div class="runtime-slide-canvas">${html}</div>`;
       slideSources.set(element,{html,index,interactive});
       if(frozen){
-        const live=build&&!interactive,frame=alternativeFrame(frozen,live);
+        const live=build&&!interactive,frame=frozen.frame(live);
         if(live){
           frame.style.visibility='hidden';
           frame.addEventListener('load',()=>{
@@ -538,7 +513,7 @@
     container.innerHTML=deck.slides.map((slide,index)=>`<button data-index="${index}" class="${slide.hidden?'is-hidden':''}" aria-label="Slide ${index+1}: ${escape(slide.title)}${slide.hidden?' · Hidden':''}"><div class="film-slide"><div class="runtime-slide-canvas">${alternativeFor(slide)?'':slide.html}</div></div><span>${index+1}</span></button>`).join('');
     if(alternative){
       const index=deck.slides.findIndex(slide=>alternativeFor(slide));
-      container.querySelector(`[data-index="${index}"] .runtime-slide-canvas`)?.append(alternativeFrame(alternative));
+      container.querySelector(`[data-index="${index}"] .runtime-slide-canvas`)?.append(alternative.frame());
     }
     for(const slot of container.querySelectorAll('.film-slide'))canvasObserver.observe(slot);
   }
