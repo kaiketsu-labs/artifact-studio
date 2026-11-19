@@ -1,8 +1,8 @@
 """Build a chart workbook using just the chart's referenced cells."""
 
 import io
-import re
 import zipfile
+from copy import deepcopy
 from xml.etree import ElementTree as ET
 
 from .graphics import workbook_range
@@ -13,16 +13,15 @@ XML = "{http://www.w3.org/XML/1998/namespace}"
 
 
 def xml_bytes(node: ET.Element) -> bytes:
-    data = ET.tostring(node, encoding="utf-8", xml_declaration=True)
-    # LibreOffice expects default namespaces on OPC types and relationships.
+    # LibreOffice requires the default namespace on OPC content types and relationships.
+    # Declare it on this document only; ElementTree's namespace registry is process-wide.
     if node.tag in {TYPES + "Types", REL + "Relationships"}:
-        opening = re.search(rb"<(\w+):\w+", data)
-        if opening is None:
-            raise ValueError("PowerPoint package metadata could not be serialized.")
-        prefix = opening[1]
-        data = data.replace(b"xmlns:" + prefix + b"=", b"xmlns=", 1)
-        data = data.replace(b"<" + prefix + b":", b"<").replace(b"</" + prefix + b":", b"</")
-    return data
+        node = deepcopy(node)
+        namespace = TYPES if node.tag == TYPES + "Types" else REL
+        node.set("xmlns", namespace[1:-1])
+        for element in node.iter():
+            element.tag = element.tag.removeprefix(namespace)
+    return ET.tostring(node, encoding="utf-8", xml_declaration=True)
 
 
 def zip_parts(parts: dict[str, bytes]) -> bytes:

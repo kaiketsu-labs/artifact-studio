@@ -3,6 +3,7 @@
 import base64
 import io
 from pathlib import Path
+from xml.dom import minidom
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -292,3 +293,19 @@ def test_audience_picture_preserves_pixels_without_private_image_metadata(image_
     assert private not in public
     with Image.open(io.BytesIO(source)) as before, Image.open(io.BytesIO(public)) as after:
         assert before.tobytes() == after.tobytes()
+
+
+def test_package_metadata_opens_in_office_consumers(tmp_path: Path) -> None:
+    store, deck_id = _store(tmp_path, fictional_powerpoint())
+    with ZipFile(io.BytesIO(export_powerpoint(store, deck_id))) as exported:
+        workbook_name = next(name for name in exported.namelist() if name.endswith(".xlsx"))
+        with ZipFile(io.BytesIO(exported.read(workbook_name))) as workbook:
+            for archive in (exported, workbook):
+                for name in archive.namelist():
+                    if name == "[Content_Types].xml" or name.endswith(".rels"):
+                        root = minidom.parseString(archive.read(name)).documentElement
+                        assert root is not None and root.prefix is None
+                        assert root.getAttribute("xmlns") == root.namespaceURI
+        types = ET.fromstring(exported.read("[Content_Types].xml"))
+        theme = next(item for item in types if item.get("PartName", "").startswith("/ppt/theme/"))
+        assert theme.get("ContentType") == "application/vnd.openxmlformats-officedocument.theme+xml"
