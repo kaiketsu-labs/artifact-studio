@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.3](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.2...v0.10.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **deps:** bump fastapi ([#249](https://github.com/kaiketsu-labs/artifact-studio/issues/249)) ([30ace04](https://github.com/kaiketsu-labs/artifact-studio/commit/30ace043ffdb2a0acc1b92a1ce921ee93ac68a3a))
+* **deps:** bump the python-compatible group across 1 directory with 2 updates ([#243](https://github.com/kaiketsu-labs/artifact-studio/issues/243)) ([ae2382e](https://github.com/kaiketsu-labs/artifact-studio/commit/ae2382e46ea6c911421f7999716796b858a6d6f5))
+* **presentation:** play the selected design alternative ([#248](https://github.com/kaiketsu-labs/artifact-studio/issues/248)) ([c3c7227](https://github.com/kaiketsu-labs/artifact-studio/commit/c3c7227bd4ead02b03086b43c5885e99cd0714fa))
+
 ## [0.10.2](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.1...v0.10.2) (2026-11-18)
 
 
