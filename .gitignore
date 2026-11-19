@@ -16,6 +16,8 @@ test-results/
 design-*/
 demo-video/
 *.pptx
+!tests/fixtures/fictional-garden.pptx
+!tests/fixtures/fictional-layers.pptx
 *.ppt
 *.woff
 *.woff2

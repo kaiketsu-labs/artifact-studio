@@ -9,6 +9,9 @@ artifact_studio/*
 !artifact_studio/designs/
 artifact_studio/designs/*
 !artifact_studio/designs/*.py
+!artifact_studio/powerpoint/
+artifact_studio/powerpoint/*
+!artifact_studio/powerpoint/*.py
 !web/
 !web/**
 !runtime/

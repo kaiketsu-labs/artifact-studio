@@ -20,6 +20,15 @@ Agents in a [shared hosted workspace](../docs/MULTIPLAYER.md#author-presentation
 | Project navigation, retained versions and workspace recovery | [artifact_studio/project_tree.py](../artifact_studio/project_tree.py), [artifact_studio/version_history.py](../artifact_studio/version_history.py) and [artifact_studio/workspace_recovery.py](../artifact_studio/workspace_recovery.py); project/folder MCP tools reuse the native navigation controller; version/recovery browser controls remain HTTP interfaces |
 | Host-invoked workflows | [.agents/skills/](../.agents/skills/) |
 
+Call `export_powerpoint` with a deck ID to discover the filename and authenticated download URL. Save the response from that URL with a file client. For shared hosting use the same Studio Bearer token as the MCP connection. Standalone hosted service agents and Copilot gateways use their existing service headers or gateway key. Access is checked again at download time, and the URL contains only the deck ID.
+
+For a shared workspace, set `DOWNLOAD_URL` to the receipt URL and supply the token through the environment.
+
+```sh
+printf 'Authorization: Bearer %s\n' "$ARTIFACT_STUDIO_AGENT_TOKEN" |
+  curl --fail --silent --show-error --header @- --output presentation.pptx "$DOWNLOAD_URL"
+```
+
 The running server's MCP initialization and `tools/list` responses are authoritative for the connected process. A checkout can be newer than that process. The host controls which discovered tools are exposed; connecting MCP does not automatically load skill bodies.
 
 The local catalogue advertises 66 tools. Six earlier names remain callable for

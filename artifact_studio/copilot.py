@@ -15,12 +15,15 @@ from typing import cast
 import uvicorn
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import TypeAdapter, ValidationError
+from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .copilot_tools import BOOTSTRAP, register_tools
-from .storage import Store
+from .copilot_tools import BOOTSTRAP, ScopedTools, register_tools
+from .powerpoint.agent_export import AGENT_POWERPOINT_EXPORT
+from .renderer_health import RendererBusy
+from .storage import ConflictError, Store
 from .tool_server import ToolServer
 
 KEY_HEADER = "X-Artifact-Studio-Key"
@@ -116,6 +119,7 @@ class GatewayBoundary:
     app: ASGIApp
     config: GatewayConfig
     key: bytes = field(repr=False)
+    powerpoint_scope: ScopedTools = field(repr=False)
     slots: asyncio.Semaphore = field(init=False, repr=False)
     wait_slots: asyncio.Semaphore = field(init=False, repr=False)
 
@@ -139,11 +143,40 @@ class GatewayBoundary:
                 scope, receive, send
             )
             return
+        download = AGENT_POWERPOINT_EXPORT.fullmatch(scope["path"])
+        if download:
+            async with self.slots:
+                response = await run_in_threadpool(self._powerpoint_download, download.group(1))
+                await response(scope, receive, send)
+            return
         await self._bounded_request(scope, receive, send)
+
+    def _powerpoint_download(self, deck_id: str) -> Response:
+        from .powerpoint.download import powerpoint_bytes, powerpoint_response
+
+        workspace = self.powerpoint_scope
+        headers = {"Cache-Control": "no-store"}
+        try:
+            project = workspace.powerpoint_project(deck_id)
+            data = powerpoint_bytes(workspace.store, deck_id)
+            if workspace.powerpoint_project(deck_id) != project:
+                raise FileNotFoundError
+            return powerpoint_response(data, deck_id)
+        except FileNotFoundError:
+            return JSONResponse({"error": "Presentation unavailable."}, 404, headers)
+        except ConflictError:
+            return JSONResponse({"error": "Presentation changed. Retry the export."}, 409, headers)
+        except RendererBusy:
+            return JSONResponse({"error": "PowerPoint export is busy."}, 503, headers)
+        except ValueError:
+            return JSONResponse(
+                {"error": "PowerPoint export is unavailable for this deck."}, 400, headers
+            )
 
     def _rejection(self, scope: Scope, headers: Headers) -> tuple[int, str]:
         """Produce fixed responses without echoing secrets or caller-controlled text."""
-        if scope["path"] != "/mcp":
+        download = AGENT_POWERPOINT_EXPORT.fullmatch(scope["path"])
+        if scope["path"] != "/mcp" and download is None:
             return 404, "Not found."
         if headers.getlist("host") != [self.config.public_host]:
             return 421, "Unexpected gateway host."
@@ -152,6 +185,10 @@ class GatewayBoundary:
         values = headers.getlist(KEY_HEADER)
         if len(values) != 1 or not hmac.compare_digest(values[0].encode("latin-1"), self.key):
             return 401, "A valid gateway API key is required."
+        if download:
+            if scope["method"] != "GET":
+                return 405, "Use GET to download a PowerPoint."
+            return 0, ""
         if scope["method"] != "POST":
             return 405, "Use Streamable HTTP POST requests."
         if headers.get("content-encoding", "identity") != "identity":
@@ -263,12 +300,17 @@ class GatewayBoundary:
 
 
 def create_gateway(config: GatewayConfig, *, store: Store | None = None) -> GatewayBoundary:
-    """Create an independent MCP-only ASGI application without changing the local server."""
+    """Create an independent tool and download application without changing the local server."""
     key = read_key(config.key_file)
     selected_store = store or Store(config.collection, config.database)
     server = ToolServer[None]("Artifact Studio Copilot", instructions=BOOTSTRAP)
     register_tools(
-        server, selected_store, config.project_id, config.whole_workspace, cancellable_waits=True
+        server,
+        selected_store,
+        config.project_id,
+        config.whole_workspace,
+        cancellable_waits=True,
+        powerpoint_origin=f"https://{config.public_host}",
     )
     application = server.streamable_http_app(
         stateless_http=True,
@@ -281,7 +323,8 @@ def create_gateway(config: GatewayConfig, *, store: Store | None = None) -> Gate
         ),
         host=config.bind,
     )
-    return GatewayBoundary(application, config, key)
+    powerpoint_scope = ScopedTools(selected_store, config.project_id, config.whole_workspace)
+    return GatewayBoundary(application, config, key, powerpoint_scope)
 
 
 def main() -> None:

@@ -191,12 +191,34 @@
   $('version-history').addEventListener('click',async()=>{if(!slide()||switchingDeck||elementAlternatives&&!await elementAlternatives.finish()||!await finishEdits()||!await noteAutosave.flush(key()))return;retainDraft();animationPreview.stop();versions.open({kind:'slide',deckId:deck.id,slideId:selectedId,title:slide().title,readOnly:!canEditShared()});});
   $('share-artifact').addEventListener('click',async()=>{if(!deck||elementAlternatives&&!await elementAlternatives.finish()||!await finishEdits())return;void sharing.open({scope:'artifact',id:deck.id,title:deck.title,presentation:true});});
   $('view-artifact').addEventListener('click',async()=>{if(!deck || !await finishEdits())return;animationPreview.stop();workspacePanels.enterView();});
+  function importedTextPath(element){
+    const article=element?.closest('article.slide[data-pptx-width][data-pptx-height]');
+    if(!article)return null;
+    const path=[];for(let node=element;node!==article;node=node.parentElement){if(!node?.parentElement)return null;path.unshift([...node.parentElement.children].indexOf(node));}
+    return path.length?path:null;
+  }
+  function importedShapeIndex(element){
+    const article=element?.parentElement;
+    if(!article?.matches('article.slide[data-pptx-width][data-pptx-height]')||!element.hasAttribute('data-pptx-object')||element.hasAttribute('data-pptx-group')||element.querySelector(':scope > [data-pptx-object]'))return null;
+    return [...article.children].indexOf(element);
+  }
   elementEditor=window.SlideEdits.create({
     properties,
     tools:$('element-tools'),selectionBox:$('selection-box'),deleteButton:$('delete-element'),rotationInput:$('rotate-element'),editButton:$('edit-element-text'),moveButton:$('move-element'),alignButton:$('align-element'),alignMenu:$('element-align-menu'),commitButton:$('commit-element-text'),cancelButton:$('cancel-element-edit'),sentBadge:$('element-proposal-sent'),
-    anchor:()=>({deck_id:deck.id,slide_id:selectedId,content_hash:slide().content_hash,target:structuredClone(currentTarget)}),
+    anchor:()=>({deck_id:deck.id,slide_id:selectedId,content_hash:slide().content_hash,expected_hash:slide().expected_hash,imported_path:importedTextPath(selectedElement),imported_index:importedShapeIndex(selectedElement),target:structuredClone(currentTarget)}),
+    directText:()=>canEditShared()&&!!importedTextPath(selectedElement),
+    directShape:()=>canEditShared()&&importedShapeIndex(selectedElement)!==null,
     getFeedbackMode:()=>'live',
-    onSend:async({deck_id,slide_id,content_hash,target,message,request_id,edit_intent,expected_mode})=>{
+    onSend:async({deck_id,slide_id,content_hash,expected_hash,imported_path,imported_index,target,message,request_id,edit_intent,expected_mode})=>{
+      if(imported_path&&edit_intent.action==='replace_text'&&canEditShared()){
+        await api(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/imported-text`,{expected_hash,request_id,path:imported_path,text:edit_intent.values.text});
+        setTimeout(()=>{void refresh(true);},0);toast('Text saved.');return {direct:true};
+      }
+      if(imported_index!==null&&imported_index!==undefined&&edit_intent.values.direct_transform&&canEditShared()){
+        const {dx,dy,rotation}=edit_intent.values.direct_transform;
+        await api(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/imported-transform`,{expected_hash,request_id,index:imported_index,dx,dy,rotation});
+        setTimeout(()=>{void refresh(true);},0);toast('Shape saved.');return {direct:true};
+      }
       const result=await postFeedback(`/api/decks/${encodeURIComponent(deck_id)}/slides/${encodeURIComponent(slide_id)}/feedback`,{message,content_hash,target,request_id,edit_intent},expected_mode);
       const released=true;
       await refresh();toast(deck?.workflow?.agent_waiting?'Sent to agent.':'Saved for agent.');
@@ -527,8 +549,22 @@
   /** Resolve a source relative to the canonical presentation folder. */
   function sourceURL(url){return new URL(url,location.origin+studioPath(`/decks/${deck.id}/`)).href;}
   function applyLayout(saved){for(const snapshot of [deck,pendingDeck]){if(!snapshot)continue;const lookup=new Map(snapshot.slides.map(item=>[item.id,item]));if(lookup.size===saved.slide_ids.length&&saved.slide_ids.every(id=>lookup.has(id)))snapshot.slides=saved.slide_ids.map(id=>lookup.get(id));snapshot.sections=saved.sections;snapshot.sections_hash=saved.sections_hash;}}
+  let previousRatioSource;
+  function setSlideRatio(snapshot){
+    const canvasSource=snapshot?.id?.startsWith('pptx-')
+      ? snapshot.slides.find(slide=>slide.html?.includes('data-pptx-width=')) : snapshot?.slides[0];
+    const html=canvasSource?.html||'';
+    if(html===previousRatioSource)return;
+    previousRatioSource=html;
+    const probe=document.createElement('template');probe.innerHTML=html;
+    const source=probe.content.querySelector('.slide[data-pptx-width][data-pptx-height]');
+    const width=Number(source?.dataset.pptxWidth),height=Number(source?.dataset.pptxHeight);
+    const ratio=Number.isFinite(width)&&Number.isFinite(height)&&width>0&&height>0&&height/width>=.1&&height/width<=4?width/height:16/9;
+    document.documentElement.style.setProperty('--slide-ratio',String(ratio));
+  }
   /** Render approval and unread revisions independently, without reloading stable thumbnails. */
   function renderRail(snapshot=pendingDeck||deck){
+    setSlideRatio(snapshot);
     void window.ArtifactRail?.show(snapshot.id);
     const approved=snapshot.slides.filter(item=>item.approved).length;
     const progress=$('progress-text'),label=`${approved} of ${snapshot.slides.length} slide${snapshot.slides.length===1?'':'s'} approved`;
@@ -839,7 +875,7 @@
   }
 
   /** Keep each preview tied to its exact content snapshot while an agent revises the file. */
-  function previewDocument(item,deckId,designHash=deck?.design_hash||item.content_hash,attempt=0){const origin=location.origin,files=origin+studioPath('/decks/'+deckId+'/');return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src '+origin+' \'unsafe-inline\'; img-src '+origin+' data:; font-src '+origin+' data:; script-src \'none\'; base-uri '+origin+';"><base href="'+files+'"><link rel="stylesheet" href="'+files+'theme.css?v='+designHash+'&retry='+attempt+'"><link rel="stylesheet" href="'+origin+'/runtime/slideshow.css"><style>html,body{width:100%;height:100%;overflow:hidden}.slide,.slide *,.slide::before,.slide::after,.slide *::before,.slide *::after{animation-play-state:paused!important}[data-review-focus]:focus-visible{outline:2px solid #386df0;outline-offset:3px}</style></head><body data-preview-key="'+item.content_hash+'">'+item.html+'</body></html>';}
+  function previewDocument(item,deckId,designHash=deck?.design_hash||item.content_hash,attempt=0){const origin=location.origin,files=origin+studioPath('/decks/'+deckId+'/');return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src '+origin+' \'unsafe-inline\'; img-src '+origin+' data:; font-src '+origin+' data:; script-src \'none\'; base-uri '+origin+';"><base href="'+files+'"><link rel="stylesheet" href="'+files+'theme.css?v='+designHash+'&retry='+attempt+'"><link rel="stylesheet" href="'+origin+'/runtime/slideshow.css"><style>html,body{width:100%;height:100%;overflow:hidden}article.slide[data-pptx-width][data-pptx-height]{width:100%;height:100%}.slide,.slide *,.slide::before,.slide::after,.slide *::before,.slide *::after{animation-play-state:paused!important}[data-review-focus]:focus-visible{outline:2px solid #386df0;outline-offset:3px}</style></head><body data-preview-key="'+item.content_hash+'">'+item.html+'</body></html>';}
   const previewLoader=window.SlidePreviewLoader.create({
     documentFor:previewDocument,
     onStart:(frame,reused)=>{

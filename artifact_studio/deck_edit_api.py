@@ -5,13 +5,16 @@ from contextlib import AbstractContextManager
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from .models import (
     ApprovalInput,
     NotesInput,
     SectionLayoutInput,
+    Slide,
     SlideActionInput,
     SlideOrderUpdateInput,
+    SlidePatch,
     SlideRestoreInput,
     SlidesVisibilityInput,
     SlideVisibilityInput,
@@ -20,6 +23,29 @@ from .multiplayer_access import Role
 from .sections import Sections, section_layout
 from .slide_actions import SlideActionResult, SlideActions
 from .storage import Store
+
+
+class ImportedTextEdit(BaseModel):
+    """An exact-revision edit to one imported text leaf."""
+
+    model_config = ConfigDict(extra="forbid")
+    expected_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: str = Field(min_length=8, max_length=100)
+    path: list[int] = Field(min_length=1, max_length=40)
+    text: str = Field(min_length=1, max_length=9000)
+
+
+class ImportedTransform(BaseModel):
+    """A bounded transform on one imported top-level object."""
+
+    model_config = ConfigDict(extra="forbid")
+    expected_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    request_id: str = Field(min_length=8, max_length=100)
+    index: int = Field(ge=0)
+    dx: float = Field(ge=-2, le=2, allow_inf_nan=False)
+    dy: float = Field(ge=-2, le=2, allow_inf_nan=False)
+    rotation: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
 
 DeckID = Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9-]{0,99}$")]
 SlideID = Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9-]{0,79}$")]
@@ -30,6 +56,54 @@ def deck_edit_routes(
 ) -> APIRouter:
     """Use the caller's access guard for the duration of each edit or recovery."""
     router = APIRouter(prefix="/api/decks/{deck_id}")
+
+    @router.post("/slides/{slide_id}/imported-text")
+    def imported_text(
+        request: Request, deck_id: DeckID, slide_id: SlideID, body: ImportedTextEdit
+    ) -> dict[str, bool]:
+        """Save an imported text leaf with the same access and revision guards as other edits."""
+        from .powerpoint.edit import edit_pptx_text, synchronized_title
+
+        def derive(slide: Slide) -> SlidePatch:
+            updated = edit_pptx_text(slide.html, body.path, body.text)
+            return SlidePatch(
+                html=updated, title=synchronized_title(slide.html, updated, body.path, slide.title)
+            )
+
+        with access(request, deck_id, "edit") as store:
+            store.revise_derived(
+                deck_id,
+                slide_id,
+                body.expected_hash,
+                body.request_id,
+                "imported-text:" + body.model_dump_json(exclude={"request_id", "expected_hash"}),
+                derive,
+            )
+        return {"saved": True}
+
+    @router.post("/slides/{slide_id}/imported-transform")
+    def imported_transform(
+        request: Request, deck_id: DeckID, slide_id: SlideID, body: ImportedTransform
+    ) -> dict[str, bool]:
+        """Save one imported shape transform with revision and access checks."""
+        from .powerpoint.edit import transform_pptx_object
+
+        def derive(slide: Slide) -> SlidePatch:
+            return SlidePatch(
+                html=transform_pptx_object(slide.html, body.index, body.dx, body.dy, body.rotation)
+            )
+
+        with access(request, deck_id, "edit") as store:
+            store.revise_derived(
+                deck_id,
+                slide_id,
+                body.expected_hash,
+                body.request_id,
+                "imported-transform:"
+                + body.model_dump_json(exclude={"request_id", "expected_hash"}),
+                derive,
+            )
+        return {"saved": True}
 
     @router.post("/slides/{slide_id}/visibility")
     def slide_visibility(

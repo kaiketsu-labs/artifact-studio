@@ -13,6 +13,7 @@ from .designs.hosted import AGENT_DESIGN_FILE_PATH, AGENT_REFERENCE_PATH
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH
 from .multiplayer import create_app as create_collaboration
 from .multiplayer_access import AccessDenied, Sharing, workspace_editor_path
+from .powerpoint.agent_export import AGENT_POWERPOINT_EXPORT, AGENT_POWERPOINT_IMPORT
 from .shared_editor import create_shared_editor
 
 
@@ -125,6 +126,8 @@ class UnifiedStudio:
             or path.startswith(("/api/workspaces/", "/api/agents/", "/mcp/"))
             or AGENT_REFERENCE_PATH.fullmatch(path)
             or AGENT_DESIGN_FILE_PATH.fullmatch(path)
+            or AGENT_POWERPOINT_EXPORT.fullmatch(path)
+            or AGENT_POWERPOINT_IMPORT.fullmatch(path)
         ):
             scope.setdefault("state", {})["unified_studio"] = True
             await self.collaboration(scope, receive, send)

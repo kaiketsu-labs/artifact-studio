@@ -15,7 +15,14 @@ from pydantic import ValidationError
 
 from artifact_studio.models import AgentContext, Slide, SlidePatch
 from artifact_studio.storage import Store, digest
-from artifact_studio.visuals import CaptureOptions, VisualResult, capture, snapshot
+from artifact_studio.visuals import (
+    CaptureOptions,
+    VisualResult,
+    capture,
+    capture_snapshot,
+    slide_viewport,
+    snapshot,
+)
 from tests.design_factory import TEMPLATE_ID, make_design
 
 DECK = "2026-10-30-visual-check"
@@ -475,3 +482,50 @@ def test_capture_reports_explicit_placeholders_and_clipped_containers(
     assert diagnostics.placeholders == ["unfinished"]
     assert "clipped" in diagnostics.possible_clipping
     assert "Hidden" not in diagnostics.placeholders
+
+
+@pytest.mark.parametrize(
+    ("markup", "expected"),
+    [
+        (
+            '<article class="slide" data-pptx-width="9144000" '
+            'data-pptx-height="6858000"></article>',
+            (1600, 1200),
+        ),
+        (
+            '<article class="slide" data-pptx-width="12192000" '
+            'data-pptx-height="6858000"></article>',
+            (1600, 900),
+        ),
+        ('<article class="slide" data-pptx-width="0" data-pptx-height="1"></article>', (1600, 900)),
+        ('<article class="slide"></article>', (1600, 900)),
+    ],
+)
+def test_slide_viewport_preserves_imported_aspect_ratio(
+    markup: str, expected: tuple[int, int]
+) -> None:
+    """Use imported slide dimensions and retain the authored-slide default."""
+    assert slide_viewport(markup) == expected
+
+
+@RENDER
+@pytest.mark.parametrize(("width", "height", "expected_height"), [(4, 3, 1200), (16, 9, 900)])
+def test_imported_slide_capture_uses_native_aspect_ratio(
+    store: Store, width: int, height: int, expected_height: int
+) -> None:
+    """Render imported slides at their native ratio with the bottom edge visible."""
+    slide = (
+        store.read(DECK)
+        .slides[0]
+        .model_copy(
+            update={
+                "html": f'<article class="slide" data-pptx-width="{width}" '
+                f'data-pptx-height="{height}" '
+                'style="background:rgb(0,160,80)"></article>'
+            }
+        )
+    )
+    prepared = snapshot(store, DECK, slide, 1, CaptureOptions())
+    image = Image.open(io.BytesIO(capture_snapshot(prepared, CaptureOptions())))
+    assert image.size == (1600, expected_height)
+    assert image.convert("RGB").getpixel((800, expected_height - 10)) == (0, 160, 80)

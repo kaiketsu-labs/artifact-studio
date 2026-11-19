@@ -14,6 +14,7 @@ The complete target tree below is still a plan; only the folders described in
   module objects, preserving existing imports and monkeypatches. Keep those
   aliases until a separately announced compatibility change; add new behavior in
   the feature package, never in the adapters.
+- [`artifact_studio/powerpoint/`](../artifact_studio/powerpoint/) owns editable .pptx import and export, including package validation, guarded human edits, source round trips and conversion of rendered Studio objects to DrawingML.
 - [`web/presentation/`](../web/presentation/): audience launch/fullscreen,
   bounded idle warmup, and presentation archive/restore controls. The editor
   loads canonical paths. Exact historical JavaScript URLs are served from the

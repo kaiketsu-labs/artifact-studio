@@ -377,6 +377,34 @@
       }
     },
     {
+      "name": "export_powerpoint",
+      "description": "Get a PowerPoint download URL for the current presentation.\n\nSave the binary with an HTTP file client using the same Studio Bearer token.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "export_powerpointArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "export_powerpointDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "read_presentation_brief_file",
       "description": "Read a bounded page of an owner brief file listed by get_presentation_outline.",
       "input_schema": {
@@ -1732,6 +1760,50 @@
       "output_schema": {
         "additionalProperties": true,
         "title": "create_presentationDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "import_powerpoint",
+      "description": "Import a base64-encoded PPTX into an editable shared project.\n\nReuse request_id with the same payload to safely retry an import. Hosted MCP requests\nare limited to 2 MiB; for larger files use scripts/import_powerpoint_mcp.py.\n",
+      "input_schema": {
+        "properties": {
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "data_base64": {
+            "maxLength": 66666668,
+            "title": "Data Base64",
+            "type": "string"
+          },
+          "request_id": {
+            "maxLength": 100,
+            "minLength": 8,
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "title",
+          "data_base64",
+          "request_id"
+        ],
+        "title": "import_powerpointArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": true,
+        "title": "import_powerpointDictOutput",
         "type": "object"
       },
       "annotations": {

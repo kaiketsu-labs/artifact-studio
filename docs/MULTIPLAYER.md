@@ -350,6 +350,8 @@ Cloudflare configuration differs from the older [whole-workspace hosted mode](HO
 | `studio.example.com` | Allow intended human emails/group; require MFA | Signed identity, invitations and per-object roles |
 | `studio.example.com/mcp` and its subpaths | Specific **Bypass** application | Per-agent bearer token and current scoped permissions |
 | `studio.example.com/api/review/hooks` | Specific **Bypass** application | The same per-agent token and scope |
+| `studio.example.com/api/agent/decks/*` | Specific **Bypass** application | PowerPoint downloads require the same token and a current view grant |
+| `studio.example.com/api/agent/projects/*` | Specific **Bypass** application | Staged PowerPoint uploads require the same token and a current edit grant |
 | `preview.example.com` | No Access login | Expiring revision capabilities, checked against current recipient access |
 
 Only these agent paths bypass browser login. They still require Studio authentication.

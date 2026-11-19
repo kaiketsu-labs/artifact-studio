@@ -13,6 +13,7 @@ from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from html import escape
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import unquote, urlsplit
@@ -42,6 +43,37 @@ MAX_ASSET_BYTES = 25 * 1024 * 1024
 MAX_DEPENDENCY_BYTES = 64 * 1024 * 1024
 MAX_PAGE_BYTES = 96 * 1024 * 1024
 MAX_CONTACT_SLIDES = 24
+
+
+class _SlideDimensions(HTMLParser):
+    """Read dimensions only from the root slide article."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.dimensions: tuple[int, int] | None = None
+        self.seen = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.seen:
+            return
+        self.seen = True
+        values = dict(attrs)
+        if tag != "article" or "slide" not in (values.get("class") or "").split():
+            return
+        try:
+            width = int(values.get("data-pptx-width") or "")
+            height = int(values.get("data-pptx-height") or "")
+        except ValueError:
+            return
+        if width > 0 and height > 0 and 0.1 <= height / width <= 4:
+            self.dimensions = (WIDTH, round(WIDTH * height / width))
+
+
+def slide_viewport(markup: str) -> tuple[int, int]:
+    """Return the imported slide canvas size, or the standard authored size."""
+    parser = _SlideDimensions()
+    parser.feed(markup)
+    return parser.dimensions or (WIDTH, HEIGHT)
 
 
 class RenderQueue:
@@ -293,7 +325,7 @@ def snapshot(
         raise ValueError(
             "Custom interactive slides use stage 0 plus elapsed_ms, or null for final."
         )
-    width, height = viewport or (WIDTH, HEIGHT)
+    width, height = viewport or slide_viewport(preview_html or slide.html)
     content_hash = store.content_hash(deck_id, slide)
     SlideMarkup().feed(slide.html)
     folder = store.folder(deck_id)
@@ -430,7 +462,7 @@ def _render_images[T](
     options: CaptureOptions,
     paint: Callable[[Page], T],
     *,
-    viewport: tuple[int, int] = (WIDTH, HEIGHT),
+    viewport: tuple[int, int] | None = None,
     color_scheme: Literal["light", "dark"] = "light",
 ) -> list[T]:
     """Render prepared audience documents through the shared offline browser boundary."""
@@ -438,7 +470,10 @@ def _render_images[T](
     try:
         with sandboxed_browser(sync_playwright) as browser:
             context = browser.new_context(
-                viewport={"width": viewport[0], "height": viewport[1]},
+                viewport={
+                    "width": (viewport or (WIDTH, HEIGHT))[0],
+                    "height": (viewport or (WIDTH, HEIGHT))[1],
+                },
                 color_scheme=color_scheme,
                 device_scale_factor=options.pixel_ratio,
                 reduced_motion="reduce" if options.reduced_motion else "no-preference",
@@ -449,6 +484,10 @@ def _render_images[T](
             context.route("**/*", lambda route: route.abort())
             for item in prepared:
                 tab = context.new_page()
+                if viewport is None:
+                    tab.set_viewport_size(
+                        {"width": item.frame.viewport_width, "height": item.frame.viewport_height}
+                    )
                 try:
                     tab.set_default_timeout(15_000)
                     tab.set_content(item.document, wait_until="load", timeout=15_000)

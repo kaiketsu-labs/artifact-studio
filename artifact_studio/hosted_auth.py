@@ -14,6 +14,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .authentication import AuthenticationError, AuthProvider, Principal
 from .deployment import DeploymentConfig
 from .designs.transfer import MAX_DESIGN_ZIP
+from .powerpoint.agent_export import AGENT_POWERPOINT_EXPORT
 from .request_diagnostics import RequestDiagnostics
 
 
@@ -52,6 +53,13 @@ class HostedAuth:
         hosts = headers.getlist("host")
         host = hosts[0].lower() if len(hosts) == 1 else ""
         path, method = scope["path"], scope["method"].upper()
+        agent_download = AGENT_POWERPOINT_EXPORT.fullmatch(path) is not None
+        agent_path = (
+            path == "/mcp"
+            or path.startswith("/mcp/")
+            or path == "/api/review/hooks"
+            or agent_download
+        )
 
         async def reply(status: int, message: str) -> None:
             response_headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}
@@ -111,14 +119,12 @@ class HostedAuth:
                 await reply(503, "Authentication unavailable")
                 return
             if principal.service:
-                member = principal.subject in self.config.agent_subjects and (
-                    path == "/mcp" or path.startswith("/mcp/") or path == "/api/review/hooks"
-                )
+                member = principal.subject in self.config.agent_subjects and agent_path
             else:
                 member = bool(
                     principal.email and principal.email.lower() in self.config.member_emails
                 )
-            if path == "/api/review/hooks" and not principal.service:
+            if (path == "/api/review/hooks" or agent_download) and not principal.service:
                 await reply(403, "Service credentials required")
                 return
             if not member:
@@ -137,10 +143,9 @@ class HostedAuth:
             ):
                 await reply(403, "Open this preview inside the workspace.")
                 return
-            mcp = path == "/mcp" or path.startswith("/mcp/") or path == "/api/review/hooks"
             origins = headers.getlist("origin")
-            if (mcp and origins) or (
-                not mcp
+            if (agent_path and origins) or (
+                not agent_path
                 and method not in ("GET", "HEAD", "OPTIONS")
                 and (len(origins) != 1 or origins[0] != self.config.public_url)
             ):
@@ -219,7 +224,7 @@ class HostedAuth:
             finally:
                 self._preview_slots.release()
             return
-        if path == "/mcp" or path.startswith("/mcp/") or path == "/api/review/hooks":
+        if agent_path:
             hook = path == "/api/review/hooks"
             slots = self._hook_slots if hook else self._mcp_slots
             if slots.locked():
