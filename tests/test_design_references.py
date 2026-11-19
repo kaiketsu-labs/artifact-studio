@@ -93,7 +93,7 @@ def test_deck_context_uses_selected_brand_not_default(store: Store, detail: str)
     assert context["design_references"] == []
     capabilities = context["authoring_capabilities"]
     assert isinstance(capabilities, dict)
-    assert capabilities["powerpoint_export"] is False
+    assert capabilities["powerpoint_export"] is True
     assert capabilities["powerpoint_reference_input"] is True
     assert capabilities["free_composition"] is True
     with pytest.raises(ToolError, match="does not match"):

@@ -575,6 +575,18 @@ class MultiplayerTools:
                     )
                 ).model_dump(mode="json")
 
+    def export_powerpoint(self, ctx: Ctx, deck_id: str) -> dict[str, str]:
+        """Get a PowerPoint download URL for the current presentation.
+
+        Save the binary with an HTTP file client using the same Studio Bearer token.
+        """
+        from .powerpoint.agent_export import export_receipt, presentation_project
+
+        actor = self.actor(ctx)
+        with self.sharing.guard(actor, self.scope(actor, deck_id)) as store:
+            _ = presentation_project(store, deck_id)
+            return export_receipt(deck_id, self.public_url, agent_endpoint=True)
+
     def create_presentation(
         self,
         ctx: Ctx,
@@ -1273,6 +1285,7 @@ class MultiplayerTools:
             self.get_artifact,
             self.read_artifact_files,
             self.get_presentation_outline,
+            self.export_powerpoint,
             self.read_presentation_brief_file,
             self.get_slide,
             self.get_slide_designs,

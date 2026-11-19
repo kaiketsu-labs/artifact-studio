@@ -136,3 +136,48 @@ def test_hosted_download_and_direct_preview_boundary(tmp_path: Path) -> None:
             assert (
                 client.get("/api/hub", headers={"host": "preview.example.test"}).status_code == 404
             )
+
+
+def test_hosted_service_downloads_powerpoint_with_its_existing_credentials(tmp_path: Path) -> None:
+    """Service credentials authorize the binary route but not the editor URL."""
+    import base64
+    from io import BytesIO
+    from zipfile import ZipFile
+
+    from artifact_studio.powerpoint import import_powerpoint
+    from tests.pptx_fixture import fictional_powerpoint
+
+    with (
+        running_hosted_app(tmp_path / "server", tmp_path / "server.log") as server,
+        httpx.Client(base_url=server.url, headers={"host": "studio.example.test"}) as client,
+    ):
+        project = ArtifactStore(server.store).create_project("Fictional garden")
+        deck = import_powerpoint(
+            server.store,
+            project.id,
+            "Fictional garden",
+            base64.b64encode(fictional_powerpoint()).decode(),
+        )
+        agent = {"x-fixture-auth": "agent", "accept": "application/json, text/event-stream"}
+        receipt = (
+            client.post(
+                "/mcp",
+                headers=agent,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": "export_powerpoint", "arguments": {"deck_id": deck.id}},
+                },
+            )
+            .raise_for_status()
+            .json()["result"]["structuredContent"]
+        )
+        download_path = f"/api/agent/decks/{deck.id}/exports/pptx"
+        assert receipt["download_url"] == WORKSPACE + download_path
+        assert client.get(download_path).status_code == 401
+        assert client.get(download_path, headers={"x-fixture-auth": "member"}).status_code == 403
+        assert client.get(f"/api/decks/{deck.id}/exports/pptx", headers=agent).status_code == 403
+        response = client.get(download_path, headers=agent).raise_for_status()
+        with ZipFile(BytesIO(response.content)) as powerpoint:
+            assert "ppt/presentation.xml" in powerpoint.namelist()

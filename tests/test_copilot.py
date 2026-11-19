@@ -839,3 +839,40 @@ def test_powerpoint_import_respects_gateway_scope_and_retries(gateway: GatewayFi
         },
     )
     assert response.status_code == 401
+
+
+def test_powerpoint_download_rechecks_scope_after_render(
+    gateway: GatewayFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The existing gateway key and current project binding both cover binary downloads."""
+    from artifact_studio.powerpoint import download
+
+    path = f"/api/agent/decks/{DECK}/exports/pptx"
+    receipt = data(call(gateway.client, "export_powerpoint", {"deck_id": DECK}))
+    assert receipt == {
+        "deck_id": DECK,
+        "filename": f"{DECK}.pptx",
+        "download_url": f"https://{HOST}{path}",
+    }
+    assert gateway.client.get(path, headers={KEY_HEADER: "wrong"}).status_code == 401
+    assert gateway.client.get(path, headers={"origin": f"https://{HOST}"}).status_code == 403
+    assert gateway.client.post(path).status_code == 405
+
+    def render(store: Store, deck_id: str) -> bytes:
+        assert store is gateway.store and deck_id == DECK
+        return b"fictional binary"
+
+    monkeypatch.setattr(download, "powerpoint_bytes", render)
+    assert gateway.client.get(path).raise_for_status().content == b"fictional binary"
+
+    def render_during_move(store: Store, deck_id: str) -> bytes:
+        binary = render(store, deck_id)
+        _ = ArtifactStore(store).set_artifact_project(deck_id, gateway.unrelated.project_id)
+        return binary
+
+    monkeypatch.setattr(download, "powerpoint_bytes", render_during_move)
+    denied = gateway.client.get(path)
+    assert denied.status_code == 404
+    assert b"fictional binary" not in denied.content
+    assert gateway.client.get(path).status_code == 404
+    assert call(gateway.client, "export_powerpoint", {"deck_id": DECK}).get("isError") is True

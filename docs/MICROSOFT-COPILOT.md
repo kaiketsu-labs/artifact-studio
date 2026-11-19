@@ -37,7 +37,7 @@ uv run python -m artifact_studio.copilot serve \
   --port 8798
 ```
 
-Replace the example values. Obtain the real project ID from `list_projects` or the local project API. Use `--whole-workspace` **instead of** `--project-id` only when that broader scope is intended. The gateway binds to loopback. Only `/mcp` is exposed; the browser editor and its APIs are not mounted. Missing/wrong keys, browser-origin requests and unexpected Host headers are rejected.
+Replace the example values. Obtain the real project ID from `list_projects` or the local project API. Use `--whole-workspace` **instead of** `--project-id` only when that broader scope is intended. The gateway binds to loopback. The gateway exposes `/mcp` and the authenticated PowerPoint download route. Missing/wrong keys, browser-origin requests and unexpected Host headers are rejected.
 
 ## HTTPS endpoint
 
@@ -67,6 +67,9 @@ In **Tools → Add a tool → New tool → Model Context Protocol**, enter:
 | Header name | `X-Artifact-Studio-Key` |
 
 Create the connection and enter the private key in Microsoft's credential field. It is a credential, not an agent instruction. Check the discovered tools. Do not treat a saved URL or a successful HTTP health check as proof that Copilot can call them.
+
+`export_powerpoint` provides a filename and download URL for a presentation in the gateway's scope. Save the file with an HTTP client configured with the same `X-Artifact-Studio-Key` header. Copilot Studio's MCP connection discovers the link. Retrieving the binary requires an authenticated file client, and each download checks the presentation's current project.
+
 
 Test in the agent's preview before publishing to **Teams and Microsoft 365 Copilot**. Keep distribution restricted to yourself unless broader sharing was explicitly requested. Tenant policies or environment permissions can prevent adding or publishing the agent.
 

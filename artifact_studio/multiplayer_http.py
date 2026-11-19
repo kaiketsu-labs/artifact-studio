@@ -28,12 +28,12 @@ from .designs.transfer import MAX_DESIGN_ZIP
 from .invitation_landing import CONTINUE_PATH, LANDING_PATH, handoff_response
 from .multiplayer_access import AccessDenied, Actor, Sharing, workspace_editor_path
 from .multiplayer_access import Scope as GrantScope
+from .powerpoint.agent_export import AGENT_POWERPOINT_EXPORT, AGENT_POWERPOINT_IMPORT
 from .request_diagnostics import RequestDiagnostics
 
 _CHAT = re.compile(r"/api/workspaces/([^/]+)/artifacts/([^/]+)/chat")
 _CHAT_FILE = re.compile(r"/api/workspaces/[^/]+/artifacts/[^/]+/chat/[^/]+/files/[^/]+")
 _REQUEST_LIMIT = 2 * 1024 * 1024
-_AGENT_POWERPOINT = re.compile(r"/api/agent/projects/([a-zA-Z0-9_-]+)/powerpoint")
 _AGENT_POWERPOINT_LIMIT = 66_766_668
 _CHAT_LIMIT = 68 * 1024 * 1024
 _OWNER_UPLOAD_LIMITS = {
@@ -213,7 +213,8 @@ class MultiplayerAuth:
                 path in {"/mcp", "/mcp/", "/api/review/hooks"}
                 or AGENT_REFERENCE_PATH.fullmatch(path) is not None
                 or AGENT_DESIGN_FILE_PATH.fullmatch(path) is not None
-                or _AGENT_POWERPOINT.fullmatch(path) is not None
+                or AGENT_POWERPOINT_IMPORT.fullmatch(path) is not None
+                or AGENT_POWERPOINT_EXPORT.fullmatch(path) is not None
             )
             origins = headers.getlist("origin")
             if (agent_path and origins) or (
@@ -342,7 +343,7 @@ class MultiplayerAuth:
                 return
             upload_limit = MAX_REFERENCE_BYTES
         powerpoint_upload = (
-            _AGENT_POWERPOINT.fullmatch(path)
+            AGENT_POWERPOINT_IMPORT.fullmatch(path)
             if not self.shared_shell and host == self.host and method == "POST"
             else None
         )
@@ -390,6 +391,8 @@ class MultiplayerAuth:
             if _CHAT_FILE.fullmatch(path)
             else ("design_download", self.design_download_slots)
             if AGENT_DESIGN_FILE_PATH.fullmatch(path)
+            else ("agent_powerpoint_download", self.design_download_slots)
+            if AGENT_POWERPOINT_EXPORT.fullmatch(path)
             else ("review_hook", self.hook_slots)
             if path == "/api/review/hooks"
             else ("agent", self.agent_slots)

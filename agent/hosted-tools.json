@@ -377,6 +377,34 @@
       }
     },
     {
+      "name": "export_powerpoint",
+      "description": "Get a PowerPoint download URL for the current presentation.\n\nSave the binary with an HTTP file client using the same Studio Bearer token.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "export_powerpointArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "export_powerpointDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "read_presentation_brief_file",
       "description": "Read a bounded page of an owner brief file listed by get_presentation_outline.",
       "input_schema": {

@@ -551,6 +551,23 @@ def create_app(
                 )
             ).model_dump(mode="json")
 
+    @app.get("/api/agent/decks/{deck_id}/exports/pptx")
+    def agent_export_powerpoint(request: Request, deck_id: str) -> Response:
+        """Download current presentation bytes with the agent's existing bearer grant."""
+        from .powerpoint.agent_export import presentation_project
+        from .powerpoint.download import powerpoint_bytes, powerpoint_response
+
+        actor = actor_of(request)
+        record = hub.agent_record(actor)
+        scope = Scope(str(record["workspace"]), "artifact", deck_id)
+        with hub.guard(actor, scope) as store:
+            project = presentation_project(store, deck_id)
+        data = powerpoint_bytes(store, deck_id)
+        with hub.guard(actor, scope):
+            if presentation_project(store, deck_id) != project:
+                raise AccessDenied
+        return powerpoint_response(data, deck_id)
+
     @app.post("/api/workspaces/{workspace}/agents")
     def connect_agent(request: Request, workspace: str, body: AgentInput) -> dict[str, str]:
         result = hub.connect_agent(

@@ -528,6 +528,15 @@ class ScopedTools:
         )
         return self.metadata(item)
 
+    def powerpoint_project(self, deck_id: str) -> str:
+        """Check project scope before rendering or returning a PowerPoint."""
+        from .powerpoint.agent_export import presentation_project
+
+        project = presentation_project(self.store, deck_id)
+        if not self.whole_workspace and project != self.project_id:
+            raise FileNotFoundError("Presentation unavailable.")
+        return project
+
     def import_powerpoint(
         self,
         project_id: Identifier,
@@ -1070,6 +1079,7 @@ def register_tools(
     *,
     hosted_hooks: bool = False,
     cancellable_waits: bool = False,
+    powerpoint_origin: str = "",
 ) -> None:
     """Register an explicit allowlist; local MCP registrations are never imported or modified."""
     scoped = ScopedTools(store, project_id, whole_workspace, hosted_hooks=hosted_hooks)
@@ -1108,6 +1118,19 @@ def register_tools(
         scoped.reorder_slides,
         scoped.reply_to_feedback,
     )
+    if powerpoint_origin:
+
+        def export_powerpoint(deck_id: Identifier) -> dict[str, str]:
+            """Get a PowerPoint download URL for the current presentation.
+
+            Save the binary with an HTTP file client using the connection's credentials.
+            """
+            from .powerpoint.agent_export import export_receipt
+
+            _ = scoped.powerpoint_project(deck_id)
+            return export_receipt(deck_id, powerpoint_origin, agent_endpoint=True)
+
+        reads += (export_powerpoint,)
     if hosted_hooks:
         reads += (
             scoped.get_live_review_status,

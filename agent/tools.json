@@ -4250,6 +4250,35 @@
       }
     },
     {
+      "name": "export_powerpoint",
+      "description": "Get a PowerPoint download URL for the current presentation.\n\nDownload the binary with an HTTP file client. The tool returns only metadata.\n",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "pattern": "^[a-z0-9][a-z0-9-]{0,99}$",
+            "title": "Deck Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id"
+        ],
+        "title": "export_powerpointArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "export_powerpointDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
       "name": "create_presentation",
       "description": "Create a branded cover and save the supplied brief as context and agent-authored feedback.\nRead that brief before drafting the full story; choose the slide count to fit the content.\nReturns deck identity and slide IDs; include_content=True returns the full cover source.\ndeck_id must use YYYY-MM-DD-lowercase-slug, e.g. 2026-11-01-quarterly-review (max 100 chars).\nThe compact receipt includes workspace_url and private-field-free audience_url for review.\nSupply a unique request_id (8–100 characters) for exact-payload retries. A recorded\nretry returns the original creation snapshot, not current content; read the deck to resume.\nIf an ID already exists without a matching receipt, read and reconcile ownership first.\n",
       "input_schema": {
