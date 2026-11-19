@@ -217,6 +217,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS creation_receipts (
                     deck TEXT PRIMARY KEY, request_id TEXT NOT NULL,
                     payload_hash TEXT NOT NULL, document TEXT NOT NULL, marker TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS powerpoint_sources (
+                    deck TEXT PRIMARY KEY, marker TEXT NOT NULL, source BLOB NOT NULL,
+                    theme_hash TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS delivery (
                     id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER UNIQUE NOT NULL);
                 CREATE TABLE IF NOT EXISTS workflow (

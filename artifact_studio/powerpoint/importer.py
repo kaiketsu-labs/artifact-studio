@@ -92,6 +92,15 @@ class Canvas:
 
 
 @dataclass
+class OriginalObject:
+    shape: ET.Element
+    transform: ET.Element
+    canvas: Canvas
+    part: str
+    layer: str
+
+
+@dataclass
 class Painter:
     package: Package
     theme: ET.Element
@@ -103,6 +112,7 @@ class Painter:
     object_counts: dict[str, int] = field(default_factory=dict)
     titles: list[str] = field(default_factory=list)
     labels: list[str] = field(default_factory=list)
+    originals: dict[str, OriginalObject] = field(default_factory=dict)
 
     def color(self, prop: ET.Element, reference: str = "") -> str:
         if len(prop) != 1:
@@ -260,6 +270,7 @@ class Painter:
             )
             if xf is None:
                 raise ValueError("Position is missing from the slide, layout and master.")
+            self.originals[key] = OriginalObject(shape, xf, canvas, part, layer)
             x, y = pair(xf, "off", "x", "y")
             w, h = pair(xf, "ext", "cx", "cy")
             if min(w, h) <= 0:
@@ -400,7 +411,9 @@ class Painter:
             raise ValueError(f"{name}: {exc}") from None
 
 
-def compile_slides(pkg: Package) -> tuple[list[Slide], dict[str, bytes]]:
+def compile_slides(
+    pkg: Package, *, originals: dict[str, dict[str, OriginalObject]] | None = None
+) -> tuple[list[Slide], dict[str, bytes]]:
     pres = pkg.xml(pkg.presentation)
     size = required(pres, P + "sldSz")
     width, height = int(size.attrib["cx"]), int(size.attrib["cy"])
@@ -541,6 +554,8 @@ def compile_slides(pkg: Package) -> tuple[list[Slide], dict[str, bytes]]:
                     for p in s.findall(f"{P}txBody/{A}p")
                 )
             titles = paint.titles or paint.labels or [f"Slide {i}"]
+            if originals is not None:
+                originals[f"slide-{i}"] = paint.originals
             slides.append(
                 Slide(
                     id=f"slide-{i}",
@@ -623,15 +638,13 @@ def import_powerpoint(
             "Invalid or unsupported PowerPoint package. Re-save as .pptx and try again."
         ) from exc
     deck = Deck(id=deck_id, title=title.strip(), slides=slides)
+    theme = (
+        PROJECT_ROOT / "runtime/viewer.css"
+    ).read_text() + "\n.slide{box-sizing:border-box}.slide *{box-sizing:border-box}"
     with tempfile.TemporaryDirectory(dir=store.root, prefix=".pptx-") as temp:
         stage = Path(temp) / "deck"
         stage.mkdir()
-        write_starter(
-            stage,
-            deck,
-            (PROJECT_ROOT / "runtime/viewer.css").read_text()
-            + "\n.slide{box-sizing:border-box}.slide *{box-sizing:border-box}",
-        )
+        write_starter(stage, deck, theme)
         for filename, data in assets.items():
             _ = (stage / "assets" / filename).write_bytes(data)
         _ = (stage / "README.md").write_text("Imported editable PowerPoint presentation.\n")
@@ -650,6 +663,10 @@ def import_powerpoint(
                 _ = db.execute(
                     "INSERT INTO creation_receipts VALUES (?,?,?,?,?)",
                     (deck_id, token, payload, deck.model_dump_json(), marker),
+                )
+                _ = db.execute(
+                    "INSERT INTO powerpoint_sources VALUES (?,?,?,?)",
+                    (deck_id, marker, source, hashlib.sha256(theme.encode()).hexdigest()),
                 )
                 db.commit()
             except BaseException:

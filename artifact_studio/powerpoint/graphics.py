@@ -221,8 +221,8 @@ def _xml(data: bytes) -> ET.Element:
     return root
 
 
-def _workbook_values(data: bytes, formula: str) -> list[str]:
-    """Read a simple contiguous chart range from an embedded XLSX workbook."""
+def workbook_range(formula: str) -> tuple[str, str, int, int]:
+    """Parse a simple contiguous chart reference in an embedded XLSX workbook."""
     match = re.fullmatch(
         r"(?:'([^']+)'|([^'!]+))!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?", formula
     )
@@ -237,6 +237,12 @@ def _workbook_values(data: bytes, formula: str) -> list[str]:
     )
     if col1 != col2 or row1 < 1 or row2 < row1 or row2 - row1 > 10000:
         raise ValueError("unsupported chart workbook range")
+    return sheet_name, col1, row1, row2
+
+
+def _workbook_values(data: bytes, formula: str) -> list[str]:
+    """Read a simple contiguous chart range from an embedded XLSX workbook."""
+    sheet_name, col1, row1, row2 = workbook_range(formula)
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as book:
             entries = book.infolist()
