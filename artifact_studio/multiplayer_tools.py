@@ -23,6 +23,7 @@ from .copilot_tools import (
     MAX_READ_BYTES,
     READ,
     WRITE,
+    Identifier,
     RequestID,
     ScopedTools,
     attachment_page,
@@ -30,11 +31,20 @@ from .copilot_tools import (
     remote_tool,
 )
 from .deck_presence import AGENT_ACTIVITY_TTL, DeckPresence
+from .designs.agent_reference import (
+    ReferenceTarget,
+    ReferenceView,
+    example_context,
+    pinned_context,
+    read_pin,
+)
 from .designs.authoring import DesignAuthoring
 from .designs.elements import ElementAlternatives, ElementInput
 from .designs.hosted import owner_design_store, reference_receipt
 from .designs.inputs import MAX_REFERENCE_BYTES
 from .designs.library import DesignLibrary
+from .designs.pinned import DesignReferences as PinnedReferences
+from .designs.pinned import PinnedSlide
 from .designs.references import ReferenceInput
 from .designs.slides import DesignInput, SlideDesigns
 from .hosted_policy import public_deck_asset
@@ -151,12 +161,53 @@ class MultiplayerTools:
                 ],
             }
 
+    def reference_for(self, actor: Actor, scope: Scope, store: Store) -> PinnedSlide | None:
+        """Resolve a reference under both the selected target grant and the source grant."""
+
+        def allowed(kind: Kind, resource: str) -> bool:
+            try:
+                return bool(self.sharing.level(actor, Scope(scope.workspace, kind, resource)))
+            except AccessDenied:
+                return False
+
+        return PinnedReferences(store).resolve(
+            deck_id=scope.resource if scope.kind == "artifact" else "",
+            project_id=scope.resource if scope.kind == "project" else "",
+            can_view=lambda deck: allowed("artifact", deck),
+            can_view_project=lambda project: allowed("project", project),
+        )
+
+    def read_slide_reference(
+        self,
+        ctx: Ctx,
+        target: ReferenceTarget,
+        target_id: Identifier,
+        pin_id: str,
+        view: ReferenceView,
+    ) -> CallToolResult:
+        """Fetch the accessible current pin's audience thumbnail or editable source."""
+        actor = self.actor(ctx)
+        scope = self.scope(
+            actor, target_id if target == "deck" else "", target_id if target == "project" else ""
+        )
+        with self.sharing.guard(actor, scope) as store:
+            pin = self.reference_for(actor, scope, store)
+        # The first thumbnail may need Chromium. Keep grants responsive during that work.
+        result = read_pin(store, pin, pin_id, view)
+        with self.sharing.guard(actor, scope) as store:
+            current = self.reference_for(actor, scope, store)
+            if current is None or current.pin_id != pin_id:
+                raise AccessDenied
+            return result
+
     def get_working_context(
-        self, ctx: Ctx, artifact_id: str = "", known_rules_hash: str = ""
+        self, ctx: Ctx, artifact_id: str = "", known_rules_hash: str = "", project_id: str = ""
     ) -> dict[str, object]:
         """Read the selected scope and workflow. Pass known_rules_hash only for retained rules."""
         actor = self.actor(ctx)
-        scope = self.scope(actor, artifact_id)
+        if artifact_id and project_id:
+            raise ValueError("Select either artifact_id or project_id.")
+        scope = self.scope(actor, artifact_id, project_id)
         with self.sharing.guard(actor, scope) as store:
             result: dict[str, object] = {
                 "workspace_id": scope.workspace,
@@ -185,6 +236,28 @@ class MultiplayerTools:
                 if item.legacy_deck_id:
                     result["outline"] = self.presentation_outline(store, actor, scope)
                     result["presentation_sizing"] = presentation_sizing()
+                    pin = self.reference_for(actor, scope, store)
+                    result.update(pinned_context(pin, "deck", scope.resource))
+                    if (
+                        pin is None
+                        and self.scope(actor).kind == "workspace"
+                        and self.sharing.owner(Actor(actor.person), scope.workspace)
+                    ):
+                        design_id = store.read(item.legacy_deck_id).design_id
+                        design = (
+                            next(
+                                (
+                                    d
+                                    for d in store.designs(validate_sources=False)
+                                    if d.id == design_id
+                                ),
+                                None,
+                            )
+                            if design_id
+                            else None
+                        )
+                        if design is not None:
+                            result.update(example_context(store, design.folder_id))
             else:
                 result.update(self.catalog(actor, scope))
                 if scope.kind == "project":
@@ -194,6 +267,11 @@ class MultiplayerTools:
                         if item.id == scope.resource
                     )
                     result["project_context"] = project.context
+                    result.update(
+                        pinned_context(
+                            self.reference_for(actor, scope, store), "project", scope.resource
+                        )
+                    )
             if self.sharing.level(actor, Scope(scope.workspace)):
                 result.update(
                     rule_fields(
@@ -286,7 +364,10 @@ class MultiplayerTools:
         """List current design references and source hashes without server filesystem paths."""
         with self.design_store(ctx) as store:
             item = DesignLibrary(store).get(design_id)
-            return item.model_dump(exclude={"files": {"__all__": {"local_path"}}})
+            result = item.model_dump(exclude={"files": {"__all__": {"local_path"}}})
+            if item.kind == "slide_pack":
+                result.update(example_context(store, item.folder_id))
+            return result
 
     def read_design_reference(
         self,
@@ -649,11 +730,13 @@ class MultiplayerTools:
             "audience_url": root + f"decks/{deck_id}/presenter?audience=1",
         }
 
-    def presentation_outline(self, store: Store, actor: Actor, scope: Scope) -> dict[str, object]:
+    def presentation_outline(
+        self, store: Store, actor: Actor, scope: Scope, begin_self_review: bool = False
+    ) -> dict[str, object]:
         """Include attachment names only for the workspace owner's scoped agent."""
         result = ScopedTools(
             store, "", True, design_example=scope.resource
-        ).get_presentation_outline(scope.resource)
+        ).get_presentation_outline(scope.resource, begin_self_review)
         if self.sharing.owner(Actor(actor.person), scope.workspace):
             files = store.brief_files(scope.resource)
             if files:
@@ -663,11 +746,30 @@ class MultiplayerTools:
                 ]
         return result
 
-    def get_presentation_outline(self, ctx: Ctx, deck_id: str) -> dict[str, object]:
+    def get_presentation_outline(
+        self, ctx: Ctx, deck_id: str, begin_self_review: bool = False
+    ) -> dict[str, object]:
         """Read this presentation's brief, slide order and current concurrency hashes."""
         actor = self.actor(ctx)
-        with self.deck_store(actor, deck_id) as store:
-            return self.presentation_outline(store, actor, self.scope(actor, deck_id))
+        with self.deck_store(actor, deck_id, "edit" if begin_self_review else "view") as store:
+            return self.presentation_outline(
+                store, actor, self.scope(actor, deck_id), begin_self_review
+            )
+
+    def record_design_self_revision(
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        before_delivery_hash: str,
+        after_delivery_hash: str,
+        request_id: str,
+    ) -> dict[str, bool]:
+        """Record a visual revision pass using the before and after delivery hashes."""
+        actor = self.actor(ctx)
+        with self.deck_store(actor, deck_id, "edit") as store:
+            return ScopedTools(store, "", True, design_example=deck_id).record_design_self_revision(
+                deck_id, before_delivery_hash, after_delivery_hash, request_id
+            )
 
     def read_presentation_brief_file(
         self,
@@ -1278,6 +1380,7 @@ class MultiplayerTools:
             self.list_artifacts,
             self.list_design_contexts,
             self.get_design_context,
+            self.read_slide_reference,
             self.read_design_reference,
             self.get_design_file,
             self.get_authoring_guide,
@@ -1316,6 +1419,7 @@ class MultiplayerTools:
             self.write_design_file,
             self.attach_design_reference,
             self.revise_slide,
+            self.record_design_self_revision,
             self.set_slide_activity,
             self.add_slide,
             self.create_presentation,

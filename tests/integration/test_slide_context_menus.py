@@ -8,12 +8,18 @@ from typing import Literal
 
 import pytest
 from PIL import Image
-from playwright.sync_api import Locator, Page, expect
+from playwright.sync_api import Browser, Locator, Page, expect
 
 from artifact_studio.models import SlidePatch
 from artifact_studio.storage import digest
+from tests.integration.multiplayer_fixture import (
+    WORKSPACE,
+    routed_multiplayer_context,
+    running_multiplayer_app,
+)
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp
 from tests.integration.test_browser import open_editor, open_notes
+from tests.test_multiplayer_server import accept, grant, human
 
 pytestmark = [
     pytest.mark.browser,
@@ -364,3 +370,104 @@ def test_object_menu_scrolls_in_a_short_window(page: Page, live_app: RunningApp)
     last = menu.get_by_role("menuitem", name="Clear selection", exact=True)
     expect(last).to_be_focused()
     expect(last).to_be_in_viewport()
+
+
+def open_reference_pin(page: Page, slide_id: str, *, keyboard: bool = False) -> Locator:
+    thumbnail = page.locator(f'#slides [data-id="{slide_id}"]')
+    if keyboard:
+        thumbnail.focus()
+        page.keyboard.press("Shift+F10")
+        command = page.get_by_role("menuitem", name="Design reference…", exact=True)
+        # Traverse the real menu, including disabled and hidden items.
+        for _ in range(20):
+            if command.evaluate("item => item === document.activeElement"):
+                break
+            page.keyboard.press("ArrowDown")
+        expect(command).to_be_focused()
+        page.keyboard.press("Enter")
+    else:
+        thumbnail.click(button="right")
+        page.get_by_role("menuitem", name="Design reference…", exact=True).click()
+    return page.get_by_role("dialog", name="Design reference", exact=True)
+
+
+def test_pin_update_replace_and_remove_slide_references(
+    page: Page, live_app: RunningApp, artifacts: Path
+) -> None:
+    """Pin saved versions at either scope and keep the reference distinct from favorites."""
+    open_editor(page, live_app)
+    dialog = open_reference_pin(page, "next", keyboard=True)
+    presentation = dialog.get_by_role("group", name="This presentation")
+    project = dialog.get_by_role("group", name="This project")
+    presentation.get_by_role("button", name="Pin presentation reference").click()
+    expect(presentation.get_by_role("button", name="Remove presentation reference")).to_be_enabled()
+    _ = page.screenshot(path=str(artifacts / "pinned-slide-reference.png"))
+    page.keyboard.press("Escape")
+    expect(page.locator('#slides [data-id="next"]')).to_be_focused()
+    open_reference_pin(page, "cover")
+    project.get_by_role("button", name="Pin project reference").click()
+    expect(project.get_by_role("button", name="Remove project reference")).to_be_enabled()
+    presentation.get_by_role("button", name="Replace presentation reference").click()
+    expect(presentation.get_by_role("button", name="Replace presentation reference")).to_have_count(
+        0
+    )
+    page.keyboard.press("Escape")
+    cover = live_app.store.read(DECK_ID).slides[0]
+    live_app.store.revise(
+        DECK_ID,
+        cover.id,
+        digest(cover.model_dump_json()),
+        "reference-edit",
+        SlidePatch(title="New plan"),
+    )
+    page.reload()
+    open_reference_pin(page, "cover")
+    expect(project).to_contain_text("earlier version")
+    project.get_by_role("button", name="Update project reference").click()
+    expect(project).to_contain_text("Pinned · New plan")
+    presentation.get_by_role("button", name="Remove presentation reference").click()
+    expect(presentation).to_contain_text("No slide pinned")
+    project.get_by_role("button", name="Remove project reference").click()
+    expect(project).to_contain_text("No slide pinned")
+    page.keyboard.press("Escape")
+    page.locator('#slides [data-id="cover"]').click(button="right")
+    page.get_by_role("menuitem", name="Organize", exact=True).click()
+    page.get_by_role("menuitem", name="Select all slides", exact=True).click()
+    page.locator('#slides [data-id="cover"]').click(button="right")
+    expect(page.get_by_role("menuitem", name="Design reference…", exact=True)).to_be_disabled()
+
+
+def test_shared_reference_controls_follow_artifact_and_project_grants(
+    browser: Browser, tmp_path: Path, artifacts: Path
+) -> None:
+    """An editor can pin for the shared deck; viewers and other project pins stay restricted."""
+    with (
+        running_multiplayer_app(tmp_path / "app", artifacts / "hosted.log", unified=True) as app,
+        human(app, "owner") as owner,
+        human(app, "alice") as alice,
+        human(app, "bob") as bob,
+    ):
+        accept(alice, grant(owner, "alice", app.deck_id))
+        accept(bob, grant(owner, "bob", app.deck_id, role="view"))
+        with routed_multiplayer_context(browser, app, "alice") as context:
+            page = context.new_page()
+            page.set_viewport_size({"width": 390, "height": 844})
+            page.add_init_script("document.documentElement.dataset.theme='dark';")
+            page.emulate_media(color_scheme="dark")
+            page.goto(f"{WORKSPACE}/?deck={app.deck_id}")
+            page.get_by_role("button", name="Slide sorter", exact=True).click()
+            dialog = open_reference_pin(page, "next")
+            expect(dialog.get_by_role("group", name="This project")).to_have_count(0)
+            save = dialog.get_by_role("button", name="Pin presentation reference")
+            expect(save).to_be_in_viewport()
+            save.click()
+            expect(dialog.get_by_role("status")).to_have_text("Reference saved.")
+            _ = page.screenshot(path=str(artifacts / "shared-reference-mobile.png"))
+        with routed_multiplayer_context(browser, app, "bob") as context:
+            page = context.new_page()
+            page.goto(f"{WORKSPACE}/?deck={app.deck_id}")
+            page.locator('#slides [data-id="next"]').click(button="right")
+            expect(page.get_by_role("menu", name="Slide options", exact=True)).to_be_visible()
+            expect(
+                page.get_by_role("menuitem", name="Design reference…", exact=True)
+            ).to_have_count(0)

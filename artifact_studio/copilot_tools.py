@@ -32,6 +32,14 @@ from .copilot_capture import (
     capture_cloud_contact_sheet,
     capture_cloud_slide,
 )
+from .delivery_reviews import (
+    SelfRevision,
+    outline_delivery_hash,
+    record_self_revision,
+)
+from .designs.agent_reference import ReferenceTarget, ReferenceView, pinned_context, read_pin
+from .designs.pinned import DesignReferences as PinnedReferences
+from .designs.pinned import PinnedSlide
 from .element_alternatives import ElementAlternatives, ElementInput
 from .hook_bundle import client_files
 from .models import DesignFile, Slide, SlidePatch
@@ -368,6 +376,35 @@ class ScopedTools:
             if not kind or item.kind == kind
         ]
 
+    def reference_for(self, target: ReferenceTarget, target_id: str) -> PinnedSlide | None:
+        """Check project binding and safe legacy sources before exposing a frozen reference."""
+
+        def can_view(deck: str) -> bool:
+            try:
+                _ = self.deck(deck)
+            except ValueError:
+                return False
+            return True
+
+        return PinnedReferences(self.store).resolve(
+            deck_id=target_id if target == "deck" else "",
+            project_id=target_id if target == "project" else "",
+            can_view=can_view,
+            can_view_project=lambda project: self.whole_workspace or self.project_id == project,
+        )
+
+    def read_slide_reference(
+        self, target: ReferenceTarget, target_id: Identifier, pin_id: str, view: ReferenceView
+    ) -> CallToolResult:
+        """Fetch the current human pin's frozen slide thumbnail or editable source in this scope."""
+        _ = self.deck(target_id) if target == "deck" else self.project(target_id)
+        pin = self.reference_for(target, target_id)
+        result = read_pin(self.store, pin, pin_id, view)
+        current = self.reference_for(target, target_id)
+        if current is None or current.pin_id != pin_id:
+            raise ValueError("Reference unavailable. Read the current working context.")
+        return result
+
     def get_working_context(
         self, artifact_id: str = "", project_id: str = "", known_rules_hash: str = ""
     ) -> dict[str, object]:
@@ -377,7 +414,17 @@ class ScopedTools:
         if item and selected_id != item.project_id:
             raise ValueError("Artifact and project do not match.")
         project = self.project(selected_id) if selected_id else None
+        reference: dict[str, object] = {}
+        if item and item.legacy_deck_id:
+            reference = pinned_context(
+                self.reference_for("deck", item.legacy_deck_id), "deck", item.legacy_deck_id
+            )
+        elif project and not item:
+            reference = pinned_context(
+                self.reference_for("project", project.id), "project", project.id
+            )
         return {
+            **reference,
             **rule_fields(
                 self.store.authoring_instructions(),
                 self.store.learned_preferences(),
@@ -701,19 +748,41 @@ class ScopedTools:
         _ = self.artifact(artifact_id)
         return result
 
-    def get_presentation_outline(self, deck_id: Identifier) -> dict[str, object]:
+    def get_presentation_outline(
+        self, deck_id: Identifier, begin_self_review: bool = False
+    ) -> dict[str, object]:
         """Read a scoped deck's brief, slide order, sections and concurrency hashes."""
         _ = self.deck(deck_id)
         view = self.store.view(deck_id, include_pending=False)
         return {
             "id": view.id,
             "title": view.title,
+            "delivery_hash": outline_delivery_hash(self.store, view, begin_self_review),
             "slides": [slide_receipt(deck_id, item).model_dump() for item in view.slides],
             "sections": [item.model_dump() for item in view.sections],
             "sections_hash": view.sections_hash,
             "context_markdown": view.context_markdown,
             "context_hash": view.context_hash,
         }
+
+    def record_design_self_revision(
+        self,
+        deck_id: Identifier,
+        before_delivery_hash: str,
+        after_delivery_hash: str,
+        request_id: RequestID,
+    ) -> dict[str, bool]:
+        """Record a visual revision pass using the before and after delivery hashes."""
+        _ = self.deck(deck_id)
+        return record_self_revision(
+            self.store,
+            deck_id,
+            SelfRevision(
+                before_delivery_hash=before_delivery_hash,
+                after_delivery_hash=after_delivery_hash,
+                request_id=request_id,
+            ),
+        )
 
     def get_slide(self, deck_id: Identifier, slide_id: Identifier) -> dict[str, object]:
         """Read complete slide source and expected_hash; released discussion uses read_feedback."""
@@ -1087,6 +1156,7 @@ def register_tools(
         scoped.list_projects,
         scoped.list_artifacts,
         scoped.get_working_context,
+        scoped.read_slide_reference,
         scoped.get_authoring_guide,
         scoped.get_artifact,
         scoped.read_artifact_files,
@@ -1112,6 +1182,7 @@ def register_tools(
         scoped.revise_artifact,
         scoped.reply_to_artifact_feedback,
         scoped.revise_slide,
+        scoped.record_design_self_revision,
         scoped.publish_slide_designs,
         scoped.publish_element_alternatives,
         scoped.add_slide,

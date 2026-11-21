@@ -50,7 +50,20 @@ from .authentication import Principal, load_auth_provider
 from .autosync import AutoSync, SyncStatus
 from .chat_references import chat_reference_routes
 from .deck_edit_api import DeckID, SlideID, deck_edit_routes
+from .delivery_reviews import (
+    SelfRevision,
+    delivery_review_routes,
+    outline_delivery_hash,
+    record_self_revision,
+)
 from .deployment import DeploymentConfig
+from .designs.agent_reference import (
+    ReferenceTarget,
+    ReferenceView,
+    example_context,
+    pinned_context,
+    read_pin,
+)
 from .designs.authoring import DesignAuthoring
 from .designs.element_api import element_alternative_routes
 from .designs.elements import (
@@ -62,6 +75,8 @@ from .designs.elements import (
     ElementSource,
 )
 from .designs.library import DesignDetail, DesignItem, DesignLibrary
+from .designs.pinned import DesignReferences as PinnedReferences
+from .designs.pinned import PinAccess, pinned_routes
 from .designs.preview import hosted_design_preview, hosted_slide_thumbnail
 from .designs.references import DesignReferences
 from .designs.slide_api import design_routes
@@ -340,12 +355,21 @@ def get_working_context(
                 include_discovery=False,
                 ctx=ctx,
             )
+            if "slide_reference" in presentation_context:
+                result["slide_reference"] = presentation_context.pop("slide_reference")
             result["presentation_context"] = {
                 key: value
                 for key, value in presentation_context.items()
                 if key not in {"authoring_instructions", "learned_preferences", "rules_hash"}
             }
             result.update(workspace_links(legacy_id, ctx))
+        elif project_id and not artifact_id:
+            pin = PinnedReferences(store).resolve(project_id=project_id)
+            result.update(pinned_context(pin, "project", project_id))
+            if pin is None and design_id:
+                design_detail = DesignLibrary(store).get(design_id)
+                if design_detail.kind == "slide_pack":
+                    result.update(example_context(store, design_detail.folder_id))
         return result
     design_id, design = working_design(design_id, deck_id)
     folder = store.folder(design.folder_id) if design else None
@@ -398,6 +422,11 @@ def get_working_context(
             "Removal excludes sources from future context but cannot erase earlier chat history."
         ),
     }
+    pin = PinnedReferences(store).resolve(deck_id=deck_id) if deck_id else None
+    if pin is not None:
+        design_context.update(pinned_context(pin, "deck", deck_id))
+    elif design:
+        design_context.update(example_context(store, design.folder_id))
     instructions, learned = store.authoring_instructions(), store.learned_preferences()
     rules = rule_fields(instructions, learned, known_rules_hash)
     if detail == "compact":
@@ -669,10 +698,14 @@ def get_presentation(deck_id: str, known_rules_hash: str = "") -> AgentDeckView:
 @mcp.tool(annotations=READ)
 @tool_errors
 def get_presentation_outline(
-    deck_id: str, include_context: bool = False, known_rules_hash: str = ""
+    deck_id: str,
+    include_context: bool = False,
+    known_rules_hash: str = "",
+    begin_self_review: bool = False,
 ) -> dict[str, object]:
     """Read slide order, titles and revision tokens without every slide's source/history.
     Set include_context=True when beginning authoring to read the full current deck brief.
+    Set begin_self_review=True to measure an internal visual revision from this delivery.
     Use get_slide for source; get_presentation remains the full-detail read.
     Pass known_rules_hash only while retaining those rules; changes return full text.
     """
@@ -681,6 +714,7 @@ def get_presentation_outline(
         "id": view.id,
         "title": view.title,
         "design_id": view.design_id,
+        "delivery_hash": outline_delivery_hash(store, view, begin_self_review),
         "slides": [slide_receipt(deck_id, item).model_dump() for item in view.slides],
         "sections": [section.model_dump() for section in view.sections],
         "sections_hash": view.sections_hash,
@@ -699,6 +733,23 @@ def get_presentation_outline(
     if include_context:
         result["context_markdown"] = view.context_markdown
     return result
+
+
+@mcp.tool(annotations=WRITE)
+@tool_errors
+def record_design_self_revision(
+    deck_id: str, before_delivery_hash: str, after_delivery_hash: str, request_id: str
+) -> dict[str, bool]:
+    """Record a visual revision pass using the before and after delivery hashes."""
+    return record_self_revision(
+        store,
+        deck_id,
+        SelfRevision(
+            before_delivery_hash=before_delivery_hash,
+            after_delivery_hash=after_delivery_hash,
+            request_id=request_id,
+        ),
+    )
 
 
 @mcp.tool(annotations=READ)
@@ -1146,6 +1197,19 @@ def create_presentation(
 def list_designs() -> list[DesignView]:
     """Discover selectable brands. Read get_working_context with the chosen design_id."""
     return store.designs()
+
+
+@mcp.tool(annotations=READ)
+@tool_errors
+def read_slide_reference(
+    target: ReferenceTarget, target_id: str, pin_id: str, view: ReferenceView
+) -> CallToolResult:
+    """Fetch the human pin's frozen thumbnail or editable source using its context arguments."""
+    pin = PinnedReferences(store).resolve(
+        deck_id=target_id if target == "deck" else "",
+        project_id=target_id if target == "project" else "",
+    )
+    return read_pin(store, pin, pin_id, view)
 
 
 @mcp.tool(annotations=READ)
@@ -2497,10 +2561,12 @@ def preview(deck_id: DeckID, slide_id: SlideID) -> HTMLResponse:
 
 app.include_router(deck_edit_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(artifact_routes(lambda: store))
+app.include_router(pinned_routes(lambda _request, _deck_id: nullcontext(PinAccess(store))))
 app.include_router(favorite_routes(lambda: store))
 app.include_router(chat_reference_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
+app.include_router(delivery_review_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(design_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(element_alternative_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(image_routes(lambda: store))

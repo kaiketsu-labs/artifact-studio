@@ -187,6 +187,12 @@ class Store:
         with self.connect() as db:
             db.executescript(REVIEW_CONTROL_SCHEMA)
             db.executescript("""
+                CREATE TABLE IF NOT EXISTS pinned_slides (
+                    scope TEXT NOT NULL, target TEXT NOT NULL, pin_id TEXT NOT NULL UNIQUE,
+                    deck_id TEXT NOT NULL, slide_id TEXT NOT NULL, title TEXT NOT NULL,
+                    content_hash TEXT NOT NULL, source TEXT NOT NULL, render_document BLOB NOT NULL,
+                    thumbnail BLOB,
+                    PRIMARY KEY(scope, target));
                 CREATE TABLE IF NOT EXISTS design_archives (folder TEXT PRIMARY KEY);
                 CREATE TABLE IF NOT EXISTS workspace_settings (
                     key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -198,6 +204,23 @@ class Store:
                     design_cursor INTEGER NOT NULL DEFAULT 0,
                     expires_at REAL NOT NULL DEFAULT 0, enabled INTEGER NOT NULL DEFAULT 1,
                     PRIMARY KEY(harness, session_id));
+                CREATE TABLE IF NOT EXISTS delivery_reviews (
+                    deck TEXT NOT NULL, delivery_hash TEXT NOT NULL, stage TEXT NOT NULL,
+                    direction TEXT NOT NULL, factual INTEGER NOT NULL, legibility INTEGER NOT NULL,
+                    PRIMARY KEY(deck, delivery_hash));
+                CREATE UNIQUE INDEX IF NOT EXISTS first_delivery_review
+                    ON delivery_reviews(deck) WHERE stage = 'first';
+                CREATE TABLE IF NOT EXISTS delivery_review_receipts (
+                    deck TEXT NOT NULL, request_id TEXT NOT NULL, payload_hash TEXT NOT NULL,
+                    PRIMARY KEY(deck, request_id));
+                CREATE TABLE IF NOT EXISTS design_self_revisions (
+                    deck TEXT NOT NULL, request_id TEXT NOT NULL, before_hash TEXT NOT NULL,
+                    after_hash TEXT NOT NULL, PRIMARY KEY(deck, request_id));
+                CREATE INDEX IF NOT EXISTS self_revision_delivery
+                    ON design_self_revisions(deck, after_hash);
+                CREATE TABLE IF NOT EXISTS design_self_review_starts (
+                    deck TEXT NOT NULL, delivery_hash TEXT NOT NULL,
+                    PRIMARY KEY(deck, delivery_hash));
                 CREATE TABLE IF NOT EXISTS review_pauses (
                     harness TEXT NOT NULL, session_id TEXT NOT NULL, target TEXT NOT NULL,
                     PRIMARY KEY(harness, session_id, target));

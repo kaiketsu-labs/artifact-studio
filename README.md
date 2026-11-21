@@ -120,6 +120,10 @@ The [getting-started guide](docs/GETTING-STARTED.md) covers imports, organizatio
 
 Open a project and choose **Import** to convert a supported PowerPoint deck into editable slides. Connected agents can use **`import_powerpoint`** in local and hosted Studio. The [PowerPoint import guide](docs/POWERPOINT-IMPORT.md) lists supported objects, known differences, and visual comparisons. Choose **Menu → Export presentation → PowerPoint** for an editable .pptx. The [export guide](docs/POWERPOINT-EXPORT.md) covers native shapes, charts, round trips and limitations.
 
+To show an agent the visual direction you want, right-click a body slide and choose **Design reference**. Pin it for this presentation or its project. The presentation pin takes precedence. Authorized agents can request a thumbnail or the editable source of the selected revision.
+
+Open **Menu → Review visual direction** when you review a delivery. You can record whether the first draft’s direction worked, ask for a change, and mark factual or legibility corrections separately. The review history also shows self-revisions reported by the agent. [Review workflow and measurement](docs/VISUAL-REVIEW.md#measuring-design-feedback)
+
 Use sections, the slide sorter, hidden slides, multi-slide moves and per-slide discussion to shape a deck. Speaker notes save automatically; failed saves keep a browser draft and conflicting edits offer review. **Present** opens the audience slide. **Presenter view** keeps current/next slides, notes, clock and timer private in a separate control window. External display placement and fullscreen depend on browser support.
 
 Right-click a slide thumbnail and choose **Copy → Copy as image** to copy the rendered slide as PNG. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost.
