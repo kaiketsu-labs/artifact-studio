@@ -9,7 +9,7 @@ import pytest
 from artifact_studio import copilot_capture, visuals
 from artifact_studio.copilot_capture import audience_clone
 from artifact_studio.copilot_tools import ScopedTools
-from artifact_studio.models import AgentContext, SlidePatch
+from artifact_studio.models import AgentContext, Slide, SlidePatch
 from artifact_studio.slide_designs import DesignInput, SlideDesigns
 from artifact_studio.storage import Store, digest
 from tests.design_factory import TEMPLATE_ID, make_design
@@ -126,8 +126,14 @@ def test_capture_cannot_embed_an_unshared_deck_file(store: Store) -> None:
 def test_contact_sheet_returns_scoped_draft_pixels_and_original_tokens(store: Store) -> None:
     """The compact overview excludes private data while retaining original revision tokens."""
     slide = store.read(DECK).slides[0]
+    store.add_slide(
+        DECK,
+        Slide(
+            id="backup", title="Backup", hidden=True, html='<article class="slide">Extra</article>'
+        ),
+    )
     result = ScopedTools(store, "legacy-presentations", False).capture_contact_sheet(
-        DECK, slide_ids=(slide.id,)
+        DECK, slide_ids=("backup", slide.id), include_hidden=False
     )
     assert any(item.type == "image" and item.mime_type == "image/png" for item in result.content)
     metadata = json.dumps(result.structured_content)
@@ -135,6 +141,10 @@ def test_contact_sheet_returns_scoped_draft_pixels_and_original_tokens(store: St
     assert digest(slide.model_dump_json()) in metadata
     assert store.content_hash(DECK, slide) in metadata
     assert '"width": 800' in metadata and '"height": 450' in metadata
+    assert result.structured_content is not None
+    assert result.structured_content["selected_slides"] == 1
+    assert result.structured_content["total_slides"] == 2
+    assert '"backup"' not in metadata
 
 
 def test_contact_sheet_bounds_and_scope(store: Store) -> None:
@@ -198,6 +208,10 @@ def test_contact_sheet_sdk_schema_rejects_invalid_pages_before_rendering(
             server.add_tool(multiplayer.capture_contact_sheet)
     tools = {tool.name: tool for tool in asyncio.run(server.list_tools())}
     schema = json.dumps(tools["capture_contact_sheet"].input_schema)
+    assert (
+        tools["capture_contact_sheet"].input_schema["properties"]["include_hidden"]["default"]
+        is True
+    )
     assert f'"maximum": {maximum}' in schema
     assert '"minimum": 0' in schema and '"minimum": 1' in schema
     assert f'"maxItems": {selection_max}' in schema

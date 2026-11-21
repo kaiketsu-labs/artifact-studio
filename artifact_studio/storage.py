@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, TypedDict, cast
 
 from pydantic import TypeAdapter
 
@@ -69,6 +69,13 @@ DESIGN_COPY_FILES = (
     "AGENT-GUIDE.md",
 )
 FEEDBACK_FILES = TypeAdapter(list[FeedbackFile])
+
+
+class SlideReviewState(TypedDict):
+    expected_hash: str
+    content_hash: str
+    approved: bool
+    has_unseen_changes: bool
 
 
 class ConflictError(ValueError):
@@ -589,6 +596,26 @@ class Store:
             {cast(str, row[0]): cast(str, row[1]) for row in seen},
         )
 
+    def slide_review_state(
+        self,
+        deck_id: str,
+        slide: Slide,
+        *,
+        design_hash: str | None = None,
+        review_hashes: tuple[dict[str, str], dict[str, str]] | None = None,
+    ) -> SlideReviewState:
+        """Use the same concurrency and review tokens for source views and outlines."""
+        content_hash = self.content_hash(deck_id, slide, design_hash=design_hash)
+        approved, seen = (
+            self.review_hashes(deck_id, slide.id) if review_hashes is None else review_hashes
+        )
+        return SlideReviewState(
+            expected_hash=digest(slide.model_dump_json()),
+            content_hash=content_hash,
+            approved=approved.get(slide.id) == content_hash,
+            has_unseen_changes=seen.get(slide.id) != content_hash,
+        )
+
     def view_slide(
         self,
         deck_id: str,
@@ -600,16 +627,11 @@ class Store:
         review_hashes: tuple[dict[str, str], dict[str, str]] | None = None,
     ) -> SlideView:
         """Combine canonical content with approval and discussion state."""
-        content_hash = self.content_hash(deck_id, slide, design_hash=design_hash)
-        approved, seen = (
-            self.review_hashes(deck_id, slide.id) if review_hashes is None else review_hashes
-        )
         return SlideView(
             **slide.model_dump(),
-            expected_hash=digest(slide.model_dump_json()),
-            content_hash=content_hash,
-            approved=approved.get(slide.id) == content_hash,
-            has_unseen_changes=seen.get(slide.id) != content_hash,
+            **self.slide_review_state(
+                deck_id, slide, design_hash=design_hash, review_hashes=review_hashes
+            ),
             feedback=[
                 item
                 for item in (self.comments(deck_id) if feedback is None else feedback)

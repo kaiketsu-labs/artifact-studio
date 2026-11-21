@@ -262,10 +262,16 @@ def test_reduced_motion_and_dependency_change_detection(
     changed = False
 
     def prepare(
-        source: Store, deck_id: str, slide: Slide, number: int, options: CaptureOptions
+        source: Store,
+        deck_id: str,
+        slide: Slide,
+        number: int,
+        options: CaptureOptions,
+        *,
+        page_design: visuals.PageDesign | None = None,
     ) -> visuals.Snapshot:
         nonlocal changed
-        result = original(source, deck_id, slide, number, options)
+        result = original(source, deck_id, slide, number, options, page_design=page_design)
         if not changed:
             (folder / "extra.css").write_text("h1 {color:red}")
             changed = True
@@ -410,6 +416,15 @@ def test_contact_subset_paginates_in_deck_order_and_accepts_24(
             ),
         )
     output = tmp_path / "captures"
+    scans = 0
+    visual_hash = store.visual_hash
+
+    def counted_hash(deck_id: str) -> str:
+        nonlocal scans
+        scans += 1
+        return visual_hash(deck_id)
+
+    monkeypatch.setattr(store, "visual_hash", counted_hash)
     first = capture(store, DECK, output)
     assert len(first.frames) == 24
     assert first.next_offset == 24
@@ -417,6 +432,7 @@ def test_contact_subset_paginates_in_deck_order_and_accepts_24(
     assert first.resolution == "draft"
     assert all((frame.width, frame.height) == (800, 450) for frame in first.frames)
     assert all(not frame.stale for frame in first.frames)
+    assert scans <= 4, "The full asset tree should be scanned per phase, not per frame."
     assert all(
         frame.image_sha256 == hashlib.sha256(Path(frame.path).read_bytes()).hexdigest()
         for frame in first.frames
@@ -431,12 +447,60 @@ def test_contact_subset_paginates_in_deck_order_and_accepts_24(
     last = capture(store, DECK, output, slide_ids=chosen, offset=2, limit=2)
     assert [frame.slide_id for frame in last.frames] == ["extra-21"]
     assert last.next_offset is None
+    audience = capture(store, DECK, output, slide_ids=chosen, limit=1, include_hidden=False)
+    assert [frame.slide_number for frame in audience.frames] == [4]
+    assert audience.total_slides == 26 and audience.selected_slides == 2
+    assert audience.next_offset == 1
+    next_page = capture(
+        store, DECK, output, slide_ids=chosen, offset=1, limit=1, include_hidden=False
+    )
+    assert [frame.slide_id for frame in next_page.frames] == ["extra-21"]
+    assert next_page.next_offset is None
+    with pytest.raises(ValueError, match="No slides"):
+        capture(store, DECK, output, slide_ids=["hidden"], include_hidden=False)
     assert VisualResult.model_validate_json(Path(last.path).with_name("manifest.json").read_text())
     for ids in ([], ["missing"], ["hidden", "hidden"]):
         with pytest.raises(ValueError):
             capture(store, DECK, output, slide_ids=ids)
     with pytest.raises(ValueError, match="not both"):
         capture(store, DECK, output, slide_id="cover", slide_ids=["hidden"])
+
+
+@pytest.mark.parametrize("change", ["theme", "imported_css", "slide"])
+def test_page_marks_affected_frames_stale_when_source_changes(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str
+) -> None:
+    """Detect a shared dependency edit even when its size and filesystem timestamp are retained."""
+    from artifact_studio import visuals
+
+    folder = store.folder(DECK)
+    color = folder / "assets" / "brand.css"
+    color.write_text("h1{color:red}")
+    theme = folder / "theme.css"
+    theme.write_text('@import "assets/brand.css";\n' + theme.read_text())
+
+    def paint_then_edit(
+        prepared: list[visuals.Snapshot], options: CaptureOptions, paint: Callable[[Page], bytes]
+    ) -> list[bytes]:
+        if change == "slide":
+            deck = store.read(DECK)
+            deck.slides[0].html = '<article class="slide">Revised cover</article>'
+            store.write(DECK, deck)
+        elif change == "theme":
+            theme.write_text(theme.read_text() + ".slide{color:tan}")
+        else:
+            stat = color.stat()
+            color.write_text("h1{color:tan}")
+            os.utime(color, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        output = io.BytesIO()
+        with Image.new("RGB", (8, 8)) as image:
+            image.save(output, "PNG")
+        return [output.getvalue() for _ in prepared]
+
+    monkeypatch.setattr(visuals, "_render_images", paint_then_edit)
+    result = capture(store, DECK, tmp_path / "captures")
+    assert len(result.frames) == 2
+    assert [frame.stale for frame in result.frames] == [True, change != "slide"]
 
 
 @RENDER

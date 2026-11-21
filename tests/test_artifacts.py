@@ -17,7 +17,9 @@ from artifact_studio.artifact_models import (
     ArtifactFeedback,
     ArtifactFeedbackInput,
     ArtifactFileInput,
+    ArtifactFilePage,
     ArtifactTarget,
+    ArtifactUnchangedFile,
     ArtifactView,
 )
 from artifact_studio.artifacts import ArtifactStore, artifact_revision_hash
@@ -65,6 +67,65 @@ def test_registration_preserves_original_and_needs_no_design(
     _ = (Path(project.source_path) / "README.md").write_text("Updated shared audience")
     assert artifacts.list_projects()[0].context == "Updated shared audience"
     assert artifacts.snapshot_files(artifact.id, 1)["image.bin"] == b"\xff\x00\x81"
+
+
+def test_conditional_file_reads_preserve_pins_and_recheck_integrity(
+    artifacts: ArtifactStore, tmp_path: Path
+) -> None:
+    project = artifacts.create_project("Fictional project")
+    item = artifacts.register_artifact(project.id, "Bundle", bundle(tmp_path), "index.html")
+    paths = ["image.bin", "app.js"]
+    known = {file.path: file.sha256 for file in item.files}
+    _ = (Path(item.source_path) / "app.js").write_text("changed")
+    matching, changed = artifacts.read_artifact_files(item.id, paths, known_hashes=known)
+    assert isinstance(matching, ArtifactUnchangedFile) and matching.unchanged
+    assert matching.sha256 == known["image.bin"] and matching.data_base64 is None
+    assert changed.path == "app.js" and changed.text == "changed"
+    historical = artifacts.read_artifact_files(item.id, paths, revision=1, known_hashes=known)
+    assert all(isinstance(file, ArtifactUnchangedFile) for file in historical)
+    with pytest.raises(FileNotFoundError):
+        artifacts.read_artifact_files(item.id, ["missing"], known_hashes={"missing": "x"})
+    first_revision = Path(item.source_path).parent / "revisions" / "1" / "files"
+    (first_revision / "image.bin").write_bytes(b"XYZ")
+    with pytest.raises(ConflictError, match="immutable"):
+        artifacts.read_artifact_files(item.id, paths, revision=1, known_hashes=known)
+
+
+def test_exact_file_pages_cover_unicode_binary_and_retained_source(
+    artifacts: ArtifactStore, tmp_path: Path
+) -> None:
+    source = bundle(tmp_path)
+    _ = (source / "app.js").write_bytes("x🌞é\r\n".encode())
+    project = artifacts.create_project("Fictional project")
+    item = artifacts.register_artifact(project.id, "Bundle", source, "index.html")
+    first = artifacts.read_artifact_files(item.id, ["app.js"], max_bytes=4)[0]
+    assert isinstance(first, ArtifactFilePage) and first.revision == 1
+    assert first.text == "x" and first.offset == 0 and first.next_offset == 1
+    _ = (Path(item.source_path) / "app.js").write_text("new working text")
+    assert artifacts.get_artifact(item.id).revision == 2
+    second = artifacts.read_artifact_files(
+        item.id, ["app.js"], first.revision, offset=first.next_offset, max_bytes=5
+    )[0]
+    assert isinstance(second, ArtifactFilePage) and second.next_offset == 5
+    last = artifacts.read_artifact_files(item.id, ["app.js"], 1, offset=5, max_bytes=4)[0]
+    assert isinstance(last, ArtifactFilePage) and last.next_offset is None
+    assert second.text == "🌞" and last.text == "é\r\n"
+    assert first.sha256 == last.sha256 and first.size == 9
+    end = artifacts.read_artifact_files(item.id, ["app.js"], 1, offset=9, max_bytes=4)[0]
+    assert isinstance(end, ArtifactFilePage) and end.text == "" and end.next_offset is None
+    binary = artifacts.read_artifact_files(item.id, ["image.bin"], max_bytes=2, encoding="base64")[
+        0
+    ]
+    assert isinstance(binary, ArtifactFilePage) and binary.next_offset == 2
+    assert base64.b64decode(binary.data_base64 or "") == b"\xff\x00"
+    with pytest.raises(ValueError, match="UTF-8"):
+        artifacts.read_artifact_files(item.id, ["app.js"], 1, offset=2, max_bytes=4)
+    with pytest.raises(ValueError, match="next UTF-8 character"):
+        artifacts.read_artifact_files(item.id, ["app.js"], 1, offset=1, max_bytes=1)
+    with pytest.raises(ValueError, match="one file"):
+        artifacts.read_artifact_files(item.id, ["app.js", "index.html"], max_bytes=4)
+    with pytest.raises(ValueError, match="exceeds file size"):
+        artifacts.read_artifact_files(item.id, ["image.bin"], offset=4, max_bytes=3)
 
 
 def test_revisions_dependencies_approvals_seen_and_exact_retries(
@@ -652,3 +713,41 @@ def test_structured_edit_intent_round_trips_with_revision(
         message="Ordinary feedback", request_id="ordinary-001", content_hash=artifact.content_hash
     )
     assert artifacts.add_feedback(artifact.id, old_request).edit_intent is None
+
+
+def test_discovery_pages_match_before_loading_current_sources(
+    artifacts: ArtifactStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project = artifacts.create_project("Straße studio", "Retain this brief.")
+    other_project = artifacts.create_project("Side project")
+    source = bundle(tmp_path)
+    matches = [
+        artifacts.register_artifact(project.id, f"Straße {n} %", source, "index.html")
+        for n in range(3)
+    ]
+    excluded = artifacts.register_artifact(project.id, "Other", source, "index.html")
+    _ = artifacts.register_artifact(other_project.id, "Straße private", source, "index.html")
+    ordered = sorted(matches, key=lambda match: match.id)
+    selected = ordered[1]
+    _ = (Path(selected.source_path) / "app.js").write_text("updated while away")
+    (Path(excluded.source_path) / "index.html").unlink()
+    loaded: list[str] = []
+    original = artifacts.get_artifact
+
+    def load(identifier: str) -> ArtifactView:
+        loaded.append(identifier)
+        return original(identifier)
+
+    monkeypatch.setattr(artifacts, "get_artifact", load)
+    assert [
+        (row.id, row.context, row.artifact_count)
+        for row in artifacts.list_projects(query="STRASSE")
+    ] == [(project.id, "Retain this brief.", 4)]
+    assert artifacts.list_projects(query="studio", offset=1) == []
+    for query in (" STRASSE ", "%"):
+        result = artifacts.list_artifacts(project.id, query=query, kind="html", offset=1, limit=1)
+        assert [(row.id, row.revision) for row in result] == [(selected.id, 2)]
+    assert loaded == [selected.id, selected.id]
+    assert artifacts.list_artifacts(project.id, query=selected.id, kind="image") == []
+    assert artifacts.list_artifacts(project.id, query="straße", offset=3) == []
+    assert artifacts.list_artifacts(project.id, query=selected.id.upper())[0].id == selected.id

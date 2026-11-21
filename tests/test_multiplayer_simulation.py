@@ -284,6 +284,16 @@ def test_two_people_two_agents_two_workspaces_and_conflicting_slides(tmp_path: P
                 peer.value("get_slide", deck_id=app.deck_id, slide_id=slide_id) for peer in peers
             ]
             assert sources[0]["expected_hash"] == sources[1]["expected_hash"]
+            batch = second.value(
+                "get_presentation_outline", deck_id=app.deck_id, source_slide_ids=[slide_id]
+            )
+            parts = cast(dict[str, dict[str, object]], batch["slide_sources"])[slide_id]
+            assert parts["html"] == sources[1]["html"]
+            assert "agent" not in parts and "feedback" not in parts
+            assert batch["slides"] == outline["slides"]
+            assert second.call(
+                "get_presentation_outline", deck_id=app.sibling_id, source_slide_ids=[slide_id]
+            ).is_error
 
             def edit(index: int) -> CallToolResult:
                 return peers[index].call(

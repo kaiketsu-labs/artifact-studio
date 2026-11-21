@@ -51,6 +51,20 @@ class ArtifactFileContent(ArtifactFile):
     data_base64: str | None = None
 
 
+class ArtifactUnchangedFile(ArtifactFileContent):
+    """The caller already holds the bytes identified by the verified full-file hash."""
+
+    unchanged: Literal[True] = True
+
+
+class ArtifactFilePage(ArtifactFileContent):
+    """A byte window within the file identified by size and sha256."""
+
+    revision: int | None
+    offset: int
+    next_offset: int | None
+
+
 class ArtifactManifest(StrictModel):
     """An immutable owned source snapshot and its entrypoint."""
 

@@ -464,6 +464,23 @@ def test_real_mcp_scope_and_stale_revision(tmp_path: Path, unified: bool) -> Non
 
             first = revise(1, "First edit", "fictional-request-1")
             assert not first.get("isError"), first
+            read_args: dict[str, object] = {
+                "artifact_id": app.artifact_id,
+                "paths": ["source.md"],
+                "max_bytes": 5,
+            }
+            page = invoke("read_artifact_files", read_args)
+            assert not page.get("isError"), page
+            entry = cast(dict[str, list[dict[str, object]]], page["structuredContent"])["result"][0]
+            assert entry["text"] == "First" and entry["next_offset"] == 5
+            cached = read_args | {"known_hashes": {"source.md": entry["sha256"]}}
+            same = invoke("read_artifact_files", cached)
+            row = cast(dict[str, list[dict[str, object]]], same["structuredContent"])["result"][0]
+            assert row["unchanged"] and row["text"] is None
+            assert invoke("read_artifact_files", cached | {"revision": 1}).get("isError")
+            assert invoke("read_artifact_files", cached | {"artifact_id": app.sibling_id}).get(
+                "isError"
+            )
             stale = revise(1, "Stale edit", "fictional-request-2")
             assert stale.get("isError"), stale
             reread = invoke("get_artifact", {"artifact_id": app.artifact_id})

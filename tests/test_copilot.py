@@ -223,6 +223,19 @@ def test_boundary_hosts_origins_routes_and_limits(gateway: GatewayFixture) -> No
 
 def test_current_project_scope_is_checked_on_each_call(gateway: GatewayFixture) -> None:
     """Reject unrelated IDs and stop access immediately after local project reassignment."""
+    service = ArtifactStore(gateway.store)
+    second = service.register_artifact(
+        gateway.selected.project_id,
+        "Another page",
+        Path(gateway.selected.source_path),
+        "index.html",
+    )
+    pages = list_value(data(call(gateway.client, "list_artifacts", {"kind": "html"})))
+    assert [object_value(item)["id"] for item in pages] == [gateway.selected.id, second.id]
+    assert (
+        data(call(gateway.client, "list_artifacts", {"kind": "html", "offset": 1, "limit": 1}))
+        == pages[1:]
+    )
     for name, args in (
         ("get_artifact", {"artifact_id": gateway.unrelated.id}),
         ("get_working_context", {"artifact_id": gateway.unrelated.id}),
@@ -233,9 +246,13 @@ def test_current_project_scope_is_checked_on_each_call(gateway: GatewayFixture) 
         result = call(gateway.client, name, args)
         assert result["isError"] is True
         assert "UNRELATED" not in json.dumps(result)
-    _ = ArtifactStore(gateway.store).set_artifact_project(
-        gateway.selected.id, gateway.unrelated.project_id
-    )
+    scoped = list_value(data(call(gateway.client, "list_artifacts", {"query": "PAGE", "limit": 1})))
+    assert [object_value(item)["id"] for item in scoped] == [gateway.selected.id]
+    for name in ("list_artifacts", "list_projects"):
+        assert data(call(gateway.client, name, {"query": "UNRELATED"})) == []
+        assert data(call(gateway.client, name, {"query": "SELECTED", "offset": 1})) == []
+        assert call(gateway.client, name, {"limit": -1})["isError"] is True
+    _ = service.set_artifact_project(gateway.selected.id, gateway.unrelated.project_id)
     denied = call(gateway.client, "get_artifact", {"artifact_id": gateway.selected.id})
     assert denied["isError"] is True
     assert gateway.selected.id not in json.dumps(data(call(gateway.client, "list_artifacts")))
@@ -279,6 +296,7 @@ def test_design_proposals_use_flat_gateway_schema_and_enforce_project_scope(
     assert "notes" not in proposal
     _ = ArtifactStore(gateway.store).set_artifact_project(DECK, gateway.unrelated.project_id)
     for name, args in (
+        ("get_presentation_outline", {"deck_id": DECK, "source_slide_ids": ["cover"]}),
         ("publish_slide_designs", arguments),
         ("get_slide_designs", {"deck_id": DECK, "slide_id": "cover"}),
         ("get_slide_design", {"deck_id": DECK, "slide_id": "cover", "design_id": options[1]["id"]}),
@@ -433,6 +451,32 @@ def test_owned_file_revision_roundtrip_and_conflict(gateway: GatewayFixture) -> 
     )
 
 
+def test_paged_and_conditional_reads_share_scoped_gateway_budget(gateway: GatewayFixture) -> None:
+    size = 1024 * 1024 + 10
+    _ = (Path(gateway.selected.source_path) / "app.js").write_bytes(b"A" * size)
+    args: dict[str, object] = {"artifact_id": gateway.selected.id, "paths": ["app.js"]}
+    assert call(gateway.client, "read_artifact_files", args)["isError"] is True
+    page_args = args | {"offset": size - 4, "max_bytes": 4}
+    page = object_value(list_value(data(call(gateway.client, "read_artifact_files", page_args)))[0])
+    assert page["text"] == "AAAA" and page["next_offset"] is None
+    assert page["size"] == size and page["revision"] == 2
+    cached = args | {"known_hashes_json": json.dumps({"app.js": page["sha256"]})}
+    items = list_value(data(call(gateway.client, "read_artifact_files", cached)))
+    assert object_value(items[0])["unchanged"] is True and object_value(items[0])["text"] is None
+    assert (
+        call(
+            gateway.client, "read_artifact_files", page_args | {"artifact_id": gateway.unrelated.id}
+        )["isError"]
+        is True
+    )
+    assert (
+        call(gateway.client, "read_artifact_files", cached | {"artifact_id": gateway.unrelated.id})[
+            "isError"
+        ]
+        is True
+    )
+
+
 def test_inline_create_retries_survive_lost_reply_and_later_edits(gateway: GatewayFixture) -> None:
     """Persist a creation identity and recover its initial receipt after a response is lost."""
     args: dict[str, object] = {
@@ -536,6 +580,18 @@ def test_slide_authoring_and_legacy_file_privacy(gateway: GatewayFixture) -> Non
     first = object_value(list_value(outline["slides"])[0])
     slide_id = str(first["id"])
     source = object_value(data(call(client, "get_slide", {"deck_id": DECK, "slide_id": slide_id})))
+    batch = object_value(
+        data(
+            call(
+                client,
+                "get_presentation_outline",
+                {"deck_id": DECK, "source_slide_ids": [slide_id]},
+            )
+        )
+    )
+    selected = object_value(object_value(batch["slide_sources"])[slide_id])
+    assert selected["html"] == source["html"] and selected["agent"] == source["agent"]
+    assert batch["slides"] == outline["slides"]
     revised = object_value(
         data(
             call(

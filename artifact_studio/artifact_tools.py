@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from functools import wraps
+from typing import Literal
 
 from mcp.server.mcpserver import Image as MCPImage
 from mcp.server.mcpserver import MCPServer
@@ -12,6 +13,7 @@ from .agent_io import rule_fields
 from .artifact_capture import capture_artifact_image
 from .artifact_models import ArtifactFeedbackInput, ArtifactFileInput, ArtifactView
 from .artifacts import ArtifactStore
+from .discovery import DiscoveryLimit, DiscoveryOffset, DiscoveryQuery, matches, page
 from .project_tree import ProjectTree
 from .storage import Store
 
@@ -88,26 +90,42 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
 
     @mcp.tool(annotations=read)
     @tool_errors
-    def list_projects() -> list[dict[str, object]]:
-        """Discover project identities; load the selected brief through get_working_context."""
+    def list_projects(
+        query: DiscoveryQuery = "", offset: DiscoveryOffset = 0, limit: DiscoveryLimit = 0
+    ) -> list[dict[str, object]]:
+        """Find projects by title or ID. Page matches with offset/limit (0 limit returns all)."""
         return [
             item.model_dump(exclude={"context"})
-            for item in ArtifactStore(get_store()).list_projects()
+            for item in ArtifactStore(get_store()).list_projects(
+                query=query, offset=offset, limit=limit
+            )
         ]
 
     @mcp.tool(annotations=read)
     @tool_errors
-    def list_artifacts(project_id: str = "", kind: str = "") -> list[dict[str, object]]:
-        """Discover work and review status; filter kind="presentation" for decks."""
+    def list_artifacts(
+        project_id: str = "",
+        kind: str = "",
+        query: DiscoveryQuery = "",
+        offset: DiscoveryOffset = 0,
+        limit: DiscoveryLimit = 0,
+    ) -> list[dict[str, object]]:
+        """Find work by title or ID; filter by kind/project. Page matches with offset/limit."""
         if kind == "presentation" and not project_id:
+            decks = (
+                item
+                for item in get_store().list_decks()
+                if matches(query, item["id"], item["title"])
+            )
             return [
                 {**item, "kind": "presentation", "legacy_deck_id": item["id"]}
-                for item in get_store().list_decks()
+                for item in page(decks, offset, limit)
             ]
         return [
             {**artifact_receipt(item), "status": item.status, "legacy_deck_id": item.legacy_deck_id}
-            for item in ArtifactStore(get_store()).list_artifacts(project_id)
-            if not kind or item.kind == kind
+            for item in ArtifactStore(get_store()).list_artifacts(
+                project_id, query=query, kind=kind, offset=offset, limit=limit
+            )
         ]
 
     @mcp.tool(annotations=write)
@@ -156,14 +174,24 @@ def register_artifact_tools(mcp: MCPServer[None], get_store: Callable[[], Store]
         artifact_id: str,
         paths: list[str],
         revision: int | None = None,
+        known_hashes: dict[str, str] | None = None,
+        offset: int = 0,
+        max_bytes: int = 0,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
     ) -> list[dict[str, object]]:
-        """Load explicitly requested source files; binary files return base64 only on request."""
+        """Read owned files. known_hashes maps paths to cached SHA-256; a match omits content.
+        Page one file with max_bytes, revision and next_offset; use base64 for binary pages.
+        """
         return [
             item.model_dump()
             for item in ArtifactStore(get_store()).read_artifact_files(
                 artifact_id,
                 paths,
                 revision,
+                known_hashes=known_hashes,
+                offset=offset,
+                max_bytes=max_bytes,
+                encoding=encoding,
             )
         ]
 
