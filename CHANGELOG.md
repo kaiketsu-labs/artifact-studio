@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.12.0...v0.13.0) (2026-11-21)
+
+
+### Features
+
+* **review:** pin design references and measure first-draft feedback ([#255](https://github.com/kaiketsu-labs/artifact-studio/issues/255)) ([f6c70c2](https://github.com/kaiketsu-labs/artifact-studio/commit/f6c70c29e94c592a33603b84d8126e1822714d34))
+
+
+### Bug Fixes
+
+* **agents:** skip unrelated deck scans and strengthen local checks ([#257](https://github.com/kaiketsu-labs/artifact-studio/issues/257)) ([876d3ef](https://github.com/kaiketsu-labs/artifact-studio/commit/876d3ef21eb18482c8025d805072926785ae271a))
+
 ## [0.12.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.11.0...v0.12.0) (2026-11-21)
 
 
