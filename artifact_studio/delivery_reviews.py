@@ -5,9 +5,10 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import Field, model_validator
 
+from .authentication import Principal
 from .deck_edit_api import DeckID
 from .models import StrictModel, presentation_delivery_hash
 from .multiplayer_access import Role
@@ -40,7 +41,7 @@ class DeliveryReviewInput(DeliveryJudgment):
 
 
 class DeliverySummary(StrictModel):
-    """Only aggregate counts and the current judgment leave the review database."""
+    """Share aggregate counts and this human’s own judgment for the open delivery."""
 
     deck_id: str
     delivery_hash: str
@@ -51,6 +52,7 @@ class DeliverySummary(StrictModel):
     legibility_correction_rounds: int
     agent_self_revisions: int
     current_review: DeliveryJudgment | None
+    personal_review: DeliveryJudgment | None = None
 
 
 class SelfRevision(StrictModel):
@@ -76,7 +78,9 @@ def _current_hash(store: Store, deck_id: str) -> str:
     )
 
 
-def _summary(db: sqlite3.Connection, deck_id: str, current_hash: str) -> DeliverySummary:
+def _summary(
+    db: sqlite3.Connection, deck_id: str, current_hash: str, reviewer: str
+) -> DeliverySummary:
     totals = db.execute(
         "SELECT COUNT(*), COALESCE(MAX(CASE WHEN stage='first' THEN direction END),'unrated'), "
         "COUNT(*) FILTER (WHERE direction='redirect'), COALESCE(SUM(factual),0), "
@@ -84,9 +88,11 @@ def _summary(db: sqlite3.Connection, deck_id: str, current_hash: str) -> Deliver
         (deck_id,),
     ).fetchone()
     current = db.execute(
-        "SELECT stage,direction,factual,legibility FROM delivery_reviews "
-        "WHERE deck=? AND delivery_hash=?",
-        (deck_id, current_hash),
+        "SELECT d.stage,d.direction,d.factual,d.legibility,p.direction,p.factual,p.legibility "
+        "FROM delivery_reviews d LEFT JOIN delivery_personal_reviews p "
+        "ON p.deck=d.deck AND p.delivery_hash=d.delivery_hash AND p.reviewer=? "
+        "WHERE d.deck=? AND d.delivery_hash=?",
+        (reviewer, deck_id, current_hash),
     ).fetchone()
     agent_count = db.execute(
         "SELECT COUNT(DISTINCT after_hash) FROM design_self_revisions WHERE deck=?", (deck_id,)
@@ -108,20 +114,28 @@ def _summary(db: sqlite3.Connection, deck_id: str, current_hash: str) -> Deliver
         )
         if current
         else None,
+        personal_review=DeliveryJudgment(
+            stage=current[0],
+            direction=current[4],
+            factual=bool(current[5]),
+            legibility=bool(current[6]),
+        )
+        if current and current[4] is not None
+        else None,
     )
 
 
-def read_delivery_review(store: Store, deck_id: str) -> DeliverySummary:
+def read_delivery_review(store: Store, deck_id: str, reviewer: str) -> DeliverySummary:
     """Read the selected deck's measurements from a single database snapshot."""
     with store.connect() as db:
         _ = db.execute("BEGIN")
-        return _summary(db, deck_id, _current_hash(store, deck_id))
+        return _summary(db, deck_id, _current_hash(store, deck_id), reviewer)
 
 
 def record_delivery_review(
-    store: Store, deck_id: str, body: DeliveryReviewInput
+    store: Store, deck_id: str, body: DeliveryReviewInput, reviewer: str
 ) -> DeliverySummary:
-    """Record one human judgment per delivery and replay exact requests after later edits."""
+    """Record one personal judgment and fold it into the shared round in one transaction."""
     signature = digest(body.model_dump_json(exclude={"request_id"}))
     judgment = DeliveryJudgment.model_validate(
         body.model_dump(exclude={"request_id", "delivery_hash"})
@@ -129,10 +143,11 @@ def record_delivery_review(
     with store.connect() as db:
         _ = db.execute("BEGIN IMMEDIATE")
         current_hash = _current_hash(store, deck_id)
-        summary = _summary(db, deck_id, current_hash)
+        summary = _summary(db, deck_id, current_hash, reviewer)
         receipt = db.execute(
-            "SELECT payload_hash FROM delivery_review_receipts WHERE deck=? AND request_id=?",
-            (deck_id, body.request_id),
+            "SELECT payload_hash FROM delivery_personal_receipts "
+            "WHERE deck=? AND reviewer=? AND request_id=?",
+            (deck_id, reviewer, body.request_id),
         ).fetchone()
         if receipt:
             if receipt[0] != signature:
@@ -142,21 +157,35 @@ def record_delivery_review(
             raise ConflictError(
                 "The presentation changed. Reopen the review for the latest delivery."
             )
-        if summary.current_review:
-            if summary.current_review != judgment:
-                raise ConflictError("This delivery already has a review. Refresh to see it.")
-        else:
-            if body.stage == "first" and summary.previous_review_count:
-                raise ConflictError("Earlier reviews exist. Record this delivery as a follow-up.")
+        if summary.current_review and summary.current_review.stage != body.stage:
+            raise ConflictError("This delivery already has a review stage. Refresh to see it.")
+        if not summary.current_review and body.stage == "first" and summary.previous_review_count:
+            raise ConflictError("Earlier reviews exist. Record this delivery as a follow-up.")
+        if summary.personal_review and summary.personal_review != judgment:
+            raise ConflictError("You already recorded a different review for this delivery.")
+        if not summary.personal_review:
             _ = db.execute(
-                "INSERT INTO delivery_reviews VALUES (?,?,?,?,?,?)",
+                "INSERT INTO delivery_personal_reviews VALUES (?,?,?,?,?,?)",
+                (deck_id, current_hash, reviewer, body.direction, body.factual, body.legibility),
+            )
+            # Existing per-delivery rows from the preview have no reviewer identity.
+            # Accumulate them into the same round without attributing them to a new voter.
+            _ = db.execute(
+                "INSERT INTO delivery_reviews VALUES (?,?,?,?,?,?) "
+                "ON CONFLICT(deck,delivery_hash) DO UPDATE SET direction=CASE "
+                "WHEN 'redirect' IN (delivery_reviews.direction,excluded.direction) "
+                "THEN 'redirect' "
+                "WHEN 'accepted' IN (delivery_reviews.direction,excluded.direction) "
+                "THEN 'accepted' "
+                "ELSE 'unrated' END, factual=MAX(delivery_reviews.factual,excluded.factual), "
+                "legibility=MAX(delivery_reviews.legibility,excluded.legibility)",
                 (deck_id, current_hash, body.stage, body.direction, body.factual, body.legibility),
             )
         _ = db.execute(
-            "INSERT INTO delivery_review_receipts VALUES (?,?,?)",
-            (deck_id, body.request_id, signature),
+            "INSERT INTO delivery_personal_receipts VALUES (?,?,?,?)",
+            (deck_id, reviewer, body.request_id, signature),
         )
-        return _summary(db, deck_id, current_hash)
+        return _summary(db, deck_id, current_hash, reviewer)
 
 
 def record_self_revision(store: Store, deck_id: str, body: SelfRevision) -> dict[str, bool]:
@@ -193,18 +222,30 @@ def record_self_revision(store: Store, deck_id: str, body: SelfRevision) -> dict
 
 def delivery_review_routes(
     access: Callable[[Request, str, Role], AbstractContextManager[Store]],
+    *,
+    local_desktop: bool = False,
 ) -> APIRouter:
     """Human review UI. MCP exposes only the separate self-revision operation."""
     router = APIRouter(prefix="/api/decks/{deck_id}/delivery-reviews")
 
+    def reviewer_key(request: Request) -> str:
+        if local_desktop:
+            return "desktop"
+        principal = getattr(request.state, "verified_guest", None) or getattr(
+            request.state, "principal", None
+        )
+        if not isinstance(principal, Principal) or not principal.subject or principal.service:
+            raise HTTPException(403, "A human Studio session is required.")
+        return digest(principal.subject)
+
     @router.get("")
     def review(request: Request, deck_id: DeckID) -> DeliverySummary:
         with access(request, deck_id, "view") as store:
-            return read_delivery_review(store, deck_id)
+            return read_delivery_review(store, deck_id, reviewer_key(request))
 
     @router.post("")
     def record(request: Request, deck_id: DeckID, body: DeliveryReviewInput) -> DeliverySummary:
         with access(request, deck_id, "comment") as store:
-            return record_delivery_review(store, deck_id, body)
+            return record_delivery_review(store, deck_id, body, reviewer_key(request))
 
     return router

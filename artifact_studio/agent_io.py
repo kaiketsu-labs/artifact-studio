@@ -22,6 +22,10 @@ def presentation_sizing() -> dict[str, str]:
             "hardest body slide at thumbnail and full size. Verify its claim, evidence and fit "
             "with the brief. Revise what fails, then compare neighboring slides together."
         ),
+        "self_review_tracking": (
+            "For a measured pass, start with get_presentation_outline(begin_self_review=True). "
+            "After correcting your own draft, use record_design_self_revision once."
+        ),
     }
 
 

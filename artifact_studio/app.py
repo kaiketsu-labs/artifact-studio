@@ -2553,7 +2553,12 @@ app.include_router(favorite_routes(lambda: store))
 app.include_router(chat_reference_routes(lambda: store))
 app.include_router(sharing_routes(lambda: store))
 app.include_router(history_routes(lambda: store))
-app.include_router(delivery_review_routes(lambda _request, _deck_id, _role: nullcontext(store)))
+app.include_router(
+    delivery_review_routes(
+        lambda _request, _deck_id, _role: nullcontext(store),
+        local_desktop=deployment.mode == "local",
+    )
+)
 app.include_router(design_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(element_alternative_routes(lambda _request, _deck_id, _role: nullcontext(store)))
 app.include_router(image_routes(lambda: store))

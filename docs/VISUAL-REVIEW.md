@@ -87,9 +87,9 @@ Right-click a body slide in the sidebar and choose **Design reference…**. Pin 
 
 ## Measuring design feedback
 
-Open **Menu → Review visual direction** for the presentation version you reviewed. Mark whether this is the first delivery or a later revision. Choose the direction decision and any factual or layout corrections that apply. A correction-only review can leave direction unrated. The history counts reviewed versions, so a decision shared by several reviewers counts as one round. Opening the editor or capturing a slide does not record a judgment.
+Open **Menu → Review visual direction** for the presentation version you reviewed. Mark whether this is the first delivery or a later revision. Choose the direction decision and any factual or layout corrections that apply. A correction-only review can leave direction unrated. Each reviewer can record their own decision for the same version. A version counts as one visual redirect if anyone asks for a new direction. Otherwise it counts as accepted when someone explicitly accepts it. Each correction category counts once per version. Opening the editor or capturing a slide does not record a judgment.
 
-![A recorded first delivery with human direction and correction counts separate from agent self-revisions](assets/review-visual-direction.png)
+![A reviewer accepted the first draft. Team history records a requested direction change and one round per correction category.](assets/review-visual-direction.png)
 
 For an agent’s autonomous design pass, call `get_presentation_outline(begin_self_review=True)` to register the starting `delivery_hash` before editing. Read the ordinary outline again afterward. If the visual self-review led to a change, report the before and after hashes once with `record_design_self_revision` and a stable request ID on a connection that offers it. An inspection alone, or responding to a human's correction, does not count as a self-revision.
 

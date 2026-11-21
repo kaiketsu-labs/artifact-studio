@@ -15,7 +15,11 @@
     dialog.addEventListener('close', () => {
       if (dialog.open) return;
       target = null;
-      if (doc.activeElement === doc.body) doc.getElementById('workspace-menu-button')?.focus();
+      requestAnimationFrame(() => {
+        if (!dialog.open && (doc.activeElement === doc.body || dialog.contains(doc.activeElement))) {
+          doc.getElementById('workspace-menu-button')?.focus();
+        }
+      });
     });
 
     function action(scope, verb, pin, clear = false) {

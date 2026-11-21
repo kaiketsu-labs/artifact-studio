@@ -217,9 +217,13 @@ class Store:
                     PRIMARY KEY(deck, delivery_hash));
                 CREATE UNIQUE INDEX IF NOT EXISTS first_delivery_review
                     ON delivery_reviews(deck) WHERE stage = 'first';
-                CREATE TABLE IF NOT EXISTS delivery_review_receipts (
-                    deck TEXT NOT NULL, request_id TEXT NOT NULL, payload_hash TEXT NOT NULL,
-                    PRIMARY KEY(deck, request_id));
+                CREATE TABLE IF NOT EXISTS delivery_personal_reviews (
+                    deck TEXT NOT NULL, delivery_hash TEXT NOT NULL, reviewer TEXT NOT NULL,
+                    direction TEXT NOT NULL, factual INTEGER NOT NULL, legibility INTEGER NOT NULL,
+                    PRIMARY KEY(deck, delivery_hash, reviewer));
+                CREATE TABLE IF NOT EXISTS delivery_personal_receipts (
+                    deck TEXT NOT NULL, reviewer TEXT NOT NULL, request_id TEXT NOT NULL,
+                    payload_hash TEXT NOT NULL, PRIMARY KEY(deck, reviewer, request_id));
                 CREATE TABLE IF NOT EXISTS design_self_revisions (
                     deck TEXT NOT NULL, request_id TEXT NOT NULL, before_hash TEXT NOT NULL,
                     after_hash TEXT NOT NULL, PRIMARY KEY(deck, request_id));

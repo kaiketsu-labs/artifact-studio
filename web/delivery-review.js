@@ -27,7 +27,7 @@ window.StudioDeliveryReview = {
     function choices() {
       const values = new FormData(form);
       return {
-        stage: stages.hidden ? 'follow_up' : values.get('stage'),
+        stage: state.current_review?.stage || (stages.hidden ? 'follow_up' : values.get('stage')),
         direction: values.get('direction') || 'unrated',
         factual: values.has('factual'),
         legibility: values.has('legibility'),
@@ -40,9 +40,17 @@ window.StudioDeliveryReview = {
       submit.disabled = sending || !draft.stage || !(draft.direction !== 'unrated' || draft.factual || draft.legibility);
     }
 
+    function verdict(review) {
+      const recorded = [];
+      if (review.direction !== 'unrated') recorded.push(firstDirection[review.direction].toLowerCase());
+      if (review.factual) recorded.push('factual corrections');
+      if (review.legibility) recorded.push('layout or legibility corrections');
+      return recorded.join(' · ');
+    }
+
     function showResult(result) {
       state = result;
-      const review = state.current_review;
+      const review = state.personal_review;
       for (const value of history.querySelectorAll('[data-review-value]')) {
         const key = value.dataset.reviewValue;
         value.textContent = key === 'first_delivery' ? firstDirection[state[key]] : state[key];
@@ -58,16 +66,12 @@ window.StudioDeliveryReview = {
       if (outdated()) {
         status.textContent = 'The presentation has changed. Open the latest version before recording a review.';
       } else if (review) {
-        const recorded = [];
-        if (review.direction !== 'unrated') recorded.push(firstDirection[review.direction].toLowerCase());
-        if (review.factual) recorded.push('factual corrections');
-        if (review.legibility) recorded.push('layout or legibility corrections');
-        const stage = review.stage === 'first' ? 'First draft' : 'Later revision';
-        status.textContent = stage + ' recorded · ' + recorded.join(' · ') + '. You can review the next version after it changes.';
+        const label = review.stage === 'first' ? 'Your first-draft review' : 'Your review of this revision';
+        status.textContent = label + ' · ' + verdict(review) + (canReview() ? '. You can review the next version after it changes.' : '.');
       } else if (!canReview()) {
-        status.textContent = 'This delivery has no recorded review.';
+        status.textContent = state.current_review ? 'Team review of this delivery · ' + verdict(state.current_review) : 'This delivery has no recorded review.';
       } else {
-        status.textContent = stages.hidden ? 'Reviewing a later revision.' : '';
+        status.textContent = stages.hidden ? (state.current_review?.stage === 'first' ? 'Reviewing the first draft.' : 'Reviewing a later revision.') : '';
       }
     }
 

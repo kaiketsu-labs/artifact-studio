@@ -169,11 +169,49 @@ def test_hosted_delivery_scopes_and_human_agent_separation(tmp_path: Path) -> No
             "delivery_hash": current,
         }
         assert viewer.post(reviews, json=body).status_code == 404
+        first = {**body, "factual": True}
+        proposed = {**body, "direction": "redirect", "legibility": True}
         assert (
-            commenter.post(reviews, json=body).raise_for_status().json()["first_delivery"]
+            commenter.post(reviews, json=first).raise_for_status().json()["first_delivery"]
             == "accepted"
         )
-        assert viewer.get(reviews).raise_for_status().json()["previous_review_count"] == 1
+        assert owner.get(reviews).raise_for_status().json()["personal_review"] is None
+        assert owner.post(reviews, json={**proposed, "stage": "follow_up"}).status_code == 409
+        # Two independent people may reuse their own operation ID and disagree on the same delivery.
+        for human_client, verdict in ((owner, proposed), (commenter, first), (owner, proposed)):
+            round_state = human_client.post(reviews, json=verdict).raise_for_status().json()
+            assert round_state["personal_review"]["direction"] == verdict["direction"]
+            assert round_state["previous_review_count"] == 1
+            assert round_state["current_review"] == {
+                "stage": "first",
+                "direction": "redirect",
+                "factual": True,
+                "legibility": True,
+            }
+            assert round_state["first_delivery"] == "redirect"
+            assert (
+                round_state["visual_redirect_rounds"],
+                round_state["factual_correction_rounds"],
+                round_state["legibility_correction_rounds"],
+            ) == (1, 1, 1)
+        aggregate = viewer.get(reviews).raise_for_status().json()
+        assert aggregate["personal_review"] is None
+        assert set(aggregate) == {
+            "deck_id",
+            "delivery_hash",
+            "previous_review_count",
+            "first_delivery",
+            "visual_redirect_rounds",
+            "factual_correction_rounds",
+            "legibility_correction_rounds",
+            "agent_self_revisions",
+            "current_review",
+            "personal_review",
+        }
+        assert (
+            owner.post(reviews, json={**first, "request_id": "reconsidered-by-owner"}).status_code
+            == 409
+        )
         token = agent(owner, app.deck_id)
         with httpx.Client(
             base_url=app.url,
@@ -224,5 +262,44 @@ def test_hosted_delivery_scopes_and_human_agent_separation(tmp_path: Path) -> No
 
         asyncio.run(exercise())
         observed = owner.get(reviews).raise_for_status().json()
-        assert observed["first_delivery"] == "accepted" and observed["agent_self_revisions"] == 1
+        assert observed["first_delivery"] == "redirect" and observed["agent_self_revisions"] == 1
+        assert observed["personal_review"] is None
+        assert owner.post(reviews, json=proposed).raise_for_status().json() == observed
         assert observed["previous_review_count"] == 1 and observed["current_review"] is None
+
+
+def test_prior_anonymous_judgment_survives_personal_reviews(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    make_design(tmp_path / TEMPLATE_ID)
+    store = Store(tmp_path, tmp_path / "review.sqlite3")
+    deck = "2026-11-21-fictional-existing-trial"
+    _ = store.create(deck, "Existing trial")
+    monkeypatch.setattr(service, "store", store)
+    path = f"/api/decks/{deck}/delivery-reviews"
+    with TestClient(service.app) as client:
+        current = client.get(path).raise_for_status().json()["delivery_hash"]
+        with store.connect() as db:
+            _ = db.execute(
+                "INSERT INTO delivery_reviews VALUES (?,?,?,?,?,?)",
+                (deck, current, "first", "unrated", 1, 0),
+            )
+        old = client.get(path).raise_for_status().json()
+        assert old["first_delivery"] == "unrated" and old["personal_review"] is None
+        result = (
+            client.post(
+                path,
+                json={
+                    "stage": "first",
+                    "direction": "unrated",
+                    "legibility": True,
+                    "delivery_hash": current,
+                    "request_id": "personal-observation",
+                },
+            )
+            .raise_for_status()
+            .json()
+        )
+        assert result["previous_review_count"] == 1 and result["first_delivery"] == "unrated"
+        assert result["current_review"]["factual"] and result["current_review"]["legibility"]
+        assert not result["personal_review"]["factual"] and result["personal_review"]["legibility"]

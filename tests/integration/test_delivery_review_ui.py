@@ -44,7 +44,7 @@ def test_first_delivery_and_factual_followup(
     panel.get_by_role("checkbox", name="Layout or legibility").check()
     panel.screenshot(path=str(artifacts / "review-first-draft.png"))
     submit.click()
-    expect(panel.get_by_role("status")).to_contain_text("First draft recorded")
+    expect(panel.get_by_role("status")).to_contain_text("Your first-draft review")
     expect(panel.locator('[data-review-value="visual_redirect_rounds"]')).to_have_text("1")
     page.keyboard.press("Escape")
     expect(page.get_by_role("button", name="Menu", exact=True)).to_be_focused()
@@ -62,7 +62,7 @@ def test_first_delivery_and_factual_followup(
     expect(panel.get_by_role("radio", name="First draft")).to_be_hidden()
     panel.get_by_role("checkbox", name="Factual corrections").check()
     submit.click()
-    expect(panel.get_by_role("status")).to_contain_text("Later revision recorded")
+    expect(panel.get_by_role("status")).to_contain_text("Your review of this revision")
     for name, value in (
         ("first_delivery", "Change requested"),
         ("visual_redirect_rounds", "1"),
@@ -83,6 +83,7 @@ def test_hosted_commenter_reviews_and_viewer_reads_history(
         human(app, "alice") as alice,
         routed_multiplayer_context(browser, app, "bob") as commenter,
         routed_multiplayer_context(browser, app, "alice") as viewer,
+        routed_multiplayer_context(browser, app, "owner") as owner_context,
     ):
         accept(bob, grant(owner, "bob", app.deck_id, role="comment"))
         accept(alice, grant(owner, "alice", app.deck_id, role="view"))
@@ -94,17 +95,52 @@ def test_hosted_commenter_reviews_and_viewer_reads_history(
         reader.keyboard.press("Escape")
 
         writer = commenter.new_page()
-        writer.goto(f"{WORKSPACE}/?deck={app.deck_id}")
+        writer.goto(f"{WORKSPACE}/?deck={app.deck_id}#next")
         editor_panel = open_review(writer)
         editor_panel.get_by_role("radio", name="First draft").check()
         editor_panel.get_by_role("radio", name="Keep this direction").check()
+        editor_panel.get_by_role("checkbox", name="Layout or legibility").check()
         editor_panel.get_by_role("button", name="Record review").click()
-        expect(editor_panel.get_by_role("status")).to_contain_text("First draft recorded")
+        expect(editor_panel.get_by_role("status")).to_contain_text("Your first-draft review")
+
+        owner_page = owner_context.new_page()
+        owner_page.goto(f"{WORKSPACE}/?deck={app.deck_id}")
+        owner_panel = open_review(owner_page)
+        expect(owner_panel.get_by_role("status")).to_have_text("Reviewing the first draft.")
+        expect(owner_panel.get_by_role("radio", name="First draft")).to_be_hidden()
+        owner_panel.get_by_role("radio", name="Change direction").check()
+        owner_panel.get_by_role("checkbox", name="Layout or legibility").check()
+        owner_panel.get_by_role("checkbox", name="Factual corrections").check()
+        owner_panel.get_by_role("button", name="Record review").click()
+        expect(owner_panel.get_by_role("status")).to_contain_text("change requested")
+        expect(owner_panel.get_by_role("button", name="Record review")).to_be_hidden()
+
+        writer.keyboard.press("Escape")
+        editor_panel = open_review(writer)
+        expect(editor_panel.get_by_role("status")).to_contain_text(
+            "Your first-draft review · accepted"
+        )
+        expect(editor_panel.locator('[data-review-value="first_delivery"]')).to_have_text(
+            "Change requested"
+        )
+        expect(
+            editor_panel.locator('[data-review-value="legibility_correction_rounds"]')
+        ).to_have_text("1")
+
+        editor_panel.screenshot(path=str(artifacts / "personal-and-team-review.png"))
+        writer.screenshot(path=str(artifacts / "team-review-editor.png"))
 
         reader.set_viewport_size({"width": 390, "height": 800})
         reader.emulate_media(color_scheme="dark")
         panel = open_review(reader)
-        expect(panel.locator('[data-review-value="first_delivery"]')).to_have_text("Accepted")
+        expect(panel.get_by_role("status")).to_contain_text(
+            "Team review of this delivery · change requested"
+        )
+        expect(panel.locator('[data-review-value="first_delivery"]')).to_have_text(
+            "Change requested"
+        )
+        expect(panel.locator('[data-review-value="visual_redirect_rounds"]')).to_have_text("1")
+        expect(panel.locator('[data-review-value="factual_correction_rounds"]')).to_have_text("1")
         expect(panel.get_by_role("button", name="Record review")).to_be_hidden()
         expect(panel.locator("details")).to_be_in_viewport()
         panel.screenshot(path=str(artifacts / "review-history-dark.png"))

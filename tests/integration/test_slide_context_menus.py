@@ -404,6 +404,14 @@ def test_pin_update_replace_and_remove_slide_references(
     _ = page.screenshot(path=str(artifacts / "pinned-slide-reference.png"))
     page.keyboard.press("Escape")
     expect(page.locator('#slides [data-id="next"]')).to_be_focused()
+    open_reference_pin(page, "next")
+    desktop = page.viewport_size
+    assert desktop
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(page.locator('#slides [data-id="next"]')).not_to_be_in_viewport()
+    page.keyboard.press("Escape")
+    expect(page.get_by_role("button", name="Menu", exact=True)).to_be_focused()
+    page.set_viewport_size(desktop)
     open_reference_pin(page, "cover")
     project.get_by_role("button", name="Pin project reference").click()
     expect(project.get_by_role("button", name="Remove project reference")).to_be_enabled()
