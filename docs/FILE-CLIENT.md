@@ -54,7 +54,7 @@ uv run python -m artifact_studio.agent_client \
 
 For a new design file, explicitly set `expected_hash: ""` to request creation; an omitted guard means preparation must read an existing file. Unknown tools pass through unchanged. Preparation permits one write per slide, theme, context or design file, and one positioned addition per deck without other adds in the same batch. Split dependent operations and prepare each after its predecessor succeeds.
 
-`--url` defaults to `http://127.0.0.1:8790/mcp`. Only local HTTP is accepted, and redirects are refused. Files are limited to 32 MB and 100 calls; split larger batches. Every verified `add_slide` requires a persisted `request_id` of 8–100 characters, supplied by preparation or explicitly by the caller.
+`--url` defaults to `http://127.0.0.1:8790/mcp`. Only local HTTP is accepted, and redirects are refused. Use a regular JSON file of up to 32 MB and 100 calls. A symlink to a regular input file is supported. Split larger batches. Every verified `add_slide` requires a persisted `request_id` of 8–100 characters, supplied by preparation or explicitly by the caller.
 
 ## Verification and failures
 

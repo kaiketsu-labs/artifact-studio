@@ -60,7 +60,12 @@ uv run python -m artifact_studio.security_check
 Use `--json` for a redacted structured report. Exit code 2 means configuration or
 provider loading is blocked; exit code 0 means the local configuration was
 accepted, **not** that the deployment passed a security audit. Provider error
-details and authentication options are not printed.
+details and authentication options are not printed. In automation, add
+`--fail-on-warning` to exit 1 when the report contains a warning. Checks that
+require an administrator to verify the deployment appear in a separate count
+and allow exit 0. The running server also warns if the configuration path
+becomes a link, stops identifying a regular file, or gains group or public
+write access after startup.
 
 Select the version at the bottom of the left sidebar and open **Server checks**.
 Studio lists configured protections, warnings and checks for your server

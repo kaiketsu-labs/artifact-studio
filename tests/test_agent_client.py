@@ -2,8 +2,10 @@
 
 import hashlib
 import json
+import os
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -94,6 +96,39 @@ def test_changed_call_file_is_rejected_before_network_access(
         empty = tmp_path / "empty.json"
         empty.write_text("[]")
         _ = read_calls(empty)
+
+
+def test_linked_call_file_accepts_exact_limit_and_checks_reviewed_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = b'[{"tool":"list_projects"}]\n'
+    path = tmp_path / "calls.json"
+    path.write_bytes(source)
+    link = tmp_path / "reviewed.json"
+    link.symlink_to(path)
+    monkeypatch.setattr(agent_client, "MAX_CALL_FILE_BYTES", len(source))
+    token = hashlib.sha256(source).hexdigest()
+    assert read_calls(link, token) == ([Invocation(tool="list_projects")], token)
+    path.write_bytes(source + b" ")
+    with pytest.raises(ValueError, match="32 MB"):
+        _ = read_calls(link)
+
+
+def test_call_file_must_be_regular_and_match_its_opened_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(ValueError, match="regular JSON call file"):
+        _ = read_calls(Path(os.devnull))
+    path = tmp_path / "calls.json"
+    path.write_bytes(b'[{"tool":"list_projects"}]')
+    info = path.stat()
+
+    def previous_size(_fd: int) -> SimpleNamespace:
+        return SimpleNamespace(st_mode=info.st_mode, st_size=info.st_size - 1)
+
+    monkeypatch.setattr(os, "fstat", previous_size)
+    with pytest.raises(ValueError, match="changed while reading"):
+        _ = read_calls(path)
 
 
 @pytest.mark.parametrize(

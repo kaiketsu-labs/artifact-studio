@@ -751,3 +751,31 @@ def test_discovery_pages_match_before_loading_current_sources(
     assert artifacts.list_artifacts(project.id, query=selected.id, kind="image") == []
     assert artifacts.list_artifacts(project.id, query="straße", offset=3) == []
     assert artifacts.list_artifacts(project.id, query=selected.id.upper())[0].id == selected.id
+
+
+def test_filtered_project_counts_scan_only_when_native_decks_can_contribute(
+    artifacts: ArtifactStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = artifacts.store
+    make_design(source.root / TEMPLATE_ID)
+    unbound = artifacts.create_project("Fictional research")
+    owner = artifacts.create_project("Fictional slides")
+    deck = source.create("2026-11-21-owned", "Bound deck", "test-brand", project_id=owner.id)
+    _ = source.create("2026-11-21-loose", "Unbound deck", "test-brand")
+    summaries = artifacts.presentation_summaries
+    scans = 0
+
+    def count_scans() -> list[dict[str, str]]:
+        nonlocal scans
+        scans += 1
+        return summaries()
+
+    monkeypatch.setattr(artifacts, "presentation_summaries", count_scans)
+    assert artifacts.list_projects(query=unbound.id) == [unbound]
+    assert artifacts.list_projects(query="absent") == []
+    assert scans == 0
+    assert artifacts.list_projects(query=owner.id)[0].artifact_count == 1
+    assert artifacts.list_projects(query="Presentations")[0].artifact_count == 1
+    source.set_archived(deck.id, archived=True)
+    assert artifacts.list_projects(query=owner.id)[0].artifact_count == 0
+    assert scans == 3
