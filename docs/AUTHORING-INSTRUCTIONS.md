@@ -1,7 +1,7 @@
 # Workspace rules
 
 - Keep slides concise and human-readable. Use useful icons, diagrams, arrows and charts instead of dense text.
-- Treat design examples as a visual language, not fixed layouts.
+- Use a selected slide reference to understand the visual language. Before expanding a deck, render its hardest body slide. At thumbnail size, identify what draws the eye. At presentation size, check whether the evidence supports the takeaway and preserves the brief’s important details. Revise it yourself, then compare adjacent slides for clarity and variety.
 - Visually verify every slide at presentation size. Visually verify every chart, including axes, scale, units, labels, legends, clipping and plotted series against the underlying source data. Do not claim a visual check without inspecting the rendered artifact.
 - Visually review every animation as well as the completed slide: inspect the initial view, each reveal, intermediate motion and the settled result at presentation size. Check order, timing, hidden elements, chart/counter synchronization, clipping and unwanted flashes. Check replay/back navigation and reduced motion where supported. Inspect actual rendered frames; report unavailable application or display checks honestly.
 - Use restrained animation when a slide has many elements: reveal meaningful groups in the order of the explanation. Animate a particularly interesting chart element or result when it helps direct attention. Keep other elements stable; avoid decorative motion and excessive clicks. Do not add motion to every slide by default.

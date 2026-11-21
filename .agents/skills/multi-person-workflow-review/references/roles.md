@@ -57,8 +57,8 @@ natural failed attempts; do not coach reviewers toward a predetermined finding.
 > Act as the real authoring agent for this assigned Studio scope. Discover the
 > connected MCP schemas, read working context and the relevant guide, and follow
 > the brief delivered through the app. Use the actual MCP tools, preserve free
-> HTML/CSS/SVG/JavaScript authoring, and inspect rendered samples before expanding
-> the work. Retain exact guides/hashes only while you retain their content; reuse
+> HTML/CSS/SVG/JavaScript authoring, and inspect the hardest body slide at thumbnail and full size before expanding.
+> Check its claim, evidence and source reference, correct it yourself, then scan adjacent slides. Retain exact guides/hashes only while you retain their content; reuse
 > one initialized client where supported. Handle released assigned feedback and
 > reply through the normal claim/delivery flow. Never read human browser drafts
 > or bypass revision guards through storage. At the coordinator's checkpoint,
@@ -71,7 +71,7 @@ natural failed attempts; do not coach reviewers toward a predetermined finding.
 | Checkpoint | Coordination | Evidence |
 | --- | --- | --- |
 | Ready | Verify independent identities, scoped editor access and instrumentation | Setup manifest; no credential values |
-| Sample | Owner briefs editor; reviewer sees a representative rendered sample | Brief ID, revision, screenshot |
+| Sample | Owner briefs editor; editor checks the hardest rendered body slide before expanding | Brief ID, revision, screenshot |
 | Review | Reviewer comments; owner assigns follow-up when needed | Delivery identity and editor reply |
 | Stale editor | Editor pauses after reading; owner saves note; editor resumes with old guard | Conflict plus both contributions after recovery |
 | Stale human | Owner keeps a draft; editor changes its target; owner recovers through UI | Draft before/after and final revision anchor |
