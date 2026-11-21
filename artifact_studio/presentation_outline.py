@@ -24,6 +24,7 @@ def presentation_outline(
     known_rules_hash: str = "",
     include_agent: bool = True,
     begin_self_review: bool = False,
+    include_design_id: bool = False,
 ) -> dict[str, object]:
     """Read outline fields and explicitly selected sources, without loading review history."""
     deck = store.read(deck_id)
@@ -68,6 +69,8 @@ def presentation_outline(
         "sections_hash": sections_hash(deck.sections),
         "context_hash": digest(context),
     }
+    if include_design_id:
+        result["design_id"] = deck.design_id
     if local:
         result.update(
             design_id=deck.design_id,

@@ -189,9 +189,14 @@ class MultiplayerTools:
         """Resolve a reference under both the selected target grant and the source grant."""
 
         def allowed(kind: Kind, resource: str) -> bool:
+            if kind == scope.kind and resource == scope.resource:
+                return True  # The caller currently holds this target's read grant.
             try:
+                if kind == "artifact":
+                    with self.sharing.guard_presentation_snapshot(actor, scope.workspace, resource):
+                        return True
                 return bool(self.sharing.level(actor, Scope(scope.workspace, kind, resource)))
-            except AccessDenied:
+            except ValueError, FileNotFoundError:
                 return False
 
         return PinnedReferences(store).resolve(
@@ -258,27 +263,23 @@ class MultiplayerTools:
                     metadata.pop("project_title", None)
                 result["artifact"] = metadata
                 if item.legacy_deck_id:
-                    result["outline"] = self.presentation_outline(store, actor, scope)
-                    result["presentation_sizing"] = presentation_sizing()
                     pin = self.reference_for(actor, scope, store)
-                    result.update(pinned_context(pin, "deck", scope.resource))
-                    if (
+                    allow_design = (
                         pin is None
                         and self.scope(actor).kind == "workspace"
                         and self.sharing.owner(Actor(actor.person), scope.workspace)
-                    ):
-                        design_id = store.read(item.legacy_deck_id).design_id
-                        design = (
-                            next(
-                                (
-                                    d
-                                    for d in store.designs(validate_sources=False)
-                                    if d.id == design_id
-                                ),
-                                None,
-                            )
-                            if design_id
-                            else None
+                    )
+                    outline = self.presentation_outline(
+                        store, actor, scope, include_design_id=allow_design
+                    )
+                    design_id = cast(str, outline.pop("design_id", ""))
+                    result["outline"] = outline
+                    result["presentation_sizing"] = presentation_sizing()
+                    result.update(pinned_context(pin, "deck", scope.resource))
+                    if design_id:
+                        design = next(
+                            (d for d in store.designs(validate_sources=False) if d.id == design_id),
+                            None,
                         )
                         if design is not None:
                             result.update(example_context(store, design.folder_id))
@@ -786,6 +787,8 @@ class MultiplayerTools:
         scope: Scope,
         source_slide_ids: SourceSlideIDs = (),
         begin_self_review: bool = False,
+        *,
+        include_design_id: bool = False,
     ) -> dict[str, object]:
         """Apply the same source and attachment visibility as the scoped single-slide reads."""
         _ = ScopedTools(store, "", True, design_example=scope.resource).deck(scope.resource)
@@ -795,6 +798,7 @@ class MultiplayerTools:
                 scope.resource,
                 source_slide_ids,
                 begin_self_review=begin_self_review,
+                include_design_id=include_design_id,
                 include_agent=bool(source_slide_ids) and self.sharing.owner(actor, scope.workspace),
             )
         )

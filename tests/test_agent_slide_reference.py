@@ -128,6 +128,29 @@ def test_local_first_body_example_then_human_pin(
         _ = old_scope.read_slide_reference("project", project, pin_id, "thumbnail")
 
 
+def test_unrelated_pins_skip_permission_and_inventory_reads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    make_design(tmp_path / "collection" / TEMPLATE_ID)
+    store = Store(tmp_path / "collection", tmp_path / "state" / "review.sqlite3")
+    library = ArtifactStore(store)
+    first = store.create("2026-11-21-traffic", "Traffic", "test-brand")
+    second = store.create("2026-11-21-ocean", "Ocean", "test-brand")
+    other = library.create_project("Ocean").id
+    _ = library.set_artifact_project(second.id, other)
+    _ = pin_fixture(store, first.id, "project")
+    _ = pin_fixture(store, first.id, "deck")
+
+    def unrelated(*_args: object) -> bool:
+        raise AssertionError("Unrelated pin triggered an authorization or inventory read")
+
+    monkeypatch.setattr(DesignReferences, "presentation_project", unrelated)
+    monkeypatch.setattr(Store, "read", unrelated)
+    refs = DesignReferences(store)
+    assert refs.resolve(deck_id=second.id, can_view=unrelated, can_view_project=unrelated) is None
+    assert refs.resolve(project_id=other, can_view=unrelated, can_view_project=unrelated) is None
+
+
 def test_hosted_project_pin_respects_artifact_binding_and_revocation(tmp_path: Path) -> None:
     with (
         running_multiplayer_app(

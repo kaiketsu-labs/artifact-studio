@@ -104,14 +104,20 @@ class DesignReferences:
         return PinnedSlide.model_validate(dict(row)) if row else None
 
     def _visible(
-        self, pin: PinnedSlide | None, project: str, can_view: Callable[[str], bool] | None
+        self,
+        pin: PinnedSlide | None,
+        project: str,
+        can_view: Callable[[str], bool] | None,
+        *,
+        checked_deck: str = "",
     ) -> PinnedSlide | None:
         if pin is None:
             return None
         try:
-            if (can_view and not can_view(pin.deck_id)) or self.presentation_project(
-                pin.deck_id
-            ) != project:
+            if pin.deck_id != checked_deck and (
+                (can_view and not can_view(pin.deck_id))
+                or self.presentation_project(pin.deck_id) != project
+            ):
                 return None
             with self.store.connect() as db:
                 if db.execute(
@@ -133,21 +139,41 @@ class DesignReferences:
     ) -> PinnedSlide | None:
         """Choose the deck override, then the accessible project reference."""
         with self.store.connect() as db:
-            if db.execute("SELECT 1 FROM pinned_slides LIMIT 1").fetchone() is None:
-                return None
+            if deck_id:
+                # Fresh workspaces have no pin or project registry yet. This and the
+                # candidate lookup below use the (scope, target) primary key.
+                possible = db.execute(
+                    "SELECT 1 FROM pinned_slides WHERE (scope='deck' AND target=?) "
+                    "OR scope='project' LIMIT 1",
+                    (deck_id,),
+                ).fetchone()
+                if possible is None:
+                    return None
+                project_id = legacy_project(db, deck_id)
+            rows = db.execute(
+                f"SELECT {METADATA} FROM pinned_slides WHERE (scope='deck' AND target=?) "
+                "OR (scope='project' AND target=?)",
+                (deck_id, project_id),
+            ).fetchall()
+        candidates = {row["scope"]: PinnedSlide.model_validate(dict(row)) for row in rows}
+        deck_pin, project_pin = candidates.get("deck"), candidates.get("project")
+        if deck_pin is None and project_pin is None:
+            return None
         if deck_id:
             if can_view and not can_view(deck_id):
                 return None
             try:
-                project_id = self.presentation_project(deck_id)
+                if self.presentation_project(deck_id) != project_id:
+                    return None
             except ValueError, FileNotFoundError:
                 return None
-            pin = self._visible(self._row("deck", deck_id), project_id, can_view)
-            if pin:
-                return pin
-        if not project_id or (can_view_project and not can_view_project(project_id)):
+            # A deck pin always belongs to this already-authorized target.
+            visible = self._visible(deck_pin, project_id, can_view, checked_deck=deck_id)
+            if visible:
+                return visible
+        if project_pin is None or (can_view_project and not can_view_project(project_id)):
             return None
-        return self._visible(self._row("project", project_id), project_id, can_view)
+        return self._visible(project_pin, project_id, can_view, checked_deck=deck_id)
 
     def source(self, pin_id: str) -> dict[str, str]:
         """Read only the editable audience fields of the authorized selection."""
