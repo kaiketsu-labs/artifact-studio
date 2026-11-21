@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.11.0...v0.12.0) (2026-11-21)
+
+
+### Features
+
+* **agents:** speed up discovery, source reads and visual iteration ([#253](https://github.com/kaiketsu-labs/artifact-studio/issues/253)) ([028e44c](https://github.com/kaiketsu-labs/artifact-studio/commit/028e44cffa1ddece57d178c2bebf8b960bd9dca2))
+
+
+### Bug Fixes
+
+* **deps:** bump the python-compatible group with 2 updates ([#252](https://github.com/kaiketsu-labs/artifact-studio/issues/252)) ([9cf0912](https://github.com/kaiketsu-labs/artifact-studio/commit/9cf0912c1277076494d172c45755e3987304026e))
+
 ## [0.11.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.10.3...v0.11.0) (2026-11-19)
 
 
