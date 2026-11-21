@@ -197,7 +197,8 @@ def create_app(
         instructions=(
             "Start with get_working_context. Your token selects one workspace and access scope. "
             "Only assigned released requests appear in read_feedback. Claim before acting. "
-            "Use expected hashes and stable request IDs. Replies stay in the original chat."
+            "Use expected hashes and stable request IDs. Replies stay in the original chat. "
+            "For a new deck, follow the first-draft review in its presentation_sizing context."
         ),
     )
     toolset = MultiplayerTools(hub, chat, config.public_url, presence)

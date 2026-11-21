@@ -120,6 +120,12 @@ Direct element changes, including right-click commands and keyboard movement/del
 
 The UI's version history offers **Content changes** and **All saves**; filtering does not delete retained saves. Restore creates a new revision and preserves current human notes and presentation structure. Artifact bundles retain their revision's local dependencies; historical slide previews reuse current shared theme/assets. [History and fidelity](../docs/WORKSPACE-RECOVERY.md#version-timeline).
 
+### Human-selected slide references and first drafts
+
+A presentation or project working context may include `slide_reference`. For a human pin, pass its supplied arguments to `read_slide_reference`. Choose `view="thumbnail"` for the frozen audience preview or `view="source"` for the editable HTML, interactive HTML and theme CSS. Relative asset paths belong to the source presentation. A presentation pin takes precedence over a project pin. Access to both the pin's scope and its source is checked on each read. If the pointer changes, refresh working context. A `design_example` suggests a body slide from an accessible selected design and carries its own tool arguments.
+
+Before growing a new deck, render its most difficult body slide, check the takeaway at thumbnail size, verify the evidence at full size and compare the composition with its reference. To measure a self-review pass, start it with `get_presentation_outline(begin_self_review=True)`. If you revise the audience content in response to your own review, record one pass with `record_design_self_revision` using the starting and final delivery hashes. Humans record their own direction decisions and corrections in the editor. [Review workflow and measurement](../docs/VISUAL-REVIEW.md#measuring-design-feedback)
+
 ## Guides, not skills
 
 | Topic | Source |

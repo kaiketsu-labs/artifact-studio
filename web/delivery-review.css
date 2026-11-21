@@ -1,0 +1,15 @@
+#delivery-review { width:min(470px,calc(100vw - 32px)); padding:22px; color:var(--ink,#20242b); }
+#delivery-review header { align-items:flex-start; gap:16px; margin:0 0 18px; }
+#delivery-review header p { margin:4px 0 0; overflow-wrap:anywhere; }
+#delivery-review fieldset { margin:0 0 18px; padding:0; border:0; }
+#delivery-review legend { padding:0; margin:0 0 7px; font-size:13px; font-weight:650; }
+#delivery-review label { display:flex; align-items:center; gap:8px; padding:6px 1px; font-size:13px; font-weight:400; cursor:pointer; }
+#delivery-review input { margin:0; width:16px; height:16px; accent-color:var(--blue); flex-shrink:0; }
+#delivery-review .review-choices { display:flex; flex-wrap:wrap; gap:4px 18px; }
+#delivery-review .delivery-save { display:flex; justify-content:flex-end; margin:8px 0 16px; }
+#delivery-review details { border-top:1px solid var(--line); padding-top:12px; }
+#delivery-review summary { font-weight:600; font-size:13px; }
+#delivery-review dl { display:grid; grid-template-columns:1fr auto; align-items:baseline; gap:7px 16px; margin:14px 0 0; font-size:13px; }
+#delivery-review dd { margin:0; text-align:right; font-weight:600; }
+#delivery-review [data-review-error] { color:var(--red); }
+#delivery-review [data-review-status]:empty { display:none; }

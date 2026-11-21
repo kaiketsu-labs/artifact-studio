@@ -19,8 +19,8 @@ load the linked role and measurement guides only when needed.
 Use the user's task, design and scope. If unspecified, use a fictional 12–14 slide
 presentation with varied layouts, an editable diagram, sections, speaker notes
 and a hidden appendix. Include another artifact type only when relevant. Locate
-an authorized existing design before drafting; inspect a few representative
-compositions before expanding the deck. Do not invent a generic replacement for
+an authorized existing design before drafting; inspect a content example, then render the hardest new body slide and compare
+its claim and evidence with the brief before expanding the deck. Do not invent a generic replacement for
 an established visual style.
 
 Create a disposable collection and database. Use separate browser contexts and

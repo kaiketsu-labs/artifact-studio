@@ -62,6 +62,8 @@
   <script src="/web/workspace-panels.js" defer></script>
   <script src="/web/slide-order.js" defer></script>
   <script src="/web/slide-menu.js" defer></script>
+  <link rel="stylesheet" href="/web/presentation/reference-pin.css">
+  <script src="/web/presentation/reference-pin.js" defer></script>
   <script src="/web/slide-sections.js" defer></script>
   <script src="/web/slide-sorter.js" defer></script>
   <script src="/web/slide-actions.js" defer></script>
@@ -90,6 +92,8 @@
   <script src="/web/presentation/warmup.js" defer></script>
   <script src="/web/updates.js" defer></script>
   <script src="/web/preview-updates.js" defer></script>
+  <link rel="stylesheet" href="/web/delivery-review.css">
+  <script src="/web/delivery-review.js" defer></script>
   <script src="/web/workspace-menu.js" defer></script>
   <link rel="stylesheet" href="/web/sharing.css">
   <script src="/web/sharing.js" defer></script>
@@ -122,7 +126,8 @@
         <button id="project-button" type="button" role="menuitem" tabindex="-1" aria-label="Export presentation…" disabled></button>
       </div>
       <div role="separator"></div>
-      <div role="group" aria-label="Workspace">
+      <div role="group" aria-label="Review and settings">
+        <button id="delivery-review-button" type="button" role="menuitem" tabindex="-1" aria-label="Review visual direction" aria-haspopup="dialog" disabled></button>
         <button id="deck-design-references" type="button" role="menuitem" tabindex="-1" aria-label="Design references"></button>
         <button id="instructions-button" type="button" role="menuitem" tabindex="-1" aria-label="Instructions" hidden></button>
         <button id="connect-button" type="button" role="menuitem" tabindex="-1" aria-label="Agent connection"></button>
@@ -292,11 +297,22 @@
   <button data-slide-extra="history" type="button" role="menuitem"></button>
   <button data-slide-extra="present" type="button" role="menuitem"></button>
   <hr>
+  <button id="slide-reference-command" type="button" role="menuitem" aria-haspopup="dialog" hidden></button>
   <button data-slide-extra="favorite" type="button" role="menuitem"></button>
   <button id="toggle-slide-hidden" type="button" role="menuitem"></button>
   <hr>
   <button data-slide-action="delete" type="button" role="menuitem"></button>
 </div>
+<dialog id="slide-reference-dialog" aria-labelledby="slide-reference-title" aria-describedby="slide-reference-intro">
+  <header>
+    <h2 id="slide-reference-title">Design reference</h2>
+    <button type="button" data-close aria-label="Close design reference" autofocus></button>
+  </header>
+  <p id="slide-reference-intro">Use <strong data-slide-title></strong> as a visual example for agents.<span data-reference-priority hidden> A presentation reference takes priority over its project reference.</span></p>
+  <div data-reference-scopes></div>
+  <p data-reference-status role="status" aria-live="polite" aria-atomic="true"></p>
+  <button type="button" data-reload hidden>Reload references</button>
+</dialog>
 <div id="object-panel" popover></div>
 <div id="element-align-menu" class="element-align-menu" popover role="menu" aria-label="Align to slide">
   <button data-align="left" type="button" role="menuitem" aria-label="Align left"></button>
@@ -356,6 +372,34 @@
     <p>Set up once in your agent. Keep that chat open while reviewing.</p>
     <button id="copy-live-setup" type="button">Copy setup prompt</button>
   </details>
+</dialog>
+<dialog id="delivery-review" aria-labelledby="delivery-review-title">
+  <header><div><h2 id="delivery-review-title">Review visual direction</h2><p data-review-deck></p></div><button type="button" data-review-close aria-label="Close"></button></header>
+  <p data-review-status role="status"></p>
+  <form data-review-form hidden>
+    <fieldset data-review-stage><legend>Which delivery are you reviewing?</legend>
+      <div class="review-choices"><label><input type="radio" name="stage" value="first">First draft</label><label><input type="radio" name="stage" value="follow_up">Later revision</label></div>
+    </fieldset>
+    <fieldset><legend>Visual direction</legend>
+      <div class="review-choices"><label><input type="radio" name="direction" value="accepted">Keep this direction</label><label><input type="radio" name="direction" value="redirect">Change direction</label><label><input type="radio" name="direction" value="unrated" checked>No decision</label></div>
+    </fieldset>
+    <fieldset><legend>Corrections requested</legend>
+      <label><input type="checkbox" name="factual">Factual corrections</label>
+      <label><input type="checkbox" name="legibility">Layout or legibility</label>
+    </fieldset>
+    <p data-review-details-hint hidden>Use slide feedback to describe the changes you want.</p>
+    <div class="delivery-save"><button class="primary" type="submit" disabled>Record review</button></div>
+  </form>
+  <details data-review-summary hidden><summary>Team review history</summary>
+    <p>Each presentation version counts once.</p>
+    <dl><dt>First-draft direction</dt><dd data-review-value="first_delivery"></dd>
+      <dt>Visual redirects</dt><dd data-review-value="visual_redirect_rounds"></dd>
+      <dt>Factual corrections</dt><dd data-review-value="factual_correction_rounds"></dd>
+      <dt>Layout or legibility corrections</dt><dd data-review-value="legibility_correction_rounds"></dd>
+      <dt>Agent self-revisions reported</dt><dd data-review-value="agent_self_revisions"></dd>
+    </dl>
+  </details>
+  <p data-review-error role="alert" hidden></p><button type="button" data-review-reload hidden>Reload review</button>
 </dialog>
 <dialog id="new-dialog" aria-labelledby="new-dialog-title">
   <form id="new-form">

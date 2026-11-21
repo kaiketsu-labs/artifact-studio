@@ -16,6 +16,11 @@
             "default": "",
             "title": "Known Rules Hash",
             "type": "string"
+          },
+          "project_id": {
+            "default": "",
+            "title": "Project Id",
+            "type": "string"
           }
         },
         "title": "get_working_contextArguments",
@@ -153,6 +158,52 @@
       "output_schema": {
         "additionalProperties": true,
         "title": "get_design_contextDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_slide_reference",
+      "description": "Fetch the accessible current pin's audience thumbnail or editable source.",
+      "input_schema": {
+        "properties": {
+          "target": {
+            "enum": [
+              "deck",
+              "project"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "pin_id": {
+            "title": "Pin Id",
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "source",
+              "thumbnail"
+            ],
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "target_id",
+          "pin_id",
+          "view"
+        ],
+        "title": "read_slide_referenceArguments",
         "type": "object"
       },
       "annotations": {
@@ -406,7 +457,7 @@
     },
     {
       "name": "get_presentation_outline",
-      "description": "Read brief, order and hashes. Request 1–8 source_slide_ids for editable slide_sources\nkeyed by ID, paired with the same outline's revision tokens.\n",
+      "description": "Read brief, order and hashes. Request 1–8 source_slide_ids for editable slide_sources\nkeyed by ID, paired with the same outline's revision tokens.\nSet begin_self_review to register a visual review baseline.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -421,6 +472,11 @@
             "maxItems": 8,
             "title": "Source Slide Ids",
             "type": "array"
+          },
+          "begin_self_review": {
+            "default": false,
+            "title": "Begin Self Review",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1630,6 +1686,49 @@
       "output_schema": {
         "additionalProperties": true,
         "title": "revise_slideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "record_design_self_revision",
+      "description": "Record a visual revision pass using the before and after delivery hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "before_delivery_hash": {
+            "title": "Before Delivery Hash",
+            "type": "string"
+          },
+          "after_delivery_hash": {
+            "title": "After Delivery Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "before_delivery_hash",
+          "after_delivery_hash",
+          "request_id"
+        ],
+        "title": "record_design_self_revisionArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "title": "record_design_self_revisionDictOutput",
         "type": "object"
       },
       "annotations": {

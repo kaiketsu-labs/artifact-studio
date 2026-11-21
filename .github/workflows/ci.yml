@@ -143,6 +143,7 @@ jobs:
               tests/integration/test_app_version.py
               tests/integration/test_sections.py
               tests/integration/test_feedback_delivery.py
+              tests/integration/test_delivery_review_ui.py
               tests/integration/test_audience_preview.py
               tests/integration/test_notes_and_backup.py
               tests/integration/test_editor_layout.py

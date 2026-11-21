@@ -52,6 +52,10 @@ cookies, private source paths/content, notes and personal messages before sharin
 Publish only fictional or explicitly authorized sanitized evidence. Do not scrape
 hidden harness stores to obtain unavailable usage or reasoning.
 
+## First-delivery design quality
+
+Save the first version actually delivered to the owner. Record whether the owner accepted its visual direction at first delivery, requested a new direction, or left it unrated. Count subsequent human direction changes separately from factual corrections, legibility fixes and the agent’s own revisions before delivery. Record elapsed time to first delivery as well. When comparing multiple decks, give the counts and denominator for rated and unrated decks. An agent acting as the owner is a persona; human first-delivery acceptance requires a human rating.
+
 ## Compare equivalent work
 
 Separate these three experiments:
