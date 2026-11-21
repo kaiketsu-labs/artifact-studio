@@ -130,6 +130,7 @@ from .models import (
 )
 from .offline_identity import cache_scope
 from .presentation_files import PresentationFiles
+from .presentation_outline import SourceSlideIDs, presentation_outline
 from .projects import MAX_ARCHIVE, ClientState, audience_html, open_project, save_project
 from .questions import Questions
 from .recovery_api import recovery_routes
@@ -669,36 +670,23 @@ def get_presentation(deck_id: str, known_rules_hash: str = "") -> AgentDeckView:
 @mcp.tool(annotations=READ)
 @tool_errors
 def get_presentation_outline(
-    deck_id: str, include_context: bool = False, known_rules_hash: str = ""
+    deck_id: str,
+    include_context: bool = False,
+    known_rules_hash: str = "",
+    source_slide_ids: SourceSlideIDs = (),
 ) -> dict[str, object]:
-    """Read slide order, titles and revision tokens without every slide's source/history.
-    Set include_context=True when beginning authoring to read the full current deck brief.
-    Use get_slide for source; get_presentation remains the full-detail read.
-    Pass known_rules_hash only while retaining those rules; changes return full text.
+    """Read titles, order and revision tokens. Set include_context for the current brief.
+    Request 1–8 source_slide_ids to include editable slide_sources keyed by ID in this read.
+    Each source shares its slide's outline tokens. Pass known_rules_hash only for retained rules.
     """
-    view = store.view(deck_id, include_pending=False)
-    result: dict[str, object] = {
-        "id": view.id,
-        "title": view.title,
-        "design_id": view.design_id,
-        "slides": [slide_receipt(deck_id, item).model_dump() for item in view.slides],
-        "sections": [section.model_dump() for section in view.sections],
-        "sections_hash": view.sections_hash,
-        "open_questions": [
-            {"event_id": question.event_id, "slide_id": question.slide_id}
-            for item in view.slides
-            for question in Questions.summarize(item.feedback)
-            if question.status == "open"
-        ],
-        "context_hash": view.context_hash,
-        "context_included": include_context,
-        "context_characters": len(view.context_markdown),
-        "brief_files": [item.model_dump() for item in view.brief_files],
-        **rule_fields(view.authoring_instructions, view.learned_preferences, known_rules_hash),
-    }
-    if include_context:
-        result["context_markdown"] = view.context_markdown
-    return result
+    return presentation_outline(
+        store,
+        deck_id,
+        source_slide_ids,
+        local=True,
+        include_context=include_context,
+        known_rules_hash=known_rules_hash,
+    )
 
 
 @mcp.tool(annotations=READ)
@@ -1017,11 +1005,12 @@ def capture_contact_sheet(
     slide_ids: Annotated[list[str], Field(min_length=1, max_length=500)] | None = None,
     resolution: Literal["full", "draft"] = "draft",
     return_image: bool = True,
+    include_hidden: bool = True,
 ) -> CallToolResult:
     """Inspect a paginated overview of completed slides, including hidden slides.
 
     Select up to 500 distinct slide_ids or page through the deck; 1–24 frames per sheet,
-    in deck order. offset must be nonnegative.
+    in deck order. include_hidden=False excludes hidden slides from the selection before paging.
     Draft frames are 800x450; resolution="full" uses 1600x900. Returns image pixels,
     local frame paths, version hashes and next_offset. Concurrent captures queue.
     Use capture_slide for chart detail and reveal steps; a contact sheet alone is
@@ -1038,6 +1027,7 @@ def capture_contact_sheet(
             limit=limit,
             slide_ids=slide_ids,
             options=CaptureOptions(resolution=resolution),
+            include_hidden=include_hidden,
         ),
         return_image=return_image,
     )

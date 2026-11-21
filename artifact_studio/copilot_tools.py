@@ -32,9 +32,11 @@ from .copilot_capture import (
     capture_cloud_contact_sheet,
     capture_cloud_slide,
 )
+from .discovery import DiscoveryLimit, DiscoveryOffset, DiscoveryQuery, matches, page
 from .element_alternatives import ElementAlternatives, ElementInput
 from .hook_bundle import client_files
 from .models import DesignFile, Slide, SlidePatch
+from .presentation_outline import SourceSlideIDs, presentation_outline
 from .review import Reviews
 from .slide_designs import DesignInput, SlideDesigns
 from .storage import SAFE_ID, ConflictError, Store, digest
@@ -251,7 +253,12 @@ class ScopedTools:
         ):
             raise ValueError("Project is outside this gateway's scope.")
         project = next(
-            (item for item in self.artifacts.list_projects() if item.id == project_id), None
+            (
+                item
+                for item in self.artifacts.list_projects(query=project_id)
+                if item.id == project_id
+            ),
+            None,
         )
         if project is None:
             raise ValueError("Project is unavailable in this gateway's scope.")
@@ -323,49 +330,40 @@ class ScopedTools:
             )
         return public_object(result)
 
-    def catalog(self, project_id: str) -> list[ArtifactView]:
-        """Filter identities before reading their manifests, including reassigned legacy decks."""
-        _ = self.project(project_id)
-        with self.store.connect() as db:
-            ids = [
-                cast(str, row[0])
-                for row in db.execute(
-                    "SELECT id FROM artifact_items WHERE project_id=?", (project_id,)
-                )
-            ]
-            bindings = {
-                cast(str, row[0]): cast(str, row[1])
-                for row in db.execute("SELECT artifact_id,project_id FROM artifact_legacy_projects")
-            }
-        designs = {item.folder_id for item in self.store.designs(include_archived=True)}
-        ids.extend(
-            item["id"]
-            for item in self.store.list_decks()
-            if item["id"] not in designs and bindings.get(item["id"], LEGACY_PROJECT) == project_id
-        )
-        return [self.artifact(artifact_id) for artifact_id in ids]
-
-    def list_projects(self) -> list[dict[str, object]]:
-        """Discover only projects explicitly shared by the gateway owner."""
-        projects = (
-            self.artifacts.list_projects()
-            if self.whole_workspace
-            else [self.project(self.project_id)]
-        )
+    def list_projects(
+        self, query: DiscoveryQuery = "", offset: DiscoveryOffset = 0, limit: DiscoveryLimit = 0
+    ) -> list[dict[str, object]]:
+        """Find shared projects by title or ID; page visible matches with offset/limit."""
+        if self.whole_workspace:
+            projects = self.artifacts.list_projects(query=query, offset=offset, limit=limit)
+        else:
+            project = self.project(self.project_id)
+            projects = [project] if not offset and matches(query, project.id, project.title) else []
         return [public_object(item.model_dump(exclude={"context"})) for item in projects]
 
-    def list_artifacts(self, project_id: str = "", kind: str = "") -> list[dict[str, object]]:
-        """List scoped artifact IDs and current revisions without loading their source bodies."""
+    def list_artifacts(
+        self,
+        project_id: str = "",
+        kind: str = "",
+        query: DiscoveryQuery = "",
+        offset: DiscoveryOffset = 0,
+        limit: DiscoveryLimit = 0,
+    ) -> list[dict[str, object]]:
+        """Find scoped artifacts by title or ID; page matching metadata with offset/limit."""
         project_ids = (
-            [project_id or self.project_id]
+            [self.project(project_id or self.project_id).id]
             if project_id or self.project_id
             else [item.id for item in self.artifacts.list_projects()]
         )
-        return [
-            self.metadata(item)
+        visible = (
+            identifier
             for selected in project_ids
-            for item in self.catalog(selected)
-            if not kind or item.kind == kind
+            for identifier, _ in self.artifacts.matching_artifact_ids(
+                selected, query=query, kind=kind, registration_order=True
+            )
+        )
+        return [
+            self.metadata(self.artifact(identifier)) for identifier in page(visible, offset, limit)
         ]
 
     def get_working_context(
@@ -474,21 +472,43 @@ class ScopedTools:
         return self.metadata(self.artifact(artifact_id), full=True)
 
     def read_artifact_files(
-        self, artifact_id: Identifier, paths: list[str], revision: int = 0
+        self,
+        artifact_id: Identifier,
+        paths: list[str],
+        revision: int = 0,
+        known_hashes_json: str = "",
+        offset: int = 0,
+        max_bytes: int = 0,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
     ) -> list[dict[str, object]]:
-        """Read up to 20 owned files and 1 MiB; revision=0 selects the current revision."""
+        """Read up to 20 files and 1 MiB. known_hashes_json maps paths to cached SHA-256.
+        Page one file with max_bytes, revision and next_offset; use base64 for binary pages.
+        """
         current = self.artifact(artifact_id, owned=True)
         selected = (
-            self.artifacts.get_artifact_revision(artifact_id, revision) if revision else current
+            self.artifacts.get_artifact_revision(artifact_id, revision)
+            if revision and revision != current.revision
+            else current
         )
-        inventory = {item.path: item for item in selected.files}
+        inventory = {item.path for item in selected.files}
         if not paths or len(paths) > 20 or any(path not in inventory for path in paths):
             raise ValueError("Request between one and 20 declared owned file paths.")
-        if sum(inventory[path].size for path in paths) > MAX_READ_BYTES:
-            raise ValueError("Read at most 1 MiB of source per call.")
+        hashes = (
+            TypeAdapter(dict[str, str]).validate_json(known_hashes_json)
+            if known_hashes_json
+            else None
+        )
         return [
             item.model_dump()
-            for item in self.artifacts.read_artifact_files(artifact_id, paths, selected.revision)
+            for item in self.artifacts.read_file_contents(
+                selected,
+                paths,
+                known_hashes=hashes,
+                offset=offset,
+                max_bytes=max_bytes,
+                encoding=encoding,
+                response_limit=MAX_READ_BYTES,
+            )
         ]
 
     def list_artifact_revisions(self, artifact_id: Identifier) -> list[dict[str, object]]:
@@ -701,19 +721,14 @@ class ScopedTools:
         _ = self.artifact(artifact_id)
         return result
 
-    def get_presentation_outline(self, deck_id: Identifier) -> dict[str, object]:
-        """Read a scoped deck's brief, slide order, sections and concurrency hashes."""
+    def get_presentation_outline(
+        self, deck_id: Identifier, source_slide_ids: SourceSlideIDs = ()
+    ) -> dict[str, object]:
+        """Read brief, slide order, sections and hashes. Request 1–8 source_slide_ids for editable
+        slide_sources keyed by ID, paired with the same outline's revision tokens.
+        """
         _ = self.deck(deck_id)
-        view = self.store.view(deck_id, include_pending=False)
-        return {
-            "id": view.id,
-            "title": view.title,
-            "slides": [slide_receipt(deck_id, item).model_dump() for item in view.slides],
-            "sections": [item.model_dump() for item in view.sections],
-            "sections_hash": view.sections_hash,
-            "context_markdown": view.context_markdown,
-            "context_hash": view.context_hash,
-        }
+        return public_object(presentation_outline(self.store, deck_id, source_slide_ids))
 
     def get_slide(self, deck_id: Identifier, slide_id: Identifier) -> dict[str, object]:
         """Read complete slide source and expected_hash; released discussion uses read_feedback."""
@@ -1061,11 +1076,12 @@ class ScopedTools:
         offset: Annotated[int, Field(ge=0)] = 0,
         limit: Annotated[int, Field(ge=1, le=MAX_CLOUD_CONTACT_SLIDES)] = MAX_CLOUD_CONTACT_SLIDES,
         slide_ids: Annotated[tuple[str, ...], Field(max_length=100)] = (),
+        include_hidden: bool = True,
     ) -> CallToolResult:
-        """Inspect up to eight completed slides in one draft image; use capture_slide for detail."""
+        """Inspect up to eight slides. include_hidden=False filters the selection before paging."""
         _ = self.deck(deck_id)
         result = capture_cloud_contact_sheet(
-            self.store, deck_id, offset, limit, list(slide_ids) or None
+            self.store, deck_id, offset, limit, list(slide_ids) or None, include_hidden
         )
         _ = self.deck(deck_id)
         return result

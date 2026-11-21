@@ -31,7 +31,7 @@ printf 'Authorization: Bearer %s\n' "$ARTIFACT_STUDIO_AGENT_TOKEN" |
 
 The running server's MCP initialization and `tools/list` responses are authoritative for the connected process. A checkout can be newer than that process. The host controls which discovered tools are exposed; connecting MCP does not automatically load skill bodies.
 
-The local catalogue advertises 66 tools. Six earlier names remain callable for
+The local catalogue advertises 72 tools. Six earlier names remain callable for
 existing clients but are omitted from discovery:
 
 | Compatibility name | Current call |
@@ -58,14 +58,14 @@ The opt-in Microsoft Copilot gateway has its own smaller tool surface and explic
 | Call or event | What it supplies |
 | --- | --- |
 | MCP initialization | The short canonical bootstrap. |
-| `list_projects` / `list_artifacts` | Discovery metadata and review destinations; artifact source bodies are not loaded. |
+| `list_projects` / `list_artifacts` | Find projects or artifacts by title or ID with `query`. Use `limit` and `offset` to page through matches. |
 | `get_working_context(project_id=..., artifact_id=...)` | Applicable workspace rules, secondary learned preferences, project brief, selected artifact metadata/context, the artifact guide and related-artifact pointers. A recorded receipt identifies returned sources, scopes and hashes. |
 | `get_working_context(deck_id=...)` | Existing presentation startup, that deck's design guidance and reference pointers. Selecting a legacy deck through `artifact_id` also returns its presentation context. |
 | `create_project` / `get_project_tree` / `create_project_folder` / `move_project_to_folder` | Create projects and organize private folders with current tree hashes; hosted access requires the owner’s workspace-wide connection. |
 | `get_artifact` | Current manifest, entrypoint, file inventory, version and review status. Released discussion is optional. |
-| `read_artifact_files` | Only explicitly requested files, optionally from a retained revision. Binary content uses base64. |
+| `read_artifact_files` | Read selected files from one revision. Pass hashes of retained files to reread changes, or page one large file with `max_bytes` and `next_offset`. Binary pages use base64. |
 | `read_artifact_feedback` | Released human messages with original targets, revision, attachments and a delivery cursor. Older saved messages remain private until explicitly sent. |
-| `get_presentation_outline` / `get_presentation` / `get_slide` | Existing deck, outline or slide reads, with their respective context and discussion options. |
+| `get_presentation_outline` / `get_presentation` / `get_slide` | An outline can include the editable sources for selected `source_slide_ids` alongside the brief, order and current hashes. Use individual slide reads for discussion. |
 | `get_presentation_theme` / `update_presentation_theme` | Deck-specific author CSS with managed viewer styles and conflict hashes. |
 | `list_presentation_assets` / `import_presentation_asset` | Deck asset inventory, download staging directory and bounded source copies without binary echoes. |
 | `read_feedback` (`wait_seconds` optional) | Existing presentation feedback, questions, attachments and delivery cursors. |

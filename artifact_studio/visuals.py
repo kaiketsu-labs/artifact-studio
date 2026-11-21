@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NamedTuple
 from urllib.parse import unquote, urlsplit
 
 from PIL import Image, ImageDraw
@@ -308,6 +308,13 @@ class Snapshot(StrictModel):
     policy: str
 
 
+class PageDesign(NamedTuple):
+    """Shared design inputs for one phase of a multi-frame capture."""
+
+    design_hash: str
+    root: str
+
+
 def snapshot(
     store: Store,
     deck_id: str,
@@ -319,6 +326,7 @@ def snapshot(
     preview_html: str = "",
     scoped_embedder: ScopedDeckEmbedder | None = None,
     prepared_interactive: bool = False,
+    page_design: PageDesign | None = None,
 ) -> Snapshot:
     """Embed bounded local assets and exclude private context from the renderer document."""
     if slide.interactive_html and options.stage not in {None, 0}:
@@ -326,7 +334,9 @@ def snapshot(
             "Custom interactive slides use stage 0 plus elapsed_ms, or null for final."
         )
     width, height = viewport or slide_viewport(preview_html or slide.html)
-    content_hash = store.content_hash(deck_id, slide)
+    content_hash = store.content_hash(
+        deck_id, slide, design_hash=page_design.design_hash if page_design else None
+    )
     SlideMarkup().feed(slide.html)
     folder = store.folder(deck_id)
     embedder = scoped_embedder if scoped_embedder is not None else ReviewEmbedder(folder)
@@ -349,9 +359,8 @@ def snapshot(
         f"connect-src 'none'; object-src 'none'; frame-src {frames}; "
         "base-uri 'none'; form-action 'none'"
     )
-    root = root_tag((folder / "index.html").read_text()).replace(
-        "<html", '<html data-capture="slide"', 1
-    )
+    root = page_design.root if page_design else root_tag((folder / "index.html").read_text())
+    root = root.replace("<html", '<html data-capture="slide"', 1)
     document = (
         "<!doctype html>"
         + root
@@ -386,7 +395,7 @@ def snapshot(
         + adapter.replace("</script", r"<\/script")
         + "</script></body></html>"
     )
-    if store.content_hash(deck_id, slide) != content_hash:
+    if page_design is None and store.content_hash(deck_id, slide) != content_hash:
         raise ValueError("The design changed during snapshot preparation. Retry capture.")
     return Snapshot(
         document=document,
@@ -540,6 +549,7 @@ def capture(
     options: CaptureOptions | None = None,
     offset: int = 0,
     limit: int = MAX_CONTACT_SLIDES,
+    include_hidden: bool = True,
 ) -> VisualResult:
     """Render a slide or contact-sheet page without opening a server URL or user profile."""
     if offset < 0 or not 1 <= limit <= MAX_CONTACT_SLIDES:
@@ -561,6 +571,7 @@ def capture(
             options=options,
             offset=offset,
             limit=limit,
+            include_hidden=include_hidden,
         )
 
 
@@ -575,10 +586,13 @@ def capture_admitted(
     options: CaptureOptions | None = None,
     offset: int = 0,
     limit: int = MAX_CONTACT_SLIDES,
+    include_hidden: bool = True,
 ) -> VisualResult:
     """Render a validated request while the caller holds the renderer slot."""
     options = options or CaptureOptions(resolution="draft" if slide_id is None else "full")
-    deck = store.read(deck_id)
+    deck_path = store.folder(deck_id) / "index.html"
+    source = deck_path.read_text()
+    deck = store.parse_deck(source)
     requested = set(slide_ids) if slide_ids is not None else None
     if requested is not None and requested - {slide.id for slide in deck.slides}:
         raise ValueError("One or more slide_ids were not found in this presentation.")
@@ -586,6 +600,7 @@ def capture_admitted(
         (number, slide)
         for number, slide in enumerate(deck.slides, 1)
         if (slide_id is None or slide.id == slide_id)
+        and (slide_id is not None or include_hidden or not slide.hidden)
         and (requested is None or slide.id in requested)
     ]
     if slide_id is not None and not selected:
@@ -595,19 +610,26 @@ def capture_admitted(
         raise ValueError("No slides in this contact-sheet page.")
     prepared: list[Snapshot] = []
     prepared_bytes = 0
+    design = PageDesign(store.visual_hash(deck_id), root_tag(source))
+    del source
     for number, slide in page:
-        item = snapshot(store, deck_id, slide, number, options)
+        item = snapshot(store, deck_id, slide, number, options, page_design=design)
         prepared_bytes += len(item.document.encode())
         if prepared_bytes > MAX_PAGE_BYTES:
             raise ValueError(
                 "Review page exceeds 96 MiB. Retry with a smaller contact-sheet limit."
             )
         prepared.append(item)
+    if store.visual_hash(deck_id) != design.design_hash:
+        raise ValueError("The design changed during snapshot preparation. Retry capture.")
     images = _render_images(prepared, options, _screenshot)
     capture_id = uuid.uuid4().hex
     folder = output / capture_id
     folder.mkdir(parents=True)
-    current = store.read(deck_id)
+    current_source = deck_path.read_text()
+    current = store.parse_deck(current_source)
+    current_slides = {slide.id: slide for slide in current.slides}
+    current_design = PageDesign(store.visual_hash(deck_id), root_tag(current_source))
     structure_changed = [(s.id, s.hidden) for s in current.slides] != [
         (s.id, s.hidden) for s in deck.slides
     ]
@@ -616,15 +638,29 @@ def capture_admitted(
         _ = path.write_bytes(image)
         item.frame.path = str(path)
         item.frame.image_sha256 = hashlib.sha256(image).hexdigest()
-        latest = next((slide for slide in current.slides if slide.id == item.frame.slide_id), None)
+        latest = current_slides.get(item.frame.slide_id)
         item.frame.stale = (
             structure_changed
             or latest is None
-            or store.content_hash(deck_id, latest) != item.frame.content_hash
-            or snapshot(store, deck_id, latest, item.frame.slide_number, options).frame.render_hash
+            or store.content_hash(deck_id, latest, design_hash=current_design.design_hash)
+            != item.frame.content_hash
+            or snapshot(
+                store,
+                deck_id,
+                latest,
+                item.frame.slide_number,
+                options,
+                page_design=current_design,
+            ).frame.render_hash
             != item.frame.render_hash
         )
     frames = [item.frame for item in prepared]
+    if (
+        store.visual_hash(deck_id) != current_design.design_hash
+        or deck_path.read_text() != current_source
+    ):
+        for frame in frames:
+            frame.stale = True
     result_path = Path(frames[0].path) if slide_id else folder / "contact-sheet.png"
     if slide_id is None:
         _ = result_path.write_bytes(

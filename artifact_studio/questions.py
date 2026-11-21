@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import uuid
+from collections import defaultdict
 from typing import cast
 
 from .models import Feedback, QuestionAnswerInput, QuestionPrompt, SlideQuestionView
@@ -48,6 +49,27 @@ class Questions:
                 )
             )
         return result
+
+    def open_ids(self, deck_id: str, slide_ids: list[str]) -> list[dict[str, int | str]]:
+        """Return outline pointers in slide order, with only released same-slide answers."""
+        with self.store.connect() as db:
+            rows = db.execute(
+                "SELECT q.id, q.slide, q.question FROM feedback q "
+                "WHERE q.deck=? AND q.author='agent' AND q.released=1 AND q.question IS NOT NULL "
+                "AND NOT EXISTS (SELECT 1 FROM feedback a WHERE a.reply_to=q.id "
+                "AND a.author='user' AND a.released=1 AND a.deck=q.deck AND a.slide=q.slide) "
+                "ORDER BY q.id",
+                (deck_id,),
+            ).fetchall()
+        by_slide: defaultdict[str, list[int]] = defaultdict(list)
+        for row in rows:
+            if not QuestionPrompt.model_validate_json(row["question"]).cancelled:
+                by_slide[str(row["slide"])].append(int(row["id"]))
+        return [
+            {"event_id": event_id, "slide_id": slide_id}
+            for slide_id in slide_ids
+            for event_id in by_slide[slide_id]
+        ]
 
     def list(
         self, deck_id: str, slide_id: str = "", *, include_resolved: bool = False

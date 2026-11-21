@@ -211,18 +211,19 @@ def prepare_calls(
     prepared = [item.model_copy(deep=True) for item in calls]
     outlines: dict[str, dict[str, object]] = {}
     guidance: list[dict[str, object]] = []
-    client.initialize()
+
+    def read(tool: str, arguments: dict[str, object]) -> dict[str, object]:
+        """Negotiate on the first missing guard; fully specified drafts stay local."""
+        if not client.protocol:
+            client.initialize()
+        return object_value(client.call(Invocation(tool=tool, arguments=arguments)))
 
     def outline(deck_id: str) -> dict[str, object]:
         """Read one compact shared baseline per deck, without slide source/history."""
         if deck_id not in outlines:
-            result = object_value(
-                client.call(
-                    Invocation(
-                        tool="get_presentation_outline",
-                        arguments={"deck_id": deck_id, "known_rules_hash": known_rules_hash},
-                    )
-                )
+            result = read(
+                "get_presentation_outline",
+                {"deck_id": deck_id, "known_rules_hash": known_rules_hash},
             )
             outlines[deck_id] = result
             guidance.append({"deck_id": deck_id, **rule_guidance(result)})
@@ -234,13 +235,8 @@ def prepare_calls(
         arguments = item.arguments
         if item.tool == "write_design_file":
             if "expected_hash" not in arguments:
-                current = object_value(
-                    client.call(
-                        Invocation(
-                            tool="get_design_file",
-                            arguments={key: arguments[key] for key in ("design_id", "path")},
-                        )
-                    )
+                current = read(
+                    "get_design_file", {key: arguments[key] for key in ("design_id", "path")}
                 )
                 arguments["expected_hash"] = required_string(current, "expected_hash")
             continue
@@ -263,18 +259,10 @@ def prepare_calls(
         elif item.tool.endswith("_context") and "expected_hash" not in arguments:
             arguments["expected_hash"] = required_string(outline(deck_id), "context_hash")
         elif item.tool == "update_presentation_theme" and "expected_hash" not in arguments:
-            current = object_value(
-                client.call(
-                    Invocation(tool="get_presentation_theme", arguments={"deck_id": deck_id})
-                )
-            )
+            current = read("get_presentation_theme", {"deck_id": deck_id})
             arguments["expected_hash"] = required_string(current, "expected_hash")
         elif item.tool == "sync_presentation_design" and "expected_hash" not in arguments:
-            current = object_value(
-                client.call(
-                    Invocation(tool="get_presentation_design_sync", arguments={"deck_id": deck_id})
-                )
-            )
+            current = read("get_presentation_design_sync", {"deck_id": deck_id})
             arguments["expected_hash"] = required_string(current, "expected_hash")
         if item.tool in {"revise_slide", "add_slide", "create_presentation"}:
             arguments.setdefault("request_id", "file-" + uuid.uuid4().hex)
@@ -401,6 +389,37 @@ def write_identity(invocation: Invocation) -> tuple[str, str]:
     return deck_id, slide_id
 
 
+def execute_to_file(
+    path: Path, client: Client, calls: list[Invocation], verify: bool, known_rules_hash: str
+) -> dict[str, object]:
+    """Reserve a private output before any writes and keep the full report off stdout."""
+    with open(
+        path, "x", encoding="utf-8", opener=lambda name, flags: os.open(name, flags, 0o600)
+    ) as report:
+        result: dict[str, object]
+        try:
+            result = execute(client, calls, verify, known_rules_hash)
+        except ValueError as error:
+            # Verified-batch preflight can reject the input before the first call.
+            result = {"ok": False, "completed": [], "error": str(error)[:2000]}
+        completed_count = len(cast(list[object], result["completed"]))
+        try:
+            json.dump(result, report, ensure_ascii=False, separators=(",", ":"))
+            _ = report.write("\n")
+            report.flush()
+        except OSError as error:
+            raise OSError(
+                f"Could not save the full report after {completed_count} acknowledged calls. "
+                "Inspect the workspace before retrying."
+            ) from error
+    return {
+        "ok": result["ok"],
+        "completed_count": completed_count,
+        "result_file": str(path.resolve()),
+        **({"next_call_index": result["next_call_index"]} if "next_call_index" in result else {}),
+    }
+
+
 def describe_call(item: Invocation) -> dict[str, object]:
     """Show add/revision targets and supplied field names without printing source or notes."""
     slide = object_value(item.arguments.get("slide", {})) if item.tool == "add_slide" else {}
@@ -424,6 +443,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     mode.add_argument("--describe", action="store_true")
     mode.add_argument(
         "--prepare", type=Path, metavar="NEW_FILE", help="Read missing guards into a new call file."
+    )
+    mode.add_argument(
+        "--result-file",
+        type=Path,
+        metavar="NEW_FILE",
+        help="Execute calls and save the full JSON report, printing only status and its location.",
     )
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--known-rules-hash", default="")
@@ -449,6 +474,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "calls": [describe_call(item) for item in prepared],
                 "guidance": guidance,
             }
+        elif args.result_file:
+            result = execute_to_file(
+                args.result_file, Client(args.url), calls, args.verify, args.known_rules_hash
+            )
         else:
             result = execute(Client(args.url), calls, args.verify, args.known_rules_hash)
         print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
