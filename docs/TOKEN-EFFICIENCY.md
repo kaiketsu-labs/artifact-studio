@@ -2,6 +2,23 @@
 
 MCP is stateless at the transport level. Agents can still retain context between calls: sending the same guide, slide history or encoded image on every request is unnecessary.
 
+## Find, read and revisit selected work
+
+Use a title or ID fragment as `query` when discovering work. To browse a large result set, start with `limit` and increment `offset` by the number of returned matches. In a shared workspace, the project and artifact lists in the response are paged independently. When you know the slide IDs, request up to eight with `get_presentation_outline(source_slide_ids=[...])`. The `slide_sources` map and the corresponding outline rows share a single deck read.
+
+For owned files, pass SHA-256 hashes for contents you still retain to `read_artifact_files`. A matching file returns `unchanged=true`; a changed file returns its contents. For a large file, pin `revision`, read one path at a time with `max_bytes`, and use its returned `next_offset` until null. Request `encoding="base64"` for binary pages. The Copilot gateway accepts the hash map as a JSON string in `known_hashes_json`. Local and shared MCP accept a `known_hashes` object.
+
+A paired HTTP MCP simulation found a project and artifact, read a deck brief and two slides, and revisited two files. Both paths returned the same selected sources, notes and concurrency guards. The initial working context and file bodies were included in both totals.
+
+| Measured on the fictional collection | Existing calls | Selective calls |
+| --- | ---: | ---: |
+| Tool calls | 9 | 7 |
+| Request parameters, compact JSON | 794 B | 859 B |
+| Response text, UTF-8 | 66,283 B | 41,332 B |
+| Full MCP results, compact JSON | 135,163 B | 83,606 B |
+
+The additional request bytes carry the filters and retained hashes. Response totals measure different representations of the same results. Run `uv run python -m scripts.benchmark_agent_reads` to reproduce the comparison. Absolute paths and generated IDs can affect byte counts. Provider token usage depends on the host's representation and tokenizer.
+
 ## Tool surface and skill usage · 15 November 2026
 
 The [tool-surface study](performance/tool-surface-review.md) records a new

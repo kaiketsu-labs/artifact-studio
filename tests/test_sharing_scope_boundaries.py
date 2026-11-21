@@ -67,6 +67,14 @@ def test_project_revoke_recalculates_existing_agent_and_preview_access(tmp_path:
                 app.artifact_id,
                 app.sibling_id,
             }
+            visible = cast(list[dict[str, str]], initial["artifacts"])
+            assert peer.value("list_artifacts", offset=1, limit=1)["artifacts"] == visible[1:]
+            searched = peer.value("list_artifacts", query="SIBLING", limit=1)
+            assert cast(list[dict[str, str]], searched["artifacts"])[0]["id"] == app.sibling_id
+            assert peer.value("list_artifacts", query=app.deck_id) == {
+                "artifacts": [],
+                "projects": [],
+            }
             assert peer.call("get_presentation_outline", deck_id=app.deck_id).is_error
             edit = {
                 "artifact_id": app.artifact_id,

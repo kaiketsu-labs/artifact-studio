@@ -2,6 +2,7 @@
 
 import base64
 import codecs
+import json
 import time
 import uuid
 from collections.abc import Callable, Generator
@@ -47,6 +48,7 @@ from .designs.pinned import DesignReferences as PinnedReferences
 from .designs.pinned import PinnedSlide
 from .designs.references import ReferenceInput
 from .designs.slides import DesignInput, SlideDesigns
+from .discovery import DiscoveryLimit, DiscoveryOffset, DiscoveryQuery, matches, page
 from .hosted_policy import public_deck_asset
 from .interactive import prepare_document
 from .libraries import file_hash
@@ -63,6 +65,7 @@ from .multiplayer_access import (
 from .multiplayer_chat import Channel, Conversations
 from .multiplayer_http import IMPORT_DISK_RESERVE
 from .presentation_files import PresentationFiles
+from .presentation_outline import SourceSlideIDs, presentation_outline
 from .project_tree import ProjectTree
 from .sections import Sections, section_layout
 from .slide_actions import SlideActions
@@ -132,16 +135,40 @@ class MultiplayerTools:
             else:
                 yield store
 
-    def catalog(self, actor: Actor, scope: Scope, kind: str = "") -> dict[str, object]:
+    def catalog(
+        self,
+        actor: Actor,
+        scope: Scope,
+        kind: str = "",
+        query: str = "",
+        offset: int = 0,
+        limit: int = 0,
+    ) -> dict[str, object]:
         with self.sharing.locked():
             self.sharing.require(actor, scope)
             store = self.sharing.store(scope.workspace)
             artifacts = ArtifactStore(store)
-            visible = [
+            project_id = scope.resource if scope.kind == "project" else ""
+            candidates = artifacts.matching_artifact_ids(project_id, query=query, kind=kind)
+            visible = (
+                identifier
+                for identifier, _ in candidates
+                if (scope.kind != "artifact" or scope.resource == identifier)
+                and self.sharing.level(actor, Scope(scope.workspace, "artifact", identifier))
+            )
+            selected = (
+                artifacts.get_artifact(identifier) for identifier in page(visible, offset, limit)
+            )
+            projects = (
                 item
-                for item in artifacts.list_artifacts()
-                if self.sharing.level(actor, Scope(scope.workspace, "artifact", item.id))
-            ]
+                for item in (
+                    []
+                    if scope.kind == "artifact"
+                    else artifacts.list_projects(query=project_id or query)
+                )
+                if (not project_id or item.id == project_id and matches(query, item.id, item.title))
+                and self.sharing.level(actor, Scope(scope.workspace, "project", item.id))
+            )
             return {
                 "artifacts": [
                     {
@@ -151,13 +178,10 @@ class MultiplayerTools:
                         "revision": item.revision,
                         "content_hash": item.content_hash,
                     }
-                    for item in visible
-                    if not kind or item.kind == kind
+                    for item in selected
                 ],
                 "projects": [
-                    {"id": item.id, "title": item.title}
-                    for item in artifacts.list_projects()
-                    if self.sharing.level(actor, Scope(scope.workspace, "project", item.id))
+                    {"id": item.id, "title": item.title} for item in page(projects, offset, limit)
                 ],
             }
 
@@ -282,10 +306,17 @@ class MultiplayerTools:
                 )
             return result
 
-    def list_artifacts(self, ctx: Ctx, kind: str = "") -> dict[str, object]:
-        """List only artifacts and projects available to this particular agent connection."""
+    def list_artifacts(
+        self,
+        ctx: Ctx,
+        kind: str = "",
+        query: DiscoveryQuery = "",
+        offset: DiscoveryOffset = 0,
+        limit: DiscoveryLimit = 0,
+    ) -> dict[str, object]:
+        """Find visible titles/IDs. Offset and limit page artifacts and projects independently."""
         actor = self.actor(ctx)
-        return self.catalog(actor, self.scope(actor), kind)
+        return self.catalog(actor, self.scope(actor), kind, query, offset, limit)
 
     @contextmanager
     def project_owner_store(self, ctx: Ctx) -> Generator[Store]:
@@ -492,9 +523,9 @@ class MultiplayerTools:
             guide.update(
                 guide_fields(
                     "Use get_working_context for the selected scope. For presentations, read "
-                    "get_presentation_outline (brief, order, hashes), then get_slide only for "
-                    "slides "
-                    "you need. revise_slide takes SlidePatch JSON and the expected_hash you read. "
+                    "get_presentation_outline for brief, order and hashes. Pass source_slide_ids "
+                    "to include selected source. revise_slide takes SlidePatch JSON and the "
+                    "expected_hash you read. "
                     "For shareable slide work, set_slide_activity shows an expiring marker; clear "
                     "it when done and omit it for private work. "
                     "Use this connection's registered tool schemas before writing; inspect missing "
@@ -557,9 +588,19 @@ class MultiplayerTools:
         return cast(dict[str, object], self.get_working_context(ctx, artifact_id)["artifact"])
 
     def read_artifact_files(
-        self, ctx: Ctx, artifact_id: str, paths: list[str], revision: int = 0
+        self,
+        ctx: Ctx,
+        artifact_id: str,
+        paths: list[str],
+        revision: int = 0,
+        known_hashes: dict[str, str] | None = None,
+        offset: int = 0,
+        max_bytes: int = 0,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
     ) -> list[dict[str, object]]:
-        """Read declared owned files, at most 1 MiB; revision=0 selects current source."""
+        """Read owned files up to 1 MiB. known_hashes maps paths to cached SHA-256.
+        Page one file with max_bytes, revision and next_offset; use base64 for binary pages.
+        """
         actor = self.actor(ctx)
         scope = self.scope(actor, artifact_id)
         with self.sharing.guard(actor, scope) as store:
@@ -569,7 +610,15 @@ class MultiplayerTools:
                 and revision != ArtifactStore(store).get_artifact(artifact_id).revision
             ):
                 raise AccessDenied
-            return ScopedTools(store, "", True).read_artifact_files(artifact_id, paths, revision)
+            return ScopedTools(store, "", True).read_artifact_files(
+                artifact_id,
+                paths,
+                revision,
+                json.dumps(known_hashes) if known_hashes else "",
+                offset,
+                max_bytes,
+                encoding,
+            )
 
     def revise_artifact(
         self,
@@ -731,12 +780,24 @@ class MultiplayerTools:
         }
 
     def presentation_outline(
-        self, store: Store, actor: Actor, scope: Scope, begin_self_review: bool = False
+        self,
+        store: Store,
+        actor: Actor,
+        scope: Scope,
+        source_slide_ids: SourceSlideIDs = (),
+        begin_self_review: bool = False,
     ) -> dict[str, object]:
-        """Include attachment names only for the workspace owner's scoped agent."""
-        result = ScopedTools(
-            store, "", True, design_example=scope.resource
-        ).get_presentation_outline(scope.resource, begin_self_review)
+        """Apply the same source and attachment visibility as the scoped single-slide reads."""
+        _ = ScopedTools(store, "", True, design_example=scope.resource).deck(scope.resource)
+        result = public_object(
+            presentation_outline(
+                store,
+                scope.resource,
+                source_slide_ids,
+                begin_self_review=begin_self_review,
+                include_agent=bool(source_slide_ids) and self.sharing.owner(actor, scope.workspace),
+            )
+        )
         if self.sharing.owner(Actor(actor.person), scope.workspace):
             files = store.brief_files(scope.resource)
             if files:
@@ -747,13 +808,20 @@ class MultiplayerTools:
         return result
 
     def get_presentation_outline(
-        self, ctx: Ctx, deck_id: str, begin_self_review: bool = False
+        self,
+        ctx: Ctx,
+        deck_id: str,
+        source_slide_ids: SourceSlideIDs = (),
+        begin_self_review: bool = False,
     ) -> dict[str, object]:
-        """Read this presentation's brief, slide order and current concurrency hashes."""
+        """Read brief, order and hashes. Request 1–8 source_slide_ids for editable slide_sources
+        keyed by ID, paired with the same outline's revision tokens.
+        Set begin_self_review to register a visual review baseline.
+        """
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id, "edit" if begin_self_review else "view") as store:
             return self.presentation_outline(
-                store, actor, self.scope(actor, deck_id), begin_self_review
+                store, actor, self.scope(actor, deck_id), source_slide_ids, begin_self_review
             )
 
     def record_design_self_revision(
@@ -1203,13 +1271,14 @@ class MultiplayerTools:
         offset: Annotated[int, Field(ge=0)] = 0,
         limit: Annotated[int, Field(ge=1, le=MAX_CLOUD_CONTACT_SLIDES)] = MAX_CLOUD_CONTACT_SLIDES,
         slide_ids: Annotated[tuple[str, ...], Field(max_length=100)] = (),
+        include_hidden: bool = True,
     ) -> CallToolResult:
         """Render 1–8 completed slides per scoped draft page; offset must be nonnegative.
-        Select up to 100 distinct slide IDs; use capture_slide for full-size detail."""
+        Select up to 100 IDs. include_hidden=False filters the selection before paging."""
         actor = self.actor(ctx)
         with self.deck_store(actor, deck_id) as store:
             return ScopedTools(store, "", True, design_example=deck_id).capture_contact_sheet(
-                deck_id, offset, limit, slide_ids
+                deck_id, offset, limit, slide_ids, include_hidden
             )
 
     def capture_artifact(self, ctx: Ctx, artifact_id: str) -> CallToolResult:

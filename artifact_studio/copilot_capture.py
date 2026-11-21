@@ -122,6 +122,7 @@ def capture_cloud_contact_sheet(
     offset: int = 0,
     limit: int = MAX_CLOUD_CONTACT_SLIDES,
     slide_ids: list[str] | None = None,
+    include_hidden: bool = True,
 ) -> CallToolResult:
     """Render a bounded draft overview with original revision tokens and no host paths."""
     if offset < 0:
@@ -138,9 +139,14 @@ def capture_cloud_contact_sheet(
     ):
         original = store.read(deck_id)
         originals = {slide.id: slide for slide in original.slides}
-        if slide_ids is not None and set(slide_ids) - originals.keys():
+        requested = set(slide_ids) if slide_ids is not None else None
+        if requested is not None and requested - originals.keys():
             raise ValueError("One or more slide_ids were not found in this presentation.")
-        if offset >= (len(slide_ids) if slide_ids is not None else len(originals)):
+        selected_count = sum(
+            (requested is None or slide.id in requested) and (include_hidden or not slide.hidden)
+            for slide in original.slides
+        )
+        if offset >= selected_count:
             raise ValueError("No slides in this contact-sheet page.")
         design_hash = store.visual_hash(deck_id)
         hashes = {
@@ -159,6 +165,7 @@ def capture_cloud_contact_sheet(
             limit=limit,
             slide_ids=slide_ids,
             options=CaptureOptions(resolution="draft"),
+            include_hidden=include_hidden,
         )
         current = store.read(deck_id)
         current_design_hash = store.visual_hash(deck_id)

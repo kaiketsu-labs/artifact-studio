@@ -9,7 +9,7 @@ from fastapi import APIRouter, Request
 from pydantic import Field, model_validator
 
 from .deck_edit_api import DeckID
-from .models import DeckView, StrictModel, presentation_delivery_hash
+from .models import StrictModel, presentation_delivery_hash
 from .multiplayer_access import Role
 from .storage import ConflictError, Store, digest
 
@@ -59,15 +59,12 @@ class SelfRevision(StrictModel):
     request_id: RequestID
 
 
-def outline_delivery_hash(store: Store, view: DeckView, begin_self_review: bool) -> str:
-    """Remember an actual baseline only when an author opts into measuring a review pass."""
-    current = view.delivery_hash
-    if begin_self_review:
-        with store.connect() as db:
-            _ = db.execute(
-                "INSERT OR IGNORE INTO design_self_review_starts VALUES (?,?)", (view.id, current)
-            )
-    return current
+def begin_design_self_review(store: Store, deck_id: str, delivery_hash: str) -> None:
+    """Remember the observed version when an author starts measuring a review pass."""
+    with store.connect() as db:
+        _ = db.execute(
+            "INSERT OR IGNORE INTO design_self_review_starts VALUES (?,?)", (deck_id, delivery_hash)
+        )
 
 
 def _current_hash(store: Store, deck_id: str) -> str:

@@ -21,7 +21,7 @@ Save an array of explicit tool calls in a local JSON file:
 ]
 ```
 
-Read `get_slide` before drafting: the outline used by preparation supplies hashes, not the source, notes or visual context needed to edit accurately. Use only intended patch fields and preserve notes, visibility and unrelated content. If your draft already has a known baseline `expected_hash`, retain it in the arguments; preparation never replaces explicit hashes or request IDs. Do not prepare an old draft against newer content merely to force an overwrite.
+Before drafting, read the slide with `get_slide` or request its source with `get_presentation_outline(source_slide_ids=[...])`. The outline used by CLI preparation supplies the concurrency guards. Use only intended patch fields and preserve notes, visibility and unrelated content. If your draft already has a known baseline `expected_hash`, retain it in the arguments; preparation never replaces explicit hashes or request IDs. Do not prepare an old draft against newer content merely to force an overwrite.
 
 Prepare missing guards into a **new** file. This makes read calls only and does not change the presentation:
 
@@ -31,7 +31,7 @@ uv run python -m artifact_studio.agent_client \
   --prepare /absolute/path/prepared-calls.json
 ```
 
-Preparation fetches one compact outline per required deck, generates missing retry IDs, and persists the results with your payload. It refuses to replace an existing output file, including a symlink, so repeated preparation cannot silently refresh a retry baseline. Its compact report includes the path, file SHA-256, call identities, supplied field names and changed authoring rules. It does not print submitted HTML, CSS, notes or other source values.
+Preparation fetches one compact outline per required deck, generates missing retry IDs, and persists the results with your payload. When the calls already contain every required guard, preparation runs offline. It refuses to replace an existing output file, including a symlink, so repeated preparation cannot silently refresh a retry baseline. Its compact report includes the path, file SHA-256, call identities, supplied field names and changed authoring rules. It does not print submitted HTML, CSS, notes or other source values.
 
 Execute that file, then reuse the same file if the connection fails:
 
@@ -78,7 +78,9 @@ Revisions recorded by older versions contain source without a historical visual 
 
 A filesystem write and its operation record are not one atomic transaction. If storage fails after the canonical write but before its record commits, an unchanged retry can report an existing-ID or outdated-source conflict. If a revision leaves the source unchanged and no receipt was recorded, a retry may be accepted as a fresh write using the current visual state; it cannot prove the earlier visual baseline. Read and reconcile known storage failures manually. Ordinary lost HTTP responses after a recorded write and batches interrupted after an acknowledged prefix are safe to retry with the original file. Do not replace request IDs or hashes merely to force completion.
 
-Without `--verify`, a file can contain other explicitly authorized text-result tools, including `update_presentation_context(mode="append")` or `get_presentation_outline`. Large read results still consume model context if printed; prefer the ordinary compact reads.
+Use `--result-file /path/to/new-result.json` when a local script needs the full response. The client creates a private file before submitting calls and prints a short receipt with its location, success status and completed count. The file contains the same report as ordinary execution, including completed calls and error details after a partial failure. Read the relevant fields from it before drafting. You can combine this option with `--verify`.
+
+Without `--verify`, a file can contain other explicitly authorized text-result tools, including `update_presentation_context(mode="append")` or `get_presentation_outline`.
 
 Local captures can also use `"return_image": false` in their arguments. The tool
 still renders and saves the image, while this client receives its paths, capture

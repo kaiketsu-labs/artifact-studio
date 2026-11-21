@@ -16,6 +16,11 @@
             "default": "",
             "title": "Known Rules Hash",
             "type": "string"
+          },
+          "project_id": {
+            "default": "",
+            "title": "Project Id",
+            "type": "string"
           }
         },
         "title": "get_working_contextArguments",
@@ -51,13 +56,33 @@
     },
     {
       "name": "list_artifacts",
-      "description": "List only artifacts and projects available to this particular agent connection.",
+      "description": "Find visible titles/IDs. Offset and limit page artifacts and projects independently.",
       "input_schema": {
         "properties": {
           "kind": {
             "default": "",
             "title": "Kind",
             "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Query",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 2147483647,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 0,
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Limit",
+            "type": "integer"
           }
         },
         "title": "list_artifactsArguments",
@@ -133,6 +158,52 @@
       "output_schema": {
         "additionalProperties": true,
         "title": "get_design_contextDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_slide_reference",
+      "description": "Fetch the accessible current pin's audience thumbnail or editable source.",
+      "input_schema": {
+        "properties": {
+          "target": {
+            "enum": [
+              "deck",
+              "project"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "pin_id": {
+            "title": "Pin Id",
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "source",
+              "thumbnail"
+            ],
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "target_id",
+          "pin_id",
+          "view"
+        ],
+        "title": "read_slide_referenceArguments",
         "type": "object"
       },
       "annotations": {
@@ -301,7 +372,7 @@
     },
     {
       "name": "read_artifact_files",
-      "description": "Read declared owned files, at most 1 MiB; revision=0 selects current source.",
+      "description": "Read owned files up to 1 MiB. known_hashes maps paths to cached SHA-256.\nPage one file with max_bytes, revision and next_offset; use base64 for binary pages.\n",
       "input_schema": {
         "properties": {
           "artifact_id": {
@@ -319,6 +390,40 @@
             "default": 0,
             "title": "Revision",
             "type": "integer"
+          },
+          "known_hashes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Known Hashes"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 0,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "encoding": {
+            "default": "utf-8",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "title": "Encoding",
+            "type": "string"
           }
         },
         "required": [
@@ -352,12 +457,26 @@
     },
     {
       "name": "get_presentation_outline",
-      "description": "Read this presentation's brief, slide order and current concurrency hashes.",
+      "description": "Read brief, order and hashes. Request 1–8 source_slide_ids for editable slide_sources\nkeyed by ID, paired with the same outline's revision tokens.\nSet begin_self_review to register a visual review baseline.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
             "title": "Deck Id",
             "type": "string"
+          },
+          "source_slide_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Source Slide Ids",
+            "type": "array"
+          },
+          "begin_self_review": {
+            "default": false,
+            "title": "Begin Self Review",
+            "type": "boolean"
           }
         },
         "required": [
@@ -964,7 +1083,7 @@
     },
     {
       "name": "capture_contact_sheet",
-      "description": "Render 1–8 completed slides per scoped draft page; offset must be nonnegative.\nSelect up to 100 distinct slide IDs; use capture_slide for full-size detail.",
+      "description": "Render 1–8 completed slides per scoped draft page; offset must be nonnegative.\nSelect up to 100 IDs. include_hidden=False filters the selection before paging.",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -992,6 +1111,11 @@
             "maxItems": 100,
             "title": "Slide Ids",
             "type": "array"
+          },
+          "include_hidden": {
+            "default": true,
+            "title": "Include Hidden",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1562,6 +1686,49 @@
       "output_schema": {
         "additionalProperties": true,
         "title": "revise_slideDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "record_design_self_revision",
+      "description": "Record a visual revision pass using the before and after delivery hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "before_delivery_hash": {
+            "title": "Before Delivery Hash",
+            "type": "string"
+          },
+          "after_delivery_hash": {
+            "title": "After Delivery Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "before_delivery_hash",
+          "after_delivery_hash",
+          "request_id"
+        ],
+        "title": "record_design_self_revisionArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "title": "record_design_self_revisionDictOutput",
         "type": "object"
       },
       "annotations": {

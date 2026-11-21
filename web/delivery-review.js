@@ -135,7 +135,7 @@ window.StudioDeliveryReview = {
       } catch (failure) {
         if (!isCurrent(version)) return;
         alertUser(failure.message);
-        if (failure.status === 409 || failure.status === 403) {
+        if ([403, 404, 409].includes(failure.status)) {
           form.hidden = true;
           retry.hidden = false;
           retry.focus();

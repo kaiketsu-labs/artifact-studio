@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import codecs
 import hashlib
 import json
 import mimetypes
@@ -12,6 +13,8 @@ import sqlite3
 import stat
 import tempfile
 import uuid
+from collections.abc import Iterator
+from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Literal, cast
@@ -23,11 +26,14 @@ from .artifact_models import (
     ArtifactFile,
     ArtifactFileContent,
     ArtifactFileInput,
+    ArtifactFilePage,
     ArtifactManifest,
     ArtifactTarget,
+    ArtifactUnchangedFile,
     ArtifactView,
     ProjectView,
 )
+from .discovery import matches, page
 from .models import ElementGroupTarget, Feedback, FeedbackFile, FeedbackWorkflow
 from .storage import SAFE_ID, ConflictError, Store, decode_attachments, digest, replace_text
 
@@ -91,6 +97,40 @@ def file_inventory(files: dict[str, bytes]) -> list[ArtifactFile]:
         )
         for name, data in sorted(files.items())
     ]
+
+
+def file_page(
+    file: ArtifactFile,
+    data: bytes,
+    offset: int,
+    encoding: Literal["utf-8", "base64"],
+    revision: int | None,
+) -> ArtifactFilePage:
+    """Preserve complete UTF-8 characters and return the byte offset for the same revision."""
+    text = binary = None
+    size = len(data)
+    if encoding == "base64":
+        binary = base64.b64encode(data).decode()
+    else:
+        decoder = codecs.getincrementaldecoder("utf-8")()
+        try:
+            text = decoder.decode(data, final=offset + size == file.size)
+        except UnicodeDecodeError:
+            raise ValueError(
+                "Use a UTF-8 character boundary for offset, or encoding=base64."
+            ) from None
+        if data and not text:
+            raise ValueError("Increase max_bytes to fit the next UTF-8 character.")
+        size -= len(decoder.getstate()[0])
+    end = offset + size
+    return ArtifactFilePage(
+        **file.model_dump(),
+        text=text,
+        data_base64=binary,
+        revision=revision,
+        offset=offset,
+        next_offset=end if end < file.size else None,
+    )
 
 
 def _retained_mime_types(
@@ -334,13 +374,21 @@ class ArtifactStore:
         return [deck for deck in self.store.list_decks() if deck["id"] not in designs]
 
     def list_projects(
-        self, *, presentations: list[dict[str, str]] | None = None
+        self,
+        *,
+        presentations: list[dict[str, str]] | None = None,
+        query: str = "",
+        offset: int = 0,
+        limit: int = 0,
     ) -> list[ProjectView]:
         """List briefs and counts while keeping the legacy collection virtual and in place."""
         with self.store.connect() as db:
-            projects = [
-                self._project(db, cast(str, row[0]))
-                for row in db.execute("SELECT id FROM artifact_projects ORDER BY id")
+            project_ids = [
+                cast(str, row[0])
+                for row in db.execute(
+                    "SELECT id,json_extract(document,'$.title') FROM artifact_projects ORDER BY id"
+                )
+                if matches(query, cast(str, row[0]), cast(str, row[1]))
             ]
             bindings = {
                 cast(str, row[0]): cast(str, row[1])
@@ -355,12 +403,15 @@ class ArtifactStore:
         for deck in self.presentation_summaries() if presentations is None else presentations:
             project_id = bindings.get(deck["id"], LEGACY_PROJECT)
             counts[project_id] = counts.get(project_id, 0) + 1
-        if counts.get(LEGACY_PROJECT):
-            projects.insert(0, ProjectView(id=LEGACY_PROJECT, title="Presentations", legacy=True))
-        return [
-            project.model_copy(update={"artifact_count": counts.get(project.id, 0)})
-            for project in projects
-        ]
+        if counts.get(LEGACY_PROJECT) and matches(query, LEGACY_PROJECT, "Presentations"):
+            project_ids.insert(0, LEGACY_PROJECT)
+        with self.store.connect() as db:
+            return [
+                self._project(db, identifier).model_copy(
+                    update={"artifact_count": counts.get(identifier, 0)}
+                )
+                for identifier in page(project_ids, offset, limit)
+            ]
 
     def create_project(self, title: str, context: str = "") -> ProjectView:
         """Create a real project and shared brief without applying any design template."""
@@ -612,28 +663,56 @@ class ArtifactStore:
             path = relative_path(path)
             if path not in metadata:
                 raise FileNotFoundError("File is not owned by this artifact revision.")
-            recorded = metadata[path]
-            if not 0 <= recorded.size <= MAX_FILE_SIZE:
-                raise ValueError("Keep individual artifact files at or below 50 MB.")
-            target = self._owned(self._snapshot(artifact) / path)
-            if not stat.S_ISREG(target.lstat().st_mode):
-                raise ValueError("Snapshot resources must be regular files.")
-            flags = (
-                os.O_RDONLY
-                | getattr(os, "O_NOFOLLOW", 0)
-                | getattr(os, "O_NONBLOCK", 0)
-                | getattr(os, "O_BINARY", 0)
-            )
-            descriptor = os.open(target, flags)
-            with os.fdopen(descriptor, "rb") as source:
-                details = os.fstat(source.fileno())
-                if not stat.S_ISREG(details.st_mode) or details.st_size != recorded.size:
-                    raise ConflictError("An immutable artifact resource was modified.")
-                data = source.read(recorded.size + 1)
-            if len(data) != recorded.size or hashlib.sha256(data).hexdigest() != recorded.sha256:
-                raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
-            contents[path] = data
+            contents[path] = self._snapshot_file_bytes(artifact, metadata[path])
         return contents
+
+    def _snapshot_file_bytes(
+        self,
+        artifact: ArtifactManifest,
+        recorded: ArtifactFile,
+        offset: int = 0,
+        length: int | None = None,
+    ) -> bytes:
+        """Hash the exact open file while retaining only the requested window."""
+        if not 0 <= recorded.size <= MAX_FILE_SIZE:
+            raise ValueError("Keep individual artifact files at or below 50 MB.")
+        target = self._owned(self._snapshot(artifact) / recorded.path)
+        if not stat.S_ISREG(target.lstat().st_mode):
+            raise ValueError("Snapshot resources must be regular files.")
+        flags = (
+            os.O_RDONLY
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_NONBLOCK", 0)
+            | getattr(os, "O_BINARY", 0)
+        )
+        descriptor = os.open(target, flags)
+        with os.fdopen(descriptor, "rb") as source:
+            details = os.fstat(source.fileno())
+            if not stat.S_ISREG(details.st_mode) or details.st_size != recorded.size:
+                raise ConflictError("An immutable artifact resource was modified.")
+            if length is None:
+                data = source.read(recorded.size + 1)
+                size, checksum = len(data), hashlib.sha256(data)
+            else:
+                checksum = hashlib.sha256()
+                size = 0
+                window = bytearray()
+                while size < recorded.size:
+                    chunk = source.read(min(65536, recorded.size - size))
+                    if not chunk:
+                        break
+                    checksum.update(chunk)
+                    start = max(0, offset - size)
+                    end = min(len(chunk), offset + length - size)
+                    if start < end:
+                        window.extend(chunk[start:end])
+                    size += len(chunk)
+                if source.read(1):
+                    raise ConflictError("An immutable artifact resource was modified.")
+                data = bytes(window)
+        if size != recorded.size or checksum.hexdigest() != recorded.sha256:
+            raise ConflictError("An immutable artifact snapshot was modified outside the hub.")
+        return data
 
     def verified_snapshot(
         self,
@@ -870,35 +949,65 @@ class ArtifactStore:
             manifest = ArtifactManifest.model_validate_json(cast(str, row[0]))
             return self._selected_snapshot_contents(manifest, [path])[path]
 
-    def list_artifacts(
-        self, project_id: str = "", *, presentations: list[dict[str, str]] | None = None
-    ) -> list[ArtifactView]:
-        """List work without reusable design examples, source bodies or feedback."""
+    def matching_artifact_ids(
+        self,
+        project_id: str = "",
+        *,
+        presentations: list[dict[str, str]] | None = None,
+        query: str = "",
+        kind: str = "",
+        registration_order: bool = False,
+    ) -> Iterator[tuple[str, bool]]:
+        """Filter registered identities before synchronizing bundles or hashing deck revisions."""
         with self.store.connect() as db:
             if project_id:
                 _ = self._project(db, project_id)
             ids = [
                 cast(str, row[0])
                 for row in db.execute(
-                    "SELECT id FROM artifact_items "
+                    "SELECT id,json_extract(document,'$.title'),json_extract(document,'$.kind') "
+                    "FROM artifact_items "
                     + ("WHERE project_id=? " if project_id else "")
-                    + "ORDER BY id",
+                    + ("ORDER BY rowid" if registration_order else "ORDER BY id"),
                     (project_id,) if project_id else (),
                 )
+                if (not kind or kind == row[2])
+                and matches(query, cast(str, row[0]), cast(str, row[1]))
             ]
             bindings = {
                 cast(str, row[0]): cast(str, row[1])
                 for row in db.execute("SELECT artifact_id,project_id FROM artifact_legacy_projects")
             }
-        items = [self.get_artifact(artifact_id) for artifact_id in ids]
+        for identifier in ids:
+            yield identifier, False
+        if kind and kind != "presentation":
+            return
         if project_id and project_id != LEGACY_PROJECT and project_id not in bindings.values():
-            return items
-        items.extend(
-            self._legacy(deck["id"])
-            for deck in (self.presentation_summaries() if presentations is None else presentations)
-            if not project_id or bindings.get(deck["id"], LEGACY_PROJECT) == project_id
+            return
+        for deck in self.presentation_summaries() if presentations is None else presentations:
+            if (
+                not project_id or bindings.get(deck["id"], LEGACY_PROJECT) == project_id
+            ) and matches(query, deck["id"], deck["title"]):
+                yield deck["id"], True
+
+    def list_artifacts(
+        self,
+        project_id: str = "",
+        *,
+        presentations: list[dict[str, str]] | None = None,
+        query: str = "",
+        kind: str = "",
+        offset: int = 0,
+        limit: int = 0,
+    ) -> list[ArtifactView]:
+        """Load current revisions for just the selected page of matching identities."""
+        ids = self.matching_artifact_ids(
+            project_id, presentations=presentations, query=query, kind=kind
         )
-        return items
+        return [
+            self._legacy(identifier) if legacy else self.get_artifact(identifier)
+            for identifier, legacy in page(ids, offset, limit)
+        ]
 
     def resolve_file(self, artifact_id: str, path: str, revision: int | None = None) -> Path:
         """Resolve declared files, rejecting traversal, symlinks and altered snapshots."""
@@ -921,8 +1030,13 @@ class ArtifactStore:
         artifact_id: str,
         paths: list[str],
         revision: int | None = None,
+        *,
+        known_hashes: dict[str, str] | None = None,
+        offset: int = 0,
+        max_bytes: int = 0,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
     ) -> list[ArtifactFileContent]:
-        """Return only requested files, preserving arbitrary binary formats as base64."""
+        """Read selected source, reconciling local edits or pinning the requested revision."""
         if len(paths) > 100:
             raise ValueError("Read at most 100 artifact files per request.")
         artifact = (
@@ -930,32 +1044,88 @@ class ArtifactStore:
             if revision is None
             else self.get_artifact_revision(artifact_id, revision)
         )
-        metadata = {file.path: file for file in artifact.files}
-        contents = (
-            {} if artifact.legacy_deck_id else self._selected_snapshot_contents(artifact, paths)
+        return self.read_file_contents(
+            artifact,
+            paths,
+            known_hashes=known_hashes,
+            offset=offset,
+            max_bytes=max_bytes,
+            encoding=encoding,
         )
+
+    def read_file_contents(
+        self,
+        artifact: ArtifactView,
+        paths: list[str],
+        *,
+        known_hashes: dict[str, str] | None = None,
+        offset: int = 0,
+        max_bytes: int = 0,
+        encoding: Literal["utf-8", "base64"] = "utf-8",
+        response_limit: int | None = None,
+    ) -> list[ArtifactFileContent]:
+        """Load verified files from an already resolved and authorized artifact revision."""
+        if not 0 <= max_bytes <= 1024 * 1024 or offset < 0 or (offset and not max_bytes):
+            raise ValueError("For a page use a nonnegative offset and 1–1048576 max_bytes.")
+        if max_bytes and len(paths) != 1:
+            raise ValueError("Read one file path at a time when paging.")
+        hashes = known_hashes or {}
+        metadata = {file.path: file for file in artifact.files}
         result: list[ArtifactFileContent] = []
+        received = 0
         for path in paths:
             path = relative_path(path)
             if artifact.legacy_deck_id:
                 source = self._owned(Path(artifact.source_path) / path)
                 if not source.is_file():
                     raise FileNotFoundError("Legacy source file is unavailable.")
-                contents[path] = source.read_bytes()
-                metadata[path] = file_inventory({path: contents[path]})[0]
-            if path not in metadata or path not in contents:
-                raise FileNotFoundError("File is not owned by this artifact revision.")
-            data = contents[path]
-            try:
-                text = data.decode("utf-8")
-            except UnicodeDecodeError:
+                data = source.read_bytes()
+                file = file_inventory({path: data})[0]
+            else:
+                if path not in metadata:
+                    raise FileNotFoundError("File is not owned by this artifact revision.")
+                file = metadata[path]
+                data = b""
+            if offset > file.size:
+                raise ValueError("Byte offset exceeds file size.")
+            unchanged = hashes.get(path) == file.sha256
+            length = 0 if unchanged else min(max_bytes or file.size, file.size - offset)
+            received += length
+            if response_limit is not None and received > response_limit:
+                raise ValueError("Read at most 1 MiB of source per call; use max_bytes to page.")
+            if artifact.legacy_deck_id:
+                data = data[offset : offset + length]
+            else:
+                data = self._snapshot_file_bytes(
+                    artifact,
+                    file,
+                    offset,
+                    length if max_bytes or unchanged else None,
+                )
+            if unchanged:
+                result.append(ArtifactUnchangedFile(**file.model_dump()))
+            elif max_bytes:
                 result.append(
-                    ArtifactFileContent(
-                        **metadata[path].model_dump(), data_base64=base64.b64encode(data).decode()
+                    file_page(
+                        file,
+                        data,
+                        offset,
+                        encoding,
+                        None if artifact.legacy_deck_id else artifact.revision,
                     )
                 )
             else:
-                result.append(ArtifactFileContent(**metadata[path].model_dump(), text=text))
+                text = None
+                if encoding == "utf-8":
+                    with suppress(UnicodeDecodeError):
+                        text = data.decode("utf-8")
+                result.append(
+                    ArtifactFileContent(
+                        **file.model_dump(),
+                        text=text,
+                        data_base64=base64.b64encode(data).decode() if text is None else None,
+                    )
+                )
         return result
 
     def revise_artifact(

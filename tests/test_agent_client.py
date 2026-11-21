@@ -32,6 +32,7 @@ class FakeClient(Client):
     def initialize(self) -> None:
         """Record that preflight validation allowed execution."""
         self.initialized = True
+        self.protocol = "test"
 
     def call(self, invocation: Invocation) -> object:
         """Return or fail according to the simulated server."""
@@ -263,7 +264,100 @@ def test_prepare_never_refreshes_explicit_guards_or_ids() -> None:
     client = FakeClient(lambda _: pytest.fail("No read is needed for supplied guards"))
     original = invocation("first")
     prepared, guidance = prepare_calls(client, [original])
-    assert prepared == [original] and not client.calls and not guidance
+    assert prepared == [original] and not client.initialized and not client.calls and not guidance
+
+
+def test_prepare_creates_retry_ids_with_server_offline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A guarded edit and plain addition need no protocol handshake."""
+
+    def offline(*_: object, **__: object) -> dict[str, object]:
+        raise AssertionError("No network requests expected")
+
+    monkeypatch.setattr(agent_client, "post_json", offline)
+    edit = invocation("first")
+    del edit.arguments["request_id"]
+    add = Invocation(
+        tool="add_slide",
+        arguments={"deck_id": "fictional-deck", "slide": {"id": "second"}},
+    )
+    source, target = tmp_path / "calls.json", tmp_path / "prepared.json"
+    source.write_text(json.dumps([edit.model_dump(), add.model_dump()]))
+    assert agent_client.main(["--calls-file", str(source), "--prepare", str(target)]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    prepared, _ = read_calls(target, summary["sha256"])
+    assert prepared[0].arguments["expected_hash"] == "reviewed-baseline"
+    assert len({item.arguments["request_id"] for item in prepared}) == 2
+
+
+def test_result_file_preserves_full_success_or_partial_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The CLI keeps large sources on disk and reports exactly how many calls succeeded."""
+
+    def handle(item: Invocation) -> object:
+        if item.tool == "bad":
+            raise ValueError("Fix the rejected input.")
+        return {"html": "fictional-source-" * 1000, "expected_hash": "version-2"}
+
+    client = FakeClient(handle)
+
+    def factory(_: str) -> Client:
+        return client
+
+    monkeypatch.setattr(agent_client, "Client", factory)
+    calls_file = tmp_path / "calls.json"
+    for fail in (False, True):
+        tools = ["get_slide", "bad", "after"] if fail else ["get_slide"]
+        calls_file.write_text(json.dumps([{"tool": tool} for tool in tools]))
+        path = tmp_path / f"results-{fail}.json"
+        args = ["--calls-file", str(calls_file), "--result-file", str(path)]
+        assert agent_client.main(args) == int(fail)
+        printed = capsys.readouterr().out
+        summary = json.loads(printed)
+        assert "fictional-source" not in printed
+        assert summary["ok"] is (not fail) and summary["result_file"] == str(path)
+        assert summary["completed_count"] == 1
+        assert path.stat().st_mode & 0o077 == 0
+        full = json.loads(path.read_text())
+        assert full["completed"] == [
+            {"tool": "get_slide", "result": handle(Invocation(tool="get_slide"))}
+        ]
+        if fail:
+            assert full["error"] == "Fix the rejected input."
+            assert summary["next_call_index"] == full["next_call_index"] == 1
+    assert [item.tool for item in client.calls] == ["get_slide", "get_slide", "bad"]
+
+
+@pytest.mark.parametrize("symlink", [False, True])
+def test_result_file_collision_prevents_writes(
+    tmp_path: Path,
+    symlink: bool,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Reject an existing destination, including dangling symlinks, before any network I/O."""
+    calls_file = tmp_path / "calls.json"
+    calls_file.write_text(json.dumps([invocation("first").model_dump()]))
+    destination = tmp_path / "report.json"
+    if symlink:
+        destination.symlink_to(tmp_path / "absent")
+    else:
+        destination.write_text("original")
+    client = FakeClient(lambda _: pytest.fail("must reject the output before calling the server"))
+
+    def factory(_: str) -> Client:
+        return client
+
+    monkeypatch.setattr(agent_client, "Client", factory)
+    assert (
+        agent_client.main(["--calls-file", str(calls_file), "--result-file", str(destination)]) == 1
+    )
+    assert "exists" in json.loads(capsys.readouterr().out)["error"]
+    assert not client.initialized
+    if not symlink:
+        assert destination.read_text() == "original"
 
 
 def test_prepare_positioned_add_uses_order_and_section_guard() -> None:

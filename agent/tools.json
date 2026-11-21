@@ -1348,6 +1348,11 @@
             "title": "Design Hash",
             "type": "string"
           },
+          "delivery_hash": {
+            "default": "",
+            "title": "Delivery Hash",
+            "type": "string"
+          },
           "slides": {
             "items": {
               "$ref": "#/$defs/SlideView"
@@ -1449,7 +1454,7 @@
     },
     {
       "name": "get_presentation_outline",
-      "description": "Read slide order, titles and revision tokens without every slide's source/history.\nSet include_context=True when beginning authoring to read the full current deck brief.\nUse get_slide for source; get_presentation remains the full-detail read.\nPass known_rules_hash only while retaining those rules; changes return full text.\n",
+      "description": "Read titles, order and revision tokens. Set include_context for the current brief.\nRequest 1–8 source_slide_ids to include editable slide_sources keyed by ID in this read.\nSet begin_self_review=True to measure a design pass from this delivery.\nEach source shares its slide's outline tokens. Pass known_rules_hash only for retained rules.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -1465,6 +1470,20 @@
             "default": "",
             "title": "Known Rules Hash",
             "type": "string"
+          },
+          "source_slide_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 8,
+            "title": "Source Slide Ids",
+            "type": "array"
+          },
+          "begin_self_review": {
+            "default": false,
+            "title": "Begin Self Review",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1480,6 +1499,49 @@
       },
       "annotations": {
         "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "record_design_self_revision",
+      "description": "Record a visual revision pass using the before and after delivery hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "before_delivery_hash": {
+            "title": "Before Delivery Hash",
+            "type": "string"
+          },
+          "after_delivery_hash": {
+            "title": "After Delivery Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "before_delivery_hash",
+          "after_delivery_hash",
+          "request_id"
+        ],
+        "title": "record_design_self_revisionArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "title": "record_design_self_revisionDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
         "destructive_hint": false
       }
     },
@@ -4044,7 +4106,7 @@
     },
     {
       "name": "capture_contact_sheet",
-      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect up to 500 distinct slide_ids or page through the deck; 1–24 frames per sheet,\nin deck order. offset must be nonnegative.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\nreturn_image=False returns saved paths/metadata without inline pixels.\nInspect the saved files separately before claiming a visual review.\n",
+      "description": "Inspect a paginated overview of completed slides, including hidden slides.\n\nSelect up to 500 distinct slide_ids or page through the deck; 1–24 frames per sheet,\nin deck order. include_hidden=False excludes hidden slides from the selection before paging.\nDraft frames are 800x450; resolution=\"full\" uses 1600x900. Returns image pixels,\nlocal frame paths, version hashes and next_offset. Concurrent captures queue.\nUse capture_slide for chart detail and reveal steps; a contact sheet alone is\nnot a full-size review. Respect the host's access restrictions for the deck.\nreturn_image=False returns saved paths/metadata without inline pixels.\nInspect the saved files separately before claiming a visual review.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -4093,6 +4155,11 @@
           "return_image": {
             "default": true,
             "title": "Return Image",
+            "type": "boolean"
+          },
+          "include_hidden": {
+            "default": true,
+            "title": "Include Hidden",
             "type": "boolean"
           }
         },
@@ -4628,6 +4695,50 @@
       },
       "annotations": {
         "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_slide_reference",
+      "description": "Fetch the human pin's frozen thumbnail or editable source using its context arguments.",
+      "input_schema": {
+        "properties": {
+          "target": {
+            "enum": [
+              "deck",
+              "project"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "pin_id": {
+            "title": "Pin Id",
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "source",
+              "thumbnail"
+            ],
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "target_id",
+          "pin_id",
+          "view"
+        ],
+        "title": "read_slide_referenceArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
         "destructive_hint": false
       }
     },
@@ -8922,9 +9033,30 @@
     },
     {
       "name": "list_projects",
-      "description": "Discover project identities; load the selected brief through get_working_context.",
+      "description": "Find projects by title or ID. Page matches with offset/limit (0 limit returns all).",
       "input_schema": {
-        "properties": {},
+        "properties": {
+          "query": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Query",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 2147483647,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 0,
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
         "title": "list_projectsArguments",
         "type": "object"
       },
@@ -8952,7 +9084,7 @@
     },
     {
       "name": "list_artifacts",
-      "description": "Discover work and review status; filter kind=\"presentation\" for decks.",
+      "description": "Find work by title or ID; filter by kind/project. Page matches with offset/limit.",
       "input_schema": {
         "properties": {
           "project_id": {
@@ -8964,6 +9096,26 @@
             "default": "",
             "title": "Kind",
             "type": "string"
+          },
+          "query": {
+            "default": "",
+            "maxLength": 256,
+            "title": "Query",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "maximum": 2147483647,
+            "minimum": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "limit": {
+            "default": 0,
+            "maximum": 1000,
+            "minimum": 0,
+            "title": "Limit",
+            "type": "integer"
           }
         },
         "title": "list_artifactsArguments",
@@ -9145,7 +9297,7 @@
     },
     {
       "name": "read_artifact_files",
-      "description": "Load explicitly requested source files; binary files return base64 only on request.",
+      "description": "Read owned files. known_hashes maps paths to cached SHA-256; a match omits content.\nPage one file with max_bytes, revision and next_offset; use base64 for binary pages.\n",
       "input_schema": {
         "properties": {
           "artifact_id": {
@@ -9170,6 +9322,40 @@
             ],
             "default": null,
             "title": "Revision"
+          },
+          "known_hashes": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Known Hashes"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "max_bytes": {
+            "default": 0,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "encoding": {
+            "default": "utf-8",
+            "enum": [
+              "utf-8",
+              "base64"
+            ],
+            "title": "Encoding",
+            "type": "string"
           }
         },
         "required": [
