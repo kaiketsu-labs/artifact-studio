@@ -1348,6 +1348,11 @@
             "title": "Design Hash",
             "type": "string"
           },
+          "delivery_hash": {
+            "default": "",
+            "title": "Delivery Hash",
+            "type": "string"
+          },
           "slides": {
             "items": {
               "$ref": "#/$defs/SlideView"
@@ -1449,7 +1454,7 @@
     },
     {
       "name": "get_presentation_outline",
-      "description": "Read titles, order and revision tokens. Set include_context for the current brief.\nRequest 1–8 source_slide_ids to include editable slide_sources keyed by ID in this read.\nEach source shares its slide's outline tokens. Pass known_rules_hash only for retained rules.\n",
+      "description": "Read titles, order and revision tokens. Set include_context for the current brief.\nRequest 1–8 source_slide_ids to include editable slide_sources keyed by ID in this read.\nSet begin_self_review=True to measure a design pass from this delivery.\nEach source shares its slide's outline tokens. Pass known_rules_hash only for retained rules.\n",
       "input_schema": {
         "properties": {
           "deck_id": {
@@ -1474,6 +1479,11 @@
             "maxItems": 8,
             "title": "Source Slide Ids",
             "type": "array"
+          },
+          "begin_self_review": {
+            "default": false,
+            "title": "Begin Self Review",
+            "type": "boolean"
           }
         },
         "required": [
@@ -1489,6 +1499,49 @@
       },
       "annotations": {
         "read_only_hint": true,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "record_design_self_revision",
+      "description": "Record a visual revision pass using the before and after delivery hashes.",
+      "input_schema": {
+        "properties": {
+          "deck_id": {
+            "title": "Deck Id",
+            "type": "string"
+          },
+          "before_delivery_hash": {
+            "title": "Before Delivery Hash",
+            "type": "string"
+          },
+          "after_delivery_hash": {
+            "title": "After Delivery Hash",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deck_id",
+          "before_delivery_hash",
+          "after_delivery_hash",
+          "request_id"
+        ],
+        "title": "record_design_self_revisionArguments",
+        "type": "object"
+      },
+      "output_schema": {
+        "additionalProperties": {
+          "type": "boolean"
+        },
+        "title": "record_design_self_revisionDictOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": false,
         "destructive_hint": false
       }
     },
@@ -4642,6 +4695,50 @@
       },
       "annotations": {
         "read_only_hint": false,
+        "destructive_hint": false
+      }
+    },
+    {
+      "name": "read_slide_reference",
+      "description": "Fetch the human pin's frozen thumbnail or editable source using its context arguments.",
+      "input_schema": {
+        "properties": {
+          "target": {
+            "enum": [
+              "deck",
+              "project"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "target_id": {
+            "title": "Target Id",
+            "type": "string"
+          },
+          "pin_id": {
+            "title": "Pin Id",
+            "type": "string"
+          },
+          "view": {
+            "enum": [
+              "source",
+              "thumbnail"
+            ],
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "target_id",
+          "pin_id",
+          "view"
+        ],
+        "title": "read_slide_referenceArguments",
+        "type": "object"
+      },
+      "annotations": {
+        "read_only_hint": true,
         "destructive_hint": false
       }
     },

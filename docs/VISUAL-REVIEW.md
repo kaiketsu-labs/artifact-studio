@@ -12,6 +12,10 @@ The Python packages are locked with the app. Chromium is a separate official Pla
 
 ## Agent workflow
 
+For a new deck, choose the body slide whose comparison, sequence or decision is hardest to explain. Inspect the selected content reference if available. Borrow the aspects that serve this slide, such as how it groups people by role or labels a measured change. When no reference is supplied, let the audience, subject and evidence guide the composition.
+
+Render the new body slide before expanding the deck. At thumbnail size, say what draws your eye first. At full size, read the slide as the audience would. Can you recover the claim, its evidence and the proposed action from the slide itself? For example, an extension of a four-week trial should make clear which four weeks are complete and which four are proposed. Resolve weak spots autonomously. Once neighboring slides exist, look at them together and check that each composition suits its purpose. Ask the human only when the brief leaves a consequential choice open.
+
 Before a capture batch, `get_capture_status(probe_renderer=True)` tests the sandboxed renderer once. The default status read is cheap and returns the last observed readiness. Launch failures are cached briefly; an explicit probe retries after setup is repaired. No renderer setting is weakened.
 
 Call `get_working_context`, read the workspace rules, then read the deck and released feedback. Use `capture_contact_sheet(deck_id)` to scan up to 24 completed slides, including hidden ones. Pass `include_hidden=False` for an audience run-through. The filter applies before pagination and slide numbers still match the deck. Follow `next_offset` until there are no pages left, or pass `slide_ids=[...]` to capture only affected slides in deck order. Offsets apply to that selected subset. Each tile has a slide number/title and a local frame path. The default `resolution="draft"` produces 800 × 450 frames; `resolution="full"` produces 1600 × 900 frames. Both preserve the same 1600 × 900 layout.
@@ -74,3 +78,25 @@ Slides with `interactive_html` are captured from their actual isolated custom do
 After a full-size capture, `check_slide_text` compares its pixels with caller-supplied expected visible text using optional local Tesseract OCR. The capture and image hashes anchor the result; stale or modified captures require recapture. Mismatches and confidence need visual interpretation, and even a match does not prove glyph correctness. This catches candidates beyond resource-loading checks, without disabling ligatures or approving slides. Read `get_authoring_guide(topic="text_review")` or [TEXT-REVIEW.md](TEXT-REVIEW.md).
 
 Scoped cloud and hosted agents can also call `capture_contact_sheet`. It returns one draft image for up to eight completed slides per page, with optional `slide_ids` and `next_offset`, through the same audience-only clone as `capture_slide`. Paths and private notes are excluded. Use `capture_slide` to inspect full-size detail and reveal states. Captures share the bounded renderer queue; smaller pages can help when the remote image limit is exceeded.
+
+## Pinning a design reference
+
+Right-click a body slide in the sidebar and choose **Design reference…**. Pin it for **This presentation** or **This project**. A presentation pin overrides its project’s pin. If the original changes, **Update** freezes the new version. Use **Replace** to choose another slide or **Remove** to clear that scope. A project pin is available to agents with access to the project and source presentation.
+
+![Presentation and project reference controls in the slide editor](assets/pinned-slide-reference.png)
+
+## Measuring design feedback
+
+Open **Menu → Review visual direction** for the presentation version you reviewed. Mark whether this is the first delivery or a later revision. Choose the direction decision and any factual or layout corrections that apply. A correction-only review can leave direction unrated. Each reviewer can record their own decision for the same version. A version counts as one visual redirect if anyone asks for a new direction. Otherwise it counts as accepted when someone explicitly accepts it. Each correction category counts once per version. Opening the editor or capturing a slide does not record a judgment.
+
+![A reviewer accepted the first draft. Team history records a requested direction change and one round per correction category.](assets/review-visual-direction.png)
+
+For an agent’s autonomous design pass, call `get_presentation_outline(begin_self_review=True)` to register the starting `delivery_hash` before editing. Read the ordinary outline again afterward. If the visual self-review led to a change, report the before and after hashes once with `record_design_self_revision` and a stable request ID on a connection that offers it. An inspection alone, or responding to a human's correction, does not count as a self-revision.
+
+To measure a group of decks in one running local workspace, pass the deck IDs for the sample. Include the decks with no rating so the report can show how much feedback is missing.
+
+```sh
+uv run python -m scripts.measure_design_reviews --decks clinic-pilot editor-onboarding
+```
+
+For a hosted study, use `--snapshots review-a.json review-b.json` with authorized human reads of `GET /api/decks/{deck_id}/delivery-reviews` from one workspace. Take one snapshot per deck. The report gives the accepted fraction among rated first deliveries and counts unrated decks separately. One delivery can involve both a factual correction and a direction change. Agent self-revisions are self-reported. When comparing authoring approaches, retain the first draft, record time to delivery separately, and distinguish simulated reviewers from actual audience members.

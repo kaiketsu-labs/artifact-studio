@@ -1,0 +1,35 @@
+#slide-reference-dialog {
+  width: min(440px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink, #20242b);
+  background: var(--surface, white);
+}
+#slide-reference-dialog header, .reference-pin-row, .reference-pin-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#slide-reference-dialog header { justify-content: space-between; }
+#slide-reference-dialog h2 { margin: 0; font-size: 19px; }
+#slide-reference-dialog [data-close] { border: 0; background: transparent; }
+#slide-reference-intro { margin: 10px 0 16px; overflow-wrap: anywhere; }
+#slide-reference-intro, #slide-reference-dialog [data-reference-status], .reference-pin-summary {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--subtle);
+}
+.reference-pin-row { padding: 12px 0; border-top: 1px solid var(--line); }
+.reference-pin-row > .ui-icon { flex: none; color: var(--subtle); }
+.reference-pin-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.reference-pin-copy strong, .reference-pin-summary { display: block; }
+.reference-pin-copy strong { font-size: 14px; }
+.reference-pin-actions { gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.reference-pin-actions button { font-size: 13px; padding: 5px 9px; min-height: 32px; background: transparent; }
+.reference-pin-actions .icon-only { width: 30px; padding: 4px; border: 0; color: var(--subtle); }
+#slide-reference-dialog [data-reference-status] { margin: 5px 0 0; }
+#slide-reference-dialog [data-reference-status]:empty { margin: 0; }
+#slide-reference-dialog [data-reload] { margin-top: 8px; }

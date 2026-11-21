@@ -8,7 +8,7 @@ Read released feedback and current source before changes. Preserve human notes, 
 
 Read selected chat references with read_feedback_attachment using the destination artifact/deck ID, event ID and zero-based file index. Read only needed pages. A reference preserves the chosen slide and description; it does not authorize editing its source presentation.
 
-Visually inspect the rendered result with the available capture tools, including relevant animation states. If the selected format cannot be captured here, say that visual verification is incomplete. Never claim a check from source code alone. Replies should briefly explain what changed or ask one necessary question.
+For a new presentation, inspect its slide reference when available. Render the hardest body slide before expanding. Check the takeaway at thumbnail size and its evidence against the brief at full size. Fix weak spots yourself and compare adjacent slides. Visually inspect relevant animation states. If the selected format cannot be captured here, say that visual verification is incomplete. Never claim a check from source code alone. Replies should briefly explain what changed or ask one necessary question.
 
 Write chat only as the agent through reply_to_feedback or reply_to_artifact_feedback; omit event_id/reply_to for an opening message. Never use human-feedback endpoints or impersonate the user.
 

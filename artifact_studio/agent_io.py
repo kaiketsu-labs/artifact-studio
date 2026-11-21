@@ -17,7 +17,15 @@ def presentation_sizing() -> dict[str, str]:
             "and use container-relative dimensions (for example cqw) for layout and text; "
             "do not assume the displayed viewport is 1600x900."
         ),
-        "review": "Capture and inspect a representative slide before expanding the deck.",
+        "review": (
+            "Before expanding a new deck, inspect its slide reference when available. Render the "
+            "hardest body slide at thumbnail and full size. Verify its claim, evidence and fit "
+            "with the brief. Revise what fails, then compare neighboring slides together."
+        ),
+        "self_review_tracking": (
+            "For a measured pass, start with get_presentation_outline(begin_self_review=True). "
+            "After correcting your own draft, use record_design_self_revision once."
+        ),
     }
 
 

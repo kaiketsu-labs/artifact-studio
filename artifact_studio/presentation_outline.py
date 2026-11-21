@@ -5,7 +5,8 @@ from typing import Annotated
 from pydantic import Field
 
 from .agent_io import rule_fields
-from .models import SlideReceipt
+from .delivery_reviews import begin_design_self_review
+from .models import SlideReceipt, presentation_delivery_hash
 from .questions import Questions
 from .sections import sections_hash
 from .storage import Store, digest
@@ -22,6 +23,8 @@ def presentation_outline(
     local: bool = False,
     known_rules_hash: str = "",
     include_agent: bool = True,
+    begin_self_review: bool = False,
+    include_design_id: bool = False,
 ) -> dict[str, object]:
     """Read outline fields and explicitly selected sources, without loading review history."""
     deck = store.read(deck_id)
@@ -39,26 +42,35 @@ def presentation_outline(
     review_hashes = store.review_hashes(deck_id)
     context_file = store.folder(deck_id) / "README.md"
     context = context_file.read_text() if context_file.exists() else ""
+    slides = [
+        SlideReceipt(
+            deck_id=deck_id,
+            id=slide.id,
+            title=slide.title,
+            revision=slide.revision,
+            hidden=slide.hidden,
+            **store.slide_review_state(
+                deck_id, slide, design_hash=design_hash, review_hashes=review_hashes
+            ),
+        )
+        for slide in deck.slides
+    ]
+    delivery_hash = presentation_delivery_hash(
+        deck.title, ((slide.id, slide.hidden, slide.content_hash) for slide in slides)
+    )
+    if begin_self_review:
+        begin_design_self_review(store, deck_id, delivery_hash)
     result: dict[str, object] = {
         "id": deck_id,
         "title": deck.title,
-        "slides": [
-            SlideReceipt(
-                deck_id=deck_id,
-                id=slide.id,
-                title=slide.title,
-                revision=slide.revision,
-                hidden=slide.hidden,
-                **store.slide_review_state(
-                    deck_id, slide, design_hash=design_hash, review_hashes=review_hashes
-                ),
-            ).model_dump()
-            for slide in deck.slides
-        ],
+        "delivery_hash": delivery_hash,
+        "slides": [slide.model_dump() for slide in slides],
         "sections": [item.model_dump() for item in deck.sections],
         "sections_hash": sections_hash(deck.sections),
         "context_hash": digest(context),
     }
+    if include_design_id:
+        result["design_id"] = deck.design_id
     if local:
         result.update(
             design_id=deck.design_id,

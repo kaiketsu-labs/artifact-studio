@@ -13,6 +13,7 @@ from PIL import Image
 from playwright.sync_api import Page
 from pydantic import ValidationError
 
+from artifact_studio.designs.pinned import DesignReferences, PinChange
 from artifact_studio.models import AgentContext, Slide, SlidePatch
 from artifact_studio.storage import Store, digest
 from artifact_studio.visuals import (
@@ -593,3 +594,31 @@ def test_imported_slide_capture_uses_native_aspect_ratio(
     image = Image.open(io.BytesIO(capture_snapshot(prepared, CaptureOptions())))
     assert image.size == (1600, expected_height)
     assert image.convert("RGB").getpixel((800, expected_height - 10)) == (0, 160, 80)
+
+
+@RENDER
+def test_pinned_thumbnail_renders_the_original_reveal_after_a_later_edit(store: Store) -> None:
+    references = DesignReferences(store)
+    project = references.presentation_project(DECK)
+    slide = store.read(DECK).slides[0]
+    body = PinChange(
+        scope="deck",
+        expected_pin_id="",
+        slide_id=slide.id,
+        content_hash=store.content_hash(DECK, slide),
+    )
+    selected = references.prepare(DECK, DECK, body)
+    references.save(DECK, project, body, DECK, "", selected)
+    _ = store.revise(
+        DECK,
+        slide.id,
+        digest(slide.model_dump_json()),
+        "replace-before-render",
+        SlidePatch(html='<article class="slide" style="background:black">New</article>'),
+    )
+    data = references.thumbnail(selected.reference.pin_id)
+    with Image.open(io.BytesIO(data)) as png:
+        image = png.convert("RGB")
+        assert image.size == (480, 270)
+        assert image.getpixel((270, 105)) == (255, 100, 0)
+        assert image.getpixel((90, 195)) == (0, 160, 80)

@@ -1,5 +1,8 @@
 """Validated presentation documents and review messages."""
 
+import hashlib
+import json
+from collections.abc import Iterable
 from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
@@ -334,6 +337,12 @@ class SlideReceipt(StrictModel):
     has_unseen_changes: bool
 
 
+def presentation_delivery_hash(title: str, slides: Iterable[tuple[str, bool, str]]) -> str:
+    """Anchor a judgment to ordered visual content without private notes or feedback."""
+    payload = json.dumps([title, list(slides)], separators=(",", ":")).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
 class DeckView(StrictModel):
     """A deck snapshot for the review workspace."""
 
@@ -341,6 +350,7 @@ class DeckView(StrictModel):
     title: str
     design_id: str = ""
     design_hash: str = ""
+    delivery_hash: str = ""
     slides: list[SlideView]
     sections: list[DeckSection] = Field(default_factory=list)
     sections_hash: str = ""
@@ -353,6 +363,14 @@ class DeckView(StrictModel):
     brief_files: list[DesignFile] = Field(default_factory=list)
     slide_designs: dict[str, dict[str, object]] = Field(default_factory=dict)
     element_alternatives: dict[str, list[dict[str, object]]] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def identify_delivery(self) -> Self:
+        """Reuse the audience-content hashes already present in the deck snapshot."""
+        self.delivery_hash = presentation_delivery_hash(
+            self.title, ((s.id, s.hidden, s.content_hash) for s in self.slides)
+        )
+        return self
 
 
 class AgentDeckView(DeckView):

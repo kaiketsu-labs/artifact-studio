@@ -44,6 +44,7 @@ def test_batched_outline_matches_full_detail_without_loading_unrequested_data(
     assert result == {
         "id": original.id,
         "title": original.title,
+        "delivery_hash": original.delivery_hash,
         "design_id": original.design_id,
         "slides": [slide_receipt(TEMPLATE_ID, slide).model_dump() for slide in original.slides],
         "sections": [item.model_dump() for item in original.sections],

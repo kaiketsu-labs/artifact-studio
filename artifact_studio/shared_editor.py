@@ -31,11 +31,13 @@ from .artifact_preview import artifact_file_headers
 from .artifacts import LEGACY_PROJECT, ArtifactStore
 from .authentication import AuthProvider, Principal
 from .deck_edit_api import deck_edit_routes
+from .delivery_reviews import delivery_review_routes
 from .deployment import DeploymentConfig
 from .designs.element_api import element_alternative_routes
 from .designs.elements import element_badges
 from .designs.library import DesignLibrary
 from .designs.library_api import design_library_routes
+from .designs.pinned import PinAccess, pinned_routes
 from .designs.preview import hosted_design_preview
 from .designs.slide_api import design_routes
 from .designs.slides import design_badges
@@ -702,6 +704,7 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     app.include_router(design_routes(deck_access, scoped=True))
     app.include_router(element_alternative_routes(deck_access, scoped=True))
     app.include_router(history_routes(lambda: hub.store("default"), scoped_access=history_access))
+    app.include_router(delivery_review_routes(deck_access))
 
     @contextmanager
     def share_access(
@@ -826,6 +829,23 @@ def create_shared_editor(config: DeploymentConfig, provider: AuthProvider, hub: 
     @app.get("/api/navigation")
     def navigation() -> NavigationSnapshot:
         return NavigationSnapshot(connected=[], recent=[])
+
+    @contextmanager
+    def pin_access(request: Request, deck_id: str) -> Generator[PinAccess]:
+        actor, workspace = actor_of(request), workspace_of(request)
+        if actor.agent:
+            raise AccessDenied
+        with hub.guard_presentation_snapshot(actor, workspace, deck_id) as (store, _, level):
+            yield PinAccess(
+                store,
+                deck_editable=level >= 3,
+                can_view=lambda source: hub.level(actor, Scope(workspace, "artifact", source)) > 0,
+                project_level=lambda project: hub.level(
+                    actor, Scope(workspace, "project", project)
+                ),
+            )
+
+    app.include_router(pinned_routes(pin_access))
 
     @contextmanager
     def reader_favorites(request: Request) -> Generator[Favorites | None]:
