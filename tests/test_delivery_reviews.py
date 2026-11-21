@@ -303,3 +303,10 @@ def test_prior_anonymous_judgment_survives_personal_reviews(
         assert result["previous_review_count"] == 1 and result["first_delivery"] == "unrated"
         assert result["current_review"]["factual"] and result["current_review"]["legibility"]
         assert not result["personal_review"]["factual"] and result["personal_review"]["legibility"]
+        with store.connect() as db:
+            anonymous = db.execute(
+                "SELECT direction,factual,legibility FROM delivery_personal_reviews "
+                "WHERE deck=? AND delivery_hash=? AND reviewer='legacy'",
+                (deck, current),
+            ).fetchone()
+        assert tuple(anonymous) == ("unrated", 1, 0)

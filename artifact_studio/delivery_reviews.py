@@ -164,12 +164,20 @@ def record_delivery_review(
         if summary.personal_review and summary.personal_review != judgment:
             raise ConflictError("You already recorded a different review for this delivery.")
         if not summary.personal_review:
+            if summary.current_review:
+                # Older databases retained a single anonymous judgment. Preserve that ballot
+                # before incorporating the first named session’s contribution.
+                _ = db.execute(
+                    "INSERT INTO delivery_personal_reviews "
+                    "SELECT deck,delivery_hash,'legacy',direction,factual,legibility "
+                    "FROM delivery_reviews WHERE deck=? AND delivery_hash=? AND NOT EXISTS "
+                    "(SELECT 1 FROM delivery_personal_reviews WHERE deck=? AND delivery_hash=?)",
+                    (deck_id, current_hash, deck_id, current_hash),
+                )
             _ = db.execute(
                 "INSERT INTO delivery_personal_reviews VALUES (?,?,?,?,?,?)",
                 (deck_id, current_hash, reviewer, body.direction, body.factual, body.legibility),
             )
-            # Existing per-delivery rows from the preview have no reviewer identity.
-            # Accumulate them into the same round without attributing them to a new voter.
             _ = db.execute(
                 "INSERT INTO delivery_reviews VALUES (?,?,?,?,?,?) "
                 "ON CONFLICT(deck,delivery_hash) DO UPDATE SET direction=CASE "
