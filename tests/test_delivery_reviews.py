@@ -277,7 +277,7 @@ def test_prior_anonymous_judgment_survives_personal_reviews(
     _ = store.create(deck, "Existing trial")
     monkeypatch.setattr(service, "store", store)
     path = f"/api/decks/{deck}/delivery-reviews"
-    with TestClient(service.app) as client:
+    with closing(TestClient(service.app)) as client:
         current = client.get(path).raise_for_status().json()["delivery_hash"]
         with store.connect() as db:
             _ = db.execute(
