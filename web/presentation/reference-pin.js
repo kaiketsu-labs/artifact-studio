@@ -12,7 +12,11 @@
     let target = null;
     iconButton(close, 'close', 'Close design reference');
     close.addEventListener('click', () => dialog.close());
-    dialog.addEventListener('close', () => { if (!dialog.open) target = null; });
+    dialog.addEventListener('close', () => {
+      if (dialog.open) return;
+      target = null;
+      if (doc.activeElement === doc.body) doc.getElementById('workspace-menu-button')?.focus();
+    });
 
     function action(scope, verb, pin, clear = false) {
       const button = doc.createElement('button');
