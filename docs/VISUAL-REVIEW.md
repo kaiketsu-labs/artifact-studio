@@ -79,9 +79,17 @@ After a full-size capture, `check_slide_text` compares its pixels with caller-su
 
 Scoped cloud and hosted agents can also call `capture_contact_sheet`. It returns one draft image for up to eight completed slides per page, with optional `slide_ids` and `next_offset`, through the same audience-only clone as `capture_slide`. Paths and private notes are excluded. Use `capture_slide` to inspect full-size detail and reveal states. Captures share the bounded renderer queue; smaller pages can help when the remote image limit is exceeded.
 
+## Pinning a design reference
+
+Right-click a body slide in the sidebar and choose **Design reference…**. Pin it for **This presentation** or **This project**. A presentation pin overrides its project’s pin. If the original changes, **Update** freezes the new version. Use **Replace** to choose another slide or **Remove** to clear that scope. A project pin is available to agents with access to the project and source presentation.
+
+![Presentation and project reference controls in the slide editor](assets/pinned-slide-reference.png)
+
 ## Measuring design feedback
 
 Open **Menu → Review visual direction** for the presentation version you reviewed. Mark whether this is the first delivery or a later revision. Choose the direction decision and any factual or layout corrections that apply. A correction-only review can leave direction unrated. The history counts reviewed versions, so a decision shared by several reviewers counts as one round. Opening the editor or capturing a slide does not record a judgment.
+
+![A recorded first delivery with human direction and correction counts separate from agent self-revisions](assets/review-visual-direction.png)
 
 For an agent’s autonomous design pass, call `get_presentation_outline(begin_self_review=True)` to register the starting `delivery_hash` before editing. Read the ordinary outline again afterward. If the visual self-review led to a change, report the before and after hashes once with `record_design_self_revision` and a stable request ID on a connection that offers it. An inspection alone, or responding to a human's correction, does not count as a self-revision.
 
