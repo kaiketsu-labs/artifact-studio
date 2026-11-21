@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import stat
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -151,7 +152,19 @@ def security_report(config: DeploymentConfig, *, scoped_sharing: bool = False) -
     filename = os.environ.get("ARTIFACT_STUDIO_HOSTED_CONFIG")
     if filename:
         try:
-            if Path(filename).stat().st_mode & 0o004:
+            mode = Path(filename).lstat().st_mode
+            if not stat.S_ISREG(mode) or mode & 0o022:
+                checks.append(
+                    SecurityCheck(
+                        id="config_unprotected",
+                        status="warning",
+                        title="Hosted configuration needs protection",
+                        detail="Restore an owner-controlled regular file at the configured path "
+                        "and remove group and public write access. "
+                        "The running server still uses its startup settings.",
+                    )
+                )
+            if stat.S_ISREG(mode) and mode & 0o004:
                 checks.append(
                     SecurityCheck(
                         id="config_readable",
@@ -187,6 +200,11 @@ def main() -> int:
     """Validate configuration locally; never contact provider accounts or print secrets."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true", help="Emit a structured, redacted report.")
+    parser.add_argument(
+        "--fail-on-warning",
+        action="store_true",
+        help="Exit 1 for reported warnings. External checks remain available for manual review.",
+    )
     args = parser.parse_args()
     try:
         config = DeploymentConfig.from_env()
@@ -218,7 +236,7 @@ def main() -> int:
         )
         for check in report.checks:
             print(f"[{check.status.upper()}] {check.title}: {check.detail}")
-    return 0
+    return 1 if args.fail_on_warning and report.counts["warnings"] else 0
 
 
 if __name__ == "__main__":

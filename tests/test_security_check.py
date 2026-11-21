@@ -83,6 +83,47 @@ def test_cli_blocks_unsafe_mode_and_redacts_provider_errors(
     assert json.loads(output)["status"] == "blocked"
 
 
+def test_running_report_rechecks_config_type_and_write_permissions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "hosted.json"
+    target.touch(mode=0o600)
+    monkeypatch.setenv("ARTIFACT_STUDIO_HOSTED_CONFIG", str(target))
+    assert "config_unprotected" not in {c.id for c in security_report(hosted()).checks}
+    target.chmod(0o620)
+    assert "config_unprotected" in {c.id for c in security_report(hosted()).checks}
+    target.chmod(0o600)
+    link = tmp_path / "config-link"
+    link.symlink_to(target)
+    monkeypatch.setenv("ARTIFACT_STUDIO_HOSTED_CONFIG", str(link))
+    report = security_report(hosted())
+    assert any(c.id == "config_unprotected" and c.status == "warning" for c in report.checks)
+    assert str(target) not in report.model_dump_json()
+
+
+def test_cli_can_fail_on_reported_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("ARTIFACT_STUDIO_HOSTED_CONFIG", raising=False)
+
+    def available_provider(_config: DeploymentConfig) -> None:
+        pass
+
+    monkeypatch.setattr("artifact_studio.security_check.load_auth_provider", available_provider)
+    monkeypatch.setattr(DeploymentConfig, "from_env", lambda: hosted())
+    monkeypatch.setattr("sys.argv", ["security_check", "--json"])
+    assert main() == 0
+    default_report = capsys.readouterr().out
+    monkeypatch.setattr("sys.argv", ["security_check", "--json", "--fail-on-warning"])
+    assert main() == 1
+    assert capsys.readouterr().out == default_report
+    monkeypatch.setattr(DeploymentConfig, "from_env", lambda: hosted("https://preview.example.net"))
+    assert main() == 0
+    assert json.loads(capsys.readouterr().out)["counts"]["unverified"] > 0
+
+
 def test_local_mode_does_not_claim_hosted_authentication() -> None:
     report = security_report(DeploymentConfig())
     assert report.summary == "local"

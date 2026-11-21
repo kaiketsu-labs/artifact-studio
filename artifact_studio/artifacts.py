@@ -400,10 +400,14 @@ class ArtifactStore:
                     "SELECT project_id,COUNT(*) FROM artifact_items GROUP BY project_id"
                 )
             }
-        for deck in self.presentation_summaries() if presentations is None else presentations:
+        include_legacy = matches(query, LEGACY_PROJECT, "Presentations")
+        if presentations is None:
+            needs_deck_counts = include_legacy or not set(project_ids).isdisjoint(bindings.values())
+            presentations = self.presentation_summaries() if needs_deck_counts else []
+        for deck in presentations:
             project_id = bindings.get(deck["id"], LEGACY_PROJECT)
             counts[project_id] = counts.get(project_id, 0) + 1
-        if counts.get(LEGACY_PROJECT) and matches(query, LEGACY_PROJECT, "Presentations"):
+        if counts.get(LEGACY_PROJECT) and include_legacy:
             project_ids.insert(0, LEGACY_PROJECT)
         with self.store.connect() as db:
             return [

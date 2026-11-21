@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 import tempfile
 import uuid
 from collections.abc import Sequence
@@ -16,6 +17,8 @@ from pydantic import Field, TypeAdapter
 
 from .local_http import NoRedirect, validate_local_url
 from .models import SlideReceipt, StrictModel
+
+MAX_CALL_FILE_BYTES = 32_000_000
 
 
 class Invocation(StrictModel):
@@ -117,9 +120,19 @@ class Client:
 
 def read_calls(path: Path, expected_hash: str = "") -> tuple[list[Invocation], str]:
     """Validate the complete local call file before any network request."""
-    if path.stat().st_size > 32_000_000:
-        raise ValueError("Keep a call file under 32 MB; split larger batches.")
-    source = path.read_bytes()
+    with open(
+        path,
+        "rb",
+        opener=lambda name, flags: os.open(name, flags | getattr(os, "O_NONBLOCK", 0)),
+    ) as call_file:
+        info = os.fstat(call_file.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("Provide a regular JSON call file.")
+        if info.st_size > MAX_CALL_FILE_BYTES:
+            raise ValueError("Keep a call file under 32 MB; split larger batches.")
+        source = call_file.read(info.st_size + 1)
+        if len(source) != info.st_size:
+            raise ValueError("Call file changed while reading; inspect it again.")
     token = hashlib.sha256(source).hexdigest()
     if expected_hash and token != expected_hash:
         raise ValueError("Call file changed after review; inspect it again.")
@@ -272,7 +285,7 @@ def prepare_calls(
 def save_prepared(path: Path, calls: list[Invocation]) -> str:
     """Publish a complete new call file; never overwrite a baseline needed for retries."""
     source = TypeAdapter(list[Invocation]).dump_json(calls, indent=2) + b"\n"
-    if len(source) > 32_000_000:
+    if len(source) > MAX_CALL_FILE_BYTES:
         raise ValueError("Prepared calls exceed 32 MB; split the batch.")
     with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".prepared-") as temporary:
         _ = temporary.write(source)
