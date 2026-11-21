@@ -2,6 +2,7 @@
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from typing import cast
 
@@ -29,7 +30,7 @@ def test_local_human_rounds_and_agent_self_revisions(
     monkeypatch.setattr(service, "store", store)
     deck = f"/api/decks/{deck_id}"
     review = deck + "/delivery-reviews"
-    with TestClient(service.app) as client:
+    with closing(TestClient(service.app)) as client:
         first = client.get(review).raise_for_status().json()
         before = client.get(deck).raise_for_status().json()["delivery_hash"]
         assert before == first["delivery_hash"] and first["first_delivery"] == "unrated"
