@@ -67,6 +67,7 @@ def make_design(folder: Path, design_id: str = "test-brand") -> None:
                 id="cover",
                 title="Cover",
                 html='<article class="slide"><h1>Test</h1>'
+                '<p class="subline">A <em>sample</em> subtitle</p>'
                 f'<img src="assets/{design_id}.svg" alt=""></article>',
                 sources=[Source(label="Test master", url="Master.pptx")],
             ),

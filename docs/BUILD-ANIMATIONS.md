@@ -19,6 +19,7 @@ The bar and counter start together when build 1 is revealed. The result appears 
 | `data-build="N"` | Positive numbered reveal stage; enclosing stages must also be revealed. |
 | `data-auto-reveal` | Reveal a group automatically on slide entry, using its `data-animate-delay`. Does not add a click step. Enclosing numbered builds still gate the group. |
 | `data-animate-grow="x"` | Reveals a bar from left to right using clipping, preserving its size and transforms. Works on HTML and SVG. |
+| `data-animate-grow="x-reverse"` | Reveals a bar from its right edge. Use this for negative bars extending left of zero. |
 | `data-count-to="9568"` | Animates a text-only element from zero to the numeric target. Put the exact final display text inside it. |
 | `data-count-from="0"` | Optional starting number. |
 | `data-count-decimals="0"` | Optional decimal places, 0–20; otherwise inferred from the target. |
@@ -44,7 +45,7 @@ Bars and counters outside numbered builds already animate on entry; they do not 
 
 Counters accept text-only spans, SVG `text` or `tspan` elements. Intermediate numbers use the document language, falling back to English. Completion restores the authored text exactly, including its minus sign, spacing or notation. Do not nest markup inside a counter.
 
-Growth preserves authored transforms. If a bar already has a clip path, put `data-animate-grow="x"` on an unclipped inner wrapper; the runtime skips growth on an already clipped element. SVG growth uses its fill box. Avoid applying growth to an entire chart if only the bar should move.
+Growth preserves authored transforms. If a bar already has a clip path, put `data-animate-grow="x"` on an unclipped inner wrapper; the runtime skips growth on an already clipped element. SVG growth uses its fill box. A horizontal or vertical SVG line has zero fill area on one axis, so clipping can hide the entire stroke. Use a filled rectangle or path with nonzero width and height for a growing bar. Avoid applying growth to an entire chart if only the bar should move.
 
 Backward navigation resets later builds; returning to a slide replays its animations. Repeated rendering of the same build does not restart it. Reduced motion shows final values without delays. Editor/all-visible previews and print show every build with exact final values. Printing temporarily finishes animations, then resumes their prior presentation state.
 

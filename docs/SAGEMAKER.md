@@ -45,13 +45,39 @@ do not add `--no-sandbox` or change `chromium_sandbox=True`. The agent tool
 explicit `probe_renderer=True` option attempts a sandboxed launch. Installing the
 browser alone does not prove that the host can launch it.
 
+### Capture with a dedicated browser
+
+If Chromium cannot start in the notebook, Studio can send captures to a dedicated
+Playwright Chromium server on a sandbox-capable host you control. That host
+receives the material being rendered. Use matching Playwright major and minor
+versions. On the renderer host, install the matching browser and Linux system
+dependencies. For a restricted network, provision the matching browser revision
+from an approved mirror or pre-populated `PLAYWRIGHT_BROWSERS_PATH` cache.
+
+Start the browser server from a Node project containing the matching Playwright
+package. Keep it accessible only to the Studio operator.
+
+```js
+const { chromium } = require("playwright");
+chromium.launchServer({ host: "127.0.0.1", port: 8765, chromiumSandbox: true })
+  .then(server => console.log(server.wsEndpoint()));
+```
+
+Forward the renderer's loopback port through your authenticated tunnel. Set
+`ARTIFACT_STUDIO_RENDERER_WS_ENDPOINT` in the Studio server environment to the
+printed WebSocket URL with the forwarded loopback address and port, preserving
+its path. Restart Studio and call `get_capture_status(probe_renderer=True)`.
+The reported backend is `playwright_server`. Without the setting, Studio
+launches its own sandboxed Chromium. A connection failure is reported without
+exposing the endpoint or falling back to a different renderer.
+
 ## Start one server
 
 For a terminal launch from the configured checkout:
 
 ```sh
 uv run --no-sync uvicorn artifact_studio.app:app \
-  --host 127.0.0.1 --port 8790 --workers 1
+  --host 127.0.0.1 --port 8790 --workers 1 --timeout-graceful-shutdown 10
 ```
 
 Use this for the intended server instance; do not start another copy of an

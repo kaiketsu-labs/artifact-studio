@@ -89,15 +89,19 @@
     return {target,from:Number.isFinite(from)?from:0,final:element.textContent,format:value=>`${prefix}${formatter.format(Object.is(value,-0)?0:value)}${suffix}`};
   }
   /** Reveal each bar in its own geometry box without changing author transforms or layout. */
-  function growthClip(progress,svg=false){return `inset(0 ${(1-Math.max(0,Math.min(1,progress)))*100}% 0 0)${svg?' fill-box':''}`;}
+  function growthClip(progress,svg=false,reverse=false){
+    const clipped=(1-Math.max(0,Math.min(1,progress)))*100;
+    return `inset(0 ${reverse?'0 0 '+clipped+'%':clipped+'% 0 0'})${svg?' fill-box':''}`;
+  }
   /** Retain one cancellable animation loop per slide and replay only newly activated builds. */
   class BuildAnimations {
     constructor(slide,{now=()=>performance.now(),requestFrame=callback=>requestAnimationFrame(callback),cancelFrame=id=>cancelAnimationFrame(id),reducedMotion=()=>false,computedStyle=element=>element.ownerDocument?.defaultView?.getComputedStyle(element),locale=slide.ownerDocument?.documentElement?.lang||'en'}={}){
       this.slide=slide;this.now=now;this.requestFrame=requestFrame;this.cancelFrame=cancelFrame;this.reducedMotion=reducedMotion;this.frame=null;this.build=true;this.disposed=false;this.printing=null;this.initial=true;
-      this.parts=[...slide.querySelectorAll(`${revealGroups},[data-animate-grow="x"],[data-count-to]`)].map(element=>{
+      this.parts=[...slide.querySelectorAll(`${revealGroups},[data-animate-grow="x"],[data-animate-grow="x-reverse"],[data-count-to]`)].map(element=>{
         const clip=element.style.getPropertyValue('clip-path'),priority=element.style.getPropertyPriority('clip-path');
         const authoredClip=[clip,element.getAttribute('clip-path'),computedStyle(element)?.clipPath].some(value=>value&&value!=='none');
-        const grow=element.getAttribute('data-animate-grow')==='x'&&!authoredClip;
+        const direction=element.getAttribute('data-animate-grow');
+        const grow=!authoredClip&&(direction==='x'||direction==='x-reverse')?direction:null;
         const counter=counterOptions(element,locale);
         return {element,step:animationStep(element,slide),build:element.hasAttribute('data-build')||element.hasAttribute('data-auto-reveal'),ariaHidden:element.getAttribute('aria-hidden'),inert:element.getAttribute('inert'),blur:element.getAttribute('data-reveal')==='blur',filter:element.style.getPropertyValue('filter'),filterPriority:element.style.getPropertyPriority('filter'),grow,counter,clip,priority,svg:element.namespaceURI==='http://www.w3.org/2000/svg',delay:animationTime(element,'data-animate-delay',0,slide),duration:grow||counter?animationTime(element,'data-animate-duration',800,slide):0,active:false,started:0,done:false};
       });
@@ -141,7 +145,7 @@
     }
     /** Draw an intermediate value, keeping layout and author transforms untouched. */
     paint(part,progress){
-      if(part.grow)part.element.style.setProperty('clip-path',growthClip(progress,part.svg),'important');
+      if(part.grow)part.element.style.setProperty('clip-path',growthClip(progress,part.svg,part.grow==='x-reverse'),'important');
       if(part.counter)part.element.textContent=part.counter.format(part.counter.from*(1-progress)+part.counter.target*progress);
     }
     /** Wait only for enclosing builds' remaining delays, measured from their own activation. */

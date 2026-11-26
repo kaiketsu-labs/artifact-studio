@@ -43,6 +43,23 @@ def test_design_discovery_and_brand_creation(store: Store) -> None:
         _ = store.create(deck.id, "Another story", "test-brand")
 
 
+@pytest.mark.parametrize(
+    "following",
+    ["</article>", "<p>Keep this line</p></article>", "<hr/><span>Footer</span></article>"],
+)
+def test_interactive_design_cover_uses_new_static_slots(store: Store, following: str) -> None:
+    """Discard sample interactive content and clear paragraphs with optional end tags."""
+    template = store.read(TEMPLATE_ID)
+    cover = template.slides[0]
+    cover.html = '<article><h1>Example</h1><p class="subline"><em>Sample</em>' + following
+    cover.interactive_html = "<h1>Interactive sample</h1>"
+    store.write(TEMPLATE_ID, template)
+    deck = store.create("2026-11-26-plain-cover", "New title", template.design_id)
+    assert deck.slides[0].html == '<article><h1>New title</h1><p class="subline">' + following
+    assert deck.slides[0].interactive_html == ""
+    assert store.read(TEMPLATE_ID).slides[0] == cover
+
+
 def test_unknown_design_leaves_no_partial_deck(store: Store) -> None:
     """Reject missing designs before creating a partially populated folder."""
     with pytest.raises(ValueError, match='list_design_contexts\\(kind="slide_pack"\\)'):
@@ -282,7 +299,10 @@ def test_new_deck_allows_arbitrary_composition(store: Store) -> None:
     """Start with one slide and freely add a new composition outside the example catalogue."""
     deck = store.create("2026-10-28-free-canvas", "Free canvas")
     assert len(deck.slides) == 1
-    assert deck.slides[0].sources[0].url == f"../{TEMPLATE_ID}/Master.pptx"
+    assert deck.slides[0].sources == []
+    assert '<h1>Free canvas</h1><p class="subline"></p>' in deck.slides[0].html
+    template = store.read(TEMPLATE_ID).slides[0]
+    assert template.sources and "sample" in template.html
     custom = Slide(
         id="custom",
         title="Custom composition",

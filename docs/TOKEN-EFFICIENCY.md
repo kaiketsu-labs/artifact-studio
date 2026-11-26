@@ -85,7 +85,7 @@ Draft capture frames have 360,000 pixels instead of 1,440,000 (75% fewer), prese
 | Edit an owned artifact | `get_artifact`, then `read_artifact_files` for relevant paths and `revise_artifact` for changed files with an expected revision/hash and unique request ID. |
 | Add continuation context | `update_presentation_context(mode="append")` with a short Markdown addition and current `context_hash`. |
 
-Read the full brief and relevant `brief_files` attachments before authoring. Attachment metadata remains available in the outline. Compact responses do not replace source inspection, factual checks or visual review. `get_presentation` still returns the complete presentation; `get_working_context(detail="full")` returns the expanded guides and inventory.
+Read the full brief and relevant `brief_files` attachments before authoring. Attachment metadata remains available in the outline. Compact responses do not replace source inspection, factual checks or visual review. `get_presentation` still returns the complete presentation; `get_working_context(detail="full")` includes the asset inventory and full design inbox. Both detail levels list guide topics for individual reads with `get_authoring_guide`.
 
 ## Mutation response compatibility
 
@@ -103,7 +103,7 @@ Delivery cursors still govern released feedback; unchanged-rule omission never r
 
 ## Retain guides and queued requests separately
 
-Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Expanded context remains explicitly available and still includes its requested guides and inventory.
+Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Full context includes the asset inventory and design inbox. Load each additional guide by topic.
 
 The hosted connection uses `guide_hash` and `guide_included` for its workflow,
 live-review and slide-design topics. Pass the retained `guide_hash` as

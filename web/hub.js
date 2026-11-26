@@ -1159,7 +1159,7 @@
     if(name==='retry-library'){initialLibrary=loadInitialLibrary();return initialLibrary;}
     if(name==='new-project')return projectDialog();
     if(name==='project-add')return projectTreeMenu(node);
-    if(name==='import')return importDialog();
+    if(name==='import'){if(await initialLibrary)importDialog();return;}
     if(name==='close-dialog')return dialog.close();
     if(name==='context')return contextDialog();
     if(name==='choose-files')return doc.getElementById('hub-import-files').click();

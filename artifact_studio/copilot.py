@@ -312,9 +312,7 @@ def create_gateway(config: GatewayConfig, *, store: Store | None = None) -> Gate
         cancellable_waits=True,
         powerpoint_origin=f"https://{config.public_host}",
     )
-    application = server.streamable_http_app(
-        stateless_http=True,
-        json_response=True,
+    application = server.stateless_app(
         max_request_body_size=config.max_request_bytes,
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
@@ -367,7 +365,14 @@ def main() -> None:
         app = create_gateway(config)
     except (ValueError, OSError) as error:
         parser.exit(2, f"Gateway setup failed: {error}\n")
-    uvicorn.run(app, host=config.bind, port=config.port, access_log=False, proxy_headers=False)
+    uvicorn.run(
+        app,
+        host=config.bind,
+        port=config.port,
+        access_log=False,
+        proxy_headers=False,
+        timeout_graceful_shutdown=10,
+    )
 
 
 if __name__ == "__main__":
