@@ -282,7 +282,10 @@ def test_new_deck_allows_arbitrary_composition(store: Store) -> None:
     """Start with one slide and freely add a new composition outside the example catalogue."""
     deck = store.create("2026-10-28-free-canvas", "Free canvas")
     assert len(deck.slides) == 1
-    assert deck.slides[0].sources[0].url == f"../{TEMPLATE_ID}/Master.pptx"
+    assert deck.slides[0].sources == []
+    assert '<h1>Free canvas</h1><p class="subline"></p>' in deck.slides[0].html
+    template = store.read(TEMPLATE_ID).slides[0]
+    assert template.sources and "sample" in template.html
     custom = Slide(
         id="custom",
         title="Custom composition",

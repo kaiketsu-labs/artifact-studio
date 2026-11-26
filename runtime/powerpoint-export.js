@@ -112,7 +112,7 @@ limits => {
   function checkMotion() {
     const authoredMotion = [
       ['[data-build], [data-auto-reveal]', 'a Studio reveal step'],
-      ['[data-animate-grow="x"]', 'a Studio growth animation'],
+      ['[data-animate-grow="x"],[data-animate-grow="x-reverse"]', 'a Studio growth animation'],
       ['[data-count-to]', 'a Studio counter animation'],
     ];
     for (const [selector, feature] of authoredMotion) {

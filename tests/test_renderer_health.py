@@ -179,3 +179,35 @@ def test_known_launch_failure_rejects_preparation_before_joining_queue(
 
     with pytest.raises(RendererUnavailable):
         ensure_renderer_ready(untouched)
+
+
+def test_dedicated_renderer_uses_private_connection_and_redacts_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A managed host can use a separate browser without exposing its connection capability."""
+    endpoint = "ws://127.0.0.1:8765/fictional-private-id"
+    monkeypatch.setenv(renderer_health.RENDERER_ENDPOINT, endpoint)
+    monkeypatch.setattr(renderer_health, "HEALTH", RendererHealth())
+    connections: list[str] = []
+
+    def connect(url: str, *, timeout: int) -> Browser:
+        connections.append(url)
+        assert timeout == 15_000
+        raise BrowserError(f"Connection to {url} failed")
+
+    @contextmanager
+    def factory() -> Generator[Playwright]:
+        yield cast(Playwright, SimpleNamespace(chromium=SimpleNamespace(connect=connect)))
+
+    with (
+        pytest.raises(RendererUnavailable, match="configured Playwright renderer"),
+        sandboxed_browser(factory),
+    ):
+        pytest.fail("Unexpected successful connection")
+    status = renderer_health.renderer_status()
+    assert connections == [endpoint]
+    assert status["backend"] == "playwright_server" and status["reason"] == "connection_failed"
+    assert endpoint not in str(status)
+    monkeypatch.setenv(renderer_health.RENDERER_ENDPOINT, "ws://example.test/browser")
+    with pytest.raises(ValueError, match="loopback"):
+        renderer_health.renderer_endpoint()

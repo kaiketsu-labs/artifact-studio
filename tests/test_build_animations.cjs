@@ -335,3 +335,11 @@ test('printing removes reveal state so authored filters remain intact and restor
   for(const part of [stylesheetFilter,inlineFilter]){assert.equal(part.classList.contains('unrevealed'),true);assert.equal(part.style.getPropertyValue('filter'),'blur(var(--build-blur,10px))');}
   assert.equal(inlineFilter.style.getPropertyValue('opacity'),'.65');advance(250);assert.equal(count.textContent,'50');
 });
+
+test('negative bars reveal from the right edge and restore the original paint',()=>{
+  const bar=new Element({'data-animate-grow':'x-reverse','data-animate-delay':'0','data-animate-duration':'1000'});
+  const {animation,advance}=timeline(new Element({},'',[bar]));
+  animation.update(0);advance(250);
+  assert.equal(bar.style.getPropertyValue('clip-path'),'inset(0 0 0 75%)');
+  advance(750);assert.equal(bar.style.getPropertyValue('clip-path'),'');
+});

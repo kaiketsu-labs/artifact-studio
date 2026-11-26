@@ -85,7 +85,7 @@ Draft capture frames have 360,000 pixels instead of 1,440,000 (75% fewer), prese
 | Edit an owned artifact | `get_artifact`, then `read_artifact_files` for relevant paths and `revise_artifact` for changed files with an expected revision/hash and unique request ID. |
 | Add continuation context | `update_presentation_context(mode="append")` with a short Markdown addition and current `context_hash`. |
 
-Read the full brief and relevant `brief_files` attachments before authoring. Attachment metadata remains available in the outline. Compact responses do not replace source inspection, factual checks or visual review. `get_presentation` still returns the complete presentation; `get_working_context(detail="full")` returns the expanded guides and inventory.
+Read the full brief and relevant `brief_files` attachments before authoring. Attachment metadata remains available in the outline. Compact responses do not replace source inspection, factual checks or visual review. `get_presentation` still returns the complete presentation; `get_working_context(detail="full")` includes the asset inventory and full design inbox. Both detail levels list guide topics for individual reads with `get_authoring_guide`.
 
 ## Mutation response compatibility
 
