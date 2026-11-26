@@ -101,7 +101,9 @@ class CoverSlots(HTMLParser):
         self.content_start = self.source_offset() + len(self.get_starttag_text() or "")
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        """Self-closing elements contain no editable text."""
+        """A self-closing divider also ends an optional subtitle paragraph."""
+        if self.tag == "p" and tag in PARAGRAPH_BREAKS:
+            self.finish_slot(self.source_offset())
 
     def handle_endtag(self, tag: str) -> None:
         """Record a complete slot, including any nested inline markup."""

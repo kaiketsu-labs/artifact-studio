@@ -43,7 +43,10 @@ def test_design_discovery_and_brand_creation(store: Store) -> None:
         _ = store.create(deck.id, "Another story", "test-brand")
 
 
-@pytest.mark.parametrize("following", ["</article>", "<p>Keep this line</p></article>"])
+@pytest.mark.parametrize(
+    "following",
+    ["</article>", "<p>Keep this line</p></article>", "<hr/><span>Footer</span></article>"],
+)
 def test_interactive_design_cover_uses_new_static_slots(store: Store, following: str) -> None:
     """Discard sample interactive content and clear paragraphs with optional end tags."""
     template = store.read(TEMPLATE_ID)
