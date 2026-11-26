@@ -1072,14 +1072,14 @@ wheels = [
 
 [[package]]
 name = "types-tinycss2"
-version = "1.5.1.20260414"
+version = "1.5.1.20261122"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "types-webencodings" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d0/c3/cd37a8e100a0ddf329d9569d7baf8c50d46b59b99773a1353aa6603ca52f/types_tinycss2-1.5.1.20260414.tar.gz", hash = "sha256:1c2d3765be3cc09878cde54036f47ff896b445a3f2f1b13bf030a87b01d79735", size = 9531, upload-time = "2026-04-14T04:35:41.674Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/a9/20bee12423be18b0b2f05c075b147e574057c41d070e16e970ef0ca1dc27/types_tinycss2-1.5.1.20261122.tar.gz", hash = "sha256:f9353077443ba13c5a37e9fa86164d8712e0296fb2aed6dce7b146070a06f455", size = 9769, upload-time = "2026-11-22T09:01:02.737Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4b/7d/d04a79a5124c94d8533fc91672d1e86c3f54f02724ccad4d9b48d8d39629/types_tinycss2-1.5.1.20260414-py3-none-any.whl", hash = "sha256:534e6b35f6a836c06177a05cbd1eb772735eb4b805698e555a880aae8868482b", size = 11380, upload-time = "2026-04-14T04:35:40.361Z" },
+    { url = "https://files.pythonhosted.org/packages/99/0f/d514e9c2574cf71651895add9fa66209a6dce8f0b3ef93c8b980104c9878/types_tinycss2-1.5.1.20261122-py3-none-any.whl", hash = "sha256:dfa48ecb45f410648e067b19036874241b05afc789c0a3452841c5f54e929010", size = 11493, upload-time = "2026-11-22T09:01:02.009Z" },
 ]
 
 [[package]]
