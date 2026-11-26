@@ -126,6 +126,8 @@ Open **Menu → Review visual direction** when you review a delivery. You can re
 
 Use sections, the slide sorter, hidden slides, multi-slide moves and per-slide discussion to shape a deck. Speaker notes save automatically; failed saves keep a browser draft and conflicting edits offer review. **Present** opens the audience slide. **Presenter view** keeps current/next slides, notes, clock and timer private in a separate control window. External display placement and fullscreen depend on browser support.
 
+In Present mode, link to a slide using its ID as a fragment (for example, `#results`). Following the link or using browser Back and Forward updates the live slide. A link to a hidden slide starts at the next visible slide, wrapping to the first visible slide when needed.
+
 Right-click a slide thumbnail and choose **Copy → Copy as image** to copy the rendered slide as PNG. This requires the Chromium renderer and browser clipboard access on HTTPS or localhost.
 
 Ask the agent for slide directions or headline, text and graphic options. Preview and compare them in context; the human chooses. Saved options remain in history. [Presentation workflow](docs/GETTING-STARTED.md#review-and-present) · [Visual review](docs/VISUAL-REVIEW.md) · [Alternatives](docs/SLIDE-DESIGNS.md).
