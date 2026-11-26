@@ -49,7 +49,9 @@ def test_compact_bootstrap_preserves_complete_rules_and_loadable_guides(store: S
     assert compact["asset_inventory_included"] is False
     assert "live_review_guide" not in compact and "visual_review_guide" not in compact
     assert "Read get_slide" in str(compact["guide"])
-    assert len(json.dumps(compact)) < len(json.dumps(full)) / 2
+    assert len(json.dumps(full)) < 32_000
+    assert full["guides"] == compact["guides"]
+    assert "design_import_guide" not in full
     guide = service.get_authoring_guide("interactive_html")
     assert "JavaScript" in guide["markdown"]
     assert guide["hash"] == digest(guide["markdown"])

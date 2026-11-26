@@ -289,7 +289,7 @@ def get_working_context(
     Pass deck_id for existing work to select its design, not the workspace default.
     Supplying both IDs requires them to match.
     Design references contain file pointers, not file contents; open relevant files yourself.
-    For decks, detail="full" loads expanded guides and asset inventory; general artifacts
+    For decks, detail="full" includes the asset inventory and full design inbox; general artifacts
     use their artifact guide for either detail setting.
     Pass known_rules_hash only while retaining those rules; changes return full text.
     known_guide_hash omits only the retained guide; omit hashes after context loss.
@@ -429,97 +429,61 @@ def get_working_context(
         design_context.update(example_context(store, design.folder_id))
     instructions, learned = store.authoring_instructions(), store.learned_preferences()
     rules = rule_fields(instructions, learned, known_rules_hash)
-    if detail == "compact":
-        return {
-            **design_context,
-            "response_detail": "compact",
-            **guide_fields((PROJECT / "docs/AGENT-QUICKSTART.md").read_text(), known_guide_hash),
-            **rules,
-            "instruction_policy": (
-                "Explicit workspace rules are primary; learned preferences are secondary. "
-                "Design examples are optional. Current capability guides supersede legacy "
-                "technical restrictions in design guides."
-            ),
-            "preferences": preferences_path.read_text()
-            if preferences_path and preferences_path.is_file()
-            else "",
-            "guides": [
-                "workflow",
-                "live_review",
-                "visual_review",
-                "text_review",
-                "interactive_html",
-                "design_import",
-                "design_guide",
-                "design_context",
-            ],
-            "authoring_capabilities": presentation_capabilities(),
-            "app_path": str(PROJECT),
-            "canonical_collection": str(store.root),
-            "instructions_path": str(store.root / "INSTRUCTIONS.md"),
-            "learned_preferences_path": str(store.root / "LEARNED-PREFERENCES.md"),
-            "runtime_path": str(PROJECT / "runtime"),
-            "default_design_id": store.default_design_id(),
-            "design": {"id": design.id, "name": design.name} if design else design_message,
-            "discovery_included": include_discovery,
-            "designs": [item.model_dump() for item in store.designs()] if include_discovery else [],
-            "presentations": store.list_decks() if include_discovery else [],
-            "design_assets": [],
-            "asset_inventory_included": False,
-            "asset_inventory_tool": "get_design_assets",
-            "asset_inventory_arguments": {"deck_id": deck_id}
-            if deck_id
-            else {"design_id": design_id},
-            "design_inbox": [
-                item.model_dump()
-                for item in store.design_inbox().messages
-                if item.author == "user" and item.status == "queued"
-            ],
-            "libraries": [item.model_dump() for item in Libraries(store).list()]
-            if include_discovery
-            else [],
-        }
-    return {
+    inbox = store.design_inbox()
+    context: dict[str, object] = {
         **design_context,
-        "response_detail": "full",
-        **guide_fields((PROJECT / "docs/AGENT-GUIDE.md").read_text(), known_guide_hash),
-        "live_review_guide": (PROJECT / "docs/LIVE-REVIEW.md").read_text(),
-        "visual_review_guide": (PROJECT / "docs/VISUAL-REVIEW.md").read_text(),
-        "app_path": str(PROJECT),
-        "design_guide": (preference_folder / "AGENT-GUIDE.md").read_text()
-        if preference_folder and (preference_folder / "AGENT-GUIDE.md").is_file()
-        else "",
+        "response_detail": detail,
+        **guide_fields((PROJECT / "docs/AGENT-QUICKSTART.md").read_text(), known_guide_hash),
+        **rules,
+        "instruction_policy": (
+            "Explicit workspace rules are primary; learned preferences are secondary. "
+            "Design examples are optional. Current capability guides supersede legacy "
+            "technical restrictions in design guides."
+        ),
         "preferences": preferences_path.read_text()
         if preferences_path and preferences_path.is_file()
         else "",
-        **rules,
+        "guides": [
+            "workflow",
+            "live_review",
+            "visual_review",
+            "text_review",
+            "interactive_html",
+            "design_import",
+            "design_guide",
+            "design_context",
+        ],
+        "authoring_capabilities": presentation_capabilities(),
+        "app_path": str(PROJECT),
+        "canonical_collection": str(store.root),
         "instructions_path": str(store.root / "INSTRUCTIONS.md"),
         "learned_preferences_path": str(store.root / "LEARNED-PREFERENCES.md"),
-        "instruction_policy": (
-            "Explicit workspace rules are primary. Learned preferences are secondary and apply "
-            "only when compatible with workspace rules and the presentation's requirements. "
-            "Deck context stays specific to that presentation. Design guides describe brand "
-            "language and optional examples. Current authoring_capabilities "
-            "and the primary interactive_content_guide define the technical contract; older design "
-            "guides may predate custom JavaScript support. Preserve explicit user instructions."
-        ),
-        "design": (folder / "README.md").read_text() if folder else design_message,
-        "design_import_guide": (PROJECT / "docs/DESIGN-PACKS.md").read_text(),
-        "interactive_content_guide": (PROJECT / "docs/INTERACTIVE-HTML.md").read_text(),
-        "authoring_capabilities": presentation_capabilities(),
         "runtime_path": str(PROJECT / "runtime"),
         "default_design_id": store.default_design_id(),
+        "design": {"id": design.id, "name": design.name} if design else design_message,
         "discovery_included": include_discovery,
-        "presentations": store.list_decks() if include_discovery else [],
-        "example_presentation_id": design.folder_id if design else None,
         "designs": [item.model_dump() for item in store.designs()] if include_discovery else [],
-        "canonical_collection": str(store.root),
-        "design_inbox": store.design_inbox().model_dump(),
+        "presentations": store.list_decks() if include_discovery else [],
+        "design_assets": get_design_assets(design_id, deck_id)
+        if detail == "full" and (design or deck_id)
+        else [],
+        "asset_inventory_included": detail == "full",
+        "asset_inventory_tool": "get_design_assets",
+        "asset_inventory_arguments": {"deck_id": deck_id} if deck_id else {"design_id": design_id},
+        "design_inbox": inbox.model_dump()
+        if detail == "full"
+        else [
+            item.model_dump()
+            for item in inbox.messages
+            if item.author == "user" and item.status == "queued"
+        ],
         "libraries": [item.model_dump() for item in Libraries(store).list()]
         if include_discovery
         else [],
-        "design_assets": get_design_assets(design_id, deck_id) if design or deck_id else [],
     }
+    if detail == "full":
+        context["example_presentation_id"] = design.folder_id if design else None
+    return context
 
 
 @mcp.tool(annotations=READ)
@@ -1808,9 +1772,7 @@ if deployment.mode == "hosted":
     register_tools(
         transport_mcp, store, "", True, hosted_hooks=True, powerpoint_origin=deployment.public_url
     )
-    mcp_app = transport_mcp.streamable_http_app(
-        stateless_http=True,
-        json_response=True,
+    mcp_app = transport_mcp.stateless_app(
         max_request_body_size=2 * 1024 * 1024,
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
@@ -1820,9 +1782,7 @@ if deployment.mode == "hosted":
     )
 else:
     transport_mcp = mcp
-    mcp_app = mcp.streamable_http_app(
-        stateless_http=True,
-        json_response=True,
+    mcp_app = mcp.stateless_app(
         host="127.0.0.1",
         max_request_body_size=66_766_668,
     )

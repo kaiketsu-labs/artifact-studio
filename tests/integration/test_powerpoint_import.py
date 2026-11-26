@@ -6,7 +6,7 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
-from playwright.sync_api import Browser, Page, expect
+from playwright.sync_api import Browser, Page, Route, expect
 
 from artifact_studio.artifacts import ArtifactStore
 from tests.integration.support import RunningApp
@@ -147,9 +147,14 @@ def test_owner_sees_import_failure_without_leaving_project(
 
     project = ArtifactStore(live_app.store).create_project("Fictional rejection")
     page = browser.new_page()
-    page.goto(f"{live_app.url}/?project={project.id}")
+    pending: list[Route] = []
+    page.route("**/api/hub", lambda route: pending.append(route), times=1)
+    with page.expect_request(lambda request: request.url.endswith("/api/hub")):
+        page.goto(f"{live_app.url}/?project={project.id}")
     page.get_by_role("button", name="Import", exact=True).click()
+    pending[0].continue_()
     dialog = page.get_by_role("dialog", name="Import artifact")
+    expect(dialog.get_by_role("combobox", name="Project", exact=True)).to_have_value(project.id)
     dialog.get_by_label("Title", exact=True).fill("Rejected presentation")
     page.locator("#hub-import-files").set_input_files(
         {
