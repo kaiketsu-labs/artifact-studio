@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.1](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.13.0...v0.13.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **deps-dev:** bump types-tinycss2 from 1.5.1.20260414 to 1.5.1.20261122 ([#263](https://github.com/kaiketsu-labs/artifact-studio/issues/263)) ([35ccc53](https://github.com/kaiketsu-labs/artifact-studio/commit/35ccc5367795160705f27a0ede774dd29ca77e55))
+* **deps:** bump astral-sh/uv from 0.13.9 to 0.13.10 ([#261](https://github.com/kaiketsu-labs/artifact-studio/issues/261)) ([a46e270](https://github.com/kaiketsu-labs/artifact-studio/commit/a46e270e6889d37c422aee824d4e6c454be6f834))
+* **deps:** bump the python-compatible group across 1 directory with 2 updates ([#262](https://github.com/kaiketsu-labs/artifact-studio/issues/262)) ([5263ac1](https://github.com/kaiketsu-labs/artifact-studio/commit/5263ac1fd31fe5416c2f0bdde0135ab5dbecd022))
+* **deps:** bump the python-compatible group across 1 directory with 8 updates ([#260](https://github.com/kaiketsu-labs/artifact-studio/issues/260)) ([3be9596](https://github.com/kaiketsu-labs/artifact-studio/commit/3be959675f6718eda8665e4beb0fa70bf10a32fc))
+* **presentation:** follow slide links during playback ([#273](https://github.com/kaiketsu-labs/artifact-studio/issues/273)) ([fc59911](https://github.com/kaiketsu-labs/artifact-studio/commit/fc599115db8c577891b1e0cf08613b1ce8f594fc))
+* **presentation:** show reduced motion and allow a talk-scoped override ([#272](https://github.com/kaiketsu-labs/artifact-studio/issues/272)) ([c2728ce](https://github.com/kaiketsu-labs/artifact-studio/commit/c2728ce99648faae25aa43f0b6cb6ac80020048d))
+* **studio:** repair capture, MCP startup and slide authoring ([#271](https://github.com/kaiketsu-labs/artifact-studio/issues/271)) ([70b50f3](https://github.com/kaiketsu-labs/artifact-studio/commit/70b50f3b2ac6060a3d32274aaee893b409691bee))
+
 ## [0.13.0](https://github.com/kaiketsu-labs/artifact-studio/compare/v0.12.0...v0.13.0) (2026-11-21)
 
 
