@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import Page, expect
+from playwright.sync_api import Browser, Page, expect
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from tests.integration.support import DECK_ID, PRIVATE_NOTE, RunningApp
@@ -201,3 +201,63 @@ def test_previously_granted_displays_preserve_fullscreen_lifecycle(
         viewer.get_by_role("button", name="End", exact=True).click()
         expect(page.locator('iframe[title="Presentation"]')).to_have_count(0)
         assert audience.is_closed()
+
+
+def test_presenter_motion_override_is_scoped_and_synchronizes_audience(
+    browser: Browser, live_app: RunningApp
+) -> None:
+    """A presenter can replay entry motion while retaining click steps and audience privacy."""
+    from artifact_studio.models import Slide
+
+    _ = live_app.store.add_slide(
+        DECK_ID,
+        Slide(
+            id="forecast",
+            title="Fictional forecast",
+            html=(
+                '<article class="slide"><h1>Fictional forecast</h1>'
+                '<div data-animate-grow="x" data-animate-duration="20000">Revenue</div>'
+                '<p data-build="1">Next quarter</p></article>'
+            ),
+        ),
+    )
+    context = browser.new_context(reduced_motion="reduce")
+    context.add_init_script("delete window.getScreenDetails;")
+    page = context.new_page()
+    url = f"{live_app.url}/decks/{DECK_ID}/index.html?present=1"
+    page.goto(url + "#forecast")
+    reduced = page.get_by_role("button", name="Reduced motion. Play slide animations")
+    enabled = page.get_by_role("button", name="Animations on. Use system motion setting")
+    bar = page.locator("#stage [data-animate-grow]")
+    expect(reduced).to_be_visible()
+    expect(bar).to_have_css("clip-path", "none")
+    expect(page.locator('#stage [data-build="1"]')).to_have_attribute("aria-hidden", "true")
+    reduced.focus()
+    page.keyboard.press("Enter")
+    expect(enabled).to_be_visible()
+    expect(bar).not_to_have_css("clip-path", "none")
+
+    with page.expect_popup() as popup:
+        page.locator("#show-presenter").click()
+    audience = popup.value
+    expect(audience.locator("#motion-setting")).to_be_hidden()
+    audience_bar = audience.locator("#stage [data-animate-grow]")
+    expect(audience_bar).not_to_have_css("clip-path", "none")
+    expect(page.locator("#presenter-view #motion-setting")).to_be_visible()
+    enabled.click()
+    expect(audience_bar).to_have_css("clip-path", "none")
+    expect(page.locator("#presenter-current [data-animate-grow]")).to_have_css("clip-path", "none")
+    page.locator("#presenter-next-button").click()
+    expect(audience.locator('#stage [data-build="1"]')).to_have_css("opacity", "1")
+    audience.close()
+
+    page.goto(url + "&motion=1#forecast")
+    expect(enabled).to_be_visible()
+    expect(bar).not_to_have_css("clip-path", "none")
+    page.goto(url + "#forecast")
+    expect(reduced).to_be_visible()
+    expect(bar).to_have_css("clip-path", "none")
+    page.emulate_media(reduced_motion="no-preference")
+    expect(page.locator("#motion-setting")).to_be_hidden()
+    page.emulate_media(reduced_motion="reduce")
+    expect(reduced).to_be_visible()

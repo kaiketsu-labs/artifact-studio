@@ -180,10 +180,10 @@
       this.draw(now);
     }
     /** Advance eligibility without restarting animations that are already running or complete. */
-    update(revealed,{build=true}={}){
+    update(revealed,{build=true,restart=false}={}){
       if(this.disposed)return;
       // Commit hidden state without animating when entering build mode.
-      const changedMode=this.build!==build;
+      const changedMode=this.build!==build||restart;
       const transitions=build&&(this.initial||changedMode)?[...this.buildParts.values()].map(({element})=>({element,value:element.style.getPropertyValue('transition-property'),priority:element.style.getPropertyPriority('transition-property')})):[];
       for(const {element} of transitions)element.style.setProperty('transition-property','none','important');
       this.build=build;this.slide.classList.toggle('build-mode',build);
@@ -371,6 +371,8 @@
   const noteVoiceHandles=new Map();
   const slideSources=new WeakMap(),interactiveInstances=new Map(),interactiveStates=new Map();
   const slideAnimations=new Map(),motionPreference=window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  let motionOverride=query.get('motion')==='1';
+  const reducedMotion=()=>!!motionPreference?.matches&&!motionOverride;
   let ending=false,leavingFullscreen=false;
 
   if(direct)document.body.classList.add(isAudience?'audience-only':'single-screen');
@@ -380,6 +382,7 @@
     <section class="presenter-side"><h2>Next slide</h2><div class="stage-slot" id="presenter-next"></div><div class="presenter-notes-heading"><h2>Notes</h2><span id="presenter-note-status" role="status"></span><button id="save-presenter-notes"></button></div><textarea id="presenter-notes" aria-label="Speaker notes" placeholder="Add context you want to mention…"></textarea><div class="note-size-controls"><button id="notes-smaller"></button><button id="notes-larger"></button></div></section></div>
     <nav id="presenter-filmstrip" class="presenter-filmstrip" aria-label="All slides"></nav>`;
   const controls=document.createElement('div');controls.className='single-controls';controls.innerHTML='<button id="single-previous"></button><span id="single-counter"></span><button id="single-next"></button><button id="all-slides-button"></button><button id="single-blackout"></button><button id="show-presenter"></button><button id="single-fullscreen"></button><button id="exit-slideshow"></button>';document.body.append(controls);
+  const motionButton=document.createElement('button');motionButton.id='motion-setting';motionButton.type='button';motionButton.hidden=true;document.body.append(motionButton);
   const overview=document.createElement('dialog');overview.id='all-slides-dialog';overview.innerHTML='<header><h2>All slides</h2><button id="close-all-slides"></button></header><div id="all-slides-grid"></div>';document.body.append(overview);
   /** Size newly visible canvases before popup focus can delay resize delivery. */
   function fitCanvas(element){const {width,height}=element.getBoundingClientRect();element.style.setProperty('--slide-scale',String(Math.min(width/1600,height/canvasHeight)));}
@@ -458,7 +461,7 @@
   }
 
   /** Update the audience from the presenter's frozen slide snapshot, excluding private notes. */
-  function broadcast(content=false){if(isAudience)return;channel?.postMessage({kind:'state',current,revealed,blackout,emptyShow,...(content?{slides:deck.slides.map(({id,title,html,hidden,interactive_html})=>({id,title,html,hidden,interactive_html})),interactive_states:Object.fromEntries(interactiveStates)}:{})});}
+  function broadcast(content=false){if(isAudience)return;channel?.postMessage({kind:'state',current,revealed,blackout,emptyShow,motionOverride,...(content?{slides:deck.slides.map(({id,title,html,hidden,interactive_html})=>({id,title,html,hidden,interactive_html})),interactive_states:Object.fromEntries(interactiveStates)}:{})});}
   /** Share only author-emitted JSON state, independently of private presenter notes. */
   function interactiveState(id,state,origin=null,relay=true){
     try{if(JSON.stringify(state).length>65536||!deck.slides.some(slide=>slide.id===id))return;}catch{return;}
@@ -468,6 +471,34 @@
   }
   function interactiveKey(data){const action=keyAction(data,{active,editing:!!data.editing,control:!!data.control});if(action==='end')void endPresentation();else if(action)navigate(action);}
   function buildsFor(slide){return alternativeFor(slide)?.steps??(slide?.interactive_html?0:buildCount(slide?.html||''));}
+  /** Keep the system preference as the default and the override local to this talk. */
+  function updateMotionButton(){
+    motionButton.hidden=isAudience||!active||blackout||!motionPreference?.matches;
+    if(motionButton.hidden)return;
+    const presenterTop=$('end-presentation').parentElement;
+    if(mode==='presenter'&&motionButton.parentElement!==presenterTop)$('end-presentation').after(motionButton);
+    else if(mode!=='presenter'&&motionButton.parentElement!==document.body)document.body.append(motionButton);
+    const status=motionOverride?'Animations on':'Reduced motion';
+    if(motionButton.textContent.trim()!==status){
+      iconButton(motionButton,motionOverride?'pause':'play',status,true);
+      const label=motionOverride?'Animations on. Use system motion setting':'Reduced motion. Play slide animations';
+      motionButton.setAttribute('aria-label',label);motionButton.title=label;
+    }
+  }
+  function setMotionOverride(value){
+    if(motionOverride===value)return;
+    motionOverride=value;
+    for(const animation of slideAnimations.values()){
+      animation.slide.classList.toggle('runtime-motion-on',value);
+      animation.update(revealed,{build:animation.build,restart:value&&motionPreference?.matches&&revealed===0&&animation.build});
+    }
+    updateMotionButton();
+  }
+  motionButton.addEventListener('click',()=>{setMotionOverride(!motionOverride);broadcast();});
+  function presentationAnimation(slide){
+    slide.classList.toggle('runtime-motion-on',motionOverride);
+    return new BuildAnimations(slide,{reducedMotion});
+  }
   /** Keep the same slide DOM during builds so previously revealed chart lines stay still. */
   function putSlide(element,index,build=true){
     const item=deck.slides[index],frozen=alternativeFor(item);
@@ -484,7 +515,7 @@
           frame.addEventListener('load',()=>{
             const doc=frame.contentDocument,slide=doc?.querySelector('#capture-stage .slide');
             if(!frame.isConnected||!slide)return;
-            const animation=new BuildAnimations(slide,{reducedMotion:()=>!!motionPreference?.matches});
+            const animation=presentationAnimation(slide);
             slideAnimations.set(element,animation);animation.update(revealed);
             doc.addEventListener('keydown',presentationKey);
             doc.addEventListener('click',stageClick);
@@ -503,7 +534,7 @@
     }
     if(frozen){slideAnimations.get(element)?.update(revealed,{build});return;}
     const slide=element.querySelector('.slide');if(!slide)return;
-    if(!slideAnimations.has(element))slideAnimations.set(element,new BuildAnimations(slide,{reducedMotion:()=>!!motionPreference?.matches}));
+    if(!slideAnimations.has(element))slideAnimations.set(element,presentationAnimation(slide));
     slideAnimations.get(element).update(revealed,{build});
   }
   /** Hidden previews must not run a second copy of an interactive slide. */
@@ -547,6 +578,7 @@
     for(const id of ['previous','presenter-previous','single-previous'])$(id).disabled=atStart;
     for(const id of ['next','presenter-next-button','single-next'])$(id).disabled=atEnd;
     document.body.classList.toggle('single-screen',mode==='single'&&!isAudience);document.body.classList.toggle('presenter-mode',mode==='presenter');
+    updateMotionButton();
     $('normal-view').hidden=mode==='presenter';$('presenter-view').hidden=mode!=='presenter';
     $('presenter-notes').disabled=emptyShow;
     if(notesSlide!==deck.slides[current].id||emptyShow){presenterVoice?.cancel();notesGeneration++;$('presenter-notes').value=emptyShow?'':noteValue();$('notes-text').value=emptyShow?'':noteValue();notesSlide=emptyShow?null:deck.slides[current].id;noteStatus(noteDrafts.has(notesSlide)?'Unsaved':'');}
@@ -608,7 +640,7 @@
     if(embedded){hostMessage('end');return;}
     await leaveFullscreen();
     if(workspaceDeck){location.replace(`${workspacePrefix}/?deck=${encodeURIComponent(workspaceDeck)}#${encodeURIComponent(deck.slides[current].id)}`);return;}
-    mode='preview';blackout=false;emptyShow=false;render();ending=false;
+    mode='preview';blackout=false;emptyShow=false;setMotionOverride(query.get('motion')==='1');render();ending=false;
   }
   function screenKey(screen){return `${screen.left},${screen.top},${screen.width},${screen.height}`;}
   function updateScreens(){
@@ -621,6 +653,7 @@
     if(!channel){displayStatus('Audience windows unavailable. Continue on this screen.');return;}
     selectedScreen=screen;
     const url=new URL(location.href);url.searchParams.set('audience','1');url.searchParams.set('channel',channelName);url.searchParams.delete('presenter');
+    if(motionOverride)url.searchParams.set('motion','1');else url.searchParams.delete('motion');
     const geometry=screen?`,left=${screen.availLeft},top=${screen.availTop},width=${screen.availWidth},height=${screen.availHeight}`:'';
     displayChange();
     audienceWindow=window.open(url.href,`slide-audience-${channelName}`,`popup${geometry}`);
@@ -717,12 +750,12 @@
     if(data.kind==='blackout'&&!isAudience)blackScreen();
     if(data.kind==='end'&&!isAudience)endPresentation();
     if(data.kind==='overview'&&!isAudience)showAllSlides();
-    if(data.kind==='state'&&isAudience){if(data.interactive_states&&typeof data.interactive_states==='object')for(const [id,state] of Object.entries(data.interactive_states))interactiveState(id,state,null,false);if(Array.isArray(data.slides)&&data.slides.length)deck.slides=data.slides;if(Number.isInteger(data.current)&&data.current>=0&&data.current<deck.slides.length){current=data.current;revealed=Math.max(0,Math.min(buildsFor(deck.slides[current]),Number(data.revealed)||0));blackout=!!data.blackout;emptyShow=!!data.emptyShow;render();}}
+    if(data.kind==='state'&&isAudience){if(typeof data.motionOverride==='boolean')setMotionOverride(data.motionOverride);if(data.interactive_states&&typeof data.interactive_states==='object')for(const [id,state] of Object.entries(data.interactive_states))interactiveState(id,state,null,false);if(Array.isArray(data.slides)&&data.slides.length)deck.slides=data.slides;if(Number.isInteger(data.current)&&data.current>=0&&data.current<deck.slides.length){current=data.current;revealed=Math.max(0,Math.min(buildsFor(deck.slides[current]),Number(data.revealed)||0));blackout=!!data.blackout;emptyShow=!!data.emptyShow;render();}}
     if(data.kind==='pointer'&&isAudience){let dot=$('stage').querySelector('.laser-pointer');if(!dot){dot=pointer;$('stage').append(dot);}dot.hidden=!data.visible;if(data.visible){dot.style.left=`${Math.max(0,Math.min(1,data.x))*100}%`;dot.style.top=`${Math.max(0,Math.min(1,data.y))*100}%`;}}
   };
   if(isAudience){channel?.postMessage({kind:'ready'});void fullscreen();}
   const timer=setInterval(()=>{tick();if(audienceWindow?.closed){audienceWindow=null;$('open-audience').hidden=false;if(active&&mode==='presenter'){mode='single';render();}}},500);
-  motionPreference?.addEventListener('change',()=>{for(const animation of slideAnimations.values())animation.update(revealed,{build:animation.build});});
+  motionPreference?.addEventListener('change',()=>{updateMotionButton();for(const animation of slideAnimations.values())animation.update(revealed,{build:animation.build});});
   window.addEventListener('beforeprint',()=>{for(const animation of slideAnimations.values())animation.beforePrint();});
   window.addEventListener('afterprint',()=>{for(const animation of slideAnimations.values())animation.afterPrint();});
   window.addEventListener('beforeunload',()=>{canvasObserver.disconnect();presenterVoice?.destroy();for(const mounted of interactiveInstances.values())mounted.dispose();for(const animation of slideAnimations.values())animation.dispose();persistNotes();if(!isAudience)audienceWindow?.close();channel?.close();clearInterval(timer);});

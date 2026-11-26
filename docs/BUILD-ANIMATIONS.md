@@ -52,3 +52,11 @@ Backward navigation resets later builds; returning to a slide replays its animat
 Unrevealed or delayed builds are hidden from assistive technology and keyboard focus, including blurred teasers. Authored accessibility attributes and filters are restored when revealed. Private notes and feedback never form part of this animation markup.
 
 Visually review the initial view, each reveal at its start, intermediate motion, delayed boundaries, counter/bar synchronization and the completed slide at presentation size. Use the stage/time captures described in [visual review](VISUAL-REVIEW.md), plus permitted live playback for entry, continuity and replay. Check the final chart against its sources. A correct target number alone does not verify the rendered chart.
+
+## Reduced motion during a presentation
+
+Studio follows the system’s reduced-motion preference. Timed reveals, bar growth and counters show their final values immediately. Numbered builds still advance on click.
+
+When reduced motion is active, the presenter sees **Reduced motion**. Select it to play Studio animations for this talk. On slide entry this replays the entry animation. After a numbered build, the choice applies to upcoming animations. Select **Animations on** to return to the system setting. A separate audience window follows the override and keeps the control on the presenter’s screen.
+
+To start a presentation with Studio animations enabled, add `motion=1` to its URL, for example `index.html?present=1&motion=1#overview`. The choice is scoped to the presentation and does not change the browser or OS preference.

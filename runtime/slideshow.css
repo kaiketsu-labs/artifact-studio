@@ -32,3 +32,15 @@
 #all-slides-grid>button>span{font:12px system-ui;margin-top:6px;display:inline-block}
 .presenter-announcement{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 #display-status:not([hidden]){max-width:min(35vw,400px);color:#d1d9c8;font-size:12px;line-height:1.3}
+
+/* The presenter can opt into Studio animations for the current talk. */
+#motion-setting:not([hidden]){display:inline-flex;align-items:center;gap:6px;padding:6px 10px;min-height:32px;border:1px solid #66727c;border-radius:6px;background:#20262c;color:#f1f4f6;font:500 12px/1.2 system-ui,sans-serif;white-space:nowrap}
+#motion-setting svg{width:14px;height:14px}
+#motion-setting:focus-visible{outline:2px solid #72b9ff;outline-offset:2px}
+.single-screen #motion-setting{position:fixed;right:12px;bottom:12px;z-index:18}
+@media(max-width:850px){.single-screen #motion-setting{top:8px;bottom:auto;right:8px}}
+@media(prefers-reduced-motion:reduce){
+  .slide.runtime-motion-on :is([data-build],[data-auto-reveal]){transition:opacity .2s}
+  .slide.runtime-motion-on :is([data-build],[data-auto-reveal])[data-reveal=blur]{transition:opacity .2s,filter .2s}
+}
+@media print{#motion-setting{display:none!important}}
