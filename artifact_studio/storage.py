@@ -1520,6 +1520,7 @@ class Store:
                 slide.hidden = False
                 slide.title = title
                 slide.html = cover_html(slide.html, title)
+                slide.interactive_html = ""
                 slide.notes = ""
                 slide.agent = AgentContext(
                     summary=(

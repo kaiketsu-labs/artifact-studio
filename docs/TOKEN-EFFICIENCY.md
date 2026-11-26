@@ -103,7 +103,7 @@ Delivery cursors still govern released feedback; unchanged-rule omission never r
 
 ## Retain guides and queued requests separately
 
-Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Expanded context remains explicitly available and still includes its requested guides and inventory.
+Working context returns `guide_hash` and `guide_included`. Supply `known_guide_hash` to omit only the exact retained `guide` text. This does not suppress workspace rules, brand preferences, references or queued user requests. For a topic loaded through `get_authoring_guide`, pass its `hash` as `known_hash`: an exact match returns empty `markdown` with `content_status="unchanged"`. Changed or unknown hashes return the complete guide. Omit hashes after losing context. Full context includes the asset inventory and design inbox. Load each additional guide by topic.
 
 The hosted connection uses `guide_hash` and `guide_included` for its workflow,
 live-review and slide-design topics. Pass the retained `guide_hash` as

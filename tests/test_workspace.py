@@ -43,6 +43,20 @@ def test_design_discovery_and_brand_creation(store: Store) -> None:
         _ = store.create(deck.id, "Another story", "test-brand")
 
 
+@pytest.mark.parametrize("following", ["</article>", "<p>Keep this line</p></article>"])
+def test_interactive_design_cover_uses_new_static_slots(store: Store, following: str) -> None:
+    """Discard sample interactive content and clear paragraphs with optional end tags."""
+    template = store.read(TEMPLATE_ID)
+    cover = template.slides[0]
+    cover.html = '<article><h1>Example</h1><p class="subline"><em>Sample</em>' + following
+    cover.interactive_html = "<h1>Interactive sample</h1>"
+    store.write(TEMPLATE_ID, template)
+    deck = store.create("2026-11-26-plain-cover", "New title", template.design_id)
+    assert deck.slides[0].html == '<article><h1>New title</h1><p class="subline">' + following
+    assert deck.slides[0].interactive_html == ""
+    assert store.read(TEMPLATE_ID).slides[0] == cover
+
+
 def test_unknown_design_leaves_no_partial_deck(store: Store) -> None:
     """Reject missing designs before creating a partially populated folder."""
     with pytest.raises(ValueError, match='list_design_contexts\\(kind="slide_pack"\\)'):
