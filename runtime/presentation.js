@@ -359,7 +359,13 @@
   const expectedNoteVersions=new Map(deck.slides.map(slide=>[slide.id,slide.notes_revision??0]));
   const noteDrafts=new Map(),saving=new Map();
   const noteKey=`artifact-studio:presenter-notes:${workspacePrefix ? workspacePrefix+':' : ''}${document.documentElement.dataset.noteOwner ? document.documentElement.dataset.noteOwner+':' : ''}${deck.id}`;
-  const requested=deck.slides.findIndex(slide=>slide.id===decodeURIComponent(location.hash.slice(1)));
+  /** Resolve only named slide fragments, including percent-encoded links. */
+  function slideFromHash(){
+    let id;
+    try{id=decodeURIComponent(location.hash.slice(1));}catch{return -1;}
+    return deck.slides.findIndex(slide=>slide.id===id);
+  }
+  const requested=slideFromHash();
   const initial=startIndex(deck.slides,Math.max(0,requested));
   let current=isAudience&&requested>=0?requested:direct?Math.max(0,initial):Math.max(0,requested);
   let emptyShow=direct&&initial<0&&!(isAudience&&requested>=0);
@@ -603,6 +609,13 @@
     else{const route=active?shownIndices(deck.slides):deck.slides.map((_,index)=>index);emptyShow=action!=='goto'&&!route.length;if(!emptyShow){current=action==='first'?route[0]:action==='last'?route.at(-1):Math.max(0,Math.min(deck.slides.length-1,Number(index)||0));revealed=0;}}
     render();broadcast();$('presenter-filmstrip').querySelector('[aria-current="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
   }
+  window.addEventListener('hashchange',()=>{
+    const requested=slideFromHash();
+    if(requested<0)return;
+    const target=active?startIndex(deck.slides,requested):requested;
+    if(target>=0&&target!==current)navigate('goto',target);
+    else if(target===current&&target!==requested)render();
+  });
   function tick(){$('elapsed').textContent=duration(clock.elapsed());$('wall-clock').textContent=new Intl.DateTimeFormat([],{hour:'2-digit',minute:'2-digit'}).format(new Date());}
   /** A deliberate display change leaves native fullscreen without ending the slideshow. */
   const fullscreenElement=()=>document.fullscreenElement||document.webkitFullscreenElement;
