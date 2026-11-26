@@ -6,4 +6,4 @@ services:
       ARTIFACT_STUDIO_HOSTED_CONFIG: /run/artifact-studio/hosted.json
     volumes:
       - ${ARTIFACT_STUDIO_HOSTED_CONFIG_FILE:?Set ARTIFACT_STUDIO_HOSTED_CONFIG_FILE to an absolute config path}:/run/artifact-studio/hosted.json:ro
-    command: ["uvicorn", "artifact_studio.app:app", "--host", "0.0.0.0", "--port", "8790", "--no-proxy-headers", "--no-access-log"]
+    command: ["uvicorn", "artifact_studio.app:app", "--host", "0.0.0.0", "--port", "8790", "--no-proxy-headers", "--no-access-log", "--timeout-graceful-shutdown", "10"]

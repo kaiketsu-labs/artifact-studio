@@ -124,3 +124,55 @@ def test_ready_presentation_accepts_input_before_image_load(
     )
     page.keyboard.press("Escape")
     expect(page.locator('iframe[title="Presentation"]')).to_have_count(0)
+
+
+def test_slide_links_history_and_keyboard_share_navigation(
+    page: Page, live_app: RunningApp
+) -> None:
+    """Follow a real slide link, traverse its history and continue the show from that target."""
+    deck = live_app.store.read(DECK_ID)
+    deck.slides[
+        0
+    ].html = '<article class="slide"><h1>Cover</h1><a href="#results">Jump to results</a></article>'
+    deck.slides.extend(
+        [
+            Slide(
+                id="hidden", title="Hidden", hidden=True, html='<article class="slide"></article>'
+            ),
+            Slide(
+                id="results",
+                title="Results",
+                html=('<article class="slide"><h1>Results</h1><p data-build="1">Q4</p></article>'),
+            ),
+            Slide(id="end", title="End", html='<article class="slide"><h1>End</h1></article>'),
+        ]
+    )
+    live_app.store.write(DECK_ID, deck)
+    page.goto(f"{live_app.url}/decks/{DECK_ID}/index.html?present=1#%")
+    heading = page.locator("#stage h1")
+    expect(heading).to_have_text("Cover")
+    page.get_by_role("link", name="Jump to results").click()
+    expect(heading).to_have_text("Results")
+    detail = page.locator('#stage [data-build="1"]')
+    expect(detail).to_have_class("unrevealed")
+    page.go_back()
+    expect(heading).to_have_text("Cover")
+    page.go_forward()
+    expect(heading).to_have_text("Results")
+    page.keyboard.press("ArrowRight")
+    expect(detail).not_to_have_class("unrevealed")
+    page.keyboard.press("ArrowRight")
+    expect(heading).to_have_text("End")
+    for fragment in ["missing", "%"]:
+        page.evaluate(
+            """fragment => new Promise(resolve => {
+                window.addEventListener('hashchange', () => resolve(true), {once:true});
+                location.hash = fragment;
+            })""",
+            fragment,
+        )
+        expect(heading).to_have_text("End")
+    page.evaluate("location.hash = 'hidden'")
+    expect(heading).to_have_text("Results")
+    expect(detail).to_have_class("unrevealed")
+    assert page.url.endswith("#results")
