@@ -59,8 +59,12 @@ class CoverSlots(HTMLParser):
         self.edits: list[tuple[int, int, str]] = []
         self.feed(source)
         self.close()
+
+    def close(self) -> None:
+        """Finish a trailing paragraph whose closing tag is optional."""
+        super().close()
         if self.tag == "p":
-            self.finish_slot(len(source))
+            self.finish_slot(self.source_offset())
 
     def source_offset(self) -> int:
         """Translate the parser position into an offset in the original markup."""
