@@ -126,7 +126,7 @@ def test_missing_portable_pack_does_not_substitute_default(store: Store) -> None
     assert context_guide["markdown"] == (store.folder(deck.id) / "README.md").read_text()
     assert "Imported story" in context_guide["markdown"]
     full = service.get_working_context(deck_id=deck.id, detail="full")
-    assert full["design_guide"] == guide["markdown"]
+    assert full["guides"] == context["guides"]
     files = service.get_design_assets(deck_id=deck.id)
     asset = next(item for item in files if item["path"] == "assets/blue.svg")
     assert isinstance(asset["url"], str)

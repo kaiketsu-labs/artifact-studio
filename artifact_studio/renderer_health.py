@@ -2,12 +2,14 @@
 
 import json
 import math
+import os
 import threading
 import time
 from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, ExitStack, contextmanager
 from datetime import UTC, datetime
 from typing import Literal, cast
+from urllib.parse import urlsplit
 
 from playwright.sync_api import Browser, Page, Playwright, sync_playwright
 from playwright.sync_api import Error as BrowserError
@@ -57,8 +59,26 @@ class RendererUnavailable(ValueError):
         self.retry_after_seconds = max(1, retry_after_seconds)
 
 
+RENDERER_ENDPOINT = "ARTIFACT_STUDIO_RENDERER_WS_ENDPOINT"
+
+
+def renderer_endpoint() -> str:
+    """Accept an operator-configured Playwright server on loopback, including an SSH tunnel."""
+    endpoint = os.environ.get(RENDERER_ENDPOINT, "")
+    if endpoint:
+        url = urlsplit(endpoint)
+        if url.scheme not in {"ws", "wss"} or url.hostname not in {"127.0.0.1", "::1"}:
+            raise ValueError(f"{RENDERER_ENDPOINT} must be a loopback WebSocket URL.")
+    return endpoint
+
+
 def launch_failure(error: BrowserError) -> tuple[str, str]:
     """Translate infrastructure failures without copying unsafe browser launch advice."""
+    if renderer_endpoint():
+        return "connection_failed", (
+            "Could not connect to the configured Playwright renderer. Check the loopback "
+            "endpoint, tunnel and Playwright version, then retry the renderer probe."
+        )
     detail = str(error).lower()
     if "executable doesn't exist" in detail:
         return "browser_missing", (
@@ -67,7 +87,8 @@ def launch_failure(error: BrowserError) -> tuple[str, str]:
     if "sandbox" in detail:
         return "sandbox_unavailable", (
             "The host cannot launch sandboxed Chromium. Use a host with working Chromium "
-            "sandbox support, then retry get_capture_status(probe_renderer=True)."
+            "sandbox support or connect a dedicated renderer through "
+            f"{RENDERER_ENDPOINT}, then retry get_capture_status(probe_renderer=True)."
         )
     return "launch_failed", (
         "The local Chromium renderer could not start. Check the browser installation and "
@@ -94,6 +115,7 @@ class RendererHealth:
         with self.lock:
             return {
                 "status": self.state,
+                "backend": "playwright_server" if renderer_endpoint() else "local_chromium",
                 "reason": self.reason,
                 "message": self.message,
                 "checked_at": self.checked_at,
@@ -133,7 +155,9 @@ class RendererHealth:
             with self.lock:
                 self.state, self.reason = "ready", ""
                 self.message = (
-                    "Sandboxed Chromium launched successfully; slide content was not checked."
+                    "Connected to the Playwright renderer; slide content was not checked."
+                    if renderer_endpoint()
+                    else "Sandboxed Chromium launched successfully; slide content was not checked."
                 )
                 self.checked_at = datetime.now(UTC).isoformat()
                 self.retry_at = 0
@@ -174,6 +198,8 @@ def sandboxed_browser(
 
         def launch() -> Browser:
             renderer = stack.enter_context(factory())
+            if endpoint := renderer_endpoint():
+                return renderer.chromium.connect(endpoint, timeout=15_000)
             return renderer.chromium.launch(headless=True, chromium_sandbox=True, timeout=15_000)
 
         browser = HEALTH.attempt(launch, force=force)

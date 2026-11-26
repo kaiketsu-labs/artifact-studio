@@ -395,7 +395,8 @@ def test_create_and_resume_with_two_designs(live_app: RunningApp, artifacts: Pat
         _ = live_app.call("get_working_context", deck_id=deck_id, design_id="orange")
     full = live_app.call("get_working_context", deck_id=deck_id, detail="full")
     assert full["preferences"] == context["preferences"]
-    assert len(json.dumps(context)) < len(json.dumps(full)) / 2
+    assert len(json.dumps(full)) < 32_000
+    assert full["asset_inventory_included"] is True
     _ = (artifacts / "startup-simulation.json").write_text(
         json.dumps(
             {

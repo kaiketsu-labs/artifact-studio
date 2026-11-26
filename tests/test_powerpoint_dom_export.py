@@ -171,6 +171,7 @@ def test_rejects_opacity_that_composites_overlapping_objects(store: Store) -> No
         ('data-build="1"', "a Studio reveal step"),
         ("data-auto-reveal", "a Studio reveal step"),
         ('data-animate-grow="x"', "a Studio growth animation"),
+        ('data-animate-grow="x-reverse"', "a Studio growth animation"),
         ('data-count-to="42"', "a Studio counter animation"),
     ],
 )

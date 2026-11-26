@@ -203,9 +203,7 @@ def create_app(
     )
     toolset = MultiplayerTools(hub, chat, config.public_url, presence)
     toolset.register(mcp)
-    mcp_app = mcp.streamable_http_app(
-        stateless_http=True,
-        json_response=True,
+    mcp_app = mcp.stateless_app(
         max_request_body_size=2 * 1024 * 1024,
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,

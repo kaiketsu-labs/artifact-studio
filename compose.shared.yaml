@@ -4,4 +4,4 @@ services:
     environment:
       ARTIFACT_STUDIO_MULTIPLAYER_OWNER: ${ARTIFACT_STUDIO_MULTIPLAYER_OWNER:?Set the exact authenticated owner email}
       ARTIFACT_STUDIO_MULTIPLAYER_STATE: /data/state/multiplayer
-    command: ["uvicorn", "artifact_studio.unified:create_app", "--factory", "--host", "0.0.0.0", "--port", "8790", "--no-proxy-headers", "--no-access-log"]
+    command: ["uvicorn", "artifact_studio.unified:create_app", "--factory", "--host", "0.0.0.0", "--port", "8790", "--no-proxy-headers", "--no-access-log", "--timeout-graceful-shutdown", "10"]

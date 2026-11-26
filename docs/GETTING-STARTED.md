@@ -317,7 +317,7 @@ is uploaded by Studio, and no GitHub credential is requested or stored.
 Use Terminal for native development, troubleshooting, or running the native server on a system without the Mac menu-bar app. Run the source setup commands through Chromium installation, then run the server command below from the checkout. Stop any server already using port 8790 first. [Source setup commands](../README.md#install-on-mac)
 
 ```sh
-uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
+uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790 --timeout-graceful-shutdown 10
 ```
 
 Keep Terminal running and open Artifact Studio in your browser. Stop the server with **Ctrl+C**. On macOS, `./start.command` is a shortcut when `uv` is on your PATH. [Open the local workspace](http://127.0.0.1:8790/)
@@ -327,7 +327,7 @@ Set the collection and database explicitly when opening an existing workspace th
 ```sh
 ARTIFACT_STUDIO_COLLECTION="$HOME/Documents/My Slides" \
 ARTIFACT_STUDIO_DATABASE="$HOME/Documents/Artifact Studio State/review.sqlite3" \
-uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790
+uv run --no-sync uvicorn artifact_studio.app:app --host 127.0.0.1 --port 8790 --timeout-graceful-shutdown 10
 ```
 
 To update a Terminal installation, stop the server and back up the collection and state folder. Run the update commands from a clean checkout.

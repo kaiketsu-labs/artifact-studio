@@ -15,13 +15,13 @@ from collections import defaultdict
 from collections.abc import Callable, Generator, Sequence
 from contextlib import ExitStack, contextmanager, suppress
 from datetime import UTC, datetime
-from html import escape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Literal, TypedDict, cast
 
 from pydantic import TypeAdapter
 
+from .designs.cover import cover_html
 from .models import (
     AgentContext,
     Deck,
@@ -1519,13 +1519,8 @@ class Store:
             for slide in deck.slides:
                 slide.hidden = False
                 slide.title = title
-                slide.html = re.sub(
-                    r"(<h1\b[^>]*>).*?(</h1>)",
-                    lambda match: match[1] + escape(title) + match[2],
-                    slide.html,
-                    count=1,
-                    flags=re.S,
-                )
+                slide.html = cover_html(slide.html, title)
+                slide.interactive_html = ""
                 slide.notes = ""
                 slide.agent = AgentContext(
                     summary=(
@@ -1534,15 +1529,7 @@ class Store:
                         else "Tell your agent who this is for and what it should say."
                     )
                 )
-                if scoped:
-                    slide.sources = []
-                for source in slide.sources:
-                    if (
-                        design
-                        and source.url.lower().endswith(".pptx")
-                        and not source.url.startswith(("..", "http"))
-                    ):
-                        source.url = f"../{design.folder_id}/{source.url}"
+                slide.sources = []
             self.write(deck_id, deck)
             if design:
                 try:
